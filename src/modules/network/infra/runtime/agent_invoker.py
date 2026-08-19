@@ -19,11 +19,11 @@ from modules.agent.application.runtime_tool_inventory import (
 from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
 from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
-from modules.agent.application.use_cases.execution_context import (
+from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
-from modules.agent.application.use_cases.runtime_output_validation import (
+from modules.agent.composition.runtime.runtime_output_validation import (
     EmptyModelOutputError,
 )
 from modules.agent.composition.runtime.runtime_streaming import (

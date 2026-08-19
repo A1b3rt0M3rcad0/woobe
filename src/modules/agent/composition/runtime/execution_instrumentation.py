@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 from uuid import uuid4
@@ -9,6 +8,10 @@ from uuid import uuid4
 from langchain_core.messages import ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import ToolCallInfo, UsageInfo
+from modules.agent.application.interfaces.execution import (
+    InstrumentedExecution,
+    InstrumentedExecutionError,
+)
 from modules.agent.composition.runtime.runtime_streaming import (
     emit_agent_activity,
     emit_runtime_event,
@@ -43,35 +46,8 @@ def tool_http_latency_ms(tool_output: Any) -> float | None:
 
 
 @dataclass
-class InstrumentedExecution:
-    result: Any
-    tool_calls: list[ToolCallInfo] = field(default_factory=list)
-    llm_calls: list[dict[str, Any]] = field(default_factory=list)
-    timeline: list[dict[str, Any]] = field(default_factory=list)
-    tool_wall_latency_ms: int = 0
-    tool_call_duration_sum_ms: int = 0
-    failure_context: dict[str, Any] | None = None
 
 
-class InstrumentedExecutionError(RuntimeError):
-    def __init__(
-        self,
-        message: str,
-        *,
-        llm_calls: list[dict[str, Any]] | None = None,
-        tool_calls: list[ToolCallInfo] | None = None,
-        timeline: list[dict[str, Any]] | None = None,
-        tool_wall_latency_ms: int = 0,
-        tool_call_duration_sum_ms: int = 0,
-        failure_context: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.llm_calls = llm_calls or []
-        self.tool_calls = tool_calls or []
-        self.timeline = timeline or []
-        self.tool_wall_latency_ms = tool_wall_latency_ms
-        self.tool_call_duration_sum_ms = tool_call_duration_sum_ms
-        self.failure_context = failure_context
 
 
 def _cost_context(pricing_snapshot: dict[str, Any] | None) -> dict[str, Any]:

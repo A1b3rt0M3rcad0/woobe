@@ -1,4 +1,4 @@
-from modules.agent.application.use_cases.runtime_output_validation import (
+from modules.agent.composition.runtime.runtime_output_validation import (
     EmptyModelOutputError,
 )
 from modules.network.infra.runtime.agent_invoker import (

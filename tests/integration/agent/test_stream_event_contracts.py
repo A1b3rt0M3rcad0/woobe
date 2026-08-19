@@ -6,7 +6,7 @@ from langchain_core.messages import AIMessage
 from modules.agent.composition.runtime.execution_instrumentation import (
     execute_tool_call,
 )
-from modules.agent.application.use_cases.instrumented_fallback_mixin import (
+from modules.agent.composition.runtime.instrumented_fallback_mixin import (
     InstrumentedFallbackMixin,
 )
 from modules.agent.composition.runtime.runtime_streaming import (

@@ -14,7 +14,7 @@ from modules.agent.application.runtime_tool_inventory import (
 from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
 from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
-from modules.agent.application.use_cases.execution_context import current_execution
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.composition.runtime.structured_output_ask_use_case import StructuredOutputAskAgentUseCase
 from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory

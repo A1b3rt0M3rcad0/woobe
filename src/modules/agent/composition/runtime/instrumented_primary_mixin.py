@@ -7,7 +7,7 @@ from uuid import uuid4
 
 from modules.agent.application.services.rag.embedding_errors import EmbeddingProviderError
 from modules.agent.application.tool_converter import MCP_PROVIDER_ROUTE_SEPARATOR
-from modules.agent.application.use_cases.execution_context import (
+from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
     utc_now,
@@ -17,10 +17,10 @@ from modules.agent.composition.runtime.execution_instrumentation import (
     InstrumentedExecutionError,
     aggregate_usage,
 )
-from modules.agent.application.use_cases.instrumented_execution_runner import (
+from modules.agent.composition.runtime.instrumented_execution_runner import (
     run_instrumented_execution,
 )
-from modules.agent.application.use_cases.runtime_output_validation import (
+from modules.agent.composition.runtime.runtime_output_validation import (
     ensure_model_result_has_public_output,
 )
 from modules.agent.composition.runtime.runtime_streaming import current_runtime_stream

@@ -4,7 +4,7 @@ from typing import Any
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.composition.runtime.ask_use_case import AskAgentUseCase
-from modules.agent.application.use_cases.execution_context import current_execution
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.composition.runtime.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.domain.entities import Agent
 from shared.domain.errors import ConflictError, ValidationError

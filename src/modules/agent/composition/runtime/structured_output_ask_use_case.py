@@ -12,11 +12,11 @@ from modules.agent.application.tool_release_snapshots import tool_with_permissio
 from modules.agent.composition.runtime.session_continuity_runtime_resolver import (
     SessionContinuityReleaseRuntimeResolver,
 )
-from modules.agent.application.use_cases.execution_context import current_execution
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.composition.runtime.execution_instrumentation import aggregate_usage
 from modules.agent.composition.runtime.instrumented_execution_finalizer import finalize_instrumented_execution
 from modules.agent.composition.runtime.instrumented_failed_finalizer import finalize_failed_instrumented_execution
-from modules.agent.application.use_cases.instrumented_fallback_mixin import InstrumentedFallbackMixin
+from modules.agent.composition.runtime.instrumented_fallback_mixin import InstrumentedFallbackMixin
 from modules.agent.composition.runtime.instrumented_primary_mixin import InstrumentedPrimaryExecutionMixin
 from modules.agent.application.use_cases.structured_output_contract import (
     format_contract_errors,

@@ -7,7 +7,7 @@ from uuid import UUID
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
 from modules.agent.application.services.rag.embedding_errors import EmbeddingProviderError
-from modules.agent.application.use_cases.execution_context import current_execution
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
 from modules.agent.application.interfaces.embedding_factory import EmbeddingFactory
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY

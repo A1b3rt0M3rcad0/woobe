@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.application.use_cases.execution_context import current_execution, new_execution_context
+from modules.agent.application.interfaces.execution_context import current_execution, new_execution_context
 from modules.agent.composition.runtime.session_continuity_runtime_resolver import (
     SessionContinuityReleaseRuntimeResolver,
 )

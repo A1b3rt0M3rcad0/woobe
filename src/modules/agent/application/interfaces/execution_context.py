@@ -7,9 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from modules.agent.composition.runtime.execution_instrumentation import (
-    InstrumentedExecution,
-)
+from modules.agent.application.interfaces.execution import InstrumentedExecution
 
 
 def utc_now() -> str:

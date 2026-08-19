@@ -6,7 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
-from modules.agent.application.use_cases.execution_context import current_execution
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.use_cases.execution_event_factory import (
     completed_event,
     fallback_event,

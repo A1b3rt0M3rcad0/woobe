@@ -3,13 +3,13 @@ from __future__ import annotations
 import time
 from uuid import uuid4
 
-from modules.agent.application.use_cases.execution_context import current_execution
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.composition.runtime.execution_instrumentation import (
     InstrumentedExecution,
     aggregate_usage,
     utc_iso,
 )
-from modules.agent.application.use_cases.runtime_output_validation import (
+from modules.agent.composition.runtime.runtime_output_validation import (
     ensure_model_result_has_public_output,
 )
 from modules.agent.composition.runtime.runtime_streaming import emit_runtime_event

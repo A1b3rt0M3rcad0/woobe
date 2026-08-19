@@ -10,7 +10,7 @@ from modules.agent.application.services.rag.embedding_errors import (
     EmbeddingProviderError,
     normalize_embedding_error,
 )
-from modules.agent.application.use_cases.execution_context import (
+from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )

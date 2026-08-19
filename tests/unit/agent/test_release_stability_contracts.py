@@ -10,7 +10,7 @@ from modules.agent.application.tool_release_snapshots import tool_to_release_sna
 from modules.agent.application.use_cases.ai_release_cases import DeleteReleaseUseCase
 from modules.agent.composition.runtime.ask_agent_stream_service import AskAgentStreamService
 from modules.agent.application.use_cases.auto_compatible_release_lifecycle import AutoCompatibleReleaseLifecycleUseCase, _execution_snapshot_equal
-from modules.agent.application.use_cases.execution_context import current_execution, new_execution_context
+from modules.agent.application.interfaces.execution_context import current_execution, new_execution_context
 from modules.agent.application.use_cases.knowledge_release_validator import SafeDeleteDocumentUseCase
 from modules.agent.composition.runtime.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.composition.runtime.session_continuity_runtime_resolver import SessionContinuityReleaseRuntimeResolver
