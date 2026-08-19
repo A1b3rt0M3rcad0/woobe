@@ -1,14 +1,16 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
 from modules.agent.application.use_cases import ListAgentsUseCase
+from modules.agent.infra.database.database import AgentDatabase
+from modules.agent.infra.database.provider_model_repositories import (
+    SQLAlchemyAgentRepositoryWithProviderModels,
+)
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.presentation.controllers.list_agents_controller import ListAgentsController
 from shared.infra.transactional_handler import TransactionalHandler
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
-def list_agents_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = AgentUnitOfWork(session_factory)
-    repo = uow.agents
+def list_agents_composer(database: AgentDatabase) -> TransactionalHandler:
+    uow = AgentUnitOfWork(database)
+    repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
     use_case = ListAgentsUseCase(repo)
     controller = ListAgentsController(use_case)
     return TransactionalHandler(uow, controller.handle)

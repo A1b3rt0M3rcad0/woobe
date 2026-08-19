@@ -1,17 +1,30 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
 from modules.agent.application.use_cases.knowledge_release_validator import KnowledgeReleaseValidator
 from modules.agent.application.use_cases.knowledge_safe_release_lifecycle import KnowledgeSafeCreateReleaseUseCase
 from modules.agent.application.use_cases.session_mode_compatible_release import SessionModeCompatibleCreateReleaseUseCase
+from modules.agent.infra.database.database import AgentDatabase
+from modules.agent.infra.database.provider_model_repositories import (
+    SQLAlchemyAgentReleaseRepositoryWithProviderModels,
+    SQLAlchemyAgentRepositoryWithProviderModels,
+)
+from modules.agent.infra.database.repositories import (
+    SQLAlchemyAgentToolRepository,
+    SQLAlchemyKnowledgeVersionRepository,
+)
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.database.vector_snapshot_repositories import SQLAlchemyVectorSnapshotRepository
 from modules.agent.presentation.controllers.create_release_controller import CreateReleaseController
 from shared.infra.transactional_handler import TransactionalHandler
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
-def create_release_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = AgentUnitOfWork(session_factory)
-    validator = KnowledgeReleaseValidator(uow.knowledge_versions, uow.vector_snapshots)
-    release_use_case = KnowledgeSafeCreateReleaseUseCase(uow.releases, validator, uow.tools)
-    use_case = SessionModeCompatibleCreateReleaseUseCase(release_use_case, uow.agents)
+def create_release_composer(database: AgentDatabase) -> TransactionalHandler:
+    uow = AgentUnitOfWork(database)
+    knowledge_repo = SQLAlchemyKnowledgeVersionRepository(uow)
+    vector_repo = SQLAlchemyVectorSnapshotRepository(uow)
+    release_repo = SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow)
+    tool_repo = SQLAlchemyAgentToolRepository(uow)
+    agent_repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
+    validator = KnowledgeReleaseValidator(knowledge_repo, vector_repo)
+    release_use_case = KnowledgeSafeCreateReleaseUseCase(release_repo, validator, tool_repo)
+    use_case = SessionModeCompatibleCreateReleaseUseCase(release_use_case, agent_repo)
     controller = CreateReleaseController(use_case)
     return TransactionalHandler(uow, controller.handle)
