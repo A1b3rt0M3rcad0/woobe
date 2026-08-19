@@ -34,7 +34,7 @@ require_repository_uow_argument = true
 
 [unit_of_work_contract]
 interface_files = ["src/shared/contracts/unit_of_work.py"]
-deprecated_interface_files = ["src/shared/infra/config/interface/unit_of_work.py"]
+deprecated_interface_files = []
 concrete_sources = ["infra/database/unit_of_work.py"]
 forbidden_interface_imports = [
   "sqlalchemy", "alembic", "asyncpg", "psycopg2", "pgvector",
@@ -52,7 +52,7 @@ interface_sources = [
   "application/interfaces/*repository*.py",
 ]
 concrete_sources = ["infra/database/**/*.py", "infra/database/*.py"]
-external_base_files = ["src/shared/infra/repositories/base_repository.py"]
+external_base_files = []
 concrete_name_prefixes = ["SQLAlchemy", "SqlAlchemy"]
 excluded_port_bases = ["BaseSQLAlchemyRepository", "SqlAlchemyRepositoryBase"]
 forbidden_interface_imports = [
@@ -92,6 +92,8 @@ allow = [
   "modules.agent.presentation.schemas",
   "shared.contracts",
   "shared.security",
+  "shared.infra.config",
+  "shared.infra.crypto",
   "shared.infra.transactional_handler",
   "shared.infra.streaming_transactional_handler",
 ]
@@ -103,7 +105,6 @@ deny = [
   "modules.agent.presentation.vector_snapshot_routes",
   "modules.agent.presentation.mcp_tools_routes",
   "shared.presentation",
-  "shared.infra.config",
   "sqlalchemy",
   "alembic",
   "asyncpg",
