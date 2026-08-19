@@ -1,20 +1,17 @@
 from __future__ import annotations
 
-from modules.agent.application.dtos.mcp_discovery_dtos import McpDiscoverInput, McpDiscoveredTool, McpDiscoverOutput
-
 import json
 from typing import Any
 
-
+from modules.agent.application.dtos.mcp_discovery_dtos import (
+    McpDiscoverInput,
+    McpDiscoveredTool,
+    McpDiscoverOutput,
+)
 from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
+from modules.agent.application.mcp_permissions import default_mcp_permission
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
-
-
-
-
-
-
 
 
 def _parse_json_candidate(value: str) -> Any:
