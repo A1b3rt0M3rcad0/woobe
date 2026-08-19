@@ -1,14 +1,12 @@
-from modules.agent.application.mcp_tool_refresh import (
-    RefreshMcpProviderToolsInput,
-    RefreshMcpProviderToolsUseCase,
-)
+from modules.agent.application.dtos.mcp_tool_refresh_dtos import RefreshMcpProviderToolsInput
+from modules.agent.application.interfaces.use_case import UseCase
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
 
 
 class RefreshMcpToolsController(Controller):
-    def __init__(self, use_case: RefreshMcpProviderToolsUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

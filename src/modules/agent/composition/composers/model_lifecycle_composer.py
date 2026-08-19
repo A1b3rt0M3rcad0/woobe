@@ -10,6 +10,7 @@ from modules.agent.application.use_cases.provider_management_cases import (
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.presentation.controllers.model_lifecycle_controller import ModelLifecycleController
+from shared.infra.config import Settings
 from shared.infra.transactional_handler import TransactionalHandler
 
 
@@ -47,7 +48,7 @@ def credential_usage_composer(session_factory: async_sessionmaker[AsyncSession])
 
 def rotate_credential_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = AgentUnitOfWork(session_factory)
-    use_case = RotateProviderCredentialUseCase(uow.provider_credentials)
+    use_case = RotateProviderCredentialUseCase(uow.provider_credentials, Settings().encryption_key)
     controller = ModelLifecycleController(use_case, path_param="credential_id", body=True)
     return TransactionalHandler(uow, controller.handle)
 

@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+from modules.agent.application.dtos.mcp_oauth_dtos import (
+    McpOAuthDevicePollInput,
+    McpOAuthDevicePollOutput,
+    McpOAuthDeviceStartInput,
+    McpOAuthDeviceStartOutput,
+)
+
 import base64
 import json
 import secrets
@@ -7,7 +14,6 @@ from datetime import timedelta
 from typing import Any
 from urllib.parse import urlencode
 
-from pydantic import BaseModel, Field
 
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput
 from modules.agent.application.mcp_oauth import (
@@ -42,39 +48,12 @@ DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
 PROJECTRAI_CLIENT_NAMES = {"projectrai", "project-rai", "project_rai"}
 
 
-class McpOAuthDeviceStartInput(BaseModel):
-    tool_id: Any
-    scopes: list[str] = Field(default_factory=list)
-    authorization_server_issuer: str | None = None
-    client_id: str | None = None
-    client_secret: str | None = None
-    timeout_ms: int = Field(default=30000, ge=1)
 
 
-class McpOAuthDeviceStartOutput(BaseModel):
-    status: str = "device_pending"
-    verification_uri: str
-    verification_uri_complete: str | None = None
-    user_code: str
-    expires_in: int | None = None
-    interval: int = 5
-    authorization_server_issuer: str | None = None
-    scopes: list[str] = Field(default_factory=list)
 
 
-class McpOAuthDevicePollInput(BaseModel):
-    tool_id: Any
-    timeout_ms: int = Field(default=30000, ge=1)
 
 
-class McpOAuthDevicePollOutput(BaseModel):
-    status: str
-    connected: bool = False
-    authorization_server_issuer: str | None = None
-    scopes: list[str] = Field(default_factory=list)
-    expires_at: str | None = None
-    error: str | None = None
-    interval: int | None = None
 
 
 def _authorization_hints(metadata: dict[str, Any]) -> dict[str, Any]:

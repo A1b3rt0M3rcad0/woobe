@@ -11,7 +11,7 @@ from modules.agent.application.interfaces.execution_context import current_execu
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
 from modules.agent.application.interfaces.embedding_factory import EmbeddingFactory
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
-from shared.infra.crypto import decrypt_secret
+from shared.security.crypto import decrypt_secret
 from shared.contracts.errors import ValidationError
 
 

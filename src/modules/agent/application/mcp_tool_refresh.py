@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from modules.agent.application.dtos.mcp_tool_refresh_dtos import RefreshMcpProviderToolsInput, RefreshMcpProviderToolsOutput
+
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
 
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput, McpDiscoverOutput
 from modules.agent.application.mcp_oauth_metadata_validation import (
@@ -26,19 +27,8 @@ from shared.contracts.time import utc_now
 logger = logging.getLogger(__name__)
 
 
-class RefreshMcpProviderToolsInput(BaseModel):
-    tool_id: UUID
-    timeout_ms: int = Field(default=30000, ge=1)
 
 
-class RefreshMcpProviderToolsOutput(BaseModel):
-    tool_id: UUID
-    discovered_count: int
-    initialized: bool
-    status: str
-    error: str | None = None
-    http_status: int | None = None
-    phase: str | None = None
 
 
 def _enum_value(value: Any) -> str:

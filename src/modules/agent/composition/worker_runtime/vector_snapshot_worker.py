@@ -112,7 +112,7 @@ class VectorSnapshotWorker:
                         credential_repo=build_uow.provider_credentials,
                         storage=storage,
                         embedding_factory=embedding_factory,
-                        settings=settings,
+                        encryption_key=settings.encryption_key,
                     )
                     await use_case.execute(snapshot_id)
                 logger.info("Vector snapshot %s built", snapshot_id)

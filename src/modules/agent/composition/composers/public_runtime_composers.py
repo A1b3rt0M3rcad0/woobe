@@ -9,6 +9,7 @@ from modules.agent.composition.composers.ask_agent_composer import ask_agent_com
 from modules.agent.application.dtos.public_runtime_dtos import PublicRunRequest
 from modules.agent.application.use_cases import CreateAskJobUseCase
 from modules.agent.composition.runtime.ask_agent_stream_service import AskAgentStreamService
+from modules.agent.composition.runtime.environment_guard import build_agent_runtime_environment_guard
 from modules.agent.application.use_cases.public_runtime_request_preparer import (
     PublicRuntimeRequestPreparer,
 )
@@ -72,12 +73,14 @@ def public_stream_composer(
         get_http_tool_executor(),
     )
     request_preparer = _request_preparer(session_factory)
+    environment_guard = build_agent_runtime_environment_guard(session_factory)
 
     async def handler(request: FastAPIRequest) -> StreamingResponse:
         return await handle_public_run_stream(
             request,
             service,
             request_preparer,
+            environment_guard,
         )
 
     return handler

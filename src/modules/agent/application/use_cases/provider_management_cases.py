@@ -5,8 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from modules.agent.domain.enums import AgentStatus, CredentialStatus, ProviderModelStatus, ReleaseStatus
-from shared.infra.config import Settings
-from shared.infra.crypto import encrypt_secret
+from shared.security.crypto import encrypt_secret
 from shared.contracts.errors import ConflictError, ValidationError
 
 
@@ -170,9 +169,9 @@ class ProviderModelUsageUseCase:
 
 
 class RotateProviderCredentialUseCase:
-    def __init__(self, credential_repo, encryption_key: str | None = None) -> None:
+    def __init__(self, credential_repo, encryption_key: str) -> None:
         self._credential_repo = credential_repo
-        self._encryption_key = encryption_key or Settings().encryption_key
+        self._encryption_key = encryption_key
 
     async def execute(self, credential_id: UUID, data: dict[str, Any]) -> Any:
         secret = str(data.get("secret") or "").strip()

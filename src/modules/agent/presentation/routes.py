@@ -1,9 +1,6 @@
 from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Request as FastAPIRequest, UploadFile
-from fastapi.encoders import jsonable_encoder
-from fastapi.responses import JSONResponse
-
 from modules.agent.composition.composers.create_provider_credential_composer import create_provider_credential_composer
 from modules.agent.composition.composers.list_provider_credentials_composer import list_provider_credentials_composer
 from modules.agent.composition.composers.update_provider_credential_composer import update_provider_credential_composer
@@ -54,6 +51,7 @@ from modules.agent.composition.composers.get_ask_job_composer import get_ask_job
 from modules.agent.composition.composers.list_agent_sessions_composer import list_agent_sessions_composer
 from modules.agent.composition.composers.list_messages_composer import list_messages_composer
 from modules.agent.composition.composers.send_message_composer import send_message_composer
+from modules.agent.composition.http import knowledge_files
 from modules.agent.composition.composers.tools_composers import (
     create_secret_composer,
     create_tool_composer,
@@ -66,14 +64,6 @@ from modules.agent.composition.composers.tools_composers import (
     update_tool_composer,
     update_tool_status_composer,
 )
-from modules.agent.application.dtos import UploadDocumentFileInput
-from modules.agent.application.use_cases import DeleteDocumentUseCase, UploadDocumentFileUseCase
-from modules.agent.domain.errors import DocumentNotFoundError
-from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
-from modules.agent.infra.storage.factory import create_file_storage
-from modules.agent.presentation.mappers import upload_document_output_to_response
-from shared.contracts.errors import ConflictError, ValidationError
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 router = APIRouter(prefix="/ai", tags=["ai", "agent"])
@@ -356,64 +346,23 @@ async def upload_document_file(
     title: str | None = Form(None),
     file: UploadFile = File(...),
 ):
-    settings = request.app.state.settings
-    storage = create_file_storage(settings)
-    try:
-        async with AgentUnitOfWork(request.app.state.session_factory) as uow:
-            use_case = UploadDocumentFileUseCase(
-                doc_repo=uow.documents,
-                collection_repo=uow.document_collections,
-                outbox=SQLAlchemyAgentOutboxEventWriter(uow),
-                storage=storage,
-                settings=settings,
-            )
-            output = await use_case.execute(
-                UploadDocumentFileInput(
-                    project_id=project_id,
-                    collection_id=collection_id,
-                    title=title,
-                ),
-                file,
-            )
-    except ConflictError as exc:
-        return JSONResponse(
-            status_code=409,
-            content={"success": False, "message": str(exc), "data": None},
-        )
-    except ValidationError as exc:
-        return JSONResponse(
-            status_code=400,
-            content={"success": False, "message": str(exc), "data": None},
-        )
-
-    return jsonable_encoder(
-        {
-            "success": True,
-            "message": "created",
-            "data": upload_document_output_to_response(output).model_dump(),
-        }
+    return await knowledge_files.upload_document_file(
+        session_factory=request.app.state.session_factory,
+        settings=request.app.state.settings,
+        project_id=project_id,
+        collection_id=collection_id,
+        title=title,
+        file=file,
     )
 
 
 @knowledge_router.delete("/documents/{document_id}")
 async def delete_document(request: FastAPIRequest, document_id: UUID):
-    settings = request.app.state.settings
-    storage = create_file_storage(settings)
-    try:
-        async with AgentUnitOfWork(request.app.state.session_factory) as uow:
-            use_case = DeleteDocumentUseCase(
-                doc_repo=uow.documents,
-                chunk_repo=uow.document_chunks,
-                storage=storage,
-            )
-            await use_case.execute(document_id)
-    except DocumentNotFoundError:
-        return JSONResponse(
-            status_code=404,
-            content={"success": False, "message": "Document not found", "data": None},
-        )
-
-    return {"success": True, "message": "Document deleted", "data": None}
+    return await knowledge_files.delete_document(
+        session_factory=request.app.state.session_factory,
+        settings=request.app.state.settings,
+        document_id=document_id,
+    )
 
 
 @knowledge_router.get("/documents/{document_id}")

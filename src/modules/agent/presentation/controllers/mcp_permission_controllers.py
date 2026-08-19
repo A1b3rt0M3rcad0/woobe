@@ -1,16 +1,15 @@
-from modules.agent.application.mcp_permissions import (
+from modules.agent.application.dtos.mcp_permission_dtos import (
     BulkUpdateMcpToolPermissionsInput,
-    BulkUpdateMcpToolPermissionsUseCase,
     UpdateMcpToolPermissionsInput,
-    UpdateMcpToolPermissionsUseCase,
 )
+from modules.agent.application.interfaces.use_case import UseCase
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
 
 
 class UpdateMcpPermissionsController(Controller):
-    def __init__(self, use_case: UpdateMcpToolPermissionsUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
@@ -22,7 +21,7 @@ class UpdateMcpPermissionsController(Controller):
 
 
 class BulkUpdateMcpPermissionsController(Controller):
-    def __init__(self, use_case: BulkUpdateMcpToolPermissionsUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
