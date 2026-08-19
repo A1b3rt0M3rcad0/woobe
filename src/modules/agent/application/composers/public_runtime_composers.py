@@ -40,7 +40,11 @@ def _request_preparer(
         environment: str,
     ) -> PublicRunRequest:
         async with AgentUnitOfWork(session_factory) as uow:
-            preparer = PublicRuntimeRequestPreparer(uow.releases, uow.sessions)
+            preparer = PublicRuntimeRequestPreparer(
+                uow.releases,
+                uow.sessions,
+                uow.agents,
+            )
             return await preparer.prepare(
                 payload,
                 project_id=project_id,
@@ -87,7 +91,11 @@ def public_create_job_composer(
         uow.ask_jobs,
         SQLAlchemyAgentOutboxEventWriter(uow),
     )
-    preparer = PublicRuntimeRequestPreparer(uow.releases, uow.sessions)
+    preparer = PublicRuntimeRequestPreparer(
+        uow.releases,
+        uow.sessions,
+        uow.agents,
+    )
     controller = PublicCreateJobController(use_case, preparer.prepare)
     return TransactionalHandler(uow, controller.handle)
 
