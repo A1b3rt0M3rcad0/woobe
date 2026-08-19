@@ -20,7 +20,12 @@ from modules.agent.composition.composers.vector_snapshot_composers import (
     list_vector_snapshots_composer,
     preview_vector_snapshot_composer,
 )
+from modules.agent.infra.database.database import AgentDatabase
 from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
+
+
+def _database(request: Request) -> AgentDatabase:
+    return AgentDatabase(request.app.state.session_factory)
 
 
 def _error(status_code: int, message: str) -> JSONResponse:
@@ -35,7 +40,7 @@ async def get_collection_overview(
     collection_id: UUID,
     project_id: UUID,
 ):
-    handler = get_collection_overview_composer(request.app.state.session_factory)
+    handler = get_collection_overview_composer(_database(request))
     try:
         output = await handler(
             GetCollectionOverviewInput(
@@ -55,7 +60,10 @@ async def preview_vector_snapshot(request: Request, collection_id: UUID):
         body = await request.json()
     except Exception:
         body = {}
-    handler = preview_vector_snapshot_composer(request.app.state.session_factory)
+    handler = preview_vector_snapshot_composer(
+        _database(request),
+        request.app.state.settings,
+    )
     try:
         output = await handler(
             PreviewVectorSnapshotInput(
@@ -79,7 +87,7 @@ async def create_vector_snapshot(request: Request, collection_id: UUID):
         body = await request.json()
     except Exception:
         body = {}
-    handler = create_vector_snapshot_composer(request.app.state.session_factory)
+    handler = create_vector_snapshot_composer(_database(request))
     try:
         output = await handler(
             CreateVectorSnapshotInput(collection_id=collection_id, **body)
@@ -100,7 +108,7 @@ async def list_vector_snapshots(
     collection_id: UUID,
     project_id: UUID,
 ):
-    handler = list_vector_snapshots_composer(request.app.state.session_factory)
+    handler = list_vector_snapshots_composer(_database(request))
     output = await handler(
         ListVectorSnapshotsInput(
             project_id=project_id,
@@ -121,7 +129,7 @@ async def get_vector_snapshot(
     snapshot_id: UUID,
     project_id: UUID | None = None,
 ):
-    handler = get_vector_snapshot_composer(request.app.state.session_factory)
+    handler = get_vector_snapshot_composer(_database(request))
     try:
         output = await handler(
             GetVectorSnapshotInput(
