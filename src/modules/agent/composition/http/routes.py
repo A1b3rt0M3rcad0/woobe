@@ -64,210 +64,224 @@ from modules.agent.composition.composers.tools_composers import (
     update_tool_composer,
     update_tool_status_composer,
 )
+from modules.agent.infra.database.database import AgentDatabase
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 router = APIRouter(prefix="/ai", tags=["ai", "agent"])
 
 
+def _database(request: FastAPIRequest) -> AgentDatabase:
+    return AgentDatabase(request.app.state.session_factory)
+
+
 @router.post("/credentials")
 async def create_provider_credential(request: FastAPIRequest):
-    handler = create_provider_credential_composer(request.app.state.session_factory)
+    handler = create_provider_credential_composer(
+        _database(request),
+        request.app.state.settings,
+    )
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.patch("/credentials/{credential_id}")
 async def update_provider_credential(request: FastAPIRequest):
-    handler = update_provider_credential_composer(request.app.state.session_factory)
+    handler = update_provider_credential_composer(
+        _database(request),
+        request.app.state.settings,
+    )
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/credentials")
 async def list_provider_credentials(request: FastAPIRequest):
-    handler = list_provider_credentials_composer(request.app.state.session_factory)
+    handler = list_provider_credentials_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.post("/provider-models", status_code=201)
 async def create_provider_model(request: FastAPIRequest):
-    handler = create_provider_model_composer(request.app.state.session_factory)
+    handler = create_provider_model_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/provider-models")
 async def list_provider_models(request: FastAPIRequest):
-    handler = list_provider_models_composer(request.app.state.session_factory)
+    handler = list_provider_models_composer(
+        _database(request),
+        request.app.state.settings,
+    )
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/provider-models/{provider_model_id}")
 async def get_provider_model(request: FastAPIRequest):
-    handler = get_provider_model_composer(request.app.state.session_factory)
+    handler = get_provider_model_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.patch("/provider-models/{provider_model_id}")
 async def update_provider_model(request: FastAPIRequest):
-    handler = update_provider_model_composer(request.app.state.session_factory)
+    handler = update_provider_model_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.post("/agents")
 async def create_agent(request: FastAPIRequest):
-    handler = create_agent_composer(request.app.state.session_factory)
+    handler = create_agent_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/agents")
 async def list_agents(request: FastAPIRequest):
-    handler = list_agents_composer(request.app.state.session_factory)
+    handler = list_agents_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/agents/{agent_id}")
 async def get_agent(request: FastAPIRequest):
-    handler = get_agent_composer(request.app.state.session_factory)
+    handler = get_agent_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.patch("/agents/{agent_id}")
 async def update_agent(request: FastAPIRequest):
-    handler = update_agent_composer(request.app.state.session_factory)
+    handler = update_agent_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.post("/agents/{agent_id}/prompts", status_code=201)
 async def create_prompt(request: FastAPIRequest):
-    handler = create_prompt_version_composer(request.app.state.session_factory)
+    handler = create_prompt_version_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/agents/{agent_id}/prompts")
 async def list_prompts(request: FastAPIRequest):
-    handler = list_prompt_versions_composer(request.app.state.session_factory)
+    handler = list_prompt_versions_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/agents/{agent_id}/prompts/{version_id}")
 async def get_prompt(request: FastAPIRequest):
-    handler = get_prompt_version_composer(request.app.state.session_factory)
+    handler = get_prompt_version_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.post("/agents/{agent_id}/contracts", status_code=201)
 async def create_contract(request: FastAPIRequest):
-    handler = create_contract_version_composer(request.app.state.session_factory)
+    handler = create_contract_version_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.patch("/agents/{agent_id}/contracts/{contract_id}")
 async def update_contract(request: FastAPIRequest):
-    handler = update_contract_version_composer(request.app.state.session_factory)
+    handler = update_contract_version_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/agents/{agent_id}/contracts")
 async def list_contracts(request: FastAPIRequest):
-    handler = list_contract_versions_composer(request.app.state.session_factory)
+    handler = list_contract_versions_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/agents/{agent_id}/contracts/{contract_id}")
 async def get_contract(request: FastAPIRequest):
-    handler = get_contract_version_composer(request.app.state.session_factory)
+    handler = get_contract_version_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.post("/agents/{agent_id}/model-configs", status_code=201)
 async def create_model_config(request: FastAPIRequest):
-    handler = create_model_config_composer(request.app.state.session_factory)
+    handler = create_model_config_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/agents/{agent_id}/model-configs")
 async def list_model_configs(request: FastAPIRequest):
-    handler = list_model_configs_composer(request.app.state.session_factory)
+    handler = list_model_configs_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/agents/{agent_id}/model-configs/{config_id}")
 async def get_model_config(request: FastAPIRequest):
-    handler = get_model_config_composer(request.app.state.session_factory)
+    handler = get_model_config_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.post("/agents/{agent_id}/releases", status_code=201)
 async def create_release(request: FastAPIRequest):
-    handler = create_release_composer(request.app.state.session_factory)
+    handler = create_release_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/agents/{agent_id}/releases")
 async def list_releases(request: FastAPIRequest):
-    handler = list_releases_composer(request.app.state.session_factory)
+    handler = list_releases_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/agents/{agent_id}/releases/{release_id}")
 async def get_release(request: FastAPIRequest):
-    handler = get_release_composer(request.app.state.session_factory)
+    handler = get_release_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.post("/agents/{agent_id}/releases/{release_id}/promote")
 async def promote_release(request: FastAPIRequest):
-    handler = promote_release_composer(request.app.state.session_factory)
+    handler = promote_release_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.post("/agents/{agent_id}/releases/{release_id}/rollback")
 async def rollback_release(request: FastAPIRequest):
-    handler = rollback_release_composer(request.app.state.session_factory)
+    handler = rollback_release_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.delete("/agents/{agent_id}/releases/{release_id}")
 async def delete_release(request: FastAPIRequest):
-    handler = delete_release_composer(request.app.state.session_factory)
+    handler = delete_release_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.post("/agents/{agent_id}/release-tests", status_code=201)
 async def create_release_test(request: FastAPIRequest):
-    handler = create_release_test_composer(request.app.state.session_factory)
+    handler = create_release_test_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @router.get("/agents/{agent_id}/releases/{release_id}/tests")
 async def list_release_tests(request: FastAPIRequest):
-    handler = list_release_tests_composer(request.app.state.session_factory)
+    handler = list_release_tests_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
@@ -277,63 +291,63 @@ knowledge_router = APIRouter(prefix="/knowledge", tags=["knowledge", "agent"])
 
 @knowledge_router.get("/collections")
 async def list_collections(request: FastAPIRequest):
-    handler = list_collections_composer(request.app.state.session_factory)
+    handler = list_collections_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @knowledge_router.post("/collections")
 async def create_collection(request: FastAPIRequest):
-    handler = create_collection_composer(request.app.state.session_factory)
+    handler = create_collection_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @knowledge_router.get("/collections/{collection_id}")
 async def get_collection(request: FastAPIRequest):
-    handler = get_collection_composer(request.app.state.session_factory)
+    handler = get_collection_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @knowledge_router.patch("/collections/{collection_id}")
 async def update_collection(request: FastAPIRequest):
-    handler = update_collection_composer(request.app.state.session_factory)
+    handler = update_collection_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @knowledge_router.get("/agent-collections")
 async def list_agent_collections(request: FastAPIRequest):
-    handler = list_agent_collections_composer(request.app.state.session_factory)
+    handler = list_agent_collections_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @knowledge_router.post("/agent-collections")
 async def attach_collection(request: FastAPIRequest):
-    handler = attach_collection_composer(request.app.state.session_factory)
+    handler = attach_collection_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @knowledge_router.delete("/agent-collections/{link_id}")
 async def detach_collection(request: FastAPIRequest):
-    handler = detach_collection_composer(request.app.state.session_factory)
+    handler = detach_collection_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @knowledge_router.get("/documents")
 async def list_documents(request: FastAPIRequest):
-    handler = list_documents_composer(request.app.state.session_factory)
+    handler = list_documents_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @knowledge_router.post("/documents")
 async def upload_document(request: FastAPIRequest):
-    handler = upload_document_composer(request.app.state.session_factory)
+    handler = upload_document_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
@@ -367,28 +381,28 @@ async def delete_document(request: FastAPIRequest, document_id: UUID):
 
 @knowledge_router.get("/documents/{document_id}")
 async def get_document(request: FastAPIRequest):
-    handler = get_document_composer(request.app.state.session_factory)
+    handler = get_document_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @knowledge_router.post("/search")
 async def search_chunks(request: FastAPIRequest):
-    handler = search_chunks_composer(request.app.state.session_factory)
+    handler = search_chunks_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @knowledge_router.post("/agents/{agent_id}/knowledge-versions", status_code=201)
 async def create_knowledge_version(request: FastAPIRequest):
-    handler = create_knowledge_version_composer(request.app.state.session_factory)
+    handler = create_knowledge_version_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @knowledge_router.get("/agents/{agent_id}/knowledge-versions")
 async def list_knowledge_versions(request: FastAPIRequest):
-    handler = list_knowledge_versions_composer(request.app.state.session_factory)
+    handler = list_knowledge_versions_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
@@ -398,14 +412,14 @@ runtime_router = APIRouter(prefix="/runtime", tags=["runtime", "agent"])
 
 @runtime_router.post("/sessions")
 async def create_session(request: FastAPIRequest):
-    handler = create_session_composer(request.app.state.session_factory)
+    handler = create_session_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @runtime_router.get("/agents/{agent_id}/sessions")
 async def list_agent_sessions(request: FastAPIRequest):
-    handler = list_agent_sessions_composer(request.app.state.session_factory)
+    handler = list_agent_sessions_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
@@ -425,28 +439,28 @@ async def ask_stream(request: FastAPIRequest):
 
 @runtime_router.post("/ask/jobs", status_code=201)
 async def create_ask_job(request: FastAPIRequest):
-    handler = create_ask_job_composer(request.app.state.session_factory)
+    handler = create_ask_job_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @runtime_router.get("/ask/jobs/{job_id}")
 async def get_ask_job(request: FastAPIRequest):
-    handler = get_ask_job_composer(request.app.state.session_factory)
+    handler = get_ask_job_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @runtime_router.get("/sessions/{session_id}/messages")
 async def list_messages(request: FastAPIRequest):
-    handler = list_messages_composer(request.app.state.session_factory)
+    handler = list_messages_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
 
 @runtime_router.post("/messages")
 async def send_message(request: FastAPIRequest):
-    handler = send_message_composer(request.app.state.session_factory)
+    handler = send_message_composer(_database(request))
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
