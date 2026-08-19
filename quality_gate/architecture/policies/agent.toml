@@ -39,16 +39,16 @@ deny = [
 
 [[rules]]
 id = "ARCH005"
-description = "presentation controllers must depend on application contracts, not concrete use cases or infrastructure"
+description = "presentation controllers must depend on application contracts, domain values and presentation code only"
 source = ["presentation/controllers/**"]
 allow = [
   "modules.agent.presentation",
   "modules.agent.application.interfaces",
   "modules.agent.application.dtos",
+  "modules.agent.domain",
   "shared.presentation",
 ]
 deny = [
-  "modules.agent.domain",
   "modules.agent.application.use_cases",
   "modules.agent.infra",
   "modules.agent.composition",
@@ -59,17 +59,17 @@ deny = [
 
 [[rules]]
 id = "ARCH010"
-description = "presentation support code may use presentation primitives and application contracts only"
+description = "presentation support code may use domain values, presentation primitives and application contracts only"
 source = ["presentation/**"]
 allow = [
   "modules.agent.presentation",
   "modules.agent.application.interfaces",
   "modules.agent.application.dtos",
+  "modules.agent.domain",
   "shared.presentation",
   "shared.security",
 ]
 deny = [
-  "modules.agent.domain",
   "modules.agent.application.use_cases",
   "modules.agent.infra",
   "modules.agent.composition",
@@ -171,15 +171,17 @@ deny = [
 
 [[rules]]
 id = "ARCH004"
-description = "infrastructure may implement application contracts but cannot depend on presentation or composition"
+description = "infrastructure implements application contracts and cannot depend on concrete application use cases, presentation or composition"
 source = ["infra/**"]
 allow = [
   "modules.agent.infra",
-  "modules.agent.application",
+  "modules.agent.application.interfaces",
+  "modules.agent.application.dtos",
   "modules.agent.domain",
   "shared",
 ]
 deny = [
+  "modules.agent.application.use_cases",
   "modules.agent.presentation",
   "modules.agent.composition",
 ]
