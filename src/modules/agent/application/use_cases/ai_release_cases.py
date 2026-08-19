@@ -3,6 +3,10 @@ from modules.agent.application.dtos.ai_dtos import (
     ListReleasesOutput,
     ListReleaseTestsOutput,
 )
+from modules.agent.application.interfaces.repositories import (
+    AgentReleaseRepository,
+    AgentReleaseTestRepository,
+)
 from modules.agent.application.use_cases.auto_compatible_release_lifecycle import (
     AutoCompatibleReleaseLifecycleUseCase as PromoteReleaseUseCase,
 )
@@ -33,7 +37,7 @@ class RollbackReleaseUseCase(PromoteReleaseUseCase):
 
 
 class ListReleasesUseCase:
-    def __init__(self, release_repo):
+    def __init__(self, release_repo: AgentReleaseRepository) -> None:
         self._release_repo = release_repo
 
     async def execute(self, agent_id):
@@ -44,7 +48,7 @@ class ListReleasesUseCase:
 
 
 class GetReleaseUseCase:
-    def __init__(self, release_repo):
+    def __init__(self, release_repo: AgentReleaseRepository) -> None:
         self._release_repo = release_repo
 
     async def execute(self, release_id):
@@ -56,7 +60,7 @@ class GetReleaseUseCase:
 
 
 class DeleteReleaseUseCase:
-    def __init__(self, release_repo):
+    def __init__(self, release_repo: AgentReleaseRepository) -> None:
         self._release_repo = release_repo
 
     async def execute(self, release_id):
@@ -75,7 +79,7 @@ class DeleteReleaseUseCase:
 
 
 class CreateReleaseTestUseCase:
-    def __init__(self, test_repo):
+    def __init__(self, test_repo: AgentReleaseTestRepository) -> None:
         self._test_repo = test_repo
 
     async def execute(self, input_dto):
@@ -107,7 +111,7 @@ class CreateReleaseTestUseCase:
 
 
 class ListReleaseTestsUseCase:
-    def __init__(self, test_repo):
+    def __init__(self, test_repo: AgentReleaseTestRepository) -> None:
         self._test_repo = test_repo
 
     async def execute(self, release_id):
@@ -126,7 +130,7 @@ class ListReleaseTestsUseCase:
 
 
 class GetReleaseTestUseCase:
-    def __init__(self, test_repo):
+    def __init__(self, test_repo: AgentReleaseTestRepository) -> None:
         self._test_repo = test_repo
 
     async def execute(self, test_id):
