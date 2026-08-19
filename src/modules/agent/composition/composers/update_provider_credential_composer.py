@@ -1,18 +1,26 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.application.use_cases import UpdateProviderCredentialUseCase
-from modules.agent.presentation.controllers.update_provider_credential_controller import UpdateProviderCredentialController
-from shared.infra.transactional_handler import TransactionalHandler
-from shared.infra.config import Settings
+from modules.agent.infra.database.database import AgentDatabase
+from modules.agent.infra.database.repositories import (
+    SQLAlchemyAgentOutboxEventWriter,
+    SQLAlchemyProviderCredentialRepository,
+)
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.presentation.controllers.update_provider_credential_controller import UpdateProviderCredentialController
+from shared.infra.config import Settings
+from shared.infra.transactional_handler import TransactionalHandler
 
 
-def update_provider_credential_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    settings = Settings()
-    uow = AgentUnitOfWork(session_factory)
-    credential_repo = uow.provider_credentials
+def update_provider_credential_composer(
+    database: AgentDatabase,
+    settings: Settings,
+) -> TransactionalHandler:
+    uow = AgentUnitOfWork(database)
+    credential_repo = SQLAlchemyProviderCredentialRepository(uow)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    use_case = UpdateProviderCredentialUseCase(credential_repo, outbox, encryption_key=settings.encryption_key)
+    use_case = UpdateProviderCredentialUseCase(
+        credential_repo,
+        outbox,
+        encryption_key=settings.encryption_key,
+    )
     controller = UpdateProviderCredentialController(use_case)
     return TransactionalHandler(uow, controller.handle)
