@@ -35,8 +35,8 @@ jobs:
       - name: Capture Compose diagnostics
         if: failure()
         run: |
-          docker compose -f compose.test.yaml ps --all > .test-artifacts/compose-ps.txt || true
-          docker compose -f compose.test.yaml logs --no-color > .test-artifacts/compose.log 2>&1 || true
+          docker compose -f compose.test.yaml ps --all | tee .test-artifacts/compose-ps.txt || true
+          docker compose -f compose.test.yaml logs --no-color 2>&1 | tee .test-artifacts/compose.log || true
 
       - name: Tear down validation stack
         if: always()
