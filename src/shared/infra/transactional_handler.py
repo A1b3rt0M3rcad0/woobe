@@ -1,7 +1,7 @@
 from collections.abc import Awaitable, Callable
 from typing import Generic, TypeVar
 
-from shared.infra.config.interface.unit_of_work import UnitOfWork
+from shared.contracts.unit_of_work import UnitOfWork
 
 
 RequestT = TypeVar("RequestT")
