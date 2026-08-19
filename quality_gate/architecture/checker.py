@@ -10,6 +10,7 @@ from typing import Iterable
 
 from .graph import strongly_connected_components
 from .policy import ArchitecturePolicy, ComposerContract, ImportRule, load_policies
+from .semantic import check_semantic_contracts
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -124,18 +125,58 @@ def _short_name(name: str | None) -> str | None:
     return name.rsplit(".", 1)[-1] if name else None
 
 
+def _annotation_names(node: ast.AST | None) -> set[str]:
+    if node is None:
+        return set()
+    names: set[str] = set()
+    for child in ast.walk(node):
+        if isinstance(child, ast.Name):
+            names.add(child.id)
+        elif isinstance(child, ast.Attribute):
+            name = _expression_name(child)
+            if name:
+                names.add(name)
+                names.add(name.rsplit(".", 1)[-1])
+        elif isinstance(child, ast.Constant) and isinstance(child.value, str):
+            names.add(child.value)
+    return names
+
+
 class _ComposerBodyInspector(ast.NodeVisitor):
+    CONTROL_FLOW = (
+        ast.If,
+        ast.For,
+        ast.AsyncFor,
+        ast.While,
+        ast.Try,
+        ast.With,
+        ast.AsyncWith,
+        ast.Match,
+        ast.Await,
+        ast.Yield,
+        ast.YieldFrom,
+    )
+
     def __init__(self, root: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
         self.root = root
         self.returns: list[ast.Return] = []
         self.async_with: list[ast.AsyncWith] = []
         self.awaits: list[ast.Await] = []
         self.assignments: list[tuple[str, ast.AST, int]] = []
+        self.control_flow: list[ast.AST] = []
+        self.nested_definitions: list[ast.AST] = []
+        self.calls: list[ast.Call] = []
+        self.attributes: list[ast.Attribute] = []
 
     def inspect(self) -> "_ComposerBodyInspector":
         for statement in self.root.body:
             self.visit(statement)
         return self
+
+    def generic_visit(self, node: ast.AST) -> None:
+        if isinstance(node, self.CONTROL_FLOW):
+            self.control_flow.append(node)
+        super().generic_visit(node)
 
     def visit_Return(self, node: ast.Return) -> None:
         self.returns.append(node)
@@ -147,6 +188,14 @@ class _ComposerBodyInspector(ast.NodeVisitor):
 
     def visit_Await(self, node: ast.Await) -> None:
         self.awaits.append(node)
+        self.generic_visit(node)
+
+    def visit_Call(self, node: ast.Call) -> None:
+        self.calls.append(node)
+        self.generic_visit(node)
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        self.attributes.append(node)
         self.generic_visit(node)
 
     def visit_Assign(self, node: ast.Assign) -> None:
@@ -163,16 +212,20 @@ class _ComposerBodyInspector(ast.NodeVisitor):
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
         if node is self.root:
             self.generic_visit(node)
+        else:
+            self.nested_definitions.append(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         if node is self.root:
             self.generic_visit(node)
+        else:
+            self.nested_definitions.append(node)
 
     def visit_Lambda(self, node: ast.Lambda) -> None:
-        return
+        self.nested_definitions.append(node)
 
     def visit_ClassDef(self, node: ast.ClassDef) -> None:
-        return
+        self.nested_definitions.append(node)
 
 
 def _call_target(node: ast.AST | None) -> str | None:
@@ -183,6 +236,16 @@ def _call_target(node: ast.AST | None) -> str | None:
 
 def _uow_call(node: ast.AST | None, contract: ComposerContract) -> bool:
     return _call_target(node) in set(contract.uow_types)
+
+
+def _function_args(function: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[ast.arg, ...]:
+    args = tuple(function.args.posonlyargs) + tuple(function.args.args) + tuple(function.args.kwonlyargs)
+    return tuple(arg for arg in args if arg.arg not in {"self", "cls"})
+
+
+def _is_repository_call(call: ast.Call, contract: ComposerContract) -> bool:
+    target = _short_name(_expression_name(call.func)) or ""
+    return any(target.endswith(suffix) for suffix in contract.repository_suffixes)
 
 
 def _composer_violations(contract: ComposerContract, relative: str, tree: ast.Module) -> tuple[tuple[str, int, str], ...]:
@@ -203,9 +266,31 @@ def _composer_violations(contract: ComposerContract, relative: str, tree: ast.Mo
             rule = "ARCH023" if is_stream else "ARCH021"
             violations.append((rule, function.lineno, f"{function.name} must declare return type {expected_handler}"))
 
+        for arg in _function_args(function):
+            if arg.arg in contract.forbidden_parameter_names:
+                violations.append(("ARCH030", arg.lineno, f"{function.name} cannot receive framework-shaped parameter {arg.arg!r}"))
+            forbidden_types = _annotation_names(arg.annotation).intersection(contract.forbidden_parameter_types)
+            if forbidden_types:
+                violations.append(("ARCH030", arg.lineno, f"{function.name} cannot expose framework type(s) in its signature: {', '.join(sorted(forbidden_types))}"))
+
         inspector = _ComposerBodyInspector(function).inspect()
         if isinstance(function, ast.AsyncFunctionDef) or inspector.awaits:
             violations.append(("ARCH022", function.lineno, f"{function.name} must compose dependencies without executing async work"))
+
+        if contract.forbid_control_flow:
+            for node in inspector.control_flow:
+                if isinstance(node, ast.Await):
+                    continue
+                violations.append(("ARCH027", getattr(node, "lineno", function.lineno), f"{function.name} must be pure wiring; {type(node).__name__} is forbidden"))
+
+        if contract.forbid_nested_definitions:
+            for node in inspector.nested_definitions:
+                violations.append(("ARCH028", getattr(node, "lineno", function.lineno), f"{function.name} cannot define nested runtime helpers"))
+
+        for call in inspector.calls:
+            target = _expression_name(call.func) or ""
+            if any(target == forbidden or target.endswith(f".{forbidden}") for forbidden in contract.forbidden_calls):
+                violations.append(("ARCH031", call.lineno, f"{function.name} cannot construct or resolve operational configuration via {target}()"))
 
         if not inspector.returns:
             violations.append(("ARCH022", function.lineno, f"{function.name} must return a transactional handler"))
@@ -235,6 +320,20 @@ def _composer_violations(contract: ComposerContract, relative: str, tree: ast.Mo
             continue
 
         uow_name = uow_assignments[0][0]
+        if contract.forbid_uow_attribute_access:
+            for attribute in inspector.attributes:
+                if isinstance(attribute.value, ast.Name) and attribute.value.id == uow_name:
+                    violations.append(("ARCH029", attribute.lineno, f"{function.name} cannot use UnitOfWork as a repository/service locator ({uow_name}.{attribute.attr})"))
+
+        if contract.require_repository_uow_argument:
+            for _, value, line in inspector.assignments:
+                if not isinstance(value, ast.Call) or not _is_repository_call(value, contract):
+                    continue
+                first_arg = value.args[0] if value.args else None
+                if not isinstance(first_arg, ast.Name) or first_arg.id != uow_name:
+                    target = _expression_name(value.func) or "repository"
+                    violations.append(("ARCH036", line, f"{function.name} must construct {target} with the same UnitOfWork as its first argument"))
+
         for return_node in inspector.returns:
             if _call_target(return_node.value) not in contract.allowed_handlers:
                 continue
@@ -308,6 +407,9 @@ class ArchitectureChecker:
                 message = _rule_violation(rule, imported.module)
                 if message:
                     violations.append(self._violation(rule.rule_id, file, imported.line, message))
+
+        for rule_id, path, line, message in check_semantic_contracts(self.project_root, policy):
+            violations.append(self._violation(rule_id, path, line, message))
 
         if policy.forbid_cycles:
             graph = self._build_graph(policy, imports_by_file)
