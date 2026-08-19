@@ -13,4 +13,6 @@ uv run python -m quality_gate.architecture.checker
 uv run pytest -q tests/quality_gate
 ```
 
+The `Quality Gate` GitHub Actions workflow runs on pull requests targeting `development` whenever governed source, policies, gate tests, dependencies, or the workflow itself changes. A failing architecture policy blocks that CI check.
+
 A policy is strict. Governed modules do not have architecture allowlists; a violation must be removed from the source or explicitly changed in the policy as an architectural decision.
