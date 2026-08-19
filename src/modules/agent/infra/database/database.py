@@ -11,7 +11,6 @@ class AgentDatabase:
 
     @property
     def session_factory(self) -> async_sessionmaker[AsyncSession]:
-        """Infrastructure-only compatibility for existing runtime services."""
         return self._session_factory
 
     def open_session(self) -> AsyncSession:
@@ -19,3 +18,18 @@ class AgentDatabase:
 
     def __call__(self) -> AsyncSession:
         return self.open_session()
+
+
+AgentDatabaseInput = AgentDatabase | async_sessionmaker[AsyncSession]
+
+
+def coerce_agent_database(database: AgentDatabaseInput) -> AgentDatabase:
+    if isinstance(database, AgentDatabase):
+        return database
+    return AgentDatabase(database)
+
+
+def agent_session_factory(
+    database: AgentDatabaseInput,
+) -> async_sessionmaker[AsyncSession]:
+    return coerce_agent_database(database).session_factory
