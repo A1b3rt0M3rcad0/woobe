@@ -1,0 +1,91 @@
+name: Agent controller contract migration
+
+on:
+  push:
+    branches: [feature/agent-quality-gate]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/agent-quality-gate
+          fetch-depth: 0
+      - name: Replace concrete controller use-case annotations
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import ast
+          import re
+
+          root = Path('src/modules/agent/presentation/controllers')
+          contract_import = 'from modules.agent.application.interfaces.use_case import UseCase\n'
+
+          def annotation_name_nodes(tree: ast.AST) -> set[int]:
+              ids: set[int] = set()
+              for node in ast.walk(tree):
+                  ann = None
+                  if isinstance(node, (ast.arg, ast.AnnAssign)):
+                      ann = node.annotation
+                  elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                      ann = node.returns
+                  if ann is not None:
+                      ids.update(id(child) for child in ast.walk(ann))
+              return ids
+
+          changed = []
+          for path in sorted(root.glob('*.py')):
+              text = path.read_text(encoding='utf-8')
+              tree = ast.parse(text)
+              annotation_ids = annotation_name_nodes(tree)
+              imports = []
+              symbols = []
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.ImportFrom) and (node.module or '').startswith('modules.agent.application.use_cases'):
+                      imports.append(node)
+                      symbols.extend(alias.asname or alias.name for alias in node.names)
+              if not imports:
+                  continue
+              non_annotation = []
+              for node in ast.walk(tree):
+                  if isinstance(node, ast.Name) and node.id in symbols and id(node) not in annotation_ids:
+                      non_annotation.append((node.id, node.lineno))
+              if non_annotation:
+                  print(f'UNSAFE {path}: {non_annotation}')
+                  continue
+
+              lines = text.splitlines(keepends=True)
+              for node in sorted(imports, key=lambda n: n.lineno, reverse=True):
+                  start = node.lineno - 1
+                  end = (node.end_lineno or node.lineno)
+                  del lines[start:end]
+              updated = ''.join(lines)
+              if contract_import not in updated:
+                  insertion = 0
+                  if updated.startswith('from __future__ import annotations\n'):
+                      insertion = updated.find('\n') + 1
+                  updated = updated[:insertion] + contract_import + updated[insertion:]
+              for symbol in sorted(set(symbols), key=len, reverse=True):
+                  updated = re.sub(rf'\b{re.escape(symbol)}\b', 'UseCase', updated)
+              path.write_text(updated, encoding='utf-8')
+              changed.append(str(path))
+          print(f'changed={len(changed)}')
+          PY
+          python -m compileall -q src/modules/agent/presentation/controllers
+      - name: Commit migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/modules/agent/presentation/controllers
+          git commit -m 'refactor: depend controllers on application use case contract'
+          git push origin HEAD:feature/agent-quality-gate
