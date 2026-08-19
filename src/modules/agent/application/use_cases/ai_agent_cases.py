@@ -13,7 +13,7 @@ from modules.agent.domain.entities import Agent
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
 from modules.agent.domain.events import AgentCreatedV1, AgentUpdatedV1
 from modules.agent.application.interfaces.repositories import AgentRepository, ProviderCredentialRepository
-from shared.domain.errors import ConflictError, ValidationError
+from shared.contracts.errors import ConflictError, ValidationError
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 
 

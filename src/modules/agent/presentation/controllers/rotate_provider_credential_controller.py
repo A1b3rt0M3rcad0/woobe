@@ -4,7 +4,7 @@ from uuid import UUID
 from modules.agent.application.dtos.provider_credential_rotation_dtos import (
     RotateProviderCredentialInput,
 )
-from shared.domain.errors import AuthenticationError
+from shared.contracts.errors import AuthenticationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller

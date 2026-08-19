@@ -1,7 +1,7 @@
 from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.presentation.mappers import create_collection_output_to_response
 from modules.agent.application.dtos import CreateCollectionInput
-from shared.domain.errors import ConflictError, ValidationError
+from shared.contracts.errors import ConflictError, ValidationError
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

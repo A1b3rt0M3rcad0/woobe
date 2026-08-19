@@ -42,7 +42,7 @@ id = "ARCH005"
 description = "presentation controllers must depend on application contracts, domain values and presentation code only"
 source = ["presentation/controllers/**"]
 allow = [
-  "shared.domain",
+  "shared.contracts",
   "shared.security.principal",
   "modules.agent.presentation",
   "modules.agent.application.interfaces",
@@ -64,7 +64,7 @@ id = "ARCH010"
 description = "presentation support code may use domain values, presentation primitives and application contracts only"
 source = ["presentation/**"]
 allow = [
-  "shared.domain",
+  "shared.contracts",
   "shared.security.principal",
   "modules.agent.presentation",
   "modules.agent.application.interfaces",
@@ -121,7 +121,7 @@ description = "domain must remain independent from outer layers and technical sh
 source = ["domain/**"]
 allow = [
   "modules.agent.domain",
-  "shared.domain",
+  "shared.contracts",
 ]
 deny = [
   "modules.agent.application",
@@ -154,8 +154,8 @@ source = ["application/**"]
 allow = [
   "modules.agent.application",
   "modules.agent.domain",
-  "shared.domain",
-  "shared.application",
+  "shared.contracts",
+  "shared.contracts",
   "shared.security.redaction",
 ]
 deny = [

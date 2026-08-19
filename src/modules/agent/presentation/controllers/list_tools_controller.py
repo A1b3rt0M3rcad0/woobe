@@ -1,6 +1,6 @@
 from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.application.dtos.tools_dtos import ListToolsInput
-from modules.agent.application.mcp_readiness import with_mcp_readiness
+from modules.agent.application.interfaces.mcp_readiness import with_mcp_readiness
 from modules.agent.presentation.schemas import ToolResponse
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

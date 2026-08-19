@@ -73,7 +73,7 @@ from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEvent
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.storage.factory import create_file_storage
 from modules.agent.presentation.mappers import upload_document_output_to_response
-from shared.domain.errors import ConflictError, ValidationError
+from shared.contracts.errors import ConflictError, ValidationError
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 router = APIRouter(prefix="/ai", tags=["ai", "agent"])

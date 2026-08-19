@@ -6,7 +6,7 @@ from uuid import UUID
 from modules.agent.application.use_cases.knowledge_use_cases import DeleteDocumentUseCase as BaseDeleteDocumentUseCase
 from modules.agent.domain.enums import KnowledgeVersionStatus
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
-from shared.domain.errors import ConflictError, ValidationError
+from shared.contracts.errors import ConflictError, ValidationError
 
 
 class ActiveVectorBuildGuard(Protocol):

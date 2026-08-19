@@ -3,7 +3,7 @@ import logging
 
 from modules.agent.presentation.schemas import AskResponse, UsageResponse
 from modules.agent.application.dtos import AskInput
-from shared.domain.errors import ConflictError, NotFoundError, ValidationError
+from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller

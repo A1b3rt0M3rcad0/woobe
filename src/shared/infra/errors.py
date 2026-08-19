@@ -1,4 +1,4 @@
-from shared.domain.errors import (
+from shared.contracts.errors import (
     AuthenticationError,
     AuthorizationError,
     ConflictError,

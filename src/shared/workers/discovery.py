@@ -35,7 +35,12 @@ class ModuleWorkerEntry:
 
 def discover_module_entries() -> list[ModuleWorkerEntry]:
     module_paths = [
-        (module_name, f"modules.{module_name}.infra.workers.registry")
+        (
+            module_name,
+            "modules.agent.entrypoint"
+            if module_name == "agent"
+            else f"modules.{module_name}.infra.workers.registry",
+        )
         for module_name in CORE_MODULE_WORKER_REGISTRIES
     ]
 

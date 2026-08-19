@@ -8,7 +8,7 @@ from uuid import uuid4
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
-from modules.agent.application.services.rag.embedding_errors import EmbeddingProviderError
+from modules.agent.application.interfaces.embedding_errors import EmbeddingProviderError
 from modules.agent.application.use_cases.vector_snapshot_use_cases import BuildVectorSnapshotUseCase
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_BUILDING
 from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
@@ -17,8 +17,8 @@ from modules.agent.infra.database.vector_snapshot_models import VectorSnapshotMo
 from modules.agent.infra.storage.factory import create_file_storage
 from modules.agent.infra.workers.vector_snapshot_claims import claim_vector_snapshot_builds
 from shared.infra.config import Settings
-from shared.domain.errors import DomainError
-from shared.application.time import utc_now
+from shared.contracts.errors import DomainError
+from shared.contracts.time import utc_now
 
 logger = logging.getLogger(__name__)
 

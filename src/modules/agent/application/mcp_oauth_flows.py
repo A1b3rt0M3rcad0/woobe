@@ -34,8 +34,8 @@ from modules.agent.application.mcp_oauth import (
 from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions
 from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
 from modules.agent.application.interfaces.repositories import ToolRepository
-from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
-from shared.application.time import utc_now
+from modules.agent.application.interfaces.ports import SecretCipherPort
+from shared.contracts.time import utc_now
 
 OAUTH_STATE_TTL_SECONDS = 600
 DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
@@ -225,7 +225,7 @@ def _token_request_auth(
 
 
 class ProviderAwareMcpOAuthStartUseCase:
-    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherAdapter) -> None:
+    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherPort) -> None:
         self._tool_repo = tool_repo
         self._executor = executor
         self._cipher = cipher
@@ -346,7 +346,7 @@ class ProviderAwareMcpOAuthStartUseCase:
 
 
 class McpOAuthDeviceStartUseCase:
-    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherAdapter) -> None:
+    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherPort) -> None:
         self._tool_repo = tool_repo
         self._executor = executor
         self._cipher = cipher
@@ -462,7 +462,7 @@ class McpOAuthDeviceStartUseCase:
 
 
 class McpOAuthDevicePollUseCase:
-    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherAdapter) -> None:
+    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherPort) -> None:
         self._tool_repo = tool_repo
         self._executor = executor
         self._cipher = cipher

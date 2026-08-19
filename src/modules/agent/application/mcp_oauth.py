@@ -16,8 +16,8 @@ from modules.agent.application.mcp_permissions import merge_discovered_tools_wit
 from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
 from modules.agent.domain.entities import Tool
 from modules.agent.application.interfaces.repositories import ToolRepository
-from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
-from shared.application.time import utc_now
+from modules.agent.application.interfaces.ports import SecretCipherPort
+from shared.contracts.time import utc_now
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
 OAUTH_STATE_TTL_SECONDS = 600
@@ -575,7 +575,7 @@ class McpOAuthMetadataResolver:
 
 
 class McpOAuthStartUseCase:
-    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherAdapter) -> None:
+    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherPort) -> None:
         self._tool_repo = tool_repo
         self._executor = executor
         self._cipher = cipher
@@ -650,7 +650,7 @@ class McpOAuthStartUseCase:
 
 
 class McpOAuthCompleteUseCase:
-    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherAdapter) -> None:
+    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherPort) -> None:
         self._tool_repo = tool_repo
         self._executor = executor
         self._cipher = cipher
@@ -772,7 +772,7 @@ class McpOAuthDisconnectUseCase:
 
 
 class McpOAuthConfigTokenProvider:
-    def __init__(self, *, executor: ToolExecutionPort, cipher: SecretCipherAdapter) -> None:
+    def __init__(self, *, executor: ToolExecutionPort, cipher: SecretCipherPort) -> None:
         self._executor = executor
         self._cipher = cipher
 

@@ -16,12 +16,12 @@ from modules.agent.application.mcp_oauth_metadata_validation import (
     write_mcp_oauth_validation,
 )
 from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions, write_mcp_readiness
-from modules.agent.application.mcp_readiness import classify_mcp_discovery_status
+from modules.agent.application.interfaces.mcp_readiness import classify_mcp_discovery_status
 from modules.agent.application.interfaces.ports import ToolExecutionPort, ToolSecretResolverPort
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import ToolType
 from modules.agent.application.interfaces.repositories import ToolRepository
-from shared.application.time import utc_now
+from shared.contracts.time import utc_now
 
 logger = logging.getLogger(__name__)
 

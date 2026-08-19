@@ -2,7 +2,7 @@ from modules.agent.application.interfaces.use_case import UseCase
 from typing import cast
 from uuid import UUID
 
-from shared.domain.errors import NotFoundError
+from shared.contracts.errors import NotFoundError
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

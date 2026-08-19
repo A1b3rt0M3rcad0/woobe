@@ -4,7 +4,7 @@ from uuid import UUID
 
 from modules.agent.application.dtos import GetCollectionInput
 from modules.agent.presentation.mappers import collection_to_response
-from shared.domain.errors import NotFoundError
+from shared.contracts.errors import NotFoundError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller

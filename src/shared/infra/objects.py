@@ -1,3 +1,3 @@
-from shared.application.pagination import CursorPage
+from shared.contracts.pagination import CursorPage
 
 __all__ = ["CursorPage"]

@@ -9,7 +9,7 @@ from modules.agent.application.services.rag.chunker import RecursiveTextChunker
 from modules.agent.application.services.rag.document_parser import DocumentParser
 from modules.agent.domain.enums import DocumentStatus
 from modules.agent.application.interfaces.repositories import DocumentCollectionRepository, DocumentRepository
-from shared.domain.errors import ConflictError, NotFoundError
+from shared.contracts.errors import ConflictError, NotFoundError
 
 
 def _value(value: object) -> str:

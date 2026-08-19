@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from modules.agent.application.services.rag.embedding_errors import (
+from modules.agent.application.interfaces.embedding_errors import (
     EmbeddingFailure,
     EmbeddingProviderError,
     normalize_embedding_error,

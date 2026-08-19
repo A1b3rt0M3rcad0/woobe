@@ -27,7 +27,7 @@ from modules.agent.application.dtos.runtime_dtos import (
     SendMessageOutput,
 )
 from modules.agent.domain.enums import RuntimeSessionMode, SessionStatus
-from shared.application.time import utc_now
+from shared.contracts.time import utc_now
 
 
 class CreateSessionUseCase:

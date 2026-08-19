@@ -21,7 +21,7 @@ from modules.agent.infra.database.repositories import (
 )
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 from shared.infra.database.base import BaseModel
-from shared.application.pagination import CursorPage
+from shared.contracts.pagination import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 

@@ -5,7 +5,7 @@ import time
 from typing import Any, Protocol, cast
 from uuid import uuid4
 
-from modules.agent.application.services.rag.embedding_errors import EmbeddingProviderError
+from modules.agent.application.interfaces.embedding_errors import EmbeddingProviderError
 from modules.agent.application.tool_converter import MCP_PROVIDER_ROUTE_SEPARATOR
 from modules.agent.application.interfaces.execution_context import (
     current_execution,

@@ -12,7 +12,7 @@ from modules.agent.application.use_cases.release_lifecycle_use_cases import (
 )
 from modules.agent.domain.entities import AgentReleaseTest
 from modules.agent.domain.enums import ReleaseStatus, ReleaseTestStatus
-from shared.domain.errors import ConflictError
+from shared.contracts.errors import ConflictError
 
 __all__ = [
     "CreateReleaseUseCase",

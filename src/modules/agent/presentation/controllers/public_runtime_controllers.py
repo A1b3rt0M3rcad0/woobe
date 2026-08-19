@@ -12,7 +12,7 @@ from modules.agent.application.dtos.runtime_dtos import (
 )
 from modules.agent.domain.errors import AskJobNotFoundError
 from modules.agent.application.interfaces.repositories import AskJobRepository
-from shared.domain.errors import AuthenticationError, AuthorizationError
+from shared.contracts.errors import AuthenticationError, AuthorizationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller

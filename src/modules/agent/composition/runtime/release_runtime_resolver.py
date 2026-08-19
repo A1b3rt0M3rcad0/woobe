@@ -19,8 +19,8 @@ from modules.agent.application.use_cases.vector_snapshot_rag_mixin import Vector
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ReleaseStatus, ToolStatus
 from modules.agent.domain.errors import RuntimeEnvironmentNotReadyError
-from shared.domain.errors import ConflictError, ValidationError
-from shared.application.llm_cost import provider_model_pricing_snapshot
+from shared.contracts.errors import ConflictError, ValidationError
+from shared.contracts.llm_cost import provider_model_pricing_snapshot
 from shared.runtime_environment import normalize_runtime_environment
 
 

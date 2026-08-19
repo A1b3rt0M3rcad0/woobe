@@ -52,8 +52,8 @@ from modules.agent.domain.vector_snapshot_entities import (
 )
 from shared.infra.config import Settings
 from shared.infra.crypto import decrypt_secret
-from shared.domain.errors import ConflictError, NotFoundError, ValidationError
-from shared.application.time import utc_now
+from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
+from shared.contracts.time import utc_now
 
 EMBEDDING_BATCH_SIZE = 100
 

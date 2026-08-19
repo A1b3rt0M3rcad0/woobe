@@ -114,7 +114,7 @@ from modules.agent.infra.database.models import (
     ProviderCredentialModel,
     SessionModel,
 )
-from shared.application.pagination import CursorPage
+from shared.contracts.pagination import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 

@@ -8,7 +8,7 @@ from modules.agent.application.dtos.model_discovery_dtos import (
 )
 from modules.agent.domain.enums import CredentialStatus
 from modules.agent.application.interfaces.repositories import ProviderCredentialRepository
-from shared.domain.errors import ValidationError
+from shared.contracts.errors import ValidationError
 
 ModelDiscoveryCallable = Callable[[str, str, dict], Awaitable[list[AvailableProviderModelOutput]]]
 SecretResolverCallable = Callable[[str], str]

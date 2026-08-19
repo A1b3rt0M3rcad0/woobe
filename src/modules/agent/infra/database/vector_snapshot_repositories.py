@@ -22,7 +22,7 @@ from modules.agent.infra.database.vector_snapshot_models import (
     VectorSnapshotModel,
 )
 from shared.infra.config.interface.unit_of_work import UnitOfWork
-from shared.application.time import utc_now
+from shared.contracts.time import utc_now
 
 
 def _snapshot_model_to_entity(model: VectorSnapshotModel) -> VectorSnapshot:

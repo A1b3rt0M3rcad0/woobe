@@ -4,7 +4,7 @@ from typing import Any
 
 from langchain_openai import OpenAIEmbeddings
 
-from modules.agent.application.services.rag.embedding_errors import (
+from modules.agent.application.interfaces.embedding_errors import (
     as_embedding_provider_error,
 )
 from modules.agent.application.interfaces.embedding_factory import EmbeddingFactory

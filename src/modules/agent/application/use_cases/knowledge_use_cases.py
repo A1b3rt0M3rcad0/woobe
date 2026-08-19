@@ -53,7 +53,7 @@ from modules.agent.application.interfaces.repositories import (
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
 from shared.infra.config import Settings
 from shared.infra.config.interface.unit_of_work import UnitOfWork
-from shared.domain.errors import ConflictError, NotFoundError, ValidationError
+from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 
 

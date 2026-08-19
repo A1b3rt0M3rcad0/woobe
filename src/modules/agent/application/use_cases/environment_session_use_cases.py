@@ -17,7 +17,7 @@ from modules.agent.domain.errors import (
     RuntimeEnvironmentNotReadyError,
 )
 from modules.agent.domain.events import AgentSessionCreatedV1
-from shared.domain.errors import ValidationError
+from shared.contracts.errors import ValidationError
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 
 _LEGACY_RUNTIME_KEYS = {"runtime_environment", "loaded_release_id", "release_version"}

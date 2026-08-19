@@ -2,7 +2,7 @@ from modules.agent.application.interfaces.use_case import UseCase
 import logging
 
 from modules.agent.application.dtos import CreateAskJobInput
-from shared.domain.errors import ValidationError
+from shared.contracts.errors import ValidationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
