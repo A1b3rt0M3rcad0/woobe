@@ -13,7 +13,7 @@ from modules.agent.application.interfaces.repositories import (
     AgentRepository,
     SessionRepository,
 )
-from shared.infra.errors import ConflictError
+from shared.domain.errors import ConflictError
 
 
 def _session_environment(session) -> str:

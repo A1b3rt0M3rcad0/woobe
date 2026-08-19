@@ -21,7 +21,7 @@ from modules.agent.domain.entities import (
     Tool,
 )
 from modules.agent.domain.enums import ReleaseStatus
-from shared.infra.objects import CursorPage
+from shared.application.pagination import CursorPage
 
 
 class ProviderCredentialRepository(ABC):

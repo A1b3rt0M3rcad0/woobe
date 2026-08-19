@@ -6,7 +6,7 @@ from modules.agent.application.dtos.provider_credential_rotation_dtos import (
 from modules.agent.application.use_cases.rotate_provider_credential_use_case import (
     RotateProviderCredentialUseCase,
 )
-from shared.infra.errors import AuthenticationError
+from shared.domain.errors import AuthenticationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller

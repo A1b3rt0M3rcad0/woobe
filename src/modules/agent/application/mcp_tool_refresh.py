@@ -21,7 +21,7 @@ from modules.agent.application.interfaces.ports import ToolExecutionPort, ToolSe
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import ToolType
 from modules.agent.application.interfaces.repositories import ToolRepository
-from shared.infra.time import utc_now
+from shared.application.time import utc_now
 
 logger = logging.getLogger(__name__)
 

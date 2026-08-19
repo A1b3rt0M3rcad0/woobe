@@ -4,7 +4,7 @@ from uuid import UUID
 from modules.agent.presentation.mappers import document_to_response
 from modules.agent.application.dtos import GetDocumentInput
 from modules.agent.application.use_cases.knowledge_use_cases import GetDocumentUseCase
-from shared.infra.errors import NotFoundError
+from shared.domain.errors import NotFoundError
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

@@ -7,7 +7,7 @@ from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.errors import ReleaseNotFoundError
 from modules.agent.domain.release_activation import AgentReleaseActivation
-from shared.infra.errors import ValidationError
+from shared.domain.errors import ValidationError
 
 
 def _tool_snapshots(runtime_config):

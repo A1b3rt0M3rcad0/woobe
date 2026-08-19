@@ -17,7 +17,7 @@ from modules.agent.application.interfaces.ports import ExecutionResult, ToolExec
 from modules.agent.domain.entities import Tool
 from modules.agent.application.interfaces.repositories import ToolRepository
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
-from shared.infra.time import utc_now
+from shared.application.time import utc_now
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
 OAUTH_STATE_TTL_SECONDS = 600

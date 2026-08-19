@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from shared.messaging.outbox_writer import OutboxEventWriter
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
 
 from modules.agent.application.dtos.tools_dtos import (
     CreateSecretInput,

@@ -20,7 +20,7 @@ from modules.agent.application.dtos.vector_snapshot_dtos import (
     ListVectorSnapshotsInput,
     PreviewVectorSnapshotInput,
 )
-from shared.infra.errors import ConflictError, NotFoundError, ValidationError
+from shared.domain.errors import ConflictError, NotFoundError, ValidationError
 
 router = APIRouter(prefix="/agent/knowledge", tags=["knowledge", "agent"])
 

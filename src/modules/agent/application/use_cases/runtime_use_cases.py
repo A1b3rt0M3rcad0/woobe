@@ -9,7 +9,7 @@ from modules.agent.domain.events import (
     AgentMessageCreatedV1,
     AgentSessionCreatedV1,
 )
-from shared.messaging.outbox_writer import OutboxEventWriter
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.application.interfaces.repositories import AskJobRepository, MessageRepository, SessionRepository
 from modules.agent.application.dtos.runtime_dtos import (
     CreateAskJobInput,
@@ -27,7 +27,7 @@ from modules.agent.application.dtos.runtime_dtos import (
     SendMessageOutput,
 )
 from modules.agent.domain.enums import RuntimeSessionMode, SessionStatus
-from shared.infra.time import utc_now
+from shared.application.time import utc_now
 
 
 class CreateSessionUseCase:

@@ -7,7 +7,7 @@ from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
 from modules.agent.application.use_cases.execution_context import current_execution
 from modules.agent.application.use_cases.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.domain.entities import Agent
-from shared.infra.errors import ConflictError, ValidationError
+from shared.domain.errors import ConflictError, ValidationError
 from shared.runtime_environment import normalize_runtime_environment
 
 _LEGACY_RUNTIME_KEYS = {"runtime_environment", "loaded_release_id", "release_version"}

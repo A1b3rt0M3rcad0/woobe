@@ -13,8 +13,8 @@ from modules.agent.domain.credential_events import AgentProviderCredentialRotate
 from modules.agent.domain.enums import CredentialStatus
 from modules.agent.application.interfaces.repositories import ProviderCredentialRepository
 from shared.infra.crypto import encrypt_secret
-from shared.infra.errors import ConflictError, ValidationError
-from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.domain.errors import ConflictError, ValidationError
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
 
 
 ProviderCredentialValidator = Callable[

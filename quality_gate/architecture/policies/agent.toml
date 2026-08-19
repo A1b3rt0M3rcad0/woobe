@@ -42,6 +42,8 @@ id = "ARCH005"
 description = "presentation controllers must depend on application contracts, domain values and presentation code only"
 source = ["presentation/controllers/**"]
 allow = [
+  "shared.domain",
+  "shared.security.principal",
   "modules.agent.presentation",
   "modules.agent.application.interfaces",
   "modules.agent.application.dtos",
@@ -62,6 +64,8 @@ id = "ARCH010"
 description = "presentation support code may use domain values, presentation primitives and application contracts only"
 source = ["presentation/**"]
 allow = [
+  "shared.domain",
+  "shared.security.principal",
   "modules.agent.presentation",
   "modules.agent.application.interfaces",
   "modules.agent.application.dtos",
@@ -83,6 +87,7 @@ id = "ARCH019"
 description = "composition may wire concrete layers but must never import presentation routes"
 source = ["composition/**"]
 allow = [
+  "modules.agent.composition",
   "modules.agent.domain",
   "modules.agent.application",
   "modules.agent.infra",
@@ -116,13 +121,17 @@ description = "domain must remain independent from outer layers and technical sh
 source = ["domain/**"]
 allow = [
   "modules.agent.domain",
+  "shared.domain",
 ]
 deny = [
   "modules.agent.application",
   "modules.agent.infra",
   "modules.agent.presentation",
   "modules.agent.composition",
-  "shared",
+  "shared.infra",
+  "shared.messaging",
+  "shared.presentation",
+  "shared.workers",
   "sqlalchemy",
   "alembic",
   "asyncpg",
@@ -145,6 +154,9 @@ source = ["application/**"]
 allow = [
   "modules.agent.application",
   "modules.agent.domain",
+  "shared.domain",
+  "shared.application",
+  "shared.security.redaction",
 ]
 deny = [
   "modules.agent.infra",

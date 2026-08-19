@@ -49,10 +49,10 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentReleaseRepository,
     SQLAlchemyAgentCollectionRepository,
 )
-from shared.infra.time import utc_now
+from shared.application.time import utc_now
 from shared.infra.config import Settings
 from shared.infra.crypto import decrypt_secret
-from shared.infra.llm_usage import normalize_llm_usage
+from shared.application.llm_usage import normalize_llm_usage
 
 logger = logging.getLogger(__name__)
 
@@ -548,7 +548,7 @@ class AskAgentUseCase:
         if agent.project_id != input_dto.project_id:
             raise AgentNotFoundError(input_dto.agent_id)
         if hasattr(agent, "status") and agent.status and hasattr(agent.status, "value") and agent.status.value != "active":
-            from shared.infra.errors import ValidationError
+            from shared.domain.errors import ValidationError
             raise ValidationError(f"Agent {input_dto.agent_id} is not active")
 
         if input_dto.execution_context == "production":
@@ -631,7 +631,7 @@ class AskAgentUseCase:
 
     async def _load_credential(self, credential_repo: ProviderCredentialRepository, agent: Agent) -> ProviderCredential:
         if not agent.provider_credential_id:
-            from shared.infra.errors import ValidationError
+            from shared.domain.errors import ValidationError
             raise ValidationError(
                 "Agent has no provider credential configured"
             )
@@ -642,7 +642,7 @@ class AskAgentUseCase:
             return decrypt_secret(credential.encrypted_secret, self._encryption_key)
         except Exception as e:
             logger.error("Failed to decrypt credential %s: %s", credential.id, e)
-            from shared.infra.errors import ValidationError
+            from shared.domain.errors import ValidationError
             raise ValidationError(
                 "Provider credential secret could not be decrypted. Recreate the credential."
             )
@@ -889,13 +889,13 @@ class AskAgentUseCase:
                 or (credential.metadata or {}).get("base_url")
             )
             if not base_url:
-                from shared.infra.errors import ValidationError
+                from shared.domain.errors import ValidationError
                 raise ValidationError(
                     "Custom provider requires base_url in credential metadata or agent settings"
                 )
             model = (settings or {}).get("model") or (credential.metadata or {}).get("model")
             if not model:
-                from shared.infra.errors import ValidationError
+                from shared.domain.errors import ValidationError
                 raise ValidationError(
                     "Custom provider requires model in agent or credential metadata"
                 )

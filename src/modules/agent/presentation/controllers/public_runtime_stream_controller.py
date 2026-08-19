@@ -11,7 +11,7 @@ from modules.agent.application.use_cases.ask_agent_stream_service import AskAgen
 from modules.agent.presentation.controllers.ask_agent_stream_controller import (
     commit_safe_stream,
 )
-from shared.infra.errors import AuthenticationError, AuthorizationError
+from shared.domain.errors import AuthenticationError, AuthorizationError
 from shared.runtime_environment import assert_runtime_environment_enabled
 from shared.security.principal import ProjectApiPrincipal
 

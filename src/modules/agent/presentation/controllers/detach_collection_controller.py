@@ -2,7 +2,7 @@ from typing import cast
 from uuid import UUID
 
 from modules.agent.application.use_cases.knowledge_use_cases import DetachCollectionUseCase
-from shared.infra.errors import NotFoundError
+from shared.domain.errors import NotFoundError
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

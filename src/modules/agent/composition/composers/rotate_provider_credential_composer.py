@@ -13,7 +13,7 @@ from modules.agent.presentation.controllers.rotate_provider_credential_controlle
     RotateProviderCredentialController,
 )
 from shared.infra.config import Settings
-from shared.infra.errors import ValidationError
+from shared.domain.errors import ValidationError
 from shared.infra.transactional_handler import TransactionalHandler
 
 

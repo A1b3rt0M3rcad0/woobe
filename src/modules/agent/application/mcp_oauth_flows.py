@@ -35,7 +35,7 @@ from modules.agent.application.mcp_permissions import merge_discovered_tools_wit
 from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
 from modules.agent.application.interfaces.repositories import ToolRepository
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
-from shared.infra.time import utc_now
+from shared.application.time import utc_now
 
 OAUTH_STATE_TTL_SECONDS = 600
 DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"

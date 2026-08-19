@@ -13,8 +13,8 @@ from modules.agent.application.use_cases.runtime_output_validation import (
     ensure_model_result_has_public_output,
 )
 from modules.agent.application.use_cases.runtime_streaming import emit_runtime_event
-from shared.infra.llm_cost import calculate_llm_cost
-from shared.infra.llm_usage import normalize_llm_usage
+from shared.application.llm_cost import calculate_llm_cost
+from shared.application.llm_usage import normalize_llm_usage
 
 
 def _fallback_pricing_snapshot(agent) -> dict | None:

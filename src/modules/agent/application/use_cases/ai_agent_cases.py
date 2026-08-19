@@ -13,8 +13,8 @@ from modules.agent.domain.entities import Agent
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
 from modules.agent.domain.events import AgentCreatedV1, AgentUpdatedV1
 from modules.agent.application.interfaces.repositories import AgentRepository, ProviderCredentialRepository
-from shared.infra.errors import ConflictError, ValidationError
-from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.domain.errors import ConflictError, ValidationError
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
 
 
 class NetworkAgentUsageReader(Protocol):

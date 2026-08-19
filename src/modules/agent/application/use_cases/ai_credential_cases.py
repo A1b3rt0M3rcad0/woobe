@@ -6,7 +6,7 @@ from modules.agent.domain.events import AgentProviderCredentialCreatedV1, AgentP
 from modules.agent.application.interfaces.repositories import ProviderCredentialRepository
 from shared.infra.config import Settings
 from shared.infra.crypto import encrypt_secret
-from shared.messaging.outbox_writer import OutboxEventWriter
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
 
 
 class CreateProviderCredentialUseCase:

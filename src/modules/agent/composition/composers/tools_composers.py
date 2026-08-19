@@ -64,7 +64,7 @@ from modules.agent.presentation.controllers.update_tool_status_controller import
 )
 from shared.infra.config import Settings
 from shared.infra.transactional_handler import TransactionalHandler
-from shared.messaging.outbox_writer import OutboxEventWriter
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
 
 
 def _agent_outbox(uow: AgentUnitOfWork) -> OutboxEventWriter:

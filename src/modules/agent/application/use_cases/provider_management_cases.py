@@ -7,7 +7,7 @@ from uuid import UUID
 from modules.agent.domain.enums import AgentStatus, CredentialStatus, ProviderModelStatus, ReleaseStatus
 from shared.infra.config import Settings
 from shared.infra.crypto import encrypt_secret
-from shared.infra.errors import ConflictError, ValidationError
+from shared.domain.errors import ConflictError, ValidationError
 
 
 _BLOCKING_RELEASE_STATUSES = {

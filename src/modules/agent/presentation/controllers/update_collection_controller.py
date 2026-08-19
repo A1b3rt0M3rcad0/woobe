@@ -6,7 +6,7 @@ from pydantic import ValidationError as PydanticValidationError
 from modules.agent.application.dtos.knowledge_dtos import UpdateCollectionInput
 from modules.agent.application.use_cases.update_collection_use_case import UpdateCollectionUseCase
 from modules.agent.presentation.mappers import collection_to_response
-from shared.infra.errors import NotFoundError, ValidationError
+from shared.domain.errors import NotFoundError, ValidationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller

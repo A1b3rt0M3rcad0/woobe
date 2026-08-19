@@ -31,7 +31,7 @@ from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
-from shared.infra.time import utc_now
+from shared.application.time import utc_now
 
 
 _OUTPUT_CONTRACT_RUNTIME_RULES = (
@@ -97,7 +97,7 @@ class StructuredOutputAskAgentUseCase(
                 or (credential.metadata or {}).get("base_url")
             )
             if not base_url:
-                from shared.infra.errors import ValidationError
+                from shared.domain.errors import ValidationError
 
                 raise ValidationError(
                     "Custom provider requires base_url in credential metadata or agent settings"

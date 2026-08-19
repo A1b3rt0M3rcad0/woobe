@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from shared.infra.errors import ValidationError
+from shared.domain.errors import ValidationError
 from shared.runtime_environment import RUNTIME_ENVIRONMENTS, set_runtime_environment_enabled
 
 

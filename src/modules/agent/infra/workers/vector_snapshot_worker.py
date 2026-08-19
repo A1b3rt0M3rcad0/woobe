@@ -17,8 +17,8 @@ from modules.agent.infra.database.vector_snapshot_models import VectorSnapshotMo
 from modules.agent.infra.storage.factory import create_file_storage
 from modules.agent.infra.workers.vector_snapshot_claims import claim_vector_snapshot_builds
 from shared.infra.config import Settings
-from shared.infra.errors import DomainError
-from shared.infra.time import utc_now
+from shared.domain.errors import DomainError
+from shared.application.time import utc_now
 
 logger = logging.getLogger(__name__)
 

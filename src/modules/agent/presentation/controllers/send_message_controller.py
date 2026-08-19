@@ -3,7 +3,7 @@ from modules.agent.application.dtos import SendMessageInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
-from shared.infra.errors import NotFoundError, ValidationError
+from shared.domain.errors import NotFoundError, ValidationError
 
 
 class SendMessageController(Controller):

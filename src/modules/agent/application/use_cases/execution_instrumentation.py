@@ -20,8 +20,8 @@ from modules.agent.application.use_cases.tool_output_compaction import (
 from modules.agent.application.use_cases.tool_result_semantics import (
     normalize_tool_result,
 )
-from shared.infra.llm_cost import calculate_llm_cost
-from shared.infra.llm_usage import normalize_llm_usage
+from shared.application.llm_cost import calculate_llm_cost
+from shared.application.llm_usage import normalize_llm_usage
 
 
 def utc_iso() -> str:
