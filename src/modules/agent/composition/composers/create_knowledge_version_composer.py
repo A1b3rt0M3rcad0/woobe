@@ -1,17 +1,22 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-from modules.agent.presentation.controllers.create_knowledge_version_controller import CreateKnowledgeVersionController
 from modules.agent.application.use_cases import CreateKnowledgeVersionUseCase
-from shared.infra.transactional_handler import TransactionalHandler
+from modules.agent.infra.database.database import AgentDatabase
+from modules.agent.infra.database.provider_model_repositories import SQLAlchemyAgentRepositoryWithProviderModels
+from modules.agent.infra.database.repositories import SQLAlchemyKnowledgeVersionRepository
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.database.vector_snapshot_repositories import SQLAlchemyVectorSnapshotRepository
+from modules.agent.presentation.controllers.create_knowledge_version_controller import CreateKnowledgeVersionController
+from shared.infra.transactional_handler import TransactionalHandler
 
 
-def create_knowledge_version_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = AgentUnitOfWork(session_factory)
+def create_knowledge_version_composer(database: AgentDatabase) -> TransactionalHandler:
+    uow = AgentUnitOfWork(database)
+    knowledge_repo = SQLAlchemyKnowledgeVersionRepository(uow)
+    vector_repo = SQLAlchemyVectorSnapshotRepository(uow)
+    agent_repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
     use_case = CreateKnowledgeVersionUseCase(
-        uow.knowledge_versions,
-        uow.vector_snapshots,
-        uow.agents,
+        knowledge_repo,
+        vector_repo,
+        agent_repo,
     )
     controller = CreateKnowledgeVersionController(use_case)
     return TransactionalHandler(uow, controller.handle)

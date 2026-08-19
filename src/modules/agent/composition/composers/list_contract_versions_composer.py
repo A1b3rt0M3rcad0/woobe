@@ -1,14 +1,13 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-from modules.agent.infra.database.repositories import SQLAlchemyAgentContractRepository
 from modules.agent.application.use_cases import ListContractsUseCase
+from modules.agent.infra.database.database import AgentDatabase
+from modules.agent.infra.database.repositories import SQLAlchemyAgentContractRepository
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.presentation.controllers.list_contract_versions_controller import ListContractVersionsController
 from shared.infra.transactional_handler import TransactionalHandler
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
-def list_contract_versions_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = AgentUnitOfWork(session_factory)
+def list_contract_versions_composer(database: AgentDatabase) -> TransactionalHandler:
+    uow = AgentUnitOfWork(database)
     repo = SQLAlchemyAgentContractRepository(uow)
     use_case = ListContractsUseCase(repo)
     controller = ListContractVersionsController(use_case)

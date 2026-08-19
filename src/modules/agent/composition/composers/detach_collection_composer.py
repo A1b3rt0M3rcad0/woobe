@@ -1,14 +1,13 @@
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-from modules.agent.infra.database.repositories import SQLAlchemyAgentCollectionRepository
-from modules.agent.presentation.controllers.detach_collection_controller import DetachCollectionController
 from modules.agent.application.use_cases import DetachCollectionUseCase
-from shared.infra.transactional_handler import TransactionalHandler
+from modules.agent.infra.database.database import AgentDatabase
+from modules.agent.infra.database.repositories import SQLAlchemyAgentCollectionRepository
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.presentation.controllers.detach_collection_controller import DetachCollectionController
+from shared.infra.transactional_handler import TransactionalHandler
 
 
-def detach_collection_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
-    uow = AgentUnitOfWork(session_factory)
+def detach_collection_composer(database: AgentDatabase) -> TransactionalHandler:
+    uow = AgentUnitOfWork(database)
     repo = SQLAlchemyAgentCollectionRepository(uow)
     use_case = DetachCollectionUseCase(repo)
     controller = DetachCollectionController(use_case)
