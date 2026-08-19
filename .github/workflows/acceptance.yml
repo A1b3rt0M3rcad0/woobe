@@ -98,7 +98,8 @@ jobs:
           docker cp "$postgres_container:$backup" "$RUNNER_TEMP/backups/$backup_name"
           docker cp "$postgres_container:${backup}.sha256" "$RUNNER_TEMP/backups/${backup_name}.sha256"
 
-          docker exec "$postgres_container" pg_restore --list "$backup" | grep -Fq 'release_restore_probe'
+          docker exec "$postgres_container" pg_restore --list "$backup" > "$RUNNER_TEMP/backup-contents.txt"
+          grep -Fq 'release_restore_probe' "$RUNNER_TEMP/backup-contents.txt"
 
           docker exec "$postgres_container" dropdb --if-exists -U postgres woobe_restore
           docker exec "$postgres_container" createdb -U postgres --template=template0 woobe_restore
