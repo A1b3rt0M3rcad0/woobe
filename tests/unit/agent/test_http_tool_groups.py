@@ -11,7 +11,7 @@ from modules.agent.application.http_tool_contract import (
     compile_http_group_route_contract,
     compile_http_tool_group_contract,
 )
-from modules.agent.application.ports import ExecutionResult, ToolExecutionPort
+from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
 from modules.agent.application.tool_converter import (
     MCP_PROVIDER_ROUTE_SEPARATOR,
     agent_tools_to_openai_definitions_and_mapping,

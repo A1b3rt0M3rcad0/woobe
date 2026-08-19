@@ -38,7 +38,7 @@ from modules.agent.domain.errors import (
     SessionNotFoundError,
     ToolNotFoundError,
 )
-from modules.agent.domain.repositories import (
+from modules.agent.application.interfaces.repositories import (
     AgentCollectionRepository,
     AgentContractRepository as AgentContractRepositoryInterface,
     AgentModelConfigRepository as AgentModelConfigRepositoryInterface,

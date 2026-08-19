@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from modules.agent.application.ports import SecretCipherPort, ToolSecretResolverPort
-from modules.agent.domain.repositories import SecretRepository
+from modules.agent.application.interfaces.ports import SecretCipherPort, ToolSecretResolverPort
+from modules.agent.application.interfaces.repositories import SecretRepository
 
 
 SECRET_REF_PREFIX = "{{secret:"

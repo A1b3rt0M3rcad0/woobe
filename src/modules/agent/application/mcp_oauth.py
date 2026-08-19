@@ -13,9 +13,9 @@ from pydantic import BaseModel, Field
 
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput, McpDiscoverOutput
 from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions
-from modules.agent.application.ports import ExecutionResult, ToolExecutionPort
+from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
 from modules.agent.domain.entities import Tool
-from modules.agent.domain.repositories import ToolRepository
+from modules.agent.application.interfaces.repositories import ToolRepository
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from shared.infra.time import utc_now
 

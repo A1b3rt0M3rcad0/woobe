@@ -2,7 +2,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.application.composers.tool_runtime_factory import build_tool_runtime_registry
+from modules.agent.composition.composers.tool_runtime_factory import build_tool_runtime_registry
 from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
 from modules.agent.application.runtime_tool_inventory import (
     execute_runtime_tool_inventory,

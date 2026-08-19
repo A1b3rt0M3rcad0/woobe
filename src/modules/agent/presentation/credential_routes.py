@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request as FastAPIRequest
 
-from modules.agent.application.composers.rotate_provider_credential_composer import (
+from modules.agent.composition.composers.rotate_provider_credential_composer import (
     rotate_provider_credential_composer,
 )
 from shared.presentation.http.adapter import request_adapter, response_adapter

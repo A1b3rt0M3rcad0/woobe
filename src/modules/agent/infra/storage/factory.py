@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from modules.agent.domain.ports.file_storage import FileStorage
+from modules.agent.application.interfaces.file_storage import FileStorage
 from modules.agent.infra.storage.local_file_storage import LocalFileStorage
 from modules.agent.infra.storage.s3_file_storage import S3FileStorage
 from shared.infra.config import Settings

@@ -7,8 +7,8 @@ from urllib.parse import urlparse
 from modules.agent.application import mcp_oauth as _oauth
 from modules.agent.application import mcp_oauth_flows as _flows
 from modules.agent.application.mcp_readiness import has_valid_mcp_oauth_metadata
-from modules.agent.application.ports import ToolExecutionPort
-from modules.agent.domain.repositories import ToolRepository
+from modules.agent.application.interfaces.ports import ToolExecutionPort
+from modules.agent.application.interfaces.repositories import ToolRepository
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 
 WOOBE_CLIENT_NAMES = {"woobe"}

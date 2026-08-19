@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import importlib
 
-from modules.agent.domain.ports.llm_factory import LLMFactory
+from modules.agent.application.interfaces.llm_factory import LLMFactory
 
 
 class LangchainLLMFactory(LLMFactory):

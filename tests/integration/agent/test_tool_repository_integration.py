@@ -5,7 +5,7 @@ import pytest
 from modules.agent.domain.entities import Secret, Tool
 from modules.agent.domain.enums import RiskLevel, SecretType, ToolStatus, ToolType
 from modules.agent.domain.errors import SecretNotFoundError, ToolNotFoundError
-from modules.agent.domain.repositories import SecretRepository, ToolRepository
+from modules.agent.application.interfaces.repositories import SecretRepository, ToolRepository
 
 
 class FakeToolRepository(ToolRepository):

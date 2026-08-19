@@ -3,12 +3,12 @@ from uuid import UUID
 
 import pytest
 
-from modules.agent.application.ports import SecretCipherPort
+from modules.agent.application.interfaces.ports import SecretCipherPort
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor, _is_private_url
 from modules.agent.domain.entities import Secret
-from modules.agent.domain.repositories import SecretRepository
+from modules.agent.application.interfaces.repositories import SecretRepository
 
 
 # ── Fakes ────────────────────────────────────────────────────────

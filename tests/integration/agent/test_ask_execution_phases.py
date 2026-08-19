@@ -17,7 +17,7 @@ from modules.agent.application.dtos.runtime_dtos import (
     ToolCallInfo,
 )
 from modules.agent.domain.entities import Agent
-from modules.agent.domain.ports.llm_factory import LLMFactory
+from modules.agent.application.interfaces.llm_factory import LLMFactory
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 

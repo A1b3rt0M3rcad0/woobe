@@ -24,7 +24,7 @@ from modules.agent.application.mcp_permissions import (
     normalize_permission,
 )
 from modules.agent.application.mcp_readiness import classify_mcp_discovery_status
-from modules.agent.application.ports import ToolExecutionPort
+from modules.agent.application.interfaces.ports import ToolExecutionPort
 from modules.agent.application.tool_types import is_mcp_tool_type
 from modules.agent.domain.entities import Tool
 from shared.infra.time import utc_now

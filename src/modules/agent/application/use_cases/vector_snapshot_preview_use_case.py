@@ -8,7 +8,7 @@ from modules.agent.application.dtos.vector_snapshot_dtos import PreviewVectorSna
 from modules.agent.application.services.rag.chunker import RecursiveTextChunker
 from modules.agent.application.services.rag.document_parser import DocumentParser
 from modules.agent.domain.enums import DocumentStatus
-from modules.agent.domain.repositories import DocumentCollectionRepository, DocumentRepository
+from modules.agent.application.interfaces.repositories import DocumentCollectionRepository, DocumentRepository
 from shared.infra.errors import ConflictError, NotFoundError
 
 

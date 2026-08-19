@@ -17,7 +17,7 @@ from modules.agent.application.use_cases.runtime_use_cases import (
 )
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.domain.events import AgentExecutionRequestedV1
-from modules.agent.domain.ports.llm_factory import LLMFactory
+from modules.agent.application.interfaces.llm_factory import LLMFactory
 
 
 @pytest.fixture

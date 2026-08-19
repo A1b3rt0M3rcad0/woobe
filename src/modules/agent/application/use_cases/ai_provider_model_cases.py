@@ -10,7 +10,7 @@ from modules.agent.application.dtos.ai_dtos import (
 )
 from modules.agent.domain.entities import ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
-from modules.agent.domain.repositories import ProviderCredentialRepository
+from modules.agent.application.interfaces.repositories import ProviderCredentialRepository
 from shared.infra.errors import ValidationError
 
 

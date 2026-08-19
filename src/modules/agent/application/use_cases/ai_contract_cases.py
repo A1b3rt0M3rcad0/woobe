@@ -3,7 +3,7 @@ from uuid import UUID
 from modules.agent.application.dtos.ai_dtos import CreateContractInput, CreateContractOutput, ListContractsOutput, UpdateContractInput, UpdateContractOutput
 from modules.agent.domain.entities import AgentContract
 from modules.agent.domain.enums import ContractStatus
-from modules.agent.domain.repositories import AgentContractRepository
+from modules.agent.application.interfaces.repositories import AgentContractRepository
 
 
 def _to_output(saved: AgentContract):

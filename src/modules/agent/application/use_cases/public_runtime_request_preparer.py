@@ -8,7 +8,7 @@ from modules.agent.domain.errors import (
     RuntimeEnvironmentNotReadyError,
     SessionNotFoundError,
 )
-from modules.agent.domain.repositories import (
+from modules.agent.application.interfaces.repositories import (
     AgentReleaseRepository,
     AgentRepository,
     SessionRepository,

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
-from modules.agent.application.ports import ExecutionResult, ToolExecutionPort
+from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
 
 MANAGED_MCP_HOST_SUFFIXES = {
     ".run.tools": "smithery",

@@ -3,7 +3,7 @@ from __future__ import annotations
 from uuid import UUID
 
 from modules.agent.application.use_cases.release_lifecycle_use_cases import ReleaseLifecycleUseCase
-from modules.agent.domain.repositories import AgentReleaseRepository
+from modules.agent.application.interfaces.repositories import AgentReleaseRepository
 
 
 class PromoteReleaseUseCase(ReleaseLifecycleUseCase):

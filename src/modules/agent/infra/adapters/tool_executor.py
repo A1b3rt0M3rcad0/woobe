@@ -10,14 +10,14 @@ from uuid import UUID
 
 import httpx
 
-from modules.agent.application.ports import (
+from modules.agent.application.interfaces.ports import (
     ExecutionResult,
     ToolExecutionPort,
     ToolSecretResolverPort,
 )
 from modules.agent.application.tool_converter import agent_tool_to_openai_definition
-from modules.agent.domain.ports.tool_executor import ToolExecutor
-from modules.agent.domain.repositories import ToolRepository
+from modules.agent.application.interfaces.tool_executor import ToolExecutor
+from modules.agent.application.interfaces.repositories import ToolRepository
 from shared.security.redaction import redact_sensitive_data, redact_text, redact_url
 
 logger = logging.getLogger(__name__)

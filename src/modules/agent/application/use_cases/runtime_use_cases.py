@@ -10,7 +10,7 @@ from modules.agent.domain.events import (
     AgentSessionCreatedV1,
 )
 from shared.messaging.outbox_writer import OutboxEventWriter
-from modules.agent.domain.repositories import AskJobRepository, MessageRepository, SessionRepository
+from modules.agent.application.interfaces.repositories import AskJobRepository, MessageRepository, SessionRepository
 from modules.agent.application.dtos.runtime_dtos import (
     CreateAskJobInput,
     CreateAskJobOutput,

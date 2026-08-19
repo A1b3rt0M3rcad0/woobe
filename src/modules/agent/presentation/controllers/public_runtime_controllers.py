@@ -11,7 +11,7 @@ from modules.agent.application.dtos.runtime_dtos import (
 )
 from modules.agent.application.use_cases.runtime_use_cases import CreateAskJobUseCase
 from modules.agent.domain.errors import AskJobNotFoundError
-from modules.agent.domain.repositories import AskJobRepository
+from modules.agent.application.interfaces.repositories import AskJobRepository
 from shared.infra.errors import AuthenticationError, AuthorizationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response

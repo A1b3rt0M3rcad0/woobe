@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request as FastAPIRequest
 
-from modules.agent.application.composers.model_lifecycle_composer import (
+from modules.agent.composition.composers.model_lifecycle_composer import (
     credential_usage_composer,
     provider_model_usage_composer,
     revoke_credential_composer,

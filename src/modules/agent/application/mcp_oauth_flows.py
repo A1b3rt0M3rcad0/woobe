@@ -32,8 +32,8 @@ from modules.agent.application.mcp_oauth import (
     _well_known_openid_configuration_url,
 )
 from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions
-from modules.agent.application.ports import ExecutionResult, ToolExecutionPort
-from modules.agent.domain.repositories import ToolRepository
+from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
+from modules.agent.application.interfaces.repositories import ToolRepository
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from shared.infra.time import utc_now
 

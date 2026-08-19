@@ -41,8 +41,8 @@ from modules.agent.domain.events import (
     AgentCollectionCreatedV1,
     AgentDocumentUploadedV1,
 )
-from modules.agent.domain.ports.file_storage import FileStorage, compute_sha256
-from modules.agent.domain.repositories import (
+from modules.agent.application.interfaces.file_storage import FileStorage, compute_sha256
+from modules.agent.application.interfaces.repositories import (
     AgentCollectionRepository,
     AgentRepository,
     DocumentChunkRepository,

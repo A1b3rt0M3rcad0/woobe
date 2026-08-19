@@ -7,7 +7,7 @@ from langchain_openai import OpenAIEmbeddings
 from modules.agent.application.services.rag.embedding_errors import (
     as_embedding_provider_error,
 )
-from modules.agent.domain.ports.embedding_factory import EmbeddingFactory
+from modules.agent.application.interfaces.embedding_factory import EmbeddingFactory
 
 _OPENAI_COMPATIBLE_PROVIDERS = {"openai", "custom", "openrouter"}
 

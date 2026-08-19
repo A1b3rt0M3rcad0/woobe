@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.agent.application import mcp_oauth
 from modules.agent.application import mcp_oauth_flow_safety as mcp_oauth_flows
-from modules.agent.application.composers.tool_runtime_factory import build_tool_runtime_registry
+from modules.agent.composition.composers.tool_runtime_factory import build_tool_runtime_registry
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase
 from modules.agent.application.mcp_permissions import (
     BulkUpdateMcpToolPermissionsUseCase,

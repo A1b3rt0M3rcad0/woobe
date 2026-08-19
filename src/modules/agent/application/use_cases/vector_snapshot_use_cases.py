@@ -32,8 +32,8 @@ from modules.agent.domain.enums import (
     DocumentStatus,
     ProviderModelStatus,
 )
-from modules.agent.domain.ports.embedding_factory import EmbeddingFactory
-from modules.agent.domain.repositories import (
+from modules.agent.application.interfaces.embedding_factory import EmbeddingFactory
+from modules.agent.application.interfaces.repositories import (
     DocumentCollectionRepository,
     DocumentRepository,
     ProviderCredentialRepository,

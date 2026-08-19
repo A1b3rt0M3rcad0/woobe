@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request as FastAPIRequest
 
-from modules.agent.application.composers.tools_composers import (
+from modules.agent.composition.composers.tools_composers import (
     complete_mcp_oauth_composer,
     disconnect_mcp_oauth_composer,
     discover_mcp_tools_composer,

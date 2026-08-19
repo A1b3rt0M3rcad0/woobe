@@ -15,9 +15,9 @@ from modules.agent.domain.entities import Agent, AgentRelease, ProviderCredentia
 from modules.agent.domain.entities import Message, Session
 from modules.agent.domain.enums import MessageRole, RuntimeSessionMode as SessionMode
 from modules.agent.domain.errors import AgentNotFoundError, CredentialNotFoundError
-from modules.agent.domain.ports.llm_factory import LLMFactory
-from modules.agent.domain.ports.tool_executor import ToolExecutor
-from modules.agent.domain.repositories import (
+from modules.agent.application.interfaces.llm_factory import LLMFactory
+from modules.agent.application.interfaces.tool_executor import ToolExecutor
+from modules.agent.application.interfaces.repositories import (
     ProviderCredentialRepository,
     MessageRepository,
     SessionRepository,

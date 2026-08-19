@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Request as FastAPIRequest
 
-from modules.agent.application.composers.list_release_activations_composer import (
+from modules.agent.composition.composers.list_release_activations_composer import (
     list_release_activations_composer,
 )
 from shared.presentation.http.adapter import request_adapter, response_adapter

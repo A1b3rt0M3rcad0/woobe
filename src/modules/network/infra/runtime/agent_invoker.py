@@ -7,7 +7,7 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.application.composers.tool_runtime_factory import (
+from modules.agent.composition.composers.tool_runtime_factory import (
     build_tool_runtime_registry,
 )
 from modules.agent.application.dtos.runtime_dtos import AskInput

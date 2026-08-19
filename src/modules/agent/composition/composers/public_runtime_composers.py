@@ -5,7 +5,7 @@ from fastapi import Request as FastAPIRequest
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.application.composers.ask_agent_composer import ask_agent_composer
+from modules.agent.composition.composers.ask_agent_composer import ask_agent_composer
 from modules.agent.application.dtos.public_runtime_dtos import PublicRunRequest
 from modules.agent.application.use_cases import CreateAskJobUseCase
 from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService

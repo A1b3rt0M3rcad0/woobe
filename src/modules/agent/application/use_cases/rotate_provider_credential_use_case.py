@@ -11,7 +11,7 @@ from modules.agent.application.dtos.provider_credential_rotation_dtos import (
 )
 from modules.agent.domain.credential_events import AgentProviderCredentialRotatedV1
 from modules.agent.domain.enums import CredentialStatus
-from modules.agent.domain.repositories import ProviderCredentialRepository
+from modules.agent.application.interfaces.repositories import ProviderCredentialRepository
 from shared.infra.crypto import encrypt_secret
 from shared.infra.errors import ConflictError, ValidationError
 from shared.messaging.outbox_writer import OutboxEventWriter

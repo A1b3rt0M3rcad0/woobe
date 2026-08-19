@@ -6,7 +6,7 @@ from fastapi import APIRouter, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
-from modules.agent.application.composers.vector_snapshot_composers import (
+from modules.agent.composition.composers.vector_snapshot_composers import (
     create_vector_snapshot as compose_create_vector_snapshot,
     get_collection_overview as compose_get_collection_overview,
     get_vector_snapshot as compose_get_vector_snapshot,

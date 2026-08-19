@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from modules.agent.application import mcp_oauth
-from modules.agent.application.ports import ToolExecutionPort, ToolSecretResolverPort
+from modules.agent.application.interfaces.ports import ToolExecutionPort, ToolSecretResolverPort
 from modules.agent.application.tool_runtime import ToolRuntimeRegistry, build_default_tool_runtime_registry
 from modules.agent.infra.adapters.redis_mcp_session_store import build_redis_mcp_session_store
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter

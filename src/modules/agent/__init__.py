@@ -1,7 +1,3 @@
-from modules.agent.presentation import routes
-from modules.agent.infra.workers import registry
+from modules.agent.composition.workers import AgentWorkerRegistry, register_agent_workers
 
-__all__ = [
-    "routes",
-    "registry",
-]
+__all__ = ["AgentWorkerRegistry", "register_agent_workers"]

@@ -6,7 +6,7 @@ from typing import Any
 from pydantic import BaseModel, Field
 
 from modules.agent.application.mcp_permissions import default_mcp_permission
-from modules.agent.application.ports import ExecutionResult, ToolExecutionPort
+from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
 

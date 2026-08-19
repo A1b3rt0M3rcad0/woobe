@@ -126,13 +126,13 @@ class TestComposerConstruction:
 
     def test_execute_tool_composer_includes_secret_resolver(self):
         import inspect
-        from modules.agent.application.composers.tools_composers import execute_tool_composer
+        from modules.agent.composition.composers.tools_composers import execute_tool_composer
         source = inspect.getsource(execute_tool_composer)
         assert "secret_resolver" in source
 
     def test_create_tool_composer_includes_outbox(self):
         import inspect
-        from modules.agent.application.composers.tools_composers import create_tool_composer
+        from modules.agent.composition.composers.tools_composers import create_tool_composer
         source = inspect.getsource(create_tool_composer)
         assert "outbox" in source
 

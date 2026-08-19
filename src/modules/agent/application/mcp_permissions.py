@@ -6,7 +6,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from modules.agent.application.mcp_readiness import build_mcp_readiness
-from modules.agent.domain.repositories import ToolRepository
+from modules.agent.application.interfaces.repositories import ToolRepository
 
 McpPermissionMode = Literal["allow", "deny", "review"]
 MCP_PERMISSION_ALLOW = "allow"

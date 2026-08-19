@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from shared.infra.crypto import decrypt_secret, encrypt_secret
 
-from modules.agent.application.ports import SecretCipherPort
+from modules.agent.application.interfaces.ports import SecretCipherPort
 
 
 class SecretCipherAdapter(SecretCipherPort):

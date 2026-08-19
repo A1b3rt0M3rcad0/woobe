@@ -3,7 +3,7 @@ from uuid import UUID
 from modules.agent.application.dtos.ai_dtos import CreateProviderCredentialInput, CreateProviderCredentialOutput, ListProviderCredentialsInput, ListProviderCredentialsOutput, UpdateProviderCredentialInput, UpdateProviderCredentialOutput
 from modules.agent.domain.entities import ProviderCredential
 from modules.agent.domain.events import AgentProviderCredentialCreatedV1, AgentProviderCredentialUpdatedV1
-from modules.agent.domain.repositories import ProviderCredentialRepository
+from modules.agent.application.interfaces.repositories import ProviderCredentialRepository
 from shared.infra.config import Settings
 from shared.infra.crypto import encrypt_secret
 from shared.messaging.outbox_writer import OutboxEventWriter
