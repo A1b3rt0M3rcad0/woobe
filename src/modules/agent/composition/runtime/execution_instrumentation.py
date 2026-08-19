@@ -45,11 +45,6 @@ def tool_http_latency_ms(tool_output: Any) -> float | None:
     return None
 
 
-@dataclass
-
-
-
-
 def _cost_context(pricing_snapshot: dict[str, Any] | None) -> dict[str, Any]:
     if not pricing_snapshot:
         return {
