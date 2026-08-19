@@ -1,0 +1,185 @@
+[module]
+name = "agent"
+root = "src/modules/agent"
+package = "modules.agent"
+required_layers = ["domain", "application", "infra", "presentation", "composition"]
+
+[constraints]
+forbid_cross_module_imports = true
+forbid_dynamic_imports = true
+forbid_wildcard_imports = true
+forbid_cycles = true
+forbidden_paths = [
+  "application/composers",
+  "domain/ports",
+  "domain/repositories.py",
+]
+
+# First-match semantics: specific presentation and entrypoint rules must precede
+# the broader layer rules below.
+
+[[rules]]
+id = "ARCH006"
+description = "presentation routes may depend only on presentation and composition"
+source = ["presentation/routes.py", "presentation/*_routes.py", "presentation/routes/**"]
+allow = [
+  "modules.agent.presentation",
+  "modules.agent.composition",
+  "shared.presentation",
+  "shared.security",
+]
+deny = [
+  "modules.agent.domain",
+  "modules.agent.application",
+  "modules.agent.infra",
+  "shared.infra",
+  "shared.messaging",
+  "shared.workers",
+]
+
+[[rules]]
+id = "ARCH005"
+description = "presentation controllers must depend on application contracts, not concrete use cases or infrastructure"
+source = ["presentation/controllers/**"]
+allow = [
+  "modules.agent.presentation",
+  "modules.agent.application.interfaces",
+  "modules.agent.application.dtos",
+  "shared.presentation",
+]
+deny = [
+  "modules.agent.domain",
+  "modules.agent.application.use_cases",
+  "modules.agent.infra",
+  "modules.agent.composition",
+  "shared.infra",
+  "shared.messaging",
+  "shared.workers",
+]
+
+[[rules]]
+id = "ARCH010"
+description = "presentation support code may use presentation primitives and application contracts only"
+source = ["presentation/**"]
+allow = [
+  "modules.agent.presentation",
+  "modules.agent.application.interfaces",
+  "modules.agent.application.dtos",
+  "shared.presentation",
+  "shared.security",
+]
+deny = [
+  "modules.agent.domain",
+  "modules.agent.application.use_cases",
+  "modules.agent.infra",
+  "modules.agent.composition",
+  "shared.infra",
+  "shared.messaging",
+  "shared.workers",
+]
+
+[[rules]]
+id = "ARCH019"
+description = "composition may wire concrete layers but must never import presentation routes"
+source = ["composition/**"]
+allow = [
+  "modules.agent.domain",
+  "modules.agent.application",
+  "modules.agent.infra",
+  "modules.agent.presentation.controllers",
+  "modules.agent.presentation.interfaces",
+  "modules.agent.presentation.schemas",
+  "modules.agent.presentation.mappers",
+  "shared",
+]
+deny = [
+  "modules.agent.presentation.routes",
+]
+
+[[rules]]
+id = "ARCH020"
+description = "agent entrypoint may reach module internals only through composition"
+source = ["entrypoint.py", "__init__.py"]
+allow = [
+  "modules.agent.composition",
+]
+deny = [
+  "modules.agent.domain",
+  "modules.agent.application",
+  "modules.agent.infra",
+  "modules.agent.presentation",
+]
+
+[[rules]]
+id = "ARCH002"
+description = "domain must remain independent from outer layers and technical shared packages"
+source = ["domain/**"]
+allow = [
+  "modules.agent.domain",
+]
+deny = [
+  "modules.agent.application",
+  "modules.agent.infra",
+  "modules.agent.presentation",
+  "modules.agent.composition",
+  "shared",
+  "sqlalchemy",
+  "alembic",
+  "asyncpg",
+  "psycopg2",
+  "pgvector",
+  "fastapi",
+  "starlette",
+  "aio_pika",
+  "boto3",
+  "langchain",
+  "langchain_core",
+  "langchain_openai",
+  "uvicorn",
+]
+
+[[rules]]
+id = "ARCH003"
+description = "application owns its ports and may depend only on application and domain code"
+source = ["application/**"]
+allow = [
+  "modules.agent.application",
+  "modules.agent.domain",
+]
+deny = [
+  "modules.agent.infra",
+  "modules.agent.presentation",
+  "modules.agent.composition",
+  "shared.infra",
+  "shared.messaging",
+  "shared.presentation",
+  "shared.workers",
+  "sqlalchemy",
+  "alembic",
+  "asyncpg",
+  "psycopg2",
+  "pgvector",
+  "fastapi",
+  "starlette",
+  "aio_pika",
+  "boto3",
+  "langchain",
+  "langchain_core",
+  "langchain_openai",
+  "uvicorn",
+]
+
+[[rules]]
+id = "ARCH004"
+description = "infrastructure may implement application contracts but cannot depend on presentation or composition"
+source = ["infra/**"]
+allow = [
+  "modules.agent.infra",
+  "modules.agent.application",
+  "modules.agent.domain",
+  "shared",
+]
+deny = [
+  "modules.agent.presentation",
+  "modules.agent.composition",
+]
