@@ -1,6 +1,16 @@
 name: Quality Gate
 
 on:
+  pull_request:
+    branches:
+      - development
+    paths:
+      - "src/**"
+      - "quality_gate/**"
+      - "tests/quality_gate/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/quality-gate.yml"
   workflow_dispatch:
 
 permissions:
