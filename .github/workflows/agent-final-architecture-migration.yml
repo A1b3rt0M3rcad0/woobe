@@ -1,0 +1,248 @@
+name: Agent final architecture migration
+
+on:
+  push:
+    branches: [feature/agent-quality-gate]
+
+permissions:
+  contents: write
+
+jobs:
+  migrate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feature/agent-quality-gate
+          fetch-depth: 0
+      - name: Apply final Agent boundary migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import ast
+          import re
+          import shutil
+
+          root = Path('.')
+          src = root / 'src'
+          agent = src / 'modules/agent'
+
+          # Crypto is a domain-agnostic security primitive, not application infrastructure.
+          security_crypto = src / 'shared/security/crypto.py'
+          if not security_crypto.exists():
+              shutil.copyfile(src / 'shared/infra/crypto.py', security_crypto)
+          for path in (agent / 'application').rglob('*.py'):
+              text = path.read_text(encoding='utf-8')
+              text = text.replace('shared.infra.crypto', 'shared.security.crypto')
+              path.write_text(text, encoding='utf-8')
+
+          # Application must receive deployment configuration instead of constructing Settings.
+          ai_credentials = agent / 'application/use_cases/ai_credential_cases.py'
+          text = ai_credentials.read_text(encoding='utf-8')
+          text = text.replace('from shared.infra.config import Settings\n', '')
+          text = text.replace('encryption_key: str | None = None', 'encryption_key: str')
+          text = text.replace('encryption_key or Settings().encryption_key', 'encryption_key')
+          ai_credentials.write_text(text, encoding='utf-8')
+
+          provider_management = agent / 'application/use_cases/provider_management_cases.py'
+          text = provider_management.read_text(encoding='utf-8')
+          text = text.replace('from shared.infra.config import Settings\n', '')
+          text = text.replace('def __init__(self, credential_repo, encryption_key: str | None = None) -> None:', 'def __init__(self, credential_repo, encryption_key: str) -> None:')
+          text = text.replace('self._encryption_key = encryption_key or Settings().encryption_key', 'self._encryption_key = encryption_key')
+          provider_management.write_text(text, encoding='utf-8')
+
+          lifecycle = agent / 'composition/composers/model_lifecycle_composer.py'
+          text = lifecycle.read_text(encoding='utf-8')
+          if 'from shared.infra.config import Settings\n' not in text:
+              text = text.replace('from shared.infra.transactional_handler import TransactionalHandler\n', 'from shared.infra.config import Settings\nfrom shared.infra.transactional_handler import TransactionalHandler\n')
+          text = text.replace('use_case = RotateProviderCredentialUseCase(uow.provider_credentials)', 'use_case = RotateProviderCredentialUseCase(uow.provider_credentials, Settings().encryption_key)')
+          lifecycle.write_text(text, encoding='utf-8')
+
+          vector = agent / 'application/use_cases/vector_snapshot_use_cases.py'
+          text = vector.read_text(encoding='utf-8')
+          text = text.replace('from shared.infra.config import Settings\n', '')
+          text = text.replace('        settings: Settings | None = None,\n', '        encryption_key: str,\n')
+          text = text.replace('        self._settings = settings or Settings()\n', '        self._encryption_key = encryption_key\n')
+          text = text.replace('            self._settings.encryption_key,\n', '            self._encryption_key,\n')
+          vector.write_text(text, encoding='utf-8')
+
+          vector_worker = agent / 'composition/worker_runtime/vector_snapshot_worker.py'
+          text = vector_worker.read_text(encoding='utf-8')
+          text = text.replace('                        settings=settings,\n', '                        encryption_key=settings.encryption_key,\n')
+          vector_worker.write_text(text, encoding='utf-8')
+
+          knowledge = agent / 'application/use_cases/knowledge_use_cases.py'
+          text = knowledge.read_text(encoding='utf-8')
+          text = text.replace('from shared.infra.config import Settings\n', '')
+          text = text.replace('from shared.infra.config.interface.unit_of_work import UnitOfWork\n', '')
+          text = text.replace('        settings: Settings,\n', '        settings: UploadSettings,\n')
+          text = text.replace('def __init__(self, repo: DocumentRepository, uow: UnitOfWork) -> None:', 'def __init__(self, repo: DocumentRepository, uow: Any) -> None:')
+          marker = 'class ReadableUploadFile(Protocol):\n    filename: str | None\n    content_type: str | None\n\n    async def read(self) -> bytes: ...\n\n\n'
+          upload_settings = 'class UploadSettings(Protocol):\n    storage_driver: str\n    upload_allowed_extensions: str\n    upload_max_mb: int\n\n\n'
+          if upload_settings not in text:
+              text = text.replace(marker, marker + upload_settings)
+          knowledge.write_text(text, encoding='utf-8')
+
+          # Move DTO ownership out of concrete MCP use-case modules.
+          dtos = agent / 'application/dtos'
+          (dtos / 'mcp_discovery_dtos.py').write_text('''from __future__ import annotations\n\nfrom typing import Any\n\nfrom pydantic import BaseModel, Field\n\n\ndef _default_mcp_permission() -> dict[str, Any]:\n    return {"mode": "review", "risk_level": "unknown"}\n\n\nclass McpDiscoverInput(BaseModel):\n    server_url: str = Field(..., min_length=1)\n    headers: dict[str, str] = Field(default_factory=dict)\n    timeout_ms: int = Field(default=30000, ge=1)\n\n\nclass McpDiscoveredTool(BaseModel):\n    name: str\n    title: str | None = None\n    description: str | None = None\n    input_schema: dict[str, Any] | None = None\n    permission: dict[str, Any] = Field(default_factory=_default_mcp_permission)\n\n\nclass McpDiscoverOutput(BaseModel):\n    tools: list[McpDiscoveredTool]\n    initialized: bool = False\n    error: str | None = None\n    phase: str | None = None\n    http_status: int | None = None\n    www_authenticate: str | None = None\n''', encoding='utf-8')
+
+          (dtos / 'mcp_permission_dtos.py').write_text('''from __future__ import annotations\n\nfrom typing import Literal\nfrom uuid import UUID\n\nfrom pydantic import BaseModel, Field\n\nMcpPermissionMode = Literal["allow", "deny", "review"]\nMCP_PERMISSION_ALLOW = "allow"\nMCP_PERMISSION_DENY = "deny"\nMCP_PERMISSION_REVIEW = "review"\nMCP_PERMISSION_MODES = {MCP_PERMISSION_ALLOW, MCP_PERMISSION_DENY, MCP_PERMISSION_REVIEW}\n\n\nclass McpToolPermissionInput(BaseModel):\n    remote_tool_name: str = Field(..., min_length=1)\n    mode: McpPermissionMode\n    risk_level: str | None = None\n\n\nclass UpdateMcpToolPermissionsInput(BaseModel):\n    tool_id: UUID\n    permissions: list[McpToolPermissionInput]\n\n\nclass BulkUpdateMcpToolPermissionsInput(BaseModel):\n    tool_id: UUID\n    mode: McpPermissionMode\n    risk_level: str | None = None\n\n\nclass McpToolPermissionOutput(BaseModel):\n    name: str\n    mode: str\n    risk_level: str | None = None\n\n\nclass McpToolPermissionsOutput(BaseModel):\n    tool_id: UUID\n    permissions: list[McpToolPermissionOutput]\n''', encoding='utf-8')
+
+          (dtos / 'mcp_tool_refresh_dtos.py').write_text('''from uuid import UUID\n\nfrom pydantic import BaseModel, Field\n\n\nclass RefreshMcpProviderToolsInput(BaseModel):\n    tool_id: UUID\n    timeout_ms: int = Field(default=30000, ge=1)\n\n\nclass RefreshMcpProviderToolsOutput(BaseModel):\n    tool_id: UUID\n    discovered_count: int\n    initialized: bool\n    status: str\n    error: str | None = None\n    http_status: int | None = None\n    phase: str | None = None\n''', encoding='utf-8')
+
+          (dtos / 'mcp_oauth_dtos.py').write_text('''from typing import Any\nfrom uuid import UUID\n\nfrom pydantic import BaseModel, Field\n\n\nclass McpOAuthStartInput(BaseModel):\n    tool_id: UUID\n    redirect_uri: str = Field(..., min_length=1)\n    scopes: list[str] = Field(default_factory=list)\n    authorization_endpoint: str | None = None\n    token_endpoint: str | None = None\n    registration_endpoint: str | None = None\n    authorization_server_issuer: str | None = None\n    client_id: str | None = None\n    client_secret: str | None = None\n    timeout_ms: int = Field(default=30000, ge=1)\n\n\nclass McpOAuthStartOutput(BaseModel):\n    authorization_url: str\n    state: str\n    status: str = "pending"\n\n\nclass McpOAuthCompleteInput(BaseModel):\n    tool_id: UUID\n    code: str = Field(..., min_length=1)\n    state: str = Field(..., min_length=1)\n    timeout_ms: int = Field(default=30000, ge=1)\n\n\nclass McpOAuthStatusInput(BaseModel):\n    tool_id: UUID\n\n\nclass McpOAuthStatusOutput(BaseModel):\n    status: str\n    connected: bool\n    authorization_server_issuer: str | None = None\n    scopes: list[str] = Field(default_factory=list)\n    expires_at: str | None = None\n\n\nclass McpOAuthDisconnectInput(BaseModel):\n    tool_id: UUID\n\n\nclass McpOAuthDisconnectOutput(BaseModel):\n    status: str = "disconnected"\n\n\nclass McpOAuthDeviceStartInput(BaseModel):\n    tool_id: Any\n    scopes: list[str] = Field(default_factory=list)\n    authorization_server_issuer: str | None = None\n    client_id: str | None = None\n    client_secret: str | None = None\n    timeout_ms: int = Field(default=30000, ge=1)\n\n\nclass McpOAuthDeviceStartOutput(BaseModel):\n    status: str = "device_pending"\n    verification_uri: str\n    verification_uri_complete: str | None = None\n    user_code: str\n    expires_in: int | None = None\n    interval: int = 5\n    authorization_server_issuer: str | None = None\n    scopes: list[str] = Field(default_factory=list)\n\n\nclass McpOAuthDevicePollInput(BaseModel):\n    tool_id: Any\n    timeout_ms: int = Field(default=30000, ge=1)\n\n\nclass McpOAuthDevicePollOutput(BaseModel):\n    status: str\n    connected: bool = False\n    authorization_server_issuer: str | None = None\n    scopes: list[str] = Field(default_factory=list)\n    expires_at: str | None = None\n    error: str | None = None\n    interval: int | None = None\n''', encoding='utf-8')
+
+          def remove_classes(path: Path, names: set[str], import_line: str, remove_imports: tuple[str, ...] = ()) -> None:
+              text = path.read_text(encoding='utf-8')
+              tree = ast.parse(text)
+              lines = text.splitlines(keepends=True)
+              nodes = [n for n in tree.body if isinstance(n, ast.ClassDef) and n.name in names]
+              for node in sorted(nodes, key=lambda n: n.lineno, reverse=True):
+                  del lines[node.lineno - 1:(node.end_lineno or node.lineno)]
+              text = ''.join(lines)
+              for item in remove_imports:
+                  text = text.replace(item, '')
+              if import_line not in text:
+                  marker = 'from __future__ import annotations\n'
+                  pos = text.find(marker)
+                  if pos >= 0:
+                      insert = pos + len(marker)
+                      text = text[:insert] + '\n' + import_line + text[insert:]
+                  else:
+                      text = import_line + '\n' + text
+              path.write_text(text, encoding='utf-8')
+
+          remove_classes(
+              agent / 'application/mcp_discovery.py',
+              {'McpDiscoverInput', 'McpDiscoveredTool', 'McpDiscoverOutput'},
+              'from modules.agent.application.dtos.mcp_discovery_dtos import McpDiscoverInput, McpDiscoveredTool, McpDiscoverOutput\n',
+              ('from pydantic import BaseModel, Field\n',),
+          )
+          discovery = agent / 'application/mcp_discovery.py'
+          text = discovery.read_text(encoding='utf-8')
+          text = text.replace('from modules.agent.application.mcp_permissions import default_mcp_permission\n', '')
+          discovery.write_text(text, encoding='utf-8')
+
+          permissions = agent / 'application/mcp_permissions.py'
+          remove_classes(
+              permissions,
+              {'McpToolPermissionInput', 'UpdateMcpToolPermissionsInput', 'BulkUpdateMcpToolPermissionsInput', 'McpToolPermissionOutput', 'McpToolPermissionsOutput'},
+              'from modules.agent.application.dtos.mcp_permission_dtos import (\n    BulkUpdateMcpToolPermissionsInput,\n    MCP_PERMISSION_ALLOW,\n    MCP_PERMISSION_DENY,\n    MCP_PERMISSION_MODES,\n    MCP_PERMISSION_REVIEW,\n    McpToolPermissionOutput,\n    McpToolPermissionsOutput,\n    UpdateMcpToolPermissionsInput,\n)\n',
+              ('from pydantic import BaseModel, Field\n',),
+          )
+          text = permissions.read_text(encoding='utf-8')
+          text = text.replace('from typing import Any, Literal\n', 'from typing import Any\n')
+          text = re.sub(r'McpPermissionMode = Literal\["allow", "deny", "review"\]\nMCP_PERMISSION_ALLOW = "allow"\nMCP_PERMISSION_DENY = "deny"\nMCP_PERMISSION_REVIEW = "review"\nMCP_PERMISSION_MODES = \{MCP_PERMISSION_ALLOW, MCP_PERMISSION_DENY, MCP_PERMISSION_REVIEW\}\n\n', '', text)
+          permissions.write_text(text, encoding='utf-8')
+
+          remove_classes(
+              agent / 'application/mcp_tool_refresh.py',
+              {'RefreshMcpProviderToolsInput', 'RefreshMcpProviderToolsOutput'},
+              'from modules.agent.application.dtos.mcp_tool_refresh_dtos import RefreshMcpProviderToolsInput, RefreshMcpProviderToolsOutput\n',
+              ('from pydantic import BaseModel, Field\n',),
+          )
+
+          oauth_names = {'McpOAuthStartInput', 'McpOAuthStartOutput', 'McpOAuthCompleteInput', 'McpOAuthStatusInput', 'McpOAuthStatusOutput', 'McpOAuthDisconnectInput', 'McpOAuthDisconnectOutput'}
+          remove_classes(
+              agent / 'application/mcp_oauth.py',
+              oauth_names,
+              'from modules.agent.application.dtos.mcp_oauth_dtos import (\n    McpOAuthCompleteInput,\n    McpOAuthDisconnectInput,\n    McpOAuthDisconnectOutput,\n    McpOAuthStartInput,\n    McpOAuthStartOutput,\n    McpOAuthStatusInput,\n    McpOAuthStatusOutput,\n)\n',
+              ('from pydantic import BaseModel, Field\n',),
+          )
+          remove_classes(
+              agent / 'application/mcp_oauth_flows.py',
+              {'McpOAuthDeviceStartInput', 'McpOAuthDeviceStartOutput', 'McpOAuthDevicePollInput', 'McpOAuthDevicePollOutput'},
+              'from modules.agent.application.dtos.mcp_oauth_dtos import (\n    McpOAuthDevicePollInput,\n    McpOAuthDevicePollOutput,\n    McpOAuthDeviceStartInput,\n    McpOAuthDeviceStartOutput,\n)\n',
+              ('from pydantic import BaseModel, Field\n',),
+          )
+
+          # Controllers depend only on DTOs and the application use-case contract.
+          (agent / 'presentation/controllers/discover_mcp_tools_controller.py').write_text('''from modules.agent.application.dtos.mcp_discovery_dtos import McpDiscoverInput\nfrom modules.agent.application.interfaces.use_case import UseCase\nfrom shared.presentation.interface.controller import Controller\nfrom shared.presentation.http.request import Request\nfrom shared.presentation.http.response import Response\n\n\nclass DiscoverMcpToolsController(Controller):\n    def __init__(self, use_case: UseCase) -> None:\n        self._use_case = use_case\n\n    async def handle(self, request: Request) -> Response:\n        input_dto = McpDiscoverInput(**request.body)\n        result = await self._use_case.execute(input_dto)\n        if result.error:\n            return Response(status_code=502, body={"success": False, "message": result.error, "data": result.model_dump()})\n        return Response(status_code=200, body={"success": True, "message": "ok", "data": result.model_dump()})\n''', encoding='utf-8')
+
+          (agent / 'presentation/controllers/mcp_permission_controllers.py').write_text('''from modules.agent.application.dtos.mcp_permission_dtos import (\n    BulkUpdateMcpToolPermissionsInput,\n    UpdateMcpToolPermissionsInput,\n)\nfrom modules.agent.application.interfaces.use_case import UseCase\nfrom shared.presentation.http.request import Request\nfrom shared.presentation.http.response import Response\nfrom shared.presentation.interface.controller import Controller\n\n\nclass UpdateMcpPermissionsController(Controller):\n    def __init__(self, use_case: UseCase) -> None:\n        self._use_case = use_case\n\n    async def handle(self, request: Request) -> Response:\n        try:\n            result = await self._use_case.execute(UpdateMcpToolPermissionsInput(**request.body))\n        except ValueError as exc:\n            return Response(status_code=400, body={"success": False, "message": str(exc), "data": None})\n        return Response(status_code=200, body={"success": True, "message": "ok", "data": result.model_dump()})\n\n\nclass BulkUpdateMcpPermissionsController(Controller):\n    def __init__(self, use_case: UseCase) -> None:\n        self._use_case = use_case\n\n    async def handle(self, request: Request) -> Response:\n        try:\n            result = await self._use_case.execute(BulkUpdateMcpToolPermissionsInput(**request.body))\n        except ValueError as exc:\n            return Response(status_code=400, body={"success": False, "message": str(exc), "data": None})\n        return Response(status_code=200, body={"success": True, "message": "ok", "data": result.model_dump()})\n''', encoding='utf-8')
+
+          (agent / 'presentation/controllers/refresh_mcp_tools_controller.py').write_text('''from modules.agent.application.dtos.mcp_tool_refresh_dtos import RefreshMcpProviderToolsInput\nfrom modules.agent.application.interfaces.use_case import UseCase\nfrom shared.presentation.http.request import Request\nfrom shared.presentation.http.response import Response\nfrom shared.presentation.interface.controller import Controller\n\n\nclass RefreshMcpToolsController(Controller):\n    def __init__(self, use_case: UseCase) -> None:\n        self._use_case = use_case\n\n    async def handle(self, request: Request) -> Response:\n        try:\n            result = await self._use_case.execute(RefreshMcpProviderToolsInput(**request.body))\n        except ValueError as exc:\n            return Response(status_code=400, body={"success": False, "message": str(exc), "data": None})\n        return Response(status_code=200, body={"success": True, "message": "ok", "data": result.model_dump()})\n''', encoding='utf-8')
+
+          (agent / 'presentation/controllers/mcp_connect_controllers.py').write_text('''from uuid import UUID\n\nfrom modules.agent.application.dtos.mcp_oauth_dtos import (\n    McpOAuthCompleteInput,\n    McpOAuthDevicePollInput,\n    McpOAuthDeviceStartInput,\n    McpOAuthDisconnectInput,\n    McpOAuthStartInput,\n    McpOAuthStatusInput,\n)\nfrom modules.agent.application.interfaces.use_case import UseCase\nfrom shared.presentation.http.request import Request\nfrom shared.presentation.http.response import Response\nfrom shared.presentation.interface.controller import Controller\n\n\ndef _body_with_uuid_tool_id(request: Request) -> dict:\n    body = dict(request.body or {})\n    if "tool_id" in body:\n        body["tool_id"] = UUID(str(body["tool_id"]))\n    return body\n\n\nclass StartMcpConnectController(Controller):\n    def __init__(self, use_case: UseCase) -> None: self._use_case = use_case\n    async def handle(self, request: Request) -> Response:\n        try: result = await self._use_case.execute(McpOAuthStartInput(**request.body))\n        except ValueError as exc: return Response(status_code=400, body={"success": False, "message": str(exc), "data": None})\n        return Response(status_code=200, body={"success": True, "message": "ok", "data": result.model_dump()})\n\nclass CompleteMcpConnectController(Controller):\n    def __init__(self, use_case: UseCase) -> None: self._use_case = use_case\n    async def handle(self, request: Request) -> Response:\n        try: result = await self._use_case.execute(McpOAuthCompleteInput(**request.body))\n        except ValueError as exc: return Response(status_code=400, body={"success": False, "message": str(exc), "data": None})\n        return Response(status_code=200, body={"success": True, "message": "ok", "data": result.model_dump()})\n\nclass StartMcpDeviceConnectController(Controller):\n    def __init__(self, use_case: UseCase) -> None: self._use_case = use_case\n    async def handle(self, request: Request) -> Response:\n        try: result = await self._use_case.execute(McpOAuthDeviceStartInput(**_body_with_uuid_tool_id(request)))\n        except ValueError as exc: return Response(status_code=400, body={"success": False, "message": str(exc), "data": None})\n        return Response(status_code=200, body={"success": True, "message": "ok", "data": result.model_dump()})\n\nclass PollMcpDeviceConnectController(Controller):\n    def __init__(self, use_case: UseCase) -> None: self._use_case = use_case\n    async def handle(self, request: Request) -> Response:\n        try: result = await self._use_case.execute(McpOAuthDevicePollInput(**_body_with_uuid_tool_id(request)))\n        except ValueError as exc: return Response(status_code=400, body={"success": False, "message": str(exc), "data": None})\n        return Response(status_code=200, body={"success": True, "message": "ok", "data": result.model_dump()})\n\nclass StatusMcpConnectController(Controller):\n    def __init__(self, use_case: UseCase) -> None: self._use_case = use_case\n    async def handle(self, request: Request) -> Response:\n        try: result = await self._use_case.execute(McpOAuthStatusInput(**request.body))\n        except ValueError as exc: return Response(status_code=404, body={"success": False, "message": str(exc), "data": None})\n        return Response(status_code=200, body={"success": True, "message": "ok", "data": result.model_dump()})\n\nclass DisconnectMcpConnectController(Controller):\n    def __init__(self, use_case: UseCase) -> None: self._use_case = use_case\n    async def handle(self, request: Request) -> Response:\n        try: result = await self._use_case.execute(McpOAuthDisconnectInput(**request.body))\n        except ValueError as exc: return Response(status_code=404, body={"success": False, "message": str(exc), "data": None})\n        return Response(status_code=200, body={"success": True, "message": "ok", "data": result.model_dump()})\n''', encoding='utf-8')
+
+          # Runtime environment checks are injected by Composition.
+          (agent / 'application/interfaces/runtime_environment.py').write_text('''from collections.abc import Awaitable, Callable\nfrom uuid import UUID\n\nRuntimeEnvironmentGuard = Callable[[UUID, UUID, str], Awaitable[None]]\n''', encoding='utf-8')
+          (agent / 'composition/runtime/environment_guard.py').write_text('''from modules.agent.application.interfaces.runtime_environment import RuntimeEnvironmentGuard\nfrom shared.runtime_environment import assert_runtime_environment_enabled\n\n\ndef build_agent_runtime_environment_guard(session_factory) -> RuntimeEnvironmentGuard:\n    async def guard(target_id, project_id, environment):\n        async with session_factory() as session, session.begin():\n            await assert_runtime_environment_enabled(\n                session,\n                target_type="agent",\n                target_id=target_id,\n                project_id=project_id,\n                environment=environment,\n            )\n    return guard\n''', encoding='utf-8')
+
+          ask_stream = agent / 'presentation/controllers/ask_agent_stream_controller.py'
+          text = ask_stream.read_text(encoding='utf-8')
+          text = text.replace('from shared.runtime_environment import assert_runtime_environment_enabled\n', 'from modules.agent.application.interfaces.runtime_environment import RuntimeEnvironmentGuard\n')
+          text = text.replace('    service: UseCase,\n) -> StreamingResponse:', '    service: UseCase,\n    environment_guard: RuntimeEnvironmentGuard,\n) -> StreamingResponse:')
+          old = '''    async with fastapi_request.app.state.session_factory() as session, session.begin():\n        await assert_runtime_environment_enabled(\n            session,\n            target_type="agent",\n            target_id=input_dto.agent_id,\n            project_id=input_dto.project_id,\n            environment=input_dto.execution_context,\n        )\n'''
+          new = '''    await environment_guard(\n        input_dto.agent_id,\n        input_dto.project_id,\n        input_dto.execution_context,\n    )\n'''
+          text = text.replace(old, new)
+          ask_stream.write_text(text, encoding='utf-8')
+
+          public_stream = agent / 'presentation/controllers/public_runtime_stream_controller.py'
+          text = public_stream.read_text(encoding='utf-8')
+          text = text.replace('from shared.runtime_environment import assert_runtime_environment_enabled\n', 'from modules.agent.application.interfaces.runtime_environment import RuntimeEnvironmentGuard\n')
+          text = text.replace('    request_preparer: RequestPreparer,\n) -> StreamingResponse:', '    request_preparer: RequestPreparer,\n    environment_guard: RuntimeEnvironmentGuard,\n) -> StreamingResponse:')
+          old = '''    async with fastapi_request.app.state.session_factory() as session, session.begin():\n        await assert_runtime_environment_enabled(\n            session,\n            target_type="agent",\n            target_id=principal.agent_id,\n            project_id=principal.project_id,\n            environment=principal.environment,\n        )\n'''
+          new = '''    await environment_guard(\n        principal.agent_id,\n        principal.project_id,\n        principal.environment,\n    )\n'''
+          text = text.replace(old, new)
+          public_stream.write_text(text, encoding='utf-8')
+
+          ask_composer = agent / 'composition/composers/ask_agent_stream_composer.py'
+          text = ask_composer.read_text(encoding='utf-8')
+          text = text.replace('from modules.agent.composition.runtime.ask_agent_stream_service import AskAgentStreamService\n', 'from modules.agent.composition.runtime.ask_agent_stream_service import AskAgentStreamService\nfrom modules.agent.composition.runtime.environment_guard import build_agent_runtime_environment_guard\n')
+          text = text.replace('    async def handler(fastapi_request: FastAPIRequest) -> StreamingResponse:\n        return await handle_ask_stream(fastapi_request, service)\n', '    environment_guard = build_agent_runtime_environment_guard(session_factory)\n\n    async def handler(fastapi_request: FastAPIRequest) -> StreamingResponse:\n        return await handle_ask_stream(fastapi_request, service, environment_guard)\n')
+          ask_composer.write_text(text, encoding='utf-8')
+
+          public_composer = agent / 'composition/composers/public_runtime_composers.py'
+          text = public_composer.read_text(encoding='utf-8')
+          text = text.replace('from modules.agent.composition.runtime.ask_agent_stream_service import AskAgentStreamService\n', 'from modules.agent.composition.runtime.ask_agent_stream_service import AskAgentStreamService\nfrom modules.agent.composition.runtime.environment_guard import build_agent_runtime_environment_guard\n')
+          text = text.replace('    request_preparer = _request_preparer(session_factory)\n\n    async def handler(request: FastAPIRequest) -> StreamingResponse:', '    request_preparer = _request_preparer(session_factory)\n    environment_guard = build_agent_runtime_environment_guard(session_factory)\n\n    async def handler(request: FastAPIRequest) -> StreamingResponse:')
+          text = text.replace('            request_preparer,\n        )', '            request_preparer,\n            environment_guard,\n        )', 1)
+          public_composer.write_text(text, encoding='utf-8')
+
+          # Legacy multipart endpoints delegate to the Composition HTTP boundary.
+          routes = agent / 'presentation/routes.py'
+          text = routes.read_text(encoding='utf-8')
+          text = text.replace('from fastapi.encoders import jsonable_encoder\nfrom fastapi.responses import JSONResponse\n\n', '')
+          for line in (
+              'from modules.agent.application.dtos import UploadDocumentFileInput\n',
+              'from modules.agent.application.use_cases import DeleteDocumentUseCase, UploadDocumentFileUseCase\n',
+              'from modules.agent.domain.errors import DocumentNotFoundError\n',
+              'from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter\n',
+              'from modules.agent.infra.database.unit_of_work import AgentUnitOfWork\n',
+              'from modules.agent.infra.storage.factory import create_file_storage\n',
+              'from modules.agent.presentation.mappers import upload_document_output_to_response\n',
+              'from shared.contracts.errors import ConflictError, ValidationError\n',
+          ):
+              text = text.replace(line, '')
+          if 'from modules.agent.composition.http import knowledge_files\n' not in text:
+              text = text.replace('from modules.agent.composition.composers.tools_composers import (\n', 'from modules.agent.composition.http import knowledge_files\nfrom modules.agent.composition.composers.tools_composers import (\n')
+          start = text.index('@knowledge_router.post("/documents/upload", status_code=201)')
+          end = text.index('@knowledge_router.get("/documents/{document_id}")', start)
+          replacement = '''@knowledge_router.post("/documents/upload", status_code=201)\nasync def upload_document_file(\n    request: FastAPIRequest,\n    project_id: UUID = Form(...),\n    collection_id: UUID = Form(...),\n    title: str | None = Form(None),\n    file: UploadFile = File(...),\n):\n    return await knowledge_files.upload_document_file(\n        session_factory=request.app.state.session_factory,\n        settings=request.app.state.settings,\n        project_id=project_id,\n        collection_id=collection_id,\n        title=title,\n        file=file,\n    )\n\n\n@knowledge_router.delete("/documents/{document_id}")\nasync def delete_document(request: FastAPIRequest, document_id: UUID):\n    return await knowledge_files.delete_document(\n        session_factory=request.app.state.session_factory,\n        settings=request.app.state.settings,\n        document_id=document_id,\n    )\n\n\n'''
+          text = text[:start] + replacement + text[end:]
+          routes.write_text(text, encoding='utf-8')
+
+          # Quality policy recognizes the pure shared security primitive.
+          policy = root / 'quality_gate/architecture/policies/agent.toml'
+          text = policy.read_text(encoding='utf-8')
+          text = text.replace('  "shared.contracts",\n  "shared.contracts",\n', '  "shared.contracts",\n')
+          if '  "shared.security.crypto",\n' not in text:
+              text = text.replace('  "shared.security.redaction",\n', '  "shared.security.redaction",\n  "shared.security.crypto",\n')
+          policy.write_text(text, encoding='utf-8')
+          PY
+          python -m compileall -q src/modules/agent src/shared/security/crypto.py
+      - name: Commit migration
+        shell: bash
+        run: |
+          set -euo pipefail
+          if git diff --quiet; then exit 0; fi
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src quality_gate
+          git commit -m 'refactor: complete agent architecture boundaries'
+          git push origin HEAD:feature/agent-quality-gate
