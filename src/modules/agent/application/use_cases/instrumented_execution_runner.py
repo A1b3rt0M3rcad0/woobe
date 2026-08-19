@@ -3,16 +3,16 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Coroutine
 
-from modules.agent.application.use_cases.execution_instrumentation import (
+from modules.agent.composition.runtime.execution_instrumentation import (
     InstrumentedExecution,
 )
-from modules.agent.application.use_cases.runtime_streaming import (
+from modules.agent.composition.runtime.runtime_streaming import (
     runtime_streaming_enabled,
 )
-from modules.agent.application.use_cases.structured_json_repair import (
+from modules.agent.composition.runtime.structured_json_repair import (
     repair_json_if_needed,
 )
-from modules.agent.application.use_cases.tool_execution_loop import run_tool_loop
+from modules.agent.composition.runtime.tool_execution_loop import run_tool_loop
 from modules.agent.domain.entities import Agent
 
 

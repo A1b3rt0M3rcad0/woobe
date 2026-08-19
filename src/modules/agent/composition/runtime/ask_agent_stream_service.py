@@ -19,13 +19,13 @@ from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolU
 from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
 from modules.agent.application.use_cases.execution_context import current_execution
-from modules.agent.application.use_cases.runtime_streaming import (
+from modules.agent.composition.runtime.runtime_streaming import (
     RUNTIME_STREAM_HEARTBEAT_SECONDS,
     RuntimeStreamChannel,
     RuntimeStreamEvent,
     current_runtime_stream,
 )
-from modules.agent.application.use_cases.structured_output_ask_use_case import (
+from modules.agent.composition.runtime.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
 from modules.agent.domain.runtime_events import AgentExecutionCancelledV1

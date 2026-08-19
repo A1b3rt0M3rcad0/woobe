@@ -4,7 +4,7 @@ import time
 from uuid import uuid4
 
 from modules.agent.application.use_cases.execution_context import current_execution
-from modules.agent.application.use_cases.execution_instrumentation import (
+from modules.agent.composition.runtime.execution_instrumentation import (
     InstrumentedExecution,
     aggregate_usage,
     utc_iso,
@@ -12,7 +12,7 @@ from modules.agent.application.use_cases.execution_instrumentation import (
 from modules.agent.application.use_cases.runtime_output_validation import (
     ensure_model_result_has_public_output,
 )
-from modules.agent.application.use_cases.runtime_streaming import emit_runtime_event
+from modules.agent.composition.runtime.runtime_streaming import emit_runtime_event
 from shared.application.llm_cost import calculate_llm_cost
 from shared.application.llm_usage import normalize_llm_usage
 

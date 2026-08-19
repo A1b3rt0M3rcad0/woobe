@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from modules.agent.application.use_cases.environment_session_use_cases import (
     EnvironmentAwareCreateSessionUseCase,
 )
-from modules.agent.application.use_cases.runtime_environment_guard import (
+from modules.agent.composition.runtime.runtime_environment_guard import (
     AgentRuntimeEnvironmentGuard,
 )
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter

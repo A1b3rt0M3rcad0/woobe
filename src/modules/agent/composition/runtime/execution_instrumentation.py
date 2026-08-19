@@ -9,7 +9,7 @@ from uuid import uuid4
 from langchain_core.messages import ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import ToolCallInfo, UsageInfo
-from modules.agent.application.use_cases.runtime_streaming import (
+from modules.agent.composition.runtime.runtime_streaming import (
     emit_agent_activity,
     emit_runtime_event,
     invoke_model_with_optional_streaming,

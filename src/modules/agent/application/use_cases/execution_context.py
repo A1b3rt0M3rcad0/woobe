@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from modules.agent.application.use_cases.execution_instrumentation import (
+from modules.agent.composition.runtime.execution_instrumentation import (
     InstrumentedExecution,
 )
 

@@ -1,7 +1,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.agent.application.use_cases import UpdateAgentUseCase
-from modules.agent.application.use_cases.legacy_runtime_status_adapter import (
+from modules.agent.composition.runtime.legacy_runtime_status_adapter import (
     LegacyRuntimeStatusUpdateAdapter,
 )
 from modules.agent.infra.database.network_agent_usage_reader import (

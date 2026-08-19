@@ -8,7 +8,7 @@ from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.application.use_cases.ask_agent_stream_service import (
+from modules.agent.composition.runtime.ask_agent_stream_service import (
     AskAgentStreamService,
 )
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor

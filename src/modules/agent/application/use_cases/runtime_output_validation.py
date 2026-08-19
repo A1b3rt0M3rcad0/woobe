@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from modules.agent.application.use_cases.runtime_streaming import extract_chunk_text
+from modules.agent.composition.runtime.runtime_streaming import extract_chunk_text
 
 
 class EmptyModelOutputError(RuntimeError):

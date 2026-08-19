@@ -12,7 +12,7 @@ from modules.agent.application.use_cases.execution_context import (
     new_execution_context,
     utc_now,
 )
-from modules.agent.application.use_cases.execution_instrumentation import (
+from modules.agent.composition.runtime.execution_instrumentation import (
     InstrumentedExecution,
     InstrumentedExecutionError,
     aggregate_usage,
@@ -23,7 +23,7 @@ from modules.agent.application.use_cases.instrumented_execution_runner import (
 from modules.agent.application.use_cases.runtime_output_validation import (
     ensure_model_result_has_public_output,
 )
-from modules.agent.application.use_cases.runtime_streaming import current_runtime_stream
+from modules.agent.composition.runtime.runtime_streaming import current_runtime_stream
 from modules.agent.domain.events import AgentExecutionFailedV1
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork

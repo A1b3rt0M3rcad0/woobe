@@ -5,12 +5,12 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from modules.agent.application.use_cases.execution_instrumentation import (
+from modules.agent.composition.runtime.execution_instrumentation import (
     InstrumentedExecution,
     InstrumentedExecutionError,
     invoke_llm,
 )
-from modules.agent.application.use_cases.runtime_streaming import (
+from modules.agent.composition.runtime.runtime_streaming import (
     runtime_streaming_enabled,
 )
 

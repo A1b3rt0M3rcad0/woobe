@@ -4,7 +4,7 @@ from modules.agent.presentation.controllers.create_ask_job_controller import (
     CreateAskJobController,
 )
 from modules.agent.application.use_cases import CreateAskJobUseCase
-from modules.agent.application.use_cases.runtime_environment_guard import (
+from modules.agent.composition.runtime.runtime_environment_guard import (
     AgentRuntimeEnvironmentGuard,
 )
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter

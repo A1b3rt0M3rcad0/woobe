@@ -4,7 +4,7 @@ from fastapi import Request as FastAPIRequest
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
+from modules.agent.composition.runtime.ask_agent_stream_service import AskAgentStreamService
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor

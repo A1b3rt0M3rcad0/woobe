@@ -26,11 +26,11 @@ from modules.agent.application.use_cases.execution_context import (
 from modules.agent.application.use_cases.runtime_output_validation import (
     EmptyModelOutputError,
 )
-from modules.agent.application.use_cases.runtime_streaming import (
+from modules.agent.composition.runtime.runtime_streaming import (
     RuntimeStreamChannel,
     current_runtime_stream,
 )
-from modules.agent.application.use_cases.structured_output_ask_use_case import (
+from modules.agent.composition.runtime.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
 from modules.agent.infra.adapters.langchain_embedding_factory import (

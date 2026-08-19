@@ -54,7 +54,7 @@ class TestCreateAgentInfraLayerSkeleton:
             "modules.agent.infra.workers.outbox_dispatcher",
             "modules.agent.infra.workers.inbox_consumer",
             "modules.agent.infra.workers.inbox_processor",
-            "modules.agent.infra.workers.registry",
+            "modules.agent.composition.worker_runtime.registry",
         ]:
             sub = importlib.import_module(name)
             assert sub is not None

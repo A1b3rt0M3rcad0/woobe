@@ -8,13 +8,13 @@ from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot
 from modules.agent.application.use_cases.ai_release_cases import DeleteReleaseUseCase
-from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
+from modules.agent.composition.runtime.ask_agent_stream_service import AskAgentStreamService
 from modules.agent.application.use_cases.auto_compatible_release_lifecycle import AutoCompatibleReleaseLifecycleUseCase, _execution_snapshot_equal
 from modules.agent.application.use_cases.execution_context import current_execution, new_execution_context
 from modules.agent.application.use_cases.knowledge_release_validator import SafeDeleteDocumentUseCase
-from modules.agent.application.use_cases.release_runtime_resolver import ReleaseRuntimeResolver
-from modules.agent.application.use_cases.session_continuity_runtime_resolver import SessionContinuityReleaseRuntimeResolver
-from modules.agent.application.use_cases.structured_output_ask_use_case import StructuredOutputAskAgentUseCase
+from modules.agent.composition.runtime.release_runtime_resolver import ReleaseRuntimeResolver
+from modules.agent.composition.runtime.session_continuity_runtime_resolver import SessionContinuityReleaseRuntimeResolver
+from modules.agent.composition.runtime.structured_output_ask_use_case import StructuredOutputAskAgentUseCase
 from modules.agent.domain.entities import Agent, AgentRelease, Tool
 from modules.agent.domain.enums import ReleaseStatus, RiskLevel, ToolStatus, ToolType
 from shared.infra.errors import ConflictError
@@ -358,9 +358,9 @@ async def test_streaming_executes_release_tool_snapshot(monkeypatch):
         async def __aexit__(self, *args):
             return None
 
-    monkeypatch.setattr("modules.agent.application.use_cases.ask_agent_stream_service.AgentUnitOfWork", lambda _factory: FakeContext())
-    monkeypatch.setattr("modules.agent.application.use_cases.ask_agent_stream_service.ToolSecretResolverAdapter", lambda *_args: object())
-    monkeypatch.setattr("modules.agent.application.use_cases.ask_agent_stream_service.build_tool_runtime_registry", lambda **_kwargs: registry)
+    monkeypatch.setattr("modules.agent.composition.runtime.ask_agent_stream_service.AgentUnitOfWork", lambda _factory: FakeContext())
+    monkeypatch.setattr("modules.agent.composition.runtime.ask_agent_stream_service.ToolSecretResolverAdapter", lambda *_args: object())
+    monkeypatch.setattr("modules.agent.composition.runtime.ask_agent_stream_service.build_tool_runtime_registry", lambda **_kwargs: registry)
 
     service = AskAgentStreamService.__new__(AskAgentStreamService)
     service._session_factory = object()
