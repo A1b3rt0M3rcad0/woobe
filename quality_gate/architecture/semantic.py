@@ -71,6 +71,18 @@ def _imports(tree: ast.Module) -> tuple[tuple[str, int, tuple[str, ...]], ...]:
     return tuple(values)
 
 
+def _application_interface_bindings(tree: ast.Module, policy: ArchitecturePolicy) -> set[str]:
+    prefix = f"{policy.package}.application.interfaces"
+    bindings: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.ImportFrom) or not node.module:
+            continue
+        if not _matches_prefix(node.module, prefix):
+            continue
+        bindings.update(alias.asname or alias.name for alias in node.names)
+    return bindings
+
+
 def _module_files(root: Path, globs: Iterable[str]) -> tuple[Path, ...]:
     found: set[Path] = set()
     for pattern in globs:
@@ -176,15 +188,17 @@ def check_repository_contract(project_root: Path, policy: ArchitecturePolicy) ->
         tree = _parse(path)
         if tree is None:
             continue
+        application_interfaces = _application_interface_bindings(tree, policy)
 
         for repo_class in _repository_classes(tree, contract):
             if contract.require_application_port_base:
                 base_names = {_short_name(base) for base in repo_class.bases}
-                valid_bases = {
+                direct_port_bases = {name for name in base_names if name and name in application_interfaces}
+                inherited_repo_bases = {
                     name for name in base_names
                     if name and name.endswith("Repository") and name not in contract.excluded_port_bases
                 }
-                if not valid_bases:
+                if not direct_port_bases and not inherited_repo_bases:
                     violations.append(("ARCH037", path, repo_class.lineno, f"{repo_class.name} must implement or extend an application repository port"))
 
             for method in repo_class.body:
