@@ -2,7 +2,7 @@ from modules.agent.application.use_cases.environment_session_use_cases import (
     EnvironmentAwareCreateSessionUseCase,
 )
 from modules.agent.composition.runtime.runtime_environment_guard import AgentRuntimeEnvironmentGuard
-from modules.agent.infra.database.database import AgentDatabase
+from modules.agent.infra.database.database import AgentDatabase, agent_session_factory
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentReleaseRepositoryWithProviderModels,
     SQLAlchemyAgentRepositoryWithProviderModels,
@@ -28,7 +28,7 @@ def create_session_composer(database: AgentDatabase) -> TransactionalHandler:
     )
     use_case = AgentRuntimeEnvironmentGuard(
         delegate,
-        database.session_factory,
+        agent_session_factory(database),
         default_environment="draft",
     )
     controller = CreateSessionController(use_case)
