@@ -48,27 +48,20 @@ jobs:
       WOOBE_ENVIRONMENT: test
       WOOBE_DEBUG: "false"
       PGPASSWORD: postgres
+      POSTGRES_CLIENT_IMAGE: pgvector/pgvector:pg17
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
       - uses: astral-sh/setup-uv@v6
-      - name: Install dependencies and PostgreSQL client
+      - name: Install Python dependencies
+        run: uv sync --frozen --all-groups --extra test
+      - name: Verify PostgreSQL client
         run: |
           set -euo pipefail
-          uv sync --frozen --all-groups --extra test
-          sudo apt-get update
-          sudo apt-get install -y ca-certificates curl
-          sudo install -d /usr/share/postgresql-common/pgdg
-          sudo curl --fail --silent --show-error --output /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
-          . /etc/os-release
-          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
-          sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
-          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
-          export PATH="/usr/lib/postgresql/17/bin:$PATH"
-          pg_dump --version | grep -Eq ' 17\.'
+          docker image inspect "$POSTGRES_CLIENT_IMAGE" >/dev/null
+          docker run --rm --entrypoint pg_dump "$POSTGRES_CLIENT_IMAGE" --version | grep -Eq ' 17\.'
       - name: Migration rollback and re-upgrade
         run: |
           set -euo pipefail
@@ -79,17 +72,53 @@ jobs:
       - name: Backup and restore isolated database
         run: |
           set -euo pipefail
-          psql -h localhost -U postgres -d woobe -v ON_ERROR_STOP=1 <<'SQL'
+
+          pg_client() {
+            docker run --rm \
+              --network host \
+              -e PGPASSWORD="$PGPASSWORD" \
+              --entrypoint "$1" \
+              "$POSTGRES_CLIENT_IMAGE" \
+              "${@:2}"
+          }
+
+          pg_client psql -h 127.0.0.1 -U postgres -d woobe -v ON_ERROR_STOP=1 <<'SQL'
           CREATE TABLE IF NOT EXISTS public.release_restore_probe (id integer PRIMARY KEY, value text NOT NULL);
           INSERT INTO public.release_restore_probe (id, value) VALUES (1, 'woobe')
           ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;
           SQL
+
           mkdir -p "$RUNNER_TEMP/backups"
-          backup="$(WOOBE_POSTGRES_URL=postgresql://postgres:postgres@localhost:5432/woobe BACKUP_DIR="$RUNNER_TEMP/backups" sh scripts/backup_postgres.sh)"
-          dropdb --if-exists -h localhost -U postgres woobe_restore
-          createdb -h localhost -U postgres --template=template0 woobe_restore
-          RESTORE_FILE="$backup" RESTORE_CONFIRM=restore-woobe RESTORE_CLEAN=false WOOBE_POSTGRES_URL=postgresql://postgres:postgres@localhost:5432/woobe_restore sh scripts/restore_postgres.sh
-          test "$(psql -h localhost -U postgres -d woobe_restore -Atc "SELECT value FROM public.release_restore_probe WHERE id = 1")" = "woobe"
+          backup="$(docker run --rm \
+            --network host \
+            -v "$PWD/scripts:/workspace/scripts:ro" \
+            -v "$RUNNER_TEMP/backups:/backups" \
+            -e WOOBE_POSTGRES_URL=postgresql://postgres:postgres@127.0.0.1:5432/woobe \
+            -e BACKUP_DIR=/backups \
+            --entrypoint sh \
+            "$POSTGRES_CLIENT_IMAGE" \
+            /workspace/scripts/backup_postgres.sh)"
+
+          backup_name="$(basename "$backup")"
+          host_backup="$RUNNER_TEMP/backups/$backup_name"
+
+          pg_client dropdb --if-exists -h 127.0.0.1 -U postgres woobe_restore
+          pg_client createdb -h 127.0.0.1 -U postgres --template=template0 woobe_restore
+
+          docker run --rm \
+            --network host \
+            -v "$PWD/scripts:/workspace/scripts:ro" \
+            -v "$RUNNER_TEMP/backups:/backups:ro" \
+            -e RESTORE_FILE="/backups/$backup_name" \
+            -e RESTORE_CONFIRM=restore-woobe \
+            -e RESTORE_CLEAN=false \
+            -e WOOBE_POSTGRES_URL=postgresql://postgres:postgres@127.0.0.1:5432/woobe_restore \
+            --entrypoint sh \
+            "$POSTGRES_CLIENT_IMAGE" \
+            /workspace/scripts/restore_postgres.sh
+
+          test -f "$host_backup"
+          test "$(pg_client psql -h 127.0.0.1 -U postgres -d woobe_restore -Atc "SELECT value FROM public.release_restore_probe WHERE id = 1")" = "woobe"
       - name: Security and integration matrix
         run: uv run pytest -q tests/fakes tests/security tests/performance tests/integration/security tests/integration/agent --junitxml=acceptance-backend.xml
       - name: Upload backend evidence
