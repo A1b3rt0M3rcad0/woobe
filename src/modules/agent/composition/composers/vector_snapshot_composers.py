@@ -1,12 +1,5 @@
 from __future__ import annotations
 
-from modules.agent.application.dtos.vector_snapshot_dtos import (
-    CreateVectorSnapshotInput,
-    GetCollectionOverviewInput,
-    GetVectorSnapshotInput,
-    ListVectorSnapshotsInput,
-    PreviewVectorSnapshotInput,
-)
 from modules.agent.application.use_cases.vector_snapshot_preview_use_case import (
     PreviewVectorSnapshotUseCase,
 )
@@ -19,43 +12,49 @@ from modules.agent.application.use_cases.vector_snapshot_use_cases import (
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.storage.factory import create_file_storage
 from shared.infra.config import Settings
+from shared.infra.transactional_handler import TransactionalHandler
 
 
-async def get_collection_overview(session_factory, input_dto: GetCollectionOverviewInput):
-    async with AgentUnitOfWork(session_factory) as uow:
-        return await GetCollectionOverviewUseCase(
-            snapshot_repo=uow.vector_snapshots,
-            collection_repo=uow.document_collections,
-            document_repo=uow.documents,
-        ).execute(input_dto)
+def get_collection_overview_composer(session_factory) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    use_case = GetCollectionOverviewUseCase(
+        snapshot_repo=uow.vector_snapshots,
+        collection_repo=uow.document_collections,
+        document_repo=uow.documents,
+    )
+    return TransactionalHandler(uow, use_case.execute)
 
 
-async def preview_vector_snapshot(session_factory, input_dto: PreviewVectorSnapshotInput):
+def preview_vector_snapshot_composer(session_factory) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
     storage = create_file_storage(Settings())
-    async with AgentUnitOfWork(session_factory) as uow:
-        return await PreviewVectorSnapshotUseCase(
-            collection_repo=uow.document_collections,
-            document_repo=uow.documents,
-            storage=storage,
-        ).execute(input_dto)
+    use_case = PreviewVectorSnapshotUseCase(
+        collection_repo=uow.document_collections,
+        document_repo=uow.documents,
+        storage=storage,
+    )
+    return TransactionalHandler(uow, use_case.execute)
 
 
-async def create_vector_snapshot(session_factory, input_dto: CreateVectorSnapshotInput):
-    async with AgentUnitOfWork(session_factory) as uow:
-        return await CreateVectorSnapshotUseCase(
-            snapshot_repo=uow.vector_snapshots,
-            collection_repo=uow.document_collections,
-            document_repo=uow.documents,
-            provider_model_repo=uow.provider_models,
-            credential_repo=uow.provider_credentials,
-        ).execute(input_dto)
+def create_vector_snapshot_composer(session_factory) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    use_case = CreateVectorSnapshotUseCase(
+        snapshot_repo=uow.vector_snapshots,
+        collection_repo=uow.document_collections,
+        document_repo=uow.documents,
+        provider_model_repo=uow.provider_models,
+        credential_repo=uow.provider_credentials,
+    )
+    return TransactionalHandler(uow, use_case.execute)
 
 
-async def list_vector_snapshots(session_factory, input_dto: ListVectorSnapshotsInput):
-    async with AgentUnitOfWork(session_factory) as uow:
-        return await ListVectorSnapshotsUseCase(uow.vector_snapshots).execute(input_dto)
+def list_vector_snapshots_composer(session_factory) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    use_case = ListVectorSnapshotsUseCase(uow.vector_snapshots)
+    return TransactionalHandler(uow, use_case.execute)
 
 
-async def get_vector_snapshot(session_factory, input_dto: GetVectorSnapshotInput):
-    async with AgentUnitOfWork(session_factory) as uow:
-        return await GetVectorSnapshotUseCase(uow.vector_snapshots).execute(input_dto)
+def get_vector_snapshot_composer(session_factory) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    use_case = GetVectorSnapshotUseCase(uow.vector_snapshots)
+    return TransactionalHandler(uow, use_case.execute)

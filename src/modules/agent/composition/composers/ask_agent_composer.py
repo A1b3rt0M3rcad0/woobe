@@ -1,9 +1,10 @@
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.composition.composers.tool_runtime_factory import build_tool_runtime_registry
 from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.runtime_tool_inventory import (
     execute_runtime_tool_inventory,
     is_runtime_tool_inventory_id,
@@ -11,7 +12,7 @@ from modules.agent.application.runtime_tool_inventory import (
 from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
 from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
-from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.composition.composers.tool_runtime_factory import build_tool_runtime_registry
 from modules.agent.composition.runtime.runtime_environment_guard import (
     AgentRuntimeEnvironmentGuard,
 )
@@ -27,12 +28,18 @@ from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.presentation.controllers.ask_agent_controller import AskAgentController
 from shared.infra.config import Settings
+from shared.infra.transactional_handler import TransactionalHandler
+from shared.presentation.http.request import Request
+from shared.presentation.http.response import Response
 
 
-def ask_agent_composer(
+AskHttpHandler = Callable[[Request], Awaitable[Response]]
+
+
+def _build_ask_handler(
     session_factory: async_sessionmaker[AsyncSession],
     http_executor: HttpToolExecutor | None = None,
-):
+) -> AskHttpHandler:
     settings = Settings.model_validate({})
     llm_factory = LangchainLLMFactory()
     cipher = SecretCipherAdapter(settings.encryption_key)
@@ -103,3 +110,14 @@ def ask_agent_composer(
         default_environment="production",
     )
     return AskAgentController(guarded_use_case).handle
+
+
+def ask_agent_composer(
+    session_factory: async_sessionmaker[AsyncSession],
+    http_executor: HttpToolExecutor | None = None,
+) -> TransactionalHandler:
+    uow = AgentUnitOfWork(session_factory)
+    return TransactionalHandler(
+        uow,
+        _build_ask_handler(session_factory, http_executor),
+    )

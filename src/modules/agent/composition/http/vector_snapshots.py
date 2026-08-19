@@ -14,11 +14,11 @@ from modules.agent.application.dtos.vector_snapshot_dtos import (
     PreviewVectorSnapshotInput,
 )
 from modules.agent.composition.composers.vector_snapshot_composers import (
-    create_vector_snapshot as compose_create_vector_snapshot,
-    get_collection_overview as compose_get_collection_overview,
-    get_vector_snapshot as compose_get_vector_snapshot,
-    list_vector_snapshots as compose_list_vector_snapshots,
-    preview_vector_snapshot as compose_preview_vector_snapshot,
+    create_vector_snapshot_composer,
+    get_collection_overview_composer,
+    get_vector_snapshot_composer,
+    list_vector_snapshots_composer,
+    preview_vector_snapshot_composer,
 )
 from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
 
@@ -35,13 +35,13 @@ async def get_collection_overview(
     collection_id: UUID,
     project_id: UUID,
 ):
+    handler = get_collection_overview_composer(request.app.state.session_factory)
     try:
-        output = await compose_get_collection_overview(
-            request.app.state.session_factory,
+        output = await handler(
             GetCollectionOverviewInput(
                 project_id=project_id,
                 collection_id=collection_id,
-            ),
+            )
         )
     except NotFoundError as exc:
         return _error(404, str(exc))
@@ -55,13 +55,13 @@ async def preview_vector_snapshot(request: Request, collection_id: UUID):
         body = await request.json()
     except Exception:
         body = {}
+    handler = preview_vector_snapshot_composer(request.app.state.session_factory)
     try:
-        output = await compose_preview_vector_snapshot(
-            request.app.state.session_factory,
+        output = await handler(
             PreviewVectorSnapshotInput(
                 collection_id=collection_id,
                 **body,
-            ),
+            )
         )
     except ConflictError as exc:
         return _error(409, str(exc))
@@ -79,10 +79,10 @@ async def create_vector_snapshot(request: Request, collection_id: UUID):
         body = await request.json()
     except Exception:
         body = {}
+    handler = create_vector_snapshot_composer(request.app.state.session_factory)
     try:
-        output = await compose_create_vector_snapshot(
-            request.app.state.session_factory,
-            CreateVectorSnapshotInput(collection_id=collection_id, **body),
+        output = await handler(
+            CreateVectorSnapshotInput(collection_id=collection_id, **body)
         )
     except ConflictError as exc:
         return _error(409, str(exc))
@@ -100,12 +100,12 @@ async def list_vector_snapshots(
     collection_id: UUID,
     project_id: UUID,
 ):
-    output = await compose_list_vector_snapshots(
-        request.app.state.session_factory,
+    handler = list_vector_snapshots_composer(request.app.state.session_factory)
+    output = await handler(
         ListVectorSnapshotsInput(
             project_id=project_id,
             collection_id=collection_id,
-        ),
+        )
     )
     return jsonable_encoder(
         {
@@ -121,13 +121,13 @@ async def get_vector_snapshot(
     snapshot_id: UUID,
     project_id: UUID | None = None,
 ):
+    handler = get_vector_snapshot_composer(request.app.state.session_factory)
     try:
-        output = await compose_get_vector_snapshot(
-            request.app.state.session_factory,
+        output = await handler(
             GetVectorSnapshotInput(
                 snapshot_id=snapshot_id,
                 project_id=project_id,
-            ),
+            )
         )
     except NotFoundError as exc:
         return _error(404, str(exc))
