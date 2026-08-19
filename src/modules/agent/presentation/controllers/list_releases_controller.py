@@ -1,4 +1,4 @@
-from modules.agent.application.use_cases.ai_use_cases import ListReleasesUseCase
+from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.presentation.mappers import list_releases_to_response
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
@@ -19,7 +19,7 @@ def _release_list_payload(release):
 
 
 class ListReleasesController(Controller):
-    def __init__(self, use_case: ListReleasesUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

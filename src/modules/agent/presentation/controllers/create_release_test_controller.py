@@ -1,4 +1,4 @@
-from modules.agent.application.use_cases.ai_use_cases import CreateReleaseTestUseCase
+from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.application.dtos import CreateReleaseTestInput
 from modules.agent.presentation.mappers import release_test_to_response
 from shared.presentation.interface.controller import Controller
@@ -7,7 +7,7 @@ from shared.presentation.http.response import Response
 
 
 class CreateReleaseTestController(Controller):
-    def __init__(self, use_case: CreateReleaseTestUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

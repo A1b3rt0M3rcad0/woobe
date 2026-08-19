@@ -1,6 +1,6 @@
+from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.presentation.mappers import knowledge_version_to_response
 from modules.agent.application.dtos import CreateKnowledgeVersionInput
-from modules.agent.application.use_cases.knowledge_use_cases import CreateKnowledgeVersionUseCase
 from shared.domain.errors import ValidationError
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
@@ -8,7 +8,7 @@ from shared.presentation.http.response import Response
 
 
 class CreateKnowledgeVersionController(Controller):
-    def __init__(self, use_case: CreateKnowledgeVersionUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

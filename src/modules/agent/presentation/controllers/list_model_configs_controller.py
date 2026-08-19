@@ -1,4 +1,4 @@
-from modules.agent.application.use_cases.ai_use_cases import ListModelConfigsUseCase
+from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.presentation.mappers import list_model_configs_to_response
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
@@ -6,7 +6,7 @@ from shared.presentation.http.response import Response
 
 
 class ListModelConfigsController(Controller):
-    def __init__(self, use_case: ListModelConfigsUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

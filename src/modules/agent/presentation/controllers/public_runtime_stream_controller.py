@@ -1,3 +1,4 @@
+from modules.agent.application.interfaces.use_case import UseCase
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from uuid import UUID
@@ -7,7 +8,6 @@ from fastapi.responses import StreamingResponse
 
 from modules.agent.application.dtos.public_runtime_dtos import PublicRunRequest
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
 from modules.agent.presentation.controllers.ask_agent_stream_controller import (
     commit_safe_stream,
 )
@@ -24,7 +24,7 @@ RequestPreparer = Callable[
 
 async def handle_public_run_stream(
     fastapi_request: FastAPIRequest,
-    service: AskAgentStreamService,
+    service: UseCase,
     request_preparer: RequestPreparer,
 ) -> StreamingResponse:
     principal = getattr(fastapi_request.state, "principal", None)

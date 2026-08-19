@@ -1,7 +1,7 @@
+from modules.agent.application.interfaces.use_case import UseCase
 import logging
 from uuid import UUID
 
-from modules.agent.application.use_cases.runtime_use_cases import GetAskJobUseCase
 from shared.domain.errors import NotFoundError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class GetAskJobController(Controller):
-    def __init__(self, use_case: GetAskJobUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

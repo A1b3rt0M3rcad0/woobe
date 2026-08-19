@@ -1,4 +1,4 @@
-from modules.agent.application.use_cases.runtime_use_cases import SendMessageUseCase
+from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.application.dtos import SendMessageInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
@@ -7,7 +7,7 @@ from shared.domain.errors import NotFoundError, ValidationError
 
 
 class SendMessageController(Controller):
-    def __init__(self, use_case: SendMessageUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

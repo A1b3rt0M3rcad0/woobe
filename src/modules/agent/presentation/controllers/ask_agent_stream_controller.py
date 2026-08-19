@@ -1,3 +1,4 @@
+from modules.agent.application.interfaces.use_case import UseCase
 import json
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
@@ -7,7 +8,6 @@ from fastapi import Request as FastAPIRequest
 from fastapi.responses import StreamingResponse
 
 from modules.agent.application.dtos import AskInput
-from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
 from shared.runtime_environment import assert_runtime_environment_enabled
 
 
@@ -75,7 +75,7 @@ async def commit_safe_stream(
 
 async def handle_ask_stream(
     fastapi_request: FastAPIRequest,
-    service: AskAgentStreamService,
+    service: UseCase,
 ) -> StreamingResponse:
     received_at = datetime.now(timezone.utc).isoformat()
     body: dict = await fastapi_request.json()

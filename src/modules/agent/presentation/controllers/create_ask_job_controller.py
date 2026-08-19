@@ -1,7 +1,7 @@
+from modules.agent.application.interfaces.use_case import UseCase
 import logging
 
 from modules.agent.application.dtos import CreateAskJobInput
-from modules.agent.application.use_cases.runtime_use_cases import CreateAskJobUseCase
 from shared.domain.errors import ValidationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class CreateAskJobController(Controller):
-    def __init__(self, use_case: CreateAskJobUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

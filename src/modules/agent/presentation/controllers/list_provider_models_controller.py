@@ -1,9 +1,8 @@
+from modules.agent.application.interfaces.use_case import UseCase
 from uuid import UUID
 
 from modules.agent.application.dtos import ListProviderModelsInput
 from modules.agent.application.dtos.model_discovery_dtos import ListAvailableProviderModelsInput
-from modules.agent.application.use_cases import ListProviderModelsUseCase
-from modules.agent.application.use_cases.list_available_provider_models import ListAvailableProviderModelsUseCase
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
@@ -12,8 +11,8 @@ from shared.presentation.interface.controller import Controller
 class ListProviderModelsController(Controller):
     def __init__(
         self,
-        use_case: ListProviderModelsUseCase,
-        discovery_use_case: ListAvailableProviderModelsUseCase | None = None,
+        use_case: UseCase,
+        discovery_use_case: UseCase | None = None,
     ) -> None:
         self._use_case = use_case
         self._discovery_use_case = discovery_use_case

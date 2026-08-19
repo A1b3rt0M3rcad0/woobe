@@ -1,3 +1,4 @@
+from modules.agent.application.interfaces.use_case import UseCase
 from collections.abc import Awaitable, Callable
 from uuid import UUID
 
@@ -9,7 +10,6 @@ from modules.agent.application.dtos.runtime_dtos import (
     CreateAskJobInput,
     GetAskJobOutput,
 )
-from modules.agent.application.use_cases.runtime_use_cases import CreateAskJobUseCase
 from modules.agent.domain.errors import AskJobNotFoundError
 from modules.agent.application.interfaces.repositories import AskJobRepository
 from shared.domain.errors import AuthenticationError, AuthorizationError
@@ -80,7 +80,7 @@ class PublicRunController(Controller):
 class PublicCreateJobController(Controller):
     def __init__(
         self,
-        use_case: CreateAskJobUseCase,
+        use_case: UseCase,
         request_preparer: RequestPreparer,
     ) -> None:
         self._use_case = use_case
