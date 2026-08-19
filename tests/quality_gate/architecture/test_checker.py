@@ -139,3 +139,53 @@ def test_deprecated_path_is_rejected(tmp_path: Path) -> None:
     result = checker.check(policy)
 
     assert any(item.rule_id == "ARCH017" for item in result.violations)
+
+
+def test_relative_imports_are_resolved_before_policy_check(tmp_path: Path) -> None:
+    checker, policy = _module(tmp_path)
+    root = tmp_path / "src/modules/agent"
+    use_cases = root / "application/use_cases"
+    use_cases.mkdir(exist_ok=True)
+    (use_cases / "service.py").write_text(
+        "from ...infra.repository import Repository\n",
+        encoding="utf-8",
+    )
+
+    result = checker.check(policy)
+
+    assert any(item.rule_id == "ARCH003" for item in result.violations)
+
+
+def test_imports_inside_type_checking_and_functions_are_enforced(tmp_path: Path) -> None:
+    checker, policy = _module(tmp_path)
+    root = tmp_path / "src/modules/agent"
+    (root / "application/use_case.py").write_text(
+        "from typing import TYPE_CHECKING\n"
+        "if TYPE_CHECKING:\n"
+        "    from modules.agent.infra.repository import Repository\n"
+        "def load():\n"
+        "    from modules.agent.infra.repository import OtherRepository\n",
+        encoding="utf-8",
+    )
+
+    result = checker.check(policy)
+    violations = [item for item in result.violations if item.rule_id == "ARCH003"]
+
+    assert len(violations) == 2
+
+
+def test_internal_dependency_cycle_is_rejected(tmp_path: Path) -> None:
+    checker, policy = _module(tmp_path)
+    root = tmp_path / "src/modules/agent"
+    (root / "application/a.py").write_text(
+        "from modules.agent.application.b import VALUE\n",
+        encoding="utf-8",
+    )
+    (root / "application/b.py").write_text(
+        "from modules.agent.application.a import VALUE\n",
+        encoding="utf-8",
+    )
+
+    result = checker.check(policy)
+
+    assert any(item.rule_id == "ARCH016" for item in result.violations)
