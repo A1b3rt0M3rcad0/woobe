@@ -1,4 +1,4 @@
-from modules.agent.infra.workers.registry import AgentWorkerRegistry, register_agent_workers
+from modules.agent.composition.workers import AgentWorkerRegistry, register_agent_workers
 
 __all__ = [
     "AgentWorkerRegistry",
