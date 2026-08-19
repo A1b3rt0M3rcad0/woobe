@@ -20,6 +20,17 @@ class ImportRule:
 
 
 @dataclass(frozen=True, slots=True)
+class ComposerContract:
+    source_globs: tuple[str, ...]
+    function_suffix: str
+    streaming_suffix: str
+    allowed_handlers: tuple[str, ...]
+    regular_handler: str
+    streaming_handler: str
+    uow_types: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class ArchitecturePolicy:
     name: str
     root: Path
@@ -31,6 +42,7 @@ class ArchitecturePolicy:
     forbid_wildcard_imports: bool
     forbid_cycles: bool
     rules: tuple[ImportRule, ...]
+    composer_contract: ComposerContract | None = None
 
     @property
     def module_name(self) -> str:
@@ -52,6 +64,46 @@ def _string_tuple(value: object, *, field: str) -> tuple[str, ...]:
     if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
         raise PolicyError(f"{field} must be a list of strings")
     return tuple(value)
+
+
+def _required_string(value: object, *, field: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise PolicyError(f"{field} is required")
+    return value
+
+
+def _load_composer_contract(path: Path, value: object) -> ComposerContract | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise PolicyError(f"{path}: [composer_contract] must be a table")
+
+    source_globs = _string_tuple(value.get("source"), field="composer_contract.source")
+    allowed_handlers = _string_tuple(value.get("allowed_handlers"), field="composer_contract.allowed_handlers")
+    uow_types = _string_tuple(value.get("uow_types"), field="composer_contract.uow_types")
+    if not source_globs:
+        raise PolicyError(f"{path}: composer_contract.source cannot be empty")
+    if not allowed_handlers:
+        raise PolicyError(f"{path}: composer_contract.allowed_handlers cannot be empty")
+    if not uow_types:
+        raise PolicyError(f"{path}: composer_contract.uow_types cannot be empty")
+
+    regular_handler = _required_string(value.get("regular_handler"), field="composer_contract.regular_handler")
+    streaming_handler = _required_string(value.get("streaming_handler"), field="composer_contract.streaming_handler")
+    if regular_handler not in allowed_handlers:
+        raise PolicyError(f"{path}: composer_contract.regular_handler must be listed in allowed_handlers")
+    if streaming_handler not in allowed_handlers:
+        raise PolicyError(f"{path}: composer_contract.streaming_handler must be listed in allowed_handlers")
+
+    return ComposerContract(
+        source_globs=source_globs,
+        function_suffix=_required_string(value.get("function_suffix"), field="composer_contract.function_suffix"),
+        streaming_suffix=_required_string(value.get("streaming_suffix"), field="composer_contract.streaming_suffix"),
+        allowed_handlers=allowed_handlers,
+        regular_handler=regular_handler,
+        streaming_handler=streaming_handler,
+        uow_types=uow_types,
+    )
 
 
 def load_policy(path: Path, *, project_root: Path | None = None) -> ArchitecturePolicy:
@@ -122,15 +174,13 @@ def load_policy(path: Path, *, project_root: Path | None = None) -> Architecture
         forbid_wildcard_imports=bool(constraints.get("forbid_wildcard_imports", True)),
         forbid_cycles=bool(constraints.get("forbid_cycles", True)),
         rules=tuple(rules),
+        composer_contract=_load_composer_contract(path, data.get("composer_contract")),
     )
 
 
 def load_policies(policy_dir: Path, *, project_root: Path | None = None) -> tuple[ArchitecturePolicy, ...]:
     policy_dir = Path(policy_dir)
-    policies = tuple(
-        load_policy(path, project_root=project_root)
-        for path in sorted(policy_dir.glob("*.toml"))
-    )
+    policies = tuple(load_policy(path, project_root=project_root) for path in sorted(policy_dir.glob("*.toml")))
     if not policies:
         raise PolicyError(f"no architecture policies found in {policy_dir}")
     return policies

@@ -3,12 +3,13 @@ from __future__ import annotations
 import argparse
 import ast
 from dataclasses import dataclass
+from fnmatch import fnmatch
 from pathlib import Path
 import sys
 from typing import Iterable
 
 from .graph import strongly_connected_components
-from .policy import ArchitecturePolicy, ImportRule, load_policies
+from .policy import ArchitecturePolicy, ComposerContract, ImportRule, load_policies
 
 
 @dataclass(frozen=True, slots=True, order=True)
@@ -69,19 +70,9 @@ def _extract_imports(policy: ArchitecturePolicy, file: Path, tree: ast.AST) -> t
         if isinstance(node, ast.Import):
             imports.extend(ImportReference(alias.name, node.lineno) for alias in node.names)
         elif isinstance(node, ast.ImportFrom):
-            module = (
-                _resolve_relative_import(policy, file, node)
-                if node.level
-                else (node.module or "")
-            )
+            module = _resolve_relative_import(policy, file, node) if node.level else (node.module or "")
             if module:
-                imports.append(
-                    ImportReference(
-                        module=module,
-                        line=node.lineno,
-                        wildcard=any(alias.name == "*" for alias in node.names),
-                    )
-                )
+                imports.append(ImportReference(module=module, line=node.lineno, wildcard=any(alias.name == "*" for alias in node.names)))
     return tuple(imports)
 
 
@@ -108,11 +99,157 @@ def _rule_violation(rule: ImportRule, imported: str) -> str | None:
     for prefix in rule.deny_prefixes:
         if _matches_prefix(imported, prefix):
             return f"{rule.description}: import of {imported!r} is forbidden"
-
     if rule.enforce_internal_allowlist and _is_governed_internal(imported):
         if not any(_matches_prefix(imported, prefix) for prefix in rule.allow_prefixes):
             return f"{rule.description}: import of {imported!r} is outside the allowed dependency surface"
     return None
+
+
+def _expression_name(node: ast.AST | None) -> str | None:
+    if node is None:
+        return None
+    if isinstance(node, ast.Name):
+        return node.id
+    if isinstance(node, ast.Attribute):
+        base = _expression_name(node.value)
+        return f"{base}.{node.attr}" if base else node.attr
+    if isinstance(node, ast.Subscript):
+        return _expression_name(node.value)
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return node.value
+    return None
+
+
+def _short_name(name: str | None) -> str | None:
+    return name.rsplit(".", 1)[-1] if name else None
+
+
+class _ComposerBodyInspector(ast.NodeVisitor):
+    def __init__(self, root: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        self.root = root
+        self.returns: list[ast.Return] = []
+        self.async_with: list[ast.AsyncWith] = []
+        self.awaits: list[ast.Await] = []
+        self.assignments: list[tuple[str, ast.AST, int]] = []
+
+    def inspect(self) -> "_ComposerBodyInspector":
+        for statement in self.root.body:
+            self.visit(statement)
+        return self
+
+    def visit_Return(self, node: ast.Return) -> None:
+        self.returns.append(node)
+        self.generic_visit(node)
+
+    def visit_AsyncWith(self, node: ast.AsyncWith) -> None:
+        self.async_with.append(node)
+        self.generic_visit(node)
+
+    def visit_Await(self, node: ast.Await) -> None:
+        self.awaits.append(node)
+        self.generic_visit(node)
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                self.assignments.append((target.id, node.value, node.lineno))
+        self.generic_visit(node)
+
+    def visit_AnnAssign(self, node: ast.AnnAssign) -> None:
+        if isinstance(node.target, ast.Name) and node.value is not None:
+            self.assignments.append((node.target.id, node.value, node.lineno))
+        self.generic_visit(node)
+
+    def visit_FunctionDef(self, node: ast.FunctionDef) -> None:
+        if node is self.root:
+            self.generic_visit(node)
+
+    def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
+        if node is self.root:
+            self.generic_visit(node)
+
+    def visit_Lambda(self, node: ast.Lambda) -> None:
+        return
+
+    def visit_ClassDef(self, node: ast.ClassDef) -> None:
+        return
+
+
+def _call_target(node: ast.AST | None) -> str | None:
+    if not isinstance(node, ast.Call):
+        return None
+    return _short_name(_expression_name(node.func))
+
+
+def _uow_call(node: ast.AST | None, contract: ComposerContract) -> bool:
+    return _call_target(node) in set(contract.uow_types)
+
+
+def _composer_violations(contract: ComposerContract, relative: str, tree: ast.Module) -> tuple[tuple[str, int, str], ...]:
+    if not any(fnmatch(relative, pattern) for pattern in contract.source_globs):
+        return ()
+
+    violations: list[tuple[str, int, str]] = []
+    for function in tree.body:
+        if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if function.name.startswith("_") or not function.name.endswith(contract.function_suffix):
+            continue
+
+        is_stream = function.name.endswith(contract.streaming_suffix)
+        expected_handler = contract.streaming_handler if is_stream else contract.regular_handler
+        annotation = _short_name(_expression_name(function.returns))
+        if annotation != expected_handler:
+            rule = "ARCH023" if is_stream else "ARCH021"
+            violations.append((rule, function.lineno, f"{function.name} must declare return type {expected_handler}"))
+
+        inspector = _ComposerBodyInspector(function).inspect()
+        if isinstance(function, ast.AsyncFunctionDef) or inspector.awaits:
+            violations.append(("ARCH022", function.lineno, f"{function.name} must compose dependencies without executing async work"))
+
+        if not inspector.returns:
+            violations.append(("ARCH022", function.lineno, f"{function.name} must return a transactional handler"))
+        else:
+            for return_node in inspector.returns:
+                returned_handler = _call_target(return_node.value)
+                if returned_handler not in contract.allowed_handlers:
+                    violations.append(("ARCH022", return_node.lineno, f"{function.name} cannot return a raw controller, use case or callable"))
+                elif returned_handler != expected_handler:
+                    rule = "ARCH023" if is_stream else "ARCH021"
+                    violations.append((rule, return_node.lineno, f"{function.name} must return {expected_handler}"))
+
+        uow_assignments = [(name, line) for name, value, line in inspector.assignments if _uow_call(value, contract)]
+        uow_names = {name for name, _ in uow_assignments}
+        for async_with in inspector.async_with:
+            for item in async_with.items:
+                context = item.context_expr
+                opens_uow = _uow_call(context, contract)
+                if isinstance(context, ast.Name) and context.id in uow_names:
+                    opens_uow = True
+                if opens_uow:
+                    violations.append(("ARCH024", async_with.lineno, f"{function.name} cannot open the UnitOfWork; the transactional handler owns it"))
+                    break
+
+        if len(uow_assignments) != 1:
+            violations.append(("ARCH025", function.lineno, f"{function.name} must create exactly one configured UnitOfWork"))
+            continue
+
+        uow_name = uow_assignments[0][0]
+        for return_node in inspector.returns:
+            if _call_target(return_node.value) not in contract.allowed_handlers:
+                continue
+            call = return_node.value
+            assert isinstance(call, ast.Call)
+            handler_uow: ast.AST | None = call.args[0] if call.args else None
+            if handler_uow is None:
+                for keyword in call.keywords:
+                    if keyword.arg in {"uow", "unit_of_work"}:
+                        handler_uow = keyword.value
+                        break
+            if not isinstance(handler_uow, ast.Name) or handler_uow.id != uow_name:
+                violations.append(("ARCH025", return_node.lineno, f"{function.name} must pass the same UnitOfWork to its transactional handler"))
+
+    return tuple(violations)
 
 
 class ArchitectureChecker:
@@ -124,25 +261,16 @@ class ArchitectureChecker:
         violations: list[Violation] = []
 
         if not root.is_dir():
-            return QualityGateResult(
-                module=policy.name,
-                violations=(
-                    Violation("ARCH001", str(root), 0, f"module root does not exist: {root}"),
-                ),
-            )
+            return QualityGateResult(module=policy.name, violations=(Violation("ARCH001", str(root), 0, f"module root does not exist: {root}"),))
 
         for layer in policy.required_layers:
             layer_path = root / layer
             if not layer_path.is_dir():
-                violations.append(
-                    self._violation("ARCH001", layer_path, 0, f"required layer {layer!r} is missing")
-                )
+                violations.append(self._violation("ARCH001", layer_path, 0, f"required layer {layer!r} is missing"))
 
         for pattern in policy.forbidden_paths:
             for forbidden in sorted(root.glob(pattern)):
-                violations.append(
-                    self._violation("ARCH017", forbidden, 0, f"deprecated architecture path is forbidden: {pattern}")
-                )
+                violations.append(self._violation("ARCH017", forbidden, 0, f"deprecated architecture path is forbidden: {pattern}"))
 
         imports_by_file: dict[Path, tuple[ImportReference, ...]] = {}
         for file in sorted(root.rglob("*.py")):
@@ -157,33 +285,24 @@ class ArchitectureChecker:
             relative = file.relative_to(root).as_posix()
             rule = policy.rule_for(relative)
             if rule is None:
-                violations.append(
-                    self._violation("ARCH001", file, 0, f"no architecture import rule matches {relative}")
-                )
+                violations.append(self._violation("ARCH001", file, 0, f"no architecture import rule matches {relative}"))
                 continue
+
+            if policy.composer_contract is not None:
+                for rule_id, line, message in _composer_violations(policy.composer_contract, relative, tree):
+                    violations.append(self._violation(rule_id, file, line, message))
 
             for node in ast.walk(tree):
                 if isinstance(node, ast.Call) and policy.forbid_dynamic_imports and _is_dynamic_import(node):
-                    violations.append(
-                        self._violation("ARCH012", file, node.lineno, "dynamic imports are forbidden in governed modules")
-                    )
+                    violations.append(self._violation("ARCH012", file, node.lineno, "dynamic imports are forbidden in governed modules"))
 
             for imported in imports:
                 if imported.wildcard and policy.forbid_wildcard_imports:
-                    violations.append(
-                        self._violation("ARCH011", file, imported.line, f"wildcard import from {imported.module!r} is forbidden")
-                    )
+                    violations.append(self._violation("ARCH011", file, imported.line, f"wildcard import from {imported.module!r} is forbidden"))
 
                 cross_target = _cross_module_target(policy, imported.module)
                 if cross_target and policy.forbid_cross_module_imports:
-                    violations.append(
-                        self._violation(
-                            "ARCH008",
-                            file,
-                            imported.line,
-                            f"{policy.name} cannot import bounded context {cross_target!r}",
-                        )
-                    )
+                    violations.append(self._violation("ARCH008", file, imported.line, f"{policy.name} cannot import bounded context {cross_target!r}"))
                     continue
 
                 message = _rule_violation(rule, imported.module)
@@ -194,28 +313,13 @@ class ArchitectureChecker:
             graph = self._build_graph(policy, imports_by_file)
             for component in strongly_connected_components(graph):
                 anchor = self.project_root / component[0]
-                violations.append(
-                    self._violation(
-                        "ARCH016",
-                        anchor,
-                        0,
-                        "dependency cycle detected: " + " -> ".join(component),
-                    )
-                )
+                violations.append(self._violation("ARCH016", anchor, 0, "dependency cycle detected: " + " -> ".join(component)))
 
         return QualityGateResult(policy.name, tuple(sorted(set(violations))))
 
-    def _build_graph(
-        self,
-        policy: ArchitecturePolicy,
-        imports_by_file: dict[Path, tuple[ImportReference, ...]],
-    ) -> dict[str, set[str]]:
-        module_to_file: dict[str, Path] = {
-            _module_name_for_file(policy, file): file for file in imports_by_file
-        }
-        graph: dict[str, set[str]] = {
-            self._relative(file): set() for file in imports_by_file
-        }
+    def _build_graph(self, policy: ArchitecturePolicy, imports_by_file: dict[Path, tuple[ImportReference, ...]]) -> dict[str, set[str]]:
+        module_to_file: dict[str, Path] = {_module_name_for_file(policy, file): file for file in imports_by_file}
+        graph: dict[str, set[str]] = {self._relative(file): set() for file in imports_by_file}
 
         for source, imports in imports_by_file.items():
             source_key = self._relative(source)
@@ -270,11 +374,7 @@ def run(project_root: Path, policy_dir: Path) -> int:
 def main(argv: Iterable[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Validate Woobe architecture policies")
     parser.add_argument("--project-root", type=Path, default=Path.cwd())
-    parser.add_argument(
-        "--policy-dir",
-        type=Path,
-        default=Path("quality_gate/architecture/policies"),
-    )
+    parser.add_argument("--policy-dir", type=Path, default=Path("quality_gate/architecture/policies"))
     args = parser.parse_args(list(argv) if argv is not None else None)
     project_root = args.project_root.resolve()
     policy_dir = args.policy_dir

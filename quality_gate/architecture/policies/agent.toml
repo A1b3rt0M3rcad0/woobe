@@ -15,6 +15,15 @@ forbidden_paths = [
   "domain/repositories.py",
 ]
 
+[composer_contract]
+source = ["composition/composers/**"]
+function_suffix = "_composer"
+streaming_suffix = "_stream_composer"
+allowed_handlers = ["TransactionalHandler", "StreamingTransactionalHandler"]
+regular_handler = "TransactionalHandler"
+streaming_handler = "StreamingTransactionalHandler"
+uow_types = ["AgentUnitOfWork"]
+
 # First-match semantics: specific presentation and entrypoint rules must precede
 # the broader layer rules below.
 
