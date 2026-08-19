@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from typing import Any, Generic, TypeVar
 
-from shared.infra.config.interface.unit_of_work import UnitOfWork
+from shared.contracts.unit_of_work import UnitOfWork
 from shared.infra.transactional_handler import Handler
 
 
