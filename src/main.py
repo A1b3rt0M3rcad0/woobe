@@ -17,17 +17,17 @@ from modules.agent.infra.adapters.http_tool_runtime import (
     configure_http_tool_executor,
 )
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.agent.presentation.credential_routes import router as credential_router
-from modules.agent.presentation.mcp_tools_routes import router as mcp_tools_router
+from modules.agent.composition.http.credential_routes import router as credential_router
+from modules.agent.composition.http.mcp_tools_routes import router as mcp_tools_router
 from public_runtime_routes import router as public_runtime_router
-from modules.agent.presentation.release_activation_routes import router as release_activation_router
-from modules.agent.presentation.routes import agent_router
-from modules.agent.presentation.routes import router as agent_ai_router
-from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
-from modules.agent.presentation.routes import runtime_router as agent_runtime_router
-from modules.agent.presentation.routes import tools_router
-from modules.agent.presentation.tool_lifecycle_routes import router as tool_lifecycle_router
-from modules.agent.presentation.vector_snapshot_routes import router as vector_snapshot_router
+from modules.agent.composition.http.release_activation_routes import router as release_activation_router
+from modules.agent.composition.http.routes import agent_router
+from modules.agent.composition.http.routes import router as agent_ai_router
+from modules.agent.composition.http.routes import knowledge_router as agent_knowledge_router
+from modules.agent.composition.http.routes import runtime_router as agent_runtime_router
+from modules.agent.composition.http.routes import tools_router
+from modules.agent.composition.http.tool_lifecycle_routes import router as tool_lifecycle_router
+from modules.agent.composition.http.vector_snapshot_routes import router as vector_snapshot_router
 from modules.chat_surface.presentation.routes import router as chat_surface_router
 from modules.chat_surface.security import ChatSessionTokenCodec
 from modules.core.presentation.routes import router as core_router
