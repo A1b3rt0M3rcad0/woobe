@@ -12,14 +12,8 @@ from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ExceptionHandler
 
-from modules.agent.infra.adapters.http_tool_runtime import (
-    close_http_tool_executor,
-    configure_http_tool_executor,
-)
-from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.composition.http.credential_routes import router as credential_router
 from modules.agent.composition.http.mcp_tools_routes import router as mcp_tools_router
-from public_runtime_routes import router as public_runtime_router
 from modules.agent.composition.http.release_activation_routes import router as release_activation_router
 from modules.agent.composition.http.routes import agent_router
 from modules.agent.composition.http.routes import router as agent_ai_router
@@ -28,6 +22,12 @@ from modules.agent.composition.http.routes import runtime_router as agent_runtim
 from modules.agent.composition.http.routes import tools_router
 from modules.agent.composition.http.tool_lifecycle_routes import router as tool_lifecycle_router
 from modules.agent.composition.http.vector_snapshot_routes import router as vector_snapshot_router
+from modules.agent.composition.resources import DATABASE_ENGINE, SESSION_FACTORY, SETTINGS
+from modules.agent.infra.adapters.http_tool_runtime import (
+    close_http_tool_executor,
+    configure_http_tool_executor,
+)
+from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.chat_surface.presentation.routes import router as chat_surface_router
 from modules.chat_surface.security import ChatSessionTokenCodec
 from modules.core.presentation.routes import router as core_router
@@ -36,8 +36,7 @@ from modules.identity.presentation.routes import router as identity_router
 from modules.metering.presentation.routes import router as metering_router
 from modules.network.presentation import router as network_router
 from modules.observability.presentation.routes import router as observability_router
-from shared.infra.config import Settings
-from shared.infra.database.session import create_engine, create_session_factory
+from public_runtime_routes import router as public_runtime_router
 from shared.infra.errors import (
     AuthenticationError,
     AuthorizationError,
@@ -83,7 +82,7 @@ def _csv_values(value: str) -> list[str]:
 
 
 def create_app() -> FastAPI:
-    settings = Settings(service_role="api")
+    settings = SETTINGS
     configure_logging(level=settings.log_level, json_logs=settings.json_logs)
     logger.info(
         "Application configuration loaded",
@@ -115,8 +114,8 @@ def create_app() -> FastAPI:
     )
 
     app.state.settings = settings
-    app.state.async_engine = create_engine(settings)
-    app.state.session_factory = create_session_factory(app.state.async_engine)
+    app.state.async_engine = DATABASE_ENGINE
+    app.state.session_factory = SESSION_FACTORY
     app.state.access_token_codec = AccessTokenCodec(
         signing_key=settings.secret_key,
         issuer=settings.auth_issuer,

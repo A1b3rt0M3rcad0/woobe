@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy.exc import PendingRollbackError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from modules.agent.infra.database.database import AgentDatabase
 from shared.infra.config.interface.unit_of_work import UnitOfWork
@@ -13,17 +13,27 @@ class AgentUnitOfWork(UnitOfWork):
     """Transaction boundary for Agent persistence.
 
     Repositories are composed explicitly outside the UoW and share this session.
-    The SQLAlchemy session-factory compatibility path is infrastructure-only; module
-    composition receives ``AgentDatabase`` instead of framework primitives.
+    Composition passes the process-wide ``AsyncEngine`` while infrastructure tests
+    and runtime helpers may continue to provide ``AgentDatabase`` or a session
+    factory directly.
     """
 
     def __init__(
         self,
-        database: AgentDatabase | async_sessionmaker[AsyncSession],
+        database: AgentDatabase | AsyncEngine | async_sessionmaker[AsyncSession],
     ) -> None:
-        self._database = (
-            database if isinstance(database, AgentDatabase) else AgentDatabase(database)
-        )
+        if isinstance(database, AgentDatabase):
+            self._database = database
+        elif isinstance(database, AsyncEngine):
+            self._database = AgentDatabase(
+                async_sessionmaker(
+                    bind=database,
+                    expire_on_commit=False,
+                    class_=AsyncSession,
+                )
+            )
+        else:
+            self._database = AgentDatabase(database)
         self._session: AsyncSession | None = None
 
     @property
