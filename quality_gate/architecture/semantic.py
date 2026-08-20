@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Iterable
 
 from .policy import ArchitecturePolicy, RepositoryContract
+from .responsibility import check_responsibility_contracts
 
 
 RawViolation = tuple[str, Path, int, str]
@@ -276,4 +277,5 @@ def check_semantic_contracts(project_root: Path, policy: ArchitecturePolicy) -> 
     violations.extend(check_unit_of_work_contract(project_root, policy))
     violations.extend(check_repository_contract(project_root, policy))
     violations.extend(check_application_contract(project_root, policy))
+    violations.extend(check_responsibility_contracts(project_root, policy))
     return tuple(violations)
