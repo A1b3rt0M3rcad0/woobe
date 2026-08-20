@@ -15,7 +15,6 @@ rule_id = "ARCH064"
 imports = [
   "fastapi",
   "starlette",
-  "shared.presentation.http",
 ]
 allowed_sources = ["presentation/http/**"]
 
