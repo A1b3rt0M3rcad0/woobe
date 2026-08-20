@@ -116,11 +116,7 @@ allowed_imports = ["{package}.entrypoint"]
 
 [transport_neutral]
 rule_id = "ARCH072"
-source = [
-  "application/runtime/**",
-  "application/*runtime*.py",
-  "application/use_cases/*runtime*.py",
-]
+source = ["application/**"]
 forbidden_imports = [
   "fastapi",
   "starlette",
