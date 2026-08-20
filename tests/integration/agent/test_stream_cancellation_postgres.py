@@ -11,6 +11,7 @@ from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.composition.runtime.ask_agent_stream_service import (
     AskAgentStreamService,
 )
+from modules.agent.infra.database.database import AgentDatabase
 from modules.agent.infra.database.models import AgentOutboxEventModel
 from modules.observability.infra.database.models import TraceEventModel, TraceModel
 from modules.observability.infra.messaging.truthful_trace_projector import (
@@ -28,7 +29,7 @@ class BlockingStreamService(AskAgentStreamService):
         trace_id: UUID,
         session_id: UUID,
     ) -> None:
-        self._session_factory = session_factory
+        self._database = AgentDatabase(session_factory)
         self._trace_id = trace_id
         self._session_id = session_id
 
