@@ -4,10 +4,10 @@ import time
 from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.composition.runtime.agent_tool_runtime_gateway import (
+from modules.agent.runtime.agent_tool_runtime_gateway import (
     AgentToolRuntimeGateway,
 )
-from modules.agent.composition.runtime.structured_output_ask_use_case import (
+from modules.agent.runtime.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
 from modules.agent.domain.entities import AskJob
