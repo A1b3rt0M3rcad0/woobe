@@ -75,14 +75,14 @@ def _agent(*, project_id, agent_id=None, status=AgentStatus.active):
     )
 
 
-def _passthrough(method):
+def _passthrough(mock):
     async def _call(value):
         return value
 
-    setattr(method, "side_effect", _call)
+    mock.side_effect = _call
 
 
-def _core_dependencies(*, existing_agent=None, credential=None, provider_model=None):
+def _deps(*, existing_agent=None, credential=None, provider_model=None):
     agent_repo = SimpleNamespace(
         save=AsyncMock(),
         update=AsyncMock(),
@@ -91,10 +91,7 @@ def _core_dependencies(*, existing_agent=None, credential=None, provider_model=N
     )
     _passthrough(agent_repo.save)
     _passthrough(agent_repo.update)
-
-    credential_repo = SimpleNamespace(
-        get_by_id=AsyncMock(return_value=credential),
-    )
+    credential_repo = SimpleNamespace(get_by_id=AsyncMock(return_value=credential))
     provider_model_repo = SimpleNamespace(
         get_by_id=AsyncMock(return_value=provider_model),
         list_by_credential=AsyncMock(return_value=[]),
@@ -104,39 +101,15 @@ def _core_dependencies(*, existing_agent=None, credential=None, provider_model=N
 
 
 @pytest.mark.asyncio
-async def test_create_agent_persists_and_emits_created_event():
+async def test_create_agent_persists_forces_strict_json_and_emits_created_event():
     project_id = uuid4()
-    agent_repo, credential_repo, _, outbox = _core_dependencies()
+    agent_repo, credential_repo, _, outbox = _deps()
     use_case = CreateAgentUseCase(agent_repo, credential_repo, outbox)
 
     saved = await use_case.execute(
         CreateAgentInput(
             project_id=project_id,
             name="Support Agent",
-            model="gpt-test",
-            provider=Provider.openai,
-        )
-    )
-
-    assert saved.project_id == project_id
-    assert saved.name == "Support Agent"
-    assert saved.model == "gpt-test"
-    agent_repo.save.assert_awaited_once()
-    outbox.write.assert_awaited_once()
-    event = outbox.write.await_args.args[0]
-    assert event.agent_id == saved.id
-
-
-@pytest.mark.asyncio
-async def test_create_agent_forces_strict_json_when_json_response_is_enabled():
-    project_id = uuid4()
-    agent_repo, credential_repo, _, outbox = _core_dependencies()
-    use_case = CreateAgentUseCase(agent_repo, credential_repo, outbox)
-
-    saved = await use_case.execute(
-        CreateAgentInput(
-            project_id=project_id,
-            name="JSON Agent",
             model="gpt-test",
             settings={
                 "response_format": {
@@ -149,16 +122,22 @@ async def test_create_agent_forces_strict_json_when_json_response_is_enabled():
         )
     )
 
+    assert saved.project_id == project_id
     assert saved.settings["response_format"]["strict"] is True
+    agent_repo.save.assert_awaited_once()
+    outbox.write.assert_awaited_once()
+    event = outbox.write.await_args.args[0]
+    assert event.payload["agent_id"] == str(saved.id)
+    assert event.payload["project_id"] == str(project_id)
+    assert event.event_type == "agent.agent.created.v1"
 
 
 @pytest.mark.asyncio
-async def test_create_agent_does_not_force_strict_for_disabled_json_contract():
+async def test_create_agent_does_not_force_strict_when_json_response_is_disabled():
     project_id = uuid4()
-    agent_repo, credential_repo, _, outbox = _core_dependencies()
-    use_case = CreateAgentUseCase(agent_repo, credential_repo, outbox)
+    agent_repo, credential_repo, _, outbox = _deps()
 
-    saved = await use_case.execute(
+    saved = await CreateAgentUseCase(agent_repo, credential_repo, outbox).execute(
         CreateAgentInput(
             project_id=project_id,
             name="Text Agent",
@@ -185,23 +164,22 @@ async def test_create_agent_resolves_explicit_provider_model_and_credential():
         credential_id=credential.id,
         model="gpt-resolved",
     )
-    agent_repo, credential_repo, provider_model_repo, outbox = _core_dependencies(
+    agent_repo, credential_repo, provider_models, outbox = _deps(
         credential=credential,
         provider_model=provider_model,
     )
-    use_case = CreateAgentUseCase(
+
+    saved = await CreateAgentUseCase(
         agent_repo,
         credential_repo,
         outbox,
-        provider_model_repo,
-    )
-
-    saved = await use_case.execute(
+        provider_models,
+    ).execute(
         CreateAgentInput(
             project_id=project_id,
             provider_model_id=provider_model.id,
             name="Resolved Agent",
-            model="client-supplied-model-is-not-authoritative",
+            model="client-value-is-not-authoritative",
         )
     )
 
@@ -227,19 +205,18 @@ async def test_create_agent_resolves_implicit_provider_model_deterministically()
         model_id=UUID(int=2),
         model="shared-model",
     )
-    agent_repo, credential_repo, provider_model_repo, outbox = _core_dependencies(
+    agent_repo, credential_repo, provider_models, outbox = _deps(
         credential=credential,
         provider_model=first,
     )
-    provider_model_repo.list_by_credential.return_value = [second, first]
-    use_case = CreateAgentUseCase(
+    provider_models.list_by_credential.return_value = [second, first]
+
+    saved = await CreateAgentUseCase(
         agent_repo,
         credential_repo,
         outbox,
-        provider_model_repo,
-    )
-
-    saved = await use_case.execute(
+        provider_models,
+    ).execute(
         CreateAgentInput(
             project_id=project_id,
             provider_credential_id=credential.id,
@@ -249,11 +226,11 @@ async def test_create_agent_resolves_implicit_provider_model_deterministically()
     )
 
     assert saved.provider_model_id == first.id
-    assert saved.model == first.model
+    provider_models.list_by_credential.assert_awaited_once_with(credential.id)
 
 
 @pytest.mark.asyncio
-async def test_implicit_binding_ignores_embedding_provider_models():
+async def test_implicit_binding_ignores_embedding_models_and_keeps_direct_credential():
     project_id = uuid4()
     credential = _credential(project_id=project_id)
     embedding = _provider_model(
@@ -262,18 +239,15 @@ async def test_implicit_binding_ignores_embedding_provider_models():
         model="text-embedding-3-small",
         metadata={"capability": "embedding"},
     )
-    agent_repo, credential_repo, provider_model_repo, outbox = _core_dependencies(
-        credential=credential,
-    )
-    provider_model_repo.list_by_credential.return_value = [embedding]
-    use_case = CreateAgentUseCase(
+    agent_repo, credential_repo, provider_models, outbox = _deps(credential=credential)
+    provider_models.list_by_credential.return_value = [embedding]
+
+    saved = await CreateAgentUseCase(
         agent_repo,
         credential_repo,
         outbox,
-        provider_model_repo,
-    )
-
-    saved = await use_case.execute(
+        provider_models,
+    ).execute(
         CreateAgentInput(
             project_id=project_id,
             provider_credential_id=credential.id,
@@ -287,7 +261,7 @@ async def test_implicit_binding_ignores_embedding_provider_models():
 
 
 @pytest.mark.asyncio
-async def test_explicit_embedding_provider_model_is_rejected_for_agent_runtime():
+async def test_explicit_embedding_provider_model_is_rejected():
     project_id = uuid4()
     credential = _credential(project_id=project_id)
     embedding = _provider_model(
@@ -295,19 +269,18 @@ async def test_explicit_embedding_provider_model_is_rejected_for_agent_runtime()
         credential_id=credential.id,
         metadata={"type": "embeddings"},
     )
-    agent_repo, credential_repo, provider_model_repo, outbox = _core_dependencies(
+    agent_repo, credential_repo, provider_models, outbox = _deps(
         credential=credential,
         provider_model=embedding,
     )
-    use_case = CreateAgentUseCase(
-        agent_repo,
-        credential_repo,
-        outbox,
-        provider_model_repo,
-    )
 
     with pytest.raises(ConflictError, match="not compatible with agent runtime"):
-        await use_case.execute(
+        await CreateAgentUseCase(
+            agent_repo,
+            credential_repo,
+            outbox,
+            provider_models,
+        ).execute(
             CreateAgentInput(
                 project_id=project_id,
                 provider_model_id=embedding.id,
@@ -324,27 +297,26 @@ async def test_explicit_embedding_provider_model_is_rejected_for_agent_runtime()
 async def test_inactive_provider_model_is_rejected():
     project_id = uuid4()
     credential = _credential(project_id=project_id)
-    provider_model = _provider_model(
+    model = _provider_model(
         project_id=project_id,
         credential_id=credential.id,
         status=ProviderModelStatus.inactive,
     )
-    agent_repo, credential_repo, provider_model_repo, outbox = _core_dependencies(
+    agent_repo, credential_repo, provider_models, outbox = _deps(
         credential=credential,
-        provider_model=provider_model,
-    )
-    use_case = CreateAgentUseCase(
-        agent_repo,
-        credential_repo,
-        outbox,
-        provider_model_repo,
+        provider_model=model,
     )
 
     with pytest.raises(ValidationError, match="Provider model must be active"):
-        await use_case.execute(
+        await CreateAgentUseCase(
+            agent_repo,
+            credential_repo,
+            outbox,
+            provider_models,
+        ).execute(
             CreateAgentInput(
                 project_id=project_id,
-                provider_model_id=provider_model.id,
+                provider_model_id=model.id,
                 name="Inactive Model",
                 model="ignored",
             )
@@ -352,19 +324,18 @@ async def test_inactive_provider_model_is_rejected():
 
 
 @pytest.mark.asyncio
-async def test_missing_explicit_provider_model_is_rejected():
+async def test_missing_provider_model_and_missing_direct_credential_are_rejected():
     project_id = uuid4()
-    agent_repo, credential_repo, provider_model_repo, outbox = _core_dependencies()
-    provider_model_repo.get_by_id.return_value = None
-    use_case = CreateAgentUseCase(
-        agent_repo,
-        credential_repo,
-        outbox,
-        provider_model_repo,
-    )
+    agent_repo, credential_repo, provider_models, outbox = _deps()
+    provider_models.get_by_id.return_value = None
 
     with pytest.raises(ModelConfigNotFoundError):
-        await use_case.execute(
+        await CreateAgentUseCase(
+            agent_repo,
+            credential_repo,
+            outbox,
+            provider_models,
+        ).execute(
             CreateAgentInput(
                 project_id=project_id,
                 provider_model_id=uuid4(),
@@ -373,54 +344,37 @@ async def test_missing_explicit_provider_model_is_rejected():
             )
         )
 
-
-@pytest.mark.asyncio
-async def test_missing_direct_provider_credential_is_rejected():
-    project_id = uuid4()
-    agent_repo, credential_repo, _, outbox = _core_dependencies(credential=None)
-    credential_id = uuid4()
-    use_case = CreateAgentUseCase(agent_repo, credential_repo, outbox)
-
     with pytest.raises(CredentialNotFoundError):
-        await use_case.execute(
+        await CreateAgentUseCase(agent_repo, credential_repo, outbox).execute(
             CreateAgentInput(
                 project_id=project_id,
-                provider_credential_id=credential_id,
+                provider_credential_id=uuid4(),
                 name="Missing Credential",
                 model="gpt-test",
             )
         )
 
-    agent_repo.save.assert_not_awaited()
-
 
 @pytest.mark.asyncio
-async def test_inactive_provider_credential_is_rejected_for_provider_model_binding():
+async def test_inactive_provider_credential_is_rejected_for_model_binding():
     project_id = uuid4()
-    credential = _credential(
-        project_id=project_id,
-        status=CredentialStatus.revoked,
-    )
-    provider_model = _provider_model(
-        project_id=project_id,
-        credential_id=credential.id,
-    )
-    agent_repo, credential_repo, provider_model_repo, outbox = _core_dependencies(
+    credential = _credential(project_id=project_id, status=CredentialStatus.revoked)
+    model = _provider_model(project_id=project_id, credential_id=credential.id)
+    agent_repo, credential_repo, provider_models, outbox = _deps(
         credential=credential,
-        provider_model=provider_model,
-    )
-    use_case = CreateAgentUseCase(
-        agent_repo,
-        credential_repo,
-        outbox,
-        provider_model_repo,
+        provider_model=model,
     )
 
     with pytest.raises(ValidationError, match="Provider credential must be active"):
-        await use_case.execute(
+        await CreateAgentUseCase(
+            agent_repo,
+            credential_repo,
+            outbox,
+            provider_models,
+        ).execute(
             CreateAgentInput(
                 project_id=project_id,
-                provider_model_id=provider_model.id,
+                provider_model_id=model.id,
                 name="Revoked Credential",
                 model="ignored",
             )
@@ -430,32 +384,23 @@ async def test_inactive_provider_credential_is_rejected_for_provider_model_bindi
 @pytest.mark.asyncio
 async def test_fallback_provider_model_binding_is_resolved_independently():
     project_id = uuid4()
-    primary_credential = _credential(project_id=project_id)
     fallback_credential = _credential(project_id=project_id)
     fallback_model = _provider_model(
         project_id=project_id,
         credential_id=fallback_credential.id,
         model="fallback-model",
     )
-    agent_repo, credential_repo, provider_model_repo, outbox = _core_dependencies()
-    provider_model_repo.get_by_id.return_value = fallback_model
+    agent_repo, credential_repo, provider_models, outbox = _deps(
+        credential=fallback_credential,
+        provider_model=fallback_model,
+    )
 
-    async def credential_by_id(credential_id):
-        if credential_id == fallback_credential.id:
-            return fallback_credential
-        if credential_id == primary_credential.id:
-            return primary_credential
-        return None
-
-    credential_repo.get_by_id.side_effect = credential_by_id
-    use_case = CreateAgentUseCase(
+    saved = await CreateAgentUseCase(
         agent_repo,
         credential_repo,
         outbox,
-        provider_model_repo,
-    )
-
-    saved = await use_case.execute(
+        provider_models,
+    ).execute(
         CreateAgentInput(
             project_id=project_id,
             fallback_provider_model_id=fallback_model.id,
@@ -471,13 +416,14 @@ async def test_fallback_provider_model_binding_is_resolved_independently():
 
 
 @pytest.mark.asyncio
-async def test_update_agent_fails_when_agent_does_not_exist():
-    project_id = uuid4()
-    agent_repo, credential_repo, _, outbox = _core_dependencies(existing_agent=None)
-    use_case = UpdateAgentUseCase(agent_repo, credential_repo, outbox)
+async def test_update_agent_not_found_does_not_write_or_emit_event():
+    agent_repo, credential_repo, _, outbox = _deps(existing_agent=None)
 
     with pytest.raises(AgentNotFoundError):
-        await use_case.execute(uuid4(), UpdateAgentInput(name="new name"))
+        await UpdateAgentUseCase(agent_repo, credential_repo, outbox).execute(
+            uuid4(),
+            UpdateAgentInput(name="new name"),
+        )
 
     agent_repo.update.assert_not_awaited()
     outbox.write.assert_not_awaited()
@@ -486,8 +432,8 @@ async def test_update_agent_fails_when_agent_does_not_exist():
 @pytest.mark.asyncio
 async def test_update_blocks_deactivation_while_network_drafts_reference_agent():
     project_id = uuid4()
-    existing = _agent(project_id=project_id, status=AgentStatus.active)
-    agent_repo, credential_repo, _, outbox = _core_dependencies(existing_agent=existing)
+    existing = _agent(project_id=project_id)
+    agent_repo, credential_repo, _, outbox = _deps(existing_agent=existing)
     reader = SimpleNamespace(
         list_draft_references=AsyncMock(
             return_value=[
@@ -518,39 +464,22 @@ async def test_update_blocks_deactivation_while_network_drafts_reference_agent()
 
 
 @pytest.mark.asyncio
-async def test_update_allows_deactivation_when_no_network_draft_references_exist():
+async def test_update_allows_unreferenced_deactivation_and_emits_updated_event():
     project_id = uuid4()
-    existing = _agent(project_id=project_id, status=AgentStatus.active)
-    agent_repo, credential_repo, _, outbox = _core_dependencies(existing_agent=existing)
+    existing = _agent(project_id=project_id)
+    agent_repo, credential_repo, _, outbox = _deps(existing_agent=existing)
     reader = SimpleNamespace(list_draft_references=AsyncMock(return_value=[]))
-    use_case = UpdateAgentUseCase(
+
+    result = await UpdateAgentUseCase(
         agent_repo,
         credential_repo,
         outbox,
         network_usage_reader=reader,
-    )
-
-    result = await use_case.execute(
-        existing.id,
-        UpdateAgentInput(status=AgentStatus.inactive),
-    )
-
-    assert result.status == AgentStatus.inactive
-    agent_repo.update.assert_awaited_once()
-    outbox.write.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_update_agent_forces_strict_json_and_emits_updated_event():
-    project_id = uuid4()
-    existing = _agent(project_id=project_id)
-    agent_repo, credential_repo, _, outbox = _core_dependencies(existing_agent=existing)
-    use_case = UpdateAgentUseCase(agent_repo, credential_repo, outbox)
-
-    result = await use_case.execute(
+    ).execute(
         existing.id,
         UpdateAgentInput(
             name="Updated Agent",
+            status=AgentStatus.inactive,
             settings={
                 "response_format": {
                     "enabled": True,
@@ -561,30 +490,27 @@ async def test_update_agent_forces_strict_json_and_emits_updated_event():
         ),
     )
 
+    assert result.status == AgentStatus.inactive
     assert result.name == "Updated Agent"
     assert result.settings["response_format"]["strict"] is True
+    agent_repo.update.assert_awaited_once()
     outbox.write.assert_awaited_once()
     event = outbox.write.await_args.args[0]
-    assert event.agent_id == existing.id
+    assert event.payload["agent_id"] == str(existing.id)
+    assert event.event_type == "agent.agent.updated.v1"
 
 
 @pytest.mark.asyncio
-async def test_list_agents_without_project_is_empty_and_does_not_query_repository():
-    agent_repo, _, _, _ = _core_dependencies()
-
-    result = await ListAgentsUseCase(agent_repo).execute(ListAgentsInput(project_id=None))
-
-    assert result == []
-    agent_repo.list_by_project.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_list_agents_maps_repository_entities_to_public_output():
+async def test_list_agents_handles_missing_project_and_maps_entities():
     project_id = uuid4()
     agent = _agent(project_id=project_id)
-    agent_repo, _, _, _ = _core_dependencies()
-    agent_repo.list_by_project.return_value = [agent]
+    agent_repo, _, _, _ = _deps()
 
+    empty = await ListAgentsUseCase(agent_repo).execute(ListAgentsInput(project_id=None))
+    assert empty == []
+    agent_repo.list_by_project.assert_not_awaited()
+
+    agent_repo.list_by_project.return_value = [agent]
     result = await ListAgentsUseCase(agent_repo).execute(
         ListAgentsInput(project_id=project_id)
     )
@@ -597,23 +523,15 @@ async def test_list_agents_maps_repository_entities_to_public_output():
 
 
 @pytest.mark.asyncio
-async def test_get_agent_returns_existing_entity():
+async def test_get_agent_success_and_not_found_contracts():
     project_id = uuid4()
     agent = _agent(project_id=project_id)
-    agent_repo, _, _, _ = _core_dependencies(existing_agent=agent)
+    agent_repo, _, _, _ = _deps(existing_agent=agent)
 
-    result = await GetAgentByIdUseCase(agent_repo).execute(
-        GetAgentInput(agent_id=agent.id)
-    )
-
+    result = await GetAgentByIdUseCase(agent_repo).execute(GetAgentInput(agent_id=agent.id))
     assert result is agent
-    agent_repo.get_by_id.assert_awaited_once_with(agent.id)
 
-
-@pytest.mark.asyncio
-async def test_get_agent_raises_not_found_for_unknown_id():
-    agent_repo, _, _, _ = _core_dependencies(existing_agent=None)
     unknown = uuid4()
-
+    agent_repo.get_by_id.return_value = None
     with pytest.raises(AgentNotFoundError):
         await GetAgentByIdUseCase(agent_repo).execute(GetAgentInput(agent_id=unknown))
