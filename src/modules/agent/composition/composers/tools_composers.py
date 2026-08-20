@@ -23,9 +23,6 @@ from modules.agent.application.use_cases.tools_use_cases import (
     UpdateToolUseCase,
 )
 from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
-from modules.agent.composition.runtime.tool_runtime_factory import (
-    build_tool_runtime_registry,
-)
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
@@ -74,6 +71,7 @@ from modules.agent.presentation.controllers.update_tool_controller import Update
 from modules.agent.presentation.controllers.update_tool_status_controller import (
     UpdateToolStatusController,
 )
+from modules.agent.runtime.tool_runtime_factory import build_tool_runtime_registry
 from shared.infra.transactional_handler import TransactionalHandler
 
 
