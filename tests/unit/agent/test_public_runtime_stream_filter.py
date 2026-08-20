@@ -1,6 +1,6 @@
 import json
 
-from modules.agent.presentation.controllers.ask_agent_stream_controller import (
+from modules.agent.presentation.http.controllers.ask_agent_stream_controller import (
     _is_public_stream_chunk,
 )
 
