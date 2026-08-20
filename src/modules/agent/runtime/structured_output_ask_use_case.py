@@ -9,18 +9,7 @@ from modules.agent.application.mcp_tool_refresh import refresh_stale_mcp_server_
 from modules.agent.application.runtime_tool_inventory import RUNTIME_TOOL_INVENTORY_NAME
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.tool_release_snapshots import tool_with_permission_overrides
-from modules.agent.composition.runtime.explicit_runtime_persistence import (
-    ExplicitRuntimePersistenceMixin,
-)
-from modules.agent.composition.runtime.session_continuity_runtime_resolver import (
-    SessionContinuityReleaseRuntimeResolver,
-)
 from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.composition.runtime.execution_instrumentation import aggregate_usage
-from modules.agent.composition.runtime.instrumented_execution_finalizer import finalize_instrumented_execution
-from modules.agent.composition.runtime.instrumented_failed_finalizer import finalize_failed_instrumented_execution
-from modules.agent.composition.runtime.instrumented_fallback_mixin import InstrumentedFallbackMixin
-from modules.agent.composition.runtime.instrumented_primary_mixin import InstrumentedPrimaryExecutionMixin
 from modules.agent.application.use_cases.structured_output_contract import (
     format_contract_errors,
     normalize_contract_for_prompt,
@@ -38,6 +27,21 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentToolSecretRepository,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.runtime.execution_instrumentation import aggregate_usage
+from modules.agent.runtime.explicit_runtime_persistence import (
+    ExplicitRuntimePersistenceMixin,
+)
+from modules.agent.runtime.instrumented_execution_finalizer import (
+    finalize_instrumented_execution,
+)
+from modules.agent.runtime.instrumented_failed_finalizer import (
+    finalize_failed_instrumented_execution,
+)
+from modules.agent.runtime.instrumented_fallback_mixin import InstrumentedFallbackMixin
+from modules.agent.runtime.instrumented_primary_mixin import InstrumentedPrimaryExecutionMixin
+from modules.agent.runtime.session_continuity_runtime_resolver import (
+    SessionContinuityReleaseRuntimeResolver,
+)
 from shared.contracts.time import utc_now
 
 
