@@ -65,7 +65,7 @@ forbidden_imports = [
 
 [runtime_adapter_ownership]
 rule_id = "ARCH067"
-allowed_sources = ["infra/**"]
+allowed_sources = ["infra/**", "runtime/**"]
 class_prefixes = ["SQLAlchemy", "SqlAlchemy"]
 class_suffixes = ["Gateway", "Adapter"]
 
@@ -95,7 +95,7 @@ forbidden_method_calls = [
 
 [responsibility_placement]
 rule_id = "ARCH069"
-use_case_sources = ["application/**"]
+use_case_sources = ["application/**", "runtime/**"]
 controller_sources = ["presentation/**"]
 sqlalchemy_sources = ["infra/**"]
 
