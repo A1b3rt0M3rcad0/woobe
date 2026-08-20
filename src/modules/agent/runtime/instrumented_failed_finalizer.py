@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 from modules.agent.application.use_cases.execution_event_factory import llm_event, tool_event
-from modules.agent.composition.runtime.execution_instrumentation import (
+from modules.agent.runtime.execution_instrumentation import (
     InstrumentedExecution,
     aggregate_usage,
 )
