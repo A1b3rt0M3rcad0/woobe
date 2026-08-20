@@ -29,7 +29,11 @@ from modules.agent.domain.events import AgentExecutionFailedV1, AgentMessageCrea
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
-from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
+from modules.agent.infra.database.repositories import (
+    SQLAlchemyAgentOutboxEventWriter,
+    SQLAlchemyAgentToolRepository,
+    SQLAlchemyAgentToolSecretRepository,
+)
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.contracts.time import utc_now
 
@@ -141,21 +145,23 @@ class StructuredOutputAskAgentUseCase(
                 if session_factory is None:
                     raise RuntimeError("Agent runtime session factory is not configured")
                 async with AgentUnitOfWork(session_factory) as uow:
+                    tool_repo = SQLAlchemyAgentToolRepository(uow)
+                    secret_repo = SQLAlchemyAgentToolSecretRepository(uow)
                     if tool_source == "draft_live" and tool_metadata:
                         tools = []
                         for raw_tool_id in tool_metadata.get("tool_ids", []):
-                            tool = await uow.tools.get_by_id(UUID(str(raw_tool_id)))
+                            tool = await tool_repo.get_by_id(UUID(str(raw_tool_id)))
                             if tool is not None:
                                 tools.append(tool)
                     else:
-                        tools = await uow.tools.list_by_agent(agent.id, status="active")
+                        tools = await tool_repo.list_by_agent(agent.id, status="active")
 
                     cipher = SecretCipherAdapter(self._encryption_key)
-                    resolver = ToolSecretResolverAdapter(uow.tool_secrets, cipher)
+                    resolver = ToolSecretResolverAdapter(secret_repo, cipher)
                     auth_provider_cls = getattr(mcp_oauth, "McpOAuthConfig" + "TokenProvider")
                     refreshed_tools = await refresh_stale_mcp_server_tools(
                         tools=tools,
-                        tool_repo=uow.tools,
+                        tool_repo=tool_repo,
                         executor=get_http_tool_executor(),
                         secret_resolver=resolver,
                         auth_header_provider=auth_provider_cls(executor=get_http_tool_executor(), cipher=cipher),
