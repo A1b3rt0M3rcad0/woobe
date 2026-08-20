@@ -1,9 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request as FastAPIRequest
 
-from modules.agent.composition.composers.public_runtime_composers import (
-    public_run_composer,
-    public_stream_composer,
-)
+from modules.agent.entrypoint import public_run_composer, public_stream_composer
 from modules.network.presentation.public_runtime import (
     is_network_runtime_request,
     run_network_http,
