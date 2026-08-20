@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from modules.agent.composition.runtime.execution_instrumentation import aggregate_usage
-from modules.agent.composition.runtime.instrumented_execution_runner import run_instrumented_execution
+from modules.agent.runtime.execution_instrumentation import aggregate_usage
+from modules.agent.runtime.instrumented_execution_runner import run_instrumented_execution
 
 
 class Result:
