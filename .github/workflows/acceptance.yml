@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   backend-acceptance:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 40
     services:
       postgres:
@@ -102,7 +102,7 @@ jobs:
           if-no-files-found: warn
 
   community-smoke:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
