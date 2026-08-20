@@ -8,7 +8,7 @@ import pytest
 from sqlalchemy import delete, select
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.composition.runtime.ask_agent_stream_service import (
+from modules.agent.runtime.ask_agent_stream_service import (
     AskAgentStreamService,
 )
 from modules.agent.infra.database.database import AgentDatabase
