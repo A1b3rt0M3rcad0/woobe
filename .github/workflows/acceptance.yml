@@ -65,7 +65,7 @@ jobs:
           #!/bin/sh
           set -eu
           tool="$(basename "$0")"
-          exec docker run --rm --network host \
+          exec docker run --rm -i --network host \
             -e PGPASSWORD \
             -v "${RUNNER_TEMP}:${RUNNER_TEMP}" \
             --entrypoint "$tool" \
