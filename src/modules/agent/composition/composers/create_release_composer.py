@@ -1,7 +1,7 @@
 from modules.agent.application.use_cases.knowledge_release_validator import KnowledgeReleaseValidator
 from modules.agent.application.use_cases.knowledge_safe_release_lifecycle import KnowledgeSafeCreateReleaseUseCase
 from modules.agent.application.use_cases.session_mode_compatible_release import SessionModeCompatibleCreateReleaseUseCase
-from modules.agent.infra.database.database import AgentDatabase
+from modules.agent.composition.resources import DATABASE_ENGINE
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentReleaseRepositoryWithProviderModels,
     SQLAlchemyAgentRepositoryWithProviderModels,
@@ -16,8 +16,8 @@ from modules.agent.presentation.controllers.create_release_controller import Cre
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def create_release_composer(database: AgentDatabase) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def create_release_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     knowledge_repo = SQLAlchemyKnowledgeVersionRepository(uow)
     vector_repo = SQLAlchemyVectorSnapshotRepository(uow)
     release_repo = SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow)

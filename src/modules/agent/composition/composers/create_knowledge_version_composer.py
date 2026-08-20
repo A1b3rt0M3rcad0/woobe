@@ -1,5 +1,5 @@
 from modules.agent.application.use_cases import CreateKnowledgeVersionUseCase
-from modules.agent.infra.database.database import AgentDatabase
+from modules.agent.composition.resources import DATABASE_ENGINE
 from modules.agent.infra.database.provider_model_repositories import SQLAlchemyAgentRepositoryWithProviderModels
 from modules.agent.infra.database.repositories import SQLAlchemyKnowledgeVersionRepository
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
@@ -8,8 +8,8 @@ from modules.agent.presentation.controllers.create_knowledge_version_controller 
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def create_knowledge_version_composer(database: AgentDatabase) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def create_knowledge_version_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     knowledge_repo = SQLAlchemyKnowledgeVersionRepository(uow)
     vector_repo = SQLAlchemyVectorSnapshotRepository(uow)
     agent_repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)

@@ -1,5 +1,5 @@
 from modules.agent.application.use_cases import CreateAgentUseCase
-from modules.agent.infra.database.database import AgentDatabase
+from modules.agent.composition.resources import DATABASE_ENGINE
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentRepositoryWithProviderModels,
     SQLAlchemyProviderModelRepository,
@@ -13,8 +13,8 @@ from modules.agent.presentation.controllers.create_agent_controller import Creat
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def create_agent_composer(database: AgentDatabase) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def create_agent_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     agent_repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
     credential_repo = SQLAlchemyProviderCredentialRepository(uow)
     provider_model_repo = SQLAlchemyProviderModelRepository(uow)
