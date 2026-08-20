@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request
 
-from modules.agent.composition.http import vector_snapshots as handlers
+from modules.agent.presentation.http import vector_snapshots as handlers
 
 router = APIRouter(prefix="/agent/knowledge", tags=["knowledge", "agent"])
 
