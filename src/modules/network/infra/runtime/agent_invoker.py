@@ -7,30 +7,20 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.application.interfaces.execution_context import (
+from modules.agent.entrypoint import (
+    AgentDatabase,
+    AgentToolRuntimeGateway,
+    AskInput,
+    EmptyModelOutputError,
+    HttpToolExecutor,
+    LangchainEmbeddingFactory,
+    LangchainLLMFactory,
+    RuntimeStreamChannel,
+    StructuredOutputAskAgentUseCase,
     current_execution,
+    current_runtime_stream,
     new_execution_context,
 )
-from modules.agent.composition.runtime.agent_tool_runtime_gateway import (
-    AgentToolRuntimeGateway,
-)
-from modules.agent.composition.runtime.runtime_output_validation import (
-    EmptyModelOutputError,
-)
-from modules.agent.composition.runtime.runtime_streaming import (
-    RuntimeStreamChannel,
-    current_runtime_stream,
-)
-from modules.agent.composition.runtime.structured_output_ask_use_case import (
-    StructuredOutputAskAgentUseCase,
-)
-from modules.agent.infra.adapters.langchain_embedding_factory import (
-    LangchainEmbeddingFactory,
-)
-from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
-from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.agent.infra.database.database import AgentDatabase
 from modules.network.application.runtime import (
     AgentInvocationResult,
     InternalDelegationTool,
