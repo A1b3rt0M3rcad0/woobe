@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   cla:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - name: Require explicit CLA acceptance from external contributors
         env:
