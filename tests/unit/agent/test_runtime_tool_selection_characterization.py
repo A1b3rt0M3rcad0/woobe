@@ -3,6 +3,7 @@ from uuid import uuid4
 
 import pytest
 
+from modules.agent.application.runtime_tool_inventory import RUNTIME_TOOL_INVENTORY_NAME
 from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot
 from modules.agent.application.use_cases.execution_context import (
     current_execution,
@@ -121,8 +122,9 @@ async def test_draft_selected_project_tool_is_exposed_even_without_agent_fk():
 
     reader.assert_awaited_once_with([tool.id])
     assert result[9] is True
-    assert len(result[7]) == 1
+    assert len(result[7]) == 2
     assert result[8][tool.name] == str(tool.id)
+    assert RUNTIME_TOOL_INVENTORY_NAME in result[8]
     assert context.tool_metadata["source"] == "draft_live"
     assert context.tool_metadata["tool_ids"] == [str(tool.id)]
     assert str(tool.id) in context.tool_snapshots
@@ -145,7 +147,7 @@ async def test_selected_tool_order_is_stable_and_duplicate_ids_are_removed():
 
     reader.assert_awaited_once_with([first.id, second.id])
     assert context.tool_metadata["tool_ids"] == [str(first.id), str(second.id)]
-    assert list(result[8]) == [first.name, second.name]
+    assert list(result[8]) == [first.name, second.name, RUNTIME_TOOL_INVENTORY_NAME]
 
 
 @pytest.mark.asyncio
@@ -217,6 +219,7 @@ async def test_release_snapshot_is_exposed_without_live_repository_reader():
 
     assert result[9] is True
     assert result[8][tool.name] == str(tool.id)
+    assert RUNTIME_TOOL_INVENTORY_NAME in result[8]
     assert context.tool_metadata["source"] == "release_snapshot"
     assert context.tool_metadata["tool_ids"] == [str(tool.id)]
     assert context.tool_snapshots[str(tool.id)]["snapshot_hash"] == snapshot["snapshot_hash"]
@@ -292,7 +295,11 @@ async def test_hybrid_runtime_preserves_snapshot_and_live_tool_in_one_contract()
 
     reader.assert_awaited_once_with([live.id])
     assert result[9] is True
-    assert set(result[8]) == {snapshotted.name, live.name}
+    assert set(result[8]) == {
+        snapshotted.name,
+        live.name,
+        RUNTIME_TOOL_INVENTORY_NAME,
+    }
     assert context.tool_metadata["source"] == "hybrid_snapshot"
     assert context.tool_metadata["tool_ids"] == [str(snapshotted.id), str(live.id)]
 
