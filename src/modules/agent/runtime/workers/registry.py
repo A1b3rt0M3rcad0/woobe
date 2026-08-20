@@ -5,9 +5,9 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.agent.infra.messaging.publishers import AgentRabbitMQPublisher
-from modules.agent.composition.worker_runtime.ask_job_worker import AskJobWorker
+from modules.agent.runtime.workers.ask_job_worker import AskJobWorker
 from modules.agent.infra.workers.outbox_dispatcher import AgentOutboxDispatcherWorker
-from modules.agent.composition.worker_runtime.vector_snapshot_worker import VectorSnapshotWorker
+from modules.agent.runtime.workers.vector_snapshot_worker import VectorSnapshotWorker
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
 
