@@ -50,7 +50,12 @@ class TestStreamPhases:
         session_factory = MagicMock()
         database = AgentDatabase(session_factory)
         settings = MagicMock(encryption_key="test-key")
-        service = AskAgentStreamService(database, settings, llm_factory)
+        service = AskAgentStreamService(
+            database,
+            settings,
+            llm_factory,
+            http_executor=MagicMock(),
+        )
         input_dto = AskInput(
             project_id=uuid4(), agent_id=uuid4(),
             message="test", tenant_id=None, user_id=None,
