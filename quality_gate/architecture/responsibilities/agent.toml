@@ -71,11 +71,13 @@ class_suffixes = ["Gateway", "Adapter"]
 
 [composition_behavior]
 rule_id = "ARCH068"
-source = ["composition/**"]
-exclude = [
-  "composition/__init__.py",
-  "composition/resources.py",
+source = [
+  "composition/composers/**",
+  "composition/factories/**",
+  "composition/module.py",
+  "composition/workers.py",
 ]
+exclude = []
 forbid_async_functions = true
 forbid_async_with = true
 forbid_yield = true
