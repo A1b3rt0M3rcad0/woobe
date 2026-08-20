@@ -6,7 +6,10 @@ from uuid import uuid4
 import pytest
 
 from modules.agent.application.dtos.runtime_dtos import CreateAskJobInput
-from modules.agent.application.use_cases.runtime_use_cases import CreateAskJobUseCase
+from modules.agent.application.use_cases.runtime_use_cases import (
+    CreateAskJobUseCase,
+    GetPublicAskJobUseCase,
+)
 from modules.agent.domain.entities import AskJob
 from modules.agent.domain.errors import AskJobNotFoundError
 from modules.agent.presentation.controllers.public_runtime_controllers import (
@@ -84,7 +87,8 @@ async def test_job_polling_isolated_by_runtime_key_environment() -> None:
         params={"execution_context": "staging"},
     )
     repo = SimpleNamespace(get_by_id=AsyncMock(return_value=job))
-    controller = PublicGetJobController(repo)
+    use_case = GetPublicAskJobUseCase(repo)
+    controller = PublicGetJobController(use_case)
     request = Request(
         principal=principal,
         path_params={"job_id": str(job.id)},
