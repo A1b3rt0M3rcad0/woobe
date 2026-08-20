@@ -7,8 +7,8 @@ from typing import Any, Callable, Coroutine
 
 from langchain_core.messages import AIMessage, SystemMessage
 
-from modules.agent.composition.runtime.ask_use_case import _has_tool_calls
-from modules.agent.composition.runtime.execution_instrumentation import (
+from modules.agent.runtime.ask_use_case import _has_tool_calls
+from modules.agent.runtime.execution_instrumentation import (
     InstrumentedExecution,
     InstrumentedExecutionError,
     execute_tool_call,
