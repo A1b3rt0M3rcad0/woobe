@@ -6,7 +6,7 @@ from sqlalchemy.exc import PendingRollbackError
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.agent.infra.database.database import AgentDatabase
-from shared.contracts.unit_of_work import UnitOfWork
+from shared.infra.config.interface.unit_of_work import UnitOfWork
 
 
 class AgentUnitOfWork(UnitOfWork):
