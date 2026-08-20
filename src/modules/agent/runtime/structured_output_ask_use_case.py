@@ -139,6 +139,7 @@ class StructuredOutputAskAgentUseCase(
 
     async def _prepare(self, input_dto):
         prepared = await super()._prepare(input_dto)
+        prepared = await self._apply_runtime_tool_selection(prepared)
         agent = prepared[0]
         context = current_execution.get()
         tool_metadata = context.tool_metadata if context else None
