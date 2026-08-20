@@ -1,5 +1,5 @@
 from modules.agent.application.use_cases import SendMessageUseCase
-from modules.agent.infra.database.database import AgentDatabase
+from modules.agent.composition.resources import DATABASE_ENGINE
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentOutboxEventWriter,
     SQLAlchemyMessageRepository,
@@ -10,8 +10,8 @@ from modules.agent.presentation.controllers.send_message_controller import SendM
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def send_message_composer(database: AgentDatabase) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def send_message_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     session_repo = SQLAlchemyRuntimeSessionRepository(uow)
     message_repo = SQLAlchemyMessageRepository(uow)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)

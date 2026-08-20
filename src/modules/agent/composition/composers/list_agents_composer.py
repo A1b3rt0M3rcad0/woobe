@@ -1,5 +1,5 @@
 from modules.agent.application.use_cases import ListAgentsUseCase
-from modules.agent.infra.database.database import AgentDatabase
+from modules.agent.composition.resources import DATABASE_ENGINE
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentRepositoryWithProviderModels,
 )
@@ -8,8 +8,8 @@ from modules.agent.presentation.controllers.list_agents_controller import ListAg
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def list_agents_composer(database: AgentDatabase) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def list_agents_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
     use_case = ListAgentsUseCase(repo)
     controller = ListAgentsController(use_case)

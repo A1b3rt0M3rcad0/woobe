@@ -1,5 +1,5 @@
 from modules.agent.application.use_cases import UploadDocumentUseCase
-from modules.agent.infra.database.database import AgentDatabase
+from modules.agent.composition.resources import DATABASE_ENGINE
 from modules.agent.infra.database.document_repositories import SQLAlchemyGuardedDocumentRepository
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentOutboxEventWriter,
@@ -10,8 +10,8 @@ from modules.agent.presentation.controllers.upload_document_controller import Up
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def upload_document_composer(database: AgentDatabase) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def upload_document_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     doc_repo = SQLAlchemyGuardedDocumentRepository(uow)
     collection_repo = SQLAlchemyDocumentCollectionRepository(uow)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)

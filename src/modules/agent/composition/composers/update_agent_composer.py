@@ -1,8 +1,8 @@
 from modules.agent.application.use_cases import UpdateAgentUseCase
+from modules.agent.composition.resources import DATABASE_ENGINE
 from modules.agent.composition.runtime.legacy_runtime_status_adapter import (
     LegacyRuntimeStatusUpdateAdapter,
 )
-from modules.agent.infra.database.database import AgentDatabase
 from modules.agent.infra.database.network_agent_usage_reader import (
     SQLAlchemyNetworkAgentUsageReader,
 )
@@ -19,8 +19,8 @@ from modules.agent.presentation.controllers.update_agent_controller import Updat
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def update_agent_composer(database: AgentDatabase) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def update_agent_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     agent_repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
     credential_repo = SQLAlchemyProviderCredentialRepository(uow)
     provider_model_repo = SQLAlchemyProviderModelRepository(uow)

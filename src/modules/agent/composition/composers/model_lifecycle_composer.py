@@ -6,7 +6,7 @@ from modules.agent.application.use_cases.provider_management_cases import (
     RevokeProviderCredentialUseCase,
     RotateProviderCredentialUseCase,
 )
-from modules.agent.infra.database.database import AgentDatabase
+from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentReleaseRepositoryWithProviderModels,
     SQLAlchemyAgentRepositoryWithProviderModels,
@@ -15,12 +15,11 @@ from modules.agent.infra.database.provider_model_repositories import (
 from modules.agent.infra.database.repositories import SQLAlchemyProviderCredentialRepository
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.presentation.controllers.model_lifecycle_controller import ModelLifecycleController
-from shared.infra.config import Settings
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def provider_model_usage_composer(database: AgentDatabase) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def provider_model_usage_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     provider_model_repo = SQLAlchemyProviderModelRepository(uow)
     agent_repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
     release_repo = SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow)
@@ -33,8 +32,8 @@ def provider_model_usage_composer(database: AgentDatabase) -> TransactionalHandl
     return TransactionalHandler(uow, controller.handle)
 
 
-def archive_provider_model_composer(database: AgentDatabase) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def archive_provider_model_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     provider_model_repo = SQLAlchemyProviderModelRepository(uow)
     agent_repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
     release_repo = SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow)
@@ -48,8 +47,8 @@ def archive_provider_model_composer(database: AgentDatabase) -> TransactionalHan
     return TransactionalHandler(uow, controller.handle)
 
 
-def credential_usage_composer(database: AgentDatabase) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def credential_usage_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     credential_repo = SQLAlchemyProviderCredentialRepository(uow)
     provider_model_repo = SQLAlchemyProviderModelRepository(uow)
     agent_repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
@@ -64,15 +63,12 @@ def credential_usage_composer(database: AgentDatabase) -> TransactionalHandler:
     return TransactionalHandler(uow, controller.handle)
 
 
-def rotate_credential_composer(
-    database: AgentDatabase,
-    settings: Settings,
-) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def rotate_credential_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     credential_repo = SQLAlchemyProviderCredentialRepository(uow)
     use_case = RotateProviderCredentialUseCase(
         credential_repo,
-        settings.encryption_key,
+        SETTINGS.encryption_key,
     )
     controller = ModelLifecycleController(
         use_case,
@@ -82,8 +78,8 @@ def rotate_credential_composer(
     return TransactionalHandler(uow, controller.handle)
 
 
-def revoke_credential_composer(database: AgentDatabase) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def revoke_credential_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     credential_repo = SQLAlchemyProviderCredentialRepository(uow)
     use_case = RevokeProviderCredentialUseCase(credential_repo)
     controller = ModelLifecycleController(
@@ -94,8 +90,8 @@ def revoke_credential_composer(database: AgentDatabase) -> TransactionalHandler:
     return TransactionalHandler(uow, controller.handle)
 
 
-def archive_credential_composer(database: AgentDatabase) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def archive_credential_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     credential_repo = SQLAlchemyProviderCredentialRepository(uow)
     provider_model_repo = SQLAlchemyProviderModelRepository(uow)
     agent_repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
