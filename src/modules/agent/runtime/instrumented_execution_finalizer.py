@@ -17,7 +17,7 @@ from modules.agent.application.use_cases.trace_event_builder import (
     build_operation_events,
     sequence_events,
 )
-from modules.agent.composition.runtime.runtime_repositories import (
+from modules.agent.runtime.runtime_repositories import (
     build_agent_runtime_repositories,
 )
 from modules.agent.infra.database.repositories import (
