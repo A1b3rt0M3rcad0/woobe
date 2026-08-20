@@ -2,20 +2,14 @@ from modules.agent.application.use_cases import CreateAskJobUseCase
 from modules.agent.application.use_cases.public_runtime_request_preparer import (
     PublicRuntimeRequestPreparer,
 )
+from modules.agent.composition.factories.ask_agent_runtime_factory import (
+    build_ask_agent_handler,
+)
 from modules.agent.composition.resources import (
     AGENT_DATABASE,
     DATABASE_ENGINE,
     SESSION_FACTORY,
     SETTINGS,
-)
-from modules.agent.composition.runtime.ask_agent_runtime_factory import (
-    build_ask_agent_handler,
-)
-from modules.agent.composition.runtime.ask_agent_stream_service import (
-    AskAgentStreamService,
-)
-from modules.agent.composition.runtime.environment_guard import (
-    build_agent_runtime_environment_guard,
 )
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
@@ -36,8 +30,12 @@ from modules.agent.presentation.controllers.public_runtime_controllers import (
     PublicGetJobController,
     PublicRunController,
 )
-from modules.agent.presentation.controllers.public_runtime_stream_controller import (
+from modules.agent.presentation.http.controllers.public_runtime_stream_controller import (
     PublicRuntimeStreamController,
+)
+from modules.agent.runtime.ask_agent_stream_service import AskAgentStreamService
+from modules.agent.runtime.environment_guard import (
+    build_agent_runtime_environment_guard,
 )
 from shared.infra.streaming_transactional_handler import (
     StreamingTransactionalHandler,
