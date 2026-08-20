@@ -9,6 +9,9 @@ from modules.agent.application.mcp_tool_refresh import refresh_stale_mcp_server_
 from modules.agent.application.runtime_tool_inventory import RUNTIME_TOOL_INVENTORY_NAME
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.tool_release_snapshots import tool_with_permission_overrides
+from modules.agent.composition.runtime.explicit_runtime_persistence import (
+    ExplicitRuntimePersistenceMixin,
+)
 from modules.agent.composition.runtime.session_continuity_runtime_resolver import (
     SessionContinuityReleaseRuntimeResolver,
 )
@@ -81,6 +84,7 @@ def _provider_value(value) -> str | None:
 class StructuredOutputAskAgentUseCase(
     InstrumentedFallbackMixin,
     InstrumentedPrimaryExecutionMixin,
+    ExplicitRuntimePersistenceMixin,
     SessionContinuityReleaseRuntimeResolver,
 ):
     """Agent execution with complete LLM and Tool telemetry."""
