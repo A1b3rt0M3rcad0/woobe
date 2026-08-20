@@ -9,11 +9,6 @@ from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput, Sou
 from modules.agent.application.tool_converter import (
     agent_tools_to_openai_definitions_and_mapping,
 )
-from modules.agent.composition.runtime.ask_use_case import AskAgentUseCase
-from modules.agent.composition.runtime.runtime_repositories import (
-    AgentRuntimeRepositories,
-    build_agent_runtime_repositories,
-)
 from modules.agent.domain.events import (
     AgentExecutionCompletedV1,
     AgentExecutionLLMCompletedV1,
@@ -24,6 +19,11 @@ from modules.agent.domain.events import (
 )
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.runtime.ask_use_case import AskAgentUseCase
+from modules.agent.runtime.runtime_repositories import (
+    AgentRuntimeRepositories,
+    build_agent_runtime_repositories,
+)
 
 logger = logging.getLogger(__name__)
 
