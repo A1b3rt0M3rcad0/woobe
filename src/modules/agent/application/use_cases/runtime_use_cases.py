@@ -4,6 +4,7 @@ from typing import cast
 from uuid import UUID
 
 from modules.agent.domain.entities import AskJob, Message, Session
+from modules.agent.domain.errors import AskJobNotFoundError
 from modules.agent.domain.events import (
     AgentExecutionRequestedV1,
     AgentMessageCreatedV1,
@@ -253,6 +254,39 @@ class GetAskJobUseCase:
 
     async def execute(self, job_id: UUID) -> GetAskJobOutput:
         job = await self._repo.get_by_id(job_id)
+        return GetAskJobOutput(
+            job_id=job.id,
+            status=job.status,
+            result=job.result,
+            error=job.error,
+            trace_id=job.trace_id,
+            created_at=job.created_at,
+            started_at=job.started_at,
+            completed_at=job.completed_at,
+        )
+
+
+class GetPublicAskJobUseCase:
+    def __init__(self, repo: AskJobRepository) -> None:
+        self._repo = repo
+
+    async def execute(
+        self,
+        job_id: UUID,
+        *,
+        project_id: UUID,
+        agent_id: UUID,
+        environment: str,
+    ) -> GetAskJobOutput:
+        job = await self._repo.get_by_id(job_id)
+        job_environment = (job.params or {}).get("execution_context")
+        if (
+            job.project_id != project_id
+            or job.agent_id != agent_id
+            or job_environment != environment
+        ):
+            raise AskJobNotFoundError(job_id)
+
         return GetAskJobOutput(
             job_id=job.id,
             status=job.status,
