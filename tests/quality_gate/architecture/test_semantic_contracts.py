@@ -69,7 +69,7 @@ def test_strict_composer_rejects_framework_signature_control_flow_nested_defs_an
     )
     result = checker.check(policy)
     ids = {item.rule_id for item in result.violations}
-    assert {"ARCH027", "ARCH028", "ARCH029", "ARCH030"}.issubset(ids)
+    assert {"ARCH027", "ARCH028", "ARCH029", "ARCH051", "ARCH052"}.issubset(ids)
 
 
 def test_uow_contract_must_be_framework_neutral_and_transaction_only(tmp_path: Path) -> None:
