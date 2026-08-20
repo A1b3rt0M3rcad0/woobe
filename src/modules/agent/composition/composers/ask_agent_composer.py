@@ -1,7 +1,7 @@
-from modules.agent.composition.resources import AGENT_DATABASE, DATABASE_ENGINE, SETTINGS
-from modules.agent.composition.runtime.ask_agent_runtime_factory import (
+from modules.agent.composition.factories.ask_agent_runtime_factory import (
     build_ask_agent_handler,
 )
+from modules.agent.composition.resources import AGENT_DATABASE, DATABASE_ENGINE, SETTINGS
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.infra.transactional_handler import TransactionalHandler
 
