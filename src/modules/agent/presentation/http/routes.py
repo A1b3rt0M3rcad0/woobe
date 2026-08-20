@@ -51,7 +51,7 @@ from modules.agent.composition.composers.get_ask_job_composer import get_ask_job
 from modules.agent.composition.composers.list_agent_sessions_composer import list_agent_sessions_composer
 from modules.agent.composition.composers.list_messages_composer import list_messages_composer
 from modules.agent.composition.composers.send_message_composer import send_message_composer
-from modules.agent.composition.http import knowledge_files
+from modules.agent.presentation.http import knowledge_files
 from modules.agent.composition.composers.tools_composers import (
     create_secret_composer,
     create_tool_composer,
@@ -340,15 +340,12 @@ async def upload_document(request: FastAPIRequest):
 
 @knowledge_router.post("/documents/upload", status_code=201)
 async def upload_document_file(
-    request: FastAPIRequest,
     project_id: UUID = Form(...),
     collection_id: UUID = Form(...),
     title: str | None = Form(None),
     file: UploadFile = File(...),
 ):
     return await knowledge_files.upload_document_file(
-        session_factory=request.app.state.session_factory,
-        settings=request.app.state.settings,
         project_id=project_id,
         collection_id=collection_id,
         title=title,
@@ -357,12 +354,8 @@ async def upload_document_file(
 
 
 @knowledge_router.delete("/documents/{document_id}")
-async def delete_document(request: FastAPIRequest, document_id: UUID):
-    return await knowledge_files.delete_document(
-        session_factory=request.app.state.session_factory,
-        settings=request.app.state.settings,
-        document_id=document_id,
-    )
+async def delete_document(document_id: UUID):
+    return await knowledge_files.delete_document(document_id=document_id)
 
 
 @knowledge_router.get("/documents/{document_id}")
