@@ -8,18 +8,6 @@ from datetime import datetime, timezone
 
 from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput
 from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.composition.runtime.agent_tool_runtime_gateway import (
-    AgentToolRuntimeGateway,
-)
-from modules.agent.composition.runtime.runtime_streaming import (
-    RUNTIME_STREAM_HEARTBEAT_SECONDS,
-    RuntimeStreamChannel,
-    RuntimeStreamEvent,
-    current_runtime_stream,
-)
-from modules.agent.composition.runtime.structured_output_ask_use_case import (
-    StructuredOutputAskAgentUseCase,
-)
 from modules.agent.domain.runtime_events import AgentExecutionCancelledV1
 from modules.agent.infra.adapters.langchain_embedding_factory import (
     LangchainEmbeddingFactory,
@@ -28,6 +16,16 @@ from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.database.database import AgentDatabase, agent_session_factory
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.runtime.agent_tool_runtime_gateway import AgentToolRuntimeGateway
+from modules.agent.runtime.runtime_streaming import (
+    RUNTIME_STREAM_HEARTBEAT_SECONDS,
+    RuntimeStreamChannel,
+    RuntimeStreamEvent,
+    current_runtime_stream,
+)
+from modules.agent.runtime.structured_output_ask_use_case import (
+    StructuredOutputAskAgentUseCase,
+)
 from shared.infra.config import Settings
 from shared.security.redaction import redact_text
 
