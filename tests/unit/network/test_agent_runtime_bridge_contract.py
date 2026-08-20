@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from modules.agent.composition.runtime.runtime_streaming import current_runtime_stream
+from modules.agent.runtime.runtime_streaming import current_runtime_stream
 from modules.network.application.runtime import InternalDelegationTool
 from modules.network.infra.runtime import agent_invoker as agent_invoker_module
 from modules.network.infra.runtime.agent_invoker import ProjectRAIAgentInvoker
