@@ -2,7 +2,7 @@
 name = "agent"
 root = "src/modules/agent"
 package = "modules.agent"
-required_layers = ["domain", "application", "infra", "presentation", "composition"]
+required_layers = ["domain", "application", "infra", "runtime", "presentation", "composition"]
 
 [constraints]
 forbid_cross_module_imports = true
@@ -95,18 +95,9 @@ dependency_name_tokens = [
 forbid_untyped_dependencies = true
 
 # First-match semantics: narrow rules precede broad layer rules.
-# ARCH051: public composers are zero-argument composition roots; dependencies are resolved here.
-# ARCH052: transactional composers create their UoW from DATABASE_ENGINE.
-# ARCH053: configuration/resource loaders do not execute inside composers (enforced by ARCH031).
-# ARCH054: transaction-scoped graph objects cannot live at module scope.
-# ARCH055: one UoW per composer and same UoW for repositories/handler (ARCH025/ARCH036).
-# ARCH056: composers return the final executable handler (ARCH021/ARCH022/ARCH023).
-# ARCH057: callers invoke composers without infrastructure/data arguments.
-# ARCH058: concrete infrastructure is allowed in composition (ARCH026).
-# ARCH059: composers instantiate/connect dependencies but never execute them.
-# ARCH060: composer bodies contain no runtime control flow (ARCH027).
-# ARCH061: process resources are built outside composer modules.
-# ARCH062: operation data belongs to Request/DTO, never composer parameters.
+# Runtime is an explicit outer execution layer. It owns long-lived LLM/tool orchestration
+# and may coordinate application contracts with concrete infrastructure, but it must not
+# become a second composition root or depend on HTTP presentation.
 
 [[rules]]
 id = "ARCH026"
@@ -117,7 +108,9 @@ allow = [
   "modules.agent.domain",
   "modules.agent.application",
   "modules.agent.infra",
+  "modules.agent.runtime",
   "modules.agent.presentation.controllers",
+  "modules.agent.presentation.http.controllers",
   "modules.agent.presentation.interfaces",
   "modules.agent.presentation.schemas",
   "shared.contracts",
@@ -154,7 +147,7 @@ deny = [
 [[rules]]
 id = "ARCH005"
 description = "presentation controllers depend only on application contracts, domain values and presentation code"
-source = ["presentation/controllers/**"]
+source = ["presentation/controllers/**", "presentation/http/controllers/**"]
 allow = [
   "shared.contracts",
   "shared.security.principal",
@@ -167,10 +160,37 @@ allow = [
 deny = [
   "modules.agent.application.use_cases",
   "modules.agent.infra",
+  "modules.agent.runtime",
   "modules.agent.composition",
   "shared.infra",
   "shared.messaging",
   "shared.workers",
+]
+
+[[rules]]
+id = "ARCH006H"
+description = "HTTP routes are transport adapters and may invoke zero-argument Agent composers, but cannot own infrastructure or application use cases"
+source = ["presentation/http/**"]
+allow = [
+  "shared.contracts",
+  "shared.security.principal",
+  "modules.agent.presentation",
+  "modules.agent.application.interfaces",
+  "modules.agent.application.dtos",
+  "modules.agent.domain",
+  "modules.agent.composition.composers",
+  "shared.presentation",
+  "shared.security",
+]
+deny = [
+  "modules.agent.application.use_cases",
+  "modules.agent.infra",
+  "modules.agent.runtime",
+  "modules.agent.composition.resources",
+  "shared.infra",
+  "shared.messaging",
+  "shared.workers",
+  "sqlalchemy",
 ]
 
 [[rules]]
@@ -190,6 +210,7 @@ allow = [
 deny = [
   "modules.agent.application.use_cases",
   "modules.agent.infra",
+  "modules.agent.runtime",
   "modules.agent.composition",
   "shared.infra",
   "shared.messaging",
@@ -198,14 +219,31 @@ deny = [
 ]
 
 [[rules]]
+id = "ARCH073"
+description = "runtime is the Agent execution layer: it may coordinate application and infrastructure but cannot depend on presentation or composition"
+source = ["runtime/**"]
+allow = [
+  "modules.agent.runtime",
+  "modules.agent.domain",
+  "modules.agent.application",
+  "modules.agent.infra",
+  "shared",
+]
+deny = [
+  "modules.agent.presentation",
+  "modules.agent.composition",
+]
+
+[[rules]]
 id = "ARCH019"
-description = "composition is the outer module layer and may wire application, infrastructure and presentation without being imported back by them"
+description = "composition is the outer module layer and may wire application, infrastructure, runtime and presentation without being imported back by them"
 source = ["composition/**"]
 allow = [
   "modules.agent.composition",
   "modules.agent.domain",
   "modules.agent.application",
   "modules.agent.infra",
+  "modules.agent.runtime",
   "modules.agent.presentation",
   "shared",
 ]
@@ -220,6 +258,7 @@ deny = [
   "modules.agent.domain",
   "modules.agent.application",
   "modules.agent.infra",
+  "modules.agent.runtime",
   "modules.agent.presentation",
 ]
 
@@ -231,6 +270,7 @@ allow = ["modules.agent.domain", "shared.contracts"]
 deny = [
   "modules.agent.application",
   "modules.agent.infra",
+  "modules.agent.runtime",
   "modules.agent.presentation",
   "modules.agent.composition",
   "shared.infra",
@@ -255,6 +295,7 @@ allow = [
 ]
 deny = [
   "modules.agent.infra",
+  "modules.agent.runtime",
   "modules.agent.presentation",
   "modules.agent.composition",
   "shared.infra",
@@ -268,7 +309,7 @@ deny = [
 
 [[rules]]
 id = "ARCH004"
-description = "infrastructure implements application contracts and cannot depend on concrete application use cases, presentation or composition"
+description = "infrastructure implements application contracts and cannot depend on concrete application use cases, runtime, presentation or composition"
 source = ["infra/**"]
 allow = [
   "modules.agent.infra",
@@ -279,6 +320,7 @@ allow = [
 ]
 deny = [
   "modules.agent.application.use_cases",
+  "modules.agent.runtime",
   "modules.agent.presentation",
   "modules.agent.composition",
 ]
