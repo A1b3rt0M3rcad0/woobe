@@ -239,7 +239,11 @@ def _uow_call(node: ast.AST | None, contract: ComposerContract) -> bool:
 
 
 def _function_args(function: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[ast.arg, ...]:
-    args = tuple(function.args.posonlyargs) + tuple(function.args.args) + tuple(function.args.kwonlyargs)
+    args = list(function.args.posonlyargs) + list(function.args.args) + list(function.args.kwonlyargs)
+    if function.args.vararg is not None:
+        args.append(function.args.vararg)
+    if function.args.kwarg is not None:
+        args.append(function.args.kwarg)
     return tuple(arg for arg in args if arg.arg not in {"self", "cls"})
 
 
@@ -248,11 +252,43 @@ def _is_repository_call(call: ast.Call, contract: ComposerContract) -> bool:
     return any(target.endswith(suffix) for suffix in contract.repository_suffixes)
 
 
+def _parameter_is_dependency(arg: ast.arg, contract: ComposerContract) -> bool:
+    candidates = {arg.arg.lower()}
+    candidates.update(item.lower() for item in _annotation_names(arg.annotation))
+    return any(token.lower() in candidate for candidate in candidates for token in contract.dependency_parameter_tokens)
+
+
+def _module_level_composer_violations(contract: ComposerContract, tree: ast.Module) -> list[tuple[str, int, str]]:
+    violations: list[tuple[str, int, str]] = []
+    transient_suffixes = contract.transient_suffixes
+    forbidden_module_calls = set(contract.forbidden_module_level_calls)
+    for statement in tree.body:
+        value: ast.AST | None = None
+        target_name = "module value"
+        if isinstance(statement, ast.Assign):
+            value = statement.value
+            names = [target.id for target in statement.targets if isinstance(target, ast.Name)]
+            if names:
+                target_name = ", ".join(names)
+        elif isinstance(statement, ast.AnnAssign):
+            value = statement.value
+            if isinstance(statement.target, ast.Name):
+                target_name = statement.target.id
+        if not isinstance(value, ast.Call):
+            continue
+        called = _call_target(value) or ""
+        if contract.forbid_module_level_transients and any(called.endswith(suffix) for suffix in transient_suffixes):
+            violations.append(("ARCH054", statement.lineno, f"composer modules cannot keep transient {called} instances at module scope ({target_name})"))
+        if called in forbidden_module_calls:
+            violations.append(("ARCH061", statement.lineno, f"process resource {called}() must be created in a composition resource module, not in a composer module"))
+    return violations
+
+
 def _composer_violations(contract: ComposerContract, relative: str, tree: ast.Module) -> tuple[tuple[str, int, str], ...]:
     if not any(fnmatch(relative, pattern) for pattern in contract.source_globs):
         return ()
 
-    violations: list[tuple[str, int, str]] = []
+    violations = _module_level_composer_violations(contract, tree)
     for function in tree.body:
         if not isinstance(function, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
@@ -266,12 +302,22 @@ def _composer_violations(contract: ComposerContract, relative: str, tree: ast.Mo
             rule = "ARCH023" if is_stream else "ARCH021"
             violations.append((rule, function.lineno, f"{function.name} must declare return type {expected_handler}"))
 
-        for arg in _function_args(function):
-            if arg.arg in contract.forbidden_parameter_names:
-                violations.append(("ARCH030", arg.lineno, f"{function.name} cannot receive framework-shaped parameter {arg.arg!r}"))
-            forbidden_types = _annotation_names(arg.annotation).intersection(contract.forbidden_parameter_types)
-            if forbidden_types:
-                violations.append(("ARCH030", arg.lineno, f"{function.name} cannot expose framework type(s) in its signature: {', '.join(sorted(forbidden_types))}"))
+        function_args = _function_args(function)
+        if contract.require_zero_arguments:
+            for arg in function_args:
+                rule = "ARCH051" if _parameter_is_dependency(arg, contract) else "ARCH062"
+                if rule == "ARCH051":
+                    message = f"{function.name} is a composition root and cannot receive dependency {arg.arg!r}; resolve it inside composition"
+                else:
+                    message = f"{function.name} must be a zero-argument factory; operation data belongs to the request/DTO, not the composer signature"
+                violations.append((rule, arg.lineno, message))
+        else:
+            for arg in function_args:
+                if arg.arg in contract.forbidden_parameter_names:
+                    violations.append(("ARCH030", arg.lineno, f"{function.name} cannot receive framework-shaped parameter {arg.arg!r}"))
+                forbidden_types = _annotation_names(arg.annotation).intersection(contract.forbidden_parameter_types)
+                if forbidden_types:
+                    violations.append(("ARCH030", arg.lineno, f"{function.name} cannot expose framework type(s) in its signature: {', '.join(sorted(forbidden_types))}"))
 
         inspector = _ComposerBodyInspector(function).inspect()
         if isinstance(function, ast.AsyncFunctionDef) or inspector.awaits:
@@ -292,6 +338,16 @@ def _composer_violations(contract: ComposerContract, relative: str, tree: ast.Mo
             if any(target == forbidden or target.endswith(f".{forbidden}") for forbidden in contract.forbidden_calls):
                 violations.append(("ARCH031", call.lineno, f"{function.name} cannot construct or resolve operational configuration via {target}()"))
 
+        if contract.forbid_composed_dependency_calls:
+            composed_names = {name for name, value, _ in inspector.assignments if isinstance(value, ast.Call)}
+            for call in inspector.calls:
+                if not isinstance(call.func, ast.Attribute) or not isinstance(call.func.value, ast.Name):
+                    continue
+                owner = call.func.value.id
+                if owner not in composed_names:
+                    continue
+                violations.append(("ARCH059", call.lineno, f"{function.name} cannot execute composed dependency {owner}.{call.func.attr}(); composers only instantiate and connect objects"))
+
         if not inspector.returns:
             violations.append(("ARCH022", function.lineno, f"{function.name} must return a transactional handler"))
         else:
@@ -303,8 +359,8 @@ def _composer_violations(contract: ComposerContract, relative: str, tree: ast.Mo
                     rule = "ARCH023" if is_stream else "ARCH021"
                     violations.append((rule, return_node.lineno, f"{function.name} must return {expected_handler}"))
 
-        uow_assignments = [(name, line) for name, value, line in inspector.assignments if _uow_call(value, contract)]
-        uow_names = {name for name, _ in uow_assignments}
+        uow_assignments = [(name, value, line) for name, value, line in inspector.assignments if _uow_call(value, contract)]
+        uow_names = {name for name, _, _ in uow_assignments}
         for async_with in inspector.async_with:
             for item in async_with.items:
                 context = item.context_expr
@@ -319,7 +375,13 @@ def _composer_violations(contract: ComposerContract, relative: str, tree: ast.Mo
             violations.append(("ARCH025", function.lineno, f"{function.name} must create exactly one configured UnitOfWork"))
             continue
 
-        uow_name = uow_assignments[0][0]
+        uow_name, uow_value, _ = uow_assignments[0]
+        if contract.uow_resource_names and isinstance(uow_value, ast.Call):
+            resource = uow_value.args[0] if uow_value.args else None
+            allowed_resources = set(contract.uow_resource_names)
+            if not isinstance(resource, ast.Name) or resource.id not in allowed_resources:
+                violations.append(("ARCH052", uow_value.lineno, f"{function.name} must create its UnitOfWork from a canonical process resource: {', '.join(sorted(allowed_resources))}"))
+
         if contract.forbid_uow_attribute_access:
             for attribute in inspector.attributes:
                 if isinstance(attribute.value, ast.Name) and attribute.value.id == uow_name:
@@ -348,6 +410,47 @@ def _composer_violations(contract: ComposerContract, relative: str, tree: ast.Mo
             if not isinstance(handler_uow, ast.Name) or handler_uow.id != uow_name:
                 violations.append(("ARCH025", return_node.lineno, f"{function.name} must pass the same UnitOfWork to its transactional handler"))
 
+    return tuple(violations)
+
+
+def _composer_function_names(policy: ArchitecturePolicy, contract: ComposerContract) -> set[str]:
+    names: set[str] = set()
+    for file in sorted(policy.root.rglob("*.py")):
+        relative = file.relative_to(policy.root).as_posix()
+        if not any(fnmatch(relative, pattern) for pattern in contract.source_globs):
+            continue
+        try:
+            tree = ast.parse(file.read_text(encoding="utf-8"), filename=str(file))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in tree.body:
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and not node.name.startswith("_") and node.name.endswith(contract.function_suffix):
+                names.add(node.name)
+    return names
+
+
+def _zero_arg_callsite_violations(project_root: Path, policy: ArchitecturePolicy, contract: ComposerContract) -> tuple[tuple[Path, int, str], ...]:
+    if not contract.enforce_zero_arg_callsites:
+        return ()
+    composer_names = _composer_function_names(policy, contract)
+    if not composer_names:
+        return ()
+    source_root = project_root / "src"
+    if not source_root.is_dir():
+        return ()
+    violations: list[tuple[Path, int, str]] = []
+    for file in sorted(source_root.rglob("*.py")):
+        try:
+            tree = ast.parse(file.read_text(encoding="utf-8"), filename=str(file))
+        except (SyntaxError, UnicodeDecodeError):
+            continue
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            called = _short_name(_expression_name(node.func))
+            if called not in composer_names or (not node.args and not node.keywords):
+                continue
+            violations.append((file, node.lineno, f"{called} must be invoked with zero arguments; callers cannot inject infrastructure or operation data into composers"))
     return tuple(violations)
 
 
@@ -407,6 +510,10 @@ class ArchitectureChecker:
                 message = _rule_violation(rule, imported.module)
                 if message:
                     violations.append(self._violation(rule.rule_id, file, imported.line, message))
+
+        if policy.composer_contract is not None:
+            for file, line, message in _zero_arg_callsite_violations(self.project_root, policy, policy.composer_contract):
+                violations.append(self._violation("ARCH057", file, line, message))
 
         for rule_id, path, line, message in check_semantic_contracts(self.project_root, policy):
             violations.append(self._violation(rule_id, path, line, message))

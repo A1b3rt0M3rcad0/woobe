@@ -36,6 +36,14 @@ class ComposerContract:
     forbid_nested_definitions: bool = False
     forbid_uow_attribute_access: bool = False
     require_repository_uow_argument: bool = False
+    require_zero_arguments: bool = False
+    dependency_parameter_tokens: tuple[str, ...] = ()
+    uow_resource_names: tuple[str, ...] = ()
+    forbid_module_level_transients: bool = False
+    transient_suffixes: tuple[str, ...] = ()
+    forbid_composed_dependency_calls: bool = False
+    enforce_zero_arg_callsites: bool = False
+    forbidden_module_level_calls: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,6 +165,14 @@ def _load_composer_contract(path: Path, value: object) -> ComposerContract | Non
         forbid_nested_definitions=bool(value.get("forbid_nested_definitions", False)),
         forbid_uow_attribute_access=bool(value.get("forbid_uow_attribute_access", False)),
         require_repository_uow_argument=bool(value.get("require_repository_uow_argument", False)),
+        require_zero_arguments=bool(value.get("require_zero_arguments", False)),
+        dependency_parameter_tokens=_string_tuple(value.get("dependency_parameter_tokens"), field="composer_contract.dependency_parameter_tokens"),
+        uow_resource_names=_string_tuple(value.get("uow_resource_names"), field="composer_contract.uow_resource_names"),
+        forbid_module_level_transients=bool(value.get("forbid_module_level_transients", False)),
+        transient_suffixes=_string_tuple(value.get("transient_suffixes"), field="composer_contract.transient_suffixes"),
+        forbid_composed_dependency_calls=bool(value.get("forbid_composed_dependency_calls", False)),
+        enforce_zero_arg_callsites=bool(value.get("enforce_zero_arg_callsites", False)),
+        forbidden_module_level_calls=_string_tuple(value.get("forbidden_module_level_calls"), field="composer_contract.forbidden_module_level_calls"),
     )
 
 

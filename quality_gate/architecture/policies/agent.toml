@@ -25,12 +25,30 @@ streaming_handler = "StreamingTransactionalHandler"
 uow_types = ["AgentUnitOfWork"]
 forbidden_parameter_types = ["AsyncSession", "AsyncEngine", "async_sessionmaker"]
 forbidden_parameter_names = ["session", "session_factory", "async_engine", "engine"]
-forbidden_calls = ["Settings", "Settings.model_validate", "create_engine", "create_session_factory"]
+forbidden_calls = ["Settings", "Settings.model_validate", "create_engine", "create_session_factory", "create_file_storage"]
 repository_suffixes = ["Repository", "OutboxEventWriter"]
 forbid_control_flow = true
 forbid_nested_definitions = true
 forbid_uow_attribute_access = true
 require_repository_uow_argument = true
+require_zero_arguments = true
+dependency_parameter_tokens = [
+  "database", "settings", "session", "engine", "factory", "executor",
+  "repository", "repo", "storage", "publisher", "client", "registry",
+  "uow", "unit_of_work",
+]
+uow_resource_names = ["DATABASE_ENGINE"]
+forbid_module_level_transients = true
+transient_suffixes = [
+  "UnitOfWork", "Repository", "OutboxEventWriter", "UseCase", "Controller",
+  "Handler", "Service",
+]
+forbid_composed_dependency_calls = true
+enforce_zero_arg_callsites = true
+forbidden_module_level_calls = [
+  "Settings", "create_engine", "create_session_factory", "create_file_storage",
+  "get_http_tool_executor",
+]
 
 [unit_of_work_contract]
 interface_files = ["src/shared/contracts/unit_of_work.py"]
@@ -77,6 +95,18 @@ dependency_name_tokens = [
 forbid_untyped_dependencies = true
 
 # First-match semantics: narrow rules precede broad layer rules.
+# ARCH051: public composers are zero-argument composition roots; dependencies are resolved here.
+# ARCH052: transactional composers create their UoW from DATABASE_ENGINE.
+# ARCH053: configuration/resource loaders do not execute inside composers (enforced by ARCH031).
+# ARCH054: transaction-scoped graph objects cannot live at module scope.
+# ARCH055: one UoW per composer and same UoW for repositories/handler (ARCH025/ARCH036).
+# ARCH056: composers return the final executable handler (ARCH021/ARCH022/ARCH023).
+# ARCH057: callers invoke composers without infrastructure/data arguments.
+# ARCH058: concrete infrastructure is allowed in composition (ARCH026).
+# ARCH059: composers instantiate/connect dependencies but never execute them.
+# ARCH060: composer bodies contain no runtime control flow (ARCH027).
+# ARCH061: process resources are built outside composer modules.
+# ARCH062: operation data belongs to Request/DTO, never composer parameters.
 
 [[rules]]
 id = "ARCH026"
@@ -92,7 +122,6 @@ allow = [
   "modules.agent.presentation.schemas",
   "shared.contracts",
   "shared.security",
-  "shared.infra.config",
   "shared.infra.crypto",
   "shared.infra.transactional_handler",
   "shared.infra.streaming_transactional_handler",
@@ -104,6 +133,7 @@ deny = [
   "modules.agent.presentation.tool_lifecycle_routes",
   "modules.agent.presentation.vector_snapshot_routes",
   "modules.agent.presentation.mcp_tools_routes",
+  "shared.infra.config",
   "shared.presentation",
   "sqlalchemy",
   "alembic",
