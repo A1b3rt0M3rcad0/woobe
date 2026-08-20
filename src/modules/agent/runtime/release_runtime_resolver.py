@@ -13,7 +13,7 @@ from modules.agent.application.tool_release_snapshots import (
     tool_to_release_snapshot,
     tool_with_permission_overrides,
 )
-from modules.agent.composition.runtime.ask_use_case import AskAgentUseCase
+from modules.agent.runtime.ask_use_case import AskAgentUseCase
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.use_cases.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
