@@ -22,7 +22,7 @@ async def run(request: FastAPIRequest):
     if is_network_runtime_request(request):
         await enforce_public_network_runtime_environment(request)
         return await run_network_http(request)
-    handler = public_run_composer(request.app.state.session_factory)
+    handler = public_run_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
@@ -32,7 +32,7 @@ async def run_stream(request: FastAPIRequest):
     if is_network_runtime_request(request):
         await enforce_public_network_runtime_environment(request)
         return await stream_network_http(request)
-    handler = public_stream_composer(request.app.state.session_factory)
+    handler = public_stream_composer()
     return await handler(request)
 
 

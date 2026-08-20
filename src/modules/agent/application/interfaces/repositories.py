@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from uuid import UUID
 
 from modules.agent.domain.entities import (
@@ -480,3 +481,39 @@ class SecretRepository(ABC):
 
     @abstractmethod
     async def delete(self, secret_id: UUID) -> None: ...
+
+
+class AgentOutboxRepository(ABC):
+    """Application-facing contract for outbox lifecycle transitions."""
+
+    @abstractmethod
+    async def mark_published(self, event_id: UUID) -> None: ...
+
+    @abstractmethod
+    async def mark_retryable(
+        self, event_id: UUID, error: str, available_at: datetime
+    ) -> None: ...
+
+    @abstractmethod
+    async def mark_dead(self, event_id: UUID, error: str) -> None: ...
+
+
+class AgentInboxRepository(ABC):
+    """Application-facing contract for inbox lifecycle transitions."""
+
+    @abstractmethod
+    async def mark_processing(self, event_id: UUID, locked_by: str) -> None: ...
+
+    @abstractmethod
+    async def mark_processed(self, event_id: UUID) -> None: ...
+
+    @abstractmethod
+    async def mark_retryable(
+        self, event_id: UUID, error: str, available_at: datetime
+    ) -> None: ...
+
+    @abstractmethod
+    async def mark_dead(self, event_id: UUID, error: str) -> None: ...
+
+    @abstractmethod
+    async def mark_ignored(self, event_id: UUID, reason: str) -> None: ...

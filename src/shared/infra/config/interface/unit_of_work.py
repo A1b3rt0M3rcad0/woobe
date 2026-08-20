@@ -1,22 +1,13 @@
-from abc import ABC, abstractmethod
-from typing import Self
+from abc import abstractmethod
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from shared.contracts.unit_of_work import UnitOfWork as TransactionUnitOfWork
 
-class UnitOfWork(ABC):
+
+class UnitOfWork(TransactionUnitOfWork):
+    """Legacy SQLAlchemy-aware UoW surface for non-migrated modules."""
+
     @property
     @abstractmethod
     def session(self) -> AsyncSession: ...
-
-    @abstractmethod
-    async def commit(self) -> None: ...
-
-    @abstractmethod
-    async def rollback(self) -> None: ...
-
-    @abstractmethod
-    async def __aenter__(self) -> Self: ...
-
-    @abstractmethod
-    async def __aexit__(self, exc_type, exc_val, exc_tb) -> None: ...

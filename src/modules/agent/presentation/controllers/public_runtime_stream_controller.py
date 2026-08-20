@@ -1,4 +1,3 @@
-from modules.agent.application.interfaces.use_case import UseCase
 from collections.abc import Awaitable, Callable
 from datetime import datetime, timezone
 from uuid import UUID
@@ -8,11 +7,12 @@ from fastapi.responses import StreamingResponse
 
 from modules.agent.application.dtos.public_runtime_dtos import PublicRunRequest
 from modules.agent.application.dtos.runtime_dtos import AskInput
+from modules.agent.application.interfaces.runtime_environment import RuntimeEnvironmentGuard
+from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.presentation.controllers.ask_agent_stream_controller import (
     commit_safe_stream,
 )
 from shared.contracts.errors import AuthenticationError, AuthorizationError
-from modules.agent.application.interfaces.runtime_environment import RuntimeEnvironmentGuard
 from shared.security.principal import ProjectApiPrincipal
 
 
@@ -68,3 +68,23 @@ async def handle_public_run_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+class PublicRuntimeStreamController:
+    def __init__(
+        self,
+        service: UseCase,
+        request_preparer: RequestPreparer,
+        environment_guard: RuntimeEnvironmentGuard,
+    ) -> None:
+        self._service = service
+        self._request_preparer = request_preparer
+        self._environment_guard = environment_guard
+
+    async def handle(self, request: FastAPIRequest) -> StreamingResponse:
+        return await handle_public_run_stream(
+            request,
+            self._service,
+            self._request_preparer,
+            self._environment_guard,
+        )

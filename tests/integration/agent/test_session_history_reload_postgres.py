@@ -6,7 +6,9 @@ import pytest
 from langchain_core.messages import AIMessage
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.composition.runtime.ask_use_case import AskAgentUseCase
+from modules.agent.composition.runtime.explicit_runtime_persistence import (
+    TransactionalAskAgentUseCase as AskAgentUseCase,
+)
 from modules.agent.infra.database.models import AgentModel, ProviderCredentialModel
 from modules.agent.infra.database.repositories import (
     SQLAlchemyMessageRepository,

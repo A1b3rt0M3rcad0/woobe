@@ -17,6 +17,9 @@ from modules.agent.application.use_cases.trace_event_builder import (
     build_operation_events,
     sequence_events,
 )
+from modules.agent.composition.runtime.runtime_repositories import (
+    build_agent_runtime_repositories,
+)
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentOutboxEventWriter,
 )
@@ -162,11 +165,12 @@ async def finalize_instrumented_execution(owner, **kw):
     }
 
     async with AgentUnitOfWork(owner._session_factory) as uow:
+        repositories = build_agent_runtime_repositories(uow)
         outbox = SQLAlchemyAgentOutboxEventWriter(uow)
         if session:
             message = await owner._do_save_assistant_message(
-                uow.messages,
-                uow.sessions,
+                repositories.messages,
+                repositories.sessions,
                 outbox,
                 session,
                 kw["answer"],

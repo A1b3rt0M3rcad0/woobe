@@ -11,6 +11,6 @@ router = APIRouter(prefix="/ai", tags=["ai", "agent"])
 
 @router.post("/credentials/{credential_id}/rotate")
 async def rotate_provider_credential(request: FastAPIRequest):
-    handler = rotate_provider_credential_composer(request.app.state.session_factory)
+    handler = rotate_provider_credential_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)

@@ -8,7 +8,9 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from modules.agent.composition.runtime.ask_use_case import AskAgentUseCase
+from modules.agent.composition.runtime.explicit_runtime_persistence import (
+    TransactionalAskAgentUseCase as AskAgentUseCase,
+)
 from modules.agent.application.dtos.runtime_dtos import (
     AskInput,
     AskOutput,

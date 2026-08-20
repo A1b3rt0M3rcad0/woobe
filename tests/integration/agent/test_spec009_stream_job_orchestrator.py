@@ -18,6 +18,7 @@ from modules.agent.application.use_cases.runtime_use_cases import (
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.domain.events import AgentExecutionRequestedV1
 from modules.agent.application.interfaces.llm_factory import LLMFactory
+from modules.agent.infra.database.database import AgentDatabase
 
 
 @pytest.fixture
@@ -47,7 +48,14 @@ class TestStreamPhases:
     async def test_stream_accepts_ask_input(self):
         llm_factory = MagicMock(spec=LLMFactory)
         session_factory = MagicMock()
-        service = AskAgentStreamService(session_factory, llm_factory)
+        database = AgentDatabase(session_factory)
+        settings = MagicMock(encryption_key="test-key")
+        service = AskAgentStreamService(
+            database,
+            settings,
+            llm_factory,
+            http_executor=MagicMock(),
+        )
         input_dto = AskInput(
             project_id=uuid4(), agent_id=uuid4(),
             message="test", tenant_id=None, user_id=None,
@@ -136,19 +144,23 @@ class TestWorkerRegistration:
 
 
 class TestNoClosedSession:
-    """Prepare phase must not leave a closed or reused session."""
+    """The UoW owns session lifecycle while repositories are composed explicitly."""
 
     @pytest.mark.asyncio
-    async def test_agent_unit_of_work_used_in_prepare(self):
+    async def test_agent_unit_of_work_is_transaction_only(self):
         from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+
         session_factory = MagicMock()
-        session_factory.return_value = MagicMock()
+        session_factory.return_value = AsyncMock()
         uow = AgentUnitOfWork(session_factory)
-        assert uow is not None
-        assert hasattr(uow, "agents")
-        assert hasattr(uow, "sessions")
-        assert hasattr(uow, "messages")
-        assert hasattr(uow, "outbox")
+
+        assert not hasattr(uow, "agents")
+        assert not hasattr(uow, "sessions")
+        assert not hasattr(uow, "messages")
+        assert not hasattr(uow, "outbox")
+
+        async with uow:
+            assert uow.session is not None
 
     def test_ask_job_worker_uses_direct_imports_not_dynamic(self):
         import ast

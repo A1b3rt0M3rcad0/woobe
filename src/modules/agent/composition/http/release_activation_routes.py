@@ -10,6 +10,6 @@ router = APIRouter(prefix="/ai", tags=["ai", "agent", "release-history"])
 
 @router.get("/agents/{agent_id}/release-activations")
 async def list_agent_release_activations(request: FastAPIRequest):
-    handler = list_release_activations_composer(request.app.state.session_factory)
+    handler = list_release_activations_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)

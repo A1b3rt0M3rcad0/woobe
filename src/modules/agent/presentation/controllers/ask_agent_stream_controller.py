@@ -1,4 +1,3 @@
-from modules.agent.application.interfaces.use_case import UseCase
 import json
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
@@ -9,6 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from modules.agent.application.dtos import AskInput
 from modules.agent.application.interfaces.runtime_environment import RuntimeEnvironmentGuard
+from modules.agent.application.interfaces.use_case import UseCase
 
 
 _PUBLIC_TOKEN_PHASES = {"response_generation", "final_response_generation"}
@@ -101,3 +101,20 @@ async def handle_ask_stream(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+class AskAgentStreamController:
+    def __init__(
+        self,
+        service: UseCase,
+        environment_guard: RuntimeEnvironmentGuard,
+    ) -> None:
+        self._service = service
+        self._environment_guard = environment_guard
+
+    async def handle(self, request: FastAPIRequest) -> StreamingResponse:
+        return await handle_ask_stream(
+            request,
+            self._service,
+            self._environment_guard,
+        )

@@ -18,6 +18,15 @@ forbid_wildcard_imports = true
 forbid_cycles = true
 forbidden_paths = ["application/composers"]
 
+[composer_contract]
+source = ["composition/**"]
+function_suffix = "_composer"
+streaming_suffix = "_stream_composer"
+allowed_handlers = ["TransactionalHandler", "StreamingTransactionalHandler"]
+regular_handler = "TransactionalHandler"
+streaming_handler = "StreamingTransactionalHandler"
+uow_types = ["AgentUnitOfWork"]
+
 [[rules]]
 id = "ARCH006"
 description = "routes"
@@ -36,7 +45,7 @@ deny = ["modules.agent.infra", "modules.agent.composition", "modules.agent.appli
 id = "ARCH019"
 description = "composition"
 source = ["composition/**"]
-allow = ["modules.agent.domain", "modules.agent.application", "modules.agent.infra", "modules.agent.presentation.controllers"]
+allow = ["modules.agent.domain", "modules.agent.application", "modules.agent.infra", "modules.agent.presentation.controllers", "shared"]
 deny = ["modules.agent.presentation.routes"]
 
 [[rules]]
@@ -189,3 +198,141 @@ def test_internal_dependency_cycle_is_rejected(tmp_path: Path) -> None:
     result = checker.check(policy)
 
     assert any(item.rule_id == "ARCH016" for item in result.violations)
+
+
+def _write_composer(tmp_path: Path, source: str) -> tuple[ArchitectureChecker, object]:
+    checker, policy = _module(tmp_path)
+    (tmp_path / "src/modules/agent/composition/example.py").write_text(source, encoding="utf-8")
+    return checker, policy
+
+
+def test_transactional_composer_contract_passes(tmp_path: Path) -> None:
+    checker, policy = _write_composer(
+        tmp_path,
+        "from modules.agent.infra.database.unit_of_work import AgentUnitOfWork\n"
+        "from shared.infra.transactional_handler import TransactionalHandler\n"
+        "def create_agent_composer(factory) -> TransactionalHandler:\n"
+        "    uow = AgentUnitOfWork(factory)\n"
+        "    return TransactionalHandler(uow, handler)\n",
+    )
+    result = checker.check(policy)
+    assert result.passed, result.violations
+
+
+def test_streaming_composer_contract_passes(tmp_path: Path) -> None:
+    checker, policy = _write_composer(
+        tmp_path,
+        "from modules.agent.infra.database.unit_of_work import AgentUnitOfWork\n"
+        "from shared.infra.streaming_transactional_handler import StreamingTransactionalHandler\n"
+        "def ask_stream_composer(factory) -> StreamingTransactionalHandler:\n"
+        "    uow = AgentUnitOfWork(factory)\n"
+        "    return StreamingTransactionalHandler(uow, handler)\n",
+    )
+    result = checker.check(policy)
+    assert result.passed, result.violations
+
+
+def test_composer_without_transactional_annotation_is_rejected(tmp_path: Path) -> None:
+    checker, policy = _write_composer(
+        tmp_path,
+        "from modules.agent.infra.database.unit_of_work import AgentUnitOfWork\n"
+        "from shared.infra.transactional_handler import TransactionalHandler\n"
+        "def create_agent_composer(factory):\n"
+        "    uow = AgentUnitOfWork(factory)\n"
+        "    return TransactionalHandler(uow, handler)\n",
+    )
+    result = checker.check(policy)
+    assert any(item.rule_id == "ARCH021" for item in result.violations)
+
+
+def test_composer_returning_raw_callable_is_rejected(tmp_path: Path) -> None:
+    checker, policy = _write_composer(
+        tmp_path,
+        "from modules.agent.infra.database.unit_of_work import AgentUnitOfWork\n"
+        "def create_agent_composer(factory) -> TransactionalHandler:\n"
+        "    uow = AgentUnitOfWork(factory)\n"
+        "    return controller.handle\n",
+    )
+    result = checker.check(policy)
+    assert any(item.rule_id == "ARCH022" for item in result.violations)
+
+
+def test_async_composer_is_rejected(tmp_path: Path) -> None:
+    checker, policy = _write_composer(
+        tmp_path,
+        "from modules.agent.infra.database.unit_of_work import AgentUnitOfWork\n"
+        "from shared.infra.transactional_handler import TransactionalHandler\n"
+        "async def create_agent_composer(factory) -> TransactionalHandler:\n"
+        "    uow = AgentUnitOfWork(factory)\n"
+        "    return TransactionalHandler(uow, handler)\n",
+    )
+    result = checker.check(policy)
+    assert any(item.rule_id == "ARCH022" for item in result.violations)
+
+
+def test_stream_composer_must_use_streaming_handler(tmp_path: Path) -> None:
+    checker, policy = _write_composer(
+        tmp_path,
+        "from modules.agent.infra.database.unit_of_work import AgentUnitOfWork\n"
+        "from shared.infra.transactional_handler import TransactionalHandler\n"
+        "def ask_stream_composer(factory) -> TransactionalHandler:\n"
+        "    uow = AgentUnitOfWork(factory)\n"
+        "    return TransactionalHandler(uow, handler)\n",
+    )
+    result = checker.check(policy)
+    assert any(item.rule_id == "ARCH023" for item in result.violations)
+
+
+def test_nested_runtime_helper_may_manage_its_own_short_uow(tmp_path: Path) -> None:
+    checker, policy = _write_composer(
+        tmp_path,
+        "from modules.agent.infra.database.unit_of_work import AgentUnitOfWork\n"
+        "from shared.infra.transactional_handler import TransactionalHandler\n"
+        "def create_agent_composer(factory) -> TransactionalHandler:\n"
+        "    uow = AgentUnitOfWork(factory)\n"
+        "    async def handler(request):\n"
+        "        async with AgentUnitOfWork(factory):\n"
+        "            return request\n"
+        "    return TransactionalHandler(uow, handler)\n",
+    )
+    result = checker.check(policy)
+    assert result.passed, result.violations
+
+
+def test_composer_body_cannot_open_uow_itself(tmp_path: Path) -> None:
+    checker, policy = _write_composer(
+        tmp_path,
+        "from modules.agent.infra.database.unit_of_work import AgentUnitOfWork\n"
+        "from shared.infra.transactional_handler import TransactionalHandler\n"
+        "async def create_agent_composer(factory) -> TransactionalHandler:\n"
+        "    uow = AgentUnitOfWork(factory)\n"
+        "    async with uow:\n"
+        "        value = 1\n"
+        "    return TransactionalHandler(uow, handler)\n",
+    )
+    result = checker.check(policy)
+    assert any(item.rule_id == "ARCH024" for item in result.violations)
+
+
+def test_composer_must_use_one_uow_for_transaction_boundary(tmp_path: Path) -> None:
+    checker, policy = _write_composer(
+        tmp_path,
+        "from modules.agent.infra.database.unit_of_work import AgentUnitOfWork\n"
+        "from shared.infra.transactional_handler import TransactionalHandler\n"
+        "def create_agent_composer(factory) -> TransactionalHandler:\n"
+        "    repository_uow = AgentUnitOfWork(factory)\n"
+        "    handler_uow = AgentUnitOfWork(factory)\n"
+        "    return TransactionalHandler(handler_uow, handler)\n",
+    )
+    result = checker.check(policy)
+    assert any(item.rule_id == "ARCH025" for item in result.violations)
+
+
+def test_non_composer_helper_is_ignored(tmp_path: Path) -> None:
+    checker, policy = _write_composer(
+        tmp_path,
+        "async def build_runtime(factory):\n"
+        "    return await factory()\n",
+    )
+    result = checker.check(policy)
+    assert result.passed, result.violations

@@ -12,11 +12,18 @@ permissions:
 
 jobs:
   secret-history:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Reset stale Gitleaks temp state
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/gitleaks-8.24.3 /tmp/gitleaks.tmp
+
       - name: Scan reachable Git history
         uses: gitleaks/gitleaks-action@v2
         env:
