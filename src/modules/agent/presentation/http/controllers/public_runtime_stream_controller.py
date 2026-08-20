@@ -9,7 +9,7 @@ from modules.agent.application.dtos.public_runtime_dtos import PublicRunRequest
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.interfaces.runtime_environment import RuntimeEnvironmentGuard
 from modules.agent.application.interfaces.use_case import UseCase
-from modules.agent.presentation.controllers.ask_agent_stream_controller import (
+from modules.agent.presentation.http.controllers.ask_agent_stream_controller import (
     commit_safe_stream,
 )
 from shared.contracts.errors import AuthenticationError, AuthorizationError
