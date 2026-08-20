@@ -1,4 +1,7 @@
-from modules.agent.application.use_cases import CreateAskJobUseCase
+from modules.agent.application.use_cases import (
+    CreateAskJobUseCase,
+    GetPublicAskJobUseCase,
+)
 from modules.agent.application.use_cases.public_runtime_request_preparer import (
     PublicRuntimeRequestPreparer,
 )
@@ -109,5 +112,6 @@ def public_create_job_composer() -> TransactionalHandler:
 def public_get_job_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     ask_job_repo = SQLAlchemyAskJobRepository(uow)
-    controller = PublicGetJobController(ask_job_repo)
+    use_case = GetPublicAskJobUseCase(ask_job_repo)
+    controller = PublicGetJobController(use_case)
     return TransactionalHandler(uow, controller.handle)
