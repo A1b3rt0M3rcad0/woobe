@@ -1,5 +1,4 @@
 from importlib import import_module
-from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
@@ -183,7 +182,8 @@ async def test_structured_runtime_preserves_release_tool_selection_through_full_
 
     assert result[9] is True
     assert result[8][tool.name] == str(tool.id)
-    assert len(result[7]) == 1
+    assert RUNTIME_TOOL_INVENTORY_NAME in result[8]
+    assert len(result[7]) == 2
     assert context.tool_metadata["source"] == "release_snapshot"
     assert context.tool_metadata["tool_ids"] == [str(tool.id)]
     assert str(tool.id) in context.tool_snapshots
@@ -356,6 +356,7 @@ async def test_release_snapshot_and_internal_delegation_coexist_in_network_runti
 
     assert result[9] is True
     assert result[8][tool.name] == str(tool.id)
+    assert RUNTIME_TOOL_INVENTORY_NAME in result[8]
     assert result[8]["delegate_child"] == str(delegate_id)
     assert context.tool_metadata["source"] == "release_snapshot"
     assert str(tool.id) in context.tool_snapshots
