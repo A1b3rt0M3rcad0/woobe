@@ -12,16 +12,16 @@ from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
 )
-from modules.agent.composition.runtime.runtime_streaming import (
-    emit_agent_activity,
-    emit_runtime_event,
-    invoke_model_with_optional_streaming,
-)
 from modules.agent.application.use_cases.tool_output_compaction import (
     compact_tool_output_for_llm,
 )
 from modules.agent.application.use_cases.tool_result_semantics import (
     normalize_tool_result,
+)
+from modules.agent.runtime.runtime_streaming import (
+    emit_agent_activity,
+    emit_runtime_event,
+    invoke_model_with_optional_streaming,
 )
 from shared.contracts.llm_cost import calculate_llm_cost
 from shared.contracts.llm_usage import normalize_llm_usage
