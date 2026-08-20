@@ -1,3 +1,9 @@
+from modules.agent.composition.resources import (
+    AGENT_DATABASE,
+    DATABASE_ENGINE,
+    SESSION_FACTORY,
+    SETTINGS,
+)
 from modules.agent.composition.runtime.ask_agent_stream_service import (
     AskAgentStreamService,
 )
@@ -6,33 +12,24 @@ from modules.agent.composition.runtime.environment_guard import (
 )
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
-from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.agent.infra.database.database import AgentDatabase, agent_session_factory
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.presentation.controllers.ask_agent_stream_controller import (
     AskAgentStreamController,
 )
-from shared.infra.config import Settings
 from shared.infra.streaming_transactional_handler import (
     StreamingTransactionalHandler,
 )
 
 
-def ask_agent_stream_composer(
-    database: AgentDatabase,
-    settings: Settings,
-    executor: HttpToolExecutor | None = None,
-) -> StreamingTransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def ask_agent_stream_composer() -> StreamingTransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     service = AskAgentStreamService(
-        database,
-        settings,
+        AGENT_DATABASE,
+        SETTINGS,
         LangchainLLMFactory(),
-        executor or get_http_tool_executor(),
+        get_http_tool_executor(),
     )
-    environment_guard = build_agent_runtime_environment_guard(
-        agent_session_factory(database)
-    )
+    environment_guard = build_agent_runtime_environment_guard(SESSION_FACTORY)
     controller = AskAgentStreamController(service, environment_guard)
     return StreamingTransactionalHandler(
         uow,

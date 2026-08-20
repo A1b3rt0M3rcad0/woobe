@@ -2,6 +2,12 @@ from modules.agent.application.use_cases import CreateAskJobUseCase
 from modules.agent.application.use_cases.public_runtime_request_preparer import (
     PublicRuntimeRequestPreparer,
 )
+from modules.agent.composition.resources import (
+    AGENT_DATABASE,
+    DATABASE_ENGINE,
+    SESSION_FACTORY,
+    SETTINGS,
+)
 from modules.agent.composition.runtime.ask_agent_runtime_factory import (
     build_ask_agent_handler,
 )
@@ -13,7 +19,6 @@ from modules.agent.composition.runtime.environment_guard import (
 )
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
-from modules.agent.infra.database.database import AgentDatabase, agent_session_factory
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentReleaseRepositoryWithProviderModels,
     SQLAlchemyAgentRepositoryWithProviderModels,
@@ -34,18 +39,14 @@ from modules.agent.presentation.controllers.public_runtime_controllers import (
 from modules.agent.presentation.controllers.public_runtime_stream_controller import (
     PublicRuntimeStreamController,
 )
-from shared.infra.config import Settings
 from shared.infra.streaming_transactional_handler import (
     StreamingTransactionalHandler,
 )
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def public_run_composer(
-    database: AgentDatabase,
-    settings: Settings,
-) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def public_run_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     release_repo = SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow)
     session_repo = SQLAlchemyRuntimeSessionRepository(uow)
     agent_repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
@@ -55,17 +56,14 @@ def public_run_composer(
         agent_repo,
     )
     controller = PublicRunController(
-        build_ask_agent_handler(database, settings),
+        build_ask_agent_handler(AGENT_DATABASE, SETTINGS),
         preparer.prepare,
     )
     return TransactionalHandler(uow, controller.handle)
 
 
-def public_stream_composer(
-    database: AgentDatabase,
-    settings: Settings,
-) -> StreamingTransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def public_stream_composer() -> StreamingTransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     release_repo = SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow)
     session_repo = SQLAlchemyRuntimeSessionRepository(uow)
     agent_repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
@@ -75,14 +73,12 @@ def public_stream_composer(
         agent_repo,
     )
     service = AskAgentStreamService(
-        database,
-        settings,
+        AGENT_DATABASE,
+        SETTINGS,
         LangchainLLMFactory(),
         get_http_tool_executor(),
     )
-    environment_guard = build_agent_runtime_environment_guard(
-        agent_session_factory(database)
-    )
+    environment_guard = build_agent_runtime_environment_guard(SESSION_FACTORY)
     controller = PublicRuntimeStreamController(
         service,
         preparer.prepare,
@@ -95,10 +91,8 @@ def public_stream_composer(
     )
 
 
-def public_create_job_composer(
-    database: AgentDatabase,
-) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def public_create_job_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     ask_job_repo = SQLAlchemyAskJobRepository(uow)
     release_repo = SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow)
     session_repo = SQLAlchemyRuntimeSessionRepository(uow)
@@ -114,8 +108,8 @@ def public_create_job_composer(
     return TransactionalHandler(uow, controller.handle)
 
 
-def public_get_job_composer(database: AgentDatabase) -> TransactionalHandler:
-    uow = AgentUnitOfWork(database)
+def public_get_job_composer() -> TransactionalHandler:
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
     ask_job_repo = SQLAlchemyAskJobRepository(uow)
     controller = PublicGetJobController(ask_job_repo)
     return TransactionalHandler(uow, controller.handle)
