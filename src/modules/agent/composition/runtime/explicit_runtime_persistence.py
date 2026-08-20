@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from typing import Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput, SourceInfo
 from modules.agent.application.tool_converter import (
@@ -24,7 +24,6 @@ from modules.agent.domain.events import (
 )
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
-from shared.contracts.llm_usage import normalize_llm_usage
 
 logger = logging.getLogger(__name__)
 
