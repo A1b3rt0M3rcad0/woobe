@@ -11,9 +11,6 @@ from modules.agent.application.runtime_tool_inventory import (
 from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
 from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
-from modules.agent.composition.runtime.tool_runtime_factory import (
-    build_tool_runtime_registry,
-)
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
@@ -24,6 +21,7 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentToolSecretRepository,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.runtime.tool_runtime_factory import build_tool_runtime_registry
 from shared.infra.config import Settings
 
 
