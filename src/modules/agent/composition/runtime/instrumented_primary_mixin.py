@@ -180,6 +180,9 @@ class InstrumentedPrimaryExecutionMixin:
         parent = cast(_PrimaryExecutionSuper, super())
         try:
             prepared = await parent._prepare(input_dto)
+            runtime_tool_selector = getattr(self, "_apply_runtime_tool_selection", None)
+            if callable(runtime_tool_selector):
+                prepared = await runtime_tool_selector(prepared)
         except Exception:
             if context:
                 context.prepare_ended_at = utc_now()
