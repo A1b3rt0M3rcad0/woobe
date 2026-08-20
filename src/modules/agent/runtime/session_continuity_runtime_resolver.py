@@ -3,10 +3,10 @@ from __future__ import annotations
 from typing import Any
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.composition.runtime.ask_use_case import AskAgentUseCase
 from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.composition.runtime.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.domain.entities import Agent
+from modules.agent.runtime.ask_use_case import AskAgentUseCase
+from modules.agent.runtime.release_runtime_resolver import ReleaseRuntimeResolver
 from shared.contracts.errors import ConflictError, ValidationError
 from shared.runtime_environment import normalize_runtime_environment
 
