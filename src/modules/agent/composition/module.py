@@ -9,12 +9,7 @@ from modules.agent.composition.composers.public_runtime_composers import (
     public_run_composer,
     public_stream_composer,
 )
-from modules.agent.composition.resources import (
-    AGENT_DATABASE,
-    DATABASE_ENGINE,
-    SESSION_FACTORY,
-    SETTINGS,
-)
+from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
 from modules.agent.infra.adapters.http_tool_runtime import (
     close_http_tool_executor,
     configure_http_tool_executor,
@@ -25,7 +20,6 @@ from modules.agent.infra.adapters.langchain_embedding_factory import (
 )
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.agent.infra.database.database import AgentDatabase
 from modules.agent.presentation.http.controllers.ask_agent_stream_controller import (
     commit_safe_stream,
 )
@@ -86,7 +80,7 @@ def build_http_tool_executor() -> HttpToolExecutor:
 
 def build_agent_stream_service() -> AskAgentStreamService:
     return AskAgentStreamService(
-        AGENT_DATABASE,
+        DATABASE_ENGINE,
         SETTINGS,
         LangchainLLMFactory(),
         get_http_tool_executor(),
@@ -95,8 +89,6 @@ def build_agent_stream_service() -> AskAgentStreamService:
 
 __all__ = [
     "AGENT_HTTP_ROUTERS",
-    "AGENT_DATABASE",
-    "AgentDatabase",
     "AgentToolRuntimeGateway",
     "AskInput",
     "DATABASE_ENGINE",
@@ -105,7 +97,6 @@ __all__ = [
     "LangchainEmbeddingFactory",
     "LangchainLLMFactory",
     "RuntimeStreamChannel",
-    "SESSION_FACTORY",
     "SETTINGS",
     "StructuredOutputAskAgentUseCase",
     "build_agent_stream_service",
