@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from modules.agent.runtime.ask_agent_stream_service import (
     AskAgentStreamService,
@@ -18,7 +19,6 @@ from modules.agent.application.use_cases.runtime_use_cases import (
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.domain.events import AgentExecutionRequestedV1
 from modules.agent.application.interfaces.llm_factory import LLMFactory
-from modules.agent.infra.database.database import AgentDatabase
 
 
 @pytest.fixture
@@ -31,27 +31,16 @@ def project_id() -> UUID:
     return uuid4()
 
 
-@pytest.fixture
-def mock_session_factory():
-    mock_session = AsyncMock()
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock(return_value=None)
-    factory = MagicMock()
-    factory.return_value = mock_session
-    return factory
-
-
 class TestStreamPhases:
     """AskAgentStreamService must expose an async stream for AskInput."""
 
     @pytest.mark.asyncio
     async def test_stream_accepts_ask_input(self):
         llm_factory = MagicMock(spec=LLMFactory)
-        session_factory = MagicMock()
-        database = AgentDatabase(session_factory)
+        engine = MagicMock()
         settings = MagicMock(encryption_key="test-key")
         service = AskAgentStreamService(
-            database,
+            engine,
             settings,
             llm_factory,
             http_executor=MagicMock(),
@@ -150,17 +139,19 @@ class TestNoClosedSession:
     async def test_agent_unit_of_work_is_transaction_only(self):
         from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
-        session_factory = MagicMock()
-        session_factory.return_value = AsyncMock()
-        uow = AgentUnitOfWork(session_factory)
+        engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+        uow = AgentUnitOfWork(engine)
 
         assert not hasattr(uow, "agents")
         assert not hasattr(uow, "sessions")
         assert not hasattr(uow, "messages")
         assert not hasattr(uow, "outbox")
 
-        async with uow:
-            assert uow.session is not None
+        try:
+            async with uow:
+                assert uow.session is not None
+        finally:
+            await engine.dispose()
 
     def test_ask_job_worker_uses_direct_imports_not_dynamic(self):
         import ast
