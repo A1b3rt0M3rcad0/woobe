@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from sqlalchemy.ext.asyncio import AsyncEngine
+
 from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.runtime_tool_inventory import (
@@ -15,7 +17,6 @@ from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executo
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.agent.infra.database.database import AgentDatabase
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentToolRepository,
     SQLAlchemyAgentToolSecretRepository,
@@ -30,17 +31,17 @@ class AgentToolRuntimeGateway:
 
     def __init__(
         self,
-        database: AgentDatabase,
+        engine: AsyncEngine,
         settings: Settings,
         executor: HttpToolExecutor | None = None,
     ) -> None:
-        self._database = database
+        self._engine = engine
         self._settings = settings
         self._executor = executor or get_http_tool_executor()
         self._cipher = SecretCipherAdapter(settings.encryption_key)
 
     async def read_runtime_tools(self, tool_ids: list[UUID]):
-        async with AgentUnitOfWork(self._database) as uow:
+        async with AgentUnitOfWork(self._engine) as uow:
             tool_repo = SQLAlchemyAgentToolRepository(uow)
             tools = []
             for tool_id in tool_ids:
@@ -63,7 +64,7 @@ class AgentToolRuntimeGateway:
             else None
         )
 
-        async with AgentUnitOfWork(self._database) as uow:
+        async with AgentUnitOfWork(self._engine) as uow:
             tool_repo = SQLAlchemyAgentToolRepository(uow)
             tool_secret_repo = SQLAlchemyAgentToolSecretRepository(uow)
             resolver = ToolSecretResolverAdapter(tool_secret_repo, self._cipher)
