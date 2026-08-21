@@ -29,8 +29,8 @@ from modules.agent.infra.database.vector_snapshot_repositories import (
 class AgentRuntimeRepositories:
     """Explicit repository set for one Agent runtime transaction.
 
-    The UnitOfWork owns only transaction/session lifecycle. Runtime phases receive
-    this fixed dependency set instead of resolving repositories from the UoW.
+    The UnitOfWork owns transaction/session lifecycle. This object only groups
+    repositories that share that UnitOfWork and never exposes transaction control.
     """
 
     transaction: AgentUnitOfWork
@@ -46,9 +46,6 @@ class AgentRuntimeRepositories:
     document_chunks: SQLAlchemyDocumentChunkRepository
     knowledge_versions: SQLAlchemyKnowledgeVersionRepository
     vector_snapshots: SQLAlchemyVectorSnapshotRepository
-
-    async def commit(self) -> None:
-        await self.transaction.commit()
 
 
 def build_agent_runtime_repositories(
