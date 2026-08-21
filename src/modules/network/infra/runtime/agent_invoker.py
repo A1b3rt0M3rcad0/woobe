@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from typing import Any
+from typing import Any, cast
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from modules.agent.entrypoint import (
-    AgentDatabase,
     AgentToolRuntimeGateway,
     AskInput,
     EmptyModelOutputError,
@@ -55,6 +54,15 @@ def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
     )
 
 
+def _engine_from_session_factory(
+    session_factory: async_sessionmaker[AsyncSession],
+) -> AsyncEngine:
+    bind = getattr(session_factory, "kw", {}).get("bind")
+    if bind is None:
+        raise TypeError("Network Agent runtime requires a session factory bound to AsyncEngine")
+    return cast(AsyncEngine, bind)
+
+
 class ProjectRAIAgentInvoker:
     """Invokes the existing Agent runtime in-process with Network-only tools."""
 
@@ -64,10 +72,10 @@ class ProjectRAIAgentInvoker:
         settings: Settings,
         http_executor: HttpToolExecutor,
     ) -> None:
-        self._session_factory = session_factory
+        self._engine = _engine_from_session_factory(session_factory)
         self._settings = settings
         self._tool_runtime = AgentToolRuntimeGateway(
-            AgentDatabase(session_factory),
+            self._engine,
             settings,
             http_executor,
         )
@@ -99,7 +107,7 @@ class ProjectRAIAgentInvoker:
             return await self._tool_runtime.execute_tool(tool_id, input_data)
 
         use_case = StructuredOutputAskAgentUseCase(
-            session_factory=self._session_factory,
+            session_factory=self._engine,
             llm_factory=LangchainLLMFactory(),
             encryption_key=settings.encryption_key,
             tool_executor_factory=execute_tool,
