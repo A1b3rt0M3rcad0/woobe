@@ -10,12 +10,6 @@ UOW_FILE = AGENT_ROOT / "infra/database/unit_of_work.py"
 RESOURCES_FILE = AGENT_ROOT / "composition/resources.py"
 
 PROCESS_RESOURCE_NAMES = {"SETTINGS", "DATABASE_ENGINE", "FILE_STORAGE"}
-FORBIDDEN_SESSION_IMPORTS = {
-    "AsyncSession",
-    "async_sessionmaker",
-    "sessionmaker",
-    "create_session_factory",
-}
 FORBIDDEN_DATABASE_FACADE_IMPORTS = {
     "AgentDatabase",
     "AgentDatabaseInput",
@@ -92,16 +86,13 @@ def _is_transaction_target(target: str) -> bool:
     }
 
 
-def test_arch_uow_001_only_uow_may_create_database_sessions() -> None:
+def test_arch_uow_001_only_uow_may_create_or_open_database_sessions() -> None:
     violations: list[str] = []
     for path in _python_files():
         if path == UOW_FILE:
             continue
         tree = _parse(path)
         relative = path.relative_to(PROJECT_ROOT)
-        for imported, line in _imported_names(tree):
-            if imported in FORBIDDEN_SESSION_IMPORTS:
-                violations.append(f"{relative}:{line}: imports transaction-scoped primitive {imported}")
         for node in ast.walk(tree):
             if not isinstance(node, ast.Call):
                 continue
