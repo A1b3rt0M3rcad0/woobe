@@ -8,12 +8,7 @@ from modules.agent.application.use_cases.public_runtime_request_preparer import 
 from modules.agent.composition.factories.ask_agent_runtime_factory import (
     build_ask_agent_handler,
 )
-from modules.agent.composition.resources import (
-    AGENT_DATABASE,
-    DATABASE_ENGINE,
-    SESSION_FACTORY,
-    SETTINGS,
-)
+from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.database.provider_model_repositories import (
@@ -57,7 +52,7 @@ def public_run_composer() -> TransactionalHandler:
         agent_repo,
     )
     controller = PublicRunController(
-        build_ask_agent_handler(AGENT_DATABASE, SETTINGS),
+        build_ask_agent_handler(DATABASE_ENGINE, SETTINGS),
         preparer.prepare,
     )
     return TransactionalHandler(uow, controller.handle)
@@ -74,12 +69,12 @@ def public_stream_composer() -> StreamingTransactionalHandler:
         agent_repo,
     )
     service = AskAgentStreamService(
-        AGENT_DATABASE,
+        DATABASE_ENGINE,
         SETTINGS,
         LangchainLLMFactory(),
         get_http_tool_executor(),
     )
-    environment_guard = build_agent_runtime_environment_guard(SESSION_FACTORY)
+    environment_guard = build_agent_runtime_environment_guard(DATABASE_ENGINE)
     controller = PublicRuntimeStreamController(
         service,
         preparer.prepare,
