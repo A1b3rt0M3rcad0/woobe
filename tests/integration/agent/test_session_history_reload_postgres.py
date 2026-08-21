@@ -111,7 +111,7 @@ async def test_session_and_history_survive_new_use_case_and_database_connection(
 
     first_model = ProviderModel("first assistant reply")
     first_result = await AskAgentUseCase(
-        session_factory=session_factory,
+        engine,
         llm_factory=ProviderFactory(first_model),
         encryption_key=settings.encryption_key,
     ).execute(
@@ -126,7 +126,7 @@ async def test_session_and_history_survive_new_use_case_and_database_connection(
 
     second_model = ProviderModel("second assistant reply")
     second_result = await AskAgentUseCase(
-        session_factory=session_factory,
+        engine,
         llm_factory=ProviderFactory(second_model),
         encryption_key=settings.encryption_key,
     ).execute(
