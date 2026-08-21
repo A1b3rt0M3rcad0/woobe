@@ -1,9 +1,4 @@
-from modules.agent.composition.resources import (
-    AGENT_DATABASE,
-    DATABASE_ENGINE,
-    SESSION_FACTORY,
-    SETTINGS,
-)
+from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
@@ -22,12 +17,12 @@ from shared.infra.streaming_transactional_handler import (
 def ask_agent_stream_composer() -> StreamingTransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     service = AskAgentStreamService(
-        AGENT_DATABASE,
+        DATABASE_ENGINE,
         SETTINGS,
         LangchainLLMFactory(),
         get_http_tool_executor(),
     )
-    environment_guard = build_agent_runtime_environment_guard(SESSION_FACTORY)
+    environment_guard = build_agent_runtime_environment_guard(DATABASE_ENGINE)
     controller = AskAgentStreamController(service, environment_guard)
     return StreamingTransactionalHandler(
         uow,
