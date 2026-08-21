@@ -44,8 +44,15 @@ class TestNormalizeAgentDatabaseLayout:
         assert "from modules.agent.domain" in content, "repositories must import from domain"
         assert "from modules.agent.infra.database.models" in content, "repositories must import models"
 
-    def test_unit_of_work_imports_agent_repositories(self):
+    def test_unit_of_work_owns_session_not_repositories(self):
         content = (AGENT_INFRA_DB / "unit_of_work.py").read_text(encoding="utf-8")
-        assert "from modules.agent.infra.database.repositories" in content, "UoW must import agent repositories"
-        assert "SQLAlchemyAgentOutboxRepository" in content, "UoW must include outbox repository"
-        assert "SQLAlchemyAgentInboxRepository" in content, "UoW must include inbox repository"
+        assert "AsyncEngine" in content, "UoW must receive the process-wide engine"
+        assert "async_sessionmaker" in content, "UoW must create its own session"
+        assert "from modules.agent.infra.database.repositories" not in content
+        assert "SQLAlchemyAgentOutboxRepository" not in content
+        assert "SQLAlchemyAgentInboxRepository" not in content
+
+    def test_database_session_facade_does_not_exist(self):
+        assert not (AGENT_INFRA_DB / "database.py").exists(), (
+            "database.py would expose a second session ownership path outside UnitOfWork"
+        )
