@@ -1,5 +1,5 @@
 from modules.agent.application.use_cases import CreateAskJobUseCase
-from modules.agent.composition.resources import DATABASE_ENGINE, SESSION_FACTORY
+from modules.agent.composition.resources import DATABASE_ENGINE
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentOutboxEventWriter,
     SQLAlchemyAskJobRepository,
@@ -18,7 +18,7 @@ def create_ask_job_composer() -> TransactionalHandler:
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
     use_case = AgentRuntimeEnvironmentGuard(
         CreateAskJobUseCase(repo, outbox),
-        SESSION_FACTORY,
+        DATABASE_ENGINE,
         default_environment="production",
     )
     controller = CreateAskJobController(use_case)
