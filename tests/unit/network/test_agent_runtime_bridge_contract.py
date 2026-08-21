@@ -138,8 +138,9 @@ def _patch_runtime(monkeypatch, use_case_cls) -> None:
 
 
 def _invoker():
+    engine = object()
     return ProjectRAIAgentInvoker(
-        session_factory=object(),
+        session_factory=SimpleNamespace(kw={"bind": engine}),
         settings=SimpleNamespace(encryption_key="test-encryption-key"),
         http_executor=object(),
     )
