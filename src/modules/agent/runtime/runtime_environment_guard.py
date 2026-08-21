@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine
 
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.runtime_environment import (
     assert_runtime_environment_enabled,
     normalize_runtime_environment,
@@ -11,23 +12,17 @@ from shared.runtime_environment import (
 
 
 class AgentRuntimeEnvironmentGuard:
-    """Guards standalone Agent admission without affecting Network invocations.
-
-    Network execution invokes the Agent runtime in-process and identifies itself
-    through metadata.source=network_runtime. Those invocations are governed by
-    the Network environment switch and the explicit Agent snapshot selected by
-    the Network version instead of the standalone Agent switch.
-    """
+    """Guards standalone Agent admission without affecting Network invocations."""
 
     def __init__(
         self,
         delegate: Any,
-        session_factory: async_sessionmaker[AsyncSession],
+        engine: AsyncEngine,
         *,
         default_environment: str,
     ) -> None:
         self._delegate = delegate
-        self._session_factory = session_factory
+        self._engine = engine
         self._default_environment = default_environment
 
     async def execute(self, input_dto: Any) -> Any:
@@ -40,9 +35,9 @@ class AgentRuntimeEnvironmentGuard:
             or getattr(input_dto, "runtime_environment", None)
             or self._default_environment
         )
-        async with self._session_factory() as session, session.begin():
+        async with AgentUnitOfWork(self._engine) as uow:
             await assert_runtime_environment_enabled(
-                session,
+                uow.session,
                 target_type="agent",
                 target_id=input_dto.agent_id,
                 project_id=input_dto.project_id,
