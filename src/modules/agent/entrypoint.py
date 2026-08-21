@@ -1,10 +1,7 @@
 from modules.agent.composition.module import (
-    AGENT_DATABASE,
     AGENT_HTTP_ROUTERS,
     DATABASE_ENGINE,
-    SESSION_FACTORY,
     SETTINGS,
-    AgentDatabase,
     AgentToolRuntimeGateway,
     AskInput,
     EmptyModelOutputError,
@@ -26,9 +23,7 @@ from modules.agent.composition.module import (
 from modules.agent.composition.workers import AgentWorkerRegistry, register_agent_workers
 
 __all__ = [
-    "AGENT_DATABASE",
     "AGENT_HTTP_ROUTERS",
-    "AgentDatabase",
     "AgentToolRuntimeGateway",
     "AgentWorkerRegistry",
     "AskInput",
@@ -38,7 +33,6 @@ __all__ = [
     "LangchainEmbeddingFactory",
     "LangchainLLMFactory",
     "RuntimeStreamChannel",
-    "SESSION_FACTORY",
     "SETTINGS",
     "StructuredOutputAskAgentUseCase",
     "build_agent_stream_service",
