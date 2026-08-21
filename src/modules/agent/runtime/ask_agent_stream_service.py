@@ -6,14 +6,14 @@ import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import datetime, timezone
 
+from sqlalchemy.ext.asyncio import AsyncEngine
+
 from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput
-from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.runtime_events import AgentExecutionCancelledV1
 from modules.agent.infra.adapters.langchain_embedding_factory import (
     LangchainEmbeddingFactory,
 )
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.agent.infra.database.database import AgentDatabase, agent_session_factory
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.runtime.agent_tool_runtime_gateway import AgentToolRuntimeGateway
@@ -35,19 +35,19 @@ DisconnectCheck = Callable[[], Awaitable[bool]]
 class AskAgentStreamService:
     def __init__(
         self,
-        database: AgentDatabase,
+        engine: AsyncEngine,
         settings: Settings,
         llm_factory,
         http_executor: HttpToolExecutor | None = None,
     ) -> None:
-        self._database = database
+        self._engine = engine
         self._tool_runtime = AgentToolRuntimeGateway(
-            database,
+            engine,
             settings,
             http_executor,
         )
         self._use_case = StructuredOutputAskAgentUseCase(
-            session_factory=agent_session_factory(database),
+            session_factory=engine,
             llm_factory=llm_factory,
             encryption_key=settings.encryption_key,
             tool_executor_factory=self._tool_runtime.execute_tool,
@@ -81,7 +81,7 @@ class AskAgentStreamService:
         agent_id = channel.agent_id or input_dto.agent_id
         session_id = channel.session_id or input_dto.session_id
 
-        async with AgentUnitOfWork(self._database) as uow:
+        async with AgentUnitOfWork(self._engine) as uow:
             writer = SQLAlchemyAgentOutboxEventWriter(uow)
             event = AgentExecutionCancelledV1.create(
                 agent_id=agent_id,
