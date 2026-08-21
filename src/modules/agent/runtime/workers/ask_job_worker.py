@@ -1,7 +1,7 @@
 import logging
 import time
 
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.runtime.agent_tool_runtime_gateway import (
@@ -14,7 +14,6 @@ from modules.agent.domain.entities import AskJob
 from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.agent.infra.database.database import AgentDatabase, agent_session_factory
 from modules.agent.infra.database.repositories import SQLAlchemyAskJobRepository
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.infra.config import Settings
@@ -27,35 +26,28 @@ class AskJobWorker:
         self._engine = async_engine
 
     async def run(self) -> None:
-        session_factory = async_sessionmaker(self._engine, expire_on_commit=False)
-        database = AgentDatabase(session_factory)
-
-        async with AgentUnitOfWork(database) as uow:
+        async with AgentUnitOfWork(self._engine) as uow:
             pending = await SQLAlchemyAskJobRepository(uow).list_pending(limit=5)
 
         for job in pending:
             try:
-                await self._process_job(database, job)
+                await self._process_job(job)
             except Exception as exc:
                 logger.exception("Failed to process job %s: %s", job.id, exc)
-                async with AgentUnitOfWork(database) as uow:
+                async with AgentUnitOfWork(self._engine) as uow:
                     await SQLAlchemyAskJobRepository(uow).mark_failed(job.id, str(exc))
 
-    async def _process_job(
-        self,
-        database: AgentDatabase,
-        job: AskJob,
-    ) -> None:
-        async with AgentUnitOfWork(database) as uow:
+    async def _process_job(self, job: AskJob) -> None:
+        async with AgentUnitOfWork(self._engine) as uow:
             await SQLAlchemyAskJobRepository(uow).mark_started(job.id)
 
         settings = Settings()
         http_executor = HttpToolExecutor(
             allow_local_networks=settings.http_tool_allow_local_networks
         )
-        tool_runtime = AgentToolRuntimeGateway(database, settings, http_executor)
+        tool_runtime = AgentToolRuntimeGateway(self._engine, settings, http_executor)
         use_case = StructuredOutputAskAgentUseCase(
-            session_factory=agent_session_factory(database),
+            session_factory=self._engine,
             llm_factory=LangchainLLMFactory(),
             encryption_key=settings.encryption_key,
             tool_executor_factory=tool_runtime.execute_tool,
@@ -80,11 +72,11 @@ class AskJobWorker:
             result = await use_case.execute(input_dto)
         except Exception as exc:
             logger.exception("Job %s failed: %s", job.id, exc)
-            async with AgentUnitOfWork(database) as uow:
+            async with AgentUnitOfWork(self._engine) as uow:
                 await SQLAlchemyAskJobRepository(uow).mark_failed(job.id, str(exc))
             return
 
-        async with AgentUnitOfWork(database) as uow:
+        async with AgentUnitOfWork(self._engine) as uow:
             await SQLAlchemyAskJobRepository(uow).mark_completed(
                 job.id,
                 result.model_dump(),
