@@ -11,7 +11,6 @@ from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.runtime.ask_agent_stream_service import (
     AskAgentStreamService,
 )
-from modules.agent.infra.database.database import AgentDatabase
 from modules.agent.infra.database.models import AgentOutboxEventModel
 from modules.observability.infra.database.models import TraceEventModel, TraceModel
 from modules.observability.infra.messaging.truthful_trace_projector import (
@@ -24,12 +23,12 @@ from shared.infra.database.session import create_engine, create_session_factory
 class BlockingStreamService(AskAgentStreamService):
     def __init__(
         self,
-        session_factory,
+        engine,
         *,
         trace_id: UUID,
         session_id: UUID,
     ) -> None:
-        self._database = AgentDatabase(session_factory)
+        self._engine = engine
         self._trace_id = trace_id
         self._session_id = session_id
 
@@ -68,7 +67,7 @@ async def test_client_disconnect_persists_cancellation_and_projects_cancelled_tr
     session_id = uuid4()
     trace_id = uuid4()
     service = BlockingStreamService(
-        session_factory,
+        engine,
         trace_id=trace_id,
         session_id=session_id,
     )
