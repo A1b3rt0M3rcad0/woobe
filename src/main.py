@@ -15,7 +15,6 @@ from starlette.types import ExceptionHandler
 from modules.agent.entrypoint import (
     AGENT_HTTP_ROUTERS,
     DATABASE_ENGINE,
-    SESSION_FACTORY,
     SETTINGS,
     build_http_tool_executor,
     close_http_tool_executor,
@@ -29,6 +28,7 @@ from modules.metering.presentation.routes import router as metering_router
 from modules.network.presentation import router as network_router
 from modules.observability.presentation.routes import router as observability_router
 from public_runtime_routes import router as public_runtime_router
+from shared.infra.database.session import create_session_factory
 from shared.infra.errors import (
     AuthenticationError,
     AuthorizationError,
@@ -105,9 +105,10 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    security_session_factory = create_session_factory(DATABASE_ENGINE)
     app.state.settings = settings
     app.state.async_engine = DATABASE_ENGINE
-    app.state.session_factory = SESSION_FACTORY
+    app.state.session_factory = security_session_factory
     app.state.access_token_codec = AccessTokenCodec(
         signing_key=settings.secret_key,
         issuer=settings.auth_issuer,
