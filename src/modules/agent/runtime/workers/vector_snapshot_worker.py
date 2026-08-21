@@ -12,8 +12,18 @@ from modules.agent.application.interfaces.embedding_errors import EmbeddingProvi
 from modules.agent.application.use_cases.vector_snapshot_use_cases import BuildVectorSnapshotUseCase
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_BUILDING
 from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
+from modules.agent.infra.database.provider_model_repositories import (
+    SQLAlchemyProviderModelRepository,
+)
+from modules.agent.infra.database.repositories import (
+    SQLAlchemyDocumentRepository,
+    SQLAlchemyProviderCredentialRepository,
+)
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.database.vector_snapshot_models import VectorSnapshotModel
+from modules.agent.infra.database.vector_snapshot_repositories import (
+    SQLAlchemyVectorSnapshotRepository,
+)
 from modules.agent.infra.storage.factory import create_file_storage
 from modules.agent.infra.workers.vector_snapshot_claims import claim_vector_snapshot_builds
 from shared.infra.config import Settings
@@ -42,7 +52,8 @@ class _DurableBuildSnapshotRepository:
 
     async def update_build_progress(self, snapshot_id, **updates: Any) -> None:
         async with AgentUnitOfWork(self._engine) as progress_uow:
-            await progress_uow.vector_snapshots.update_build_progress(snapshot_id, **updates)
+            snapshot_repo = SQLAlchemyVectorSnapshotRepository(progress_uow)
+            await snapshot_repo.update_build_progress(snapshot_id, **updates)
             await progress_uow.session.execute(
                 update(VectorSnapshotModel)
                 .where(
@@ -86,25 +97,27 @@ class VectorSnapshotWorker:
         for snapshot_id in pending_ids:
             try:
                 async with AgentUnitOfWork(self._engine) as lifecycle_uow:
-                    snapshot = await lifecycle_uow.vector_snapshots.get_by_id(snapshot_id)
+                    lifecycle_snapshots = SQLAlchemyVectorSnapshotRepository(lifecycle_uow)
+                    snapshot = await lifecycle_snapshots.get_by_id(snapshot_id)
                     if snapshot is None or snapshot.status != VECTOR_SNAPSHOT_BUILDING:
                         continue
-                    await lifecycle_uow.vector_snapshots.mark_started(
+                    await lifecycle_snapshots.mark_started(
                         snapshot_id,
                         locked_by=self._worker_id,
                     )
 
                 async with AgentUnitOfWork(self._engine) as build_uow:
+                    build_snapshots = SQLAlchemyVectorSnapshotRepository(build_uow)
                     snapshot_repo = _DurableBuildSnapshotRepository(
-                        build_uow.vector_snapshots,
+                        build_snapshots,
                         self._engine,
                         self._worker_id,
                     )
                     use_case = BuildVectorSnapshotUseCase(
                         snapshot_repo=snapshot_repo,
-                        document_repo=build_uow.documents,
-                        provider_model_repo=build_uow.provider_models,
-                        credential_repo=build_uow.provider_credentials,
+                        document_repo=SQLAlchemyDocumentRepository(build_uow),
+                        provider_model_repo=SQLAlchemyProviderModelRepository(build_uow),
+                        credential_repo=SQLAlchemyProviderCredentialRepository(build_uow),
                         storage=storage,
                         embedding_factory=embedding_factory,
                         encryption_key=settings.encryption_key,
@@ -114,9 +127,10 @@ class VectorSnapshotWorker:
             except Exception as exc:
                 try:
                     async with AgentUnitOfWork(self._engine) as failure_uow:
-                        snapshot = await failure_uow.vector_snapshots.get_by_id(snapshot_id)
+                        failure_snapshots = SQLAlchemyVectorSnapshotRepository(failure_uow)
+                        snapshot = await failure_snapshots.get_by_id(snapshot_id)
                         if snapshot is not None and snapshot.status == VECTOR_SNAPSHOT_BUILDING:
-                            await failure_uow.vector_snapshots.mark_failed(
+                            await failure_snapshots.mark_failed(
                                 snapshot_id,
                                 _safe_build_error(exc),
                             )
