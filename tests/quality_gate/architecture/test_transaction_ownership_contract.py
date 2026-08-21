@@ -2,23 +2,29 @@ from __future__ import annotations
 
 import ast
 from pathlib import Path
+import tomllib
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-AGENT_ROOT = PROJECT_ROOT / "src/modules/agent"
-UOW_FILE = AGENT_ROOT / "infra/database/unit_of_work.py"
-RESOURCES_FILE = AGENT_ROOT / "composition/resources.py"
+POLICY_FILE = (
+    PROJECT_ROOT
+    / "quality_gate/architecture/policies/contracts/agent_transaction_ownership.toml"
+)
+with POLICY_FILE.open("rb") as stream:
+    POLICY = tomllib.load(stream)["transaction_ownership"]
 
-PROCESS_RESOURCE_NAMES = {"SETTINGS", "DATABASE_ENGINE", "FILE_STORAGE"}
-FORBIDDEN_DATABASE_FACADE_IMPORTS = {
-    "AgentDatabase",
-    "AgentDatabaseInput",
-    "agent_session_factory",
-    "coerce_agent_database",
-    "SESSION_FACTORY",
-    "AGENT_DATABASE",
-}
-TRANSACTION_METHODS = {"begin", "commit", "rollback", "close"}
+AGENT_ROOT = PROJECT_ROOT / POLICY["module_root"]
+UOW_FILE = PROJECT_ROOT / POLICY["uow_file"]
+RESOURCES_FILE = PROJECT_ROOT / POLICY["resources_file"]
+PROCESS_RESOURCE_NAMES = set(POLICY["process_resources"])
+FORBIDDEN_DATABASE_FACADE_IMPORTS = set(POLICY["forbidden_database_facades"])
+FORBIDDEN_SESSION_CREATORS = set(POLICY["forbidden_session_creators"])
+TRANSACTION_METHODS = set(POLICY["transaction_methods"])
+TRANSACTION_TARGET_NAMES = set(POLICY["transaction_target_names"])
+FACADE_FORBIDDEN_SCOPES = tuple(POLICY["facade_forbidden_scopes"])
+UOW_TYPE = POLICY["uow_type"]
+UOW_ENGINE_TYPE = POLICY["uow_engine_type"]
+FORBIDDEN_UOW_CONSTRUCTOR_TYPES = set(POLICY["forbidden_uow_constructor_types"])
 
 
 def _python_files() -> tuple[Path, ...]:
@@ -76,14 +82,7 @@ def _is_transaction_target(target: str) -> bool:
     if method not in TRANSACTION_METHODS:
         return False
     leaf = base.rsplit(".", 1)[-1].lower()
-    return leaf in {
-        "session",
-        "_session",
-        "transaction",
-        "_transaction",
-        "tx",
-        "_tx",
-    }
+    return leaf in TRANSACTION_TARGET_NAMES
 
 
 def test_arch_uow_001_only_uow_may_create_or_open_database_sessions() -> None:
@@ -98,8 +97,10 @@ def test_arch_uow_001_only_uow_may_create_or_open_database_sessions() -> None:
                 continue
             target = _name(node.func)
             short = target.rsplit(".", 1)[-1] if target else None
-            if short in {"async_sessionmaker", "sessionmaker", "create_session_factory", "open_session"}:
-                violations.append(f"{relative}:{node.lineno}: creates/opens a database session via {target}")
+            if short in FORBIDDEN_SESSION_CREATORS:
+                violations.append(
+                    f"{relative}:{node.lineno}: creates/opens a database session via {target}"
+                )
     assert not violations, "ARCH-UOW-001\n" + "\n".join(violations)
 
 
@@ -115,20 +116,24 @@ def test_arch_uow_002_only_uow_may_manage_transaction_lifecycle() -> None:
                 continue
             target = _name(node.func)
             if target and _is_transaction_target(target):
-                violations.append(f"{relative}:{node.lineno}: transaction lifecycle call {target}() is UoW-owned")
+                violations.append(
+                    f"{relative}:{node.lineno}: transaction lifecycle call {target}() is UoW-owned"
+                )
     assert not violations, "ARCH-UOW-002\n" + "\n".join(violations)
 
 
 def test_arch_uow_003_runtime_and_composition_cannot_use_database_facades() -> None:
     violations: list[str] = []
-    scoped_roots = (AGENT_ROOT / "runtime", AGENT_ROOT / "composition")
+    scoped_roots = tuple(AGENT_ROOT / scope for scope in FACADE_FORBIDDEN_SCOPES)
     for root in scoped_roots:
         for path in sorted(root.rglob("*.py")):
             tree = _parse(path)
             relative = path.relative_to(PROJECT_ROOT)
             for imported, line in _imported_names(tree):
                 if imported in FORBIDDEN_DATABASE_FACADE_IMPORTS:
-                    violations.append(f"{relative}:{line}: imports database facade/session factory {imported}")
+                    violations.append(
+                        f"{relative}:{line}: imports database facade/session factory {imported}"
+                    )
     assert not violations, "ARCH-UOW-003\n" + "\n".join(violations)
 
 
@@ -145,7 +150,9 @@ def test_arch_uow_004_process_resources_are_process_scoped_only() -> None:
         for name, line in names:
             if name.startswith("_") or name in PROCESS_RESOURCE_NAMES:
                 continue
-            violations.append(f"{RESOURCES_FILE.relative_to(PROJECT_ROOT)}:{line}: process resource {name} is not allowed")
+            violations.append(
+                f"{RESOURCES_FILE.relative_to(PROJECT_ROOT)}:{line}: process resource {name} is not allowed"
+            )
     assert not violations, "ARCH-UOW-004\n" + "\n".join(violations)
 
 
@@ -153,25 +160,33 @@ def test_arch_uow_005_agent_uow_accepts_engine_only() -> None:
     tree = _parse(UOW_FILE)
     violations: list[str] = []
     for node in tree.body:
-        if not isinstance(node, ast.ClassDef) or node.name != "AgentUnitOfWork":
+        if not isinstance(node, ast.ClassDef) or node.name != UOW_TYPE:
             continue
         init = next(
             (
                 item
                 for item in node.body
-                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and item.name == "__init__"
+                if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and item.name == "__init__"
             ),
             None,
         )
-        assert init is not None, "AgentUnitOfWork must define __init__"
-        args = [arg for arg in (*init.args.posonlyargs, *init.args.args, *init.args.kwonlyargs) if arg.arg != "self"]
+        assert init is not None, f"{UOW_TYPE} must define __init__"
+        args = [
+            arg
+            for arg in (*init.args.posonlyargs, *init.args.args, *init.args.kwonlyargs)
+            if arg.arg != "self"
+        ]
         if len(args) != 1:
-            violations.append(f"{UOW_FILE.relative_to(PROJECT_ROOT)}:{init.lineno}: AgentUnitOfWork must accept exactly one AsyncEngine")
+            violations.append(
+                f"{UOW_FILE.relative_to(PROJECT_ROOT)}:{init.lineno}: {UOW_TYPE} must accept exactly one {UOW_ENGINE_TYPE}"
+            )
             continue
         arg = args[0]
         names = _annotation_names(arg.annotation)
-        if "AsyncEngine" not in names or names.intersection({"AgentDatabase", "async_sessionmaker", "AsyncSession"}):
+        if UOW_ENGINE_TYPE not in names or names.intersection(FORBIDDEN_UOW_CONSTRUCTOR_TYPES):
+            annotation = ast.unparse(arg.annotation) if arg.annotation else "<untyped>"
             violations.append(
-                f"{UOW_FILE.relative_to(PROJECT_ROOT)}:{arg.lineno}: AgentUnitOfWork constructor must accept AsyncEngine only; got {ast.unparse(arg.annotation) if arg.annotation else '<untyped>'}"
+                f"{UOW_FILE.relative_to(PROJECT_ROOT)}:{arg.lineno}: {UOW_TYPE} constructor must accept {UOW_ENGINE_TYPE} only; got {annotation}"
             )
     assert not violations, "ARCH-UOW-005\n" + "\n".join(violations)
