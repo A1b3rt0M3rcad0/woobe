@@ -7,13 +7,14 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Protocol
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.agent.infra.database.models import AgentInboxEventModel
 from modules.agent.infra.database.repositories import (
     AGENT_DEFAULT_BATCH_SIZE,
     SQLAlchemyAgentInboxRepository,
 )
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.workers.inbox_processor_base import BaseInboxProcessor, InboxProcessingRecord
 
 logger = logging.getLogger(__name__)
@@ -38,18 +39,14 @@ class AgentInboxProcessorWorker(BaseInboxProcessor):
         super().__init__(async_engine)
         self._handler = handler
         self._worker_id = worker_id or f"inbox-processor-{os.getpid()}"
-        self._session: AsyncSession | None = None
         self._repo: SQLAlchemyAgentInboxRepository | None = None
         self._event_map: dict[UUID, AgentInboxEventModel] = {}
 
     async def run(self) -> None:
-        async with AsyncSession(self._async_engine) as session:
-            async with session.begin():
-                self._session = session
-                self._repo = SQLAlchemyAgentInboxRepository(session)
-                self._event_map = {}
-                await super().run()
-        self._session = None
+        async with AgentUnitOfWork(self._async_engine) as uow:
+            self._repo = SQLAlchemyAgentInboxRepository(uow)
+            self._event_map = {}
+            await super().run()
         self._repo = None
         self._event_map = {}
 
