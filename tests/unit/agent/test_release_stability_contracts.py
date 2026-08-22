@@ -361,7 +361,7 @@ async def test_streaming_executes_release_tool_snapshot(monkeypatch):
 
     monkeypatch.setattr(
         "modules.agent.runtime.agent_tool_runtime_gateway.AgentUnitOfWork",
-        lambda _database: FakeContext(),
+        lambda _engine: FakeContext(),
     )
     monkeypatch.setattr(
         "modules.agent.runtime.agent_tool_runtime_gateway.ToolSecretResolverAdapter",
@@ -373,7 +373,7 @@ async def test_streaming_executes_release_tool_snapshot(monkeypatch):
     )
 
     gateway = AgentToolRuntimeGateway.__new__(AgentToolRuntimeGateway)
-    gateway._database = object()
+    gateway._engine = object()
     gateway._cipher = object()
     gateway._settings = object()
     gateway._executor = object()
