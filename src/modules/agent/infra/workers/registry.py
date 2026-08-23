@@ -29,7 +29,8 @@ def register_agent_workers(
     engine: AsyncEngine,
     rabbitmq_manager: RabbitMQManager | None = None,
 ) -> None:
-    del settings
+    # Database-backed pollers must run even when RabbitMQ is disabled. Otherwise
+    # Ask jobs and Vector Snapshot builds can remain queued forever.
     registry.register(AskJobWorker(async_engine=engine))
     registry.register(VectorSnapshotWorker(async_engine=engine))
 

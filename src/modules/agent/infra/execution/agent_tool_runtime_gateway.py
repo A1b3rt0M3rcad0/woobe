@@ -4,15 +4,15 @@ from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
+from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.runtime_tool_inventory import (
     execute_runtime_tool_inventory,
     is_runtime_tool_inventory_id,
 )
+from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
 from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.application.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
-from modules.agent.domain.enums import ToolStatus
-from modules.agent.domain.errors import ToolNotFoundError
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
@@ -78,15 +78,18 @@ class AgentToolRuntimeGateway:
                     tool_from_release_snapshot(snapshot),
                     runtime_input,
                 )
-            else:
-                tool = await tool_repo.get_by_id(tool_id)
-                if tool.status != ToolStatus.ACTIVE:
-                    raise ToolNotFoundError(tool_id)
-                result = await registry.execute(tool, runtime_input)
+                return {
+                    "success": result.success,
+                    "output": result.output,
+                    "duration_ms": result.duration_ms,
+                    "error": result.error,
+                }
 
-            return {
-                "success": result.success,
-                "output": result.output,
-                "duration_ms": result.duration_ms,
-                "error": result.error,
-            }
+            use_case = RuntimeExecuteToolUseCase(
+                tool_repo=tool_repo,
+                runtime_registry=registry,
+            )
+            result = await use_case.execute(
+                ExecuteToolInput(tool_id=tool_id, input_data=runtime_input)
+            )
+            return result.model_dump()
