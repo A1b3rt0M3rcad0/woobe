@@ -1,6 +1,7 @@
 import { get, patch, post } from '@/lib/api/client'
 
 import type { RuntimeEnvironment, RuntimeEnvironmentState, RuntimeEnvironmentStates } from '@/features/agents/types'
+import type { NetworkRunDiagnostics } from './components/networkRunDiagnosticsTypes'
 import type {
   ActivateNetworkProductionInput,
   ActivateNetworkProductionResult,
@@ -143,6 +144,15 @@ export function getNetworkExecutionSnapshot(
   projectId: string,
 ): Promise<NetworkExecutionSnapshot> {
   return get<NetworkExecutionSnapshot>(`/network/executions/${executionId}/snapshot`, {
+    params: { project_id: projectId },
+  })
+}
+
+export function getNetworkRunDiagnostics(
+  executionId: string,
+  projectId: string,
+): Promise<NetworkRunDiagnostics> {
+  return get<NetworkRunDiagnostics>(`/network/executions/${executionId}/diagnostics`, {
     params: { project_id: projectId },
   })
 }
