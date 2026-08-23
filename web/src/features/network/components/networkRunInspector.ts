@@ -1,6 +1,9 @@
 import type { ToolCallInfo } from '@/features/playground/types'
 
-import type { NetworkAgentInvocation } from './networkChatExecution'
+import {
+  operationalTools,
+  type NetworkAgentInvocation,
+} from './networkChatExecution'
 
 export interface NetworkInvocationPathItem {
   invocation: NetworkAgentInvocation
@@ -42,8 +45,9 @@ function toolState(tool: ToolCallInfo): 'running' | 'completed' | 'failed' {
 
 export function summarizeInvocationTools(invocation: NetworkAgentInvocation, recursive = false): NetworkToolSummary {
   const tools = recursive
-    ? flattenNetworkInvocationPath(invocation).flatMap((item) => item.invocation.tools)
-    : invocation.tools
+    ? flattenNetworkInvocationPath(invocation)
+      .flatMap((item) => operationalTools(item.invocation.tools))
+    : operationalTools(invocation.tools)
   return tools.reduce<NetworkToolSummary>((summary, tool) => {
     const state = toolState(tool)
     summary.total += 1
@@ -54,7 +58,7 @@ export function summarizeInvocationTools(invocation: NetworkAgentInvocation, rec
 
 export function invocationHasFailure(root: NetworkAgentInvocation): boolean {
   if (root.status === 'error' || root.failure) return true
-  if (root.tools.some((tool) => toolState(tool) === 'failed')) return true
+  if (operationalTools(root.tools).some((tool) => toolState(tool) === 'failed')) return true
   return root.children.some(invocationHasFailure)
 }
 

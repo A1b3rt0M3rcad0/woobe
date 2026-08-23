@@ -105,8 +105,17 @@ export function delegationCount(root: NetworkAgentInvocation): number {
     + root.children.reduce((total, child) => total + delegationCount(child), 0)
 }
 
+export function isDelegationTool(tool: ToolCallInfo): boolean {
+  return tool.tool_name.startsWith('delegate_to_')
+}
+
+export function operationalTools(tools: ToolCallInfo[]): ToolCallInfo[] {
+  return tools.filter((tool) => !isDelegationTool(tool))
+}
+
 export function toolCount(root: NetworkAgentInvocation): number {
-  return root.tools.length + root.children.reduce((total, child) => total + toolCount(child), 0)
+  return operationalTools(root.tools).length
+    + root.children.reduce((total, child) => total + toolCount(child), 0)
 }
 
 export function sourceCount(root: NetworkAgentInvocation): number {
@@ -219,7 +228,7 @@ function mergeTools(current: ToolCallInfo[], rawTools: unknown): ToolCallInfo[] 
   return rawTools.reduce<ToolCallInfo[]>((tools, rawTool) => {
     const tool = asRecord(rawTool)
     const toolName = asString(tool.tool_name)
-    if (!toolName) return tools
+    if (!toolName || toolName.startsWith('delegate_to_')) return tools
     return upsertTool(tools, {
       tool_call_id: asString(tool.tool_call_id),
       tool_name: toolName,
@@ -359,7 +368,7 @@ export function buildExecutionFromRuntimeEvents({
 
     if (eventType === 'tool_call_started') {
       const toolName = asString(event.data.tool_name)
-      if (!toolName) continue
+      if (!toolName || toolName.startsWith('delegate_to_')) continue
       current.tools = upsertTool(current.tools, {
         tool_call_id: asString(event.data.tool_call_id),
         tool_name: toolName,
@@ -372,7 +381,7 @@ export function buildExecutionFromRuntimeEvents({
 
     if (eventType === 'tool_call_completed') {
       const toolName = asString(event.data.tool_name)
-      if (!toolName) continue
+      if (!toolName || toolName.startsWith('delegate_to_')) continue
       current.tools = upsertTool(current.tools, {
         tool_call_id: asString(event.data.tool_call_id),
         tool_name: toolName,
@@ -452,9 +461,21 @@ export function buildExecutionFromRuntimeEvents({
     root.failure = terminalFailure ? asFailure(terminalFailure.event.data) : null
   }
 
-  const startedAt = sorted.find((item) => item.event.created_at)?.event.created_at
+  const explicitStart = sorted.find(
+    (item) => item.eventType === 'execution_started' && item.event.created_at,
+  )?.event.created_at
+  const explicitEnd = [...sorted].reverse().find(
+    (item) => (
+      ['execution_completed', 'execution_failed', 'execution_cancelled', 'execution_timed_out']
+        .includes(item.eventType)
+      && item.event.created_at
+    ),
+  )?.event.created_at
+  const startedAt = explicitStart
+    ?? sorted.find((item) => item.event.created_at)?.event.created_at
     ?? new Date().toISOString()
-  const completedAt = [...sorted].reverse().find((item) => item.event.created_at)?.event.created_at
+  const completedAt = explicitEnd
+    ?? [...sorted].reverse().find((item) => item.event.created_at)?.event.created_at
     ?? startedAt
   const durationMs = Math.max(0, new Date(completedAt).getTime() - new Date(startedAt).getTime())
   const usage = totalUsage(ordered)

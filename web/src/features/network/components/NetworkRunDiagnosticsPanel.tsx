@@ -6,7 +6,6 @@ import {
   Cpu,
   Database,
   GitBranch,
-  Network,
   Wrench,
   XCircle,
 } from 'lucide-react'
@@ -101,7 +100,7 @@ export function NetworkRunDiagnosticsPanel({
         <Metric label="Network wall" value={formatLatency(data.network_wall_latency_ms)} icon={Activity} />
         <Metric label="Agent work" value={formatLatency(data.agent_work_latency_ms)} icon={Bot} />
         <Metric label="LLM total" value={formatLatency(data.llm_runtime_latency_ms)} icon={Cpu} />
-        <Metric label="Tool total" value={formatLatency(data.tool_runtime_latency_ms)} icon={Wrench} />
+        <Metric label="Tool work" value={formatLatency(data.tool_work_latency_ms)} icon={Wrench} />
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted">
@@ -116,7 +115,6 @@ export function NetworkRunDiagnosticsPanel({
         {data.prepare_latency_ms != null ? <span>Setup Σ {formatLatency(data.prepare_latency_ms)}</span> : null}
         {data.persistence_latency_ms != null ? <span className="inline-flex items-center gap-1"><Database className="h-3 w-3" />Persist Σ {formatLatency(data.persistence_latency_ms)}</span> : null}
         {data.orchestration_latency_ms != null ? <span>Agent orchestration Σ {formatLatency(data.orchestration_latency_ms)}</span> : null}
-        <span className="inline-flex items-center gap-1"><Network className="h-3 w-3" />Tool HTTP {formatLatency(data.tool_http_latency_ms)}</span>
         {data.input_tokens != null && data.output_tokens != null
           ? <span>Tokens {formatTokens(data.input_tokens)} → {formatTokens(data.output_tokens)}{data.usage_complete ? '' : ' (partial)'}</span>
           : <span>Token usage unavailable</span>}

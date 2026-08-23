@@ -1,4 +1,4 @@
-import { Activity, CheckCircle, Cpu, Database, Gauge, Network, Wrench, XCircle } from 'lucide-react'
+import { Activity, CheckCircle, Cpu, Database, Gauge, Wrench, XCircle } from 'lucide-react'
 import { useTraceDetail } from '@/features/traces/hooks'
 import { formatLatency, formatTokens } from '@/lib/formatters/number'
 
@@ -53,8 +53,8 @@ export function TraceDiagnosticsPanel({ traceId }: { traceId: string }) {
 
   const runtime = numberOrNull(d.agent_runtime_latency_ms)
   const llm = numberOrNull(d.llm_runtime_latency_ms)
-  const tools = numberOrNull(d.tool_wall_latency_ms ?? d.tool_runtime_latency_ms)
-  const http = numberOrNull(d.tool_http_latency_ms)
+  const toolWall = numberOrNull(d.tool_wall_latency_ms ?? d.tool_runtime_latency_ms)
+  const toolWork = numberOrNull(d.tool_call_duration_sum_ms ?? d.tool_runtime_latency_ms)
   const prepare = numberOrNull(d.prepare_latency_ms)
   const persistence = numberOrNull(d.persistence_latency_ms)
   const orchestration = numberOrNull(d.orchestration_latency_ms)
@@ -85,8 +85,8 @@ export function TraceDiagnosticsPanel({ traceId }: { traceId: string }) {
       <div className="grid grid-cols-2 gap-1.5">
         <Metric label="Agent runtime" value={runtime == null ? '—' : formatLatency(runtime)} icon={Activity} />
         <Metric label="LLM total" value={llm == null ? '—' : formatLatency(llm)} icon={Cpu} />
-        <Metric label="Tool wall" value={tools == null ? '—' : formatLatency(tools)} icon={Wrench} />
-        <Metric label="Tool HTTP" value={http == null ? '—' : formatLatency(http)} icon={Network} />
+        <Metric label="Tool wall" value={toolWall == null ? '—' : formatLatency(toolWall)} icon={Wrench} />
+        <Metric label="Tool work" value={toolWork == null ? '—' : formatLatency(toolWork)} icon={Wrench} />
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted">

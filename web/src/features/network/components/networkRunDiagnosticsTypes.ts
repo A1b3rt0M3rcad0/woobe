@@ -5,8 +5,7 @@ export interface NetworkRunDiagnostics {
   network_wall_latency_ms: number | null
   agent_work_latency_ms: number | null
   llm_runtime_latency_ms: number | null
-  tool_runtime_latency_ms: number | null
-  tool_http_latency_ms: number | null
+  tool_work_latency_ms: number | null
   prepare_latency_ms: number | null
   persistence_latency_ms: number | null
   orchestration_latency_ms: number | null

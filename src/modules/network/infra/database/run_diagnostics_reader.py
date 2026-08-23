@@ -34,7 +34,7 @@ def _number(value: Any) -> float | None:
     return None
 
 
-def _rounded(value: float | None) -> int | float | None:
+def _rounded_latency(value: float | None) -> int | float | None:
     if value is None:
         return None
     rounded = round(value, 3)
@@ -55,19 +55,6 @@ def _diagnostics(trace: TraceModel | None) -> dict[str, Any]:
     data = _trace_data(trace)
     diagnostics = data.get("diagnostics")
     return diagnostics if isinstance(diagnostics, dict) else {}
-
-
-def _tool_http_latency_ms(tool: dict[str, Any]) -> float | None:
-    output = tool.get("output")
-    if not isinstance(output, dict):
-        return None
-    direct = _number(output.get("duration_ms"))
-    if direct is not None:
-        return direct
-    nested = output.get("output")
-    if isinstance(nested, dict):
-        return _number(nested.get("duration_ms"))
-    return None
 
 
 def _is_delegation_tool(tool: dict[str, Any]) -> bool:
@@ -97,6 +84,81 @@ def _sum_known(values: list[float | None], *, empty: float | None = None) -> flo
     return sum(known) if known else empty
 
 
+def _merged_interval_duration_ms(
+    intervals: list[tuple[datetime, datetime]],
+    *,
+    clamp_start: datetime,
+    clamp_end: datetime,
+) -> float:
+    normalized = sorted(
+        (
+            max(start, clamp_start),
+            min(end, clamp_end),
+        )
+        for start, end in intervals
+        if end > clamp_start and start < clamp_end
+    )
+    normalized = [(start, end) for start, end in normalized if end > start]
+    if not normalized:
+        return 0.0
+
+    merged_start, merged_end = normalized[0]
+    total = 0.0
+    for start, end in normalized[1:]:
+        if start <= merged_end:
+            if end > merged_end:
+                merged_end = end
+            continue
+        total += (merged_end - merged_start).total_seconds() * 1000
+        merged_start, merged_end = start, end
+    total += (merged_end - merged_start).total_seconds() * 1000
+    return max(total, 0.0)
+
+
+def _agent_work_latency_ms(
+    invocations: list[NetworkInvocationModel],
+    *,
+    started_at_by_invocation: dict[UUID, datetime],
+    ended_at_by_invocation: dict[UUID, datetime],
+    now: datetime,
+) -> tuple[float | None, int]:
+    if not invocations:
+        return 0.0, 0
+
+    intervals_by_invocation: dict[UUID, tuple[datetime, datetime]] = {}
+    for invocation in invocations:
+        started_at = started_at_by_invocation.get(invocation.id)
+        ended_at = ended_at_by_invocation.get(invocation.id)
+        if ended_at is None and invocation.status in {"pending", "running"}:
+            ended_at = now
+        if started_at is None or ended_at is None or ended_at < started_at:
+            continue
+        intervals_by_invocation[invocation.id] = (started_at, ended_at)
+
+    if len(intervals_by_invocation) != len(invocations):
+        return None, len(intervals_by_invocation)
+
+    children_by_parent: dict[UUID, list[tuple[datetime, datetime]]] = {}
+    for invocation in invocations:
+        if invocation.parent_invocation_id is None:
+            continue
+        interval = intervals_by_invocation[invocation.id]
+        children_by_parent.setdefault(invocation.parent_invocation_id, []).append(interval)
+
+    total_work_ms = 0.0
+    for invocation in invocations:
+        started_at, ended_at = intervals_by_invocation[invocation.id]
+        inclusive_ms = _elapsed_ms(started_at, ended_at) or 0.0
+        delegated_ms = _merged_interval_duration_ms(
+            children_by_parent.get(invocation.id, []),
+            clamp_start=started_at,
+            clamp_end=ended_at,
+        )
+        total_work_ms += max(inclusive_ms - delegated_ms, 0.0)
+
+    return total_work_ms, len(intervals_by_invocation)
+
+
 def build_network_run_diagnostics(
     *,
     execution: NetworkExecutionModel,
@@ -124,7 +186,13 @@ def build_network_run_diagnostics(
         if event.event_type == "agent_invocation_completed":
             completed_payload_by_invocation[invocation_id] = event.payload or {}
 
-    agent_runtime_values: list[float | None] = []
+    agent_work_ms, invocation_timing_count = _agent_work_latency_ms(
+        invocations,
+        started_at_by_invocation=started_at_by_invocation,
+        ended_at_by_invocation=ended_at_by_invocation,
+        now=now,
+    )
+
     llm_values: list[float | None] = []
     prepare_values: list[float | None] = []
     persistence_values: list[float | None] = []
@@ -133,7 +201,6 @@ def build_network_run_diagnostics(
     token_output_values: list[float | None] = []
     token_total_values: list[float | None] = []
     tool_duration_values: list[float] = []
-    tool_http_values: list[float] = []
 
     llm_call_count = 0
     tool_call_count = 0
@@ -152,17 +219,6 @@ def build_network_run_diagnostics(
         diagnostics = _diagnostics(trace)
         if diagnostics:
             diagnostic_count += 1
-
-        runtime_ms = _number(diagnostics.get("agent_runtime_latency_ms"))
-        if runtime_ms is None and trace is not None:
-            runtime_ms = _number(trace.total_latency_ms)
-        if runtime_ms is None:
-            started_at = started_at_by_invocation.get(invocation.id)
-            ended_at = ended_at_by_invocation.get(invocation.id)
-            if ended_at is None and invocation.status in {"pending", "running"}:
-                ended_at = now
-            runtime_ms = _elapsed_ms(started_at, ended_at)
-        agent_runtime_values.append(runtime_ms)
 
         llm_values.append(_number(diagnostics.get("llm_runtime_latency_ms")))
         prepare_values.append(_number(diagnostics.get("prepare_latency_ms")))
@@ -194,7 +250,11 @@ def build_network_run_diagnostics(
         if llm_count is None and trace is not None:
             data = _trace_data(trace)
             llm_calls = data.get("llm_calls")
-            llm_count = float(len(llm_calls)) if isinstance(llm_calls, list) else _number(data.get("llm_call_count"))
+            llm_count = (
+                float(len(llm_calls))
+                if isinstance(llm_calls, list)
+                else _number(data.get("llm_call_count"))
+            )
         llm_call_count += int(llm_count or 0)
 
         tools = _external_tools(trace, payload)
@@ -204,13 +264,14 @@ def build_network_run_diagnostics(
         tool_duration_values.extend(
             duration
             for tool in tools
-            if (duration := _number(tool.get("duration_ms") or tool.get("latency_ms")))
+            if (
+                duration := _number(
+                    tool.get("duration_ms")
+                    if tool.get("duration_ms") is not None
+                    else tool.get("latency_ms")
+                )
+            )
             is not None
-        )
-        tool_http_values.extend(
-            duration
-            for tool in tools
-            if (duration := _tool_http_latency_ms(tool)) is not None
         )
 
         sources = diagnostics.get("source_count")
@@ -262,9 +323,10 @@ def build_network_run_diagnostics(
         cost_status = "unknown"
         cost_usd = None
 
-    if agent_count and diagnostic_count == agent_count:
+    timing_complete = invocation_timing_count == agent_count
+    if agent_count and diagnostic_count == agent_count and timing_complete:
         telemetry_status = "complete"
-    elif diagnostic_count or any(value is not None for value in agent_runtime_values):
+    elif diagnostic_count or invocation_timing_count or network_wall_ms is not None:
         telemetry_status = "partial"
     else:
         telemetry_status = "unknown"
@@ -273,22 +335,19 @@ def build_network_run_diagnostics(
         "schema_version": 1,
         "execution_id": str(execution.id),
         "status": execution.status,
-        "network_wall_latency_ms": _rounded(network_wall_ms),
-        "agent_work_latency_ms": _rounded(
-            _sum_known(agent_runtime_values, empty=0.0 if not invocations else None)
-        ),
-        "llm_runtime_latency_ms": _rounded(
+        "network_wall_latency_ms": _rounded_latency(network_wall_ms),
+        "agent_work_latency_ms": _rounded_latency(agent_work_ms),
+        "llm_runtime_latency_ms": _rounded_latency(
             _sum_known(llm_values, empty=0.0 if not invocations else None)
         ),
-        "tool_runtime_latency_ms": _rounded(sum(tool_duration_values)),
-        "tool_http_latency_ms": _rounded(sum(tool_http_values)),
-        "prepare_latency_ms": _rounded(
+        "tool_work_latency_ms": _rounded_latency(sum(tool_duration_values)),
+        "prepare_latency_ms": _rounded_latency(
             _sum_known(prepare_values, empty=0.0 if not invocations else None)
         ),
-        "persistence_latency_ms": _rounded(
+        "persistence_latency_ms": _rounded_latency(
             _sum_known(persistence_values, empty=0.0 if not invocations else None)
         ),
-        "orchestration_latency_ms": _rounded(
+        "orchestration_latency_ms": _rounded_latency(
             _sum_known(orchestration_values, empty=0.0 if not invocations else None)
         ),
         "agent_run_count": agent_count,
@@ -299,17 +358,17 @@ def build_network_run_diagnostics(
         "tool_call_count": tool_call_count,
         "successful_tool_calls": successful_tool_calls,
         "failed_tool_calls": failed_tool_calls,
-        "input_tokens": _rounded(
+        "input_tokens": _rounded_latency(
             _sum_known(token_input_values, empty=0.0 if not invocations else None)
         ),
-        "output_tokens": _rounded(
+        "output_tokens": _rounded_latency(
             _sum_known(token_output_values, empty=0.0 if not invocations else None)
         ),
-        "total_tokens": _rounded(
+        "total_tokens": _rounded_latency(
             _sum_known(token_total_values, empty=0.0 if not invocations else None)
         ),
         "usage_complete": bool(agent_count and usage_complete_count == agent_count),
-        "cost_usd": _rounded(cost_usd),
+        "cost_usd": cost_usd,
         "cost_status": cost_status,
         "fallback_count": fallback_count,
         "source_count": source_count,
