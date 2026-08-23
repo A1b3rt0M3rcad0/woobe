@@ -16,7 +16,7 @@ from modules.agent.application.use_cases.knowledge_use_cases import (
     UploadDocumentUseCase as BaseUploadDocumentUseCase,
 )
 from modules.agent.domain.enums import ParserType
-from shared.infra.errors import NotFoundError, ValidationError
+from shared.contracts.errors import NotFoundError, ValidationError
 
 
 _EXTENSION_TO_PARSER = {

@@ -8,14 +8,21 @@ from modules.agent.application.dtos.ai_dtos import (
     ProviderModelOutput,
     UpdateProviderModelInput,
 )
+from modules.agent.application.interfaces.provider_model_repository import (
+    ProviderModelRepository,
+)
+from modules.agent.application.interfaces.repositories import ProviderCredentialRepository
 from modules.agent.domain.entities import ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
-from modules.agent.domain.repositories import ProviderCredentialRepository
-from shared.infra.errors import ValidationError
+from shared.contracts.errors import ValidationError
 
 
 class CreateProviderModelUseCase:
-    def __init__(self, provider_model_repo, credential_repo: ProviderCredentialRepository) -> None:
+    def __init__(
+        self,
+        provider_model_repo: ProviderModelRepository,
+        credential_repo: ProviderCredentialRepository,
+    ) -> None:
         self._provider_model_repo = provider_model_repo
         self._credential_repo = credential_repo
 
@@ -52,11 +59,19 @@ class CreateProviderModelUseCase:
 
 
 class UpdateProviderModelUseCase:
-    def __init__(self, provider_model_repo, credential_repo: ProviderCredentialRepository) -> None:
+    def __init__(
+        self,
+        provider_model_repo: ProviderModelRepository,
+        credential_repo: ProviderCredentialRepository,
+    ) -> None:
         self._provider_model_repo = provider_model_repo
         self._credential_repo = credential_repo
 
-    async def execute(self, provider_model_id: UUID, input_dto: UpdateProviderModelInput) -> ProviderModelOutput:
+    async def execute(
+        self,
+        provider_model_id: UUID,
+        input_dto: UpdateProviderModelInput,
+    ) -> ProviderModelOutput:
         item = await self._provider_model_repo.get_by_id(provider_model_id)
         if item is None:
             from modules.agent.domain.errors import ModelConfigNotFoundError
@@ -64,10 +79,16 @@ class UpdateProviderModelUseCase:
             raise ModelConfigNotFoundError
         data = input_dto.model_dump(exclude_unset=True)
         if "provider_credential_id" in data:
-            credential = await self._load_credential(data["provider_credential_id"], item.project_id)
+            credential = await self._load_credential(
+                data["provider_credential_id"],
+                item.project_id,
+            )
             item.provider_credential_id = credential.id
         else:
-            credential = await self._load_credential(item.provider_credential_id, item.project_id)
+            credential = await self._load_credential(
+                item.provider_credential_id,
+                item.project_id,
+            )
         if "name" in data and data["name"] is not None:
             item.name = data["name"].strip()
         if "model" in data and data["model"] is not None:
@@ -93,13 +114,22 @@ class UpdateProviderModelUseCase:
 
 
 class ListProviderModelsUseCase:
-    def __init__(self, provider_model_repo, credential_repo: ProviderCredentialRepository) -> None:
+    def __init__(
+        self,
+        provider_model_repo: ProviderModelRepository,
+        credential_repo: ProviderCredentialRepository,
+    ) -> None:
         self._provider_model_repo = provider_model_repo
         self._credential_repo = credential_repo
 
-    async def execute(self, input_dto: ListProviderModelsInput) -> list[ProviderModelOutput]:
+    async def execute(
+        self,
+        input_dto: ListProviderModelsInput,
+    ) -> list[ProviderModelOutput]:
         if input_dto.provider_credential_id:
-            items = await self._provider_model_repo.list_by_credential(input_dto.provider_credential_id)
+            items = await self._provider_model_repo.list_by_credential(
+                input_dto.provider_credential_id
+            )
         elif input_dto.project_id:
             items = await self._provider_model_repo.list_by_project(input_dto.project_id)
         else:
@@ -109,14 +139,25 @@ class ListProviderModelsUseCase:
         for item in items:
             credential = credential_cache.get(item.provider_credential_id)
             if credential is None:
-                credential = await self._credential_repo.get_by_id(item.provider_credential_id)
+                credential = await self._credential_repo.get_by_id(
+                    item.provider_credential_id
+                )
                 credential_cache[item.provider_credential_id] = credential
-            outputs.append(_provider_model_to_output(item, getattr(credential, "provider", None)))
+            outputs.append(
+                _provider_model_to_output(
+                    item,
+                    getattr(credential, "provider", None),
+                )
+            )
         return outputs
 
 
 class GetProviderModelUseCase:
-    def __init__(self, provider_model_repo, credential_repo: ProviderCredentialRepository) -> None:
+    def __init__(
+        self,
+        provider_model_repo: ProviderModelRepository,
+        credential_repo: ProviderCredentialRepository,
+    ) -> None:
         self._provider_model_repo = provider_model_repo
         self._credential_repo = credential_repo
 

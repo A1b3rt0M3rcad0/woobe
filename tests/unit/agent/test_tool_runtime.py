@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from modules.agent.application.ports import ExecutionResult, McpSessionStorePort, ToolExecutionPort
+from modules.agent.application.interfaces.ports import ExecutionResult, McpSessionStorePort, ToolExecutionPort
 from modules.agent.application.tool_runtime import (
     ERROR_HTTP_ERROR,
     ERROR_MCP_CONFIG_ERROR,

@@ -65,7 +65,7 @@ _NETWORK_CONTEXT_FIELDS = (
 
 def _active_network_context_payload() -> dict[str, Any]:
     """Return Network runtime identity without coupling event callers to Network."""
-    from modules.agent.application.use_cases.execution_context import current_execution
+    from modules.agent.application.interfaces.execution_context import current_execution
 
     context = current_execution.get()
     if context is None or context.network_id is None:

@@ -8,7 +8,7 @@ from typing import Any
 from xml.etree import ElementTree
 
 from modules.agent.domain.enums import ParserType
-from shared.infra.errors import ValidationError
+from shared.contracts.errors import ValidationError
 
 
 PAGE_SEPARATOR = "\n<<<PAGE_BREAK>>>\n"

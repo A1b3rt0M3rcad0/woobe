@@ -3,11 +3,13 @@ from __future__ import annotations
 from uuid import UUID
 
 from sqlalchemy import ForeignKey, Index, String, Text, select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, mapped_column
 
+from modules.agent.application.interfaces.release_activation_repository import (
+    AgentReleaseActivationRepository,
+)
 from modules.agent.domain.release_activation import AgentReleaseActivation
-from shared.infra.config.interface.unit_of_work import UnitOfWork
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.infra.database.base import BaseModel
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
@@ -15,13 +17,21 @@ from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 class AgentReleaseActivationModel(BaseModel):
     __tablename__ = "agent_release_activations"
     __table_args__ = (
-        Index("ix_agent_release_activations_agent_created_at", "agent_id", "created_at"),
+        Index(
+            "ix_agent_release_activations_agent_created_at",
+            "agent_id",
+            "created_at",
+        ),
         {"schema": "agent"},
     )
 
     project_id: Mapped[UUID]
-    agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id", ondelete="CASCADE"))
-    release_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agent_releases.id", ondelete="RESTRICT"))
+    agent_id: Mapped[UUID] = mapped_column(
+        ForeignKey("agent.agents.id", ondelete="CASCADE")
+    )
+    release_id: Mapped[UUID] = mapped_column(
+        ForeignKey("agent.agent_releases.id", ondelete="RESTRICT")
+    )
     previous_release_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agent.agent_releases.id", ondelete="SET NULL"),
         nullable=True,
@@ -47,12 +57,16 @@ def _to_entity(model: AgentReleaseActivationModel) -> AgentReleaseActivation:
 
 
 class SQLAlchemyAgentReleaseActivationRepository(
-    BaseSQLAlchemyRepository[AgentReleaseActivationModel]
+    BaseSQLAlchemyRepository[AgentReleaseActivationModel],
+    AgentReleaseActivationRepository,
 ):
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, AgentReleaseActivationModel)
+    def __init__(self, uow: AgentUnitOfWork) -> None:
+        super().__init__(uow, AgentReleaseActivationModel)
 
-    async def save(self, activation: AgentReleaseActivation) -> AgentReleaseActivation:
+    async def save(
+        self,
+        activation: AgentReleaseActivation,
+    ) -> AgentReleaseActivation:
         model = AgentReleaseActivationModel(
             id=activation.id,
             project_id=activation.project_id,
@@ -68,7 +82,10 @@ class SQLAlchemyAgentReleaseActivationRepository(
         await self._refresh_model(model)
         return _to_entity(model)
 
-    async def list_by_agent(self, agent_id: UUID) -> list[AgentReleaseActivation]:
+    async def list_by_agent(
+        self,
+        agent_id: UUID,
+    ) -> list[AgentReleaseActivation]:
         result = await self._session.execute(
             select(AgentReleaseActivationModel)
             .where(AgentReleaseActivationModel.agent_id == agent_id)

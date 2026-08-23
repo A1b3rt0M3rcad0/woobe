@@ -1,4 +1,4 @@
-from modules.agent.application.use_cases.execution_instrumentation import InstrumentedExecutionError
+from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.network.application.runtime_failures import classify_runtime_exception
 
 

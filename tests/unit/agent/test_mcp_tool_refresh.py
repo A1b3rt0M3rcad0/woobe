@@ -7,10 +7,10 @@ from uuid import UUID, uuid4
 import pytest
 
 from modules.agent.application.mcp_tool_refresh import refresh_stale_mcp_server_tools
-from modules.agent.application.ports import ExecutionResult, ToolExecutionPort, ToolSecretResolverPort
+from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort, ToolSecretResolverPort
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import RiskLevel, ToolStatus, ToolType
-from modules.agent.domain.repositories import ToolRepository
+from modules.agent.application.interfaces.repositories import ToolRepository
 from shared.infra.objects import CursorPage
 from shared.infra.time import utc_now
 

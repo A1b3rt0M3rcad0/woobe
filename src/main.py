@@ -12,22 +12,13 @@ from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ExceptionHandler
 
-from modules.agent.infra.adapters.http_tool_runtime import (
+from modules.agent.entrypoint import (
+    AGENT_HTTP_ROUTERS,
+    DATABASE_ENGINE,
+    SETTINGS,
+    build_http_tool_executor,
     close_http_tool_executor,
-    configure_http_tool_executor,
 )
-from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.agent.presentation.credential_routes import router as credential_router
-from modules.agent.presentation.mcp_tools_routes import router as mcp_tools_router
-from modules.agent.presentation.public_runtime_routes import router as public_runtime_router
-from modules.agent.presentation.release_activation_routes import router as release_activation_router
-from modules.agent.presentation.routes import agent_router
-from modules.agent.presentation.routes import router as agent_ai_router
-from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
-from modules.agent.presentation.routes import runtime_router as agent_runtime_router
-from modules.agent.presentation.routes import tools_router
-from modules.agent.presentation.tool_lifecycle_routes import router as tool_lifecycle_router
-from modules.agent.presentation.vector_snapshot_routes import router as vector_snapshot_router
 from modules.chat_surface.presentation.routes import router as chat_surface_router
 from modules.chat_surface.security import ChatSessionTokenCodec
 from modules.core.presentation.routes import router as core_router
@@ -36,8 +27,8 @@ from modules.identity.presentation.routes import router as identity_router
 from modules.metering.presentation.routes import router as metering_router
 from modules.network.presentation import router as network_router
 from modules.observability.presentation.routes import router as observability_router
-from shared.infra.config import Settings
-from shared.infra.database.session import create_engine, create_session_factory
+from public_runtime_routes import router as public_runtime_router
+from shared.infra.database.session import create_session_factory
 from shared.infra.errors import (
     AuthenticationError,
     AuthorizationError,
@@ -83,7 +74,7 @@ def _csv_values(value: str) -> list[str]:
 
 
 def create_app() -> FastAPI:
-    settings = Settings(service_role="api")
+    settings = SETTINGS
     configure_logging(level=settings.log_level, json_logs=settings.json_logs)
     logger.info(
         "Application configuration loaded",
@@ -114,9 +105,10 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
+    security_session_factory = create_session_factory(DATABASE_ENGINE)
     app.state.settings = settings
-    app.state.async_engine = create_engine(settings)
-    app.state.session_factory = create_session_factory(app.state.async_engine)
+    app.state.async_engine = DATABASE_ENGINE
+    app.state.session_factory = security_session_factory
     app.state.access_token_codec = AccessTokenCodec(
         signing_key=settings.secret_key,
         issuer=settings.auth_issuer,
@@ -131,13 +123,7 @@ def create_app() -> FastAPI:
         ttl_seconds=settings.chat_token_ttl_seconds,
         leeway_seconds=settings.auth_clock_skew_seconds,
     )
-    app.state.http_tool_executor = HttpToolExecutor(
-        default_timeout_ms=settings.http_tool_timeout_max_ms,
-        max_timeout_ms=settings.http_tool_timeout_max_ms,
-        max_response_bytes=settings.http_tool_response_max_bytes,
-        allow_local_networks=settings.http_tool_allow_local_networks,
-    )
-    configure_http_tool_executor(app.state.http_tool_executor)
+    app.state.http_tool_executor = build_http_tool_executor()
     app.state.security_guard = HttpSecurityGuard(
         session_factory=app.state.session_factory,
         token_codec=app.state.access_token_codec,
@@ -272,17 +258,9 @@ def create_app() -> FastAPI:
         app.include_router(core_router)
         app.include_router(chat_surface_router)
         app.include_router(public_runtime_router)
-        app.include_router(credential_router)
+        for agent_http_router in AGENT_HTTP_ROUTERS:
+            app.include_router(agent_http_router)
         app.include_router(runtime_environment_router)
-        app.include_router(release_activation_router)
-        app.include_router(agent_router)
-        app.include_router(agent_ai_router)
-        app.include_router(agent_knowledge_router)
-        app.include_router(vector_snapshot_router)
-        app.include_router(agent_runtime_router)
-        app.include_router(tools_router)
-        app.include_router(tool_lifecycle_router)
-        app.include_router(mcp_tools_router)
         app.include_router(metering_router)
         app.include_router(observability_router)
         app.include_router(network_router)

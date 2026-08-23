@@ -1,4 +1,4 @@
-from modules.agent.application.use_cases.ai_use_cases import CreateProviderCredentialUseCase
+from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.application.dtos import CreateProviderCredentialInput
 from modules.agent.presentation.schemas import ProviderCredentialResponse
 from shared.presentation.interface.controller import Controller
@@ -7,7 +7,7 @@ from shared.presentation.http.response import Response
 
 
 class CreateProviderCredentialController(Controller):
-    def __init__(self, use_case: CreateProviderCredentialUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

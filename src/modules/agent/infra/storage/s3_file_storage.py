@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from uuid import UUID
 
-from modules.agent.domain.ports.file_storage import (
+from modules.agent.application.interfaces.file_storage import (
     StoredFile,
     build_document_storage_key,
     compute_sha256,

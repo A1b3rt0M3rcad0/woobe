@@ -8,14 +8,14 @@ from modules.agent.application.dtos.tools_dtos import (
     TestToolInput,
     TestToolOutput,
 )
-from modules.agent.application.ports import ToolExecutionPort, ToolSecretResolverPort
+from modules.agent.application.interfaces.ports import ToolExecutionPort, ToolSecretResolverPort
 from modules.agent.application.tool_runtime import (
     ToolRuntimeRegistry,
     build_default_tool_runtime_registry,
 )
 from modules.agent.domain.enums import ToolStatus
 from modules.agent.domain.errors import ToolNotFoundError
-from modules.agent.domain.repositories import ToolRepository
+from modules.agent.application.interfaces.repositories import ToolRepository
 
 
 class RuntimeExecuteToolUseCase:

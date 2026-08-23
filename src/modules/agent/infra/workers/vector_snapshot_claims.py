@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import or_, select, update
-from sqlalchemy.ext.asyncio import async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.agent.domain.vector_snapshot_entities import (
     VECTOR_SNAPSHOT_BUILDING,
@@ -17,7 +17,7 @@ STALE_BUILD_AFTER = timedelta(hours=2)
 
 
 async def claim_vector_snapshot_builds(
-    session_factory: async_sessionmaker,
+    engine: AsyncEngine,
     *,
     worker_id: str,
     limit: int = 3,
@@ -25,7 +25,7 @@ async def claim_vector_snapshot_builds(
     now = datetime.now(timezone.utc)
     stale_before = now - STALE_BUILD_AFTER
 
-    async with AgentUnitOfWork(session_factory) as uow:
+    async with AgentUnitOfWork(engine) as uow:
         await uow.session.execute(
             update(VectorSnapshotModel)
             .where(

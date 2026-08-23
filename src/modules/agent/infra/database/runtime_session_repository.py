@@ -9,8 +9,8 @@ from modules.agent.domain.errors import SessionNotFoundError
 from modules.agent.infra.database.mappers import model_to_session, session_to_model
 from modules.agent.infra.database.models import MessageModel, SessionModel
 from modules.agent.infra.database.repositories import SQLAlchemySessionRepository
-from shared.infra.errors import ValidationError
-from shared.infra.objects import CursorPage
+from shared.contracts.errors import ValidationError
+from shared.contracts.pagination import CursorPage
 
 
 class SQLAlchemyRuntimeSessionRepository(SQLAlchemySessionRepository):

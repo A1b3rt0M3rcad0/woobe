@@ -9,7 +9,7 @@ from modules.agent.application.use_cases.release_lifecycle_use_cases import (
 from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.release_compatibility import classify_release_change
-from shared.infra.errors import ConflictError
+from shared.contracts.errors import ConflictError
 
 
 _EXECUTION_FIELDS = (

@@ -1,17 +1,17 @@
+from modules.agent.application.interfaces.use_case import UseCase
 from typing import cast
 from uuid import UUID
 
 from modules.agent.application.dtos import GetCollectionInput
-from modules.agent.application.use_cases.knowledge_use_cases import GetCollectionUseCase
 from modules.agent.presentation.mappers import collection_to_response
-from shared.infra.errors import NotFoundError
+from shared.contracts.errors import NotFoundError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
 
 
 class GetCollectionController(Controller):
-    def __init__(self, use_case: GetCollectionUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

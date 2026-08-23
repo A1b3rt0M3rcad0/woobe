@@ -1,6 +1,6 @@
 from modules.agent.application.dtos.knowledge_dtos import UpdateCollectionInput, UpdateCollectionOutput
-from modules.agent.domain.repositories import DocumentCollectionRepository
-from shared.infra.errors import ValidationError
+from modules.agent.application.interfaces.repositories import DocumentCollectionRepository
+from shared.contracts.errors import ValidationError
 
 
 class UpdateCollectionUseCase:

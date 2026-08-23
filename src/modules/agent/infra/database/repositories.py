@@ -38,10 +38,12 @@ from modules.agent.domain.errors import (
     SessionNotFoundError,
     ToolNotFoundError,
 )
-from modules.agent.domain.repositories import (
+from modules.agent.application.interfaces.repositories import (
     AgentCollectionRepository,
     AgentContractRepository as AgentContractRepositoryInterface,
+    AgentInboxRepository,
     AgentModelConfigRepository as AgentModelConfigRepositoryInterface,
+    AgentOutboxRepository,
     AgentPromptRepository as AgentPromptRepositoryInterface,
     AgentReleaseRepository as AgentReleaseRepositoryInterface,
     AgentReleaseTestRepository as AgentReleaseTestRepositoryInterface,
@@ -114,7 +116,7 @@ from modules.agent.infra.database.models import (
     ProviderCredentialModel,
     SessionModel,
 )
-from shared.infra.objects import CursorPage
+from shared.contracts.pagination import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 
@@ -123,7 +125,7 @@ class SQLAlchemyProviderCredentialRepository(
     ProviderCredentialRepositoryInterface,
 ):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         super().__init__(session, ProviderCredentialModel)
 
     async def save(self, credential: ProviderCredential) -> ProviderCredential:
@@ -192,7 +194,7 @@ class SQLAlchemyAgentRepository(
     BaseSQLAlchemyRepository[AgentModel], AgentRepositoryInterface
 ):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         super().__init__(session, AgentModel)
 
     async def save(self, agent: Agent) -> Agent:
@@ -263,7 +265,7 @@ class SQLAlchemyAgentPromptRepository(
     AgentPromptRepositoryInterface,
 ):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         super().__init__(session, AgentPromptModel)
 
     async def save(self, prompt: AgentPrompt) -> AgentPrompt:
@@ -320,7 +322,7 @@ class SQLAlchemyAgentContractRepository(
     AgentContractRepositoryInterface,
 ):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         super().__init__(session, AgentContractModel)
 
     async def save(self, contract: AgentContract) -> AgentContract:
@@ -382,7 +384,7 @@ class SQLAlchemyAgentModelConfigRepository(
     AgentModelConfigRepositoryInterface,
 ):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         super().__init__(session, AgentModelConfigModel)
 
     async def save(self, config: AgentModelConfig) -> AgentModelConfig:
@@ -439,7 +441,7 @@ class SQLAlchemyAgentReleaseRepository(
     AgentReleaseRepositoryInterface,
 ):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         super().__init__(session, AgentReleaseModel)
 
     async def save(self, release: AgentRelease) -> AgentRelease:
@@ -553,7 +555,7 @@ class SQLAlchemyAgentReleaseTestRepository(
     AgentReleaseTestRepositoryInterface,
 ):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         super().__init__(session, AgentReleaseTestModel)
 
     async def save(self, test: AgentReleaseTest) -> AgentReleaseTest:
@@ -595,7 +597,7 @@ class SQLAlchemyAgentReleaseTestRepository(
 
 class SQLAlchemyAgentCollectionRepository(AgentCollectionRepository):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         self._base = BaseSQLAlchemyRepository(session, AgentCollectionModel)
         self._session_or_uow: AsyncSession | UnitOfWork = session
 
@@ -658,7 +660,7 @@ class SQLAlchemyAgentCollectionRepository(AgentCollectionRepository):
 
 class SQLAlchemyDocumentCollectionRepository(DocumentCollectionRepository):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         self._base = BaseSQLAlchemyRepository(session, DocumentCollectionModel)
         self._session_or_uow: AsyncSession | UnitOfWork = session
 
@@ -729,7 +731,7 @@ class SQLAlchemyDocumentCollectionRepository(DocumentCollectionRepository):
 
 class SQLAlchemyDocumentRepository(DocumentRepository):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         self._base = BaseSQLAlchemyRepository(session, DocumentModel)
         self._session_or_uow: AsyncSession | UnitOfWork = session
 
@@ -816,7 +818,7 @@ class SQLAlchemyDocumentRepository(DocumentRepository):
 
 class SQLAlchemyDocumentChunkRepository(DocumentChunkRepository):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         self._base = BaseSQLAlchemyRepository(session, DocumentChunkModel)
         self._session_or_uow: AsyncSession | UnitOfWork = session
 
@@ -922,7 +924,7 @@ class SQLAlchemyDocumentChunkRepository(DocumentChunkRepository):
 
 class SQLAlchemyKnowledgeVersionRepository(KnowledgeVersionRepository):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         self._base = BaseSQLAlchemyRepository(session, KnowledgeVersionModel)
         self._session_or_uow: AsyncSession | UnitOfWork = session
 
@@ -979,7 +981,7 @@ class SQLAlchemyKnowledgeVersionRepository(KnowledgeVersionRepository):
 
 class SQLAlchemySessionRepository(SessionRepository):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         self._base = BaseSQLAlchemyRepository(session, SessionModel)
         self._session_or_uow: AsyncSession | UnitOfWork = session
 
@@ -1080,7 +1082,7 @@ class SQLAlchemySessionRepository(SessionRepository):
 
 class SQLAlchemyMessageRepository(MessageRepository):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         self._base = BaseSQLAlchemyRepository(session, MessageModel)
         self._session_or_uow: AsyncSession | UnitOfWork = session
 
@@ -1151,7 +1153,7 @@ class SQLAlchemyMessageRepository(MessageRepository):
 
 class SQLAlchemyAskJobRepository(AskJobRepository):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         self._base = BaseSQLAlchemyRepository(session, AskJobModel)
         self._session_or_uow: AsyncSession | UnitOfWork = session
 
@@ -1210,7 +1212,7 @@ class SQLAlchemyAskJobRepository(AskJobRepository):
 
 class SQLAlchemyAgentOutboxEventWriter:
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         self._session_or_uow: AsyncSession | UnitOfWork = session
 
     @property
@@ -1239,8 +1241,8 @@ AGENT_INBOX_LOCK_TIMEOUT_SECONDS: int = 300
 AGENT_DEFAULT_BATCH_SIZE: int = 50
 
 
-class SQLAlchemyAgentOutboxRepository:
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+class SQLAlchemyAgentOutboxRepository(AgentOutboxRepository):
+    def __init__(self, session: UnitOfWork) -> None:
         self._session_or_uow: AsyncSession | UnitOfWork = session
 
     @property
@@ -1336,8 +1338,8 @@ AGENT_INBOX_VALID_TRANSITIONS: dict[str, set[str]] = {
 }
 
 
-class SQLAlchemyAgentInboxRepository:
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+class SQLAlchemyAgentInboxRepository(AgentInboxRepository):
+    def __init__(self, session: UnitOfWork) -> None:
         self._session_or_uow: AsyncSession | UnitOfWork = session
 
     @property
@@ -1447,7 +1449,7 @@ class SQLAlchemyAgentInboxRepository:
 
 class SQLAlchemyAgentToolRepository(ToolRepository):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         self._base = BaseSQLAlchemyRepository(session, AgentToolModel)
         self._session_or_uow: AsyncSession | UnitOfWork = session
 
@@ -1547,7 +1549,7 @@ class SQLAlchemyAgentToolRepository(ToolRepository):
 
 class SQLAlchemyAgentToolSecretRepository(SecretRepository):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
+    def __init__(self, session: UnitOfWork) -> None:
         self._base = BaseSQLAlchemyRepository(session, AgentToolSecretModel)
         self._session_or_uow: AsyncSession | UnitOfWork = session
 

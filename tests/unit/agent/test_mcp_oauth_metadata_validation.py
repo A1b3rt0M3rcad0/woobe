@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from modules.agent.application.mcp_oauth_metadata_validation import validate_mcp_oauth_metadata
-from modules.agent.application.ports import ExecutionResult, ToolExecutionPort
+from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
 
 
 class SequenceExecutor(ToolExecutionPort):

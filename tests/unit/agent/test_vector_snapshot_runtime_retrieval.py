@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
-from modules.agent.application.use_cases.execution_context import current_execution, new_execution_context
+from modules.agent.application.interfaces.execution_context import current_execution, new_execution_context
 from modules.agent.application.use_cases.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
 from modules.agent.domain.entities import Agent, KnowledgeVersion, ProviderCredential, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, Provider, ProviderModelStatus

@@ -8,7 +8,9 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
+from modules.agent.runtime.explicit_runtime_persistence import (
+    TransactionalAskAgentUseCase as AskAgentUseCase,
+)
 from modules.agent.application.dtos.runtime_dtos import (
     AskInput,
     AskOutput,
@@ -17,7 +19,7 @@ from modules.agent.application.dtos.runtime_dtos import (
     ToolCallInfo,
 )
 from modules.agent.domain.entities import Agent
-from modules.agent.domain.ports.llm_factory import LLMFactory
+from modules.agent.application.interfaces.llm_factory import LLMFactory
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 

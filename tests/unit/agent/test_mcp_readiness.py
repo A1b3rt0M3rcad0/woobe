@@ -1,4 +1,4 @@
-from modules.agent.application.mcp_readiness import (
+from modules.agent.application.interfaces.mcp_readiness import (
     build_mcp_readiness,
     classify_mcp_discovery_status,
     has_mcp_oauth_challenge,

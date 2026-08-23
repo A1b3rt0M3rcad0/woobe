@@ -16,7 +16,7 @@ from modules.agent.application.tool_types import is_http_tool_type
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import RiskLevel, ToolStatus, ToolType
 from modules.agent.domain.errors import ToolNotFoundError
-from shared.infra.errors import ValidationError
+from shared.contracts.errors import ValidationError
 
 
 def _value(value: object) -> object:

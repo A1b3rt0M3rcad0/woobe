@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+from modules.agent.application.dtos.mcp_tool_refresh_dtos import RefreshMcpProviderToolsInput, RefreshMcpProviderToolsOutput
+
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
 
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput, McpDiscoverOutput
 from modules.agent.application.mcp_oauth_metadata_validation import (
@@ -16,29 +17,18 @@ from modules.agent.application.mcp_oauth_metadata_validation import (
     write_mcp_oauth_validation,
 )
 from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions, write_mcp_readiness
-from modules.agent.application.mcp_readiness import classify_mcp_discovery_status
-from modules.agent.application.ports import ToolExecutionPort, ToolSecretResolverPort
+from modules.agent.application.interfaces.mcp_readiness import classify_mcp_discovery_status
+from modules.agent.application.interfaces.ports import ToolExecutionPort, ToolSecretResolverPort
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import ToolType
-from modules.agent.domain.repositories import ToolRepository
-from shared.infra.time import utc_now
+from modules.agent.application.interfaces.repositories import ToolRepository
+from shared.contracts.time import utc_now
 
 logger = logging.getLogger(__name__)
 
 
-class RefreshMcpProviderToolsInput(BaseModel):
-    tool_id: UUID
-    timeout_ms: int = Field(default=30000, ge=1)
 
 
-class RefreshMcpProviderToolsOutput(BaseModel):
-    tool_id: UUID
-    discovered_count: int
-    initialized: bool
-    status: str
-    error: str | None = None
-    http_status: int | None = None
-    phase: str | None = None
 
 
 def _enum_value(value: Any) -> str:

@@ -113,11 +113,39 @@ jobs:
   community-smoke:
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 40
+    env:
+      COMPOSE_PROJECT_NAME: woobe-community-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+      - name: Allocate isolated Community ports
+        run: |
+          python - <<'PY' >> "$GITHUB_ENV"
+          import socket
+
+          sockets = []
+          ports = []
+          for _ in range(3):
+              sock = socket.socket()
+              sock.bind(("127.0.0.1", 0))
+              sockets.append(sock)
+              ports.append(sock.getsockname()[1])
+
+          api_port, web_port, chat_port = ports
+          print(f"WOOBE_PORT={api_port}")
+          print(f"WOOBE_WEB_PORT={web_port}")
+          print(f"WOOBE_CHAT_EMBED_PORT={chat_port}")
+          print(f"VITE_API_URL=http://localhost:{api_port}")
+          print(f"VITE_CHAT_EMBED_URL=http://localhost:{chat_port}")
+          print(f"WOOBE_API_BASE_URL=http://127.0.0.1:{api_port}")
+          print(f"WOOBE_WEB_BASE_URL=http://127.0.0.1:{web_port}")
+          print(f"WOOBE_CHAT_EMBED_BASE_URL=http://127.0.0.1:{chat_port}")
+
+          for sock in sockets:
+              sock.close()
+          PY
       - name: Generate production-shaped Community environment
         run: |
           python scripts/generate_self_host_env.py --force
@@ -154,7 +182,7 @@ jobs:
           docker compose run --rm migrate
           docker compose up -d api workers web chat-embed
           for attempt in $(seq 1 60); do
-            if WOOBE_WEB_BASE_URL=http://127.0.0.1:8080 WOOBE_API_BASE_URL=http://127.0.0.1:8000 WOOBE_CHAT_EMBED_BASE_URL=http://127.0.0.1:8081 sh scripts/smoke_production.sh; then
+            if sh scripts/smoke_production.sh; then
               exit 0
             fi
             sleep 2
@@ -168,7 +196,7 @@ jobs:
           docker compose stop --timeout 45 web chat-embed api workers
           docker compose up -d api workers web chat-embed
           for attempt in $(seq 1 30); do
-            if curl --fail --silent http://127.0.0.1:8000/ready >/dev/null && curl --fail --silent http://127.0.0.1:8081/chat/v1/health >/dev/null; then
+            if curl --fail --silent "$WOOBE_API_BASE_URL/ready" >/dev/null && curl --fail --silent "$WOOBE_CHAT_EMBED_BASE_URL/chat/v1/health" >/dev/null; then
               exit 0
             fi
             sleep 2

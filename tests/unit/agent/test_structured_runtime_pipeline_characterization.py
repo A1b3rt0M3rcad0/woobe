@@ -28,14 +28,14 @@ def _symbol(candidates, name):
 StructuredOutputAskAgentUseCase = _symbol(
     [
         "modules.agent.application.use_cases.structured_output_ask_use_case",
-        "modules.agent.composition.runtime.structured_output_ask_use_case",
+        "modules.agent.runtime.structured_output_ask_use_case",
     ],
     "StructuredOutputAskAgentUseCase",
 )
 AskAgentUseCase = _symbol(
     [
         "modules.agent.application.use_cases.ask_use_case",
-        "modules.agent.composition.runtime.ask_use_case",
+        "modules.agent.runtime.ask_use_case",
     ],
     "AskAgentUseCase",
 )
@@ -128,7 +128,7 @@ def _patch_lowest_prepare(monkeypatch, prepared):
     # to preserve runtime Tool selection.
     try:
         module = import_module(
-            "modules.agent.composition.runtime.explicit_runtime_persistence"
+            "modules.agent.runtime.explicit_runtime_persistence"
         )
     except ModuleNotFoundError:
         return

@@ -14,7 +14,7 @@ from modules.agent.domain.events import (
     AgentToolStatusChangedV1,
     AgentToolUpdatedV1,
 )
-from modules.agent.domain.repositories import SecretRepository, ToolRepository
+from modules.agent.application.interfaces.repositories import SecretRepository, ToolRepository
 
 
 class TestToolEntity:

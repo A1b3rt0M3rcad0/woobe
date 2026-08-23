@@ -18,7 +18,7 @@ from modules.agent.application.dtos.tools_dtos import (
     ListToolsInput,
     UpdateToolInput,
 )
-from modules.agent.application.ports import SecretCipherPort
+from modules.agent.application.interfaces.ports import SecretCipherPort
 from modules.agent.application.use_cases.tools_use_cases import (
     CreateSecretUseCase,
     CreateToolUseCase,
@@ -27,7 +27,7 @@ from modules.agent.application.use_cases.tools_use_cases import (
 )
 from modules.agent.domain.entities import Secret, Tool
 from modules.agent.domain.enums import RiskLevel, SecretType, ToolType
-from modules.agent.domain.repositories import SecretRepository, ToolRepository
+from modules.agent.application.interfaces.repositories import SecretRepository, ToolRepository
 
 
 class FakeToolRepo(ToolRepository):

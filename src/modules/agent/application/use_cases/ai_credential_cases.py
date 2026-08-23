@@ -3,17 +3,16 @@ from uuid import UUID
 from modules.agent.application.dtos.ai_dtos import CreateProviderCredentialInput, CreateProviderCredentialOutput, ListProviderCredentialsInput, ListProviderCredentialsOutput, UpdateProviderCredentialInput, UpdateProviderCredentialOutput
 from modules.agent.domain.entities import ProviderCredential
 from modules.agent.domain.events import AgentProviderCredentialCreatedV1, AgentProviderCredentialUpdatedV1
-from modules.agent.domain.repositories import ProviderCredentialRepository
-from shared.infra.config import Settings
-from shared.infra.crypto import encrypt_secret
-from shared.messaging.outbox_writer import OutboxEventWriter
+from modules.agent.application.interfaces.repositories import ProviderCredentialRepository
+from shared.security.crypto import encrypt_secret
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
 
 
 class CreateProviderCredentialUseCase:
-    def __init__(self, credential_repo: ProviderCredentialRepository, outbox: OutboxEventWriter, encryption_key: str | None = None) -> None:
+    def __init__(self, credential_repo: ProviderCredentialRepository, outbox: OutboxEventWriter, encryption_key: str) -> None:
         self._credential_repo = credential_repo
         self._outbox = outbox
-        self._encryption_key = encryption_key or Settings().encryption_key
+        self._encryption_key = encryption_key
 
     async def execute(self, input_dto: CreateProviderCredentialInput) -> CreateProviderCredentialOutput:
         saved = await self._credential_repo.save(ProviderCredential(project_id=input_dto.project_id, provider=input_dto.provider, name=input_dto.name, encrypted_secret=encrypt_secret(input_dto.secret, self._encryption_key), metadata=input_dto.metadata))
@@ -22,10 +21,10 @@ class CreateProviderCredentialUseCase:
 
 
 class UpdateProviderCredentialUseCase:
-    def __init__(self, credential_repo: ProviderCredentialRepository, outbox: OutboxEventWriter, encryption_key: str | None = None) -> None:
+    def __init__(self, credential_repo: ProviderCredentialRepository, outbox: OutboxEventWriter, encryption_key: str) -> None:
         self._credential_repo = credential_repo
         self._outbox = outbox
-        self._encryption_key = encryption_key or Settings().encryption_key
+        self._encryption_key = encryption_key
 
     async def execute(self, credential_id: UUID, input_dto: UpdateProviderCredentialInput) -> UpdateProviderCredentialOutput:
         item = await self._credential_repo.get_by_id(credential_id)

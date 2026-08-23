@@ -10,6 +10,14 @@ from modules.agent.application.dtos.runtime_dtos import (
     ListAgentSessionsOutput,
     ListAgentSessionsPageOutput,
 )
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
+from modules.agent.application.interfaces.repositories import (
+    AgentReleaseRepository,
+    AgentRepository,
+)
+from modules.agent.application.interfaces.runtime_session_repository import (
+    RuntimeSessionRepository,
+)
 from modules.agent.domain.entities import Session
 from modules.agent.domain.enums import ReleaseStatus, RuntimeSessionMode, SessionStatus
 from modules.agent.domain.errors import (
@@ -17,8 +25,7 @@ from modules.agent.domain.errors import (
     RuntimeEnvironmentNotReadyError,
 )
 from modules.agent.domain.events import AgentSessionCreatedV1
-from shared.infra.errors import ValidationError
-from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.contracts.errors import ValidationError
 
 _LEGACY_RUNTIME_KEYS = {"runtime_environment", "loaded_release_id", "release_version"}
 _VALID_ENVIRONMENTS = {"draft", "staging", "production"}
@@ -43,9 +50,9 @@ def _session_data(data: dict | None) -> dict | None:
 class EnvironmentAwareCreateSessionUseCase:
     def __init__(
         self,
-        session_repo,
-        agent_repo,
-        release_repo,
+        session_repo: RuntimeSessionRepository,
+        agent_repo: AgentRepository,
+        release_repo: AgentReleaseRepository,
         outbox: OutboxEventWriter,
     ) -> None:
         self._session_repo = session_repo
@@ -151,7 +158,7 @@ class EnvironmentAwareCreateSessionUseCase:
 
 
 class EnvironmentAwareListAgentSessionsUseCase:
-    def __init__(self, session_repo) -> None:
+    def __init__(self, session_repo: RuntimeSessionRepository) -> None:
         self._session_repo = session_repo
 
     async def execute(

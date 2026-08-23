@@ -8,8 +8,8 @@ from modules.agent.application.tool_release_snapshots import (
     tool_from_release_snapshot,
     tool_to_release_snapshot,
 )
-from modules.agent.application.use_cases.execution_context import current_execution, new_execution_context
-from modules.agent.application.use_cases.release_runtime_resolver import ReleaseRuntimeResolver
+from modules.agent.application.interfaces.execution_context import current_execution, new_execution_context
+from modules.agent.runtime.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.application.use_cases.tools_use_cases import (
     DeleteToolUseCase,
     GetToolUsageImpactUseCase,

@@ -8,7 +8,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request as UrlRequest, urlopen
 
 from modules.agent.application.dtos.model_discovery_dtos import AvailableProviderModelOutput
-from shared.infra.errors import ValidationError
+from shared.contracts.errors import ValidationError
 
 
 OPENAI_MODELS_URL = "https://api.openai.com/v1/models"

@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from modules.agent.application.use_cases.structured_output_ask_use_case import (
+from modules.agent.runtime.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
 

@@ -5,11 +5,15 @@ from modules.agent.application.dtos.rag_config_dtos import (
     VectorBuildPreviewSample,
 )
 from modules.agent.application.dtos.vector_snapshot_dtos import PreviewVectorSnapshotInput
+from modules.agent.application.interfaces.file_storage import FileStorage
+from modules.agent.application.interfaces.repositories import (
+    DocumentCollectionRepository,
+    DocumentRepository,
+)
 from modules.agent.application.services.rag.chunker import RecursiveTextChunker
 from modules.agent.application.services.rag.document_parser import DocumentParser
 from modules.agent.domain.enums import DocumentStatus
-from modules.agent.domain.repositories import DocumentCollectionRepository, DocumentRepository
-from shared.infra.errors import ConflictError, NotFoundError
+from shared.contracts.errors import ConflictError, NotFoundError
 
 
 def _value(value: object) -> str:
@@ -22,7 +26,7 @@ class PreviewVectorSnapshotUseCase:
         *,
         collection_repo: DocumentCollectionRepository,
         document_repo: DocumentRepository,
-        storage,
+        storage: FileStorage,
         parser: DocumentParser | None = None,
         chunker: RecursiveTextChunker | None = None,
     ) -> None:
@@ -32,7 +36,10 @@ class PreviewVectorSnapshotUseCase:
         self._parser = parser or DocumentParser()
         self._chunker = chunker or RecursiveTextChunker()
 
-    async def execute(self, input_dto: PreviewVectorSnapshotInput) -> VectorBuildPreviewOutput:
+    async def execute(
+        self,
+        input_dto: PreviewVectorSnapshotInput,
+    ) -> VectorBuildPreviewOutput:
         collection = await self._collection_repo.get_by_id(input_dto.collection_id)
         if collection is None or collection.project_id != input_dto.project_id:
             raise NotFoundError("Document collection not found")

@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from urllib.parse import urlsplit
 
-from modules.agent.application.ports import McpSessionStorePort
+from modules.agent.application.interfaces.ports import McpSessionStorePort
 from shared.infra.cache.kv_store import RedisKeyValueStore
 
 logger = logging.getLogger(__name__)

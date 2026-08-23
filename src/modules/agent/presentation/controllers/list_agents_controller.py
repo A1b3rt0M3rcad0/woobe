@@ -1,4 +1,4 @@
-from modules.agent.application.use_cases.ai_use_cases import ListAgentsUseCase
+from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.application.dtos import ListAgentsInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
@@ -6,7 +6,7 @@ from shared.presentation.http.response import Response
 
 
 class ListAgentsController(Controller):
-    def __init__(self, use_case: ListAgentsUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

@@ -1,46 +1,32 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from modules.agent.application.dtos.mcp_permission_dtos import (
+    BulkUpdateMcpToolPermissionsInput,
+    MCP_PERMISSION_ALLOW,
+    MCP_PERMISSION_DENY,
+    MCP_PERMISSION_MODES,
+    MCP_PERMISSION_REVIEW,
+    McpToolPermissionOutput,
+    McpToolPermissionsOutput,
+    UpdateMcpToolPermissionsInput,
+)
+
+from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
 
-from modules.agent.application.mcp_readiness import build_mcp_readiness
-from modules.agent.domain.repositories import ToolRepository
-
-McpPermissionMode = Literal["allow", "deny", "review"]
-MCP_PERMISSION_ALLOW = "allow"
-MCP_PERMISSION_DENY = "deny"
-MCP_PERMISSION_REVIEW = "review"
-MCP_PERMISSION_MODES = {MCP_PERMISSION_ALLOW, MCP_PERMISSION_DENY, MCP_PERMISSION_REVIEW}
+from modules.agent.application.interfaces.mcp_readiness import build_mcp_readiness
+from modules.agent.application.interfaces.repositories import ToolRepository
 
 
-class McpToolPermissionInput(BaseModel):
-    remote_tool_name: str = Field(..., min_length=1)
-    mode: McpPermissionMode
-    risk_level: str | None = None
 
 
-class UpdateMcpToolPermissionsInput(BaseModel):
-    tool_id: UUID
-    permissions: list[McpToolPermissionInput]
 
 
-class BulkUpdateMcpToolPermissionsInput(BaseModel):
-    tool_id: UUID
-    mode: McpPermissionMode
-    risk_level: str | None = None
 
 
-class McpToolPermissionOutput(BaseModel):
-    name: str
-    mode: str
-    risk_level: str | None = None
 
 
-class McpToolPermissionsOutput(BaseModel):
-    tool_id: UUID
-    permissions: list[McpToolPermissionOutput]
 
 
 def normalize_permission(value: Any, *, default_mode: str = MCP_PERMISSION_REVIEW) -> dict[str, Any]:

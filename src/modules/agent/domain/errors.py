@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import UUID
 
-from shared.infra.errors import ConflictError, NotFoundError
+from shared.contracts.errors import ConflictError, NotFoundError
 
 
 class CredentialNotFoundError(NotFoundError):

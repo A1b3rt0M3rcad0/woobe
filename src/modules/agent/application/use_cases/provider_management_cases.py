@@ -4,10 +4,22 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from modules.agent.domain.enums import AgentStatus, CredentialStatus, ProviderModelStatus, ReleaseStatus
-from shared.infra.config import Settings
-from shared.infra.crypto import encrypt_secret
-from shared.infra.errors import ConflictError, ValidationError
+from modules.agent.application.interfaces.provider_model_repository import (
+    ProviderModelRepository,
+)
+from modules.agent.application.interfaces.repositories import (
+    AgentReleaseRepository,
+    AgentRepository,
+    ProviderCredentialRepository,
+)
+from modules.agent.domain.enums import (
+    AgentStatus,
+    CredentialStatus,
+    ProviderModelStatus,
+    ReleaseStatus,
+)
+from shared.contracts.errors import ConflictError, ValidationError
+from shared.security.crypto import encrypt_secret
 
 
 _BLOCKING_RELEASE_STATUSES = {
@@ -56,7 +68,10 @@ def _item(
     }
 
 
-def _usage(blocking: list[dict[str, Any]], informational: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+def _usage(
+    blocking: list[dict[str, Any]],
+    informational: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
     return {
         "can_delete": len(blocking) == 0,
         "blocking": blocking,
@@ -69,7 +84,13 @@ def _is_archived(value: Any) -> bool:
 
 
 class ProviderCredentialUsageUseCase:
-    def __init__(self, credential_repo, provider_model_repo, agent_repo, release_repo) -> None:
+    def __init__(
+        self,
+        credential_repo: ProviderCredentialRepository,
+        provider_model_repo: ProviderModelRepository,
+        agent_repo: AgentRepository,
+        release_repo: AgentReleaseRepository,
+    ) -> None:
         self._credential_repo = credential_repo
         self._provider_model_repo = provider_model_repo
         self._agent_repo = agent_repo
@@ -96,19 +117,64 @@ class ProviderCredentialUsageUseCase:
         }
         for model in provider_models:
             if not _is_archived(model.status):
-                add(_item(type="provider_model", id=model.id, name=model.name, status=model.status, field="provider_credential_id"))
+                add(
+                    _item(
+                        type="provider_model",
+                        id=model.id,
+                        name=model.name,
+                        status=model.status,
+                        field="provider_credential_id",
+                    )
+                )
 
         agents = await self._agent_repo.list_by_project(credential.project_id)
-        active_agents = [agent for agent in agents if _status_value(getattr(agent, "status", None)) != AgentStatus.archived.value]
+        active_agents = [
+            agent
+            for agent in agents
+            if _status_value(getattr(agent, "status", None))
+            != AgentStatus.archived.value
+        ]
         for agent in active_agents:
             if getattr(agent, "provider_credential_id", None) == credential_id:
-                add(_item(type="agent", id=agent.id, name=agent.name, status=agent.status, field="provider_credential_id"))
+                add(
+                    _item(
+                        type="agent",
+                        id=agent.id,
+                        name=agent.name,
+                        status=agent.status,
+                        field="provider_credential_id",
+                    )
+                )
             if getattr(agent, "fallback_credential_id", None) == credential_id:
-                add(_item(type="agent", id=agent.id, name=agent.name, status=agent.status, field="fallback_credential_id"))
+                add(
+                    _item(
+                        type="agent",
+                        id=agent.id,
+                        name=agent.name,
+                        status=agent.status,
+                        field="fallback_credential_id",
+                    )
+                )
             if getattr(agent, "provider_model_id", None) in active_model_ids:
-                add(_item(type="agent", id=agent.id, name=agent.name, status=agent.status, field="provider_model_id"))
+                add(
+                    _item(
+                        type="agent",
+                        id=agent.id,
+                        name=agent.name,
+                        status=agent.status,
+                        field="provider_model_id",
+                    )
+                )
             if getattr(agent, "fallback_provider_model_id", None) in active_model_ids:
-                add(_item(type="agent", id=agent.id, name=agent.name, status=agent.status, field="fallback_provider_model_id"))
+                add(
+                    _item(
+                        type="agent",
+                        id=agent.id,
+                        name=agent.name,
+                        status=agent.status,
+                        field="fallback_provider_model_id",
+                    )
+                )
 
             releases = await self._release_repo.list_by_agent(agent.id)
             for release in releases:
@@ -116,19 +182,68 @@ class ProviderCredentialUsageUseCase:
                 if status not in _BLOCKING_RELEASE_STATUSES:
                     continue
                 if getattr(release, "provider_credential_id", None) == credential_id:
-                    add(_item(type="release", id=release.id, name=release.name, status=release.status, field="provider_credential_id", agent_id=agent.id, agent_name=agent.name, version=release.version))
+                    add(
+                        _item(
+                            type="release",
+                            id=release.id,
+                            name=release.name,
+                            status=release.status,
+                            field="provider_credential_id",
+                            agent_id=agent.id,
+                            agent_name=agent.name,
+                            version=release.version,
+                        )
+                    )
                 if getattr(release, "fallback_credential_id", None) == credential_id:
-                    add(_item(type="release", id=release.id, name=release.name, status=release.status, field="fallback_credential_id", agent_id=agent.id, agent_name=agent.name, version=release.version))
+                    add(
+                        _item(
+                            type="release",
+                            id=release.id,
+                            name=release.name,
+                            status=release.status,
+                            field="fallback_credential_id",
+                            agent_id=agent.id,
+                            agent_name=agent.name,
+                            version=release.version,
+                        )
+                    )
                 if getattr(release, "provider_model_id", None) in active_model_ids:
-                    add(_item(type="release", id=release.id, name=release.name, status=release.status, field="provider_model_id", agent_id=agent.id, agent_name=agent.name, version=release.version))
+                    add(
+                        _item(
+                            type="release",
+                            id=release.id,
+                            name=release.name,
+                            status=release.status,
+                            field="provider_model_id",
+                            agent_id=agent.id,
+                            agent_name=agent.name,
+                            version=release.version,
+                        )
+                    )
                 if getattr(release, "fallback_provider_model_id", None) in active_model_ids:
-                    add(_item(type="release", id=release.id, name=release.name, status=release.status, field="fallback_provider_model_id", agent_id=agent.id, agent_name=agent.name, version=release.version))
+                    add(
+                        _item(
+                            type="release",
+                            id=release.id,
+                            name=release.name,
+                            status=release.status,
+                            field="fallback_provider_model_id",
+                            agent_id=agent.id,
+                            agent_name=agent.name,
+                            version=release.version,
+                        )
+                    )
 
         return _usage(blocking)
 
 
 class ProviderModelUsageUseCase:
-    def __init__(self, provider_model_repo, agent_repo, release_repo) -> None:
+    def __init__(
+        self,
+        provider_model_repo: ProviderModelRepository,
+        agent_repo: AgentRepository,
+        release_repo: AgentReleaseRepository,
+    ) -> None:
         self._provider_model_repo = provider_model_repo
         self._agent_repo = agent_repo
         self._release_repo = release_repo
@@ -149,12 +264,33 @@ class ProviderModelUsageUseCase:
                 blocking.append(item)
 
         agents = await self._agent_repo.list_by_project(provider_model.project_id)
-        active_agents = [agent for agent in agents if _status_value(getattr(agent, "status", None)) != AgentStatus.archived.value]
+        active_agents = [
+            agent
+            for agent in agents
+            if _status_value(getattr(agent, "status", None))
+            != AgentStatus.archived.value
+        ]
         for agent in active_agents:
             if getattr(agent, "provider_model_id", None) == provider_model_id:
-                add(_item(type="agent", id=agent.id, name=agent.name, status=agent.status, field="provider_model_id"))
+                add(
+                    _item(
+                        type="agent",
+                        id=agent.id,
+                        name=agent.name,
+                        status=agent.status,
+                        field="provider_model_id",
+                    )
+                )
             if getattr(agent, "fallback_provider_model_id", None) == provider_model_id:
-                add(_item(type="agent", id=agent.id, name=agent.name, status=agent.status, field="fallback_provider_model_id"))
+                add(
+                    _item(
+                        type="agent",
+                        id=agent.id,
+                        name=agent.name,
+                        status=agent.status,
+                        field="fallback_provider_model_id",
+                    )
+                )
 
             releases = await self._release_repo.list_by_agent(agent.id)
             for release in releases:
@@ -162,17 +298,43 @@ class ProviderModelUsageUseCase:
                 if status not in _BLOCKING_RELEASE_STATUSES:
                     continue
                 if getattr(release, "provider_model_id", None) == provider_model_id:
-                    add(_item(type="release", id=release.id, name=release.name, status=release.status, field="provider_model_id", agent_id=agent.id, agent_name=agent.name, version=release.version))
+                    add(
+                        _item(
+                            type="release",
+                            id=release.id,
+                            name=release.name,
+                            status=release.status,
+                            field="provider_model_id",
+                            agent_id=agent.id,
+                            agent_name=agent.name,
+                            version=release.version,
+                        )
+                    )
                 if getattr(release, "fallback_provider_model_id", None) == provider_model_id:
-                    add(_item(type="release", id=release.id, name=release.name, status=release.status, field="fallback_provider_model_id", agent_id=agent.id, agent_name=agent.name, version=release.version))
+                    add(
+                        _item(
+                            type="release",
+                            id=release.id,
+                            name=release.name,
+                            status=release.status,
+                            field="fallback_provider_model_id",
+                            agent_id=agent.id,
+                            agent_name=agent.name,
+                            version=release.version,
+                        )
+                    )
 
         return _usage(blocking)
 
 
 class RotateProviderCredentialUseCase:
-    def __init__(self, credential_repo, encryption_key: str | None = None) -> None:
+    def __init__(
+        self,
+        credential_repo: ProviderCredentialRepository,
+        encryption_key: str,
+    ) -> None:
         self._credential_repo = credential_repo
-        self._encryption_key = encryption_key or Settings().encryption_key
+        self._encryption_key = encryption_key
 
     async def execute(self, credential_id: UUID, data: dict[str, Any]) -> Any:
         secret = str(data.get("secret") or "").strip()
@@ -198,10 +360,14 @@ class RotateProviderCredentialUseCase:
 
 
 class RevokeProviderCredentialUseCase:
-    def __init__(self, credential_repo) -> None:
+    def __init__(self, credential_repo: ProviderCredentialRepository) -> None:
         self._credential_repo = credential_repo
 
-    async def execute(self, credential_id: UUID, data: dict[str, Any] | None = None) -> Any:
+    async def execute(
+        self,
+        credential_id: UUID,
+        data: dict[str, Any] | None = None,
+    ) -> Any:
         credential = await self._credential_repo.get_by_id(credential_id)
         if credential is None:
             from modules.agent.domain.errors import CredentialNotFoundError
@@ -218,7 +384,11 @@ class RevokeProviderCredentialUseCase:
 
 
 class ArchiveProviderCredentialUseCase:
-    def __init__(self, credential_repo, usage_use_case: ProviderCredentialUsageUseCase) -> None:
+    def __init__(
+        self,
+        credential_repo: ProviderCredentialRepository,
+        usage_use_case: ProviderCredentialUsageUseCase,
+    ) -> None:
         self._credential_repo = credential_repo
         self._usage_use_case = usage_use_case
 
@@ -240,7 +410,11 @@ class ArchiveProviderCredentialUseCase:
 
 
 class ArchiveProviderModelUseCase:
-    def __init__(self, provider_model_repo, usage_use_case: ProviderModelUsageUseCase) -> None:
+    def __init__(
+        self,
+        provider_model_repo: ProviderModelRepository,
+        usage_use_case: ProviderModelUsageUseCase,
+    ) -> None:
         self._provider_model_repo = provider_model_repo
         self._usage_use_case = usage_use_case
 

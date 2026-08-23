@@ -19,7 +19,7 @@ from modules.agent.application.mcp_permissions import (
     MCP_PERMISSION_DENY,
     mcp_tool_permission_mode,
 )
-from modules.agent.application.ports import (
+from modules.agent.application.interfaces.ports import (
     ExecutionResult,
     McpSessionStorePort,
     ToolExecutionPort,

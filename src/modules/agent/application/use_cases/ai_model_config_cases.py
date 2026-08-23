@@ -3,7 +3,7 @@ from uuid import UUID
 from modules.agent.application.dtos.ai_dtos import CreateModelConfigInput, CreateModelConfigOutput, ListModelConfigsOutput
 from modules.agent.domain.entities import AgentModelConfig
 from modules.agent.domain.enums import ModelConfigStatus
-from modules.agent.domain.repositories import AgentModelConfigRepository
+from modules.agent.application.interfaces.repositories import AgentModelConfigRepository
 
 
 def _to_output(saved: AgentModelConfig):

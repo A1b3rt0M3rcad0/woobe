@@ -7,15 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
 
-from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.application.use_cases.ask_agent_stream_service import (
-    AskAgentStreamService,
-)
-from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
-from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
-from modules.agent.presentation.controllers.ask_agent_stream_controller import (
-    commit_safe_stream,
-)
+from modules.agent.entrypoint import AskInput, build_agent_stream_service, commit_safe_stream
 from modules.chat_surface.control_plane_service import (
     CONTROL_PLANE_TEST_SOURCE,
     ControlPlaneChatSurfaceService,
@@ -499,11 +491,7 @@ async def _agent_stream(
         execution_context="production",
         loaded_release_id=authorized.binding.target_release_id,
     )
-    agent_service = AskAgentStreamService(
-        request.app.state.session_factory,
-        LangchainLLMFactory(),
-        get_http_tool_executor(),
-    )
+    agent_service = build_agent_stream_service()
     try:
         async for chunk in commit_safe_stream(agent_service, input_dto, request):
             if "event: error" in chunk or "event: cancelled" in chunk:

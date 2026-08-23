@@ -1,13 +1,30 @@
 from __future__ import annotations
 
+from typing import Protocol
+
+from modules.agent.application.interfaces.release_activation_repository import (
+    AgentReleaseActivationRepository,
+)
+from modules.agent.application.interfaces.repositories import (
+    AgentReleaseRepository,
+    ToolRepository,
+)
 from modules.agent.application.tool_release_snapshots import build_release_tool_runtime
-from modules.agent.application.use_cases.auto_compatible_release_lifecycle import AutoCompatibleReleaseLifecycleUseCase
-from modules.agent.application.use_cases.release_lifecycle_use_cases import AutoCreateReleaseUseCase
+from modules.agent.application.use_cases.auto_compatible_release_lifecycle import (
+    AutoCompatibleReleaseLifecycleUseCase,
+)
+from modules.agent.application.use_cases.release_lifecycle_use_cases import (
+    AutoCreateReleaseUseCase,
+)
 from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.errors import ReleaseNotFoundError
 from modules.agent.domain.release_activation import AgentReleaseActivation
-from shared.infra.errors import ValidationError
+from shared.contracts.errors import ValidationError
+
+
+class ReleaseKnowledgeValidator(Protocol):
+    async def validate(self, release: AgentRelease) -> None: ...
 
 
 def _tool_snapshots(runtime_config):
@@ -34,7 +51,12 @@ def _audit_text(input_dto, field_name: str) -> str | None:
 
 
 class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
-    def __init__(self, release_repo, knowledge_validator, tool_repo) -> None:
+    def __init__(
+        self,
+        release_repo: AgentReleaseRepository,
+        knowledge_validator: ReleaseKnowledgeValidator,
+        tool_repo: ToolRepository,
+    ) -> None:
         super().__init__(release_repo)
         self._knowledge_validator = knowledge_validator
         self._tool_repo = tool_repo
@@ -74,9 +96,9 @@ class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
 class KnowledgeSafeReleaseLifecycleUseCase(AutoCompatibleReleaseLifecycleUseCase):
     def __init__(
         self,
-        release_repo,
-        knowledge_validator,
-        activation_repo=None,
+        release_repo: AgentReleaseRepository,
+        knowledge_validator: ReleaseKnowledgeValidator,
+        activation_repo: AgentReleaseActivationRepository | None = None,
         *,
         activation_action: str = "reactivate",
     ) -> None:
@@ -91,7 +113,11 @@ class KnowledgeSafeReleaseLifecycleUseCase(AutoCompatibleReleaseLifecycleUseCase
             raise ReleaseNotFoundError
         await self._knowledge_validator.validate(release)
 
-        target_status = getattr(kwargs.get("target_status", "production"), "value", kwargs.get("target_status", "production"))
+        target_status = getattr(
+            kwargs.get("target_status", "production"),
+            "value",
+            kwargs.get("target_status", "production"),
+        )
         previous = None
         existing_release_ids: set = set()
         if target_status == ReleaseStatus.production.value:
@@ -99,11 +125,15 @@ class KnowledgeSafeReleaseLifecycleUseCase(AutoCompatibleReleaseLifecycleUseCase
             if snapshot_kind == "staging":
                 release_notes = _audit_text(input_dto, "release_notes")
                 if release_notes is None or len(release_notes) < 3:
-                    raise ValidationError("Agent Release description is required before publishing Production")
+                    raise ValidationError(
+                        "Agent Release description is required before publishing Production"
+                    )
             elif snapshot_kind == "release":
                 change_description = _audit_text(input_dto, "change_description")
                 if change_description is None or len(change_description) < 3:
-                    raise ValidationError("Agent Production activation reason is required")
+                    raise ValidationError(
+                        "Agent Production activation reason is required"
+                    )
 
             previous = await self._release_repo.get_active_production(agent_id)
             existing_release_ids = {
@@ -121,7 +151,9 @@ class KnowledgeSafeReleaseLifecycleUseCase(AutoCompatibleReleaseLifecycleUseCase
         ):
             action = self._activation_action
             if action != "rollback":
-                action = "reactivate" if result.id in existing_release_ids else "deploy"
+                action = (
+                    "reactivate" if result.id in existing_release_ids else "deploy"
+                )
             change_description = _audit_text(input_dto, "change_description")
             if change_description is None and action == "deploy":
                 change_description = _audit_text(input_dto, "release_notes")
@@ -130,7 +162,7 @@ class KnowledgeSafeReleaseLifecycleUseCase(AutoCompatibleReleaseLifecycleUseCase
                     project_id=result.project_id,
                     agent_id=result.agent_id,
                     release_id=result.id,
-                    previous_release_id=previous.id if previous is not None else None,
+                    previous_release_id=(previous.id if previous is not None else None),
                     action=action,
                     change_description=change_description,
                     created_by=getattr(input_dto, "user_id", None),

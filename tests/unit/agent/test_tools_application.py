@@ -23,7 +23,7 @@ from modules.agent.application.dtos.tools_dtos import (
     UpdateToolInput,
     UpdateToolStatusInput,
 )
-from modules.agent.application.ports import (
+from modules.agent.application.interfaces.ports import (
     ExecutionResult,
     SecretCipherPort,
     ToolExecutionPort,
@@ -43,7 +43,7 @@ from modules.agent.application.use_cases.tools_use_cases import (
 from modules.agent.domain.entities import Secret, Tool
 from modules.agent.domain.enums import RiskLevel, SecretType, ToolStatus, ToolType
 from modules.agent.domain.errors import ToolNotFoundError
-from modules.agent.domain.repositories import SecretRepository, ToolRepository
+from modules.agent.application.interfaces.repositories import SecretRepository, ToolRepository
 
 
 # ── Fakes ────────────────────────────────────────────────────────

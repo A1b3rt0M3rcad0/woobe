@@ -5,9 +5,11 @@ from uuid import UUID
 
 from sqlalchemy import ForeignKey, Index, String, UniqueConstraint, select
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Mapped, add_mapped_attribute, mapped_column
 
+from modules.agent.application.interfaces.provider_model_repository import (
+    ProviderModelRepository,
+)
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
 from modules.agent.domain.enums import ProviderModelStatus, ReleaseStatus
 from modules.agent.infra.database.mappers import (
@@ -19,9 +21,9 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentReleaseRepository,
     SQLAlchemyAgentRepository,
 )
-from shared.infra.config.interface.unit_of_work import UnitOfWork
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from shared.contracts.pagination import CursorPage
 from shared.infra.database.base import BaseModel
-from shared.infra.objects import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 
@@ -110,10 +112,11 @@ def _release_from_model(model: AgentReleaseModel) -> AgentRelease:
 
 
 class SQLAlchemyProviderModelRepository(
-    BaseSQLAlchemyRepository[ProviderModelModel]
+    BaseSQLAlchemyRepository[ProviderModelModel],
+    ProviderModelRepository,
 ):
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, ProviderModelModel)
+    def __init__(self, uow: AgentUnitOfWork) -> None:
+        super().__init__(uow, ProviderModelModel)
 
     async def save(self, provider_model: ProviderModel) -> ProviderModel:
         model = _to_model(provider_model)

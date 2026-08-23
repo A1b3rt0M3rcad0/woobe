@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from shared.messaging.outbox_writer import OutboxEventWriter
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
 
 from modules.agent.application.dtos.tools_dtos import (
     CreateSecretInput,
@@ -22,7 +22,7 @@ from modules.agent.application.dtos.tools_dtos import (
     UpdateToolStatusInput,
 )
 from modules.agent.application.mcp_tool_bootstrap import McpToolBootstrapper
-from modules.agent.application.ports import (
+from modules.agent.application.interfaces.ports import (
     SecretCipherPort,
     ToolExecutionPort,
     ToolSecretResolverPort,
@@ -36,7 +36,7 @@ from modules.agent.domain.events import (
     AgentToolStatusChangedV1,
     AgentToolUpdatedV1,
 )
-from modules.agent.domain.repositories import (
+from modules.agent.application.interfaces.repositories import (
     AgentReleaseRepository,
     AgentRepository,
     SecretRepository,

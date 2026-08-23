@@ -1,6 +1,6 @@
 from uuid import uuid4
 
-from modules.agent.application.use_cases.execution_context import (
+from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )

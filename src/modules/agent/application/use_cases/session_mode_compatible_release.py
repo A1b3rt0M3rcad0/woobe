@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any
 
 from modules.agent.domain.errors import AgentNotFoundError
-from shared.infra.errors import ValidationError
+from shared.contracts.errors import ValidationError
 
 
 class SessionModeCompatibleCreateReleaseUseCase:

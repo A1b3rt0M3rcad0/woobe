@@ -7,7 +7,7 @@ from modules.agent.application.mcp_tool_refresh import (
     RefreshMcpProviderToolsOutput,
     RefreshMcpProviderToolsUseCase,
 )
-from modules.agent.domain.repositories import ToolRepository
+from modules.agent.application.interfaces.repositories import ToolRepository
 
 
 def _provider_rejected(config: dict[str, Any]) -> bool:

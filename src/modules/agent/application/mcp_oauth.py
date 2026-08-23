@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+from modules.agent.application.dtos.mcp_oauth_dtos import (
+    McpOAuthCompleteInput,
+    McpOAuthDisconnectInput,
+    McpOAuthDisconnectOutput,
+    McpOAuthStartInput,
+    McpOAuthStartOutput,
+    McpOAuthStatusInput,
+    McpOAuthStatusOutput,
+)
+
 import base64
 import hashlib
 import json
@@ -9,15 +19,14 @@ from typing import Any
 from urllib.parse import urlencode, urljoin, urlparse
 from uuid import UUID
 
-from pydantic import BaseModel, Field
 
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput, McpDiscoverOutput
 from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions
-from modules.agent.application.ports import ExecutionResult, ToolExecutionPort
+from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
 from modules.agent.domain.entities import Tool
-from modules.agent.domain.repositories import ToolRepository
-from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
-from shared.infra.time import utc_now
+from modules.agent.application.interfaces.repositories import ToolRepository
+from modules.agent.application.interfaces.ports import SecretCipherPort
+from shared.contracts.time import utc_now
 
 MCP_PROTOCOL_VERSION = "2025-06-18"
 OAUTH_STATE_TTL_SECONDS = 600
@@ -25,50 +34,18 @@ OAUTH_EXPIRY_SKEW_SECONDS = 60
 SAFE_SCOPE_FALLBACK = {"openid", "email", "profile", "offline_access"}
 
 
-class McpOAuthStartInput(BaseModel):
-    tool_id: UUID
-    redirect_uri: str = Field(..., min_length=1)
-    scopes: list[str] = Field(default_factory=list)
-    authorization_endpoint: str | None = None
-    token_endpoint: str | None = None
-    registration_endpoint: str | None = None
-    authorization_server_issuer: str | None = None
-    client_id: str | None = None
-    client_secret: str | None = None
-    timeout_ms: int = Field(default=30000, ge=1)
 
 
-class McpOAuthStartOutput(BaseModel):
-    authorization_url: str
-    state: str
-    status: str = "pending"
 
 
-class McpOAuthCompleteInput(BaseModel):
-    tool_id: UUID
-    code: str = Field(..., min_length=1)
-    state: str = Field(..., min_length=1)
-    timeout_ms: int = Field(default=30000, ge=1)
 
 
-class McpOAuthStatusInput(BaseModel):
-    tool_id: UUID
 
 
-class McpOAuthStatusOutput(BaseModel):
-    status: str
-    connected: bool
-    authorization_server_issuer: str | None = None
-    scopes: list[str] = Field(default_factory=list)
-    expires_at: str | None = None
 
 
-class McpOAuthDisconnectInput(BaseModel):
-    tool_id: UUID
 
 
-class McpOAuthDisconnectOutput(BaseModel):
-    status: str = "disconnected"
 
 
 def _origin_from_url(value: str) -> str:
@@ -575,7 +552,7 @@ class McpOAuthMetadataResolver:
 
 
 class McpOAuthStartUseCase:
-    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherAdapter) -> None:
+    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherPort) -> None:
         self._tool_repo = tool_repo
         self._executor = executor
         self._cipher = cipher
@@ -650,7 +627,7 @@ class McpOAuthStartUseCase:
 
 
 class McpOAuthCompleteUseCase:
-    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherAdapter) -> None:
+    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherPort) -> None:
         self._tool_repo = tool_repo
         self._executor = executor
         self._cipher = cipher
@@ -772,7 +749,7 @@ class McpOAuthDisconnectUseCase:
 
 
 class McpOAuthConfigTokenProvider:
-    def __init__(self, *, executor: ToolExecutionPort, cipher: SecretCipherAdapter) -> None:
+    def __init__(self, *, executor: ToolExecutionPort, cipher: SecretCipherPort) -> None:
         self._executor = executor
         self._cipher = cipher
 

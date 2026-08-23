@@ -12,7 +12,7 @@ from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.release_compatibility import classify_release_change
 from modules.agent.domain.release_snapshot import release_snapshots_equal
 from modules.agent.domain.release_versioning import calculate_next_release_version
-from modules.agent.domain.repositories import AgentReleaseRepository
+from modules.agent.application.interfaces.repositories import AgentReleaseRepository
 
 
 @dataclass(frozen=True)

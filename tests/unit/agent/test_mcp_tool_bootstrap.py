@@ -3,7 +3,7 @@ import uuid
 import pytest
 
 from modules.agent.application.mcp_tool_bootstrap import McpToolBootstrapper
-from modules.agent.application.ports import ExecutionResult, ToolExecutionPort
+from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import ToolType
 

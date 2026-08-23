@@ -2,7 +2,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from modules.agent.application.use_cases.runtime_output_validation import (
+from modules.agent.runtime.runtime_output_validation import (
     EmptyModelOutputError,
     ensure_model_result_has_public_output,
     ensure_public_output,

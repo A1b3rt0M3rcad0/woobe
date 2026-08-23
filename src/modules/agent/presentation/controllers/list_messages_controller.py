@@ -1,13 +1,13 @@
-from modules.agent.application.use_cases.runtime_use_cases import ListMessagesUseCase
+from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.application.dtos import ListMessagesInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
-from shared.infra.errors import NotFoundError
+from shared.contracts.errors import NotFoundError
 
 
 class ListMessagesController(Controller):
-    def __init__(self, use_case: ListMessagesUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

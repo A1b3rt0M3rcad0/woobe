@@ -8,12 +8,12 @@ from modules.agent.domain.errors import (
     RuntimeEnvironmentNotReadyError,
     SessionNotFoundError,
 )
-from modules.agent.domain.repositories import (
+from modules.agent.application.interfaces.repositories import (
     AgentReleaseRepository,
     AgentRepository,
     SessionRepository,
 )
-from shared.infra.errors import ConflictError
+from shared.contracts.errors import ConflictError
 
 
 def _session_environment(session) -> str:

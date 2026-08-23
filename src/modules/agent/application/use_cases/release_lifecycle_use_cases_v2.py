@@ -10,8 +10,8 @@ from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.errors import ReleaseNotFoundError
 from modules.agent.domain.release_versioning import calculate_next_release_version
-from modules.agent.domain.repositories import AgentReleaseRepository
-from shared.infra.errors import ConflictError
+from modules.agent.application.interfaces.repositories import AgentReleaseRepository
+from shared.contracts.errors import ConflictError
 
 
 _SINGLETON_STATUSES = {ReleaseStatus.draft, ReleaseStatus.staging, ReleaseStatus.production}

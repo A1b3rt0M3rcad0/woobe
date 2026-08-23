@@ -3,13 +3,13 @@ from types import SimpleNamespace
 import pytest
 from langchain_core.messages import AIMessage
 
-from modules.agent.application.use_cases.execution_instrumentation import (
+from modules.agent.runtime.execution_instrumentation import (
     execute_tool_call,
 )
-from modules.agent.application.use_cases.instrumented_fallback_mixin import (
+from modules.agent.runtime.instrumented_fallback_mixin import (
     InstrumentedFallbackMixin,
 )
-from modules.agent.application.use_cases.runtime_streaming import (
+from modules.agent.runtime.runtime_streaming import (
     RuntimeStreamChannel,
     current_runtime_stream,
 )

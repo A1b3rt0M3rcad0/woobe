@@ -4,7 +4,7 @@ import pytest
 from langchain_core.messages import HumanMessage, ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import ToolCallInfo
-from modules.agent.application.use_cases import tool_execution_loop
+from modules.agent.runtime import tool_execution_loop
 
 
 @pytest.mark.asyncio

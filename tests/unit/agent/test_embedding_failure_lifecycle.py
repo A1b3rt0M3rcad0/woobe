@@ -5,12 +5,12 @@ from uuid import uuid4
 
 import pytest
 
-from modules.agent.application.services.rag.embedding_errors import (
+from modules.agent.application.interfaces.embedding_errors import (
     EmbeddingFailure,
     EmbeddingProviderError,
     normalize_embedding_error,
 )
-from modules.agent.application.use_cases.execution_context import (
+from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
@@ -28,7 +28,7 @@ from modules.agent.domain.vector_snapshot_entities import (
     VECTOR_SNAPSHOT_READY,
     VectorSnapshot,
 )
-from modules.agent.infra.workers.registry import AgentWorkerRegistry, register_agent_workers
+from modules.agent.runtime.workers.registry import AgentWorkerRegistry, register_agent_workers
 
 
 class _OpenRouter402Error(RuntimeError):

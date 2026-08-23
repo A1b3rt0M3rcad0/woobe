@@ -6,7 +6,9 @@ import pytest
 from langchain_core.messages import AIMessage
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
+from modules.agent.runtime.explicit_runtime_persistence import (
+    TransactionalAskAgentUseCase as AskAgentUseCase,
+)
 from modules.agent.infra.database.models import AgentModel, ProviderCredentialModel
 from modules.agent.infra.database.repositories import (
     SQLAlchemyMessageRepository,
@@ -109,7 +111,7 @@ async def test_session_and_history_survive_new_use_case_and_database_connection(
 
     first_model = ProviderModel("first assistant reply")
     first_result = await AskAgentUseCase(
-        session_factory=session_factory,
+        engine,
         llm_factory=ProviderFactory(first_model),
         encryption_key=settings.encryption_key,
     ).execute(
@@ -124,7 +126,7 @@ async def test_session_and_history_survive_new_use_case_and_database_connection(
 
     second_model = ProviderModel("second assistant reply")
     second_result = await AskAgentUseCase(
-        session_factory=session_factory,
+        engine,
         llm_factory=ProviderFactory(second_model),
         encryption_key=settings.encryption_key,
     ).execute(
