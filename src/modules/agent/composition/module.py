@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.application.execution.runtime_output_validation import EmptyModelOutputError
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.application.runtime_output_validation import EmptyModelOutputError
 from modules.agent.composition.composers.public_runtime_composers import (
     public_run_composer,
     public_stream_composer,

@@ -4,7 +4,6 @@ from collections.abc import Awaitable, Callable
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from modules.agent.application.use_cases.execute_agent import ExecuteAgentUseCase
 from modules.agent.infra.adapters.agent_runtime_environment_guard import (
     AgentRuntimeEnvironmentGuard,
 )
@@ -34,18 +33,17 @@ def build_ask_agent_handler(
 ) -> AskHttpHandler:
     executor = http_executor or get_http_tool_executor()
     tool_runtime = AgentToolRuntimeGateway(engine, settings, executor)
-    execution = StructuredOutputAskAgentUseCase(
+    use_case = StructuredOutputAskAgentUseCase(
         session_factory=engine,
         llm_factory=LangchainLLMFactory(),
         encryption_key=settings.encryption_key,
         tool_executor_factory=tool_runtime.execute_tool,
     )
-    execution.configure_rag_embedding_factory(LangchainEmbeddingFactory())
-    execution.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
-    guarded_execution = AgentRuntimeEnvironmentGuard(
-        execution,
+    use_case.configure_rag_embedding_factory(LangchainEmbeddingFactory())
+    use_case.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
+    guarded_use_case = AgentRuntimeEnvironmentGuard(
+        use_case,
         engine,
         default_environment="production",
     )
-    use_case = ExecuteAgentUseCase(guarded_execution)
-    return AskAgentController(use_case).handle
+    return AskAgentController(guarded_use_case).handle
