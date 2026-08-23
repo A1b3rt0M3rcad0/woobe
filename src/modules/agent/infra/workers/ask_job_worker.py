@@ -20,8 +20,9 @@ logger = logging.getLogger(__name__)
 
 
 class AskJobWorker:
-    def __init__(self, async_engine: AsyncEngine) -> None:
+    def __init__(self, async_engine: AsyncEngine, settings: Settings) -> None:
         self._engine = async_engine
+        self._settings = settings
 
     async def run(self) -> None:
         async with AgentUnitOfWork(self._engine) as uow:
@@ -39,7 +40,7 @@ class AskJobWorker:
         async with AgentUnitOfWork(self._engine) as uow:
             await SQLAlchemyAskJobRepository(uow).mark_started(job.id)
 
-        settings = Settings()
+        settings = self._settings
         http_executor = HttpToolExecutor(
             allow_local_networks=settings.http_tool_allow_local_networks
         )
