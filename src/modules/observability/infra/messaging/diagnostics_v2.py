@@ -19,21 +19,32 @@ def _r(value: float | None):
     return int(value) if value.is_integer() else value
 
 
+def _is_delegation_tool(tool: dict[str, Any]) -> bool:
+    name = tool.get("tool_name")
+    return isinstance(name, str) and name.startswith("delegate_to_")
+
+
 def build(payload: dict[str, Any]) -> dict[str, Any]:
-    tools = payload.get("tool_calls") or []
-    tools = [x for x in tools if isinstance(x, dict)]
+    raw_tools = payload.get("tool_calls") or []
+    raw_tools = [x for x in raw_tools if isinstance(x, dict)]
+    tools = [tool for tool in raw_tools if not _is_delegation_tool(tool)]
+    has_internal_delegation = len(tools) != len(raw_tools)
+
     calls = payload.get("llm_calls") or []
     calls = [x for x in calls if isinstance(x, dict)]
     runtime = _n(payload.get("total_latency_ms") or payload.get("latency_ms"))
     llm = _n(payload.get("llm_runtime_latency_ms"))
     if llm is None:
         llm = sum(_n(x.get("latency_ms")) or 0 for x in calls)
-    wall = _n(payload.get("tool_wall_latency_ms"))
+
     summed = _n(payload.get("tool_call_duration_sum_ms"))
-    if summed is None:
+    if has_internal_delegation or summed is None:
         summed = sum(_n(x.get("duration_ms")) or 0 for x in tools)
-    if wall is None:
+
+    wall = _n(payload.get("tool_wall_latency_ms"))
+    if has_internal_delegation or wall is None:
         wall = summed
+
     http = _n(payload.get("tool_http_latency_ms")) or 0
     prepare = _n(payload.get("prepare_latency_ms"))
     persist = _n(payload.get("persistence_latency_ms"))
@@ -46,6 +57,8 @@ def build(payload: dict[str, Any]) -> dict[str, Any]:
         "llm_runtime_latency_ms": _r(llm),
         "tool_wall_latency_ms": _r(wall),
         "tool_call_duration_sum_ms": _r(summed),
+        # Kept only for compatibility with existing persisted diagnostics.
+        # Generic UI and aggregation must use Tool wall / Tool work instead.
         "tool_http_latency_ms": _r(http),
         "tool_overhead_latency_ms": _r(max((summed or 0) - http, 0)),
         "prepare_latency_ms": _r(prepare),
