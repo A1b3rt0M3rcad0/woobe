@@ -231,6 +231,21 @@ deny = [
 ]
 
 [[rules]]
+id = "ARCH004W"
+description = "infra workers are inbound adapters: they may invoke Application use cases but cannot depend on presentation or composition"
+source = ["infra/workers/**"]
+allow = [
+  "modules.agent.infra",
+  "modules.agent.application",
+  "modules.agent.domain",
+  "shared",
+]
+deny = [
+  "modules.agent.presentation",
+  "modules.agent.composition",
+]
+
+[[rules]]
 id = "ARCH019"
 description = "composition is the outer module layer and may wire application, infrastructure and presentation without being imported back by them"
 source = ["composition/**"]

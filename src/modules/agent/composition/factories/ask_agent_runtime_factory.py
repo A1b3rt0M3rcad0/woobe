@@ -7,13 +7,13 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from modules.agent.infra.adapters.agent_runtime_environment_guard import (
     AgentRuntimeEnvironmentGuard,
 )
-from modules.agent.infra.adapters.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_embedding_factory import (
     LangchainEmbeddingFactory,
 )
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
+from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.infra.execution.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )

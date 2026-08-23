@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from modules.agent.application.interfaces.ports import (
     ToolExecutionPort,
     ToolSecretResolverPort,

@@ -11,7 +11,6 @@ from modules.agent.composition.composers.public_runtime_composers import (
     public_stream_composer,
 )
 from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
-from modules.agent.infra.adapters.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.infra.adapters.http_tool_runtime import (
     close_http_tool_executor,
     configure_http_tool_executor,
@@ -22,6 +21,7 @@ from modules.agent.infra.adapters.langchain_embedding_factory import (
 )
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
+from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.infra.execution.ask_agent_stream_service import AskAgentStreamService
 from modules.agent.infra.execution.runtime_streaming import (
     RuntimeStreamChannel,

@@ -17,12 +17,12 @@ from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executo
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.agent.infra.adapters.tool_runtime_registry import build_tool_runtime_registry
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentToolRepository,
     SQLAlchemyAgentToolSecretRepository,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.execution.tool_runtime_registry import build_tool_runtime_registry
 from shared.infra.config import Settings
 
 
