@@ -1,58 +1,24 @@
-from importlib import import_module
 from uuid import uuid4
 
 import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
+from modules.agent.application.interfaces.execution_context import (
+    current_execution,
+    new_execution_context,
+)
 from modules.agent.application.runtime_tool_inventory import RUNTIME_TOOL_INVENTORY_NAME
 from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot
 from modules.agent.domain.entities import Agent, Tool
 from modules.agent.domain.enums import RiskLevel, ToolStatus, ToolType
-
-
-def _symbol(candidates, name):
-    last_error = None
-    for module_name in candidates:
-        try:
-            module = import_module(module_name)
-        except ModuleNotFoundError as exc:
-            last_error = exc
-            continue
-        return getattr(module, name)
-    if last_error is not None:
-        raise last_error
-    raise ImportError(name)
-
-
-StructuredOutputAskAgentUseCase = _symbol(
-    [
-        "modules.agent.application.use_cases.structured_output_ask_use_case",
-        "modules.agent.runtime.structured_output_ask_use_case",
-    ],
-    "StructuredOutputAskAgentUseCase",
+from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
+from modules.agent.infra.execution.explicit_runtime_persistence import (
+    ExplicitRuntimePersistenceMixin,
 )
-AskAgentUseCase = _symbol(
-    [
-        "modules.agent.application.use_cases.ask_use_case",
-        "modules.agent.runtime.ask_use_case",
-    ],
-    "AskAgentUseCase",
+from modules.agent.infra.execution.structured_output_ask_use_case import (
+    StructuredOutputAskAgentUseCase,
 )
-execution_context_module = None
-for _module_name in (
-    "modules.agent.application.use_cases.execution_context",
-    "modules.agent.application.interfaces.execution_context",
-):
-    try:
-        execution_context_module = import_module(_module_name)
-        break
-    except ModuleNotFoundError:
-        continue
-if execution_context_module is None:
-    raise ImportError("Agent execution context module not found")
-current_execution = execution_context_module.current_execution
-new_execution_context = execution_context_module.new_execution_context
 
 
 def _tool(*, project_id, name="release_lookup"):
@@ -120,21 +86,7 @@ def _patch_lowest_prepare(monkeypatch, prepared):
         return prepared
 
     monkeypatch.setattr(AskAgentUseCase, "_prepare", fake_prepare)
-
-    # The transactional-composer refactor inserted a persistence mixin between
-    # InstrumentedPrimaryExecutionMixin and ReleaseRuntimeResolver. Patching it
-    # as the lower prepare boundary keeps this characterization test independent
-    # from persistence while still requiring the public Structured prepare stage
-    # to preserve runtime Tool selection.
-    try:
-        module = import_module(
-            "modules.agent.runtime.explicit_runtime_persistence"
-        )
-    except ModuleNotFoundError:
-        return
-    mixin = getattr(module, "ExplicitRuntimePersistenceMixin", None)
-    if mixin is not None:
-        monkeypatch.setattr(mixin, "_prepare", fake_prepare)
+    monkeypatch.setattr(ExplicitRuntimePersistenceMixin, "_prepare", fake_prepare)
 
 
 def _use_case():

@@ -9,7 +9,7 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
-from modules.agent.runtime.release_runtime_resolver import (
+from modules.agent.infra.execution.release_runtime_resolver import (
     ReleaseRuntimeResolver,
 )
 from modules.agent.domain.entities import Agent, Tool

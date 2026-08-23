@@ -10,7 +10,7 @@ import pytest
 
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import ToolStatus, ToolType
-from modules.agent.runtime.agent_tool_executor import AgentToolExecutor
+from modules.agent.infra.execution.agent_tool_executor import AgentToolExecutor
 from modules.agent.infra.messaging.inbox_handlers import AgentInboxEventRouter
 
 
@@ -138,6 +138,6 @@ class TestComposerConstruction:
 
     def test_agent_tool_executor_imports_execute_tool_use_case(self):
         import inspect
-        from modules.agent.runtime.agent_tool_executor import AgentToolExecutor
+        from modules.agent.infra.execution.agent_tool_executor import AgentToolExecutor
         source = inspect.getsource(AgentToolExecutor)
         assert "ExecuteToolUseCase" in source
