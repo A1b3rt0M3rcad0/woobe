@@ -4,19 +4,19 @@ from typing import Any
 
 from modules.agent.application.http_tool_contract import (
     allowed_http_group_routes,
+    compile_http_tool_contract,
     is_http_tool_group,
 )
 from modules.agent.application.mcp_permissions import allowed_mcp_discovered_tools
 from modules.agent.application.runtime_tool_inventory import append_runtime_inventory_tool
-from modules.agent.application.tool_runtime import build_default_tool_runtime_registry
+from modules.agent.application.tool_types import (
+    HTTP_PROTOCOL,
+    MCP_PROTOCOL,
+    normalize_tool_protocol,
+)
 from modules.agent.domain.enums import ToolType
 
 MCP_PROVIDER_ROUTE_SEPARATOR = "::mcp::"
-
-
-class _DefinitionOnlyExecutor:
-    async def execute(self, *args, **kwargs):  # pragma: no cover - never called by definition building
-        raise RuntimeError("Definition-only executor cannot run tools")
 
 
 def _safe_name(value: str) -> str:
@@ -52,7 +52,10 @@ def _is_mcp_server_provider(tool: Any) -> bool:
         or tool_type in {ToolType.MCP, ToolType.HTTP_MCP}
         or _type_value(tool_type) in {"mcp", "http_mcp"}
     )
-    exposes_server = config.get("mode") == "server" or config.get("exposure") == "all_discovered"
+    exposes_server = (
+        config.get("mode") == "server"
+        or config.get("exposure") == "all_discovered"
+    )
     return is_mcp and exposes_server
 
 
@@ -62,7 +65,10 @@ def _is_http_group_provider(tool: Any) -> bool:
     return tool_type in {"http", "api", "webhook"} and is_http_tool_group(config)
 
 
-def _mcp_provider_tool_definitions(tool: Any, used_names: set[str]) -> tuple[list[dict], dict[str, str]]:
+def _mcp_provider_tool_definitions(
+    tool: Any,
+    used_names: set[str],
+) -> tuple[list[dict], dict[str, str]]:
     config = getattr(tool, "config", None) or {}
     discovered_tools = allowed_mcp_discovered_tools(config)
     parent_name = _safe_tool_name(tool)
@@ -75,7 +81,10 @@ def _mcp_provider_tool_definitions(tool: Any, used_names: set[str]) -> tuple[lis
         remote_name = discovered.get("name")
         if not isinstance(remote_name, str) or not remote_name.strip():
             continue
-        function_name = _dedupe_name(_safe_name(f"{parent_name}_{remote_name}"), used_names)
+        function_name = _dedupe_name(
+            _safe_name(f"{parent_name}_{remote_name}"),
+            used_names,
+        )
         parameters = discovered.get("input_schema") or discovered.get("inputSchema") or {
             "type": "object",
             "properties": {},
@@ -98,12 +107,17 @@ def _mcp_provider_tool_definitions(tool: Any, used_names: set[str]) -> tuple[lis
                 },
             }
         )
-        mapping[function_name] = f"{tool.id}{MCP_PROVIDER_ROUTE_SEPARATOR}{remote_name}"
+        mapping[function_name] = (
+            f"{tool.id}{MCP_PROVIDER_ROUTE_SEPARATOR}{remote_name}"
+        )
 
     return definitions, mapping
 
 
-def _http_provider_tool_definitions(tool: Any, used_names: set[str]) -> tuple[list[dict], dict[str, str]]:
+def _http_provider_tool_definitions(
+    tool: Any,
+    used_names: set[str],
+) -> tuple[list[dict], dict[str, str]]:
     config = getattr(tool, "config", None) or {}
     routes = allowed_http_group_routes(config)
     parent_name = _safe_tool_name(tool)
@@ -116,7 +130,10 @@ def _http_provider_tool_definitions(tool: Any, used_names: set[str]) -> tuple[li
         operation_id = str(route.get("operation_id") or route_id).strip()
         if not route_id or not operation_id:
             continue
-        function_name = _dedupe_name(_safe_name(f"{parent_name}_{operation_id}"), used_names)
+        function_name = _dedupe_name(
+            _safe_name(f"{parent_name}_{operation_id}"),
+            used_names,
+        )
         parameters = route.get("input_schema") or {
             "type": "object",
             "properties": {},
@@ -125,7 +142,9 @@ def _http_provider_tool_definitions(tool: Any, used_names: set[str]) -> tuple[li
         }
         if not isinstance(parameters, dict):
             parameters = {"type": "object", "properties": {}, "required": []}
-        route_description = str(route.get("description") or route.get("name") or operation_id)
+        route_description = str(
+            route.get("description") or route.get("name") or operation_id
+        )
         description = route_description
         if parent_description:
             description = f"{route_description} Provider context: {parent_description}"
@@ -139,17 +158,62 @@ def _http_provider_tool_definitions(tool: Any, used_names: set[str]) -> tuple[li
                 },
             }
         )
-        # The execution pipeline already routes child capabilities through this
-        # provider separator. HTTP group routes intentionally reuse it so older
-        # runtimes remain compatible without changing persisted tool IDs.
         mapping[function_name] = f"{tool.id}{MCP_PROVIDER_ROUTE_SEPARATOR}{route_id}"
 
     return definitions, mapping
 
 
-def agent_tool_to_openai_definition(tool) -> dict:
-    registry = build_default_tool_runtime_registry(_DefinitionOnlyExecutor())
-    return registry.to_openai_definition(tool)
+def agent_tool_to_openai_definition(tool: Any) -> dict[str, Any]:
+    config = getattr(tool, "config", None) or {}
+    protocol = normalize_tool_protocol(getattr(tool, "type", None))
+    name = _safe_tool_name(tool)
+
+    if protocol == HTTP_PROTOCOL:
+        contract = compile_http_tool_contract(
+            config,
+            getattr(tool, "input_schema", None),
+        )
+        return {
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": getattr(tool, "description", None)
+                or f"HTTP {config.get('method', 'GET')} {config.get('url', '')}",
+                "parameters": contract.input_schema,
+            },
+        }
+
+    if protocol == MCP_PROTOCOL:
+        server = config.get("server", {}) or {}
+        input_schema = (
+            getattr(tool, "input_schema", None)
+            or config.get("discovered_input_schema")
+            or config.get("input_schema")
+            or {"type": "object", "properties": {}, "required": []}
+        )
+        tool_name = config.get("tool_name", "")
+        server_name = server.get("name") or server.get("url") or "remote-server"
+        return {
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": getattr(tool, "description", None)
+                or config.get("description")
+                or f"MCP {server_name}/{tool_name}",
+                "parameters": input_schema,
+            },
+        }
+
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": getattr(tool, "description", None)
+            or "Unsupported tool runtime",
+            "parameters": getattr(tool, "input_schema", None)
+            or {"type": "object", "properties": {}, "required": []},
+        },
+    }
 
 
 def agent_tools_to_openai_definitions(tools: list) -> list[dict]:
@@ -157,19 +221,27 @@ def agent_tools_to_openai_definitions(tools: list) -> list[dict]:
     return definitions
 
 
-def agent_tools_to_openai_definitions_and_mapping(tools: list) -> tuple[list[dict], dict[str, str]]:
+def agent_tools_to_openai_definitions_and_mapping(
+    tools: list,
+) -> tuple[list[dict], dict[str, str]]:
     definitions: list[dict] = []
     mapping: dict[str, str] = {}
     used_names: set[str] = set()
 
     for tool in tools:
         if _is_http_group_provider(tool):
-            provider_definitions, provider_mapping = _http_provider_tool_definitions(tool, used_names)
+            provider_definitions, provider_mapping = _http_provider_tool_definitions(
+                tool,
+                used_names,
+            )
             definitions.extend(provider_definitions)
             mapping.update(provider_mapping)
             continue
         if _is_mcp_server_provider(tool):
-            provider_definitions, provider_mapping = _mcp_provider_tool_definitions(tool, used_names)
+            provider_definitions, provider_mapping = _mcp_provider_tool_definitions(
+                tool,
+                used_names,
+            )
             definitions.extend(provider_definitions)
             mapping.update(provider_mapping)
             continue
@@ -181,12 +253,18 @@ def agent_tools_to_openai_definitions_and_mapping(tools: list) -> tuple[list[dic
             definition.setdefault("function", {})["name"] = function_name
         unique_name = _dedupe_name(function_name, used_names)
         if unique_name != function_name:
-            definition = {**definition, "function": {**definition.get("function", {}), "name": unique_name}}
+            definition = {
+                **definition,
+                "function": {
+                    **definition.get("function", {}),
+                    "name": unique_name,
+                },
+            }
         definitions.append(definition)
         mapping[unique_name] = str(tool.id)
 
     return append_runtime_inventory_tool(definitions, mapping)
 
 
-def _safe_tool_name(tool) -> str:
+def _safe_tool_name(tool: Any) -> str:
     return _safe_name(getattr(tool, "name", ""))

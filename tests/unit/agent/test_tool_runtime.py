@@ -6,17 +6,23 @@ from uuid import uuid4
 
 import pytest
 
-from modules.agent.application.interfaces.ports import ExecutionResult, McpSessionStorePort, ToolExecutionPort
+from modules.agent.application.interfaces.ports import (
+    ExecutionResult,
+    McpSessionStorePort,
+    ToolExecutionPort,
+)
 from modules.agent.application.tool_runtime import (
+    MCP_AGENT_SESSION_INPUT_KEY,
+    MCP_REMOTE_TOOL_INPUT_KEY,
+)
+from modules.agent.domain.enums import ToolType
+from modules.agent.infra.adapters.tool_runtime import (
     ERROR_HTTP_ERROR,
     ERROR_MCP_CONFIG_ERROR,
     ERROR_MCP_TOOL_DENIED_BY_POLICY,
-    MCP_AGENT_SESSION_INPUT_KEY,
-    MCP_REMOTE_TOOL_INPUT_KEY,
     HttpToolRuntime,
     McpToolRuntime,
 )
-from modules.agent.domain.enums import ToolType
 
 
 @dataclass
@@ -44,10 +50,22 @@ class FakeExecutor(ToolExecutionPort):
         body: str | None = None,
         timeout_ms: int = 30000,
     ) -> ExecutionResult:
-        self.calls.append({"method": method, "url": url, "headers": headers or {}, "body": body, "timeout_ms": timeout_ms})
+        self.calls.append(
+            {
+                "method": method,
+                "url": url,
+                "headers": headers or {},
+                "body": body,
+                "timeout_ms": timeout_ms,
+            }
+        )
         if self.results:
             return self.results.pop(0)
-        return ExecutionResult(success=True, output={"body": {"result": {"ok": True}}}, duration_ms=1)
+        return ExecutionResult(
+            success=True,
+            output={"body": {"result": {"ok": True}}},
+            duration_ms=1,
+        )
 
 
 class MemoryMcpSessionStore(McpSessionStorePort):
@@ -71,8 +89,13 @@ def mcp_tool(permission_mode: str = "allow") -> FakeTool:
         config={
             "protocol": "mcp",
             "mode": "server",
-            "server": {"transport": "streamable_http", "url": "https://mcp.example.com/mcp"},
-            "discovered_tools": [{"name": "search", "permission": {"mode": permission_mode}}],
+            "server": {
+                "transport": "streamable_http",
+                "url": "https://mcp.example.com/mcp",
+            },
+            "discovered_tools": [
+                {"name": "search", "permission": {"mode": permission_mode}}
+            ],
         }
     )
 
@@ -81,14 +104,38 @@ def mcp_tool(permission_mode: str = "allow") -> FakeTool:
 async def test_mcp_runtime_initializes_and_stores_session_on_cache_miss() -> None:
     tool = mcp_tool()
     store = MemoryMcpSessionStore()
-    executor = FakeExecutor([
-        ExecutionResult(success=True, output={"headers": {"mcp-session-id": "sid-1"}, "body": {"result": {}}}),
-        ExecutionResult(success=True, output={"body": {"result": {}}}),
-        ExecutionResult(success=True, output={"body": {"result": {"content": [{"type": "text", "text": "ok"}]}}}),
-    ])
+    executor = FakeExecutor(
+        [
+            ExecutionResult(
+                success=True,
+                output={
+                    "headers": {"mcp-session-id": "sid-1"},
+                    "body": {"result": {}},
+                },
+            ),
+            ExecutionResult(success=True, output={"body": {"result": {}}}),
+            ExecutionResult(
+                success=True,
+                output={
+                    "body": {
+                        "result": {
+                            "content": [{"type": "text", "text": "ok"}]
+                        }
+                    }
+                },
+            ),
+        ]
+    )
     runtime = McpToolRuntime(executor, session_store=store)
 
-    result = await runtime.execute(tool, {MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1", MCP_REMOTE_TOOL_INPUT_KEY: "search", "query": "redis"})
+    result = await runtime.execute(
+        tool,
+        {
+            MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1",
+            MCP_REMOTE_TOOL_INPUT_KEY: "search",
+            "query": "redis",
+        },
+    )
 
     assert result.success is True
     assert len(executor.calls) == 3
@@ -104,10 +151,18 @@ async def test_mcp_runtime_reuses_cached_session() -> None:
     tool = mcp_tool()
     store = MemoryMcpSessionStore()
     store.values[f"agent-session-1:{tool.id}"] = "sid-cached"
-    executor = FakeExecutor([ExecutionResult(success=True, output={"body": {"result": {"content": []}}})])
+    executor = FakeExecutor(
+        [ExecutionResult(success=True, output={"body": {"result": {"content": []}}})]
+    )
     runtime = McpToolRuntime(executor, session_store=store)
 
-    result = await runtime.execute(tool, {MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1", MCP_REMOTE_TOOL_INPUT_KEY: "search"})
+    result = await runtime.execute(
+        tool,
+        {
+            MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1",
+            MCP_REMOTE_TOOL_INPUT_KEY: "search",
+        },
+    )
 
     assert result.success is True
     assert len(executor.calls) == 1
@@ -120,15 +175,36 @@ async def test_mcp_runtime_reinitializes_after_invalid_cached_session() -> None:
     key = f"agent-session-1:{tool.id}"
     store = MemoryMcpSessionStore()
     store.values[key] = "sid-old"
-    executor = FakeExecutor([
-        ExecutionResult(success=False, error="invalid session", output={"body": {"error": {"message": "invalid session"}}}),
-        ExecutionResult(success=True, output={"headers": {"mcp-session-id": "sid-new"}, "body": {"result": {}}}),
-        ExecutionResult(success=True, output={"body": {"result": {}}}),
-        ExecutionResult(success=True, output={"body": {"result": {"content": []}}}),
-    ])
+    executor = FakeExecutor(
+        [
+            ExecutionResult(
+                success=False,
+                error="invalid session",
+                output={"body": {"error": {"message": "invalid session"}}},
+            ),
+            ExecutionResult(
+                success=True,
+                output={
+                    "headers": {"mcp-session-id": "sid-new"},
+                    "body": {"result": {}},
+                },
+            ),
+            ExecutionResult(success=True, output={"body": {"result": {}}}),
+            ExecutionResult(
+                success=True,
+                output={"body": {"result": {"content": []}}},
+            ),
+        ]
+    )
     runtime = McpToolRuntime(executor, session_store=store)
 
-    result = await runtime.execute(tool, {MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1", MCP_REMOTE_TOOL_INPUT_KEY: "search"})
+    result = await runtime.execute(
+        tool,
+        {
+            MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1",
+            MCP_REMOTE_TOOL_INPUT_KEY: "search",
+        },
+    )
 
     assert result.success is True
     assert store.deleted == [key]
@@ -141,7 +217,13 @@ async def test_mcp_runtime_blocks_denied_discovered_tool_before_remote_call() ->
     executor = FakeExecutor()
     runtime = McpToolRuntime(executor)
 
-    result = await runtime.execute(mcp_tool("deny"), {MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1", MCP_REMOTE_TOOL_INPUT_KEY: "search"})
+    result = await runtime.execute(
+        mcp_tool("deny"),
+        {
+            MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1",
+            MCP_REMOTE_TOOL_INPUT_KEY: "search",
+        },
+    )
 
     assert result.success is False
     assert result.output and result.output["error_code"] == ERROR_MCP_TOOL_DENIED_BY_POLICY
@@ -152,7 +234,10 @@ async def test_mcp_runtime_blocks_denied_discovered_tool_before_remote_call() ->
 async def test_mcp_runtime_returns_config_error_without_tool_name() -> None:
     runtime = McpToolRuntime(FakeExecutor())
 
-    result = await runtime.execute(mcp_tool(), {MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1"})
+    result = await runtime.execute(
+        mcp_tool(),
+        {MCP_AGENT_SESSION_INPUT_KEY: "agent-session-1"},
+    )
 
     assert result.success is False
     assert result.output and result.output["error_code"] == ERROR_MCP_CONFIG_ERROR
@@ -160,9 +245,25 @@ async def test_mcp_runtime_returns_config_error_without_tool_name() -> None:
 
 @pytest.mark.asyncio
 async def test_http_runtime_normalizes_http_failure() -> None:
-    executor = FakeExecutor([ExecutionResult(success=False, status_code=500, error="HTTP 500", output={})])
+    executor = FakeExecutor(
+        [
+            ExecutionResult(
+                success=False,
+                status_code=500,
+                error="HTTP 500",
+                output={},
+            )
+        ]
+    )
     runtime = HttpToolRuntime(executor)
-    tool = FakeTool(type=ToolType.HTTP, config={"protocol": "http", "method": "GET", "url": "https://api.example.com/items"})
+    tool = FakeTool(
+        type=ToolType.HTTP,
+        config={
+            "protocol": "http",
+            "method": "GET",
+            "url": "https://api.example.com/items",
+        },
+    )
 
     result = await runtime.execute(tool, {})
 
