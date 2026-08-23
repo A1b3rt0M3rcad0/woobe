@@ -1,5 +1,8 @@
 from modules.agent.application.use_cases import UpdateAgentUseCase
 from modules.agent.composition.resources import DATABASE_ENGINE
+from modules.agent.infra.adapters.legacy_runtime_status_adapter import (
+    LegacyRuntimeStatusUpdateAdapter,
+)
 from modules.agent.infra.database.network_agent_usage_reader import (
     SQLAlchemyNetworkAgentUsageReader,
 )
@@ -13,9 +16,6 @@ from modules.agent.infra.database.repositories import (
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.presentation.controllers.update_agent_controller import UpdateAgentController
-from modules.agent.runtime.legacy_runtime_status_adapter import (
-    LegacyRuntimeStatusUpdateAdapter,
-)
 from shared.infra.transactional_handler import TransactionalHandler
 
 
