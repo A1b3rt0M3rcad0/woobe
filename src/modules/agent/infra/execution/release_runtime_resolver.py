@@ -7,7 +7,7 @@ from typing import Any
 from uuid import UUID
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.application.execution.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
+from modules.agent.application.use_cases.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.tool_release_snapshots import (

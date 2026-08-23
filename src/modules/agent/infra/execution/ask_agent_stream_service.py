@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput
 from modules.agent.domain.runtime_events import AgentExecutionCancelledV1
-from modules.agent.infra.adapters.agent_tool_runtime_gateway import AgentToolRuntimeGateway
+from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.infra.adapters.langchain_embedding_factory import (
     LangchainEmbeddingFactory,
 )

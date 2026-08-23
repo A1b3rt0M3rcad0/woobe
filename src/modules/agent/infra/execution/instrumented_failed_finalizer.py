@@ -4,7 +4,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from modules.agent.application.execution.execution_event_factory import llm_event, tool_event
+from modules.agent.application.use_cases.execution_event_factory import llm_event, tool_event
 from modules.agent.domain.events import AgentDomainEvent, AgentExecutionFailedV1
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork

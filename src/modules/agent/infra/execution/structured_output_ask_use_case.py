@@ -5,7 +5,7 @@ from uuid import UUID
 from langchain_core.messages import SystemMessage
 
 from modules.agent.application import mcp_oauth
-from modules.agent.application.execution.structured_output_contract import (
+from modules.agent.application.use_cases.structured_output_contract import (
     format_contract_errors,
     normalize_contract_for_prompt,
     validate_output_against_contract,

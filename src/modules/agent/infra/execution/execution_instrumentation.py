@@ -8,10 +8,10 @@ from uuid import uuid4
 from langchain_core.messages import ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import ToolCallInfo, UsageInfo
-from modules.agent.application.execution.tool_output_compaction import (
+from modules.agent.application.use_cases.tool_output_compaction import (
     compact_tool_output_for_llm,
 )
-from modules.agent.application.execution.tool_result_semantics import (
+from modules.agent.application.use_cases.tool_result_semantics import (
     normalize_tool_result,
 )
 from modules.agent.application.interfaces.execution import (

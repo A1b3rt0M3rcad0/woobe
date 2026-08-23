@@ -6,13 +6,13 @@ from typing import Any
 from uuid import uuid4
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
-from modules.agent.application.execution.execution_event_factory import (
+from modules.agent.application.use_cases.execution_event_factory import (
     completed_event,
     fallback_event,
     llm_event,
     tool_event,
 )
-from modules.agent.application.execution.trace_event_builder import (
+from modules.agent.application.use_cases.trace_event_builder import (
     build_operation_events,
     sequence_events,
 )

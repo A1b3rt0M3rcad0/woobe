@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from uuid import uuid4
 
-from modules.agent.application.execution.runtime_output_validation import (
+from modules.agent.application.runtime_output_validation import (
     ensure_model_result_has_public_output,
 )
 from modules.agent.application.interfaces.execution import InstrumentedExecution
