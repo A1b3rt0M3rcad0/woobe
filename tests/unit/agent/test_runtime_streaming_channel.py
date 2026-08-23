@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from modules.agent.runtime.runtime_streaming import (
+from modules.agent.infra.execution.runtime_streaming import (
     RuntimeStreamChannel,
     current_runtime_stream,
     invoke_model_with_optional_streaming,
