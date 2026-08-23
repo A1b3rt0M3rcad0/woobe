@@ -3,15 +3,16 @@ import { CheckCircle2, ChevronDown, ChevronRight, Loader2, XCircle } from 'lucid
 
 import { ChatMessage } from '@/features/playground/components/ChatMessage'
 import type { ChatMessage as PlaygroundChatMessage, SourceInfo, ToolCallInfo } from '@/features/playground/types'
+import { formatCurrency } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 
 import type { LiveNetworkAgent } from './networkLiveExecution'
 import type { AgentNodeId } from './networkWorkspaceTypes'
-import { invocationCount, type NetworkAgentInvocation, type NetworkExecution, type NetworkTurn } from './networkChatExecution'
+import { invocationCount, operationalTools, type NetworkAgentInvocation, type NetworkExecution, type NetworkTurn } from './networkChatExecution'
 
 function flattenTools(invocation: NetworkAgentInvocation): ToolCallInfo[] {
   return [
-    ...invocation.tools,
+    ...operationalTools(invocation.tools),
     ...invocation.children.flatMap(flattenTools),
   ]
 }
@@ -151,7 +152,7 @@ export function NetworkAnswer({ networkName, turn, onOpenTrace, onSelectAgent }:
     output_parse_error: turn.outputParseError ?? null,
   }
   const agents = invocationCount(turn.execution.root)
-  const cost = turn.execution.costUsd == null ? 'cost unknown' : `$${turn.execution.costUsd.toFixed(3)}`
+  const cost = turn.execution.costUsd == null ? 'cost unknown' : formatCurrency(turn.execution.costUsd)
 
   return (
     <div className={cn(failed && 'rounded-xl border border-red-500/25 bg-red-500/[0.03] p-2')}>

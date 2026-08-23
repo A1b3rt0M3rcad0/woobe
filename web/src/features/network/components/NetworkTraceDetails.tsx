@@ -21,11 +21,13 @@ import {
 
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { ToolCallsCollapsible } from '@/features/playground/components/ToolCallsCollapsible'
+import { TraceDiagnosticsPanel } from '@/features/playground/components/TraceDiagnosticsPanel'
 import { formatCurrency, formatLatency, formatTokens } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 
 import { delegationCount, invocationCount, sourceCount, toolCount, type NetworkAgentInvocation } from './networkChatExecution'
 import { NetworkExecutionPath } from './NetworkExecutionPath'
+import { NetworkRunDiagnosticsPanel } from './NetworkRunDiagnosticsPanel'
 import { NetworkSessionComposition } from './NetworkSessionComposition'
 import { NetworkTraceInvocation } from './NetworkTraceTree'
 import type { AgentNodeId } from './networkWorkspaceTypes'
@@ -128,6 +130,12 @@ function AgentRunDetail({ invocation, root, onBack, onOpenAgent, onDiagnostics }
           <MetaItem label="Cost" value={invocation.costUsd == null ? 'Unknown' : formatCurrency(invocation.costUsd)} />
         </div>
       </section>
+
+      {invocation.childTraceId ? <TraceDiagnosticsPanel traceId={invocation.childTraceId} /> : (
+        <section className="rounded-xl border border-dashed border-border/80 px-3 py-2.5 text-[9px] text-muted">
+          Execution diagnostics become available when this Agent Run has a trace.
+        </section>
+      )}
 
       <section>
         <p className="text-[8px] uppercase tracking-wide text-muted">Model</p>
@@ -236,6 +244,8 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
       <div className="space-y-4 p-4">
         {view === 'overview' ? (
           <>
+            <NetworkRunDiagnosticsPanel executionId={trace.id} projectId={session.projectId} running={trace.status === 'running'} />
+
             {trace.execution.root.failure ? (
               <section className="rounded-xl border border-red-500/25 bg-red-500/5 p-3">
                 <p className="text-[10px] font-medium text-red-300">{trace.execution.root.failure.message}</p>
