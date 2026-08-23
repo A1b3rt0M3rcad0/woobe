@@ -4,14 +4,14 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from modules.agent.application.use_cases.execution_event_factory import llm_event, tool_event
-from modules.agent.runtime.execution_instrumentation import (
-    InstrumentedExecution,
-    aggregate_usage,
-)
+from modules.agent.application.execution.execution_event_factory import llm_event, tool_event
 from modules.agent.domain.events import AgentDomainEvent, AgentExecutionFailedV1
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.execution.execution_instrumentation import (
+    InstrumentedExecution,
+    aggregate_usage,
+)
 
 
 def _utc_now() -> str:

@@ -5,16 +5,16 @@ from uuid import UUID
 from langchain_core.messages import SystemMessage
 
 from modules.agent.application import mcp_oauth
-from modules.agent.application.mcp_tool_refresh import refresh_stale_mcp_server_tools
-from modules.agent.application.runtime_tool_inventory import RUNTIME_TOOL_INVENTORY_NAME
-from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
-from modules.agent.application.tool_release_snapshots import tool_with_permission_overrides
-from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.application.use_cases.structured_output_contract import (
+from modules.agent.application.execution.structured_output_contract import (
     format_contract_errors,
     normalize_contract_for_prompt,
     validate_output_against_contract,
 )
+from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.application.mcp_tool_refresh import refresh_stale_mcp_server_tools
+from modules.agent.application.runtime_tool_inventory import RUNTIME_TOOL_INVENTORY_NAME
+from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
+from modules.agent.application.tool_release_snapshots import tool_with_permission_overrides
 from modules.agent.domain.entities import Message
 from modules.agent.domain.enums import MessageRole
 from modules.agent.domain.events import AgentExecutionFailedV1, AgentMessageCreatedV1
@@ -27,19 +27,19 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentToolSecretRepository,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
-from modules.agent.runtime.execution_instrumentation import aggregate_usage
-from modules.agent.runtime.explicit_runtime_persistence import (
+from modules.agent.infra.execution.execution_instrumentation import aggregate_usage
+from modules.agent.infra.execution.explicit_runtime_persistence import (
     ExplicitRuntimePersistenceMixin,
 )
-from modules.agent.runtime.instrumented_execution_finalizer import (
+from modules.agent.infra.execution.instrumented_execution_finalizer import (
     finalize_instrumented_execution,
 )
-from modules.agent.runtime.instrumented_failed_finalizer import (
+from modules.agent.infra.execution.instrumented_failed_finalizer import (
     finalize_failed_instrumented_execution,
 )
-from modules.agent.runtime.instrumented_fallback_mixin import InstrumentedFallbackMixin
-from modules.agent.runtime.instrumented_primary_mixin import InstrumentedPrimaryExecutionMixin
-from modules.agent.runtime.session_continuity_runtime_resolver import (
+from modules.agent.infra.execution.instrumented_fallback_mixin import InstrumentedFallbackMixin
+from modules.agent.infra.execution.instrumented_primary_mixin import InstrumentedPrimaryExecutionMixin
+from modules.agent.infra.execution.session_continuity_runtime_resolver import (
     SessionContinuityReleaseRuntimeResolver,
 )
 from shared.contracts.time import utc_now
@@ -173,15 +173,27 @@ class StructuredOutputAskAgentUseCase(
                         tool_repo=tool_repo,
                         executor=get_http_tool_executor(),
                         secret_resolver=resolver,
-                        auth_header_provider=auth_provider_cls(executor=get_http_tool_executor(), cipher=cipher),
+                        auth_header_provider=auth_provider_cls(
+                            executor=get_http_tool_executor(),
+                            cipher=cipher,
+                        ),
                     )
-                    permission_overrides = tool_metadata.get("permission_overrides") if tool_metadata else None
+                    permission_overrides = (
+                        tool_metadata.get("permission_overrides")
+                        if tool_metadata
+                        else None
+                    )
                     if isinstance(permission_overrides, dict):
                         refreshed_tools = [
-                            tool_with_permission_overrides(tool, permission_overrides.get(str(tool.id)))
+                            tool_with_permission_overrides(
+                                tool,
+                                permission_overrides.get(str(tool.id)),
+                            )
                             for tool in refreshed_tools
                         ]
-                    agent_tools, tool_name_to_id = agent_tools_to_openai_definitions_and_mapping(refreshed_tools)
+                    agent_tools, tool_name_to_id = (
+                        agent_tools_to_openai_definitions_and_mapping(refreshed_tools)
+                    )
             except Exception:
                 updated = list(prepared)
                 tool_name_to_id = updated[8]
@@ -211,13 +223,19 @@ class StructuredOutputAskAgentUseCase(
         if updated[9]:
             messages = list(updated[11])
             insert_at = len(messages) - 1 if messages else 0
-            messages.insert(insert_at, SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES))
+            messages.insert(
+                insert_at,
+                SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES),
+            )
             updated[11] = messages
 
         if RUNTIME_TOOL_INVENTORY_NAME in tool_name_to_id:
             messages = list(updated[11])
             insert_at = len(messages) - 1 if messages else 0
-            messages.insert(insert_at, SystemMessage(content=_RUNTIME_TOOL_INVENTORY_RUNTIME_RULES))
+            messages.insert(
+                insert_at,
+                SystemMessage(content=_RUNTIME_TOOL_INVENTORY_RUNTIME_RULES),
+            )
             updated[11] = messages
         return tuple(updated)
 
@@ -307,7 +325,9 @@ class StructuredOutputAskAgentUseCase(
             async with AgentUnitOfWork(session_factory) as uow:
                 outbox = SQLAlchemyAgentOutboxEventWriter(uow)
                 provider = _provider_value(getattr(agent, "provider", None))
-                fallback_provider = _provider_value(getattr(agent, "fallback_provider", None))
+                fallback_provider = _provider_value(
+                    getattr(agent, "fallback_provider", None)
+                )
                 failed_event = AgentExecutionFailedV1.create(
                     agent_id=agent.id,
                     session_id=session.id if session else (trace_id or agent.id),
@@ -318,27 +338,51 @@ class StructuredOutputAskAgentUseCase(
                         "session_id": str(session.id) if session else None,
                         "provider": provider,
                         "model": getattr(agent, "model", None),
-                        "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
-                        "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
+                        "provider_model_id": _id_text(
+                            getattr(agent, "provider_model_id", None)
+                        ),
+                        "provider_credential_id": _id_text(
+                            getattr(agent, "provider_credential_id", None)
+                        ),
                         "fallback_provider": fallback_provider,
                         "fallback_model": getattr(agent, "fallback_model", None),
-                        "fallback_provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
-                        "fallback_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
+                        "fallback_provider_model_id": _id_text(
+                            getattr(agent, "fallback_provider_model_id", None)
+                        ),
+                        "fallback_credential_id": _id_text(
+                            getattr(agent, "fallback_credential_id", None)
+                        ),
                         "model_binding": {
-                            "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
-                            "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
+                            "provider_model_id": _id_text(
+                                getattr(agent, "provider_model_id", None)
+                            ),
+                            "provider_credential_id": _id_text(
+                                getattr(agent, "provider_credential_id", None)
+                            ),
                             "provider": provider,
                             "model": getattr(agent, "model", None),
                         },
                         "fallback_model_binding": {
-                            "provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
-                            "provider_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
+                            "provider_model_id": _id_text(
+                                getattr(agent, "fallback_provider_model_id", None)
+                            ),
+                            "provider_credential_id": _id_text(
+                                getattr(agent, "fallback_credential_id", None)
+                            ),
                             "provider": fallback_provider,
                             "model": getattr(agent, "fallback_model", None),
                         },
-                        "execution_context": context.execution_context if context else input_dto.execution_context,
-                        "agent_release_id": _id_text(context.agent_release_id if context else None),
-                        "agent_release_version": context.agent_release_version if context else None,
+                        "execution_context": (
+                            context.execution_context
+                            if context
+                            else input_dto.execution_context
+                        ),
+                        "agent_release_id": _id_text(
+                            context.agent_release_id if context else None
+                        ),
+                        "agent_release_version": (
+                            context.agent_release_version if context else None
+                        ),
                         "error": error,
                     },
                 )
@@ -346,13 +390,29 @@ class StructuredOutputAskAgentUseCase(
         except Exception as exc:
             import logging
 
-            logging.getLogger(__name__).warning("Failed to emit instrumented AgentExecutionFailedV1: %s", exc)
+            logging.getLogger(__name__).warning(
+                "Failed to emit instrumented AgentExecutionFailedV1: %s",
+                exc,
+            )
 
     async def _finalize(
-        self, session, agent, input_dto, trace_id, answer, usage,
-        response_model, response_provider, llm_latency_ms, sources,
-        parsed_output, output_parse_error, tool_calls_recorded,
-        fallback_used, fallback_info_result, json_format_latency_ms,
+        self,
+        session,
+        agent,
+        input_dto,
+        trace_id,
+        answer,
+        usage,
+        response_model,
+        response_provider,
+        llm_latency_ms,
+        sources,
+        parsed_output,
+        output_parse_error,
+        tool_calls_recorded,
+        fallback_used,
+        fallback_info_result,
+        json_format_latency_ms,
     ):
         context = current_execution.get()
         if context is not None:
@@ -377,10 +437,22 @@ class StructuredOutputAskAgentUseCase(
             raise ValueError(f"Strict JSON output failed: {output_parse_error}")
         if not context or not context.execution:
             return await super()._finalize(
-                session, agent, input_dto, trace_id, answer, usage,
-                response_model, response_provider, llm_latency_ms, sources,
-                parsed_output, output_parse_error, tool_calls_recorded,
-                fallback_used, fallback_info_result, json_format_latency_ms,
+                session,
+                agent,
+                input_dto,
+                trace_id,
+                answer,
+                usage,
+                response_model,
+                response_provider,
+                llm_latency_ms,
+                sources,
+                parsed_output,
+                output_parse_error,
+                tool_calls_recorded,
+                fallback_used,
+                fallback_info_result,
+                json_format_latency_ms,
             )
         aggregate, complete, cost_status = aggregate_usage(context.execution.llm_calls)
         return await finalize_instrumented_execution(
