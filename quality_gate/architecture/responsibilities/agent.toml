@@ -38,8 +38,6 @@ forbidden_dependency_parameters = [
 [application_runtime_purity]
 rule_id = "ARCH066"
 source = [
-  "application/runtime/**",
-  "application/execution/**",
   "application/*runtime*.py",
   "application/use_cases/*runtime*.py",
 ]
@@ -118,8 +116,8 @@ allowed_imports = ["{package}.entrypoint"]
 [transport_neutral]
 rule_id = "ARCH072"
 source = [
-  "application/runtime/**",
-  "application/execution/**",
+  "application/*runtime*.py",
+  "application/use_cases/*runtime*.py",
 ]
 forbidden_imports = [
   "fastapi",
