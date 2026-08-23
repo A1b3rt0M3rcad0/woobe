@@ -5,8 +5,8 @@ from typing import Any
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.entities import Agent
-from modules.agent.runtime.ask_use_case import AskAgentUseCase
-from modules.agent.runtime.release_runtime_resolver import ReleaseRuntimeResolver
+from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
+from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
 from shared.contracts.errors import ConflictError, ValidationError
 from shared.runtime_environment import normalize_runtime_environment
 
@@ -54,9 +54,6 @@ class SessionContinuityReleaseRuntimeResolver(ReleaseRuntimeResolver):
                 f"Agent Session belongs to {session_environment}, not {requested_environment}"
             )
 
-        # A standalone Session never chooses the Release for the next Run. Even
-        # if an old client submits loaded_release_id, the current environment
-        # target is authoritative. Network runtime is intentionally exempt above.
         input_dto.loaded_release_id = None
         return None
 
@@ -69,8 +66,6 @@ class SessionContinuityReleaseRuntimeResolver(ReleaseRuntimeResolver):
 
         loaded = await super()._load_agent(uow, input_dto)
 
-        # Stateful/stateless is a current standalone Agent runtime policy. It is
-        # not locked by the Release that happens to execute this Run.
         if runtime_session_mode is not None and not self._is_network_runtime(input_dto):
             loaded.session_mode = runtime_session_mode
         return loaded

@@ -3,16 +3,16 @@ from __future__ import annotations
 import time
 from uuid import uuid4
 
+from modules.agent.application.execution.runtime_output_validation import (
+    ensure_model_result_has_public_output,
+)
+from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.runtime.execution_instrumentation import (
-    InstrumentedExecution,
+from modules.agent.infra.execution.execution_instrumentation import (
     aggregate_usage,
     utc_iso,
 )
-from modules.agent.runtime.runtime_output_validation import (
-    ensure_model_result_has_public_output,
-)
-from modules.agent.runtime.runtime_streaming import emit_runtime_event
+from modules.agent.infra.execution.runtime_streaming import emit_runtime_event
 from shared.contracts.llm_cost import calculate_llm_cost
 from shared.contracts.llm_usage import normalize_llm_usage
 

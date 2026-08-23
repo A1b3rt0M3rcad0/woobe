@@ -5,28 +5,28 @@ import time
 from typing import Any, Protocol, cast
 from uuid import uuid4
 
+from modules.agent.application.execution.runtime_output_validation import (
+    ensure_model_result_has_public_output,
+)
 from modules.agent.application.interfaces.embedding_errors import EmbeddingProviderError
-from modules.agent.application.tool_converter import MCP_PROVIDER_ROUTE_SEPARATOR
+from modules.agent.application.interfaces.execution import (
+    InstrumentedExecution,
+    InstrumentedExecutionError,
+)
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
     utc_now,
 )
+from modules.agent.application.tool_converter import MCP_PROVIDER_ROUTE_SEPARATOR
 from modules.agent.domain.events import AgentExecutionFailedV1
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
-from modules.agent.runtime.execution_instrumentation import (
-    InstrumentedExecution,
-    InstrumentedExecutionError,
-    aggregate_usage,
-)
-from modules.agent.runtime.instrumented_execution_runner import (
+from modules.agent.infra.execution.execution_instrumentation import aggregate_usage
+from modules.agent.infra.execution.instrumented_execution_runner import (
     run_instrumented_execution,
 )
-from modules.agent.runtime.runtime_output_validation import (
-    ensure_model_result_has_public_output,
-)
-from modules.agent.runtime.runtime_streaming import current_runtime_stream
+from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
 
 logger = logging.getLogger(__name__)
 

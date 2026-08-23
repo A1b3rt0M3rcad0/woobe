@@ -3,11 +3,11 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Coroutine
 
+from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.domain.entities import Agent
-from modules.agent.runtime.execution_instrumentation import InstrumentedExecution
-from modules.agent.runtime.runtime_streaming import runtime_streaming_enabled
-from modules.agent.runtime.structured_json_repair import repair_json_if_needed
-from modules.agent.runtime.tool_execution_loop import run_tool_loop
+from modules.agent.infra.execution.runtime_streaming import runtime_streaming_enabled
+from modules.agent.infra.execution.structured_json_repair import repair_json_if_needed
+from modules.agent.infra.execution.tool_execution_loop import run_tool_loop
 
 
 def _primary_pricing_snapshot(agent: Agent) -> dict[str, Any] | None:
