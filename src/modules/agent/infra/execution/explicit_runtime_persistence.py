@@ -6,6 +6,7 @@ from typing import Any
 from uuid import uuid4
 
 from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput, SourceInfo
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.application.tool_converter import (
     agent_tools_to_openai_definitions_and_mapping,
 )
@@ -17,38 +18,25 @@ from modules.agent.domain.events import (
     AgentExecutionToolCompletedV1,
     AgentFallbackTriggeredV1,
 )
-from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
 from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
-from modules.agent.infra.database.runtime_repositories import (
-    AgentRuntimeRepositories,
-    build_agent_runtime_repositories,
-)
 
 logger = logging.getLogger(__name__)
 
 
 class ExplicitRuntimePersistenceMixin:
-    """Persistence phases backed by explicit repositories sharing one UoW.
-
-    Runtime execution intentionally uses short-lived transactions around prepare,
-    finalize and fallback credential reads. The UnitOfWork owns only transaction
-    lifecycle; repository composition is explicit in ``AgentRuntimeRepositories``.
-    """
+    """Persistence phases executed as explicit short-lived transactions."""
 
     async def _prepare(self, input_dto: AskInput):
-        session_factory = self._session_factory
-        if session_factory is None:
-            raise RuntimeError("Agent runtime session factory is not configured")
-
-        async with AgentUnitOfWork(session_factory) as uow:
-            repositories = build_agent_runtime_repositories(uow)
+        async def prepare(
+            repositories: AgentRuntimeRepositories,
+            outbox: OutboxEventWriter,
+        ):
             trace_id = uuid4()
 
             credential_repo = repositories.provider_credentials
             session_repo = repositories.sessions
             message_repo = repositories.messages
-            outbox = SQLAlchemyAgentOutboxEventWriter(uow)
 
             agent = await self._load_agent(repositories, input_dto)
 
@@ -138,21 +126,23 @@ class ExplicitRuntimePersistenceMixin:
             )
             await outbox.write(started_event)
 
-        return (
-            agent,
-            session,
-            trace_id,
-            api_key,
-            base_url,
-            response_format,
-            json_enabled,
-            agent_tools,
-            tool_name_to_id,
-            has_tools,
-            sources,
-            messages,
-            history,
-        )
+            return (
+                agent,
+                session,
+                trace_id,
+                api_key,
+                base_url,
+                response_format,
+                json_enabled,
+                agent_tools,
+                tool_name_to_id,
+                has_tools,
+                sources,
+                messages,
+                history,
+            )
+
+        return await self._transactions.run(prepare)
 
     async def _finalize(
         self,
@@ -173,14 +163,10 @@ class ExplicitRuntimePersistenceMixin:
         fallback_info_result,
         json_format_latency_ms,
     ) -> AskOutput:
-        session_factory = self._session_factory
-        if session_factory is None:
-            raise RuntimeError("Agent runtime session factory is not configured")
-
-        async with AgentUnitOfWork(session_factory) as uow:
-            repositories = build_agent_runtime_repositories(uow)
-            outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-
+        async def finalize(
+            repositories: AgentRuntimeRepositories,
+            outbox: OutboxEventWriter,
+        ) -> AskOutput:
             message_id = None
             if session:
                 assistant_msg = await self._do_save_assistant_message(
@@ -240,12 +226,16 @@ class ExplicitRuntimePersistenceMixin:
                 "provider": response_provider or "",
                 "latency_ms": llm_latency_ms,
                 "fallback_used": fallback_used,
-                "sources": [item.model_dump() for item in sources] if sources else None,
+                "sources": [item.model_dump() for item in sources]
+                if sources
+                else None,
                 "parsed_output": parsed_output,
                 "output_parse_error": output_parse_error,
                 "tool_calls": [
                     item.model_dump() for item in tool_calls_recorded
-                ] if tool_calls_recorded else [],
+                ]
+                if tool_calls_recorded
+                else [],
             }
             if fallback_info_result:
                 completion_payload["fallback_info"] = fallback_info_result
@@ -265,22 +255,24 @@ class ExplicitRuntimePersistenceMixin:
                 )
             )
 
-        return AskOutput(
-            answer=answer,
-            session_id=session.id if session else None,
-            message_id=message_id,
-            usage=usage,
-            sources=sources,
-            tool_calls=tool_calls_recorded,
-            trace_id=trace_id,
-            model=response_model,
-            provider=response_provider,
-            fallback_used=fallback_used,
-            fallback_info=fallback_info_result,
-            latency_ms=llm_latency_ms or 0,
-            parsed_output=parsed_output,
-            output_parse_error=output_parse_error,
-        )
+            return AskOutput(
+                answer=answer,
+                session_id=session.id if session else None,
+                message_id=message_id,
+                usage=usage,
+                sources=sources,
+                tool_calls=tool_calls_recorded,
+                trace_id=trace_id,
+                model=response_model,
+                provider=response_provider,
+                fallback_used=fallback_used,
+                fallback_info=fallback_info_result,
+                latency_ms=llm_latency_ms or 0,
+                parsed_output=parsed_output,
+                output_parse_error=output_parse_error,
+            )
+
+        return await self._transactions.run(finalize)
 
     async def _try_fallback(
         self,
@@ -298,22 +290,23 @@ class ExplicitRuntimePersistenceMixin:
         fallback_api_key: str | None = None
         fallback_base_url: str | None = None
         if agent.fallback_credential_id:
-            session_factory = self._session_factory
-            if session_factory is None:
-                raise RuntimeError("Agent runtime session factory is not configured")
+            async def load_credential(
+                repositories: AgentRuntimeRepositories,
+                _outbox: OutboxEventWriter,
+            ):
+                return await repositories.provider_credentials.get_by_id(
+                    agent.fallback_credential_id
+                )
+
             try:
-                async with AgentUnitOfWork(session_factory) as uow:
-                    repositories = build_agent_runtime_repositories(uow)
-                    credential = await repositories.provider_credentials.get_by_id(
-                        agent.fallback_credential_id
+                credential = await self._transactions.run(load_credential)
+                if credential:
+                    fallback_api_key = self._decrypt_api_key(credential)
+                    fallback_base_url = self._resolve_base_url_for_provider(
+                        fallback_provider,
+                        credential,
+                        agent.settings,
                     )
-                    if credential:
-                        fallback_api_key = self._decrypt_api_key(credential)
-                        fallback_base_url = self._resolve_base_url_for_provider(
-                            fallback_provider,
-                            credential,
-                            agent.settings,
-                        )
             except Exception as exc:
                 logger.warning("Failed to load fallback credential: %s", exc)
 
@@ -395,6 +388,10 @@ class TransactionalAskAgentUseCase(ExplicitRuntimePersistenceMixin, AskAgentUseC
                         )
                     )
 
-            return ("\n\n".join(all_chunks), all_sources) if all_chunks else (None, [])
+            return (
+                ("\n\n".join(all_chunks), all_sources)
+                if all_chunks
+                else (None, [])
+            )
         except Exception:
             return None, []
