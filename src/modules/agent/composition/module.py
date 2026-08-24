@@ -12,6 +12,7 @@ from modules.agent.composition.composers.public_runtime_composers import (
 )
 from modules.agent.composition.factories.ask_agent_runtime_factory import (
     build_ask_agent_use_case,
+    build_internal_agent_runtime,
 )
 from modules.agent.composition.resources import SETTINGS
 from modules.agent.infra.adapters.http_tool_runtime import (
@@ -105,6 +106,7 @@ __all__ = [
     "StructuredOutputAskAgentUseCase",
     "build_agent_stream_service",
     "build_http_tool_executor",
+    "build_internal_agent_runtime",
     "close_http_tool_executor",
     "commit_safe_stream",
     "current_execution",
