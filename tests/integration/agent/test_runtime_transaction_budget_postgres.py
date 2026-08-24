@@ -54,6 +54,8 @@ async def test_agent_happy_path_uses_exactly_two_postgres_commits() -> None:
     credential_id = uuid4()
     agent_id = uuid4()
 
+    # Keep fixture ordering explicit. The ORM models do not expose relationships
+    # that let SQLAlchemy infer the provider credential -> Agent dependency.
     async with session_factory() as session:
         async with session.begin():
             session.add(
@@ -66,6 +68,8 @@ async def test_agent_happy_path_uses_exactly_two_postgres_commits() -> None:
                     data={},
                 )
             )
+            await session.flush()
+
             session.add(
                 ProviderCredentialModel(
                     id=credential_id,
@@ -80,6 +84,8 @@ async def test_agent_happy_path_uses_exactly_two_postgres_commits() -> None:
                     meta={},
                 )
             )
+            await session.flush()
+
             session.add(
                 AgentModel(
                     id=agent_id,
