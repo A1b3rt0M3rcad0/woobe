@@ -11,8 +11,13 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
-from modules.agent.domain.entities import Agent, ProviderCredential
-from modules.agent.domain.enums import Provider, SessionMode
+from modules.agent.domain.entities import Agent, ProviderCredential, Tool
+from modules.agent.domain.enums import (
+    Provider,
+    SessionMode,
+    ToolStatus,
+    ToolType,
+)
 from modules.agent.infra.execution.explicit_runtime_persistence import (
     TransactionalAskAgentUseCase,
 )
@@ -44,9 +49,10 @@ class _RunRepository:
 
 class _Repositories:
     def __init__(self) -> None:
+        self.tool_items = []
         self.environment = SimpleNamespace(assert_enabled=self._assert_enabled)
         self.provider_credentials = SimpleNamespace(get_by_id=self._none)
-        self.tools = SimpleNamespace(list_by_agent=self._no_tools, get_by_id=self._none)
+        self.tools = SimpleNamespace(list_by_agent=self._tools, get_by_id=self._none)
         self.tool_secrets = SimpleNamespace(get_by_name=self._none)
         self.knowledge_versions = SimpleNamespace(get_by_id=self._none)
         self.vector_snapshots = SimpleNamespace(
@@ -67,8 +73,8 @@ class _Repositories:
     async def _empty(self, *_args, **_kwargs):
         return []
 
-    async def _no_tools(self, *_args, **_kwargs):
-        return []
+    async def _tools(self, *_args, **_kwargs):
+        return list(self.tool_items)
 
 
 class _CountingTransactions:
@@ -138,8 +144,60 @@ class _LLMFactory:
         return self.primary if self.created == 1 else self.fallback
 
 
+class _ToolChatModel:
+    def __init__(self, transactions: _CountingTransactions) -> None:
+        self._transactions = transactions
+        self.calls = 0
+        self.bound_tools = None
+
+    def bind_tools(self, tools, *, tool_choice):
+        self.bound_tools = list(tools)
+        assert tool_choice == "auto"
+        return self
+
+    async def ainvoke(self, _messages):
+        assert not self._transactions.sql_scope_active, (
+            "LLM Tool rounds must not run while a SQL scope is active"
+        )
+        self.calls += 1
+        if self.calls == 1:
+            return SimpleNamespace(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call-1",
+                        "name": "lookup",
+                        "args": {"query": "customer"},
+                    }
+                ],
+                usage_metadata={"input_tokens": 2, "output_tokens": 1, "total_tokens": 3},
+                response_metadata={},
+            )
+        return SimpleNamespace(
+            content="tool-ok",
+            tool_calls=[],
+            usage_metadata={"input_tokens": 4, "output_tokens": 2, "total_tokens": 6},
+            response_metadata={"model": "test-model", "provider": "openai"},
+        )
+
+
+class _ToolLLMFactory:
+    def __init__(self, transactions: _CountingTransactions) -> None:
+        self.model = _ToolChatModel(transactions)
+
+    def create_chat_model(self, **_kwargs):
+        return self.model
+
+
 class _Runtime(TransactionalAskAgentUseCase):
-    def __init__(self, transactions, llm_factory, *, fallback: bool = False) -> None:
+    def __init__(
+        self,
+        transactions,
+        llm_factory,
+        *,
+        fallback: bool = False,
+        tool_executor_factory=None,
+    ) -> None:
         project_id = uuid4()
         credential_id = uuid4()
         fallback_credential_id = uuid4() if fallback else None
@@ -174,7 +232,11 @@ class _Runtime(TransactionalAskAgentUseCase):
             if fallback_credential_id
             else None
         )
-        super().__init__(transactions=transactions, llm_factory=llm_factory)
+        super().__init__(
+            transactions=transactions,
+            llm_factory=llm_factory,
+            tool_executor_factory=tool_executor_factory,
+        )
 
     async def _load_agent(self, _repositories, _input_dto):
         return self.agent
@@ -234,12 +296,67 @@ async def test_agent_happy_path_has_exactly_acceptance_and_finalization_writes()
 
 
 @pytest.mark.asyncio
+async def test_prepared_tool_execution_adds_no_sql_transaction() -> None:
+    transactions = _CountingTransactions()
+    tool = Tool(
+        project_id=uuid4(),
+        name="lookup",
+        type=ToolType.FUNCTION,
+        status=ToolStatus.ACTIVE,
+        config={},
+        input_schema={
+            "type": "object",
+            "properties": {"query": {"type": "string"}},
+        },
+    )
+    tool_calls = []
+
+    async def execute_tool(tool_id, input_data):
+        assert not transactions.sql_scope_active, (
+            "Tool execution must not run while a SQL scope is active"
+        )
+        assert tool_id == tool.id
+        tool_calls.append((tool_id, dict(input_data)))
+        return {"success": True, "output": {"customer": "ok"}}
+
+    llm_factory = _ToolLLMFactory(transactions)
+    runtime = _Runtime(
+        transactions,
+        llm_factory,
+        tool_executor_factory=execute_tool,
+    )
+    tool.project_id = runtime.agent.project_id
+    tool.agent_id = runtime.agent.id
+    transactions.repositories.tool_items = [tool]
+
+    context = new_execution_context()
+    token = current_execution.set(context)
+    try:
+        result = await runtime.execute(
+            AskInput(
+                project_id=runtime.agent.project_id,
+                agent_id=runtime.agent.id,
+                message="lookup customer",
+                execution_context="playground",
+            )
+        )
+    finally:
+        current_execution.reset(token)
+
+    assert result.answer == "tool-ok"
+    assert transactions.write_calls == 2
+    assert transactions.read_calls == 0
+    assert tool_calls == [(tool.id, {"query": "customer"})]
+    assert llm_factory.model.calls == 2
+
+
+@pytest.mark.asyncio
 async def test_prepared_fallback_adds_no_sql_transaction() -> None:
     transactions = _CountingTransactions()
     llm_factory = _LLMFactory(transactions, fallback=True)
     runtime = _Runtime(transactions, llm_factory, fallback=True)
     transactions.repositories.provider_credentials.get_by_id = (
-        lambda credential_id: _async_value(runtime.fallback_credential)
+        lambda _credential_id: _async_value(runtime.fallback_credential)
     )
     input_dto = AskInput(
         project_id=runtime.agent.project_id,
