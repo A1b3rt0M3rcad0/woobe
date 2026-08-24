@@ -13,22 +13,54 @@ from modules.network.application.runtime_failures import (
 )
 from modules.network.domain.entities import NetworkDefinition, NetworkNode
 from modules.network.domain.graph import delegation_tool_name
-from modules.network.infra.database.models import (
-    NetworkExecutionModel,
-    NetworkInvocationModel,
-    NetworkVersionModel,
-)
 
 
 NETWORK_TOOL_NAMESPACE = UUID("bd84d8e4-0d63-4a8f-96ca-3fd22e42dfe0")
 AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
+_VALID_AGENT_SESSION_MODES = {"stateful", "stateless"}
+
+
+@dataclass(frozen=True, slots=True)
+class NetworkExecutionSnapshot:
+    id: UUID
+    network_id: UUID
+    network_version_id: UUID | None
+    network_session_id: UUID
+    project_id: UUID
+    input_message: str
+    draft_revision: int | None
+    definition_snapshot: dict[str, Any] | None
+    resolved_bindings_snapshot: dict[str, Any] | None
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
+class NetworkVersionSnapshot:
+    id: UUID
+    kind: str
+    definition: dict[str, Any]
+    resolved_bindings: dict[str, Any]
+    version: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class NetworkInvocationState:
+    id: UUID
+    network_execution_id: UUID
+    network_session_id: UUID
+    parent_invocation_id: UUID | None
+    node_id: UUID
+    agent_id: UUID
+    agent_session_id: UUID | None
+    trace_id: UUID | None
+    depth: int
+    status: str
+    input_message: str
 
 
 def agent_capability_summary(node: NetworkNode) -> str:
     capability = " ".join(node.capability_description.split())
-    return capability or (
-        f"This specialist performs the role represented by {node.label}."
-    )
+    return capability or f"This specialist performs the role represented by {node.label}."
 
 
 def delegation_tool_description(node: NetworkNode) -> str:
@@ -83,15 +115,11 @@ class InternalDelegationTool:
                     "properties": {
                         "task": {
                             "type": "string",
-                            "description": (
-                                "The precise task the specialist must complete."
-                            ),
+                            "description": "The precise task the specialist must complete.",
                         },
                         "context": {
                             "type": "object",
-                            "description": (
-                                "Only the context required to complete the task."
-                            ),
+                            "description": "Only the context required to complete the task.",
                             "additionalProperties": True,
                         },
                         "expected_output": {
@@ -129,27 +157,17 @@ class AgentInvoker(Protocol):
 class NetworkExecutionStore(Protocol):
     async def is_cancel_requested(self, execution_id: UUID) -> bool: ...
 
-    async def resolve_agent_session_mode(
-        self,
-        *,
-        project_id: UUID,
-        agent_id: UUID,
-        release_id: UUID | None,
-        snapshot_override: dict[str, Any] | None,
-        binding_session_mode: str | None = None,
-    ) -> str: ...
-
     async def start_invocation(
         self,
         *,
-        execution: NetworkExecutionModel,
+        execution: NetworkExecutionSnapshot,
         node_id: UUID,
         agent_id: UUID,
         depth: int,
         message: str,
         parent_invocation_id: UUID | None,
         persist_context: bool,
-    ) -> NetworkInvocationModel: ...
+    ) -> NetworkInvocationState: ...
 
     async def complete_invocation(
         self,
@@ -215,8 +233,8 @@ class NetworkExecutor:
 
     async def execute(
         self,
-        execution: NetworkExecutionModel,
-        version: NetworkVersionModel | None,
+        execution: NetworkExecutionSnapshot,
+        version: NetworkVersionSnapshot | None,
     ) -> AgentInvocationResult:
         if version is None:
             if not execution.definition_snapshot or not execution.resolved_bindings_snapshot:
@@ -227,9 +245,8 @@ class NetworkExecutor:
         else:
             definition_payload = version.definition
             resolved_bindings = version.resolved_bindings
-            runtime_environment = (
-                "production" if version.kind == "release" else "staging"
-            )
+            runtime_environment = "production" if version.kind == "release" else "staging"
+
         definition = NetworkDefinition.from_dict(definition_payload)
         nodes = {node.id: node for node in definition.nodes}
         outgoing: dict[UUID, list[UUID]] = {node_id: [] for node_id in nodes}
@@ -263,9 +280,8 @@ class NetworkExecutor:
             release_id = binding.get("release_id")
             release_uuid = UUID(str(release_id)) if release_id else None
             snapshot_override = binding.get("snapshot_override")
-            if runtime_environment == "draft" and not isinstance(
-                snapshot_override, dict
-            ):
+
+            if runtime_environment == "draft" and not isinstance(snapshot_override, dict):
                 raise _preparation_failure(
                     RuntimeError(f"Node {node_id} has no Agent Draft snapshot"),
                     code="agent_binding_error",
@@ -275,40 +291,23 @@ class NetworkExecutor:
                 )
             if runtime_environment != "draft" and release_uuid is None:
                 raise _preparation_failure(
-                    RuntimeError(
-                        f"Node {node_id} has no immutable Agent release binding"
-                    ),
+                    RuntimeError(f"Node {node_id} has no immutable Agent release binding"),
                     code="agent_binding_error",
                     stage="agent_binding_resolution",
                     message="The Agent snapshot pinned by this Network Version could not be resolved.",
                     node=node,
                 )
 
-            raw_binding_session_mode = binding.get("session_mode")
-            try:
-                agent_session_mode = await self._store.resolve_agent_session_mode(
-                    project_id=execution.project_id,
-                    agent_id=node.agent_id,
-                    release_id=release_uuid,
-                    snapshot_override=(
-                        snapshot_override
-                        if isinstance(snapshot_override, dict)
-                        else None
-                    ),
-                    binding_session_mode=(
-                        str(raw_binding_session_mode)
-                        if raw_binding_session_mode is not None
-                        else None
-                    ),
-                )
-            except Exception as exc:
+            raw_session_mode = binding.get("session_mode")
+            agent_session_mode = str(raw_session_mode) if raw_session_mode is not None else ""
+            if agent_session_mode not in _VALID_AGENT_SESSION_MODES:
                 raise _preparation_failure(
-                    exc,
+                    RuntimeError(f"Node {node_id} has no frozen Agent Session Mode"),
                     code="agent_binding_error",
                     stage="agent_binding_resolution",
                     message="The Agent Session Mode pinned by this Network Version could not be resolved.",
                     node=node,
-                ) from exc
+                )
 
             persist_agent_context = (
                 definition.session_mode == "stateful"
@@ -340,21 +339,25 @@ class NetworkExecutor:
                     {
                         "label": node.label,
                         "invocation_count": invocation_count,
-                        "provider": snapshot_override.get("provider")
-                        if isinstance(snapshot_override, dict)
-                        else None,
-                        "model": snapshot_override.get("model")
-                        if isinstance(snapshot_override, dict)
-                        else None,
+                        "provider": (
+                            snapshot_override.get("provider")
+                            if isinstance(snapshot_override, dict)
+                            else None
+                        ),
+                        "model": (
+                            snapshot_override.get("model")
+                            if isinstance(snapshot_override, dict)
+                            else None
+                        ),
                         "session_mode": agent_session_mode,
-                        "context_state": "created"
-                        if persist_agent_context
-                        else "stateless",
-                        "source": "draft"
-                        if runtime_environment == "draft"
-                        else "release"
-                        if runtime_environment == "production"
-                        else "staging",
+                        "context_state": "created" if persist_agent_context else "stateless",
+                        "source": (
+                            "draft"
+                            if runtime_environment == "draft"
+                            else "release"
+                            if runtime_environment == "production"
+                            else "staging"
+                        ),
                         "version": (
                             f"r{execution.draft_revision}"
                             if runtime_environment == "draft"
@@ -392,14 +395,9 @@ class NetworkExecutor:
                 ) -> dict:
                     task = str(arguments.get("task") or "").strip()
                     if not task:
-                        return {
-                            "success": False,
-                            "error": "Delegation task cannot be blank",
-                        }
+                        return {"success": False, "error": "Delegation task cannot be blank"}
                     context = arguments.get("context")
-                    expected_output = str(
-                        arguments.get("expected_output") or ""
-                    ).strip()
+                    expected_output = str(arguments.get("expected_output") or "").strip()
                     envelope: dict[str, object] = {
                         "delegated_by": delegating_agent_label,
                         "delegated_to": delegated_target_label,
@@ -413,8 +411,7 @@ class NetworkExecutor:
                     delegated_message = (
                         "You are receiving a delegated task from another Agent in "
                         "the same Network Run. Complete it using your own "
-                        "instructions and return the result to the delegating "
-                        "Agent.\n\n"
+                        "instructions and return the result to the delegating Agent.\n\n"
                         + json.dumps(envelope, ensure_ascii=False, indent=2)
                     )
                     await self._store.emit(
@@ -439,20 +436,22 @@ class NetworkExecutor:
                         {
                             "target_node_id": str(delegated_target_id),
                             "target": delegated_target_label,
-                            "result_type": "structured"
-                            if child.parsed_output is not None
-                            else "text",
+                            "result_type": (
+                                "structured" if child.parsed_output is not None else "text"
+                            ),
                         },
                         invocation_id=invocation.id,
                     )
                     return {
                         "success": True,
-                        "result_type": "structured"
-                        if child.parsed_output is not None
-                        else "text",
-                        "result": child.parsed_output
-                        if child.parsed_output is not None
-                        else child.answer,
+                        "result_type": (
+                            "structured" if child.parsed_output is not None else "text"
+                        ),
+                        "result": (
+                            child.parsed_output
+                            if child.parsed_output is not None
+                            else child.answer
+                        ),
                     }
 
                 tools.append(
@@ -486,25 +485,25 @@ class NetworkExecutor:
                     message=message,
                     agent_session_id=invocation.agent_session_id,
                     execution_context=(
-                        "playground"
-                        if runtime_environment == "draft"
-                        else runtime_environment
+                        "playground" if runtime_environment == "draft" else runtime_environment
                     ),
                     internal_tools=tools,
                     network_context={
                         "network_id": str(execution.network_id),
-                        "network_version_id": str(execution.network_version_id)
-                        if execution.network_version_id
-                        else None,
+                        "network_version_id": (
+                            str(execution.network_version_id)
+                            if execution.network_version_id
+                            else None
+                        ),
                         "network_session_id": str(execution.network_session_id),
                         "network_execution_id": str(execution.id),
                         "network_invocation_id": str(invocation.id),
-                        "parent_invocation_id": str(parent_invocation_id)
-                        if parent_invocation_id
-                        else None,
+                        "parent_invocation_id": (
+                            str(parent_invocation_id) if parent_invocation_id else None
+                        ),
                         "network_node_id": str(node_id),
                         "depth": depth,
-                        "draft_revision": getattr(execution, "draft_revision", None),
+                        "draft_revision": execution.draft_revision,
                     },
                     stream_handler=stream_agent_event,
                 )
@@ -575,9 +574,7 @@ class NetworkExecutor:
                 "agent_invocation_completed",
                 {
                     "trace_id": str(result.trace_id) if result.trace_id else None,
-                    "agent_session_id": str(result.session_id)
-                    if result.session_id
-                    else None,
+                    "agent_session_id": str(result.session_id) if result.session_id else None,
                     "provider": result.provider,
                     "model": result.model,
                     "usage": result.usage,

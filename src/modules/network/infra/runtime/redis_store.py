@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from copy import deepcopy
 from typing import Any
 from uuid import UUID
 
 import uuid6
 
-from modules.network.application.runtime import AgentInvocationResult
-from modules.network.infra.database.models import NetworkExecutionModel, NetworkInvocationModel
+from modules.network.application.runtime import (
+    AgentInvocationResult,
+    NetworkExecutionSnapshot,
+    NetworkInvocationState,
+)
 from shared.contracts.execution_state import ExecutionLease, ExecutionStateStore
 
 
@@ -23,7 +25,7 @@ class RedisNetworkExecutionStore:
 
     async def initialize(
         self,
-        execution: NetworkExecutionModel,
+        execution: NetworkExecutionSnapshot,
         *,
         ttl_seconds: int,
         agent_contexts: dict[str, str | None] | None = None,
@@ -37,7 +39,11 @@ class RedisNetworkExecutionStore:
             "project_id": str(execution.project_id),
             "network_id": str(execution.network_id),
             "network_session_id": str(execution.network_session_id),
-            "network_version_id": str(execution.network_version_id) if execution.network_version_id else None,
+            "network_version_id": (
+                str(execution.network_version_id)
+                if execution.network_version_id
+                else None
+            ),
             "draft_revision": execution.draft_revision,
             "input_message": execution.input_message,
             "invocation_count": 0,
@@ -80,39 +86,23 @@ class RedisNetworkExecutionStore:
     async def request_cancel(self, execution_id: UUID) -> None:
         await self._state.request_cancel(execution_id)
 
-    async def resolve_agent_session_mode(
-        self,
-        *,
-        project_id: UUID,
-        agent_id: UUID,
-        release_id: UUID | None,
-        snapshot_override: dict[str, Any] | None,
-        binding_session_mode: str | None = None,
-    ) -> str:
-        del project_id, agent_id, release_id
-        if binding_session_mode in {"stateful", "stateless"}:
-            return str(binding_session_mode)
-        if isinstance(snapshot_override, dict):
-            value = snapshot_override.get("session_mode")
-            if value in {"stateful", "stateless"}:
-                return str(value)
-        raise RuntimeError("Pinned Agent binding has no valid session_mode")
-
     async def start_invocation(
         self,
         *,
-        execution: NetworkExecutionModel,
+        execution: NetworkExecutionSnapshot,
         node_id: UUID,
         agent_id: UUID,
         depth: int,
         message: str,
         parent_invocation_id: UUID | None,
         persist_context: bool,
-    ) -> NetworkInvocationModel:
+    ) -> NetworkInvocationState:
         state = await self._state.get(execution.id) or {}
-        raw_session_id = state.get(f"{self.CONTEXT_PREFIX}{node_id}") if persist_context else None
+        raw_session_id = (
+            state.get(f"{self.CONTEXT_PREFIX}{node_id}") if persist_context else None
+        )
         session_id = UUID(str(raw_session_id)) if raw_session_id else None
-        invocation = NetworkInvocationModel(
+        invocation = NetworkInvocationState(
             id=uuid6.uuid7(),
             network_execution_id=execution.id,
             network_session_id=execution.network_session_id,
@@ -136,7 +126,9 @@ class RedisNetworkExecutionStore:
                     "agent_id": str(agent_id),
                     "depth": depth,
                     "input_message": message,
-                    "parent_invocation_id": str(parent_invocation_id) if parent_invocation_id else None,
+                    "parent_invocation_id": (
+                        str(parent_invocation_id) if parent_invocation_id else None
+                    ),
                     "agent_session_id": str(session_id) if session_id else None,
                     "status": "running",
                     "persist_context": persist_context,
@@ -146,7 +138,11 @@ class RedisNetworkExecutionStore:
         await self._state.increment(execution.id, "invocation_count")
         return invocation
 
-    async def _invocation(self, execution_id: UUID, invocation_id: UUID) -> dict[str, Any] | None:
+    async def _invocation(
+        self,
+        execution_id: UUID,
+        invocation_id: UUID,
+    ) -> dict[str, Any] | None:
         state = await self._state.get(execution_id) or {}
         value = state.get(f"{self.INVOCATION_PREFIX}{invocation_id}")
         return dict(value) if isinstance(value, dict) else None
@@ -169,7 +165,9 @@ class RedisNetworkExecutionStore:
                 "status": "completed",
                 "output_message": result.answer,
                 "trace_id": str(result.trace_id) if result.trace_id else None,
-                "agent_session_id": str(result.session_id) if result.session_id else None,
+                "agent_session_id": (
+                    str(result.session_id) if result.session_id else None
+                ),
                 "provider": result.provider,
                 "model": result.model,
                 "usage": result.usage,
@@ -179,9 +177,13 @@ class RedisNetworkExecutionStore:
                 "output_parse_error": result.output_parse_error,
             }
         )
-        updates: dict[str, Any] = {f"{self.INVOCATION_PREFIX}{invocation_id}": invocation}
+        updates: dict[str, Any] = {
+            f"{self.INVOCATION_PREFIX}{invocation_id}": invocation
+        }
         if result.session_id and persist_context:
-            updates[f"{self.CONTEXT_PREFIX}{invocation['node_id']}"] = str(result.session_id)
+            updates[f"{self.CONTEXT_PREFIX}{invocation['node_id']}"] = str(
+                result.session_id
+            )
         await self._state.update(execution_id, updates)
 
     async def fail_invocation(
@@ -203,16 +205,30 @@ class RedisNetworkExecutionStore:
             {
                 "status": "failed",
                 "error": error[:4000],
-                "trace_id": str(trace_id) if trace_id else invocation.get("trace_id"),
-                "agent_session_id": str(agent_session_id) if agent_session_id else invocation.get("agent_session_id"),
+                "trace_id": (
+                    str(trace_id) if trace_id else invocation.get("trace_id")
+                ),
+                "agent_session_id": (
+                    str(agent_session_id)
+                    if agent_session_id
+                    else invocation.get("agent_session_id")
+                ),
             }
         )
-        updates: dict[str, Any] = {f"{self.INVOCATION_PREFIX}{invocation_id}": invocation}
+        updates: dict[str, Any] = {
+            f"{self.INVOCATION_PREFIX}{invocation_id}": invocation
+        }
         if agent_session_id and persist_context:
-            updates[f"{self.CONTEXT_PREFIX}{invocation['node_id']}"] = str(agent_session_id)
+            updates[f"{self.CONTEXT_PREFIX}{invocation['node_id']}"] = str(
+                agent_session_id
+            )
         await self._state.update(execution_id, updates)
 
-    async def persist_execution_output(self, execution_id: UUID, result: AgentInvocationResult) -> None:
+    async def persist_execution_output(
+        self,
+        execution_id: UUID,
+        result: AgentInvocationResult,
+    ) -> None:
         await self._state.update(
             execution_id,
             {
@@ -248,7 +264,10 @@ class RedisNetworkExecutionStore:
             for key, value in state.items()
             if key.startswith(self.INVOCATION_PREFIX) and isinstance(value, dict)
         ]
-        return sorted(values, key=lambda item: (int(item.get("depth") or 0), str(item.get("id") or "")))
+        return sorted(
+            values,
+            key=lambda item: (int(item.get("depth") or 0), str(item.get("id") or "")),
+        )
 
     async def mark_terminal_pending(
         self,
@@ -266,6 +285,15 @@ class RedisNetworkExecutionStore:
             },
         )
 
-    async def mark_persisted(self, execution_id: UUID, *, status: str, ttl_seconds: int = 900) -> None:
-        await self._state.update(execution_id, {"status": status, "phase": "persisted"})
+    async def mark_persisted(
+        self,
+        execution_id: UUID,
+        *,
+        status: str,
+        ttl_seconds: int = 900,
+    ) -> None:
+        await self._state.update(
+            execution_id,
+            {"status": status, "phase": "persisted"},
+        )
         await self._state.expire(execution_id, ttl_seconds=ttl_seconds)

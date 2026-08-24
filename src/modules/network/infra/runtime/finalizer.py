@@ -9,11 +9,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from modules.agent.infra.database.models import MessageModel, SessionModel
 from modules.agent.infra.database.run_models import AgentRunModel
+from modules.network.application.runtime import NetworkVersionSnapshot
 from modules.network.infra.database.models import (
     NetworkAgentContextModel,
     NetworkExecutionModel,
     NetworkInvocationModel,
-    NetworkVersionModel,
 )
 from modules.network.infra.database.repositories import NetworkRuntimeRepository
 
@@ -35,27 +35,28 @@ class NetworkRuntimeFinalizer:
         self._session_factory = session_factory
 
     @staticmethod
-    def _environment(
-        execution: NetworkExecutionModel,
-        version: NetworkVersionModel | None,
-    ) -> str:
+    def _environment(version: NetworkVersionSnapshot | None) -> str:
         if version is None:
             return "draft"
         return "production" if version.kind == "release" else "staging"
 
     @staticmethod
     def _bindings(
+        version: NetworkVersionSnapshot | None,
         execution: NetworkExecutionModel,
-        version: NetworkVersionModel | None,
     ) -> dict[str, Any]:
-        value = version.resolved_bindings if version is not None else execution.resolved_bindings_snapshot
+        value = (
+            version.resolved_bindings
+            if version is not None
+            else execution.resolved_bindings_snapshot
+        )
         return value if isinstance(value, dict) else {}
 
     async def finalize(
         self,
         *,
         execution_id: UUID,
-        version: NetworkVersionModel | None,
+        version: NetworkVersionSnapshot | None,
         invocation_states: list[dict[str, Any]],
         terminal_status: str,
         output: str | None,
@@ -77,8 +78,8 @@ class NetworkRuntimeFinalizer:
             if execution.status in {"completed", "failed", "cancelled", "uncertain"}:
                 return True
 
-            environment = self._environment(execution, version)
-            bindings = self._bindings(execution, version)
+            environment = self._environment(version)
+            bindings = self._bindings(version, execution)
 
             for item in invocation_states:
                 invocation_id = _uuid(item.get("id"))
@@ -93,12 +94,13 @@ class NetworkRuntimeFinalizer:
                 binding = bindings.get(str(node_id))
                 binding = binding if isinstance(binding, dict) else {}
                 release_id = _uuid(binding.get("release_id"))
-                snapshot_override = binding.get("snapshot_override")
                 execution_snapshot = {
                     "network_execution_id": str(execution.id),
-                    "network_version_id": str(execution.network_version_id)
-                    if execution.network_version_id
-                    else None,
+                    "network_version_id": (
+                        str(execution.network_version_id)
+                        if execution.network_version_id
+                        else None
+                    ),
                     "network_node_id": str(node_id),
                     "network_binding": binding,
                 }
@@ -178,7 +180,8 @@ class NetworkRuntimeFinalizer:
                         agent_id=agent_id,
                         session_id=session_id,
                         agent_release_id=release_id,
-                        trace_id=invocation_trace_id or uuid5(
+                        trace_id=invocation_trace_id
+                        or uuid5(
                             NAMESPACE_URL,
                             f"woobe:network-invocation-trace:{invocation_id}",
                         ),
@@ -189,7 +192,9 @@ class NetworkRuntimeFinalizer:
                         execution_snapshot=execution_snapshot,
                         usage=usage,
                         result=result_payload,
-                        failure_code=None if status == "completed" else "network_agent_failure",
+                        failure_code=(
+                            None if status == "completed" else "network_agent_failure"
+                        ),
                         failure_detail=item.get("error"),
                         network_execution_id=execution.id,
                         network_invocation_id=invocation_id,
@@ -219,13 +224,18 @@ class NetworkRuntimeFinalizer:
                     if hasattr(invocation, "parsed_output"):
                         setattr(invocation, "parsed_output", item.get("parsed_output"))
                     if hasattr(invocation, "output_parse_error"):
-                        setattr(invocation, "output_parse_error", item.get("output_parse_error"))
+                        setattr(
+                            invocation,
+                            "output_parse_error",
+                            item.get("output_parse_error"),
+                        )
                     session.add(invocation)
 
                 if item.get("persist_context") and session_id is not None:
                     context = await session.scalar(
                         select(NetworkAgentContextModel).where(
-                            NetworkAgentContextModel.network_session_id == execution.network_session_id,
+                            NetworkAgentContextModel.network_session_id
+                            == execution.network_session_id,
                             NetworkAgentContextModel.network_node_id == node_id,
                         )
                     )
