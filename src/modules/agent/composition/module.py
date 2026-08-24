@@ -31,7 +31,7 @@ from modules.agent.infra.execution.runtime_streaming import (
     current_runtime_stream,
 )
 from modules.agent.infra.execution.transaction_bounded_structured_output import (
-    TransactionBoundedStructuredOutputAskAgentUseCase as StructuredOutputAskAgentUseCase,
+    TransactionBoundedStructuredOutputRuntime,
 )
 from modules.agent.presentation.http.controllers.ask_agent_stream_controller import (
     commit_safe_stream,
@@ -82,11 +82,14 @@ def build_http_tool_executor() -> HttpToolExecutor:
 
 
 def build_agent_stream_service() -> AskAgentStreamService:
-    use_case, transactions = build_ask_agent_use_case(
+    runtime, transactions = build_ask_agent_use_case(
         SETTINGS,
         get_http_tool_executor(),
     )
-    return AskAgentStreamService(use_case, transactions)
+    return AskAgentStreamService(runtime, transactions)
+
+
+StructuredOutputAskAgentUseCase = TransactionBoundedStructuredOutputRuntime
 
 
 __all__ = [
