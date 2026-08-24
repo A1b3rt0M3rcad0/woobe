@@ -15,10 +15,7 @@ from modules.agent.entrypoint import (
     current_runtime_stream,
     new_execution_context,
 )
-from modules.network.application.runtime import (
-    AgentInvocationResult,
-    InternalDelegationTool,
-)
+from modules.network.application.runtime import AgentInvocationResult, InternalDelegationTool
 from modules.network.application.runtime_failures import (
     NetworkRuntimeFailure,
     classify_runtime_exception,
@@ -26,7 +23,6 @@ from modules.network.application.runtime_failures import (
 from shared.infra.config import Settings
 
 AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
-
 _PUBLIC_TOKEN_PHASES = {"response_generation", "final_response_generation"}
 
 
@@ -50,13 +46,9 @@ def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
 
 
 class ProjectRAIAgentInvoker:
-    """Invoke Agent through its public in-process runtime composition boundary."""
+    """Invoke an Agent inside a Network without child PostgreSQL persistence."""
 
-    def __init__(
-        self,
-        settings: Settings,
-        http_executor: HttpToolExecutor,
-    ) -> None:
+    def __init__(self, settings: Settings, http_executor: HttpToolExecutor) -> None:
         self._settings = settings
         self._http_executor = http_executor
 
@@ -87,12 +79,8 @@ class ProjectRAIAgentInvoker:
         context.session_id = agent_session_id
         context.execution_context = execution_context
         context.agent_release_id = release_id
-        context.internal_tool_definitions = [
-            tool.definition() for tool in internal_tools
-        ]
-        context.internal_tool_name_to_id = {
-            tool.name: str(tool.id) for tool in internal_tools
-        }
+        context.internal_tool_definitions = [tool.definition() for tool in internal_tools]
+        context.internal_tool_name_to_id = {tool.name: str(tool.id) for tool in internal_tools}
         uuid_context_fields = {
             "network_id",
             "network_version_id",
@@ -113,7 +101,11 @@ class ProjectRAIAgentInvoker:
             agent_id=agent_id,
             message=message,
             session_id=agent_session_id,
-            metadata={"source": "network_runtime", **network_context},
+            metadata={
+                "source": "network_runtime",
+                "defer_persistence": True,
+                **network_context,
+            },
             execution_context=execution_context,
             loaded_release_id=release_id,
             snapshot_override=snapshot_override,
@@ -152,9 +144,7 @@ class ProjectRAIAgentInvoker:
                     failure = NetworkRuntimeFailure(
                         code="empty_model_output",
                         stage="output_validation",
-                        safe_message=(
-                            "The Agent completed without producing a public result."
-                        ),
+                        safe_message="The Agent completed without producing a public result.",
                         internal_detail=str(exc),
                         retryable=False,
                     )

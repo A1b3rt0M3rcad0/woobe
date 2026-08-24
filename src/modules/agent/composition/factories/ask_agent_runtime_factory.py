@@ -3,7 +3,10 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping
 from uuid import UUID
 
-from modules.agent.composition.factories.agent_uow_factory import build_agent_uow
+from modules.agent.composition.factories.agent_uow_factory import (
+    build_agent_read_uow,
+    build_agent_uow,
+)
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
@@ -25,7 +28,7 @@ InternalToolHandler = Callable[[dict], Awaitable[dict]]
 
 
 def build_agent_runtime_transactions() -> AgentRuntimeTransactionRunner:
-    return AgentRuntimeTransactionRunner(build_agent_uow)
+    return AgentRuntimeTransactionRunner(build_agent_uow, build_agent_read_uow)
 
 
 def _build_agent_runtime(

@@ -3,6 +3,10 @@ from shared.composition_resources import SESSION_FACTORY
 
 
 def build_agent_uow() -> AgentUnitOfWork:
-    """Create a fresh Agent UoW from the canonical process-scoped Session factory."""
-
     return AgentUnitOfWork(SESSION_FACTORY)
+
+
+def build_agent_read_uow() -> AgentUnitOfWork:
+    """Short SQL read scope that always ends with rollback, never COMMIT."""
+
+    return AgentUnitOfWork(SESSION_FACTORY, read_only=True)

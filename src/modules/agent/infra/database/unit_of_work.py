@@ -9,16 +9,13 @@ from shared.infra.config.interface.unit_of_work import UnitOfWork
 
 
 class AgentUnitOfWork(UnitOfWork):
-    """Sole transaction and session owner for Agent persistence.
-
-    Runtime composition passes the process-scoped session factory. AsyncEngine is
-    accepted only for legacy short-lived CRUD composers while they migrate to the
-    canonical factory; long-lived execution must never receive an Engine.
-    """
+    """Sole transaction/session owner for Agent persistence and short read scopes."""
 
     def __init__(
         self,
         session_factory: async_sessionmaker[AsyncSession] | AsyncEngine,
+        *,
+        read_only: bool = False,
     ) -> None:
         if isinstance(session_factory, AsyncEngine):
             session_factory = async_sessionmaker(
@@ -27,6 +24,7 @@ class AgentUnitOfWork(UnitOfWork):
                 class_=AsyncSession,
             )
         self._session_factory = session_factory
+        self._read_only = read_only
         self._session: AsyncSession | None = None
 
     @property
@@ -36,6 +34,8 @@ class AgentUnitOfWork(UnitOfWork):
         return self._session
 
     async def commit(self) -> None:
+        if self._read_only:
+            raise RuntimeError("Read-only AgentUnitOfWork cannot commit")
         if self._session is not None:
             try:
                 await self._session.commit()
@@ -52,7 +52,7 @@ class AgentUnitOfWork(UnitOfWork):
         return self
 
     async def __aexit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
-        if exc_type is not None:
+        if exc_type is not None or self._read_only:
             await self.rollback()
         else:
             await self.commit()
