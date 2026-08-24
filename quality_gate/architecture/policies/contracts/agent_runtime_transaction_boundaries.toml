@@ -1,0 +1,33 @@
+[runtime_transaction_boundaries]
+module_root = "src/modules/agent"
+resources_file = "src/modules/agent/composition/resources.py"
+uow_type = "AgentUnitOfWork"
+engine_resource = "DATABASE_ENGINE"
+workflow_handler = "WorkflowHandler"
+workflow_sources = ["composition/workflows/**"]
+workflow_functions = [
+  "ask_agent_composer",
+  "ask_agent_stream_composer",
+  "public_run_composer",
+  "public_stream_composer",
+]
+forbidden_database_types = ["AsyncEngine", "AsyncSession", "async_sessionmaker"]
+framework_forbidden_scopes = [
+  "application",
+  "presentation",
+  "infra/execution",
+  "infra/adapters",
+  "composition/workflows",
+]
+uow_constructor_forbidden_scopes = [
+  "application",
+  "presentation",
+  "infra/execution",
+  "infra/adapters",
+  "composition/workflows",
+]
+engine_allowed_consumers = ["AgentUnitOfWork"]
+engine_allowed_paths = [
+  "composition/composers/**",
+  "composition/factories/agent_uow_factory.py",
+]
