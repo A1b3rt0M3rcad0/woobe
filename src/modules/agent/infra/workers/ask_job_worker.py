@@ -14,8 +14,8 @@ from modules.agent.infra.database.runtime_transaction_runner import (
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
-from modules.agent.infra.execution.structured_output_ask_use_case import (
-    StructuredOutputAskAgentUseCase,
+from modules.agent.infra.execution.transaction_bounded_structured_output import (
+    TransactionBoundedStructuredOutputAskAgentUseCase,
 )
 from shared.infra.config import Settings
 
@@ -56,7 +56,7 @@ class AskJobWorker:
             settings,
             http_executor,
         )
-        execution = StructuredOutputAskAgentUseCase(
+        execution = TransactionBoundedStructuredOutputAskAgentUseCase(
             transactions=transactions,
             llm_factory=LangchainLLMFactory(),
             encryption_key=settings.encryption_key,
