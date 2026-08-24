@@ -49,6 +49,7 @@ from modules.agent.presentation.http.routes import (
     runtime_router,
     tools_router,
 )
+from modules.agent.presentation.http.run_routes import router as run_router
 from modules.agent.presentation.http.tool_lifecycle_routes import (
     router as tool_lifecycle_router,
 )
@@ -65,6 +66,7 @@ AGENT_HTTP_ROUTERS = (
     knowledge_router,
     vector_snapshot_router,
     runtime_router,
+    run_router,
     tools_router,
     tool_lifecycle_router,
     mcp_tools_router,
