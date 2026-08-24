@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
+from uuid import UUID
 
 from modules.agent.composition.factories.agent_uow_factory import build_agent_uow
 from modules.agent.infra.adapters.agent_runtime_environment_guard import (
@@ -26,10 +27,42 @@ from shared.presentation.http.response import Response
 
 
 AskHttpHandler = Callable[[Request], Awaitable[Response]]
+InternalToolHandler = Callable[[dict], Awaitable[dict]]
 
 
 def build_agent_runtime_transactions() -> AgentRuntimeTransactionRunner:
     return AgentRuntimeTransactionRunner(build_agent_uow)
+
+
+def _build_agent_runtime(
+    settings: Settings,
+    http_executor: HttpToolExecutor | None = None,
+    *,
+    internal_tool_handlers: Mapping[UUID, InternalToolHandler] | None = None,
+) -> tuple[
+    TransactionBoundedStructuredOutputRuntime,
+    AgentRuntimeTransactionRunner,
+]:
+    transactions = build_agent_runtime_transactions()
+    executor = http_executor or get_http_tool_executor()
+    tool_runtime = AgentToolRuntimeGateway(transactions, settings, executor)
+    handlers = dict(internal_tool_handlers or {})
+
+    async def execute_tool(tool_id: UUID, input_data: dict) -> dict:
+        internal_handler = handlers.get(tool_id)
+        if internal_handler is not None:
+            return await internal_handler(dict(input_data or {}))
+        return await tool_runtime.execute_tool(tool_id, input_data)
+
+    runtime = TransactionBoundedStructuredOutputRuntime(
+        transactions=transactions,
+        llm_factory=LangchainLLMFactory(),
+        encryption_key=settings.encryption_key,
+        tool_executor_factory=execute_tool,
+    )
+    runtime.configure_rag_embedding_factory(LangchainEmbeddingFactory())
+    runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
+    return runtime, transactions
 
 
 def build_ask_agent_use_case(
@@ -39,18 +72,28 @@ def build_ask_agent_use_case(
     TransactionBoundedStructuredOutputRuntime,
     AgentRuntimeTransactionRunner,
 ]:
-    transactions = build_agent_runtime_transactions()
-    executor = http_executor or get_http_tool_executor()
-    tool_runtime = AgentToolRuntimeGateway(transactions, settings, executor)
-    runtime = TransactionBoundedStructuredOutputRuntime(
-        transactions=transactions,
-        llm_factory=LangchainLLMFactory(),
-        encryption_key=settings.encryption_key,
-        tool_executor_factory=tool_runtime.execute_tool,
+    return _build_agent_runtime(settings, http_executor)
+
+
+def build_internal_agent_runtime(
+    settings: Settings,
+    http_executor: HttpToolExecutor | None = None,
+    *,
+    internal_tool_handlers: Mapping[UUID, InternalToolHandler] | None = None,
+) -> TransactionBoundedStructuredOutputRuntime:
+    """Build the Agent runtime for trusted in-process callers such as Network.
+
+    Callers provide only Network-owned internal Tool handlers. Database resources,
+    Unit of Work creation, normal Agent Tool resolution and external adapters stay
+    owned by Agent composition.
+    """
+
+    runtime, _transactions = _build_agent_runtime(
+        settings,
+        http_executor,
+        internal_tool_handlers=internal_tool_handlers,
     )
-    runtime.configure_rag_embedding_factory(LangchainEmbeddingFactory())
-    runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
-    return runtime, transactions
+    return runtime
 
 
 def build_ask_agent_handler(
