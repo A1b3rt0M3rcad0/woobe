@@ -1,40 +1,26 @@
 from __future__ import annotations
 
 from contextvars import ContextVar
-from typing import Any, Protocol, cast
+from typing import Any, Awaitable, Callable, Protocol, cast
 from uuid import UUID
 
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
 from modules.agent.application.interfaces.embedding_errors import EmbeddingProviderError
 from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
-from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
-from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
 from shared.contracts.errors import ValidationError
 from shared.security.crypto import decrypt_secret
-
 
 _rag_history_context: ContextVar[list[Any]] = ContextVar(
     "transaction_bounded_rag_history_context",
     default=[],
 )
+VectorSearchReader = Callable[..., Awaitable[list[tuple[Any, float]]]]
 
 
 class _RAGSuper(Protocol):
     async def _prepare(self, input_dto: Any) -> Any: ...
     async def _load_history(self, message_repo: Any, session: Any) -> list[Any]: ...
-
-
-def _status_value(value: object) -> object:
-    return getattr(value, "value", value)
-
-
-def _uuid_value(value: object, *, field_name: str) -> UUID:
-    try:
-        return value if isinstance(value, UUID) else UUID(str(value))
-    except (TypeError, ValueError) as exc:
-        raise ValidationError(f"Invalid {field_name}") from exc
 
 
 def _dict_value(value: object) -> dict[str, Any]:
@@ -55,15 +41,12 @@ def _runtime_config_source() -> str:
     context = current_execution.get()
     if context is None:
         return "draft"
-    execution_context = str(
-        getattr(context, "execution_context", None) or "playground"
-    ).lower()
-    release_version = str(getattr(context, "agent_release_version", None) or "")
+    execution_context = str(context.execution_context or "playground").lower()
     if execution_context == "staging":
         return "staging"
     if execution_context == "production":
         return "production"
-    if release_version and release_version != "draft":
+    if context.agent_release_version and context.agent_release_version != "draft":
         return "loaded_release"
     return "draft"
 
@@ -87,19 +70,23 @@ def _build_retrieval_query(
             conversational.append(("User", content.strip()))
         elif class_name == "AIMessage":
             conversational.append(("Assistant", content.strip()))
-    if not conversational:
-        return query
     tail = conversational[-(history_turns * 2) :]
+    if not tail:
+        return query
     lines = [f"{role}: {content}" for role, content in tail]
     lines.append(f"Current user message: {query}")
     return "\n".join(lines)
 
 
 class TransactionBoundedVectorSnapshotRAGMixin:
-    """Runs RAG DB phases around, never across, external embedding I/O."""
+    """RAG executes external embedding + one short read-only vector query."""
 
     _encryption_key: str
     _embedding_factory: Any
+    _vector_search_reader: VectorSearchReader | None = None
+
+    def configure_vector_search_reader(self, reader: VectorSearchReader) -> None:
+        self._vector_search_reader = reader
 
     async def _prepare(self, input_dto: Any) -> Any:
         token = _rag_history_context.set([])
@@ -121,105 +108,29 @@ class TransactionBoundedVectorSnapshotRAGMixin:
         query: str,
         transactions: Any,
     ) -> tuple[str | None, list[SourceInfo]]:
+        del transactions
         settings = dict(agent.settings or {})
-        knowledge_version_id = settings.get("knowledge_version_id")
-        if not knowledge_version_id:
+        if not settings.get("knowledge_version_id"):
             context = current_execution.get()
             if context:
                 context.rag_metadata = None
             return None, []
 
-        knowledge_id = _uuid_value(
-            knowledge_version_id,
-            field_name="knowledge_version_id",
-        )
+        execution_context = current_execution.get()
+        prepared = execution_context.prepared_rag if execution_context else None
+        if not prepared:
+            raise ValidationError("RAG binding was not prepared during Agent Run acceptance")
 
-        async def load_binding(
-            repositories: AgentRuntimeRepositories,
-            _outbox,
-        ):
-            knowledge = await repositories.knowledge_versions.get_by_id(knowledge_id)
-            if knowledge is None:
-                raise ValidationError("Configured KnowledgeVersion was not found")
-            if knowledge.project_id != agent.project_id or knowledge.agent_id != agent.id:
-                raise ValidationError(
-                    "Configured KnowledgeVersion does not belong to this Agent"
-                )
-
-            metadata = dict(knowledge.snapshot_metadata or {})
-            vector_snapshot_id = metadata.get("vector_snapshot_id")
-            if not vector_snapshot_id:
-                raise ValidationError(
-                    "Configured KnowledgeVersion has no vector snapshot"
-                )
-
-            snapshot_id = _uuid_value(
-                vector_snapshot_id,
-                field_name="vector_snapshot_id",
-            )
-            snapshot = await repositories.vector_snapshots.get_by_id(snapshot_id)
-            if snapshot is None or snapshot.project_id != agent.project_id:
-                raise ValidationError("Configured vector snapshot was not found")
-            if snapshot.status != VECTOR_SNAPSHOT_READY:
-                raise ValidationError("Configured vector snapshot is not READY")
-            if not snapshot.snapshot_hash:
-                raise ValidationError(
-                    "Configured vector snapshot has no immutable hash"
-                )
-
-            provider_model = await repositories.provider_models.get_by_id(
-                snapshot.embedding_provider_model_id
-            )
-            if provider_model is None or provider_model.project_id != agent.project_id:
-                raise ValidationError("Embedding provider model was not found")
-            if _status_value(provider_model.status) != ProviderModelStatus.active.value:
-                raise ValidationError("Embedding provider model must be active")
-
-            capability = str(
-                (provider_model.metadata or {}).get("capability") or ""
-            ).lower()
-            if (
-                capability not in {"embedding", "embeddings"}
-                and "embed" not in provider_model.model.lower()
-            ):
-                raise ValidationError(
-                    "Configured provider model is not an embedding model"
-                )
-
-            credential = await repositories.provider_credentials.get_by_id(
-                provider_model.provider_credential_id
-            )
-            if credential is None or credential.project_id != agent.project_id:
-                raise ValidationError("Embedding provider credential was not found")
-            if _status_value(credential.status) != CredentialStatus.active.value:
-                raise ValidationError(
-                    "Embedding provider credential must be active"
-                )
-
-            snapshot_documents = (
-                await repositories.vector_snapshots.list_snapshot_documents(
-                    snapshot.id
-                )
-            )
-            return knowledge, snapshot, provider_model, credential, snapshot_documents
-
-        (
-            knowledge,
-            snapshot,
-            provider_model,
-            credential,
-            snapshot_documents,
-        ) = await transactions.run(load_binding)
+        knowledge = prepared["knowledge"]
+        snapshot = prepared["snapshot"]
+        provider_model = prepared["provider_model"]
+        credential = prepared["credential"]
+        snapshot_documents = prepared["snapshot_documents"]
 
         try:
-            api_key = decrypt_secret(
-                credential.encrypted_secret,
-                self._encryption_key,
-            )
+            api_key = decrypt_secret(credential.encrypted_secret, self._encryption_key)
         except Exception as exc:
-            raise ValidationError(
-                "Embedding provider credential could not be decrypted"
-            ) from exc
+            raise ValidationError("Embedding provider credential could not be decrypted") from exc
 
         provider = snapshot.embedding_provider
         base_url = None
@@ -229,9 +140,7 @@ class TransactionBoundedVectorSnapshotRAGMixin:
                 or (credential.metadata or {}).get("base_url")
             )
             if not base_url:
-                raise ValidationError(
-                    "Custom embedding provider requires base_url"
-                )
+                raise ValidationError("Custom embedding provider requires base_url")
         elif provider == "openrouter":
             base_url = (
                 (credential.metadata or {}).get("base_url")
@@ -245,16 +154,13 @@ class TransactionBoundedVectorSnapshotRAGMixin:
             query_mode=effective.query_mode,
             history_turns=effective.history_turns,
         )
-
         rag_metadata: dict[str, Any] = {
             "knowledge_version_id": str(knowledge.id),
             "knowledge_version": knowledge.version,
             "vector_snapshot_id": str(snapshot.id),
             "vector_snapshot_version": snapshot.version,
             "snapshot_hash": snapshot.snapshot_hash,
-            "embedding_provider_model_id": str(
-                snapshot.embedding_provider_model_id
-            ),
+            "embedding_provider_model_id": str(snapshot.embedding_provider_model_id),
             "embedding_provider": snapshot.embedding_provider,
             "embedding_model": snapshot.embedding_model,
             "embedding_dimensions": snapshot.embedding_dimensions,
@@ -262,14 +168,11 @@ class TransactionBoundedVectorSnapshotRAGMixin:
             "rag_runtime_config_source": _runtime_config_source(),
             "retrieval_query_mode": effective.query_mode,
         }
-        execution_context = current_execution.get()
         if execution_context:
             execution_context.rag_metadata = dict(rag_metadata)
 
         if self._embedding_factory is None:
             raise ValidationError("RAG embedding runtime is not configured")
-
-        # No database UoW is open while waiting for the embedding provider.
         try:
             embedding_client = self._embedding_factory.create_embedding_client(
                 provider=provider,
@@ -294,57 +197,44 @@ class TransactionBoundedVectorSnapshotRAGMixin:
             raise
 
         if len(query_embedding) != snapshot.embedding_dimensions:
-            rag_metadata["failure_phase"] = "rag_query_embedding_validation"
-            if execution_context:
-                execution_context.rag_metadata = dict(rag_metadata)
             raise ValidationError(
                 "Query embedding dimensions do not match snapshot: "
                 f"expected {snapshot.embedding_dimensions}, got {len(query_embedding)}"
             )
+        if self._vector_search_reader is None:
+            raise ValidationError("RAG vector search runtime is not configured")
 
-        async def search(
-            repositories: AgentRuntimeRepositories,
-            _outbox,
-        ):
-            return await repositories.vector_snapshots.search_similar(
-                vector_snapshot_id=snapshot.id,
-                embedding=query_embedding,
-                limit=effective.candidate_k,
-                threshold=0.0,
-            )
-
-        candidates = await transactions.run(search)
+        candidates = await self._vector_search_reader(
+            vector_snapshot_id=snapshot.id,
+            embedding=query_embedding,
+            limit=effective.candidate_k,
+            threshold=0.0,
+        )
         candidate_scores = [round(float(score), 4) for _, score in candidates]
-        if effective.min_score is None:
-            filtered = candidates
-        else:
-            filtered = [
-                (chunk, score)
-                for chunk, score in candidates
-                if float(score) >= effective.min_score
-            ]
+        filtered = (
+            candidates
+            if effective.min_score is None
+            else [(chunk, score) for chunk, score in candidates if float(score) >= effective.min_score]
+        )
 
         selected: list[tuple[Any, float]] = []
         per_document: dict[UUID, int] = {}
         for chunk, score in filtered:
-            document_count = per_document.get(chunk.document_id, 0)
-            if document_count >= effective.max_chunks_per_document:
+            count = per_document.get(chunk.document_id, 0)
+            if count >= effective.max_chunks_per_document:
                 continue
             selected.append((chunk, score))
-            per_document[chunk.document_id] = document_count + 1
+            per_document[chunk.document_id] = count + 1
             if len(selected) >= effective.top_k:
                 break
 
-        context_results = selected[: effective.max_context_chunks]
         document_titles = {
-            document.document_id: document.document_title
-            for document in snapshot_documents
+            document.document_id: document.document_title for document in snapshot_documents
         }
-
         sources: list[SourceInfo] = []
         context_chunks: list[str] = []
         context_chars = 0
-        for chunk, score in context_results:
+        for chunk, score in selected[: effective.max_context_chunks]:
             title = document_titles.get(chunk.document_id)
             prefix = f"[{len(context_chunks) + 1}]"
             if title:
@@ -383,7 +273,6 @@ class TransactionBoundedVectorSnapshotRAGMixin:
         )
         if execution_context:
             execution_context.rag_metadata = rag_metadata
-
         if not context_chunks:
             if effective.grounding_policy == "required":
                 raise ValidationError(

@@ -4,9 +4,11 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.application.use_cases.execution_event_factory import llm_event, tool_event
 from modules.agent.domain.events import AgentDomainEvent, AgentExecutionFailedV1
+from modules.agent.domain.run import AgentRunStatus
 from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
 from modules.agent.infra.execution.execution_instrumentation import (
     InstrumentedExecution,
@@ -107,6 +109,8 @@ async def finalize_failed_instrumented_execution(
     started_at: float,
     prepare_latency_ms: int | float | None = None,
 ) -> None:
+    context = current_execution.get()
+    run_id = context.run_id if context else None
     trace_id_text = str(trace_id)
     project_id_text = str(input_dto.project_id)
     agent_id_text = str(agent.id)
@@ -125,11 +129,7 @@ async def finalize_failed_instrumented_execution(
         if item.get("kind") == "tool"
     )
     tool_ms = execution.tool_wall_latency_ms
-    orchestration_ms = max(
-        total_ms - int(prepare_latency_ms or 0) - llm_ms - tool_ms,
-        0,
-    )
-    failed_at = _utc_now()
+    orchestration_ms = max(total_ms - int(prepare_latency_ms or 0) - llm_ms - tool_ms, 0)
     diagnostics = {
         "schema_version": 4,
         "total_latency_ms": total_ms,
@@ -157,6 +157,7 @@ async def finalize_failed_instrumented_execution(
         "partial_result_available": failure_context.get("partial_result_available") is True,
     }
     payload = {
+        "run_id": str(run_id) if run_id else None,
         "trace_id": trace_id_text,
         "project_id": project_id_text,
         "agent_id": agent_id_text,
@@ -182,30 +183,38 @@ async def finalize_failed_instrumented_execution(
         "llm_calls": execution.llm_calls,
         "diagnostics": diagnostics,
         "timeline_complete": False,
-        "failed_at": failed_at,
+        "failed_at": _utc_now(),
     }
+    await owner._hot_terminal_pending(terminal_status="failed", result=payload)
 
     async def persist_failure(
-        _repositories: AgentRuntimeRepositories,
+        repositories: AgentRuntimeRepositories,
         outbox: OutboxEventWriter,
     ) -> None:
-        for item in sorted(
-            execution.timeline,
-            key=lambda value: value.get("occurred_at", ""),
-        ):
+        for item in sorted(execution.timeline, key=lambda value: value.get("occurred_at", "")):
             event_payload = {
+                "run_id": str(run_id) if run_id else None,
                 "trace_id": trace_id_text,
                 "project_id": project_id_text,
                 "agent_id": agent_id_text,
                 **trace_binding_payload,
                 **item["payload"],
             }
-            event = (
-                llm_event(agent.id, event_payload)
-                if item["kind"] == "llm"
-                else tool_event(agent.id, event_payload)
-            )
+            event = llm_event(agent.id, event_payload) if item["kind"] == "llm" else tool_event(agent.id, event_payload)
             await outbox.write(event)
         await outbox.write(_failed_event(agent.id, payload))
+        if run_id is not None:
+            run = await repositories.runs.get_by_id(run_id)
+            if run is not None:
+                run.status = AgentRunStatus.FAILED
+                run.failure_code = str(failure_context.get("phase") or "runtime_error")
+                run.failure_detail = error[:8000]
+                run.usage = aggregate.model_dump() if hasattr(aggregate, "model_dump") else None
+                run.result = payload
+                run.completed_at = datetime.now(timezone.utc)
+                await repositories.runs.save(run)
 
     await owner._transactions.run(persist_failure)
+    if context is not None:
+        context.terminal_persisted = True
+    await owner._hot_persisted("failed")

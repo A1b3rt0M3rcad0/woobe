@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
+from typing import Any
 from uuid import UUID
 
 from modules.agent.application.interfaces.execution_context import current_execution
@@ -14,75 +15,64 @@ from modules.agent.domain.enums import ToolStatus
 from modules.agent.domain.errors import ToolNotFoundError
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.runtime_secret_resolver import RuntimeToolSecretResolver
-from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.agent.infra.database.runtime_transaction_runner import (
-    AgentRuntimeTransactionRunner,
-)
 from modules.agent.infra.execution.tool_runtime_registry import build_tool_runtime_registry
 from shared.infra.config import Settings
-
 
 InternalToolHandler = Callable[[dict], Awaitable[dict]]
 
 
 class AgentToolRuntimeGateway:
-    """Tool runtime with DB reads isolated from external Tool/MCP execution."""
+    """Execute Tools from the immutable acceptance-time Run material only."""
 
     def __init__(
         self,
-        transactions: AgentRuntimeTransactionRunner,
+        _transactions: Any,
         settings: Settings,
         executor: HttpToolExecutor | None = None,
         *,
         internal_tool_handlers: Mapping[UUID, InternalToolHandler] | None = None,
     ) -> None:
-        self._transactions = transactions
         self._settings = settings
         self._executor = executor or get_http_tool_executor()
         self._internal_tool_handlers = dict(internal_tool_handlers or {})
-        self._cipher = SecretCipherAdapter(settings.encryption_key)
-        self._secret_resolver = RuntimeToolSecretResolver(
-            transactions,
-            self._cipher,
-        )
+        self._secret_resolver = RuntimeToolSecretResolver()
 
     async def read_runtime_tools(self, tool_ids: list[UUID]):
-        async def read(repositories, _outbox):
-            tools = []
-            for tool_id in tool_ids:
-                tool = await repositories.tools.get_by_id(tool_id)
-                if tool is not None:
-                    tools.append(tool)
-            return tools
-
-        return await self._transactions.run(read)
+        context = current_execution.get()
+        prepared = context.prepared_tools if context else None
+        if prepared is None:
+            raise RuntimeError("Agent Tool state was not prepared during Run acceptance")
+        tools = []
+        for tool_id in tool_ids:
+            tool = prepared.get(str(tool_id))
+            if tool is None:
+                raise ToolNotFoundError(tool_id)
+            tools.append(tool)
+        return tools
 
     async def execute_tool(self, tool_id: UUID, input_data: dict) -> dict:
         internal_handler = self._internal_tool_handlers.get(tool_id)
         if internal_handler is not None:
             return await internal_handler(dict(input_data or {}))
-
         if is_runtime_tool_inventory_id(tool_id):
             return execute_runtime_tool_inventory(input_data)
 
         runtime_input = dict(input_data or {})
         context = current_execution.get()
         if context and context.session_id:
-            runtime_input[MCP_AGENT_SESSION_INPUT_KEY] = str(context.session_id)
+            runtime_input.setdefault(MCP_AGENT_SESSION_INPUT_KEY, str(context.session_id))
+
         snapshot = (
-            context.tool_snapshots.get(str(tool_id))
-            if context and context.tool_snapshots
+            (context.tool_snapshots or {}).get(str(tool_id))
+            if context is not None
             else None
         )
-
         if snapshot is not None:
             tool = tool_from_release_snapshot(snapshot)
         else:
-            async def load_tool(repositories, _outbox):
-                return await repositories.tools.get_by_id(tool_id)
-
-            tool = await self._transactions.run(load_tool)
+            prepared = context.prepared_tools if context else None
+            tool = prepared.get(str(tool_id)) if prepared else None
             if tool is None or tool.status != ToolStatus.ACTIVE:
                 raise ToolNotFoundError(tool_id)
 
