@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncEngine
-
 from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
@@ -17,38 +15,37 @@ from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executo
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.agent.infra.database.repositories import (
-    SQLAlchemyAgentToolRepository,
-    SQLAlchemyAgentToolSecretRepository,
+from modules.agent.infra.database.runtime_transaction_runner import (
+    AgentRuntimeTransactionRunner,
 )
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.execution.tool_runtime_registry import build_tool_runtime_registry
 from shared.infra.config import Settings
 
 
 class AgentToolRuntimeGateway:
-    """Short-lived persistence boundary for Agent execution Tool operations."""
+    """Tool runtime backed by explicit short-lived transaction phases."""
 
     def __init__(
         self,
-        engine: AsyncEngine,
+        transactions: AgentRuntimeTransactionRunner,
         settings: Settings,
         executor: HttpToolExecutor | None = None,
     ) -> None:
-        self._engine = engine
+        self._transactions = transactions
         self._settings = settings
         self._executor = executor or get_http_tool_executor()
         self._cipher = SecretCipherAdapter(settings.encryption_key)
 
     async def read_runtime_tools(self, tool_ids: list[UUID]):
-        async with AgentUnitOfWork(self._engine) as uow:
-            tool_repo = SQLAlchemyAgentToolRepository(uow)
+        async def read(repositories, _outbox):
             tools = []
             for tool_id in tool_ids:
-                tool = await tool_repo.get_by_id(tool_id)
+                tool = await repositories.tools.get_by_id(tool_id)
                 if tool is not None:
                     tools.append(tool)
             return tools
+
+        return await self._transactions.run(read)
 
     async def execute_tool(self, tool_id: UUID, input_data: dict) -> dict:
         if is_runtime_tool_inventory_id(tool_id):
@@ -64,10 +61,11 @@ class AgentToolRuntimeGateway:
             else None
         )
 
-        async with AgentUnitOfWork(self._engine) as uow:
-            tool_repo = SQLAlchemyAgentToolRepository(uow)
-            tool_secret_repo = SQLAlchemyAgentToolSecretRepository(uow)
-            resolver = ToolSecretResolverAdapter(tool_secret_repo, self._cipher)
+        async def execute(repositories, _outbox):
+            resolver = ToolSecretResolverAdapter(
+                repositories.tool_secrets,
+                self._cipher,
+            )
             registry = build_tool_runtime_registry(
                 settings=self._settings,
                 executor=self._executor,
@@ -86,10 +84,12 @@ class AgentToolRuntimeGateway:
                 }
 
             use_case = RuntimeExecuteToolUseCase(
-                tool_repo=tool_repo,
+                tool_repo=repositories.tools,
                 runtime_registry=registry,
             )
             result = await use_case.execute(
                 ExecuteToolInput(tool_id=tool_id, input_data=runtime_input)
             )
             return result.model_dump()
+
+        return await self._transactions.run(execute)
