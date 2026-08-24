@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import json
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import httpx
 import pytest
-from unittest.mock import AsyncMock, MagicMock
 
 from modules.agent.application.interfaces.http_tool_contract import (
     compile_http_tool_group_contract,
