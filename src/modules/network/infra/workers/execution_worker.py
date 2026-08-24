@@ -26,6 +26,14 @@ from shared.workers.inbox_consumer_base import BaseInboxConsumer, InboxRecord
 
 logger = logging.getLogger(__name__)
 
+_TERMINAL_EXECUTION_STATUSES = {
+    "completed",
+    "failed",
+    "cancelled",
+    "timed_out",
+    "uncertain",
+}
+
 
 class NetworkExecutionProcessor:
     """Run a Network with Redis ownership and one terminal PostgreSQL write."""
@@ -57,6 +65,8 @@ class NetworkExecutionProcessor:
             return
         execution = loaded.execution
         version = loaded.version
+        if str(execution.status) in _TERMINAL_EXECUTION_STATUSES:
+            return
         if version is None and not (
             execution.draft_revision is not None
             and execution.definition_snapshot
@@ -76,6 +86,24 @@ class NetworkExecutionProcessor:
             ttl_seconds=max(self._lease_ttl_seconds * 10, 3600),
             agent_contexts=loaded.agent_contexts,
         )
+
+        # Cancellation may race with worker startup. PostgreSQL is checked once more
+        # after Redis initialization so an execution cancelled while it was queued
+        # cannot start external work from a stale detached ORM snapshot.
+        durable = await self._loader.load(execution_id)
+        if durable is None:
+            return
+        durable_status = str(durable.execution.status)
+        if durable_status == "cancelled":
+            await self._store.request_cancel(execution_id)
+            await self._store.mark_persisted(execution_id, status="cancelled")
+            return
+        if durable_status == "cancel_requested":
+            await self._store.request_cancel(execution_id)
+        elif durable_status in _TERMINAL_EXECUTION_STATUSES:
+            await self._store.mark_persisted(execution_id, status=durable_status)
+            return
+
         state = await self._store.snapshot(execution_id)
         if state.get("status") == "terminal_pending_persist":
             await self._resume_terminal(execution_id, version, state)
@@ -246,7 +274,12 @@ class NetworkExecutionProcessor:
             uncertain=uncertain,
         )
 
-    async def _resume_terminal(self, execution_id: UUID, version, state: dict[str, Any]) -> None:
+    async def _resume_terminal(
+        self,
+        execution_id: UUID,
+        version,
+        state: dict[str, Any],
+    ) -> None:
         terminal_status = str(state.get("terminal_status") or "uncertain")
         result = state.get("terminal_result")
         result = result if isinstance(result, dict) else {}
@@ -266,7 +299,11 @@ class NetworkExecutionProcessor:
         )
         await self._store.mark_persisted(
             execution_id,
-            status="uncertain" if result.get("uncertain") else terminal_status,
+            status=(
+                "uncertain"
+                if result.get("uncertain")
+                else terminal_status
+            ),
         )
 
 
@@ -320,7 +357,7 @@ class NetworkExecutionConsumer(BaseInboxConsumer):
 
 
 class NetworkLeaseRecoveryWorker:
-    """Recover terminal Redis state or mark abandoned executions safely."""
+    """Recover terminal Redis state without replaying uncertain external work."""
 
     def __init__(
         self,
@@ -344,10 +381,22 @@ class NetworkLeaseRecoveryWorker:
             loaded = await self._loader.load(execution_id)
             if loaded is None:
                 continue
+            durable_status = str(loaded.execution.status)
+            if durable_status in _TERMINAL_EXECUTION_STATUSES:
+                continue
+
             state = await self._store.snapshot(execution_id)
             if not state:
-                # The durable intent exists but operational state disappeared. We
-                # cannot prove whether external effects occurred, so be conservative.
+                # New Redis-backed executions intentionally remain `queued` in
+                # PostgreSQL while running. Absence of Redis state therefore does
+                # not prove that external work started; a broker-delayed request
+                # must never be converted to UNCERTAIN merely because it is old.
+                if durable_status == "queued":
+                    continue
+
+                # Legacy `running` / `cancel_requested` durable states do prove
+                # that execution had crossed the old start boundary. Without hot
+                # state we cannot establish whether external side effects happened.
                 await self._finalizer.finalize(
                     execution_id=execution_id,
                     version=loaded.version,
@@ -357,22 +406,29 @@ class NetworkLeaseRecoveryWorker:
                     trace_id=None,
                     failure_code="execution_state_lost",
                     failure_detail=(
-                        "Execution state disappeared before durable finalization; "
+                        "Execution state disappeared after execution had started; "
                         "automatic replay was blocked."
                     ),
                     uncertain=True,
                 )
                 continue
+
             if state.get("status") == "terminal_pending_persist":
                 result = state.get("terminal_result")
                 result = result if isinstance(result, dict) else {}
                 invocations = await self._store.invocations(execution_id)
-                trace_id = UUID(str(result["trace_id"])) if result.get("trace_id") else None
+                trace_id = (
+                    UUID(str(result["trace_id"]))
+                    if result.get("trace_id")
+                    else None
+                )
                 await self._finalizer.finalize(
                     execution_id=execution_id,
                     version=loaded.version,
                     invocation_states=invocations,
-                    terminal_status=str(state.get("terminal_status") or "failed"),
+                    terminal_status=str(
+                        state.get("terminal_status") or "failed"
+                    ),
                     output=result.get("output"),
                     trace_id=trace_id,
                     failure_code=result.get("failure_code"),
@@ -382,7 +438,11 @@ class NetworkLeaseRecoveryWorker:
                 )
                 await self._store.mark_persisted(
                     execution_id,
-                    status="uncertain" if result.get("uncertain") else str(state.get("terminal_status") or "failed"),
+                    status=(
+                        "uncertain"
+                        if result.get("uncertain")
+                        else str(state.get("terminal_status") or "failed")
+                    ),
                 )
                 continue
 
