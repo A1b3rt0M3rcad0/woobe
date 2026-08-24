@@ -83,16 +83,20 @@ class RerunAgentRunUseCase:
         elif source.environment not in {"staging", "production"}:
             raise ValidationError("Agent Run has an unsupported environment")
 
+        metadata = {
+            "source": "rerun",
+            "rerun_of_run_id": str(source.id),
+        }
+        if source.input_message_id is not None:
+            metadata["reuse_input_message_id"] = str(source.input_message_id)
+
         return await self._executor.execute(
             AskInput(
                 project_id=source.project_id,
                 agent_id=source.agent_id,
                 message=source.input_message,
                 session_id=source.session_id,
-                metadata={
-                    "source": "rerun",
-                    "rerun_of_run_id": str(source.id),
-                },
+                metadata=metadata,
                 execution_context=execution_context,
                 loaded_release_id=loaded_release_id,
                 snapshot_override=snapshot_override,
