@@ -7,6 +7,9 @@ import pytest
 
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.composition.factories import ask_agent_runtime_factory
+from modules.agent.domain.entities import Tool
+from modules.agent.domain.enums import ToolStatus, ToolType
+from modules.agent.infra.execution import agent_tool_runtime_gateway
 from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
 from modules.network.application.runtime import InternalDelegationTool
 from modules.network.infra.runtime.agent_invoker import ProjectRAIAgentInvoker
@@ -18,6 +21,7 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
     settings,
 ) -> None:
     internal_tool_id = uuid4()
+    agent_tool_id = uuid4()
     project_id = uuid4()
     agent_id = uuid4()
     network_id = uuid4()
@@ -27,7 +31,17 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
     network_node_id = uuid4()
     trace_id = uuid4()
     delegated: list[dict] = []
+    executed_agent_tools: list[tuple[object, dict]] = []
     streamed_events: list[tuple[str, dict]] = []
+    prepared_agent_tool = Tool(
+        id=agent_tool_id,
+        project_id=project_id,
+        agent_id=agent_id,
+        name="customer_lookup",
+        type=ToolType.HTTP,
+        status=ToolStatus.ACTIVE,
+        config={"url": "https://example.test/customer", "method": "GET"},
+    )
 
     async def delegate(arguments: dict) -> dict:
         delegated.append(dict(arguments))
@@ -35,6 +49,16 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
 
     async def stream_handler(event_type: str, payload: dict) -> None:
         streamed_events.append((event_type, dict(payload)))
+
+    class FakeToolRegistry:
+        async def execute(self, tool, input_data):
+            executed_agent_tools.append((tool, dict(input_data)))
+            return SimpleNamespace(
+                success=True,
+                output={"customer": "active"},
+                duration_ms=2,
+                error=None,
+            )
 
     class FakeTransactionBoundedRuntime:
         def __init__(
@@ -75,11 +99,25 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
             }
             assert input_dto.metadata["source"] == "network_runtime"
 
-            tool_result = await self._tool_executor_factory(
+            delegation_result = await self._tool_executor_factory(
                 internal_tool_id,
                 {"task": "answer the delegated task"},
             )
-            assert tool_result == {"success": True, "result": "specialist-ok"}
+            assert delegation_result == {"success": True, "result": "specialist-ok"}
+
+            # Acceptance normally populates this in the real runtime. The bridge
+            # must then execute the prepared Agent Tool without any late DB lookup.
+            context.prepared_tools = {str(agent_tool_id): prepared_agent_tool}
+            agent_tool_result = await self._tool_executor_factory(
+                agent_tool_id,
+                {"query": "customer"},
+            )
+            assert agent_tool_result == {
+                "success": True,
+                "output": {"customer": "active"},
+                "duration_ms": 2,
+                "error": None,
+            }
 
             channel = current_runtime_stream.get()
             assert channel is not None
@@ -110,6 +148,11 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
         ask_agent_runtime_factory,
         "TransactionBoundedStructuredOutputRuntime",
         FakeTransactionBoundedRuntime,
+    )
+    monkeypatch.setattr(
+        agent_tool_runtime_gateway,
+        "build_tool_runtime_registry",
+        lambda **_kwargs: FakeToolRegistry(),
     )
 
     invoker = ProjectRAIAgentInvoker(settings, object())
@@ -147,6 +190,9 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
     assert result.model == "deepseek-v4-flash"
     assert result.streamed_output is True
     assert delegated == [{"task": "answer the delegated task"}]
+    assert executed_agent_tools == [
+        (prepared_agent_tool, {"query": "customer"})
+    ]
     assert any(
         event_type == "token" and payload.get("content") == "network-ok"
         for event_type, payload in streamed_events
