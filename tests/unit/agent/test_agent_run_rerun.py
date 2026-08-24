@@ -59,28 +59,50 @@ async def test_production_rerun_creates_new_execution_against_original_release()
 
 
 @pytest.mark.asyncio
-async def test_draft_rerun_reuses_frozen_agent_and_tool_snapshots() -> None:
+async def test_draft_rerun_reuses_frozen_agent_tool_rag_and_output_snapshots() -> None:
     tool_id = uuid4()
+    provider_model_id = uuid4()
+    provider_credential_id = uuid4()
+    fallback_provider_model_id = uuid4()
+    fallback_credential_id = uuid4()
+    knowledge_version_id = uuid4()
     source = _run(
         environment="draft",
         snapshot={
             "agent": {
                 "system_prompt": "frozen prompt",
-                "provider_model_id": str(uuid4()),
-                "provider_credential_id": str(uuid4()),
+                "provider_model_id": str(provider_model_id),
+                "provider_credential_id": str(provider_credential_id),
                 "provider": "openai",
                 "model": "gpt-test",
-                "fallback_provider_model_id": None,
-                "fallback_credential_id": None,
-                "fallback_provider": None,
-                "fallback_model": None,
+                "fallback_provider_model_id": str(fallback_provider_model_id),
+                "fallback_credential_id": str(fallback_credential_id),
+                "fallback_provider": "openai",
+                "fallback_model": "gpt-fallback",
                 "temperature": 0.1,
                 "max_output_tokens": 500,
                 "session_mode": "stateful",
                 "settings": {
-                    "response_format": {"enabled": False},
-                    "runtime_config": {"tools": {"permissions": {}}},
+                    "knowledge_version_id": str(knowledge_version_id),
+                    "response_format": {
+                        "enabled": True,
+                        "type": "json",
+                        "schema": {"type": "object", "required": ["answer"]},
+                    },
+                    "runtime_config": {
+                        "rag": {
+                            "top_k": 4,
+                            "candidate_k": 8,
+                            "grounding_policy": "required",
+                        },
+                        "tools": {"permissions": {}},
+                    },
                 },
+            },
+            "knowledge": {
+                "knowledge_version_id": str(knowledge_version_id),
+                "vector_snapshot_id": str(uuid4()),
+                "vector_snapshot_hash": "frozen-vector-hash",
             },
             "tools": [
                 {
@@ -100,6 +122,18 @@ async def test_draft_rerun_reuses_frozen_agent_and_tool_snapshots() -> None:
     assert executor.input.loaded_release_id is None
     override = executor.input.snapshot_override
     assert override["system_prompt"] == "frozen prompt"
+    assert override["provider_model_id"] == str(provider_model_id)
+    assert override["provider_credential_id"] == str(provider_credential_id)
+    assert override["fallback_provider_model_id"] == str(fallback_provider_model_id)
+    assert override["fallback_credential_id"] == str(fallback_credential_id)
+    assert override["fallback_provider"] == "openai"
+    assert override["fallback_model"] == "gpt-fallback"
+    assert override["response_format"]["schema"]["required"] == ["answer"]
+    assert override["runtime_config"]["rag"] == {
+        "top_k": 4,
+        "candidate_k": 8,
+        "grounding_policy": "required",
+    }
     assert override["runtime_config"]["tools"]["tool_ids"] == [str(tool_id)]
     assert override["runtime_config"]["tools"]["snapshots"][0]["name"] == "frozen_tool"
 
