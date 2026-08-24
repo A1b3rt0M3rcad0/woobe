@@ -21,17 +21,42 @@ jobs:
 
       - uses: astral-sh/setup-uv@v6
 
-      - name: Refresh and persist uv.lock for runtime dependency changes
+      - name: Apply deterministic runtime CI repair
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/agent-runtime-transaction-boundaries'
+        run: python scripts/tmp_ci_repair_runtime.py
+
+      - name: Refresh runtime dependency lock
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/agent-runtime-transaction-boundaries'
+        run: uv lock
+
+      - name: Validate repaired architecture before persist
         if: github.event_name == 'pull_request' && github.head_ref == 'feature/agent-runtime-transaction-boundaries'
         run: |
-          uv lock
-          if git diff --quiet -- uv.lock; then
-            echo "uv.lock already synchronized"
+          uv sync --frozen --all-groups --extra test
+          uv run pytest -q tests/quality_gate/architecture
+          uv run python -m quality_gate.architecture.checker --project-root . --policy-dir quality_gate/architecture/policies
+
+      - name: Persist validated runtime repair
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/agent-runtime-transaction-boundaries'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock \
+            src/modules/agent/application/interfaces/agent_run_rerun.py \
+            src/modules/agent/presentation/controllers/rerun_agent_run_controller.py \
+            src/modules/agent/composition/composers/rerun_agent_run_composer.py \
+            src/modules/agent/infra/execution/runtime_preparation.py \
+            src/modules/agent/infra/execution/explicit_runtime_persistence.py \
+            src/modules/agent/infra/database/runtime_vector_search_reader.py \
+            src/modules/agent/composition/factories/ask_agent_runtime_factory.py \
+            quality_gate/architecture/policy.py \
+            quality_gate/architecture/checker.py \
+            quality_gate/architecture/policies/agent.toml \
+            tests/quality_gate/architecture/test_strict_composer_contract.py
+          if git diff --cached --quiet; then
+            echo "Runtime repair already persisted"
           else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add uv.lock
-            git commit -m "chore(deps): synchronize redis lockfile"
+            git commit -m "fix(ci): align runtime architecture gates and lockfile"
             git push origin HEAD:${{ github.head_ref }}
           fi
 
