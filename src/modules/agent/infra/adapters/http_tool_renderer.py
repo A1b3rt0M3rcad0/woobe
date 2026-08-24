@@ -5,19 +5,26 @@ from copy import deepcopy
 from typing import Any
 from urllib.parse import quote
 
-from modules.agent.application.http_tool_contract import (
+from modules.agent.application.interfaces.http_tool_contract import (
     CompiledHttpToolContract,
     HttpToolContractError,
     TEMPLATE_PATTERN,
 )
 
 
-def _resolve_inputs(contract: CompiledHttpToolContract, input_data: dict[str, Any] | None) -> dict[str, Any]:
+def _resolve_inputs(
+    contract: CompiledHttpToolContract,
+    input_data: dict[str, Any] | None,
+) -> dict[str, Any]:
     defaults = contract.config.get("variables")
-    inputs = {**(defaults if isinstance(defaults, dict) else {}), **(input_data or {})}
+    inputs = {
+        **(defaults if isinstance(defaults, dict) else {}),
+        **(input_data or {}),
+    }
     required = contract.input_schema.get("required")
     missing = [
-        str(name) for name in (required if isinstance(required, list) else [])
+        str(name)
+        for name in (required if isinstance(required, list) else [])
         if name not in inputs or inputs[name] in (None, "")
     ]
     if missing:
@@ -118,4 +125,7 @@ def render_http_tool_request(
         )
     if isinstance(body, str):
         return url, rendered_headers, _replace(body, inputs)
-    return url, rendered_headers, json.dumps(_render_json(body, inputs), ensure_ascii=False)
+    return url, rendered_headers, json.dumps(
+        _render_json(body, inputs),
+        ensure_ascii=False,
+    )

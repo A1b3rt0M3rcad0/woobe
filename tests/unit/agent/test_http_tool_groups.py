@@ -12,18 +12,18 @@ from modules.agent.application.http_tool_contract import (
     compile_http_tool_group_contract,
 )
 from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
+from modules.agent.application.interfaces.tool_runtime import MCP_REMOTE_TOOL_INPUT_KEY
 from modules.agent.application.tool_converter import (
     MCP_PROVIDER_ROUTE_SEPARATOR,
     agent_tools_to_openai_definitions_and_mapping,
 )
 from modules.agent.application.tool_release_snapshots import tool_with_permission_overrides
-from modules.agent.application.tool_runtime import (
-    ERROR_HTTP_ROUTE_REQUIRES_POLICY,
-    MCP_REMOTE_TOOL_INPUT_KEY,
-    HttpToolRuntime,
-)
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import RiskLevel, ToolStatus, ToolType
+from modules.agent.infra.adapters.tool_runtime import (
+    ERROR_HTTP_ROUTE_REQUIRES_POLICY,
+    HttpToolRuntime,
+)
 
 
 class FakeExecutor(ToolExecutionPort):

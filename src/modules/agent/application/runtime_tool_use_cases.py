@@ -9,7 +9,7 @@ from modules.agent.application.dtos.tools_dtos import (
     TestToolOutput,
 )
 from modules.agent.application.interfaces.repositories import ToolRepository
-from modules.agent.application.tool_runtime import ToolRuntimeRegistry
+from modules.agent.application.interfaces.tool_runtime import ToolRuntimeRegistry
 from modules.agent.domain.enums import ToolStatus
 from modules.agent.domain.errors import ToolNotFoundError
 

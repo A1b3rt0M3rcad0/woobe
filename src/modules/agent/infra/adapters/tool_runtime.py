@@ -5,7 +5,7 @@ import logging
 from typing import Any
 from uuid import UUID, uuid4
 
-from modules.agent.application.http_tool_contract import (
+from modules.agent.application.interfaces.http_tool_contract import (
     HttpToolContractError,
     compile_http_group_route_contract,
     compile_http_tool_contract,
@@ -13,7 +13,6 @@ from modules.agent.application.http_tool_contract import (
     http_route_permission_mode,
     is_http_tool_group,
 )
-from modules.agent.application.http_tool_renderer import render_http_tool_request
 from modules.agent.application.interfaces.ports import (
     ExecutionResult,
     McpSessionStorePort,
@@ -21,17 +20,18 @@ from modules.agent.application.interfaces.ports import (
     ToolRuntimePort,
     ToolSecretResolverPort,
 )
-from modules.agent.application.mcp_permissions import (
-    MCP_PERMISSION_ALLOW,
-    MCP_PERMISSION_DENY,
-    mcp_tool_permission_mode,
-)
-from modules.agent.application.tool_runtime import (
+from modules.agent.application.interfaces.tool_runtime import (
     MCP_AGENT_SESSION_INPUT_KEY,
     MCP_REMOTE_TOOL_INPUT_KEY,
     ToolRuntimeRegistry,
 )
-from modules.agent.application.tool_types import HTTP_PROTOCOL, MCP_PROTOCOL
+from modules.agent.application.interfaces.tool_types import HTTP_PROTOCOL, MCP_PROTOCOL
+from modules.agent.domain.mcp_permissions import (
+    MCP_PERMISSION_ALLOW,
+    MCP_PERMISSION_DENY,
+    mcp_tool_permission_mode,
+)
+from modules.agent.infra.adapters.http_tool_renderer import render_http_tool_request
 
 logger = logging.getLogger(__name__)
 

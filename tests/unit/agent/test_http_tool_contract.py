@@ -8,7 +8,7 @@ from modules.agent.application.http_tool_contract import (
     HttpToolContractError,
     compile_http_tool_contract,
 )
-from modules.agent.application.http_tool_renderer import render_http_tool_request
+from modules.agent.infra.adapters.http_tool_renderer import render_http_tool_request
 
 
 def mathjs_config() -> dict:

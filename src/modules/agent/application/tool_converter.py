@@ -2,19 +2,19 @@ from __future__ import annotations
 
 from typing import Any
 
-from modules.agent.application.http_tool_contract import (
+from modules.agent.application.interfaces.http_tool_contract import (
     allowed_http_group_routes,
     compile_http_tool_contract,
     is_http_tool_group,
 )
-from modules.agent.application.mcp_permissions import allowed_mcp_discovered_tools
-from modules.agent.application.runtime_tool_inventory import append_runtime_inventory_tool
-from modules.agent.application.tool_types import (
+from modules.agent.application.interfaces.tool_types import (
     HTTP_PROTOCOL,
     MCP_PROTOCOL,
     normalize_tool_protocol,
 )
+from modules.agent.application.runtime_tool_inventory import append_runtime_inventory_tool
 from modules.agent.domain.enums import ToolType
+from modules.agent.domain.mcp_permissions import allowed_mcp_discovered_tools
 
 MCP_PROVIDER_ROUTE_SEPARATOR = "::mcp::"
 
@@ -169,6 +169,20 @@ def agent_tool_to_openai_definition(tool: Any) -> dict[str, Any]:
     name = _safe_tool_name(tool)
 
     if protocol == HTTP_PROTOCOL:
+        if is_http_tool_group(config):
+            return {
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": getattr(tool, "description", None)
+                    or "Grouped HTTP API",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {},
+                        "required": [],
+                    },
+                },
+            }
         contract = compile_http_tool_contract(
             config,
             getattr(tool, "input_schema", None),
