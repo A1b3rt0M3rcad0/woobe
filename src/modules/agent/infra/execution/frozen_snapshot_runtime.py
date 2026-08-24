@@ -1,12 +1,22 @@
 from __future__ import annotations
 
+import json
+from contextvars import ContextVar
 from copy import deepcopy
 from typing import Any
 from uuid import UUID
 
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+
 from modules.agent.domain.enums import Provider, SessionMode
 from modules.agent.infra.execution.transaction_bounded_structured_output import (
     TransactionBoundedStructuredOutputRuntime,
+)
+from shared.contracts.errors import ValidationError
+
+_rerun_input_message_id: ContextVar[UUID | None] = ContextVar(
+    "rerun_input_message_id",
+    default=None,
 )
 
 
@@ -16,8 +26,135 @@ def _uuid_or_none(value: Any) -> UUID | None:
     return value if isinstance(value, UUID) else UUID(str(value))
 
 
+def _role_value(message: Any) -> str:
+    role = getattr(message, "role", None)
+    return str(getattr(role, "value", role) or "")
+
+
+def _validate_reused_input_message(
+    message: Any,
+    *,
+    message_id: UUID,
+    session: Any,
+    agent: Any,
+    content: str,
+) -> None:
+    if message is None or getattr(message, "id", None) != message_id:
+        raise ValidationError("Rerun input message was not found")
+    if getattr(message, "session_id", None) != session.id:
+        raise ValidationError("Rerun input message does not belong to this Session")
+    if getattr(message, "project_id", None) != session.project_id:
+        raise ValidationError("Rerun input message does not belong to this Project")
+    if getattr(message, "agent_id", None) != agent.id:
+        raise ValidationError("Rerun input message does not belong to this Agent")
+    if _role_value(message) != "user":
+        raise ValidationError("Rerun input message must be a user message")
+    if getattr(message, "content", None) != content:
+        raise ValidationError("Rerun input message content does not match the original Run")
+
+
+def _messages_to_history(messages: list[Any]) -> list[Any]:
+    history: list[Any] = []
+    for message in messages:
+        role = _role_value(message)
+        if role == "user":
+            history.append(HumanMessage(content=message.content))
+            continue
+        if role != "assistant":
+            continue
+
+        raw_tool_calls = (message.data or {}).get("tool_calls") or []
+        tool_calls = [
+            {
+                "id": tool_call["tool_call_id"],
+                "name": tool_call["tool_name"],
+                "args": tool_call.get("input", {}),
+            }
+            for tool_call in raw_tool_calls
+            if tool_call.get("tool_call_id")
+        ]
+        history.append(
+            AIMessage(content=message.content, tool_calls=tool_calls)
+            if tool_calls
+            else AIMessage(content=message.content)
+        )
+        for tool_call in raw_tool_calls:
+            if tool_call.get("tool_call_id") and tool_call.get("output") is not None:
+                history.append(
+                    ToolMessage(
+                        content=json.dumps(tool_call["output"]),
+                        tool_call_id=tool_call["tool_call_id"],
+                    )
+                )
+    return history
+
+
 class FrozenSnapshotStructuredOutputRuntime(TransactionBoundedStructuredOutputRuntime):
-    """Apply a rerun Draft snapshot exactly instead of inheriting current Draft state."""
+    """Apply frozen rerun state and preserve original Session input provenance."""
+
+    async def _prepare(self, input_dto):
+        metadata = input_dto.metadata if isinstance(input_dto.metadata, dict) else {}
+        raw_message_id = metadata.get("reuse_input_message_id")
+        reuse_message_id = None
+        if raw_message_id:
+            try:
+                reuse_message_id = _uuid_or_none(raw_message_id)
+            except (TypeError, ValueError) as exc:
+                raise ValidationError("Rerun input message id is invalid") from exc
+
+        token = _rerun_input_message_id.set(reuse_message_id)
+        try:
+            return await super()._prepare(input_dto)
+        finally:
+            _rerun_input_message_id.reset(token)
+
+    async def _load_history(self, message_repo, session):
+        reuse_message_id = _rerun_input_message_id.get()
+        if reuse_message_id is None:
+            return await super()._load_history(message_repo, session)
+
+        messages = list(await message_repo.list_by_session(session.id))
+        for index, message in enumerate(messages):
+            if getattr(message, "id", None) != reuse_message_id:
+                continue
+            if getattr(message, "session_id", None) != session.id:
+                raise ValidationError(
+                    "Rerun input message does not belong to the selected Session"
+                )
+            # Recreate the model context exactly as it existed immediately before
+            # the original user input. The input itself is appended by _build_messages.
+            return _messages_to_history(messages[:index])
+        raise ValidationError(
+            "Rerun input message is outside the available Session history"
+        )
+
+    async def _save_user_message(
+        self,
+        session_repo,
+        message_repo,
+        session,
+        content,
+        agent,
+    ):
+        reuse_message_id = _rerun_input_message_id.get()
+        if reuse_message_id is None:
+            return await super()._save_user_message(
+                session_repo,
+                message_repo,
+                session,
+                content,
+                agent,
+            )
+
+        original = await message_repo.get_by_id(reuse_message_id)
+        _validate_reused_input_message(
+            original,
+            message_id=reuse_message_id,
+            session=session,
+            agent=agent,
+            content=content,
+        )
+        return original
 
     def _apply_snapshot_override(self, agent, snapshot: dict):
         # Do not call the compatibility implementation from AskAgentUseCase here.
