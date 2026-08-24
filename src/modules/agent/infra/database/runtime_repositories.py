@@ -30,10 +30,10 @@ class AgentRuntimeRepositories:
     """Explicit repository set for one Agent runtime transaction.
 
     The UnitOfWork owns transaction/session lifecycle. This object only groups
-    repositories that share that UnitOfWork and never exposes transaction control.
+    repositories that share the same transaction and never exposes transaction
+    control to the execution layer.
     """
 
-    transaction: AgentUnitOfWork
     agents: SQLAlchemyAgentRepositoryWithProviderModels
     provider_credentials: SQLAlchemyProviderCredentialRepository
     provider_models: SQLAlchemyProviderModelRepository
@@ -52,7 +52,6 @@ def build_agent_runtime_repositories(
     uow: AgentUnitOfWork,
 ) -> AgentRuntimeRepositories:
     return AgentRuntimeRepositories(
-        transaction=uow,
         agents=SQLAlchemyAgentRepositoryWithProviderModels(uow),
         provider_credentials=SQLAlchemyProviderCredentialRepository(uow),
         provider_models=SQLAlchemyProviderModelRepository(uow),
