@@ -6,17 +6,13 @@ import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import datetime, timezone
 
-from sqlalchemy.ext.asyncio import AsyncEngine
-
 from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.domain.runtime_events import AgentExecutionCancelledV1
-from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
-from modules.agent.infra.adapters.langchain_embedding_factory import (
-    LangchainEmbeddingFactory,
+from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
+from modules.agent.infra.database.runtime_transaction_runner import (
+    AgentRuntimeTransactionRunner,
 )
-from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.execution.runtime_streaming import (
     RUNTIME_STREAM_HEARTBEAT_SECONDS,
     RuntimeStreamChannel,
@@ -26,7 +22,6 @@ from modules.agent.infra.execution.runtime_streaming import (
 from modules.agent.infra.execution.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
-from shared.infra.config import Settings
 from shared.security.redaction import redact_text
 
 DisconnectCheck = Callable[[], Awaitable[bool]]
@@ -35,27 +30,11 @@ DisconnectCheck = Callable[[], Awaitable[bool]]
 class AskAgentStreamService:
     def __init__(
         self,
-        engine: AsyncEngine,
-        settings: Settings,
-        llm_factory,
-        http_executor: HttpToolExecutor | None = None,
+        use_case: StructuredOutputAskAgentUseCase,
+        transactions: AgentRuntimeTransactionRunner,
     ) -> None:
-        self._engine = engine
-        self._tool_runtime = AgentToolRuntimeGateway(
-            engine,
-            settings,
-            http_executor,
-        )
-        self._use_case = StructuredOutputAskAgentUseCase(
-            session_factory=engine,
-            llm_factory=llm_factory,
-            encryption_key=settings.encryption_key,
-            tool_executor_factory=self._tool_runtime.execute_tool,
-        )
-        self._use_case.configure_rag_embedding_factory(LangchainEmbeddingFactory())
-        self._use_case.configure_runtime_tool_reader(
-            self._tool_runtime.read_runtime_tools
-        )
+        self._use_case = use_case
+        self._transactions = transactions
 
     async def _run_execution(
         self,
@@ -80,22 +59,26 @@ class AskAgentStreamService:
         project_id = channel.project_id or input_dto.project_id
         agent_id = channel.agent_id or input_dto.agent_id
         session_id = channel.session_id or input_dto.session_id
+        event = AgentExecutionCancelledV1.create(
+            agent_id=agent_id,
+            session_id=session_id,
+            payload={
+                "trace_id": str(channel.trace_id),
+                "project_id": str(project_id),
+                "agent_id": str(agent_id),
+                "session_id": str(session_id) if session_id is not None else None,
+                "request_id": str(channel.request_id),
+                "reason": reason,
+            },
+        )
 
-        async with AgentUnitOfWork(self._engine) as uow:
-            writer = SQLAlchemyAgentOutboxEventWriter(uow)
-            event = AgentExecutionCancelledV1.create(
-                agent_id=agent_id,
-                session_id=session_id,
-                payload={
-                    "trace_id": str(channel.trace_id),
-                    "project_id": str(project_id),
-                    "agent_id": str(agent_id),
-                    "session_id": str(session_id) if session_id is not None else None,
-                    "request_id": str(channel.request_id),
-                    "reason": reason,
-                },
-            )
-            await writer.write(event)
+        async def persist(
+            _repositories: AgentRuntimeRepositories,
+            outbox: OutboxEventWriter,
+        ) -> None:
+            await outbox.write(event)
+
+        await self._transactions.run(persist)
 
     async def stream(
         self,
