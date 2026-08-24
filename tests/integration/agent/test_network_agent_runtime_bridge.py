@@ -48,12 +48,20 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
             self._tool_executor_factory = tool_executor_factory
             self._runtime_tool_reader = None
             self._embedding_factory = None
+            self._vector_search_reader = None
+            self._execution_state_store = None
 
         def configure_rag_embedding_factory(self, factory) -> None:
             self._embedding_factory = factory
 
         def configure_runtime_tool_reader(self, reader) -> None:
             self._runtime_tool_reader = reader
+
+        def configure_vector_search_reader(self, reader) -> None:
+            self._vector_search_reader = reader
+
+        def configure_execution_state_store(self, store) -> None:
+            self._execution_state_store = store
 
         async def execute(self, input_dto):
             context = current_execution.get()

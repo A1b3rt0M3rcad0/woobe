@@ -11,21 +11,21 @@ from shared.infra.config.interface.unit_of_work import UnitOfWork
 class AgentUnitOfWork(UnitOfWork):
     """Sole transaction/session owner for Agent persistence and short read scopes."""
 
-    def __init__(
-        self,
-        session_factory: async_sessionmaker[AsyncSession] | AsyncEngine,
-        *,
-        read_only: bool = False,
-    ) -> None:
-        if isinstance(session_factory, AsyncEngine):
-            session_factory = async_sessionmaker(
-                bind=session_factory,
-                expire_on_commit=False,
-                class_=AsyncSession,
-            )
-        self._session_factory = session_factory
-        self._read_only = read_only
+    def __init__(self, engine: AsyncEngine) -> None:
+        self._engine = engine
+        self._session_factory = async_sessionmaker(
+            bind=self._engine,
+            expire_on_commit=False,
+            class_=AsyncSession,
+        )
+        self._read_only = False
         self._session: AsyncSession | None = None
+
+    def mark_read_only(self) -> "AgentUnitOfWork":
+        """Make this scope rollback on exit so read paths never emit COMMIT."""
+
+        self._read_only = True
+        return self
 
     @property
     def session(self) -> AsyncSession:
