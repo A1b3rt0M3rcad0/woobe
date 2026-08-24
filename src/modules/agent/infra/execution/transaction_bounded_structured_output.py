@@ -19,7 +19,7 @@ from modules.agent.infra.execution.transaction_bounded_rag import (
 )
 
 
-class TransactionBoundedStructuredOutputAskAgentUseCase(
+class TransactionBoundedStructuredOutputRuntime(
     TransactionBoundedVectorSnapshotRAGMixin,
     StructuredOutputAskAgentUseCase,
 ):
@@ -127,3 +127,7 @@ class TransactionBoundedStructuredOutputAskAgentUseCase(
             return tuple(updated)
         finally:
             _rag_history_context.reset(token)
+
+
+# Temporary compatibility alias while callers migrate to the runtime-oriented name.
+TransactionBoundedStructuredOutputAskAgentUseCase = TransactionBoundedStructuredOutputRuntime
