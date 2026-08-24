@@ -6,6 +6,8 @@ from typing import Any
 from uuid import uuid4
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.use_cases.execution_event_factory import (
     completed_event,
     fallback_event,
@@ -16,12 +18,7 @@ from modules.agent.application.use_cases.trace_event_builder import (
     build_operation_events,
     sequence_events,
 )
-from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
-from modules.agent.infra.database.runtime_repositories import (
-    build_agent_runtime_repositories,
-)
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
 
 
 def _utc_now() -> str:
@@ -162,9 +159,11 @@ async def finalize_instrumented_execution(owner, **kw):
         **runtime_binding_payload,
     }
 
-    async with AgentUnitOfWork(owner._session_factory) as uow:
-        repositories = build_agent_runtime_repositories(uow)
-        outbox = SQLAlchemyAgentOutboxEventWriter(uow)
+    async def persist_execution_artifacts(
+        repositories: AgentRuntimeRepositories,
+        outbox: OutboxEventWriter,
+    ) -> None:
+        nonlocal message_id
         if session:
             message = await owner._do_save_assistant_message(
                 repositories.messages,
@@ -207,6 +206,8 @@ async def finalize_instrumented_execution(owner, **kw):
                     },
                 )
             )
+
+    await owner._transactions.run(persist_execution_artifacts)
 
     persistence_ms = round((time.monotonic() - persistence_started) * 1000)
     persistence_ended_at = _utc_now()
@@ -415,9 +416,14 @@ async def finalize_instrumented_execution(owner, **kw):
     }
     if kw["fallback_info"]:
         payload["fallback_info"] = {**kw["fallback_info"], **fallback_binding_payload}
-    async with AgentUnitOfWork(owner._session_factory) as uow:
-        writer = SQLAlchemyAgentOutboxEventWriter(uow)
-        await writer.write(completed_event(agent.id, payload))
+
+    async def persist_completed(
+        _repositories: AgentRuntimeRepositories,
+        outbox: OutboxEventWriter,
+    ) -> None:
+        await outbox.write(completed_event(agent.id, payload))
+
+    await owner._transactions.run(persist_completed)
 
     output = AskOutput(
         answer=kw["answer"],
