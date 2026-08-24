@@ -10,7 +10,10 @@ from modules.agent.composition.composers.public_runtime_composers import (
     public_run_composer,
     public_stream_composer,
 )
-from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
+from modules.agent.composition.factories.ask_agent_runtime_factory import (
+    build_ask_agent_use_case,
+)
+from modules.agent.composition.resources import SETTINGS
 from modules.agent.infra.adapters.http_tool_runtime import (
     close_http_tool_executor,
     configure_http_tool_executor,
@@ -79,19 +82,17 @@ def build_http_tool_executor() -> HttpToolExecutor:
 
 
 def build_agent_stream_service() -> AskAgentStreamService:
-    return AskAgentStreamService(
-        DATABASE_ENGINE,
+    use_case, transactions = build_ask_agent_use_case(
         SETTINGS,
-        LangchainLLMFactory(),
         get_http_tool_executor(),
     )
+    return AskAgentStreamService(use_case, transactions)
 
 
 __all__ = [
     "AGENT_HTTP_ROUTERS",
     "AgentToolRuntimeGateway",
     "AskInput",
-    "DATABASE_ENGINE",
     "EmptyModelOutputError",
     "HttpToolExecutor",
     "LangchainEmbeddingFactory",
