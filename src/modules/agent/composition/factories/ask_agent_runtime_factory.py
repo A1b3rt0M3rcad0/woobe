@@ -17,7 +17,7 @@ from modules.agent.infra.database.runtime_transaction_runner import (
 )
 from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.infra.execution.transaction_bounded_structured_output import (
-    TransactionBoundedStructuredOutputAskAgentUseCase,
+    TransactionBoundedStructuredOutputRuntime,
 )
 from modules.agent.presentation.controllers.ask_agent_controller import AskAgentController
 from shared.infra.config import Settings
@@ -36,31 +36,31 @@ def build_ask_agent_use_case(
     settings: Settings,
     http_executor: HttpToolExecutor | None = None,
 ) -> tuple[
-    TransactionBoundedStructuredOutputAskAgentUseCase,
+    TransactionBoundedStructuredOutputRuntime,
     AgentRuntimeTransactionRunner,
 ]:
     transactions = build_agent_runtime_transactions()
     executor = http_executor or get_http_tool_executor()
     tool_runtime = AgentToolRuntimeGateway(transactions, settings, executor)
-    use_case = TransactionBoundedStructuredOutputAskAgentUseCase(
+    runtime = TransactionBoundedStructuredOutputRuntime(
         transactions=transactions,
         llm_factory=LangchainLLMFactory(),
         encryption_key=settings.encryption_key,
         tool_executor_factory=tool_runtime.execute_tool,
     )
-    use_case.configure_rag_embedding_factory(LangchainEmbeddingFactory())
-    use_case.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
-    return use_case, transactions
+    runtime.configure_rag_embedding_factory(LangchainEmbeddingFactory())
+    runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
+    return runtime, transactions
 
 
 def build_ask_agent_handler(
     settings: Settings,
     http_executor: HttpToolExecutor | None = None,
 ) -> AskHttpHandler:
-    use_case, transactions = build_ask_agent_use_case(settings, http_executor)
-    guarded_use_case = AgentRuntimeEnvironmentGuard(
-        use_case,
+    runtime, transactions = build_ask_agent_use_case(settings, http_executor)
+    guarded_runtime = AgentRuntimeEnvironmentGuard(
+        runtime,
         transactions,
         default_environment="production",
     )
-    return AskAgentController(guarded_use_case).handle
+    return AskAgentController(guarded_runtime).handle
