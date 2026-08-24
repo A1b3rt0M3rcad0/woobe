@@ -33,3 +33,5 @@ engine_allowed_paths = [
   "composition/composers/**",
   "composition/factories/agent_uow_factory.py",
 ]
+forbidden_runtime_markers = ["WorkflowHandler"]
+forbidden_runtime_paths = ["composition/workflows/**"]

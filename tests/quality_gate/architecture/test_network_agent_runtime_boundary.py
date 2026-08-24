@@ -6,6 +6,8 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 INVOKER_FILE = PROJECT_ROOT / "src/modules/network/infra/runtime/agent_invoker.py"
+APPLICATION_RUNTIME_FILE = PROJECT_ROOT / "src/modules/network/application/runtime.py"
+REDIS_STORE_FILE = PROJECT_ROOT / "src/modules/network/infra/runtime/redis_store.py"
 
 FORBIDDEN_AGENT_INTERNALS = {
     "AgentToolRuntimeGateway",
@@ -20,9 +22,45 @@ FORBIDDEN_DATABASE_TYPES = {
 }
 
 
+def _parse(path: Path) -> ast.Module:
+    return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+
+def _import_modules(tree: ast.Module) -> set[str]:
+    modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            modules.add(node.module)
+        elif isinstance(node, ast.Import):
+            modules.update(alias.name for alias in node.names)
+    return modules
+
+
+def _method(tree: ast.Module, class_name: str, method_name: str) -> ast.AST:
+    for node in tree.body:
+        if not isinstance(node, ast.ClassDef) or node.name != class_name:
+            continue
+        for child in node.body:
+            if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) and child.name == method_name:
+                return child
+    raise AssertionError(f"{class_name}.{method_name} was not found")
+
+
+def _calls_named(node: ast.AST, name: str) -> list[ast.Call]:
+    return [
+        child
+        for child in ast.walk(node)
+        if isinstance(child, ast.Call)
+        and (
+            (isinstance(child.func, ast.Name) and child.func.id == name)
+            or (isinstance(child.func, ast.Attribute) and child.func.attr == name)
+        )
+    ]
+
+
 def test_network_agent_invoker_uses_public_runtime_composition_boundary() -> None:
     source = INVOKER_FILE.read_text(encoding="utf-8")
-    tree = ast.parse(source, filename=str(INVOKER_FILE))
+    tree = _parse(INVOKER_FILE)
 
     agent_entrypoint_imports: set[str] = set()
     database_imports: set[str] = set()
@@ -40,3 +78,47 @@ def test_network_agent_invoker_uses_public_runtime_composition_boundary() -> Non
     assert not database_imports.intersection(FORBIDDEN_DATABASE_TYPES)
     assert "_engine_from_session_factory" not in source
     assert "session_factory=" not in source
+
+
+def test_network_agent_runtime_is_process_scoped_not_invocation_scoped() -> None:
+    tree = _parse(INVOKER_FILE)
+    constructor = _method(tree, "ProjectRAIAgentInvoker", "__init__")
+    invoke = _method(tree, "ProjectRAIAgentInvoker", "invoke")
+
+    assert len(_calls_named(constructor, "build_internal_agent_runtime")) == 1
+    assert not _calls_named(invoke, "build_internal_agent_runtime")
+
+
+def test_network_application_runtime_has_no_infrastructure_dependency() -> None:
+    source = APPLICATION_RUNTIME_FILE.read_text(encoding="utf-8")
+    tree = _parse(APPLICATION_RUNTIME_FILE)
+    imports = _import_modules(tree)
+
+    violations = sorted(
+        module
+        for module in imports
+        if module == "sqlalchemy"
+        or module.startswith("sqlalchemy.")
+        or module.startswith("modules.network.infra")
+    )
+    assert not violations, "ARCH-NETWORK-RUN-TX-001\n" + "\n".join(violations)
+    assert "NetworkExecutionModel" not in source
+    assert "NetworkVersionModel" not in source
+    assert "NetworkInvocationModel" not in source
+
+
+def test_network_runtime_uses_frozen_session_mode_without_late_lookup() -> None:
+    source = APPLICATION_RUNTIME_FILE.read_text(encoding="utf-8")
+    assert "resolve_agent_session_mode" not in source
+    assert 'binding.get("session_mode")' in source
+
+
+def test_redis_network_store_is_orm_free() -> None:
+    source = REDIS_STORE_FILE.read_text(encoding="utf-8")
+    tree = _parse(REDIS_STORE_FILE)
+    imports = _import_modules(tree)
+
+    assert not any(module.startswith("modules.network.infra.database") for module in imports)
+    assert not any(module == "sqlalchemy" or module.startswith("sqlalchemy.") for module in imports)
+    assert "NetworkExecutionModel" not in source
+    assert "NetworkInvocationModel" not in source

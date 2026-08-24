@@ -28,6 +28,8 @@ UOW_CONSTRUCTOR_FORBIDDEN_SCOPES = tuple(
 )
 ENGINE_ALLOWED_CONSUMERS = set(POLICY["engine_allowed_consumers"])
 ENGINE_ALLOWED_PATHS = tuple(POLICY["engine_allowed_paths"])
+FORBIDDEN_RUNTIME_MARKERS = set(POLICY["forbidden_runtime_markers"])
+FORBIDDEN_RUNTIME_PATHS = tuple(POLICY["forbidden_runtime_paths"])
 
 
 def _parse(path: Path) -> ast.Module:
@@ -182,6 +184,31 @@ def test_arch_run_tx_001_long_lived_composers_have_no_global_uow() -> None:
     if missing:
         violations.append("missing long-lived composer(s): " + ", ".join(missing))
     assert not violations, "ARCH-RUN-TX-001\n" + "\n".join(violations)
+
+
+def test_arch_run_tx_002_marker_workflow_architecture_cannot_reappear() -> None:
+    violations: list[str] = []
+    for path in _python_files():
+        relative = _relative(path)
+        if _matches(relative, FORBIDDEN_RUNTIME_PATHS):
+            violations.append(f"{relative}: marker-based workflow path is forbidden")
+        tree = _parse(path)
+        for imported, line in _imported_bindings(tree):
+            if imported in FORBIDDEN_RUNTIME_MARKERS:
+                violations.append(
+                    f"{relative}:{line}: marker-based runtime symbol {imported} is forbidden"
+                )
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+                if node.name in FORBIDDEN_RUNTIME_MARKERS:
+                    violations.append(
+                        f"{relative}:{node.lineno}: marker-based runtime definition {node.name} is forbidden"
+                    )
+            if isinstance(node, ast.Call) and _short_name(node.func) in FORBIDDEN_RUNTIME_MARKERS:
+                violations.append(
+                    f"{relative}:{node.lineno}: marker-based runtime wrapper is forbidden"
+                )
+    assert not violations, "ARCH-RUN-TX-002\n" + "\n".join(violations)
 
 
 def test_arch_uow_008_detects_engine_propagation_fixture() -> None:
