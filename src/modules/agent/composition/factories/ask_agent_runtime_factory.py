@@ -45,20 +45,17 @@ def _build_agent_runtime(
 ]:
     transactions = build_agent_runtime_transactions()
     executor = http_executor or get_http_tool_executor()
-    tool_runtime = AgentToolRuntimeGateway(transactions, settings, executor)
-    handlers = dict(internal_tool_handlers or {})
-
-    async def execute_tool(tool_id: UUID, input_data: dict) -> dict:
-        internal_handler = handlers.get(tool_id)
-        if internal_handler is not None:
-            return await internal_handler(dict(input_data or {}))
-        return await tool_runtime.execute_tool(tool_id, input_data)
-
+    tool_runtime = AgentToolRuntimeGateway(
+        transactions,
+        settings,
+        executor,
+        internal_tool_handlers=internal_tool_handlers,
+    )
     runtime = TransactionBoundedStructuredOutputRuntime(
         transactions=transactions,
         llm_factory=LangchainLLMFactory(),
         encryption_key=settings.encryption_key,
-        tool_executor_factory=execute_tool,
+        tool_executor_factory=tool_runtime.execute_tool,
     )
     runtime.configure_rag_embedding_factory(LangchainEmbeddingFactory())
     runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
