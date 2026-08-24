@@ -180,7 +180,11 @@ jobs:
           set -euo pipefail
           docker compose up -d --build db rabbitmq
           docker compose run --rm migrate
-          docker compose up -d api workers web chat-embed
+          if ! docker compose up -d api workers web chat-embed; then
+            docker compose ps --all || true
+            docker compose logs --no-color api workers || true
+            exit 1
+          fi
           for attempt in $(seq 1 60); do
             if sh scripts/smoke_production.sh; then
               exit 0
@@ -207,6 +211,8 @@ jobs:
         run: |
           docker compose ps --all > community-compose-ps.txt || true
           docker compose logs --no-color > community-compose.log 2>&1 || true
+          cat community-compose-ps.txt || true
+          cat community-compose.log || true
       - name: Tear down
         if: always()
         run: docker compose down -v --remove-orphans
