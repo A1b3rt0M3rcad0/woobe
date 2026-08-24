@@ -350,33 +350,22 @@ async def test_streaming_executes_release_tool_snapshot(monkeypatch):
 
     result = SimpleNamespace(success=True, output={"ok": True}, duration_ms=3, error=None)
     registry = SimpleNamespace(execute=AsyncMock(return_value=result))
-    fake_uow = SimpleNamespace()
-
-    class FakeContext:
-        async def __aenter__(self):
-            return fake_uow
-
-        async def __aexit__(self, *args):
-            return None
-
-    monkeypatch.setattr(
-        "modules.agent.infra.execution.agent_tool_runtime_gateway.AgentUnitOfWork",
-        lambda _engine: FakeContext(),
+    transactions = SimpleNamespace(
+        run=AsyncMock(
+            side_effect=AssertionError("release snapshot must not read from DB")
+        )
     )
-    monkeypatch.setattr(
-        "modules.agent.infra.execution.agent_tool_runtime_gateway.ToolSecretResolverAdapter",
-        lambda *_args: object(),
-    )
+
     monkeypatch.setattr(
         "modules.agent.infra.execution.agent_tool_runtime_gateway.build_tool_runtime_registry",
         lambda **_kwargs: registry,
     )
 
     gateway = AgentToolRuntimeGateway.__new__(AgentToolRuntimeGateway)
-    gateway._engine = object()
-    gateway._cipher = object()
+    gateway._transactions = transactions
     gateway._settings = object()
     gateway._executor = object()
+    gateway._secret_resolver = object()
     try:
         output = await gateway.execute_tool(tool.id, {})
     finally:
@@ -385,3 +374,4 @@ async def test_streaming_executes_release_tool_snapshot(monkeypatch):
     executed_tool = registry.execute.await_args.args[0]
     assert executed_tool.config == tool.config
     assert output["success"] is True
+    transactions.run.assert_not_awaited()
