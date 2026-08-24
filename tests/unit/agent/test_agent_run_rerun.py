@@ -55,6 +55,7 @@ async def test_production_rerun_creates_new_execution_against_original_release()
     assert executor.input.loaded_release_id == release_id
     assert executor.input.execution_context == "production"
     assert executor.input.message == "original input"
+    assert executor.input.session_id == source.session_id
     assert executor.input.metadata["rerun_of_run_id"] == str(source.id)
 
 
@@ -120,6 +121,7 @@ async def test_draft_rerun_reuses_frozen_agent_tool_rag_and_output_snapshots() -
 
     assert executor.input.execution_context == "playground"
     assert executor.input.loaded_release_id is None
+    assert executor.input.session_id == source.session_id
     override = executor.input.snapshot_override
     assert override["system_prompt"] == "frozen prompt"
     assert override["provider_model_id"] == str(provider_model_id)
@@ -128,6 +130,7 @@ async def test_draft_rerun_reuses_frozen_agent_tool_rag_and_output_snapshots() -
     assert override["fallback_credential_id"] == str(fallback_credential_id)
     assert override["fallback_provider"] == "openai"
     assert override["fallback_model"] == "gpt-fallback"
+    assert override["knowledge_version_id"] == str(knowledge_version_id)
     assert override["response_format"]["schema"]["required"] == ["answer"]
     assert override["runtime_config"]["rag"] == {
         "top_k": 4,
