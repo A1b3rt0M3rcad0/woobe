@@ -14,8 +14,8 @@ from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.database.runtime_transaction_runner import AgentRuntimeTransactionRunner
 from modules.agent.infra.database.runtime_vector_search_reader import AgentRuntimeVectorSearchReader
 from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
-from modules.agent.infra.execution.transaction_bounded_structured_output import (
-    TransactionBoundedStructuredOutputRuntime,
+from modules.agent.infra.execution.frozen_snapshot_runtime import (
+    FrozenSnapshotStructuredOutputRuntime,
 )
 from modules.agent.presentation.controllers.ask_agent_controller import AskAgentController
 from shared.composition_resources import EXECUTION_STATE_STORE
@@ -36,7 +36,7 @@ def _build_agent_runtime(
     http_executor: HttpToolExecutor | None = None,
     *,
     internal_tool_handlers: Mapping[UUID, InternalToolHandler] | None = None,
-) -> tuple[TransactionBoundedStructuredOutputRuntime, AgentRuntimeTransactionRunner]:
+) -> tuple[FrozenSnapshotStructuredOutputRuntime, AgentRuntimeTransactionRunner]:
     transactions = build_agent_runtime_transactions()
     executor = http_executor or get_http_tool_executor()
     tool_runtime = AgentToolRuntimeGateway(
@@ -45,7 +45,7 @@ def _build_agent_runtime(
         executor,
         internal_tool_handlers=internal_tool_handlers,
     )
-    runtime = TransactionBoundedStructuredOutputRuntime(
+    runtime = FrozenSnapshotStructuredOutputRuntime(
         transactions=transactions,
         llm_factory=LangchainLLMFactory(),
         encryption_key=settings.encryption_key,
@@ -64,7 +64,7 @@ def _build_agent_runtime(
 def build_ask_agent_use_case(
     settings: Settings,
     http_executor: HttpToolExecutor | None = None,
-) -> tuple[TransactionBoundedStructuredOutputRuntime, AgentRuntimeTransactionRunner]:
+) -> tuple[FrozenSnapshotStructuredOutputRuntime, AgentRuntimeTransactionRunner]:
     return _build_agent_runtime(settings, http_executor)
 
 
@@ -73,7 +73,7 @@ def build_internal_agent_runtime(
     http_executor: HttpToolExecutor | None = None,
     *,
     internal_tool_handlers: Mapping[UUID, InternalToolHandler] | None = None,
-) -> TransactionBoundedStructuredOutputRuntime:
+) -> FrozenSnapshotStructuredOutputRuntime:
     runtime, _transactions = _build_agent_runtime(
         settings,
         http_executor,
