@@ -9,6 +9,10 @@ from modules.agent.application.dtos.runtime_dtos import AskOutput
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.runtime_tool_inventory import RUNTIME_TOOL_INVENTORY_NAME
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
+from modules.agent.application.tool_release_snapshots import (
+    tool_from_release_snapshot,
+    tool_with_permission_overrides,
+)
 from modules.agent.application.use_cases.structured_output_contract import (
     format_contract_errors,
     validate_output_against_contract,
@@ -53,7 +57,12 @@ class TransactionBoundedStructuredOutputRuntime(
                 fallback_credential = await repositories.provider_credentials.get_by_id(
                     agent.fallback_credential_id
                 )
-            tools, encrypted_tool_secrets = await prepare_tool_state(repositories, agent=agent)
+            tools, encrypted_tool_secrets = await prepare_tool_state(
+                repositories,
+                agent=agent,
+                tool_from_snapshot=tool_from_release_snapshot,
+                tool_with_permissions=tool_with_permission_overrides,
+            )
             rag_binding = await prepare_rag_binding(repositories, agent=agent)
             session = None
             existing_session = False

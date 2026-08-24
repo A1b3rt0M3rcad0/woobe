@@ -28,6 +28,9 @@ class ComposerContract:
     regular_handler: str
     streaming_handler: str
     uow_types: tuple[str, ...]
+    long_lived_functions: tuple[str, ...] = ()
+    long_lived_handler: str = "Callable"
+    uow_factory_functions: tuple[str, ...] = ()
     forbidden_parameter_types: tuple[str, ...] = ()
     forbidden_parameter_names: tuple[str, ...] = ()
     forbidden_calls: tuple[str, ...] = ()
@@ -157,6 +160,9 @@ def _load_composer_contract(path: Path, value: object) -> ComposerContract | Non
         regular_handler=regular_handler,
         streaming_handler=streaming_handler,
         uow_types=uow_types,
+        long_lived_functions=_string_tuple(value.get("long_lived_functions"), field="composer_contract.long_lived_functions"),
+        long_lived_handler=str(value.get("long_lived_handler") or "Callable"),
+        uow_factory_functions=_string_tuple(value.get("uow_factory_functions"), field="composer_contract.uow_factory_functions"),
         forbidden_parameter_types=_string_tuple(value.get("forbidden_parameter_types"), field="composer_contract.forbidden_parameter_types"),
         forbidden_parameter_names=_string_tuple(value.get("forbidden_parameter_names"), field="composer_contract.forbidden_parameter_names"),
         forbidden_calls=_string_tuple(value.get("forbidden_calls"), field="composer_contract.forbidden_calls"),

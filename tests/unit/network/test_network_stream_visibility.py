@@ -97,8 +97,14 @@ async def test_only_root_tokens_are_emitted_to_network_stream() -> None:
         kind="release",
         definition=definition,
         resolved_bindings={
-            str(root_node_id): {"release_id": str(uuid4())},
-            str(child_node_id): {"release_id": str(uuid4())},
+            str(root_node_id): {
+                "release_id": str(uuid4()),
+                "session_mode": "stateless",
+            },
+            str(child_node_id): {
+                "release_id": str(uuid4()),
+                "session_mode": "stateless",
+            },
         },
     )
     execution = SimpleNamespace(

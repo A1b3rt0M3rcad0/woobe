@@ -1,22 +1,22 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
 from copy import deepcopy
 from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from modules.agent.application.tool_release_snapshots import (
-    tool_from_release_snapshot,
-    tool_to_release_snapshot,
-    tool_with_permission_overrides,
-)
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ToolStatus
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
 from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
 from shared.contracts.errors import ValidationError
 
 _SECRET_PATTERN = re.compile(r"\{\{secret:([^}]+)\}\}")
+
+ToolFromSnapshot = Callable[[dict[str, Any]], Any]
+ToolWithPermissions = Callable[[Any, Any], Any]
+ToolToSnapshot = Callable[[Any], dict[str, Any]]
 
 
 def _value(value: object) -> object:
@@ -64,6 +64,8 @@ async def prepare_tool_state(
     repositories: AgentRuntimeRepositories,
     *,
     agent: Any,
+    tool_from_snapshot: ToolFromSnapshot,
+    tool_with_permissions: ToolWithPermissions,
 ) -> tuple[list[Any], dict[str, str]]:
     """Resolve the exact Tool set and encrypted secrets inside Acceptance."""
 
@@ -98,7 +100,7 @@ async def prepare_tool_state(
         for tool_id in selected_ids:
             snapshot = snapshot_index.get(str(tool_id))
             if snapshot is not None:
-                tool = tool_from_release_snapshot(snapshot)
+                tool = tool_from_snapshot(snapshot)
             else:
                 tool = await repositories.tools.get_by_id(tool_id)
             if tool is None or tool.project_id != agent.project_id:
@@ -106,7 +108,7 @@ async def prepare_tool_state(
             if _value(tool.status) != ToolStatus.ACTIVE.value:
                 raise ValidationError(f"Selected Tool is not active: {tool.name}")
             tools.append(
-                tool_with_permission_overrides(
+                tool_with_permissions(
                     tool,
                     permission_map.get(str(tool_id)),
                 )
@@ -212,6 +214,7 @@ def build_execution_snapshot(
     rag_binding: dict[str, Any] | None,
     release_id: UUID | None,
     release_version: str | None,
+    tool_to_snapshot: ToolToSnapshot,
 ) -> dict[str, Any]:
     snapshot: dict[str, Any] = {
         "agent": {
@@ -234,7 +237,7 @@ def build_execution_snapshot(
             "id": str(release_id) if release_id else None,
             "version": release_version,
         },
-        "tools": [tool_to_release_snapshot(tool) for tool in tools],
+        "tools": [tool_to_snapshot(tool) for tool in tools],
     }
     if rag_binding:
         knowledge = rag_binding["knowledge"]

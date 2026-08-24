@@ -10,6 +10,11 @@ from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput, Sou
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
+from modules.agent.application.tool_release_snapshots import (
+    tool_from_release_snapshot,
+    tool_to_release_snapshot,
+    tool_with_permission_overrides,
+)
 from modules.agent.domain.events import (
     AgentExecutionCompletedV1,
     AgentExecutionFailedV1,
@@ -118,6 +123,8 @@ class ExplicitRuntimePersistenceMixin:
             tools, encrypted_tool_secrets = await prepare_tool_state(
                 repositories,
                 agent=agent,
+                tool_from_snapshot=tool_from_release_snapshot,
+                tool_with_permissions=tool_with_permission_overrides,
             )
             rag_binding = await prepare_rag_binding(repositories, agent=agent)
 
@@ -172,6 +179,7 @@ class ExplicitRuntimePersistenceMixin:
                         rag_binding=rag_binding,
                         release_id=release_id,
                         release_version=release_version,
+                        tool_to_snapshot=tool_to_release_snapshot,
                     ),
                     network_execution_id=context.network_execution_id if context else None,
                     network_invocation_id=context.network_invocation_id if context else None,

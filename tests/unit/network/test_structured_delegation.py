@@ -109,10 +109,12 @@ async def test_specialist_parsed_output_is_returned_as_tool_result_object() -> N
             str(root_node_id): {
                 "release_id": str(root_release_id),
                 "release_version": "v1.0.20260715.01",
+                "session_mode": "stateless",
             },
             str(specialist_node_id): {
                 "release_id": str(specialist_release_id),
                 "release_version": "v1.0.20260715.01",
+                "session_mode": "stateless",
             },
         },
     )

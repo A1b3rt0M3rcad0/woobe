@@ -13,3 +13,7 @@ class AgentRunRerunReader(Protocol):
 
 class AgentRunExecutor(Protocol):
     async def execute(self, input_dto: AskInput) -> AskOutput: ...
+
+
+class AgentRunRerunExecutor(Protocol):
+    async def execute(self, *, run_id: UUID, project_id: UUID) -> AskOutput: ...

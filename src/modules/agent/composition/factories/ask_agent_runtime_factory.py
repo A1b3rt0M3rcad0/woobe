@@ -12,6 +12,7 @@ from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEm
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.database.runtime_transaction_runner import AgentRuntimeTransactionRunner
+from modules.agent.infra.database.runtime_vector_search_reader import AgentRuntimeVectorSearchReader
 from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.infra.execution.transaction_bounded_structured_output import (
     TransactionBoundedStructuredOutputRuntime,
@@ -53,24 +54,9 @@ def _build_agent_runtime(
     runtime.configure_rag_embedding_factory(LangchainEmbeddingFactory())
     runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
 
-    async def search_vector_snapshot(
-        *,
-        vector_snapshot_id: UUID,
-        embedding: list[float],
-        limit: int,
-        threshold: float,
-    ):
-        async def search(repositories, _outbox):
-            return await repositories.vector_snapshots.search_similar(
-                vector_snapshot_id=vector_snapshot_id,
-                embedding=embedding,
-                limit=limit,
-                threshold=threshold,
-            )
-
-        return await transactions.read(search)
-
-    runtime.configure_vector_search_reader(search_vector_snapshot)
+    runtime.configure_vector_search_reader(
+        AgentRuntimeVectorSearchReader(transactions).search
+    )
     runtime.configure_execution_state_store(EXECUTION_STATE_STORE)
     return runtime, transactions
 
