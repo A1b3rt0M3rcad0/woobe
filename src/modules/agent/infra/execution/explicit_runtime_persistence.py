@@ -28,7 +28,7 @@ class ExplicitRuntimePersistenceMixin:
     """Persistence phases executed as explicit short-lived transactions."""
 
     async def _prepare(self, input_dto: AskInput):
-        async def prepare(
+        async def prepare_database(
             repositories: AgentRuntimeRepositories,
             outbox: OutboxEventWriter,
         ):
@@ -39,7 +39,6 @@ class ExplicitRuntimePersistenceMixin:
             message_repo = repositories.messages
 
             agent = await self._load_agent(repositories, input_dto)
-
             credential = await self._load_credential(credential_repo, agent)
             api_key = self._decrypt_api_key(credential)
             base_url = self._resolve_base_url(agent, credential)
@@ -82,20 +81,6 @@ class ExplicitRuntimePersistenceMixin:
                     agent,
                 )
 
-            rag_context, sources = await self._load_rag_context(
-                agent,
-                input_dto.message,
-                repositories,
-            )
-
-            messages = self._build_messages(
-                agent,
-                rag_context,
-                history,
-                input_dto.message,
-                response_format if json_enabled else None,
-            )
-
             execution_payload: dict[str, Any] = {
                 "trace_id": str(trace_id),
                 "project_id": str(input_dto.project_id),
@@ -137,12 +122,53 @@ class ExplicitRuntimePersistenceMixin:
                 agent_tools,
                 tool_name_to_id,
                 has_tools,
-                sources,
-                messages,
                 history,
             )
 
-        return await self._transactions.run(prepare)
+        (
+            agent,
+            session,
+            trace_id,
+            api_key,
+            base_url,
+            response_format,
+            json_enabled,
+            agent_tools,
+            tool_name_to_id,
+            has_tools,
+            history,
+        ) = await self._transactions.run(prepare_database)
+
+        # RAG may cross an embedding-provider network boundary. It runs only after
+        # the admission transaction has committed and owns its own short DB phases.
+        rag_context, sources = await self._load_rag_context(
+            agent,
+            input_dto.message,
+            self._transactions,
+        )
+        messages = self._build_messages(
+            agent,
+            rag_context,
+            history,
+            input_dto.message,
+            response_format if json_enabled else None,
+        )
+
+        return (
+            agent,
+            session,
+            trace_id,
+            api_key,
+            base_url,
+            response_format,
+            json_enabled,
+            agent_tools,
+            tool_name_to_id,
+            has_tools,
+            sources,
+            messages,
+            history,
+        )
 
     async def _finalize(
         self,
@@ -350,48 +376,51 @@ class TransactionalAskAgentUseCase(ExplicitRuntimePersistenceMixin, AskAgentUseC
         self,
         agent,
         query: str,
-        repositories: AgentRuntimeRepositories,
+        transactions,
     ) -> tuple[str | None, list[SourceInfo]]:
-        try:
-            collections = await repositories.agent_collections.list_by_agent(agent.id)
-            if not collections:
+        async def load(repositories: AgentRuntimeRepositories, _outbox):
+            try:
+                collections = await repositories.agent_collections.list_by_agent(agent.id)
+                if not collections:
+                    return None, []
+
+                all_sources: list[SourceInfo] = []
+                all_chunks: list[str] = []
+                for link in collections:
+                    try:
+                        results = await repositories.document_chunks.search_similar(
+                            embedding=[0.0] * 1536,
+                            collection_id=link.collection_id,
+                            limit=3,
+                            threshold=0.0,
+                        )
+                    except Exception:
+                        continue
+
+                    for chunk, score in results:
+                        all_chunks.append(
+                            f"[{len(all_sources) + 1}] {chunk.content[:500]}"
+                        )
+                        all_sources.append(
+                            SourceInfo(
+                                document_id=(
+                                    str(chunk.document_id)
+                                    if chunk.document_id
+                                    else None
+                                ),
+                                chunk_id=str(chunk.id),
+                                page_number=chunk.page_number,
+                                score=round(score, 4),
+                                content_preview=chunk.content[:200],
+                            )
+                        )
+
+                return (
+                    ("\n\n".join(all_chunks), all_sources)
+                    if all_chunks
+                    else (None, [])
+                )
+            except Exception:
                 return None, []
 
-            all_sources: list[SourceInfo] = []
-            all_chunks: list[str] = []
-            for link in collections:
-                try:
-                    results = await repositories.document_chunks.search_similar(
-                        embedding=[0.0] * 1536,
-                        collection_id=link.collection_id,
-                        limit=3,
-                        threshold=0.0,
-                    )
-                except Exception:
-                    continue
-
-                for chunk, score in results:
-                    all_chunks.append(
-                        f"[{len(all_sources) + 1}] {chunk.content[:500]}"
-                    )
-                    all_sources.append(
-                        SourceInfo(
-                            document_id=(
-                                str(chunk.document_id)
-                                if chunk.document_id
-                                else None
-                            ),
-                            chunk_id=str(chunk.id),
-                            page_number=chunk.page_number,
-                            score=round(score, 4),
-                            content_preview=chunk.content[:200],
-                        )
-                    )
-
-            return (
-                ("\n\n".join(all_chunks), all_sources)
-                if all_chunks
-                else (None, [])
-            )
-        except Exception:
-            return None, []
+        return await transactions.run(load)
