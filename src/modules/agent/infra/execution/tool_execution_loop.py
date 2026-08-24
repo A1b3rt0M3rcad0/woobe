@@ -7,10 +7,12 @@ from typing import Any, Callable, Coroutine
 
 from langchain_core.messages import AIMessage, SystemMessage
 
-from modules.agent.runtime.ask_use_case import _has_tool_calls
-from modules.agent.runtime.execution_instrumentation import (
+from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
+)
+from modules.agent.infra.execution.ask_use_case import _has_tool_calls
+from modules.agent.infra.execution.execution_instrumentation import (
     execute_tool_call,
     invoke_llm,
 )

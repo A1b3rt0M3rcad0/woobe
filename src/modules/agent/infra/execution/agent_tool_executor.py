@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from modules.agent.application.interfaces.ports import (
     ToolExecutionPort,
     ToolSecretResolverPort,
@@ -6,6 +8,7 @@ from modules.agent.application.interfaces.repositories import ToolRepository
 from modules.agent.application.interfaces.tool_executor import ToolExecutor
 from modules.agent.application.tool_converter import agent_tool_to_openai_definition
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
+from modules.agent.infra.adapters.tool_runtime import build_default_tool_runtime_registry
 
 
 class AgentToolExecutor(ToolExecutor):
@@ -23,10 +26,13 @@ class AgentToolExecutor(ToolExecutor):
         from modules.agent.application.dtos.tools_dtos import ExecuteToolInput
         from modules.agent.application.runtime_tool_use_cases import RuntimeExecuteToolUseCase
 
+        registry = build_default_tool_runtime_registry(
+            self._tool_executor,
+            self._secret_resolver,
+        )
         use_case = RuntimeExecuteToolUseCase(
             tool_repo=self._tool_repo,
-            tool_executor=self._tool_executor,
-            secret_resolver=self._secret_resolver,
+            runtime_registry=registry,
         )
         result = await use_case.execute(
             ExecuteToolInput(tool_id=tool_id, input_data=input_data)

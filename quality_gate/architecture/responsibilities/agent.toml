@@ -38,7 +38,6 @@ forbidden_dependency_parameters = [
 [application_runtime_purity]
 rule_id = "ARCH066"
 source = [
-  "application/runtime/**",
   "application/*runtime*.py",
   "application/use_cases/*runtime*.py",
 ]
@@ -65,7 +64,7 @@ forbidden_imports = [
 
 [runtime_adapter_ownership]
 rule_id = "ARCH067"
-allowed_sources = ["infra/**", "runtime/**"]
+allowed_sources = ["infra/**"]
 class_prefixes = ["SQLAlchemy", "SqlAlchemy"]
 class_suffixes = ["Gateway", "Adapter"]
 
@@ -95,7 +94,12 @@ forbidden_method_calls = [
 
 [responsibility_placement]
 rule_id = "ARCH069"
-use_case_sources = ["application/**", "runtime/**"]
+use_case_sources = [
+  "application/**",
+  "infra/execution/ask_use_case.py",
+  "infra/execution/explicit_runtime_persistence.py",
+  "infra/execution/structured_output_ask_use_case.py",
+]
 controller_sources = ["presentation/**"]
 sqlalchemy_sources = ["infra/**"]
 
@@ -116,7 +120,10 @@ allowed_imports = ["{package}.entrypoint"]
 
 [transport_neutral]
 rule_id = "ARCH072"
-source = ["application/runtime/**"]
+source = [
+  "application/*runtime*.py",
+  "application/use_cases/*runtime*.py",
+]
 forbidden_imports = [
   "fastapi",
   "starlette",

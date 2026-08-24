@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from modules.agent.runtime.explicit_runtime_persistence import (
+from modules.agent.infra.execution.explicit_runtime_persistence import (
     TransactionalAskAgentUseCase as AskAgentUseCase,
 )
 from modules.agent.application.dtos.runtime_dtos import (

@@ -2,7 +2,7 @@
 name = "agent"
 root = "src/modules/agent"
 package = "modules.agent"
-required_layers = ["domain", "application", "infra", "runtime", "presentation", "composition"]
+required_layers = ["domain", "application", "infra", "presentation", "composition"]
 
 [constraints]
 forbid_cross_module_imports = true
@@ -10,6 +10,7 @@ forbid_dynamic_imports = true
 forbid_wildcard_imports = true
 forbid_cycles = true
 forbidden_paths = [
+  "runtime",
   "application/composers",
   "domain/ports",
   "domain/repositories.py",
@@ -95,9 +96,9 @@ dependency_name_tokens = [
 forbid_untyped_dependencies = true
 
 # First-match semantics: narrow rules precede broad layer rules.
-# Runtime is an explicit outer execution layer. It owns long-lived LLM/tool orchestration
-# and may coordinate application contracts with concrete infrastructure, but it must not
-# become a second composition root or depend on HTTP presentation.
+# Agent execution is not an architectural layer. Long-lived provider/tool execution
+# is implemented by infra/execution behind Application contracts; wiring belongs to
+# composition and HTTP/SSE formatting belongs to presentation.
 
 [[rules]]
 id = "ARCH026"
@@ -108,7 +109,6 @@ allow = [
   "modules.agent.domain",
   "modules.agent.application",
   "modules.agent.infra",
-  "modules.agent.runtime",
   "modules.agent.presentation.controllers",
   "modules.agent.presentation.http.controllers",
   "modules.agent.presentation.interfaces",
@@ -160,7 +160,6 @@ allow = [
 deny = [
   "modules.agent.application.use_cases",
   "modules.agent.infra",
-  "modules.agent.runtime",
   "modules.agent.composition",
   "shared.infra",
   "shared.messaging",
@@ -185,7 +184,6 @@ allow = [
 deny = [
   "modules.agent.application.use_cases",
   "modules.agent.infra",
-  "modules.agent.runtime",
   "modules.agent.composition.resources",
   "shared.infra",
   "shared.messaging",
@@ -210,7 +208,6 @@ allow = [
 deny = [
   "modules.agent.application.use_cases",
   "modules.agent.infra",
-  "modules.agent.runtime",
   "modules.agent.composition",
   "shared.infra",
   "shared.messaging",
@@ -219,14 +216,41 @@ deny = [
 ]
 
 [[rules]]
-id = "ARCH073"
-description = "runtime is the Agent execution layer: it may coordinate application and infrastructure but cannot depend on presentation or composition"
-source = ["runtime/**"]
+id = "ARCH004E"
+description = "explicit legacy Agent execution files may temporarily consume Application orchestration while the runtime layer removal is completed; all other infra execution code follows ARCH004"
+source = [
+  "infra/execution/agent_tool_executor.py",
+  "infra/execution/agent_tool_runtime_gateway.py",
+  "infra/execution/ask_use_case.py",
+  "infra/execution/execution_instrumentation.py",
+  "infra/execution/explicit_runtime_persistence.py",
+  "infra/execution/instrumented_execution_finalizer.py",
+  "infra/execution/instrumented_failed_finalizer.py",
+  "infra/execution/instrumented_fallback_mixin.py",
+  "infra/execution/instrumented_primary_mixin.py",
+  "infra/execution/release_runtime_resolver.py",
+  "infra/execution/structured_output_ask_use_case.py",
+  "infra/execution/tool_runtime_registry.py",
+]
 allow = [
-  "modules.agent.runtime",
-  "modules.agent.domain",
-  "modules.agent.application",
   "modules.agent.infra",
+  "modules.agent.application",
+  "modules.agent.domain",
+  "shared",
+]
+deny = [
+  "modules.agent.presentation",
+  "modules.agent.composition",
+]
+
+[[rules]]
+id = "ARCH004W"
+description = "infra workers are inbound adapters: they may invoke Application use cases but cannot depend on presentation or composition"
+source = ["infra/workers/**"]
+allow = [
+  "modules.agent.infra",
+  "modules.agent.application",
+  "modules.agent.domain",
   "shared",
 ]
 deny = [
@@ -236,14 +260,13 @@ deny = [
 
 [[rules]]
 id = "ARCH019"
-description = "composition is the outer module layer and may wire application, infrastructure, runtime and presentation without being imported back by them"
+description = "composition is the outer module layer and may wire application, infrastructure and presentation without being imported back by them"
 source = ["composition/**"]
 allow = [
   "modules.agent.composition",
   "modules.agent.domain",
   "modules.agent.application",
   "modules.agent.infra",
-  "modules.agent.runtime",
   "modules.agent.presentation",
   "shared",
 ]
@@ -258,7 +281,6 @@ deny = [
   "modules.agent.domain",
   "modules.agent.application",
   "modules.agent.infra",
-  "modules.agent.runtime",
   "modules.agent.presentation",
 ]
 
@@ -270,7 +292,6 @@ allow = ["modules.agent.domain", "shared.contracts"]
 deny = [
   "modules.agent.application",
   "modules.agent.infra",
-  "modules.agent.runtime",
   "modules.agent.presentation",
   "modules.agent.composition",
   "shared.infra",
@@ -284,7 +305,7 @@ deny = [
 
 [[rules]]
 id = "ARCH003"
-description = "application owns ports and depends only on application, domain and stable shared contracts"
+description = "application owns ports and business orchestration and depends only on application, domain and stable shared contracts"
 source = ["application/**"]
 allow = [
   "modules.agent.application",
@@ -295,7 +316,6 @@ allow = [
 ]
 deny = [
   "modules.agent.infra",
-  "modules.agent.runtime",
   "modules.agent.presentation",
   "modules.agent.composition",
   "shared.infra",
@@ -309,7 +329,7 @@ deny = [
 
 [[rules]]
 id = "ARCH004"
-description = "infrastructure implements application contracts and cannot depend on concrete application use cases, runtime, presentation or composition"
+description = "infrastructure implements application contracts and cannot depend on concrete application use cases, presentation or composition"
 source = ["infra/**"]
 allow = [
   "modules.agent.infra",
@@ -320,7 +340,6 @@ allow = [
 ]
 deny = [
   "modules.agent.application.use_cases",
-  "modules.agent.runtime",
   "modules.agent.presentation",
   "modules.agent.composition",
 ]

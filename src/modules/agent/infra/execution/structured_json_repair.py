@@ -5,12 +5,12 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from modules.agent.runtime.execution_instrumentation import (
+from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
-    invoke_llm,
 )
-from modules.agent.runtime.runtime_streaming import runtime_streaming_enabled
+from modules.agent.infra.execution.execution_instrumentation import invoke_llm
+from modules.agent.infra.execution.runtime_streaming import runtime_streaming_enabled
 
 
 async def repair_json_if_needed(

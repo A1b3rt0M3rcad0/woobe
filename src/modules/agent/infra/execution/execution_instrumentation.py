@@ -8,17 +8,17 @@ from uuid import uuid4
 from langchain_core.messages import ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import ToolCallInfo, UsageInfo
-from modules.agent.application.interfaces.execution import (
-    InstrumentedExecution,
-    InstrumentedExecutionError,
-)
 from modules.agent.application.use_cases.tool_output_compaction import (
     compact_tool_output_for_llm,
 )
 from modules.agent.application.use_cases.tool_result_semantics import (
     normalize_tool_result,
 )
-from modules.agent.runtime.runtime_streaming import (
+from modules.agent.application.interfaces.execution import (
+    InstrumentedExecution,
+    InstrumentedExecutionError,
+)
+from modules.agent.infra.execution.runtime_streaming import (
     emit_agent_activity,
     emit_runtime_event,
     invoke_model_with_optional_streaming,

@@ -7,7 +7,7 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
-from modules.agent.runtime.instrumented_primary_mixin import (
+from modules.agent.infra.execution.instrumented_primary_mixin import (
     InstrumentedPrimaryExecutionMixin,
 )
 

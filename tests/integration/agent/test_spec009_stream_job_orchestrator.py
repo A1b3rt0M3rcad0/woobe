@@ -9,7 +9,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from modules.agent.runtime.ask_agent_stream_service import (
+from modules.agent.infra.execution.ask_agent_stream_service import (
     AskAgentStreamService,
 )
 from modules.agent.application.use_cases.runtime_use_cases import (
@@ -107,11 +107,11 @@ class TestWorkerRegistration:
     """AskJobWorker must be registered in the worker registry."""
 
     def test_ask_job_worker_importable(self):
-        from modules.agent.runtime.workers.ask_job_worker import AskJobWorker
+        from modules.agent.infra.workers.ask_job_worker import AskJobWorker
         assert AskJobWorker is not None
 
     def test_registry_includes_ask_job_worker(self):
-        from modules.agent.runtime.workers.registry import register_agent_workers, AgentWorkerRegistry
+        from modules.agent.infra.workers.registry import register_agent_workers, AgentWorkerRegistry
 
         registry = AgentWorkerRegistry()
         engine = MagicMock()
@@ -124,10 +124,11 @@ class TestWorkerRegistration:
         assert "AskJobWorker" in worker_types
 
     def test_ask_job_worker_conforms_to_protocol(self):
-        from modules.agent.runtime.workers.ask_job_worker import AskJobWorker
+        from modules.agent.infra.workers.ask_job_worker import AskJobWorker
         assert isinstance(AskJobWorker, type)
         engine = MagicMock()
-        worker = AskJobWorker(async_engine=engine)
+        settings = MagicMock()
+        worker = AskJobWorker(async_engine=engine, settings=settings)
         assert hasattr(worker, "run")
         assert callable(worker.run)
 
@@ -156,7 +157,7 @@ class TestNoClosedSession:
     def test_ask_job_worker_uses_direct_imports_not_dynamic(self):
         import ast
         import inspect
-        from modules.agent.runtime.workers.ask_job_worker import AskJobWorker
+        from modules.agent.infra.workers.ask_job_worker import AskJobWorker
         source = inspect.getsource(AskJobWorker)
         tree = ast.parse(source)
         for node in ast.walk(tree):

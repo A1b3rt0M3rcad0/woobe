@@ -5,6 +5,7 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.application.runtime_output_validation import EmptyModelOutputError
 from modules.agent.composition.composers.public_runtime_composers import (
     public_run_composer,
     public_stream_composer,
@@ -20,6 +21,15 @@ from modules.agent.infra.adapters.langchain_embedding_factory import (
 )
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
+from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
+from modules.agent.infra.execution.ask_agent_stream_service import AskAgentStreamService
+from modules.agent.infra.execution.runtime_streaming import (
+    RuntimeStreamChannel,
+    current_runtime_stream,
+)
+from modules.agent.infra.execution.structured_output_ask_use_case import (
+    StructuredOutputAskAgentUseCase,
+)
 from modules.agent.presentation.http.controllers.ask_agent_stream_controller import (
     commit_safe_stream,
 )
@@ -40,16 +50,6 @@ from modules.agent.presentation.http.tool_lifecycle_routes import (
 )
 from modules.agent.presentation.http.vector_snapshot_routes import (
     router as vector_snapshot_router,
-)
-from modules.agent.runtime.agent_tool_runtime_gateway import AgentToolRuntimeGateway
-from modules.agent.runtime.ask_agent_stream_service import AskAgentStreamService
-from modules.agent.runtime.runtime_output_validation import EmptyModelOutputError
-from modules.agent.runtime.runtime_streaming import (
-    RuntimeStreamChannel,
-    current_runtime_stream,
-)
-from modules.agent.runtime.structured_output_ask_use_case import (
-    StructuredOutputAskAgentUseCase,
 )
 
 

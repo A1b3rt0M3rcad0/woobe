@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 from langchain_core.messages import AIMessage
 
-from modules.agent.runtime.instrumented_execution_runner import (
+from modules.agent.infra.execution.instrumented_execution_runner import (
     run_instrumented_execution,
 )
 

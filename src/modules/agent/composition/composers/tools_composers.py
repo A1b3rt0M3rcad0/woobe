@@ -36,6 +36,7 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentToolSecretRepository,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.execution.tool_runtime_registry import build_tool_runtime_registry
 from modules.agent.presentation.controllers.create_secret_controller import CreateSecretController
 from modules.agent.presentation.controllers.create_tool_controller import CreateToolController
 from modules.agent.presentation.controllers.delete_tool_controller import DeleteToolController
@@ -71,7 +72,6 @@ from modules.agent.presentation.controllers.update_tool_controller import Update
 from modules.agent.presentation.controllers.update_tool_status_controller import (
     UpdateToolStatusController,
 )
-from modules.agent.runtime.tool_runtime_factory import build_tool_runtime_registry
 from shared.infra.transactional_handler import TransactionalHandler
 
 

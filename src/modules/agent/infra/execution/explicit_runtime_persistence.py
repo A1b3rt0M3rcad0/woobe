@@ -19,8 +19,8 @@ from modules.agent.domain.events import (
 )
 from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
-from modules.agent.runtime.ask_use_case import AskAgentUseCase
-from modules.agent.runtime.runtime_repositories import (
+from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
+from modules.agent.infra.database.runtime_repositories import (
     AgentRuntimeRepositories,
     build_agent_runtime_repositories,
 )

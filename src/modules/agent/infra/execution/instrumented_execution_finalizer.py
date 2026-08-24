@@ -6,7 +6,6 @@ from typing import Any
 from uuid import uuid4
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
-from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.use_cases.execution_event_factory import (
     completed_event,
     fallback_event,
@@ -17,11 +16,10 @@ from modules.agent.application.use_cases.trace_event_builder import (
     build_operation_events,
     sequence_events,
 )
-from modules.agent.runtime.runtime_repositories import (
+from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
+from modules.agent.infra.database.runtime_repositories import (
     build_agent_runtime_repositories,
-)
-from modules.agent.infra.database.repositories import (
-    SQLAlchemyAgentOutboxEventWriter,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
@@ -214,10 +212,7 @@ async def finalize_instrumented_execution(owner, **kw):
     persistence_ended_at = _utc_now()
     total_ms = round((time.monotonic() - kw["started_at"]) * 1000)
     execution_completed_at = _utc_now()
-    llm_ms = sum(
-        int(call.get("latency_ms") or 0)
-        for call in execution.llm_calls
-    )
+    llm_ms = sum(int(call.get("latency_ms") or 0) for call in execution.llm_calls)
     orchestration_ms = max(
         total_ms
         - kw["prepare_latency_ms"]
@@ -256,12 +251,8 @@ async def finalize_instrumented_execution(owner, **kw):
         **runtime_binding_payload,
     }
 
-    request_received_at = (
-        context.request_received_at if context else execution_completed_at
-    )
-    execution_started_at = (
-        context.execution_started_at if context else request_received_at
-    )
+    request_received_at = context.request_received_at if context else execution_completed_at
+    execution_started_at = context.execution_started_at if context else request_received_at
     execution_events = [
         _event(
             trace_id_text,
@@ -297,28 +288,30 @@ async def finalize_instrumented_execution(owner, **kw):
     ]
     if context and context.prepare_started_at:
         prepare_span = str(uuid4())
-        execution_events.extend([
-            _event(
-                trace_id_text,
-                "agent.prepare.started",
-                context.prepare_started_at,
-                phase="prepare",
-                status="running",
-                started_at=context.prepare_started_at,
-                span_id=prepare_span,
-            ),
-            _event(
-                trace_id_text,
-                "agent.prepare.completed",
-                context.prepare_ended_at or context.prepare_started_at,
-                phase="prepare",
-                status="success",
-                started_at=context.prepare_started_at,
-                ended_at=context.prepare_ended_at,
-                duration_ms=context.prepare_latency_ms,
-                span_id=prepare_span,
-            ),
-        ])
+        execution_events.extend(
+            [
+                _event(
+                    trace_id_text,
+                    "agent.prepare.started",
+                    context.prepare_started_at,
+                    phase="prepare",
+                    status="running",
+                    started_at=context.prepare_started_at,
+                    span_id=prepare_span,
+                ),
+                _event(
+                    trace_id_text,
+                    "agent.prepare.completed",
+                    context.prepare_ended_at or context.prepare_started_at,
+                    phase="prepare",
+                    status="success",
+                    started_at=context.prepare_started_at,
+                    ended_at=context.prepare_ended_at,
+                    duration_ms=context.prepare_latency_ms,
+                    span_id=prepare_span,
+                ),
+            ]
+        )
     execution_events.extend(build_operation_events(trace_id_text, execution.timeline))
     execution_events.append(
         _event(
@@ -336,53 +329,55 @@ async def finalize_instrumented_execution(owner, **kw):
         )
     )
     persistence_span = str(uuid4())
-    execution_events.extend([
-        _event(
-            trace_id_text,
-            "message.persistence.started",
-            persistence_started_at,
-            phase="persistence",
-            status="running",
-            started_at=persistence_started_at,
-            span_id=persistence_span,
-        ),
-        _event(
-            trace_id_text,
-            "message.persistence.completed",
-            persistence_ended_at,
-            phase="persistence",
-            status="success",
-            started_at=persistence_started_at,
-            ended_at=persistence_ended_at,
-            duration_ms=persistence_ms,
-            span_id=persistence_span,
-        ),
-        _event(
-            trace_id_text,
-            "agent.execution.completed",
-            execution_completed_at,
-            phase="execution",
-            status="success",
-            started_at=execution_started_at,
-            ended_at=execution_completed_at,
-            duration_ms=total_ms,
-            attributes={
-                "diagnostics": diagnostics,
-                **binding_payload["model_binding"],
-                **runtime_binding_payload,
-            },
-            span_id=trace_id_text,
-            parent_span_id=None,
-        ),
-        _event(
-            trace_id_text,
-            "http.response.prepared",
-            execution_completed_at,
-            phase="response",
-            status="success",
-            ended_at=execution_completed_at,
-        ),
-    ])
+    execution_events.extend(
+        [
+            _event(
+                trace_id_text,
+                "message.persistence.started",
+                persistence_started_at,
+                phase="persistence",
+                status="running",
+                started_at=persistence_started_at,
+                span_id=persistence_span,
+            ),
+            _event(
+                trace_id_text,
+                "message.persistence.completed",
+                persistence_ended_at,
+                phase="persistence",
+                status="success",
+                started_at=persistence_started_at,
+                ended_at=persistence_ended_at,
+                duration_ms=persistence_ms,
+                span_id=persistence_span,
+            ),
+            _event(
+                trace_id_text,
+                "agent.execution.completed",
+                execution_completed_at,
+                phase="execution",
+                status="success",
+                started_at=execution_started_at,
+                ended_at=execution_completed_at,
+                duration_ms=total_ms,
+                attributes={
+                    "diagnostics": diagnostics,
+                    **binding_payload["model_binding"],
+                    **runtime_binding_payload,
+                },
+                span_id=trace_id_text,
+                parent_span_id=None,
+            ),
+            _event(
+                trace_id_text,
+                "http.response.prepared",
+                execution_completed_at,
+                phase="response",
+                status="success",
+                ended_at=execution_completed_at,
+            ),
+        ]
+    )
     execution_events = sequence_events(execution_events)
 
     sources = kw["sources"] or []

@@ -819,7 +819,9 @@ class ChatSurfaceService:
             else:
                 target_session = await session.get(NetworkSessionModel, session_id)
             if target_session is not None:
-                target_session.status = "archived"
+                target_session.status = (
+                    "closed" if binding.target_type == "agent" else "archived"
+                )
             return binding
 
     async def authorize_session_token(

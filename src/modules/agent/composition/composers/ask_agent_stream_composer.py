@@ -1,13 +1,13 @@
 from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
+from modules.agent.infra.adapters.runtime_environment_guard import (
+    build_agent_runtime_environment_guard,
+)
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.execution.ask_agent_stream_service import AskAgentStreamService
 from modules.agent.presentation.http.controllers.ask_agent_stream_controller import (
     AskAgentStreamController,
-)
-from modules.agent.runtime.ask_agent_stream_service import AskAgentStreamService
-from modules.agent.runtime.environment_guard import (
-    build_agent_runtime_environment_guard,
 )
 from shared.infra.streaming_transactional_handler import (
     StreamingTransactionalHandler,

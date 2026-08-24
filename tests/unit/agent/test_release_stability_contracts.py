@@ -8,13 +8,13 @@ from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot
 from modules.agent.application.use_cases.ai_release_cases import DeleteReleaseUseCase
-from modules.agent.runtime.agent_tool_runtime_gateway import AgentToolRuntimeGateway
+from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.application.use_cases.auto_compatible_release_lifecycle import AutoCompatibleReleaseLifecycleUseCase, _execution_snapshot_equal
 from modules.agent.application.interfaces.execution_context import current_execution, new_execution_context
 from modules.agent.application.use_cases.knowledge_release_validator import SafeDeleteDocumentUseCase
-from modules.agent.runtime.release_runtime_resolver import ReleaseRuntimeResolver
-from modules.agent.runtime.session_continuity_runtime_resolver import SessionContinuityReleaseRuntimeResolver
-from modules.agent.runtime.structured_output_ask_use_case import StructuredOutputAskAgentUseCase
+from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
+from modules.agent.infra.execution.session_continuity_runtime_resolver import SessionContinuityReleaseRuntimeResolver
+from modules.agent.infra.execution.structured_output_ask_use_case import StructuredOutputAskAgentUseCase
 from modules.agent.domain.entities import Agent, AgentRelease, Tool
 from modules.agent.domain.enums import ReleaseStatus, RiskLevel, ToolStatus, ToolType
 from shared.infra.errors import ConflictError
@@ -360,15 +360,15 @@ async def test_streaming_executes_release_tool_snapshot(monkeypatch):
             return None
 
     monkeypatch.setattr(
-        "modules.agent.runtime.agent_tool_runtime_gateway.AgentUnitOfWork",
+        "modules.agent.infra.execution.agent_tool_runtime_gateway.AgentUnitOfWork",
         lambda _engine: FakeContext(),
     )
     monkeypatch.setattr(
-        "modules.agent.runtime.agent_tool_runtime_gateway.ToolSecretResolverAdapter",
+        "modules.agent.infra.execution.agent_tool_runtime_gateway.ToolSecretResolverAdapter",
         lambda *_args: object(),
     )
     monkeypatch.setattr(
-        "modules.agent.runtime.agent_tool_runtime_gateway.build_tool_runtime_registry",
+        "modules.agent.infra.execution.agent_tool_runtime_gateway.build_tool_runtime_registry",
         lambda **_kwargs: registry,
     )
 

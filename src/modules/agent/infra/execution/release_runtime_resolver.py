@@ -7,18 +7,18 @@ from typing import Any
 from uuid import UUID
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
+from modules.agent.application.use_cases.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.tool_release_snapshots import (
     tool_from_release_snapshot,
     tool_to_release_snapshot,
     tool_with_permission_overrides,
 )
-from modules.agent.runtime.ask_use_case import AskAgentUseCase
-from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.application.use_cases.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ReleaseStatus, ToolStatus
 from modules.agent.domain.errors import RuntimeEnvironmentNotReadyError
+from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
 from shared.contracts.errors import ConflictError, ValidationError
 from shared.contracts.llm_cost import provider_model_pricing_snapshot
 from shared.runtime_environment import normalize_runtime_environment
@@ -379,9 +379,6 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         session_release_id = await self._session_runtime_binding(uow, input_dto)
         effective_release_id = session_release_id or input_dto.loaded_release_id
 
-        # An explicitly loaded release is an immutable runtime binding. Network
-        # versions and standalone Sessions rely on this precedence so execution
-        # never drifts to a newer active Staging or Production release.
         if effective_release_id and release_repo is not None:
             release = await release_repo.get_by_id(effective_release_id)
             if release is None or release.agent_id != agent.id:

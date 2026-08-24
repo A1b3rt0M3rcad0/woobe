@@ -4,26 +4,25 @@ import time
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.runtime.agent_tool_runtime_gateway import (
-    AgentToolRuntimeGateway,
-)
-from modules.agent.runtime.structured_output_ask_use_case import (
-    StructuredOutputAskAgentUseCase,
-)
 from modules.agent.domain.entities import AskJob
+from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.database.repositories import SQLAlchemyAskJobRepository
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.execution.structured_output_ask_use_case import (
+    StructuredOutputAskAgentUseCase,
+)
 from shared.infra.config import Settings
 
 logger = logging.getLogger(__name__)
 
 
 class AskJobWorker:
-    def __init__(self, async_engine: AsyncEngine) -> None:
+    def __init__(self, async_engine: AsyncEngine, settings: Settings) -> None:
         self._engine = async_engine
+        self._settings = settings
 
     async def run(self) -> None:
         async with AgentUnitOfWork(self._engine) as uow:
@@ -41,19 +40,19 @@ class AskJobWorker:
         async with AgentUnitOfWork(self._engine) as uow:
             await SQLAlchemyAskJobRepository(uow).mark_started(job.id)
 
-        settings = Settings()
+        settings = self._settings
         http_executor = HttpToolExecutor(
             allow_local_networks=settings.http_tool_allow_local_networks
         )
         tool_runtime = AgentToolRuntimeGateway(self._engine, settings, http_executor)
-        use_case = StructuredOutputAskAgentUseCase(
+        execution = StructuredOutputAskAgentUseCase(
             session_factory=self._engine,
             llm_factory=LangchainLLMFactory(),
             encryption_key=settings.encryption_key,
             tool_executor_factory=tool_runtime.execute_tool,
         )
-        use_case.configure_rag_embedding_factory(LangchainEmbeddingFactory())
-        use_case.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
+        execution.configure_rag_embedding_factory(LangchainEmbeddingFactory())
+        execution.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
 
         params = job.params or {}
         input_dto = AskInput(
@@ -69,7 +68,7 @@ class AskJobWorker:
 
         started_at = time.monotonic()
         try:
-            result = await use_case.execute(input_dto)
+            result = await execution.execute(input_dto)
         except Exception as exc:
             logger.exception("Job %s failed: %s", job.id, exc)
             async with AgentUnitOfWork(self._engine) as uow:

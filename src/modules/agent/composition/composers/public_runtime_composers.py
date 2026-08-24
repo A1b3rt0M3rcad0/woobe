@@ -11,6 +11,9 @@ from modules.agent.composition.factories.ask_agent_runtime_factory import (
 from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
+from modules.agent.infra.adapters.runtime_environment_guard import (
+    build_agent_runtime_environment_guard,
+)
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentReleaseRepositoryWithProviderModels,
     SQLAlchemyAgentRepositoryWithProviderModels,
@@ -23,6 +26,7 @@ from modules.agent.infra.database.runtime_session_repository import (
     SQLAlchemyRuntimeSessionRepository,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.execution.ask_agent_stream_service import AskAgentStreamService
 from modules.agent.presentation.controllers.public_runtime_controllers import (
     PublicCreateJobController,
     PublicGetJobController,
@@ -30,10 +34,6 @@ from modules.agent.presentation.controllers.public_runtime_controllers import (
 )
 from modules.agent.presentation.http.controllers.public_runtime_stream_controller import (
     PublicRuntimeStreamController,
-)
-from modules.agent.runtime.ask_agent_stream_service import AskAgentStreamService
-from modules.agent.runtime.environment_guard import (
-    build_agent_runtime_environment_guard,
 )
 from shared.infra.streaming_transactional_handler import (
     StreamingTransactionalHandler,

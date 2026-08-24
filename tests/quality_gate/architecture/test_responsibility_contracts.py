@@ -105,7 +105,7 @@ def test_arch065_presentation_cannot_use_app_state_as_service_locator(tmp_path: 
 
 def test_arch066_application_runtime_is_framework_neutral(tmp_path: Path) -> None:
     checker, policy, module = _setup(tmp_path)
-    path = module / "application/runtime/service.py"
+    path = module / "application/use_cases/runtime_service.py"
     path.parent.mkdir(parents=True)
     path.write_text(
         "from modules.agent.infra.database.unit_of_work import AgentUnitOfWork\n",
@@ -182,7 +182,7 @@ def test_arch071_allows_agent_entrypoint(tmp_path: Path) -> None:
 
 def test_arch072_application_streaming_is_transport_neutral(tmp_path: Path) -> None:
     checker, policy, module = _setup(tmp_path)
-    path = module / "application/runtime/streaming.py"
+    path = module / "application/use_cases/runtime_streaming.py"
     path.parent.mkdir(parents=True)
     path.write_text(
         "def serialize(value):\n"

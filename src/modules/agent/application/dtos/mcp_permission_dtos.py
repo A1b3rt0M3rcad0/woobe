@@ -5,11 +5,14 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from modules.agent.domain.mcp_permissions import (
+    MCP_PERMISSION_ALLOW,
+    MCP_PERMISSION_DENY,
+    MCP_PERMISSION_MODES,
+    MCP_PERMISSION_REVIEW,
+)
+
 McpPermissionMode = Literal["allow", "deny", "review"]
-MCP_PERMISSION_ALLOW = "allow"
-MCP_PERMISSION_DENY = "deny"
-MCP_PERMISSION_REVIEW = "review"
-MCP_PERMISSION_MODES = {MCP_PERMISSION_ALLOW, MCP_PERMISSION_DENY, MCP_PERMISSION_REVIEW}
 
 
 class McpToolPermissionInput(BaseModel):
@@ -38,3 +41,17 @@ class McpToolPermissionOutput(BaseModel):
 class McpToolPermissionsOutput(BaseModel):
     tool_id: UUID
     permissions: list[McpToolPermissionOutput]
+
+
+__all__ = [
+    "BulkUpdateMcpToolPermissionsInput",
+    "MCP_PERMISSION_ALLOW",
+    "MCP_PERMISSION_DENY",
+    "MCP_PERMISSION_MODES",
+    "MCP_PERMISSION_REVIEW",
+    "McpPermissionMode",
+    "McpToolPermissionInput",
+    "McpToolPermissionOutput",
+    "McpToolPermissionsOutput",
+    "UpdateMcpToolPermissionsInput",
+]
