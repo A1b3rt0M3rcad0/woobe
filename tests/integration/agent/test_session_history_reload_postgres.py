@@ -14,6 +14,10 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyMessageRepository,
     SQLAlchemySessionRepository,
 )
+from modules.agent.infra.database.runtime_transaction_runner import (
+    AgentRuntimeTransactionRunner,
+)
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.core.infra.database.models import ProjectModel
 from shared.infra.config import Settings
 from shared.infra.crypto import encrypt_secret
@@ -55,6 +59,7 @@ async def test_session_and_history_survive_new_use_case_and_database_connection(
     settings = Settings.model_validate({})
     engine = create_engine(settings)
     session_factory = create_session_factory(engine)
+    transactions = AgentRuntimeTransactionRunner(lambda: AgentUnitOfWork(engine))
     project_id = uuid4()
     credential_id = uuid4()
     agent_id = uuid4()
@@ -111,7 +116,7 @@ async def test_session_and_history_survive_new_use_case_and_database_connection(
 
     first_model = ProviderModel("first assistant reply")
     first_result = await AskAgentUseCase(
-        engine,
+        transactions,
         llm_factory=ProviderFactory(first_model),
         encryption_key=settings.encryption_key,
     ).execute(
@@ -126,7 +131,7 @@ async def test_session_and_history_survive_new_use_case_and_database_connection(
 
     second_model = ProviderModel("second assistant reply")
     second_result = await AskAgentUseCase(
-        engine,
+        transactions,
         llm_factory=ProviderFactory(second_model),
         encryption_key=settings.encryption_key,
     ).execute(
