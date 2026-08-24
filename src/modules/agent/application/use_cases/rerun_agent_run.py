@@ -31,6 +31,11 @@ def _draft_snapshot_override(execution_snapshot: dict) -> dict:
         ]
         runtime_config["tools"] = tools_config
 
+    raw_knowledge = execution_snapshot.get("knowledge")
+    frozen_knowledge_version_id = settings.get("knowledge_version_id")
+    if isinstance(raw_knowledge, dict) and raw_knowledge.get("knowledge_version_id"):
+        frozen_knowledge_version_id = raw_knowledge["knowledge_version_id"]
+
     return {
         "system_prompt": raw_agent.get("system_prompt"),
         "response_format": settings.get("response_format"),
@@ -45,6 +50,7 @@ def _draft_snapshot_override(execution_snapshot: dict) -> dict:
         "temperature": raw_agent.get("temperature"),
         "max_output_tokens": raw_agent.get("max_output_tokens"),
         "session_mode": raw_agent.get("session_mode"),
+        "knowledge_version_id": frozen_knowledge_version_id,
         "runtime_config": runtime_config,
     }
 
