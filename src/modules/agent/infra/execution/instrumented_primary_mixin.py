@@ -20,8 +20,9 @@ from modules.agent.application.interfaces.execution_context import (
 )
 from modules.agent.application.tool_converter import MCP_PROVIDER_ROUTE_SEPARATOR
 from modules.agent.domain.events import AgentExecutionFailedV1
-from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.database.runtime_transaction_runner import (
+    AgentRuntimeTransactionRunner,
+)
 from modules.agent.infra.execution.execution_instrumentation import aggregate_usage
 from modules.agent.infra.execution.instrumented_execution_runner import (
     run_instrumented_execution,
@@ -38,7 +39,7 @@ class _PrimaryExecutionSuper(Protocol):
 
 class _PrimaryExecutionHost(Protocol):
     _llm_factory: Any
-    _session_factory: Any
+    _transactions: AgentRuntimeTransactionRunner
     async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict: ...
     def _clean_json_answer(self, answer: str) -> str: ...
 
@@ -129,11 +130,6 @@ class InstrumentedPrimaryExecutionMixin:
                 agent_id=str(agent_id),
             )
 
-        session_factory = host._session_factory
-        if session_factory is None:
-            logger.warning("Cannot persist RAG embedding failure without session factory")
-            return
-
         payload = {
             "trace_id": str(trace_id),
             "project_id": str(project_id),
@@ -159,16 +155,17 @@ class InstrumentedPrimaryExecutionMixin:
             "runtime_scope": "failed_rag_prepare",
         }
 
-        try:
-            async with AgentUnitOfWork(session_factory) as uow:
-                outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-                await outbox.write(
-                    AgentExecutionFailedV1.create(
-                        agent_id=agent_id,
-                        session_id=session_id or trace_id,
-                        payload=payload,
-                    )
+        async def persist_failure(_repositories, outbox) -> None:
+            await outbox.write(
+                AgentExecutionFailedV1.create(
+                    agent_id=agent_id,
+                    session_id=session_id or trace_id,
+                    payload=payload,
                 )
+            )
+
+        try:
+            await host._transactions.run(persist_failure)
         except Exception:
             logger.exception("Failed to persist RAG embedding failure telemetry")
 
