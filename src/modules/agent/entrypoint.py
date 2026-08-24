@@ -1,6 +1,5 @@
 from modules.agent.composition.module import (
     AGENT_HTTP_ROUTERS,
-    DATABASE_ENGINE,
     SETTINGS,
     AgentToolRuntimeGateway,
     AskInput,
@@ -27,7 +26,6 @@ __all__ = [
     "AgentToolRuntimeGateway",
     "AgentWorkerRegistry",
     "AskInput",
-    "DATABASE_ENGINE",
     "EmptyModelOutputError",
     "HttpToolExecutor",
     "LangchainEmbeddingFactory",
