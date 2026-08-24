@@ -11,8 +11,8 @@ x-runtime-environment: &runtime-environment
   WOOBE_ENCRYPTION_KEY: ${WOOBE_ENCRYPTION_KEY:?Run scripts/generate_self_host_env.py}
   WOOBE_DB_POOL_SIZE: ${WOOBE_DB_POOL_SIZE:-10}
   WOOBE_DB_MAX_OVERFLOW: ${WOOBE_DB_MAX_OVERFLOW:-10}
-  WOOBE_REDIS_URL: ""
-  WOOBE_MCP_SESSION_CACHE_ENABLED: "false"
+  WOOBE_REDIS_URL: redis://redis:6379/0
+  WOOBE_MCP_SESSION_CACHE_ENABLED: "true"
   WOOBE_STORAGE_DRIVER: local
   WOOBE_UPLOAD_LOCAL_DIR: /app/storage/uploads
   WOOBE_UPLOAD_MAX_MB: ${WOOBE_UPLOAD_MAX_MB:-25}
@@ -72,6 +72,26 @@ services:
       retries: 12
     restart: unless-stopped
 
+  redis:
+    image: redis:7.4-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --save
+      - "300"
+      - "10"
+    volumes:
+      - woobe_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   migrate:
     build: .
     env_file:
@@ -108,6 +128,8 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
       interval: 10s
@@ -126,6 +148,8 @@ services:
       migrate:
         condition: service_completed_successfully
       rabbitmq:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   web:
@@ -156,4 +180,5 @@ services:
 volumes:
   woobe_postgres:
   woobe_rabbitmq:
+  woobe_redis:
   woobe_uploads:

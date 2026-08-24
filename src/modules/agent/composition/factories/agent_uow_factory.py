@@ -1,8 +1,8 @@
-from modules.agent.composition.resources import DATABASE_ENGINE
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from shared.composition_resources import SESSION_FACTORY
 
 
 def build_agent_uow() -> AgentUnitOfWork:
-    """Create a fresh Agent UoW from the canonical process-scoped engine."""
+    """Create a fresh Agent UoW from the canonical process-scoped Session factory."""
 
-    return AgentUnitOfWork(DATABASE_ENGINE)
+    return AgentUnitOfWork(SESSION_FACTORY)
