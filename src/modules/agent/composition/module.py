@@ -30,8 +30,8 @@ from modules.agent.infra.execution.runtime_streaming import (
     RuntimeStreamChannel,
     current_runtime_stream,
 )
-from modules.agent.infra.execution.structured_output_ask_use_case import (
-    StructuredOutputAskAgentUseCase,
+from modules.agent.infra.execution.transaction_bounded_structured_output import (
+    TransactionBoundedStructuredOutputAskAgentUseCase as StructuredOutputAskAgentUseCase,
 )
 from modules.agent.presentation.http.controllers.ask_agent_stream_controller import (
     commit_safe_stream,
