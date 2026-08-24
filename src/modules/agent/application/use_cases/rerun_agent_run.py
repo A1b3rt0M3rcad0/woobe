@@ -72,6 +72,10 @@ class RerunAgentRunUseCase:
             raise NotFoundError("Agent Run not found")
         if source.status == AgentRunStatus.RUNNING:
             raise ConflictError("A running Agent Run cannot be rerun")
+        if source.session_id is not None and source.input_message_id is None:
+            raise ValidationError(
+                "Agent Run has Session state but no reusable input message provenance"
+            )
 
         execution_context = source.environment
         loaded_release_id = source.agent_release_id
