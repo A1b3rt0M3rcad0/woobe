@@ -32,6 +32,7 @@ def _run(*, environment="production", release_id=None, snapshot=None):
         agent_id=uuid4(),
         session_id=uuid4(),
         agent_release_id=release_id,
+        input_message_id=uuid4(),
         trace_id=uuid4(),
         environment=environment,
         origin="runtime_api",
@@ -57,6 +58,9 @@ async def test_production_rerun_creates_new_execution_against_original_release()
     assert executor.input.message == "original input"
     assert executor.input.session_id == source.session_id
     assert executor.input.metadata["rerun_of_run_id"] == str(source.id)
+    assert executor.input.metadata["reuse_input_message_id"] == str(
+        source.input_message_id
+    )
 
 
 @pytest.mark.asyncio
@@ -122,6 +126,9 @@ async def test_draft_rerun_reuses_frozen_agent_tool_rag_and_output_snapshots() -
     assert executor.input.execution_context == "playground"
     assert executor.input.loaded_release_id is None
     assert executor.input.session_id == source.session_id
+    assert executor.input.metadata["reuse_input_message_id"] == str(
+        source.input_message_id
+    )
     override = executor.input.snapshot_override
     assert override["system_prompt"] == "frozen prompt"
     assert override["provider_model_id"] == str(provider_model_id)
