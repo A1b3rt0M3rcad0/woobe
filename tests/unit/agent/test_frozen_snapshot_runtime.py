@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+from types import SimpleNamespace
 from uuid import uuid4
+
+import pytest
 
 from modules.agent.domain.entities import Agent
 from modules.agent.domain.enums import Provider, SessionMode
+from modules.agent.infra.execution import frozen_snapshot_runtime as runtime_module
 from modules.agent.infra.execution.frozen_snapshot_runtime import (
     FrozenSnapshotStructuredOutputRuntime,
 )
@@ -96,3 +100,135 @@ def test_frozen_snapshot_replaces_mutable_draft_runtime_state_exactly() -> None:
             "tools": {"tool_ids": []},
         },
     }
+
+
+class _MessageRepository:
+    def __init__(self, messages):
+        self.messages = list(messages)
+        self.create_calls = 0
+
+    async def list_by_session(self, _session_id):
+        return list(self.messages)
+
+    async def get_by_id(self, message_id):
+        return next(
+            (message for message in self.messages if message.id == message_id),
+            None,
+        )
+
+    async def create(self, _message):
+        self.create_calls += 1
+        raise AssertionError("rerun must not persist the original user input twice")
+
+
+@pytest.mark.asyncio
+async def test_rerun_reuses_original_user_message_and_replays_prior_history_only() -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    session_id = uuid4()
+    original_input_id = uuid4()
+    session = SimpleNamespace(id=session_id, project_id=project_id, agent_id=agent_id)
+    agent = SimpleNamespace(id=agent_id)
+    messages = [
+        SimpleNamespace(
+            id=uuid4(),
+            project_id=project_id,
+            agent_id=agent_id,
+            session_id=session_id,
+            role="user",
+            content="earlier question",
+            data=None,
+        ),
+        SimpleNamespace(
+            id=uuid4(),
+            project_id=project_id,
+            agent_id=agent_id,
+            session_id=session_id,
+            role="assistant",
+            content="earlier answer",
+            data=None,
+        ),
+        SimpleNamespace(
+            id=original_input_id,
+            project_id=project_id,
+            agent_id=agent_id,
+            session_id=session_id,
+            role="user",
+            content="original input",
+            data=None,
+        ),
+        SimpleNamespace(
+            id=uuid4(),
+            project_id=project_id,
+            agent_id=agent_id,
+            session_id=session_id,
+            role="assistant",
+            content="original answer must not enter rerun context",
+            data=None,
+        ),
+        SimpleNamespace(
+            id=uuid4(),
+            project_id=project_id,
+            agent_id=agent_id,
+            session_id=session_id,
+            role="user",
+            content="later question must not enter rerun context",
+            data=None,
+        ),
+    ]
+    repository = _MessageRepository(messages)
+    runtime = FrozenSnapshotStructuredOutputRuntime.__new__(
+        FrozenSnapshotStructuredOutputRuntime
+    )
+
+    token = runtime_module._rerun_input_message_id.set(original_input_id)
+    try:
+        history = await runtime._load_history(repository, session)
+        reused = await runtime._save_user_message(
+            None,
+            repository,
+            session,
+            "original input",
+            agent,
+        )
+    finally:
+        runtime_module._rerun_input_message_id.reset(token)
+
+    assert [(type(item).__name__, item.content) for item in history] == [
+        ("HumanMessage", "earlier question"),
+        ("AIMessage", "earlier answer"),
+    ]
+    assert reused.id == original_input_id
+    assert repository.create_calls == 0
+
+
+@pytest.mark.asyncio
+async def test_rerun_rejects_input_message_from_another_session() -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    session = SimpleNamespace(id=uuid4(), project_id=project_id, agent_id=agent_id)
+    agent = SimpleNamespace(id=agent_id)
+    input_message_id = uuid4()
+    repository = _MessageRepository(
+        [
+            SimpleNamespace(
+                id=input_message_id,
+                project_id=project_id,
+                agent_id=agent_id,
+                session_id=uuid4(),
+                role="user",
+                content="original input",
+                data=None,
+            )
+        ]
+    )
+    runtime = FrozenSnapshotStructuredOutputRuntime.__new__(
+        FrozenSnapshotStructuredOutputRuntime
+    )
+
+    token = runtime_module._rerun_input_message_id.set(input_message_id)
+    try:
+        with pytest.raises(Exception, match="selected Session"):
+            await runtime._load_history(repository, session)
+    finally:
+        runtime_module._rerun_input_message_id.reset(token)
