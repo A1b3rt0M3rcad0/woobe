@@ -7,14 +7,12 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  refresh-runtime-lock:
-    if: github.event_name == 'pull_request' && github.head_ref == 'feature/agent-runtime-transaction-boundaries'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+  tests:
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
         with:
@@ -23,28 +21,19 @@ jobs:
 
       - uses: astral-sh/setup-uv@v6
 
-      - name: Refresh uv.lock
-        run: uv lock
-
-      - name: Commit synchronized lockfile
+      - name: Refresh and persist uv.lock for runtime dependency changes
+        if: github.event_name == 'pull_request' && github.head_ref == 'feature/agent-runtime-transaction-boundaries'
         run: |
+          uv lock
           if git diff --quiet -- uv.lock; then
             echo "uv.lock already synchronized"
-            exit 0
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add uv.lock
+            git commit -m "chore(deps): synchronize redis lockfile"
+            git push origin HEAD:${{ github.head_ref }}
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add uv.lock
-          git commit -m "chore(deps): synchronize redis lockfile"
-          git push origin HEAD:${{ github.head_ref }}
-
-  tests:
-    runs-on: [self-hosted, Linux, X64]
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Reset stale validation stack
         run: docker compose -f compose.test.yaml down -v --remove-orphans || true
