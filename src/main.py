@@ -14,7 +14,6 @@ from starlette.types import ExceptionHandler
 
 from modules.agent.entrypoint import (
     AGENT_HTTP_ROUTERS,
-    DATABASE_ENGINE,
     SETTINGS,
     build_http_tool_executor,
     close_http_tool_executor,
@@ -28,6 +27,7 @@ from modules.metering.presentation.routes import router as metering_router
 from modules.network.presentation import router as network_router
 from modules.observability.presentation.routes import router as observability_router
 from public_runtime_routes import router as public_runtime_router
+from shared.composition_resources import DATABASE_ENGINE
 from shared.infra.database.session import create_session_factory
 from shared.infra.errors import (
     AuthenticationError,
