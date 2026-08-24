@@ -105,8 +105,6 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
             )
             assert delegation_result == {"success": True, "result": "specialist-ok"}
 
-            # Acceptance normally populates this in the real runtime. The bridge
-            # must then execute the prepared Agent Tool without any late DB lookup.
             context.prepared_tools = {str(agent_tool_id): prepared_agent_tool}
             agent_tool_result = await self._tool_executor_factory(
                 agent_tool_id,
@@ -146,7 +144,7 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
 
     monkeypatch.setattr(
         ask_agent_runtime_factory,
-        "TransactionBoundedStructuredOutputRuntime",
+        "FrozenSnapshotStructuredOutputRuntime",
         FakeTransactionBoundedRuntime,
     )
     monkeypatch.setattr(
