@@ -16,8 +16,8 @@ from modules.agent.infra.database.runtime_transaction_runner import (
     AgentRuntimeTransactionRunner,
 )
 from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
-from modules.agent.infra.execution.structured_output_ask_use_case import (
-    StructuredOutputAskAgentUseCase,
+from modules.agent.infra.execution.transaction_bounded_structured_output import (
+    TransactionBoundedStructuredOutputAskAgentUseCase,
 )
 from modules.agent.presentation.controllers.ask_agent_controller import AskAgentController
 from shared.infra.config import Settings
@@ -35,11 +35,14 @@ def build_agent_runtime_transactions() -> AgentRuntimeTransactionRunner:
 def build_ask_agent_use_case(
     settings: Settings,
     http_executor: HttpToolExecutor | None = None,
-) -> tuple[StructuredOutputAskAgentUseCase, AgentRuntimeTransactionRunner]:
+) -> tuple[
+    TransactionBoundedStructuredOutputAskAgentUseCase,
+    AgentRuntimeTransactionRunner,
+]:
     transactions = build_agent_runtime_transactions()
     executor = http_executor or get_http_tool_executor()
     tool_runtime = AgentToolRuntimeGateway(transactions, settings, executor)
-    use_case = StructuredOutputAskAgentUseCase(
+    use_case = TransactionBoundedStructuredOutputAskAgentUseCase(
         transactions=transactions,
         llm_factory=LangchainLLMFactory(),
         encryption_key=settings.encryption_key,
