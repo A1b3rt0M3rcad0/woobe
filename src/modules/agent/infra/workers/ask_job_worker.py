@@ -5,12 +5,15 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.domain.entities import AskJob
-from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.database.repositories import SQLAlchemyAskJobRepository
+from modules.agent.infra.database.runtime_transaction_runner import (
+    AgentRuntimeTransactionRunner,
+)
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.infra.execution.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
@@ -23,6 +26,9 @@ class AskJobWorker:
     def __init__(self, async_engine: AsyncEngine, settings: Settings) -> None:
         self._engine = async_engine
         self._settings = settings
+
+    def _transactions(self) -> AgentRuntimeTransactionRunner:
+        return AgentRuntimeTransactionRunner(lambda: AgentUnitOfWork(self._engine))
 
     async def run(self) -> None:
         async with AgentUnitOfWork(self._engine) as uow:
@@ -41,12 +47,17 @@ class AskJobWorker:
             await SQLAlchemyAskJobRepository(uow).mark_started(job.id)
 
         settings = self._settings
+        transactions = self._transactions()
         http_executor = HttpToolExecutor(
             allow_local_networks=settings.http_tool_allow_local_networks
         )
-        tool_runtime = AgentToolRuntimeGateway(self._engine, settings, http_executor)
+        tool_runtime = AgentToolRuntimeGateway(
+            transactions,
+            settings,
+            http_executor,
+        )
         execution = StructuredOutputAskAgentUseCase(
-            session_factory=self._engine,
+            transactions=transactions,
             llm_factory=LangchainLLMFactory(),
             encryption_key=settings.encryption_key,
             tool_executor_factory=tool_runtime.execute_tool,
