@@ -20,6 +20,8 @@ class RequestExecutionContext:
     request_received_at: str
     execution_started_at: str
     client_sent_at: str | None = None
+    run_id: UUID | None = None
+    terminal_persisted: bool = False
     project_id: UUID | None = None
     agent_id: UUID | None = None
     session_id: UUID | None = None
@@ -46,6 +48,13 @@ class RequestExecutionContext:
     depth: int | None = None
     internal_tool_definitions: list[dict[str, Any]] | None = None
     internal_tool_name_to_id: dict[str, str] | None = None
+
+    # Ephemeral preparation material. Decrypted secrets may live here only in
+    # process memory and must never be serialized to Redis or durable snapshots.
+    prepared_fallback: dict[str, Any] | None = None
+    prepared_tools: dict[str, Any] | None = None
+    prepared_tool_secrets: dict[str, str] | None = None
+    prepared_rag: dict[str, Any] | None = None
 
 
 current_execution: ContextVar[RequestExecutionContext | None] = ContextVar(
