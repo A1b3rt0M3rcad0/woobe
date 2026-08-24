@@ -3,7 +3,7 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from modules.agent.entrypoint import current_runtime_stream
+from modules.agent.entrypoint import current_execution, current_runtime_stream
 from modules.network.application.runtime import InternalDelegationTool
 from modules.network.infra.runtime import agent_invoker as agent_invoker_module
 from modules.network.infra.runtime.agent_invoker import ProjectRAIAgentInvoker
@@ -33,9 +33,6 @@ class _AgentOutput:
 
 
 class _RuntimeBridgeUseCase:
-    def __init__(self, *, internal_tool_handlers=None) -> None:
-        self.internal_tool_handlers = dict(internal_tool_handlers or {})
-
     async def execute(self, input_dto):
         assert input_dto.metadata["source"] == "network_runtime"
         return _AgentOutput()
@@ -53,20 +50,24 @@ class _StreamingBridgeUseCase(_RuntimeBridgeUseCase):
             channel="reasoning",
             phase="response_generation",
         )
-        await channel.emit(
-            "token",
-            content="network final answer",
-            visibility="assistant",
-            channel="final",
-            phase="response_generation",
-        )
+        for content in ("network ", "final ", "answer"):
+            await channel.emit(
+                "token",
+                content=content,
+                visibility="assistant",
+                channel="final",
+                phase="response_generation",
+            )
         return _AgentOutput()
 
 
 class _DelegationBridgeUseCase(_RuntimeBridgeUseCase):
     async def execute(self, input_dto):
         assert input_dto.metadata["source"] == "network_runtime"
-        delegated = await self.internal_tool_handlers[_DELEGATION_TOOL_ID](
+        context = current_execution.get()
+        assert context is not None
+        assert context.internal_tool_handlers is not None
+        delegated = await context.internal_tool_handlers[_DELEGATION_TOOL_ID](
             {"task": "resolve specialist task"}
         )
         assert delegated == {"success": True, "result": "specialist result"}
@@ -74,7 +75,7 @@ class _DelegationBridgeUseCase(_RuntimeBridgeUseCase):
 
 
 def _patch_runtime(monkeypatch, use_case_cls):
-    captured = {}
+    captured = {"build_calls": 0}
 
     def build_internal_agent_runtime(
         settings,
@@ -82,12 +83,11 @@ def _patch_runtime(monkeypatch, use_case_cls):
         *,
         internal_tool_handlers=None,
     ):
+        captured["build_calls"] += 1
         captured["settings"] = settings
         captured["http_executor"] = http_executor
         captured["internal_tool_handlers"] = dict(internal_tool_handlers or {})
-        return use_case_cls(
-            internal_tool_handlers=internal_tool_handlers,
-        )
+        return use_case_cls()
 
     monkeypatch.setattr(
         agent_invoker_module,
@@ -158,10 +158,22 @@ async def test_network_agent_bridge_returns_final_answer_through_public_agent_ru
     assert captured["settings"] is settings
     assert captured["http_executor"] is http_executor
     assert captured["internal_tool_handlers"] == {}
+    assert captured["build_calls"] == 1
 
 
 @pytest.mark.asyncio
-async def test_network_agent_bridge_streams_only_public_final_tokens(monkeypatch) -> None:
+async def test_network_agent_runtime_is_reused_between_invocations(monkeypatch) -> None:
+    captured = _patch_runtime(monkeypatch, _RuntimeBridgeUseCase)
+    invoker, _settings, _http_executor = _invoker()
+
+    await invoker.invoke(**_invoke_kwargs())
+    await invoker.invoke(**_invoke_kwargs())
+
+    assert captured["build_calls"] == 1
+
+
+@pytest.mark.asyncio
+async def test_network_agent_bridge_batches_public_final_tokens(monkeypatch) -> None:
     _patch_runtime(monkeypatch, _StreamingBridgeUseCase)
     invoker, _settings, _http_executor = _invoker()
     events = []
@@ -181,9 +193,7 @@ async def test_network_agent_bridge_streams_only_public_final_tokens(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_network_internal_delegation_tool_is_forwarded_to_agent_runtime_boundary(
-    monkeypatch,
-) -> None:
+async def test_network_internal_delegation_tool_uses_invocation_context(monkeypatch) -> None:
     captured = _patch_runtime(monkeypatch, _DelegationBridgeUseCase)
     invoker, _settings, _http_executor = _invoker()
 
@@ -203,6 +213,5 @@ async def test_network_internal_delegation_tool_is_forwarded_to_agent_runtime_bo
     )
 
     assert result.answer == "root integrated specialist result"
-    assert captured["internal_tool_handlers"] == {
-        _DELEGATION_TOOL_ID: delegate,
-    }
+    assert captured["internal_tool_handlers"] == {}
+    assert captured["build_calls"] == 1

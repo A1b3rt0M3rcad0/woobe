@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Awaitable, Callable
 from contextvars import ContextVar
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -48,6 +49,10 @@ class RequestExecutionContext:
     depth: int | None = None
     internal_tool_definitions: list[dict[str, Any]] | None = None
     internal_tool_name_to_id: dict[str, str] | None = None
+    internal_tool_handlers: dict[
+        UUID,
+        Callable[[dict], Awaitable[dict]],
+    ] | None = None
 
     # Ephemeral preparation material. Decrypted secrets may live here only in
     # process memory and must never be serialized to Redis or durable snapshots.

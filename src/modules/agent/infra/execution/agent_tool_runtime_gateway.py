@@ -52,14 +52,17 @@ class AgentToolRuntimeGateway:
         return tools
 
     async def execute_tool(self, tool_id: UUID, input_data: dict) -> dict:
-        internal_handler = self._internal_tool_handlers.get(tool_id)
+        context = current_execution.get()
+        dynamic_handlers = context.internal_tool_handlers if context else None
+        internal_handler = (dynamic_handlers or {}).get(tool_id)
+        if internal_handler is None:
+            internal_handler = self._internal_tool_handlers.get(tool_id)
         if internal_handler is not None:
             return await internal_handler(dict(input_data or {}))
         if is_runtime_tool_inventory_id(tool_id):
             return execute_runtime_tool_inventory(input_data)
 
         runtime_input = dict(input_data or {})
-        context = current_execution.get()
         if context and context.session_id:
             runtime_input.setdefault(MCP_AGENT_SESSION_INPUT_KEY, str(context.session_id))
 

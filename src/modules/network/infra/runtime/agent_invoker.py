@@ -24,6 +24,7 @@ from shared.infra.config import Settings
 
 AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
 _PUBLIC_TOKEN_PHASES = {"response_generation", "final_response_generation"}
+_TOKEN_BATCH_SECONDS = 0.05
 
 
 def _caused_by_empty_model_output(exception: Exception) -> bool:
@@ -45,12 +46,27 @@ def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
     )
 
 
+def _token_signature(payload: dict[str, Any]) -> tuple[object, object, object]:
+    return (
+        payload.get("visibility"),
+        payload.get("channel"),
+        payload.get("phase"),
+    )
+
+
 class ProjectRAIAgentInvoker:
     """Invoke an Agent inside a Network without child PostgreSQL persistence."""
 
     def __init__(self, settings: Settings, http_executor: HttpToolExecutor) -> None:
         self._settings = settings
         self._http_executor = http_executor
+        # The Agent runtime is process-scoped. Per-invocation delegation handlers
+        # live in RequestExecutionContext so building a child Run does not rebuild
+        # the complete Agent runtime graph.
+        self._use_case = build_internal_agent_runtime(
+            self._settings,
+            self._http_executor,
+        )
 
     async def invoke(
         self,
@@ -67,11 +83,6 @@ class ProjectRAIAgentInvoker:
         stream_handler: AgentStreamHandler | None = None,
     ) -> AgentInvocationResult:
         internal_handlers = {tool.id: tool.handler for tool in internal_tools}
-        use_case = build_internal_agent_runtime(
-            self._settings,
-            self._http_executor,
-            internal_tool_handlers=internal_handlers,
-        )
 
         context = new_execution_context()
         context.project_id = project_id
@@ -81,6 +92,7 @@ class ProjectRAIAgentInvoker:
         context.agent_release_id = release_id
         context.internal_tool_definitions = [tool.definition() for tool in internal_tools]
         context.internal_tool_name_to_id = {tool.name: str(tool.id) for tool in internal_tools}
+        context.internal_tool_handlers = internal_handlers
         uuid_context_fields = {
             "network_id",
             "network_version_id",
@@ -116,28 +128,62 @@ class ProjectRAIAgentInvoker:
         stream_token = None
         streamed_output = False
         execution_task: asyncio.Task[Any] | None = None
+        pending_token: dict[str, Any] | None = None
+        pending_signature: tuple[object, object, object] | None = None
+
+        async def flush_token() -> None:
+            nonlocal pending_token, pending_signature
+            if pending_token is None or stream_handler is None:
+                pending_token = None
+                pending_signature = None
+                return
+            payload = pending_token
+            pending_token = None
+            pending_signature = None
+            await stream_handler("token", payload)
+
         try:
             try:
                 if stream_handler is None:
-                    output = await use_case.execute(input_dto)
+                    output = await self._use_case.execute(input_dto)
                 else:
                     channel = RuntimeStreamChannel()
                     stream_token = current_runtime_stream.set(channel)
-                    execution_task = asyncio.create_task(use_case.execute(input_dto))
+                    execution_task = asyncio.create_task(self._use_case.execute(input_dto))
                     while True:
                         if execution_task.done() and channel.queue.empty():
                             break
+                        timeout = _TOKEN_BATCH_SECONDS if pending_token is not None else 0.1
                         try:
-                            event = await asyncio.wait_for(channel.queue.get(), timeout=0.1)
+                            event = await asyncio.wait_for(channel.queue.get(), timeout=timeout)
                         except asyncio.TimeoutError:
+                            await flush_token()
                             continue
+
                         payload = dict(event.payload)
                         if event.event_type == "token":
                             if not _is_public_runtime_token(payload):
                                 continue
                             streamed_output = True
+                            signature = _token_signature(payload)
+                            content = str(payload.get("content") or "")
+                            if pending_token is not None and signature == pending_signature:
+                                pending_token["content"] = (
+                                    str(pending_token.get("content") or "") + content
+                                )
+                            else:
+                                await flush_token()
+                                pending_token = payload
+                                pending_signature = signature
+                            continue
+
+                        # Preserve causal ordering: buffered public tokens must reach
+                        # Redis/SSE before any following non-token event.
+                        await flush_token()
                         if event.event_type not in {"done", "error", "cancelled"}:
                             await stream_handler(event.event_type, payload)
+
+                    await flush_token()
                     output = await execution_task
             except Exception as exc:
                 if _caused_by_empty_model_output(exc):
