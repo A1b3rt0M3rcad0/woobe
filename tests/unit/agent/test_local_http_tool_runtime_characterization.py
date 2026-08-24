@@ -34,6 +34,7 @@ def _grouped_http_tool(tool_id):
                     "id": ROUTE_ID,
                     "operation_id": "search_contacts",
                     "name": "Search contacts",
+                    "description": "Searches WhatsApp contacts by name.",
                     "method": "POST",
                     "path": "/v1/tools/whatsapp/search-contacts",
                     "body": '{"query":"{{query}}"}',
