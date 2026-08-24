@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable, Mapping
 from uuid import UUID
 
 from modules.agent.application.interfaces.execution_context import current_execution
@@ -22,6 +23,9 @@ from modules.agent.infra.execution.tool_runtime_registry import build_tool_runti
 from shared.infra.config import Settings
 
 
+InternalToolHandler = Callable[[dict], Awaitable[dict]]
+
+
 class AgentToolRuntimeGateway:
     """Tool runtime with DB reads isolated from external Tool/MCP execution."""
 
@@ -30,10 +34,13 @@ class AgentToolRuntimeGateway:
         transactions: AgentRuntimeTransactionRunner,
         settings: Settings,
         executor: HttpToolExecutor | None = None,
+        *,
+        internal_tool_handlers: Mapping[UUID, InternalToolHandler] | None = None,
     ) -> None:
         self._transactions = transactions
         self._settings = settings
         self._executor = executor or get_http_tool_executor()
+        self._internal_tool_handlers = dict(internal_tool_handlers or {})
         self._cipher = SecretCipherAdapter(settings.encryption_key)
         self._secret_resolver = RuntimeToolSecretResolver(
             transactions,
@@ -52,6 +59,10 @@ class AgentToolRuntimeGateway:
         return await self._transactions.run(read)
 
     async def execute_tool(self, tool_id: UUID, input_data: dict) -> dict:
+        internal_handler = self._internal_tool_handlers.get(tool_id)
+        if internal_handler is not None:
+            return await internal_handler(dict(input_data or {}))
+
         if is_runtime_tool_inventory_id(tool_id):
             return execute_runtime_tool_inventory(input_data)
 
