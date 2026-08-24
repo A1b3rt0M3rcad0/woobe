@@ -2,20 +2,15 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Awaitable, Callable
-from typing import Any, cast
+from typing import Any
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
-
 from modules.agent.entrypoint import (
-    AgentToolRuntimeGateway,
     AskInput,
     EmptyModelOutputError,
     HttpToolExecutor,
-    LangchainEmbeddingFactory,
-    LangchainLLMFactory,
     RuntimeStreamChannel,
-    StructuredOutputAskAgentUseCase,
+    build_internal_agent_runtime,
     current_execution,
     current_runtime_stream,
     new_execution_context,
@@ -54,31 +49,16 @@ def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
     )
 
 
-def _engine_from_session_factory(
-    session_factory: async_sessionmaker[AsyncSession],
-) -> AsyncEngine:
-    bind = getattr(session_factory, "kw", {}).get("bind")
-    if bind is None:
-        raise TypeError("Network Agent runtime requires a session factory bound to AsyncEngine")
-    return cast(AsyncEngine, bind)
-
-
 class ProjectRAIAgentInvoker:
-    """Invokes the existing Agent runtime in-process with Network-only tools."""
+    """Invoke Agent through its public in-process runtime composition boundary."""
 
     def __init__(
         self,
-        session_factory: async_sessionmaker[AsyncSession],
         settings: Settings,
         http_executor: HttpToolExecutor,
     ) -> None:
-        self._engine = _engine_from_session_factory(session_factory)
         self._settings = settings
-        self._tool_runtime = AgentToolRuntimeGateway(
-            self._engine,
-            settings,
-            http_executor,
-        )
+        self._http_executor = http_executor
 
     async def invoke(
         self,
@@ -94,26 +74,12 @@ class ProjectRAIAgentInvoker:
         network_context: dict[str, object],
         stream_handler: AgentStreamHandler | None = None,
     ) -> AgentInvocationResult:
-        settings = self._settings
         internal_handlers = {tool.id: tool.handler for tool in internal_tools}
-
-        async def read_runtime_tools(tool_ids: list[UUID]):
-            return await self._tool_runtime.read_runtime_tools(tool_ids)
-
-        async def execute_tool(tool_id: UUID, input_data: dict) -> dict:
-            internal_handler = internal_handlers.get(tool_id)
-            if internal_handler is not None:
-                return await internal_handler(dict(input_data or {}))
-            return await self._tool_runtime.execute_tool(tool_id, input_data)
-
-        use_case = StructuredOutputAskAgentUseCase(
-            session_factory=self._engine,
-            llm_factory=LangchainLLMFactory(),
-            encryption_key=settings.encryption_key,
-            tool_executor_factory=execute_tool,
+        use_case = build_internal_agent_runtime(
+            self._settings,
+            self._http_executor,
+            internal_tool_handlers=internal_handlers,
         )
-        use_case.configure_rag_embedding_factory(LangchainEmbeddingFactory())
-        use_case.configure_runtime_tool_reader(read_runtime_tools)
 
         context = new_execution_context()
         context.project_id = project_id
