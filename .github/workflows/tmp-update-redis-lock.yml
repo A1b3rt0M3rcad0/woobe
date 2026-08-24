@@ -1,0 +1,39 @@
+name: Temporary Redis lock refresh
+
+on:
+  push:
+    branches:
+      - feature/agent-runtime-transaction-boundaries
+    paths:
+      - .github/workflows/tmp-update-redis-lock.yml
+
+permissions:
+  contents: write
+
+jobs:
+  update-lock:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/agent-runtime-transaction-boundaries
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Refresh lockfile
+        run: uv lock
+
+      - name: Commit lockfile
+        run: |
+          if git diff --quiet -- uv.lock; then
+            echo "uv.lock already synchronized"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock
+          git commit -m "chore(deps): synchronize redis lockfile"
+          git push origin HEAD:feature/agent-runtime-transaction-boundaries
