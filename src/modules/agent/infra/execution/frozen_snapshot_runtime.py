@@ -20,8 +20,9 @@ class FrozenSnapshotStructuredOutputRuntime(TransactionBoundedStructuredOutputRu
     """Apply a rerun Draft snapshot exactly instead of inheriting current Draft state."""
 
     def _apply_snapshot_override(self, agent, snapshot: dict):
-        agent = super()._apply_snapshot_override(agent, snapshot)
-
+        # Do not call the compatibility implementation from AskAgentUseCase here.
+        # Rerun needs exact replacement semantics, including explicit nulls, and
+        # must use the Agent SessionMode enum (stateful/stateless).
         if "system_prompt" in snapshot:
             agent.system_prompt = snapshot.get("system_prompt") or ""
         if "provider_model_id" in snapshot:
