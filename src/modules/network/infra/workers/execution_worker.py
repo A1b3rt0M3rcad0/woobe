@@ -52,7 +52,6 @@ class NetworkExecutionProcessor:
         self._heartbeat_seconds = heartbeat_seconds
         self._worker_id = worker_id or f"network-worker-{os.getpid()}"
         self._agent_invoker = ProjectRAIAgentInvoker(
-            self._session_factory,
             self._settings,
             http_executor,
         )
