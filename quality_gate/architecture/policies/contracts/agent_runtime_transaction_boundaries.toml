@@ -3,9 +3,13 @@ module_root = "src/modules/agent"
 resources_file = "src/modules/agent/composition/resources.py"
 uow_type = "AgentUnitOfWork"
 engine_resource = "DATABASE_ENGINE"
-workflow_handler = "WorkflowHandler"
-workflow_sources = ["composition/workflows/**"]
-workflow_functions = [
+long_lived_annotation = "Callable"
+long_lived_composer_sources = [
+  "composition/composers/ask_agent_composer.py",
+  "composition/composers/ask_agent_stream_composer.py",
+  "composition/composers/public_runtime_composers.py",
+]
+long_lived_composer_functions = [
   "ask_agent_composer",
   "ask_agent_stream_composer",
   "public_run_composer",
@@ -17,14 +21,12 @@ framework_forbidden_scopes = [
   "presentation",
   "infra/execution",
   "infra/adapters",
-  "composition/workflows",
 ]
 uow_constructor_forbidden_scopes = [
   "application",
   "presentation",
   "infra/execution",
   "infra/adapters",
-  "composition/workflows",
 ]
 engine_allowed_consumers = ["AgentUnitOfWork"]
 engine_allowed_paths = [

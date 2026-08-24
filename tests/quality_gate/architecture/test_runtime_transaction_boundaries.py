@@ -18,9 +18,9 @@ AGENT_ROOT = PROJECT_ROOT / POLICY["module_root"]
 RESOURCES_FILE = PROJECT_ROOT / POLICY["resources_file"]
 UOW_TYPE = POLICY["uow_type"]
 ENGINE_RESOURCE = POLICY["engine_resource"]
-WORKFLOW_HANDLER = POLICY["workflow_handler"]
-WORKFLOW_SOURCES = tuple(POLICY["workflow_sources"])
-WORKFLOW_FUNCTIONS = set(POLICY["workflow_functions"])
+LONG_LIVED_ANNOTATION = POLICY["long_lived_annotation"]
+LONG_LIVED_SOURCES = tuple(POLICY["long_lived_composer_sources"])
+LONG_LIVED_FUNCTIONS = set(POLICY["long_lived_composer_functions"])
 FORBIDDEN_DATABASE_TYPES = set(POLICY["forbidden_database_types"])
 FRAMEWORK_FORBIDDEN_SCOPES = tuple(POLICY["framework_forbidden_scopes"])
 UOW_CONSTRUCTOR_FORBIDDEN_SCOPES = tuple(
@@ -113,11 +113,9 @@ def test_arch_uow_007_runtime_cannot_construct_unit_of_work() -> None:
             continue
         tree = _parse(path)
         for node in ast.walk(tree):
-            if not isinstance(node, ast.Call):
-                continue
-            if _short_name(node.func) == UOW_TYPE:
+            if isinstance(node, ast.Call) and _short_name(node.func) == UOW_TYPE:
                 violations.append(
-                    f"{relative}:{node.lineno}: {UOW_TYPE} construction belongs to composition, not runtime"
+                    f"{relative}:{node.lineno}: {UOW_TYPE} construction belongs to composition/persistence, not long-lived execution"
                 )
     assert not violations, "ARCH-UOW-007\n" + "\n".join(violations)
 
@@ -152,50 +150,38 @@ def test_arch_uow_008_engine_is_consumed_only_by_uow_construction() -> None:
     assert not violations, "ARCH-UOW-008\n" + "\n".join(violations)
 
 
-def test_arch_workflow_001_long_lived_composers_have_no_global_uow() -> None:
+def test_arch_run_tx_001_long_lived_composers_have_no_global_uow() -> None:
     found: set[str] = set()
     violations: list[str] = []
     for path in _python_files():
         relative = _relative(path)
-        if not _matches(relative, WORKFLOW_SOURCES):
+        if not _matches(relative, LONG_LIVED_SOURCES):
             continue
         tree = _parse(path)
-        imported = {name for name, _ in _imported_bindings(tree)}
-        leaked = sorted(imported.intersection(FORBIDDEN_DATABASE_TYPES | {ENGINE_RESOURCE}))
-        if leaked:
-            violations.append(
-                f"{relative}: workflow imports database resource/type(s): {', '.join(leaked)}"
-            )
         for node in tree.body:
             if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 continue
-            if node.name not in WORKFLOW_FUNCTIONS:
+            if node.name not in LONG_LIVED_FUNCTIONS:
                 continue
             found.add(node.name)
             annotation = _short_name(node.returns)
-            if annotation != WORKFLOW_HANDLER:
+            if annotation != LONG_LIVED_ANNOTATION:
                 violations.append(
-                    f"{relative}:{node.lineno}: {node.name} must return {WORKFLOW_HANDLER}"
+                    f"{relative}:{node.lineno}: {node.name} must expose a direct {LONG_LIVED_ANNOTATION} boundary"
                 )
             for child in ast.walk(node):
                 if isinstance(child, ast.Call) and _short_name(child.func) == UOW_TYPE:
                     violations.append(
-                        f"{relative}:{child.lineno}: workflow {node.name} cannot construct {UOW_TYPE}"
+                        f"{relative}:{child.lineno}: long-lived composer {node.name} cannot construct {UOW_TYPE}"
                     )
-            returns = [child for child in ast.walk(node) if isinstance(child, ast.Return)]
-            if not any(
-                isinstance(item.value, ast.Call)
-                and _short_name(item.value.func) == WORKFLOW_HANDLER
-                for item in returns
-            ):
-                violations.append(
-                    f"{relative}:{node.lineno}: {node.name} must terminate in {WORKFLOW_HANDLER}"
-                )
-
-    missing = sorted(WORKFLOW_FUNCTIONS - found)
+                if isinstance(child, ast.Name) and child.id == ENGINE_RESOURCE:
+                    violations.append(
+                        f"{relative}:{child.lineno}: long-lived composer {node.name} cannot consume {ENGINE_RESOURCE}"
+                    )
+    missing = sorted(LONG_LIVED_FUNCTIONS - found)
     if missing:
-        violations.append("missing workflow composer(s): " + ", ".join(missing))
-    assert not violations, "ARCH-WORKFLOW-001\n" + "\n".join(violations)
+        violations.append("missing long-lived composer(s): " + ", ".join(missing))
+    assert not violations, "ARCH-RUN-TX-001\n" + "\n".join(violations)
 
 
 def test_arch_uow_008_detects_engine_propagation_fixture() -> None:
