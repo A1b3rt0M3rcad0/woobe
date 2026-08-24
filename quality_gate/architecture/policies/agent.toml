@@ -228,8 +228,10 @@ source = [
   "infra/execution/instrumented_failed_finalizer.py",
   "infra/execution/instrumented_fallback_mixin.py",
   "infra/execution/instrumented_primary_mixin.py",
+  "infra/execution/public_runtime_request_gateway.py",
   "infra/execution/release_runtime_resolver.py",
   "infra/execution/structured_output_ask_use_case.py",
+  "infra/execution/transaction_bounded_structured_output.py",
   "infra/execution/tool_runtime_registry.py",
 ]
 allow = [
