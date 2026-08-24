@@ -4,10 +4,10 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.application.use_cases.execution_event_factory import llm_event, tool_event
 from modules.agent.domain.events import AgentDomainEvent, AgentExecutionFailedV1
-from modules.agent.infra.database.repositories import SQLAlchemyAgentOutboxEventWriter
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
 from modules.agent.infra.execution.execution_instrumentation import (
     InstrumentedExecution,
     aggregate_usage,
@@ -185,8 +185,10 @@ async def finalize_failed_instrumented_execution(
         "failed_at": failed_at,
     }
 
-    async with AgentUnitOfWork(owner._session_factory) as uow:
-        outbox = SQLAlchemyAgentOutboxEventWriter(uow)
+    async def persist_failure(
+        _repositories: AgentRuntimeRepositories,
+        outbox: OutboxEventWriter,
+    ) -> None:
         for item in sorted(
             execution.timeline,
             key=lambda value: value.get("occurred_at", ""),
@@ -205,3 +207,5 @@ async def finalize_failed_instrumented_execution(
             )
             await outbox.write(event)
         await outbox.write(_failed_event(agent.id, payload))
+
+    await owner._transactions.run(persist_failure)
