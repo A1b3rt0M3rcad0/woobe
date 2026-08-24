@@ -94,7 +94,12 @@ forbidden_method_calls = [
 
 [responsibility_placement]
 rule_id = "ARCH069"
-use_case_sources = ["application/**", "infra/execution/**"]
+use_case_sources = [
+  "application/**",
+  "infra/execution/ask_use_case.py",
+  "infra/execution/explicit_runtime_persistence.py",
+  "infra/execution/structured_output_ask_use_case.py",
+]
 controller_sources = ["presentation/**"]
 sqlalchemy_sources = ["infra/**"]
 
