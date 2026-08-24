@@ -7,6 +7,7 @@ import pytest
 
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.composition.factories import ask_agent_runtime_factory
+from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
 from modules.network.application.runtime import InternalDelegationTool
 from modules.network.infra.runtime.agent_invoker import ProjectRAIAgentInvoker
 
@@ -26,10 +27,14 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
     network_node_id = uuid4()
     trace_id = uuid4()
     delegated: list[dict] = []
+    streamed_events: list[tuple[str, dict]] = []
 
     async def delegate(arguments: dict) -> dict:
         delegated.append(dict(arguments))
         return {"success": True, "result": "specialist-ok"}
+
+    async def stream_handler(event_type: str, payload: dict) -> None:
+        streamed_events.append((event_type, dict(payload)))
 
     class FakeTransactionBoundedRuntime:
         def __init__(
@@ -67,6 +72,18 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
                 {"task": "answer the delegated task"},
             )
             assert tool_result == {"success": True, "result": "specialist-ok"}
+
+            channel = current_runtime_stream.get()
+            assert channel is not None
+            await channel.emit(
+                "token",
+                content="network-ok",
+                visibility="assistant",
+                channel="final",
+                phase="final_response_generation",
+                provider="custom",
+                model="deepseek-v4-flash",
+            )
 
             return SimpleNamespace(
                 answer="network-ok",
@@ -113,11 +130,18 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
             "depth": 0,
             "draft_revision": 4,
         },
+        stream_handler=stream_handler,
     )
 
     assert result.answer == "network-ok"
     assert result.trace_id == trace_id
     assert result.provider == "custom"
     assert result.model == "deepseek-v4-flash"
+    assert result.streamed_output is True
     assert delegated == [{"task": "answer the delegated task"}]
+    assert any(
+        event_type == "token" and payload.get("content") == "network-ok"
+        for event_type, payload in streamed_events
+    )
     assert current_execution.get() is None
+    assert current_runtime_stream.get() is None
