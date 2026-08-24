@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   tests:
@@ -16,57 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
           fetch-depth: 0
-
-      - uses: astral-sh/setup-uv@v6
-
-      - name: Apply deterministic runtime CI repair
-        if: github.event_name == 'pull_request' && github.head_ref == 'feature/agent-runtime-transaction-boundaries'
-        run: uv run python scripts/tmp_ci_repair_runtime.py
-
-      - name: Apply backend runtime compatibility repair
-        if: github.event_name == 'pull_request' && github.head_ref == 'feature/agent-runtime-transaction-boundaries'
-        run: uv run python scripts/tmp_ci_repair_backend.py
-
-      - name: Refresh runtime dependency lock
-        if: github.event_name == 'pull_request' && github.head_ref == 'feature/agent-runtime-transaction-boundaries'
-        run: uv lock
-
-      - name: Validate repaired architecture before persist
-        if: github.event_name == 'pull_request' && github.head_ref == 'feature/agent-runtime-transaction-boundaries'
-        run: |
-          uv sync --frozen --all-groups --extra test
-          uv run pytest -q tests/quality_gate/architecture
-          uv run python -m quality_gate.architecture.checker --project-root . --policy-dir quality_gate/architecture/policies
-
-      - name: Persist validated runtime repair
-        if: github.event_name == 'pull_request' && github.head_ref == 'feature/agent-runtime-transaction-boundaries'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add uv.lock \
-            src/modules/agent/application/interfaces/agent_run_rerun.py \
-            src/modules/agent/presentation/controllers/rerun_agent_run_controller.py \
-            src/modules/agent/composition/composers/rerun_agent_run_composer.py \
-            src/modules/agent/infra/execution/runtime_preparation.py \
-            src/modules/agent/infra/execution/explicit_runtime_persistence.py \
-            src/modules/agent/infra/execution/transaction_bounded_structured_output.py \
-            src/modules/agent/infra/database/runtime_vector_search_reader.py \
-            src/modules/agent/composition/factories/ask_agent_runtime_factory.py \
-            src/modules/network/application/runtime_failures.py \
-            quality_gate/architecture/policy.py \
-            quality_gate/architecture/checker.py \
-            quality_gate/architecture/policies/agent.toml \
-            tests/quality_gate/architecture/test_strict_composer_contract.py \
-            tests/unit/network/test_network_stream_visibility.py \
-            tests/unit/network/test_structured_delegation.py
-          if git diff --cached --quiet; then
-            echo "Runtime repair already persisted"
-          else
-            git commit -m "fix(ci): align runtime boundaries and network contracts"
-            git push origin HEAD:${{ github.head_ref }}
-          fi
 
       - name: Reset stale validation stack
         run: docker compose -f compose.test.yaml down -v --remove-orphans || true
