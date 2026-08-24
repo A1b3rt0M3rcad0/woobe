@@ -156,3 +156,13 @@ async def test_running_run_cannot_be_rerun() -> None:
 
     with pytest.raises(Exception, match="running Agent Run"):
         await use_case.execute(run_id=source.id, project_id=source.project_id)
+
+
+@pytest.mark.asyncio
+async def test_stateful_run_without_input_provenance_cannot_be_rerun() -> None:
+    source = _run()
+    source.input_message_id = None
+    use_case = RerunAgentRunUseCase(_Reader(source), _Executor())
+
+    with pytest.raises(Exception, match="no reusable input message provenance"):
+        await use_case.execute(run_id=source.id, project_id=source.project_id)
