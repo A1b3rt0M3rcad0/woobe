@@ -233,6 +233,33 @@ class AskAgentStreamService:
 
         return await self._transactions.read(read_run)
 
+    async def _wait_for_hot_state(
+        self,
+        run_id: UUID,
+        execution_task: asyncio.Task[AskOutput],
+        *,
+        timeout_seconds: float = 1.0,
+    ) -> None:
+        """Bridge the small Acceptance -> hot-state initialization window.
+
+        The canonical Run id becomes available immediately after the durable
+        Acceptance commit, while Redis initialization intentionally happens after
+        credential preparation. Attaching in that interval would incorrectly look
+        like a completed durable-only fallback and close the observer. Wait briefly
+        for the hot state; on Redis degradation the timeout preserves execution and
+        the caller still falls back to the durable Run rather than creating another.
+        """
+        deadline = asyncio.get_running_loop().time() + timeout_seconds
+        while asyncio.get_running_loop().time() < deadline:
+            try:
+                if await self._state_store.get(run_id) is not None:
+                    return
+            except Exception:
+                return
+            if execution_task.done():
+                return
+            await asyncio.sleep(0.01)
+
     async def attach(
         self,
         run_id: UUID,
@@ -277,6 +304,7 @@ class AskAgentStreamService:
             await asyncio.sleep(0.01)
 
         run_id = getattr(channel, "run_id")
+        await self._wait_for_hot_state(run_id, execution_task)
         async for chunk in self.attach(run_id, disconnect_check):
             yield chunk
 
