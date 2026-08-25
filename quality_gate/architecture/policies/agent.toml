@@ -24,6 +24,15 @@ allowed_handlers = ["TransactionalHandler", "StreamingTransactionalHandler"]
 regular_handler = "TransactionalHandler"
 streaming_handler = "StreamingTransactionalHandler"
 uow_types = ["AgentUnitOfWork"]
+uow_factory_functions = ["build_agent_uow"]
+long_lived_handler = "Callable"
+long_lived_functions = [
+  "ask_agent_composer",
+  "ask_agent_stream_composer",
+  "public_run_composer",
+  "public_stream_composer",
+  "rerun_agent_run_composer",
+]
 forbidden_parameter_types = ["AsyncSession", "AsyncEngine", "async_sessionmaker"]
 forbidden_parameter_names = ["session", "session_factory", "async_engine", "engine"]
 forbidden_calls = ["Settings", "Settings.model_validate", "create_engine", "create_session_factory", "create_file_storage"]
@@ -228,8 +237,10 @@ source = [
   "infra/execution/instrumented_failed_finalizer.py",
   "infra/execution/instrumented_fallback_mixin.py",
   "infra/execution/instrumented_primary_mixin.py",
+  "infra/execution/public_runtime_request_gateway.py",
   "infra/execution/release_runtime_resolver.py",
   "infra/execution/structured_output_ask_use_case.py",
+  "infra/execution/transaction_bounded_structured_output.py",
   "infra/execution/tool_runtime_registry.py",
 ]
 allow = [

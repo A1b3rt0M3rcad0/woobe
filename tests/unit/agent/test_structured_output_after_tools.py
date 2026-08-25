@@ -40,7 +40,7 @@ async def test_json_formatting_result_replaces_text_result_after_tool_call():
     llm_factory.create_chat_model.side_effect = [tool_model, json_model]
 
     use_case = StructuredOutputAskAgentUseCase(
-        session_factory=MagicMock(),
+        transactions=MagicMock(),
         llm_factory=llm_factory,
     )
     use_case._execute_single_tool = AsyncMock(

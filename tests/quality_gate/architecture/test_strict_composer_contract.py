@@ -26,6 +26,9 @@ allowed_handlers = ["TransactionalHandler", "StreamingTransactionalHandler"]
 regular_handler = "TransactionalHandler"
 streaming_handler = "StreamingTransactionalHandler"
 uow_types = ["AgentUnitOfWork"]
+uow_factory_functions = ["build_agent_uow"]
+long_lived_handler = "Callable"
+long_lived_functions = ["ask_agent_composer"]
 repository_suffixes = ["Repository", "Writer"]
 forbid_control_flow = true
 forbid_nested_definitions = true
@@ -216,3 +219,28 @@ def test_composer_callsite_cannot_inject_dependencies(tmp_path: Path) -> None:
     result = checker.check(policy)
 
     assert any(item.rule_id == "ARCH057" for item in result.violations)
+
+
+def test_long_lived_composer_returns_direct_callable_without_uow(tmp_path: Path) -> None:
+    checker, policy, root = _checker(tmp_path)
+    (root / "composition/composers/ask_agent.py").write_text(
+        "from collections.abc import Callable\n"
+        "def ask_agent_composer() -> Callable:\n"
+        "    return build_ask_agent_handler()\n",
+        encoding="utf-8",
+    )
+    result = checker.check(policy)
+    assert result.passed, result.violations
+
+
+def test_long_lived_composer_cannot_create_global_uow(tmp_path: Path) -> None:
+    checker, policy, root = _checker(tmp_path)
+    (root / "composition/composers/ask_agent.py").write_text(
+        "from collections.abc import Callable\n"
+        "def ask_agent_composer() -> Callable:\n"
+        "    uow = AgentUnitOfWork(DATABASE_ENGINE)\n"
+        "    return build_ask_agent_handler()\n",
+        encoding="utf-8",
+    )
+    result = checker.check(policy)
+    assert any(item.rule_id == "ARCH025" for item in result.violations)

@@ -8,20 +8,24 @@ from uuid import uuid4
 from langchain_core.messages import ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import ToolCallInfo, UsageInfo
+from modules.agent.application.interfaces.execution import (
+    InstrumentedExecution,
+    InstrumentedExecutionError,
+)
 from modules.agent.application.use_cases.tool_output_compaction import (
     compact_tool_output_for_llm,
 )
 from modules.agent.application.use_cases.tool_result_semantics import (
     normalize_tool_result,
 )
-from modules.agent.application.interfaces.execution import (
-    InstrumentedExecution,
-    InstrumentedExecutionError,
-)
 from modules.agent.infra.execution.runtime_streaming import (
     emit_agent_activity,
     emit_runtime_event,
     invoke_model_with_optional_streaming,
+)
+from modules.agent.infra.execution.tool_invocation_metrics import (
+    ToolInvocationMetrics,
+    current_tool_invocation_metrics,
 )
 from shared.contracts.llm_cost import calculate_llm_cost
 from shared.contracts.llm_usage import normalize_llm_usage
@@ -29,20 +33,6 @@ from shared.contracts.llm_usage import normalize_llm_usage
 
 def utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-
-def tool_http_latency_ms(tool_output: Any) -> float | None:
-    if not isinstance(tool_output, dict):
-        return None
-    direct = tool_output.get("duration_ms")
-    if isinstance(direct, (int, float)) and not isinstance(direct, bool):
-        return float(direct)
-    nested = tool_output.get("output")
-    if isinstance(nested, dict):
-        value = nested.get("duration_ms")
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            return float(value)
-    return None
 
 
 def _cost_context(pricing_snapshot: dict[str, Any] | None) -> dict[str, Any]:
@@ -205,8 +195,13 @@ async def execute_tool_call(
         status="running",
         started_at=started_at,
     )
+    metrics = ToolInvocationMetrics()
+    metrics_token = current_tool_invocation_metrics.set(metrics)
     started = time.monotonic()
-    output = await execute(tool_call, resolved_tool_id)
+    try:
+        output = await execute(tool_call, resolved_tool_id)
+    finally:
+        current_tool_invocation_metrics.reset(metrics_token)
     ended_at = utc_iso()
     duration_ms = round((time.monotonic() - started) * 1000)
     normalized = normalize_tool_result(output)
@@ -239,7 +234,7 @@ async def execute_tool_call(
         "output": output,
         "llm_output_size_chars": len(llm_content),
         "duration_ms": duration_ms,
-        "http_latency_ms": tool_http_latency_ms(output),
+        "provider_latency_ms": metrics.provider_latency_ms,
         "success": normalized.success,
         "error_code": normalized.error_code,
         "error": normalized.error_message,

@@ -8,7 +8,7 @@ from modules.observability.infra.messaging import trace_projector
 
 
 @pytest.mark.asyncio
-async def test_completed_event_persists_execution_diagnostics(monkeypatch) -> None:
+async def test_completed_event_persists_truthful_execution_diagnostics(monkeypatch) -> None:
     trace_id = uuid4()
     project_id = uuid4()
     trace = Trace(
@@ -27,12 +27,23 @@ async def test_completed_event_persists_execution_diagnostics(monkeypatch) -> No
             return value
 
     class EventRepo:
+        async def get_by_id(self, _event_id):
+            return None
+
         async def save(self, value):
             saved_events.append(value)
             return value
 
-    monkeypatch.setattr(trace_projector, "SQLAlchemyTraceRepository", lambda _session: TraceRepo())
-    monkeypatch.setattr(trace_projector, "SQLAlchemyTraceEventRepository", lambda _session: EventRepo())
+    monkeypatch.setattr(
+        trace_projector,
+        "SQLAlchemyTraceRepository",
+        lambda _session: TraceRepo(),
+    )
+    monkeypatch.setattr(
+        trace_projector,
+        "SQLAlchemyTraceEventRepository",
+        lambda _session: EventRepo(),
+    )
 
     await trace_projector.project_agent_event(
         event_type="agent.execution.completed.v1",
@@ -54,7 +65,9 @@ async def test_completed_event_persists_execution_diagnostics(monkeypatch) -> No
                     "input": {"a": "1", "b": "2"},
                     "output": {
                         "success": True,
-                        "duration_ms": 400,
+                        "provider_latency_ms": 400,
+                        # Arbitrary nested durations must not be used as provider time.
+                        "duration_ms": 10,
                         "output": {"result": "3"},
                     },
                 }
@@ -64,11 +77,16 @@ async def test_completed_event_persists_execution_diagnostics(monkeypatch) -> No
     )
 
     diagnostics = trace.data["diagnostics"]
+    assert diagnostics["schema_version"] == 5
     assert diagnostics["agent_runtime_latency_ms"] == 5000
-    assert diagnostics["tool_runtime_latency_ms"] == 600
-    assert diagnostics["tool_http_latency_ms"] == 400
-    assert diagnostics["tool_overhead_latency_ms"] == 200
-    assert diagnostics["non_tool_runtime_latency_ms"] == 4400
+    assert diagnostics["tool_wall_latency_ms"] == 600
+    assert diagnostics["tool_work_latency_ms"] == 600
+    assert diagnostics["tool_call_duration_sum_ms"] == 600
+    assert diagnostics["tool_provider_work_ms"] == 400
+    assert diagnostics["tool_runtime_overhead_ms"] == 200
+    assert diagnostics["other_latency_ms"] == 4400
+    assert diagnostics["orchestration_latency_ms"] is None
+    assert diagnostics["tool_http_latency_ms"] is None
     assert diagnostics["tool_share_percent"] == 12.0
     assert diagnostics["tool_call_count"] == 1
     assert diagnostics["successful_tool_calls"] == 1

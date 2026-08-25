@@ -48,6 +48,48 @@ services:
       retries: 12
     restart: "no"
 
+  redis:
+    image: redis:7.4-alpine
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+
+  fake-provider:
+    build:
+      context: .
+      dockerfile: docker/tests/Dockerfile.backend-integration
+    pull_policy: build
+    environment:
+      PYTHONPATH: /app/src:/app
+    command:
+      [
+        "python",
+        "-m",
+        "uvicorn",
+        "tests.fakes.openai_provider:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: "no"
+
   backend-mocked:
     build:
       context: .
@@ -72,10 +114,16 @@ services:
       WOOBE_POSTGRES_URL: postgresql://woobe_test:woobe_test_password@db:5432/woobe_test
       WOOBE_RABBITMQ_URL: amqp://woobe_test:woobe_test_password@rabbitmq:5672/
       WOOBE_RABBITMQ_EXCHANGE: woobe.test.events
+      WOOBE_REDIS_URL: redis://redis:6379/0
+      WOOBE_TEST_FAKE_PROVIDER_URL: http://fake-provider:8000/v1
     depends_on:
       db:
         condition: service_healthy
       rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      fake-provider:
         condition: service_healthy
     volumes:
       - ./.test-artifacts:/artifacts

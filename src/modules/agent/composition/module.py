@@ -10,7 +10,11 @@ from modules.agent.composition.composers.public_runtime_composers import (
     public_run_composer,
     public_stream_composer,
 )
-from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
+from modules.agent.composition.factories.ask_agent_runtime_factory import (
+    build_ask_agent_use_case,
+    build_internal_agent_runtime,
+)
+from modules.agent.composition.resources import SETTINGS
 from modules.agent.infra.adapters.http_tool_runtime import (
     close_http_tool_executor,
     configure_http_tool_executor,
@@ -27,8 +31,8 @@ from modules.agent.infra.execution.runtime_streaming import (
     RuntimeStreamChannel,
     current_runtime_stream,
 )
-from modules.agent.infra.execution.structured_output_ask_use_case import (
-    StructuredOutputAskAgentUseCase,
+from modules.agent.infra.execution.transaction_bounded_structured_output import (
+    TransactionBoundedStructuredOutputRuntime,
 )
 from modules.agent.presentation.http.controllers.ask_agent_stream_controller import (
     commit_safe_stream,
@@ -45,6 +49,7 @@ from modules.agent.presentation.http.routes import (
     runtime_router,
     tools_router,
 )
+from modules.agent.presentation.http.run_routes import router as run_router
 from modules.agent.presentation.http.tool_lifecycle_routes import (
     router as tool_lifecycle_router,
 )
@@ -61,6 +66,7 @@ AGENT_HTTP_ROUTERS = (
     knowledge_router,
     vector_snapshot_router,
     runtime_router,
+    run_router,
     tools_router,
     tool_lifecycle_router,
     mcp_tools_router,
@@ -79,19 +85,20 @@ def build_http_tool_executor() -> HttpToolExecutor:
 
 
 def build_agent_stream_service() -> AskAgentStreamService:
-    return AskAgentStreamService(
-        DATABASE_ENGINE,
+    runtime, transactions = build_ask_agent_use_case(
         SETTINGS,
-        LangchainLLMFactory(),
         get_http_tool_executor(),
     )
+    return AskAgentStreamService(runtime, transactions)
+
+
+StructuredOutputAskAgentUseCase = TransactionBoundedStructuredOutputRuntime
 
 
 __all__ = [
     "AGENT_HTTP_ROUTERS",
     "AgentToolRuntimeGateway",
     "AskInput",
-    "DATABASE_ENGINE",
     "EmptyModelOutputError",
     "HttpToolExecutor",
     "LangchainEmbeddingFactory",
@@ -101,6 +108,7 @@ __all__ = [
     "StructuredOutputAskAgentUseCase",
     "build_agent_stream_service",
     "build_http_tool_executor",
+    "build_internal_agent_runtime",
     "close_http_tool_executor",
     "commit_safe_stream",
     "current_execution",

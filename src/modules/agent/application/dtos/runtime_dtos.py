@@ -153,6 +153,7 @@ class ToolCallInfo(BaseModel):
 
 
 class AskOutput(BaseModel):
+    run_id: UUID | None = None
     answer: str
     session_id: UUID | None = None
     message_id: UUID | None = None

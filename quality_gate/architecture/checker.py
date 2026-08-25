@@ -235,7 +235,8 @@ def _call_target(node: ast.AST | None) -> str | None:
 
 
 def _uow_call(node: ast.AST | None, contract: ComposerContract) -> bool:
-    return _call_target(node) in set(contract.uow_types)
+    target = _call_target(node)
+    return target in set(contract.uow_types).union(contract.uow_factory_functions)
 
 
 def _function_args(function: ast.FunctionDef | ast.AsyncFunctionDef) -> tuple[ast.arg, ...]:
@@ -295,11 +296,16 @@ def _composer_violations(contract: ComposerContract, relative: str, tree: ast.Mo
         if function.name.startswith("_") or not function.name.endswith(contract.function_suffix):
             continue
 
+        is_long_lived = function.name in set(contract.long_lived_functions)
         is_stream = function.name.endswith(contract.streaming_suffix)
-        expected_handler = contract.streaming_handler if is_stream else contract.regular_handler
+        expected_handler = (
+            contract.long_lived_handler
+            if is_long_lived
+            else contract.streaming_handler if is_stream else contract.regular_handler
+        )
         annotation = _short_name(_expression_name(function.returns))
         if annotation != expected_handler:
-            rule = "ARCH023" if is_stream else "ARCH021"
+            rule = "ARCH020" if is_long_lived else "ARCH023" if is_stream else "ARCH021"
             violations.append((rule, function.lineno, f"{function.name} must declare return type {expected_handler}"))
 
         function_args = _function_args(function)
@@ -349,7 +355,12 @@ def _composer_violations(contract: ComposerContract, relative: str, tree: ast.Mo
                 violations.append(("ARCH059", call.lineno, f"{function.name} cannot execute composed dependency {owner}.{call.func.attr}(); composers only instantiate and connect objects"))
 
         if not inspector.returns:
-            violations.append(("ARCH022", function.lineno, f"{function.name} must return a transactional handler"))
+            message = "direct callable" if is_long_lived else "transactional handler"
+            violations.append(("ARCH022", function.lineno, f"{function.name} must return a {message}"))
+        elif is_long_lived:
+            for return_node in inspector.returns:
+                if _call_target(return_node.value) in contract.allowed_handlers:
+                    violations.append(("ARCH020", return_node.lineno, f"{function.name} is long-lived and cannot return a transactional handler"))
         else:
             for return_node in inspector.returns:
                 returned_handler = _call_target(return_node.value)
@@ -371,12 +382,21 @@ def _composer_violations(contract: ComposerContract, relative: str, tree: ast.Mo
                     violations.append(("ARCH024", async_with.lineno, f"{function.name} cannot open the UnitOfWork; the transactional handler owns it"))
                     break
 
+        if is_long_lived:
+            if uow_assignments:
+                violations.append(("ARCH025", function.lineno, f"{function.name} is long-lived and cannot create a global UnitOfWork"))
+            continue
+
         if len(uow_assignments) != 1:
             violations.append(("ARCH025", function.lineno, f"{function.name} must create exactly one configured UnitOfWork"))
             continue
 
         uow_name, uow_value, _ = uow_assignments[0]
-        if contract.uow_resource_names and isinstance(uow_value, ast.Call):
+        if (
+            contract.uow_resource_names
+            and isinstance(uow_value, ast.Call)
+            and _call_target(uow_value) in set(contract.uow_types)
+        ):
             resource = uow_value.args[0] if uow_value.args else None
             allowed_resources = set(contract.uow_resource_names)
             if not isinstance(resource, ast.Name) or resource.id not in allowed_resources:

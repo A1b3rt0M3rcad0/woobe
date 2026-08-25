@@ -55,14 +55,32 @@ def test_production_frontend_has_required_browser_security_headers() -> None:
 def test_default_community_compose_has_explicit_product_boundary() -> None:
     compose = read("compose.yaml")
 
-    for service in ("db", "rabbitmq", "migrate", "api", "workers", "web", "chat-embed"):
+    for service in (
+        "db",
+        "rabbitmq",
+        "redis",
+        "migrate",
+        "api",
+        "workers",
+        "web",
+        "chat-embed",
+    ):
         assert f"\n  {service}:\n" in compose
-    for optional_service in ("pgbouncer", "redis", "minio", "rabbitmq-observer"):
+    for optional_service in ("pgbouncer", "minio", "rabbitmq-observer"):
         assert f"\n  {optional_service}:\n" not in compose
+
+    # Redis is part of the supported runtime boundary because active Agent /
+    # Network execution state, leases and recovery checkpoints depend on it.
+    assert "WOOBE_REDIS_URL: redis://redis:6379/0" in compose
+    assert "--appendonly" in compose
+    assert '      - "yes"' in compose
+    assert "--appendfsync" in compose
+    assert "      - everysec" in compose
+    assert '["CMD", "redis-cli", "ping"]' in compose
 
     assert "WOOBE_EDITION: community" in compose
     assert "WOOBE_STORAGE_DRIVER: local" in compose
-    assert 'WOOBE_MCP_SESSION_CACHE_ENABLED: "false"' in compose
+    assert 'WOOBE_MCP_SESSION_CACHE_ENABLED: "true"' in compose
     assert "WOOBE_CHAT_TOKEN_SIGNING_KEY" in compose
     assert "VITE_API_URL" in compose
     assert "VITE_CHAT_EMBED_URL" in compose

@@ -14,6 +14,9 @@ from modules.observability.infra.database.repositories import (
     SQLAlchemyTraceEventRepository,
     SQLAlchemyTraceRepository,
 )
+from modules.observability.infra.messaging.diagnostics_v2 import (
+    build as build_execution_diagnostics,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,13 +76,6 @@ def _number(value: Any) -> float | None:
     return None
 
 
-def _rounded(value: float | None) -> int | float | None:
-    if value is None:
-        return None
-    rounded = round(value, 3)
-    return int(rounded) if rounded.is_integer() else rounded
-
-
 def _event_id(trace_id: UUID, discriminator: str) -> UUID:
     return uuid.uuid5(uuid.NAMESPACE_URL, f"projectrai:{trace_id}:{discriminator}")
 
@@ -94,10 +90,19 @@ def _merge_data(trace: Trace, payload: dict[str, Any], event_type: str) -> None:
 
 
 def _apply_provider_model_refs(trace: Trace, payload: dict[str, Any]) -> None:
-    trace.provider_model_id = _uuid(payload.get("provider_model_id")) or trace.provider_model_id
-    trace.provider_credential_id = _uuid(payload.get("provider_credential_id")) or trace.provider_credential_id
-    trace.fallback_provider_model_id = _uuid(payload.get("fallback_provider_model_id")) or trace.fallback_provider_model_id
-    trace.fallback_credential_id = _uuid(payload.get("fallback_credential_id")) or trace.fallback_credential_id
+    trace.provider_model_id = (
+        _uuid(payload.get("provider_model_id")) or trace.provider_model_id
+    )
+    trace.provider_credential_id = (
+        _uuid(payload.get("provider_credential_id")) or trace.provider_credential_id
+    )
+    trace.fallback_provider_model_id = (
+        _uuid(payload.get("fallback_provider_model_id"))
+        or trace.fallback_provider_model_id
+    )
+    trace.fallback_credential_id = (
+        _uuid(payload.get("fallback_credential_id")) or trace.fallback_credential_id
+    )
 
 
 def _apply_cost(trace: Trace, payload: dict[str, Any]) -> None:
@@ -130,6 +135,35 @@ async def _save_event(
     )
 
 
+async def _save_tool_snapshot_if_missing(
+    repo: SQLAlchemyTraceEventRepository,
+    *,
+    trace_id: UUID,
+    project_id: UUID,
+    discriminator: str,
+    tool: dict[str, Any],
+) -> None:
+    """Use completed Run snapshots only as fallback, never as a destructive update."""
+
+    event_discriminator = f"tool_completed:{discriminator}"
+    event_id = _event_id(trace_id, event_discriminator)
+    if await repo.get_by_id(event_id) is not None:
+        return
+    await _save_event(
+        repo,
+        trace_id=trace_id,
+        project_id=project_id,
+        discriminator=event_discriminator,
+        kind=TraceEventType.tool_call,
+        latency_ms=tool.get("duration_ms") or tool.get("latency_ms"),
+        payload={
+            "event": "agent.execution.tool_completed.v1",
+            "trace_id": str(trace_id),
+            **tool,
+        },
+    )
+
+
 def _tool_discriminator(tool: dict[str, Any], fallback: str) -> str:
     return str(
         tool.get("tool_call_id")
@@ -147,82 +181,11 @@ def _is_complete_tool_payload(payload: dict[str, Any]) -> bool:
     )
 
 
-def _tool_http_latency_ms(tool: dict[str, Any]) -> float | None:
-    output = tool.get("output")
-    if not isinstance(output, dict):
-        return None
-
-    direct = _number(output.get("duration_ms"))
-    if direct is not None:
-        return direct
-
-    nested = output.get("output")
+def _diagnostics_source(payload: dict[str, Any]) -> dict[str, Any]:
+    nested = payload.get("diagnostics")
     if isinstance(nested, dict):
-        return _number(nested.get("duration_ms"))
-    return None
-
-
-def _build_execution_diagnostics(payload: dict[str, Any]) -> dict[str, Any]:
-    raw_tools = payload.get("tool_calls")
-    tools = [item for item in raw_tools if isinstance(item, dict)] if isinstance(raw_tools, list) else []
-
-    tool_runtime_ms = sum(
-        duration
-        for tool in tools
-        if (duration := _number(tool.get("duration_ms") or tool.get("latency_ms"))) is not None
-    )
-    tool_http_ms = sum(
-        duration
-        for tool in tools
-        if (duration := _tool_http_latency_ms(tool)) is not None
-    )
-
-    runtime_ms = _number(payload.get("total_latency_ms") or payload.get("latency_ms"))
-    non_tool_ms = max(runtime_ms - tool_runtime_ms, 0.0) if runtime_ms is not None else None
-    tool_overhead_ms = max(tool_runtime_ms - tool_http_ms, 0.0)
-
-    successful_tools = sum(1 for tool in tools if tool.get("success") is True)
-    failed_tools = sum(1 for tool in tools if tool.get("success") is False)
-    source_count = len(payload.get("sources")) if isinstance(payload.get("sources"), list) else 0
-
-    tool_share = None
-    if runtime_ms and runtime_ms > 0:
-        tool_share = round((tool_runtime_ms / runtime_ms) * 100, 2)
-
-    return {
-        "schema_version": 2,
-        "agent_runtime_latency_ms": _rounded(runtime_ms),
-        "tool_runtime_latency_ms": _rounded(tool_runtime_ms),
-        "tool_http_latency_ms": _rounded(tool_http_ms),
-        "tool_overhead_latency_ms": _rounded(tool_overhead_ms),
-        "non_tool_runtime_latency_ms": _rounded(non_tool_ms),
-        "tool_share_percent": tool_share,
-        "tool_call_count": len(tools),
-        "successful_tool_calls": successful_tools,
-        "failed_tool_calls": failed_tools,
-        "input_tokens": payload.get("input_tokens"),
-        "output_tokens": payload.get("output_tokens"),
-        "total_tokens": payload.get("total_tokens"),
-        "cost_usd": payload.get("cost_usd"),
-        "cost_status": payload.get("cost_status"),
-        "cost_reason": payload.get("cost_reason"),
-        "pricing_id": payload.get("pricing_id"),
-        "source_count": source_count,
-        "answer_length": payload.get("answer_length"),
-        "fallback_used": bool(payload.get("fallback_used")),
-        "structured_output": payload.get("parsed_output") is not None,
-        "provider": payload.get("provider"),
-        "model": payload.get("model"),
-        "provider_model_id": payload.get("provider_model_id"),
-        "provider_credential_id": payload.get("provider_credential_id"),
-        "fallback_provider_model_id": payload.get("fallback_provider_model_id"),
-        "fallback_credential_id": payload.get("fallback_credential_id"),
-        "notes": [
-            "cost_usd=null means unknown cost, not zero cost",
-            "cost_status explains whether pricing and token usage were available",
-            "provider_model_id identifies the reusable model binding used by the agent runtime",
-        ],
-    }
+        return {**payload, **nested}
+    return payload
 
 
 async def project_agent_event(
@@ -352,6 +315,9 @@ async def project_agent_event(
         trace.started_at = trace.started_at or datetime.now(timezone.utc)
         trace.ended_at = datetime.now(timezone.utc)
         trace.error = str(payload.get("error") or "unknown error")
+        diagnostics = build_execution_diagnostics(_diagnostics_source(payload))
+        payload_with_diagnostics = {**payload, "diagnostics": diagnostics}
+        _merge_data(trace, payload_with_diagnostics, event_type)
         await trace_repo.save(trace)
         await _save_event(
             event_repo,
@@ -359,14 +325,14 @@ async def project_agent_event(
             project_id=project_id,
             discriminator="failed",
             kind=TraceEventType.error,
-            payload={"event": event_type, **payload},
+            payload={"event": event_type, **payload_with_diagnostics},
         )
         return
 
     if event_type != "agent.execution.completed.v1":
         raise ValueError(f"No trace projection for event_type={event_type}")
 
-    diagnostics = _build_execution_diagnostics(payload)
+    diagnostics = build_execution_diagnostics(_diagnostics_source(payload))
     payload_with_diagnostics = {**payload, "diagnostics": diagnostics}
 
     trace.status = TraceStatus.completed
@@ -375,7 +341,8 @@ async def project_agent_event(
     trace.fallback_used = bool(payload.get("fallback_used") or trace.fallback_used)
     _apply_cost(trace, payload)
     trace.total_latency_ms = (
-        payload.get("total_latency_ms")
+        payload.get("agent_runtime_latency_ms")
+        or payload.get("total_latency_ms")
         or payload.get("latency_ms")
         or trace.total_latency_ms
     )
@@ -388,18 +355,12 @@ async def project_agent_event(
         for index, raw in enumerate(tool_calls):
             tool = raw if isinstance(raw, dict) else {}
             discriminator = _tool_discriminator(tool, str(index))
-            await _save_event(
+            await _save_tool_snapshot_if_missing(
                 event_repo,
                 trace_id=trace_id,
                 project_id=project_id,
-                discriminator=f"tool_completed:{discriminator}",
-                kind=TraceEventType.tool_call,
-                latency_ms=tool.get("duration_ms") or tool.get("latency_ms"),
-                payload={
-                    "event": "agent.execution.tool_completed.v1",
-                    "trace_id": str(trace_id),
-                    **tool,
-                },
+                discriminator=discriminator,
+                tool=tool,
             )
 
     await _save_event(
@@ -429,10 +390,11 @@ async def project_agent_event(
     )
 
     logger.info(
-        "Trace projection completed trace_id=%s runtime_ms=%s tool_ms=%s tool_calls=%s provider_model_id=%s cost_status=%s",
+        "Trace projection completed trace_id=%s runtime_ms=%s tool_wall_ms=%s tool_work_ms=%s tool_calls=%s provider_model_id=%s cost_status=%s",
         trace_id,
         diagnostics["agent_runtime_latency_ms"],
-        diagnostics["tool_runtime_latency_ms"],
+        diagnostics["tool_wall_latency_ms"],
+        diagnostics["tool_work_latency_ms"],
         diagnostics["tool_call_count"],
         trace.provider_model_id,
         diagnostics["cost_status"],

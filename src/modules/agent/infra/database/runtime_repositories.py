@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from modules.agent.infra.database.agent_run_repository import SQLAlchemyAgentRunRepository
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentReleaseRepositoryWithProviderModels,
     SQLAlchemyAgentRepositoryWithProviderModels,
@@ -16,6 +17,9 @@ from modules.agent.infra.database.repositories import (
     SQLAlchemyMessageRepository,
     SQLAlchemyProviderCredentialRepository,
 )
+from modules.agent.infra.database.runtime_environment_reader import (
+    SQLAlchemyAgentRuntimeEnvironmentReader,
+)
 from modules.agent.infra.database.runtime_session_repository import (
     SQLAlchemyRuntimeSessionRepository,
 )
@@ -27,19 +31,20 @@ from modules.agent.infra.database.vector_snapshot_repositories import (
 
 @dataclass(frozen=True, slots=True)
 class AgentRuntimeRepositories:
-    """Explicit repository set for one Agent runtime transaction.
+    """Repository set sharing one Agent persistence transaction.
 
-    The UnitOfWork owns transaction/session lifecycle. This object only groups
-    repositories that share that UnitOfWork and never exposes transaction control.
+    This remains transitional while the long-lived runtime moves fully behind
+    Application persistence ports. Transaction ownership stays in AgentUnitOfWork.
     """
 
-    transaction: AgentUnitOfWork
     agents: SQLAlchemyAgentRepositoryWithProviderModels
     provider_credentials: SQLAlchemyProviderCredentialRepository
     provider_models: SQLAlchemyProviderModelRepository
     releases: SQLAlchemyAgentReleaseRepositoryWithProviderModels
     sessions: SQLAlchemyRuntimeSessionRepository
     messages: SQLAlchemyMessageRepository
+    runs: SQLAlchemyAgentRunRepository
+    environment: SQLAlchemyAgentRuntimeEnvironmentReader
     tools: SQLAlchemyAgentToolRepository
     tool_secrets: SQLAlchemyAgentToolSecretRepository
     agent_collections: SQLAlchemyAgentCollectionRepository
@@ -52,13 +57,14 @@ def build_agent_runtime_repositories(
     uow: AgentUnitOfWork,
 ) -> AgentRuntimeRepositories:
     return AgentRuntimeRepositories(
-        transaction=uow,
         agents=SQLAlchemyAgentRepositoryWithProviderModels(uow),
         provider_credentials=SQLAlchemyProviderCredentialRepository(uow),
         provider_models=SQLAlchemyProviderModelRepository(uow),
         releases=SQLAlchemyAgentReleaseRepositoryWithProviderModels(uow),
         sessions=SQLAlchemyRuntimeSessionRepository(uow),
         messages=SQLAlchemyMessageRepository(uow),
+        runs=SQLAlchemyAgentRunRepository(uow),
+        environment=SQLAlchemyAgentRuntimeEnvironmentReader(uow),
         tools=SQLAlchemyAgentToolRepository(uow),
         tool_secrets=SQLAlchemyAgentToolSecretRepository(uow),
         agent_collections=SQLAlchemyAgentCollectionRepository(uow),

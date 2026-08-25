@@ -23,8 +23,29 @@ from modules.network.infra.database.models import (
 from shared.infra.errors import ConflictError, NotFoundError, ValidationError
 
 
+_TERMINAL_EXECUTION_STATUSES = {
+    "completed",
+    "failed",
+    "cancelled",
+    "timed_out",
+    "uncertain",
+}
+
+
 class NetworkApplicationService(SessionModeNetworkApplicationService):
     """Executes every immutable Network Session against its opening version."""
+
+    def __init__(self, *args, runtime_control: Any | None = None, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        if runtime_control is None:
+            # Transitional default until Network composition owns this dependency.
+            # Application receives only the operational control surface at runtime;
+            # PostgreSQL remains the durable source of truth.
+            from modules.network.infra.runtime.redis_store import RedisNetworkExecutionStore
+            from shared.composition_resources import EXECUTION_STATE_STORE
+
+            runtime_control = RedisNetworkExecutionStore(EXECUTION_STATE_STORE)
+        self._runtime_control = runtime_control
 
     async def submit_execution(
         self,
@@ -206,6 +227,50 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
             )
             network_session.last_message_at = datetime.now(timezone.utc)
             return execution
+
+    async def request_cancellation(self, execution_id: UUID, project_id: UUID) -> None:
+        """Cancel through Redis once operational execution exists.
+
+        PostgreSQL may remain `queued` for the whole hot execution, so it cannot be
+        used to decide whether a Run has already started. Redis owns that fact.
+        """
+
+        async with self._session_factory() as session:
+            execution = await session.get(NetworkExecutionModel, execution_id)
+            if execution is None or execution.project_id != project_id:
+                raise NotFoundError("Network execution not found")
+            durable_status = str(execution.status)
+
+        if durable_status in _TERMINAL_EXECUTION_STATUSES:
+            return
+
+        state = await self._runtime_control.snapshot(execution_id)
+        if state:
+            runtime_status = str(state.get("status") or "")
+            if (
+                runtime_status == "terminal_pending_persist"
+                or state.get("phase") == "persisted"
+                or runtime_status in _TERMINAL_EXECUTION_STATUSES
+            ):
+                return
+            await self._runtime_control.request_cancel(execution_id)
+            return
+
+        # No operational state exists yet. Preserve the legacy durable cancellation
+        # for an execution that is still waiting for the broker/worker.
+        await super().request_cancellation(execution_id, project_id)
+
+        # Close the only relevant race: the worker may have initialized Redis after
+        # the first lookup but before PostgreSQL was marked cancelled.
+        state = await self._runtime_control.snapshot(execution_id)
+        if state:
+            runtime_status = str(state.get("status") or "")
+            if (
+                runtime_status != "terminal_pending_persist"
+                and state.get("phase") != "persisted"
+                and runtime_status not in _TERMINAL_EXECUTION_STATUSES
+            ):
+                await self._runtime_control.request_cancel(execution_id)
 
 
 __all__ = ["NetworkApplicationService"]

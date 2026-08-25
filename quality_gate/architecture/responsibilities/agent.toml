@@ -4,6 +4,7 @@ root = "composition"
 allowed = [
   "composition/__init__.py",
   "composition/composers/**",
+  "composition/workflows/**",
   "composition/factories/**",
   "composition/resources.py",
   "composition/module.py",
@@ -72,6 +73,7 @@ class_suffixes = ["Gateway", "Adapter"]
 rule_id = "ARCH068"
 source = [
   "composition/composers/**",
+  "composition/workflows/**",
   "composition/factories/**",
   "composition/module.py",
   "composition/workers.py",

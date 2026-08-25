@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import asyncio
 import json
+from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import delete, select
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
+from modules.agent.infra.database.models import AgentOutboxEventModel
+from modules.agent.infra.database.runtime_transaction_runner import (
+    AgentRuntimeTransactionRunner,
+)
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.execution.ask_agent_stream_service import (
     AskAgentStreamService,
 )
-from modules.agent.infra.database.models import AgentOutboxEventModel
 from modules.observability.infra.database.models import TraceEventModel, TraceModel
 from modules.observability.infra.messaging.truthful_trace_projector import (
     project_agent_event,
@@ -28,7 +33,10 @@ class BlockingStreamService(AskAgentStreamService):
         trace_id: UUID,
         session_id: UUID,
     ) -> None:
-        self._engine = engine
+        transactions = AgentRuntimeTransactionRunner(
+            lambda: AgentUnitOfWork(engine)
+        )
+        super().__init__(MagicMock(), transactions)
         self._trace_id = trace_id
         self._session_id = session_id
 

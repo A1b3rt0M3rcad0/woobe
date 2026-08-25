@@ -18,7 +18,6 @@ from modules.agent.application.use_cases.runtime_use_cases import (
 )
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.domain.events import AgentExecutionRequestedV1
-from modules.agent.application.interfaces.llm_factory import LLMFactory
 
 
 @pytest.fixture
@@ -36,14 +35,9 @@ class TestStreamPhases:
 
     @pytest.mark.asyncio
     async def test_stream_accepts_ask_input(self):
-        llm_factory = MagicMock(spec=LLMFactory)
-        engine = MagicMock()
-        settings = MagicMock(encryption_key="test-key")
         service = AskAgentStreamService(
-            engine,
-            settings,
-            llm_factory,
-            http_executor=MagicMock(),
+            use_case=MagicMock(),
+            transactions=MagicMock(),
         )
         input_dto = AskInput(
             project_id=uuid4(), agent_id=uuid4(),

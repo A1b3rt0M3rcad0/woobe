@@ -21,6 +21,7 @@ class AskAgentController(Controller):
             result = await self._use_case.execute(input_dto)
 
             data = AskResponse(
+                run_id=result.run_id,
                 answer=result.answer,
                 session_id=result.session_id,
                 message_id=result.message_id,

@@ -5,7 +5,7 @@ from typing import Any, Iterator
 from uuid import UUID
 
 
-@dataclass(frozen=True)
+@dataclass
 class NetworkRuntimeFailure(RuntimeError):
     """Safe, structured failure propagated from an Agent Run to its Network Run."""
 

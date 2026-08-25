@@ -1,12 +1,13 @@
-from modules.agent.composition.factories.ask_agent_runtime_factory import (
-    build_ask_agent_handler,
-)
-from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
-from shared.infra.transactional_handler import TransactionalHandler
+from collections.abc import Callable
+
+from modules.agent.composition.factories.ask_agent_runtime_factory import build_ask_agent_handler
+from modules.agent.composition.resources import SETTINGS
 
 
-def ask_agent_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE)
-    handler = build_ask_agent_handler(DATABASE_ENGINE, SETTINGS)
-    return TransactionalHandler(uow, handler)
+def ask_agent_composer() -> Callable:
+    """Compose the long-lived Agent Run without a global transaction wrapper."""
+
+    return build_ask_agent_handler(SETTINGS)
+
+
+__all__ = ["ask_agent_composer"]

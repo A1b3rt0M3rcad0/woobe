@@ -35,16 +35,16 @@ def project_id() -> UUID:
 
 
 class TestConstructorModes:
-    """AskAgentUseCase uses phased execution exclusively (legacy mode removed)."""
+    """AskAgentUseCase uses explicit runtime transaction boundaries."""
 
     def test_construct_with_minimal_params(self):
-        session_factory = MagicMock()
+        transactions = MagicMock()
         llm_factory = MagicMock(spec=LLMFactory)
         use_case = AskAgentUseCase(
-            session_factory=session_factory,
+            transactions=transactions,
             llm_factory=llm_factory,
         )
-        assert use_case._session_factory is not None
+        assert use_case._transactions is transactions
         assert use_case._llm_factory is not None
 
 
@@ -124,14 +124,14 @@ class TestHttpCompatibility:
 
 
 class TestPrepareFinalizeSeparation:
-    """The use case must route to phased or legacy execution."""
+    """The use case routes execution through explicit phased orchestration."""
 
     @pytest.mark.asyncio
     async def test_phased_execution_calls_prepare(self):
-        session_factory = MagicMock()
+        transactions = MagicMock()
         llm_factory = MagicMock(spec=LLMFactory)
         use_case = AskAgentUseCase(
-            session_factory=session_factory,
+            transactions=transactions,
             llm_factory=llm_factory,
         )
         use_case._execute_phased = AsyncMock(return_value=MagicMock(spec=AskOutput))
@@ -146,10 +146,10 @@ class TestPrepareFinalizeSeparation:
 
     @pytest.mark.asyncio
     async def test_execute_always_calls_phased(self):
-        session_factory = MagicMock()
+        transactions = MagicMock()
         llm_factory = MagicMock(spec=LLMFactory)
         use_case = AskAgentUseCase(
-            session_factory=session_factory,
+            transactions=transactions,
             llm_factory=llm_factory,
         )
         use_case._execute_phased = AsyncMock(return_value=MagicMock(spec=AskOutput))
@@ -168,10 +168,10 @@ class TestExecuteLlmReturnsToolData:
 
     @pytest.mark.asyncio
     async def test_execute_llm_returns_tuple(self):
-        session_factory = MagicMock()
+        transactions = MagicMock()
         llm_factory = MagicMock(spec=LLMFactory)
         use_case = AskAgentUseCase(
-            session_factory=session_factory,
+            transactions=transactions,
             llm_factory=llm_factory,
         )
 
