@@ -114,35 +114,46 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
     agent.provider_model_id = provider_model_id
 
     async with session_factory() as session, session.begin():
-        session.add_all(
-            [
-                credential,
-                provider_model,
-                agent,
-                NetworkModel(
-                    id=network_id,
-                    project_id=project_id,
-                    name=f"fake-provider-network-{network_id}",
-                    description="",
-                    draft_definition=definition,
-                    draft_revision=1,
-                    staging_version_id=None,
-                    production_version_id=None,
-                ),
-                NetworkSessionModel(
-                    id=network_session_id,
-                    network_id=network_id,
-                    network_version_id=None,
-                    project_id=project_id,
-                    origin="runtime_api",
-                    environment="draft",
-                    title="fake provider network session",
-                    tenant_id=None,
-                    user_id=None,
-                    external_session_id=None,
-                    status="active",
-                ),
-            ]
+        # These fixtures intentionally use scalar FK ids instead of ORM relationships.
+        # Flush each dependency before its consumer so the test setup is deterministic
+        # on PostgreSQL. This setup commit is outside the lifecycle commit counter below.
+        session.add(credential)
+        await session.flush()
+
+        session.add(provider_model)
+        await session.flush()
+
+        session.add(agent)
+        await session.flush()
+
+        session.add(
+            NetworkModel(
+                id=network_id,
+                project_id=project_id,
+                name=f"fake-provider-network-{network_id}",
+                description="",
+                draft_definition=definition,
+                draft_revision=1,
+                staging_version_id=None,
+                production_version_id=None,
+            )
+        )
+        await session.flush()
+
+        session.add(
+            NetworkSessionModel(
+                id=network_session_id,
+                network_id=network_id,
+                network_version_id=None,
+                project_id=project_id,
+                origin="runtime_api",
+                environment="draft",
+                title="fake provider network session",
+                tenant_id=None,
+                user_id=None,
+                external_session_id=None,
+                status="active",
+            )
         )
 
     service = NetworkApplicationService(
