@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
@@ -132,6 +133,7 @@ class RedisNetworkExecutionStore:
                     "agent_session_id": str(session_id) if session_id else None,
                     "status": "running",
                     "persist_context": persist_context,
+                    "started_at": datetime.now(timezone.utc).isoformat(),
                 }
             },
         )
@@ -160,6 +162,8 @@ class RedisNetworkExecutionStore:
         invocation = await self._invocation(execution_id, invocation_id)
         if invocation is None:
             return
+        diagnostics = getattr(result, "diagnostics", None)
+        llm_calls = getattr(result, "llm_calls", None)
         invocation.update(
             {
                 "status": "completed",
@@ -171,10 +175,20 @@ class RedisNetworkExecutionStore:
                 "provider": result.provider,
                 "model": result.model,
                 "usage": result.usage,
+                "diagnostics": diagnostics if isinstance(diagnostics, dict) else None,
+                "llm_calls": llm_calls if isinstance(llm_calls, list) else [],
                 "tool_calls": result.tool_calls or [],
                 "sources": result.sources or [],
                 "parsed_output": result.parsed_output,
                 "output_parse_error": result.output_parse_error,
+                "started_at": (
+                    getattr(result, "started_at", None)
+                    or invocation.get("started_at")
+                ),
+                "completed_at": (
+                    getattr(result, "completed_at", None)
+                    or datetime.now(timezone.utc).isoformat()
+                ),
             }
         )
         updates: dict[str, Any] = {
@@ -213,6 +227,7 @@ class RedisNetworkExecutionStore:
                     if agent_session_id
                     else invocation.get("agent_session_id")
                 ),
+                "completed_at": datetime.now(timezone.utc).isoformat(),
             }
         )
         updates: dict[str, Any] = {
