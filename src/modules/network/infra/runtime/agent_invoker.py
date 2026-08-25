@@ -20,7 +20,6 @@ from modules.network.application.runtime_failures import (
     NetworkRuntimeFailure,
     classify_runtime_exception,
 )
-from modules.network.infra.runtime.agent_metrics import build_deferred_agent_metrics
 from shared.infra.config import Settings
 
 AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
@@ -203,27 +202,37 @@ class ProjectRAIAgentInvoker:
                 )
                 raise failure from exc
 
-            metrics = build_deferred_agent_metrics(context, output)
+            # Usage and v5 telemetry are owned by the Agent runtime. The Network
+            # bridge transports them unchanged instead of reconstructing them from
+            # RequestExecutionContext internals.
+            usage = output.usage.model_dump() if output.usage else None
             result = AgentInvocationResult(
                 answer=output.answer,
                 session_id=output.session_id,
                 trace_id=output.trace_id,
                 provider=output.provider,
                 model=output.model,
-                usage=metrics.usage,
+                usage=usage,
                 tool_calls=[item.model_dump() for item in output.tool_calls],
                 sources=[item.model_dump() for item in output.sources],
                 parsed_output=output.parsed_output,
                 output_parse_error=output.output_parse_error,
                 streamed_output=streamed_output,
             )
-            # AgentInvocationResult remains the Application boundary. These fields
-            # are runtime snapshots consumed only by the Network Redis/finalizer
-            # path and do not introduce a child PostgreSQL write.
-            object.__setattr__(result, "diagnostics", metrics.diagnostics)
-            object.__setattr__(result, "llm_calls", metrics.llm_calls)
-            object.__setattr__(result, "started_at", metrics.started_at)
-            object.__setattr__(result, "completed_at", metrics.completed_at)
+            diagnostics = getattr(output, "diagnostics", None)
+            llm_calls = getattr(output, "llm_calls", None)
+            object.__setattr__(
+                result,
+                "diagnostics",
+                diagnostics if isinstance(diagnostics, dict) else None,
+            )
+            object.__setattr__(
+                result,
+                "llm_calls",
+                llm_calls if isinstance(llm_calls, list) else [],
+            )
+            object.__setattr__(result, "started_at", getattr(output, "run_started_at", None))
+            object.__setattr__(result, "completed_at", getattr(output, "run_completed_at", None))
             return result
         finally:
             if execution_task is not None and not execution_task.done():
