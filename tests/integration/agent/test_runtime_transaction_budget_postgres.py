@@ -148,4 +148,18 @@ async def test_agent_happy_path_uses_exactly_two_postgres_commits() -> None:
         assert persisted_run.result is not None
         assert persisted_run.result["run_id"] == str(result.run_id)
 
+        diagnostics = persisted_run.result["diagnostics"]
+        assert diagnostics["schema_version"] == 5
+        assert diagnostics["agent_runtime_latency_ms"] >= 0
+        assert diagnostics["llm_work_latency_ms"] >= 0
+        assert diagnostics["tool_wall_latency_ms"] == 0
+        assert diagnostics["tool_work_latency_ms"] == 0
+        assert diagnostics["finalization_work_latency_ms"] >= 0
+        assert diagnostics["other_latency_ms"] >= 0
+        assert diagnostics["orchestration_latency_ms"] is None
+        assert (
+            persisted_run.result["runtime_scope"]
+            == "through_terminal_persistence_work_pre_commit"
+        )
+
     await engine.dispose()

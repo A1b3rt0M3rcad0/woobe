@@ -31,17 +31,14 @@ def utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-def tool_http_latency_ms(tool_output: Any) -> float | None:
+def tool_provider_latency_ms(tool_output: Any) -> float | None:
+    """Return adapter-declared provider work without guessing from payload shape."""
+
     if not isinstance(tool_output, dict):
         return None
-    direct = tool_output.get("duration_ms")
-    if isinstance(direct, (int, float)) and not isinstance(direct, bool):
-        return float(direct)
-    nested = tool_output.get("output")
-    if isinstance(nested, dict):
-        value = nested.get("duration_ms")
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            return float(value)
+    value = tool_output.get("provider_latency_ms")
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return float(value)
     return None
 
 
@@ -239,7 +236,7 @@ async def execute_tool_call(
         "output": output,
         "llm_output_size_chars": len(llm_content),
         "duration_ms": duration_ms,
-        "http_latency_ms": tool_http_latency_ms(output),
+        "provider_latency_ms": tool_provider_latency_ms(output),
         "success": normalized.success,
         "error_code": normalized.error_code,
         "error": normalized.error_message,

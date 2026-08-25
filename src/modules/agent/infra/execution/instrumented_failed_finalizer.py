@@ -85,6 +85,20 @@ def _cost_diagnostics(llm_calls: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _tool_provider_work_ms(timeline: list[dict[str, Any]]) -> int | None:
+    values: list[int] = []
+    for item in timeline:
+        if item.get("kind") != "tool":
+            continue
+        payload = item.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        value = payload.get("provider_latency_ms")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            values.append(round(float(value)))
+    return sum(values) if values else None
+
+
 def _failed_event(agent_id, payload):
     return AgentExecutionFailedV1(
         payload=payload,
@@ -95,6 +109,80 @@ def _failed_event(agent_id, payload):
             str(payload.get("trace_id")),
         ),
     )
+
+
+def _diagnostics(
+    *,
+    execution: InstrumentedExecution,
+    total_ms: int,
+    prepare_latency_ms: int | float | None,
+    finalization_work_ms: int,
+    usage_complete: bool,
+    cost_status: str,
+    cost_details: dict[str, Any],
+    binding_payload: dict[str, Any],
+    fallback_binding_payload: dict[str, Any],
+    failure_context: dict[str, Any],
+) -> dict[str, Any]:
+    llm_work_ms = sum(
+        int(call.get("latency_ms") or 0)
+        for call in execution.llm_calls
+    )
+    tool_wall_ms = int(execution.tool_wall_latency_ms or 0)
+    tool_work_ms = int(execution.tool_call_duration_sum_ms or 0)
+    provider_work_ms = _tool_provider_work_ms(execution.timeline)
+    tool_runtime_overhead_ms = (
+        max(tool_work_ms - provider_work_ms, 0)
+        if provider_work_ms is not None
+        else None
+    )
+    other_ms = max(
+        total_ms
+        - int(prepare_latency_ms or 0)
+        - llm_work_ms
+        - tool_wall_ms
+        - finalization_work_ms,
+        0,
+    )
+    return {
+        "schema_version": 5,
+        "agent_runtime_latency_ms": total_ms,
+        "total_latency_ms": total_ms,
+        "prepare_latency_ms": prepare_latency_ms or 0,
+        "llm_work_latency_ms": llm_work_ms,
+        "llm_runtime_latency_ms": llm_work_ms,
+        "tool_wall_latency_ms": tool_wall_ms,
+        "tool_work_latency_ms": tool_work_ms,
+        "tool_call_duration_sum_ms": tool_work_ms,
+        "tool_parallelism_ratio": (
+            round(tool_work_ms / tool_wall_ms, 3)
+            if tool_wall_ms > 0
+            else None
+        ),
+        "tool_provider_work_ms": provider_work_ms,
+        "tool_runtime_overhead_ms": tool_runtime_overhead_ms,
+        "finalization_work_latency_ms": finalization_work_ms,
+        "persistence_latency_ms": finalization_work_ms,
+        "other_latency_ms": other_ms,
+        "unaccounted_latency_ms": other_ms,
+        "orchestration_latency_ms": None,
+        "llm_call_count": len(execution.llm_calls),
+        "tool_call_count": len(execution.tool_calls),
+        "usage_complete": usage_complete,
+        "cost_status": cost_status,
+        "cost_reason": cost_details["cost_reason"],
+        "cost_statuses": cost_details["cost_statuses"],
+        "pricing_ids": cost_details["pricing_ids"],
+        "provider_model_id": binding_payload["provider_model_id"],
+        "provider_credential_id": binding_payload["provider_credential_id"],
+        "fallback_provider_model_id": fallback_binding_payload["fallback_provider_model_id"],
+        "fallback_credential_id": fallback_binding_payload["fallback_credential_id"],
+        "failure_phase": failure_context.get("phase"),
+        "failure_call_index": failure_context.get("call_index"),
+        "upstream_status": failure_context.get("upstream_status"),
+        "upstream_error_code": failure_context.get("upstream_error_code"),
+        "partial_result_available": failure_context.get("partial_result_available") is True,
+    }
 
 
 async def finalize_failed_instrumented_execution(
@@ -121,41 +209,19 @@ async def finalize_failed_instrumented_execution(
     trace_binding_payload = {**binding_payload, **fallback_binding_payload}
     failure_context = execution.failure_context or {}
 
-    total_ms = round((time.monotonic() - started_at) * 1000)
-    llm_ms = sum(int(call.get("latency_ms") or 0) for call in execution.llm_calls)
-    http_ms = sum(
-        int(item["payload"].get("http_latency_ms") or 0)
-        for item in execution.timeline
-        if item.get("kind") == "tool"
+    preliminary_total_ms = round((time.monotonic() - started_at) * 1000)
+    preliminary_diagnostics = _diagnostics(
+        execution=execution,
+        total_ms=preliminary_total_ms,
+        prepare_latency_ms=prepare_latency_ms,
+        finalization_work_ms=0,
+        usage_complete=usage_complete,
+        cost_status=cost_status,
+        cost_details=cost_details,
+        binding_payload=binding_payload,
+        fallback_binding_payload=fallback_binding_payload,
+        failure_context=failure_context,
     )
-    tool_ms = execution.tool_wall_latency_ms
-    orchestration_ms = max(total_ms - int(prepare_latency_ms or 0) - llm_ms - tool_ms, 0)
-    diagnostics = {
-        "schema_version": 4,
-        "total_latency_ms": total_ms,
-        "prepare_latency_ms": prepare_latency_ms or 0,
-        "llm_runtime_latency_ms": llm_ms,
-        "tool_wall_latency_ms": tool_ms,
-        "tool_call_duration_sum_ms": execution.tool_call_duration_sum_ms,
-        "tool_http_latency_ms": http_ms,
-        "orchestration_latency_ms": orchestration_ms,
-        "llm_call_count": len(execution.llm_calls),
-        "tool_call_count": len(execution.tool_calls),
-        "usage_complete": usage_complete,
-        "cost_status": cost_status,
-        "cost_reason": cost_details["cost_reason"],
-        "cost_statuses": cost_details["cost_statuses"],
-        "pricing_ids": cost_details["pricing_ids"],
-        "provider_model_id": binding_payload["provider_model_id"],
-        "provider_credential_id": binding_payload["provider_credential_id"],
-        "fallback_provider_model_id": fallback_binding_payload["fallback_provider_model_id"],
-        "fallback_credential_id": fallback_binding_payload["fallback_credential_id"],
-        "failure_phase": failure_context.get("phase"),
-        "failure_call_index": failure_context.get("call_index"),
-        "upstream_status": failure_context.get("upstream_status"),
-        "upstream_error_code": failure_context.get("upstream_error_code"),
-        "partial_result_available": failure_context.get("partial_result_available") is True,
-    }
     payload = {
         "run_id": str(run_id) if run_id else None,
         "trace_id": trace_id_text,
@@ -175,13 +241,13 @@ async def finalize_failed_instrumented_execution(
         **trace_binding_payload,
         "model": getattr(agent, "model", None),
         "provider": _provider_value(getattr(agent, "provider", None)),
-        "latency_ms": total_ms,
-        "total_latency_ms": total_ms,
-        "runtime_scope": "failed_execution_with_collected_telemetry",
-        **diagnostics,
+        "latency_ms": preliminary_total_ms,
+        "total_latency_ms": preliminary_total_ms,
+        "runtime_scope": "failed_execution_terminal_persistence_pending",
+        **preliminary_diagnostics,
         "tool_calls": [tool.model_dump() for tool in execution.tool_calls],
         "llm_calls": execution.llm_calls,
-        "diagnostics": diagnostics,
+        "diagnostics": preliminary_diagnostics,
         "timeline_complete": False,
         "failed_at": _utc_now(),
     }
@@ -191,6 +257,7 @@ async def finalize_failed_instrumented_execution(
         repositories: AgentRuntimeRepositories,
         outbox: OutboxEventWriter,
     ) -> None:
+        finalization_started = time.monotonic()
         for item in sorted(execution.timeline, key=lambda value: value.get("occurred_at", "")):
             event_payload = {
                 "run_id": str(run_id) if run_id else None,
@@ -200,16 +267,53 @@ async def finalize_failed_instrumented_execution(
                 **trace_binding_payload,
                 **item["payload"],
             }
-            event = llm_event(agent.id, event_payload) if item["kind"] == "llm" else tool_event(agent.id, event_payload)
+            event = (
+                llm_event(agent.id, event_payload)
+                if item["kind"] == "llm"
+                else tool_event(agent.id, event_payload)
+            )
             await outbox.write(event)
+
+        finalization_work_ms = round(
+            (time.monotonic() - finalization_started) * 1000
+        )
+        total_ms = round((time.monotonic() - started_at) * 1000)
+        diagnostics = _diagnostics(
+            execution=execution,
+            total_ms=total_ms,
+            prepare_latency_ms=prepare_latency_ms,
+            finalization_work_ms=finalization_work_ms,
+            usage_complete=usage_complete,
+            cost_status=cost_status,
+            cost_details=cost_details,
+            binding_payload=binding_payload,
+            fallback_binding_payload=fallback_binding_payload,
+            failure_context=failure_context,
+        )
+        payload.update(
+            {
+                "latency_ms": total_ms,
+                "total_latency_ms": total_ms,
+                "runtime_scope": "failed_execution_through_terminal_persistence_work_pre_commit",
+                **diagnostics,
+                "diagnostics": diagnostics,
+                "failed_at": _utc_now(),
+            }
+        )
         await outbox.write(_failed_event(agent.id, payload))
         if run_id is not None:
             run = await repositories.runs.get_by_id(run_id)
             if run is not None:
                 run.status = AgentRunStatus.FAILED
-                run.failure_code = str(failure_context.get("phase") or "runtime_error")
+                run.failure_code = str(
+                    failure_context.get("phase") or "runtime_error"
+                )
                 run.failure_detail = error[:8000]
-                run.usage = aggregate.model_dump() if hasattr(aggregate, "model_dump") else None
+                run.usage = (
+                    aggregate.model_dump()
+                    if hasattr(aggregate, "model_dump")
+                    else None
+                )
                 run.result = payload
                 run.completed_at = datetime.now(timezone.utc)
                 await repositories.runs.save(run)

@@ -103,6 +103,20 @@ def _cost_diagnostics(llm_calls: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _tool_provider_work_ms(timeline: list[dict[str, Any]]) -> int | None:
+    values: list[int] = []
+    for item in timeline:
+        if item.get("kind") != "tool":
+            continue
+        payload = item.get("payload")
+        if not isinstance(payload, dict):
+            continue
+        value = payload.get("provider_latency_ms")
+        if isinstance(value, (int, float)) and not isinstance(value, bool):
+            values.append(round(float(value)))
+    return sum(values) if values else None
+
+
 def _event(
     trace_id: str,
     event_type: str,
@@ -174,8 +188,8 @@ async def finalize_instrumented_execution(owner, **kw):
         repositories: AgentRuntimeRepositories,
         outbox: OutboxEventWriter,
     ) -> AskOutput:
-        persistence_started_at = _utc_now()
-        persistence_started = time.monotonic()
+        finalization_started_at = _utc_now()
+        finalization_started = time.monotonic()
         message_id = None
         if session:
             message = await owner._do_save_assistant_message(
@@ -199,7 +213,11 @@ async def finalize_instrumented_execution(owner, **kw):
                 **trace_binding_payload,
                 **item["payload"],
             }
-            event = llm_event(agent.id, event_payload) if item["kind"] == "llm" else tool_event(agent.id, event_payload)
+            event = (
+                llm_event(agent.id, event_payload)
+                if item["kind"] == "llm"
+                else tool_event(agent.id, event_payload)
+            )
             await outbox.write(event)
 
         if kw["fallback_info"]:
@@ -217,30 +235,62 @@ async def finalize_instrumented_execution(owner, **kw):
                 )
             )
 
-        persistence_ms = round((time.monotonic() - persistence_started) * 1000)
-        persistence_ended_at = _utc_now()
+        # Snapshot timings at the latest point available before the terminal
+        # summary/outbox is materialized. The physical PostgreSQL COMMIT happens
+        # after this callback returns and is intentionally not claimed here.
+        finalization_work_ms = round(
+            (time.monotonic() - finalization_started) * 1000
+        )
+        finalization_ended_at = _utc_now()
         total_ms = round((time.monotonic() - kw["started_at"]) * 1000)
         execution_completed_at = _utc_now()
-        llm_ms = sum(int(call.get("latency_ms") or 0) for call in execution.llm_calls)
-        http_ms = sum(
-            int(item["payload"].get("http_latency_ms") or 0)
-            for item in execution.timeline
-            if item.get("kind") == "tool"
+        llm_work_ms = sum(
+            int(call.get("latency_ms") or 0)
+            for call in execution.llm_calls
         )
-        orchestration_ms = max(
-            total_ms - kw["prepare_latency_ms"] - persistence_ms - llm_ms - execution.tool_wall_latency_ms,
+        tool_wall_ms = int(execution.tool_wall_latency_ms or 0)
+        tool_work_ms = int(execution.tool_call_duration_sum_ms or 0)
+        provider_work_ms = _tool_provider_work_ms(execution.timeline)
+        tool_runtime_overhead_ms = (
+            max(tool_work_ms - provider_work_ms, 0)
+            if provider_work_ms is not None
+            else None
+        )
+        tool_parallelism_ratio = (
+            round(tool_work_ms / tool_wall_ms, 3)
+            if tool_wall_ms > 0
+            else None
+        )
+        other_ms = max(
+            total_ms
+            - int(kw["prepare_latency_ms"] or 0)
+            - llm_work_ms
+            - tool_wall_ms
+            - finalization_work_ms,
             0,
         )
         diagnostics = {
-            "schema_version": 4,
+            "schema_version": 5,
+            "agent_runtime_latency_ms": total_ms,
             "total_latency_ms": total_ms,
             "prepare_latency_ms": kw["prepare_latency_ms"],
-            "llm_runtime_latency_ms": llm_ms,
-            "tool_wall_latency_ms": execution.tool_wall_latency_ms,
-            "tool_call_duration_sum_ms": execution.tool_call_duration_sum_ms,
-            "tool_http_latency_ms": http_ms,
-            "persistence_latency_ms": persistence_ms,
-            "orchestration_latency_ms": orchestration_ms,
+            "llm_work_latency_ms": llm_work_ms,
+            # Legacy alias retained for historical API consumers.
+            "llm_runtime_latency_ms": llm_work_ms,
+            "tool_wall_latency_ms": tool_wall_ms,
+            "tool_work_latency_ms": tool_work_ms,
+            # Legacy alias retained for historical API consumers.
+            "tool_call_duration_sum_ms": tool_work_ms,
+            "tool_parallelism_ratio": tool_parallelism_ratio,
+            "tool_provider_work_ms": provider_work_ms,
+            "tool_runtime_overhead_ms": tool_runtime_overhead_ms,
+            "finalization_work_latency_ms": finalization_work_ms,
+            # Legacy alias. This is pre-commit finalization work, not DB commit RTT.
+            "persistence_latency_ms": finalization_work_ms,
+            "other_latency_ms": other_ms,
+            "unaccounted_latency_ms": other_ms,
+            # Never synthesize orchestration from a residual.
+            "orchestration_latency_ms": None,
             "llm_call_count": len(execution.llm_calls),
             "tool_call_count": len(execution.tool_calls),
             "usage_complete": kw["usage_complete"],
@@ -255,8 +305,12 @@ async def finalize_instrumented_execution(owner, **kw):
             **runtime_binding_payload,
         }
 
-        request_received_at = context.request_received_at if context else execution_completed_at
-        execution_started_at = context.execution_started_at if context else request_received_at
+        request_received_at = (
+            context.request_received_at if context else execution_completed_at
+        )
+        execution_started_at = (
+            context.execution_started_at if context else request_received_at
+        )
         execution_events = [
             _event(
                 trace_id_text,
@@ -267,7 +321,10 @@ async def finalize_instrumented_execution(owner, **kw):
                 started_at=request_received_at,
                 ended_at=request_received_at,
                 duration_ms=0,
-                attributes={"client_sent_at": context.client_sent_at if context else None, **runtime_binding_payload},
+                attributes={
+                    "client_sent_at": context.client_sent_at if context else None,
+                    **runtime_binding_payload,
+                },
                 span_id=trace_id_text,
                 parent_span_id=None,
             ),
@@ -280,25 +337,102 @@ async def finalize_instrumented_execution(owner, **kw):
                 started_at=execution_started_at,
                 span_id=trace_id_text,
                 parent_span_id=None,
-                attributes={**binding_payload["model_binding"], **runtime_binding_payload},
+                attributes={
+                    **binding_payload["model_binding"],
+                    **runtime_binding_payload,
+                },
             ),
         ]
         if context and context.prepare_started_at:
             prepare_span = str(uuid4())
             execution_events.extend(
                 [
-                    _event(trace_id_text, "agent.prepare.started", context.prepare_started_at, phase="prepare", status="running", started_at=context.prepare_started_at, span_id=prepare_span),
-                    _event(trace_id_text, "agent.prepare.completed", context.prepare_ended_at or context.prepare_started_at, phase="prepare", status="success", started_at=context.prepare_started_at, ended_at=context.prepare_ended_at, duration_ms=context.prepare_latency_ms, span_id=prepare_span),
+                    _event(
+                        trace_id_text,
+                        "agent.prepare.started",
+                        context.prepare_started_at,
+                        phase="prepare",
+                        status="running",
+                        started_at=context.prepare_started_at,
+                        span_id=prepare_span,
+                    ),
+                    _event(
+                        trace_id_text,
+                        "agent.prepare.completed",
+                        context.prepare_ended_at or context.prepare_started_at,
+                        phase="prepare",
+                        status="success",
+                        started_at=context.prepare_started_at,
+                        ended_at=context.prepare_ended_at,
+                        duration_ms=context.prepare_latency_ms,
+                        span_id=prepare_span,
+                    ),
                 ]
             )
         execution_events.extend(build_operation_events(trace_id_text, execution.timeline))
         execution_events.extend(
             [
-                _event(trace_id_text, "structured_output.parse.completed", parse_completed_at, phase="structured_output", status="success" if kw["output_parse_error"] is None else "error", ended_at=parse_completed_at, attributes={"parsed": kw["parsed_output"] is not None, "error": kw["output_parse_error"], "duration_measured": False}),
-                _event(trace_id_text, "message.persistence.started", persistence_started_at, phase="persistence", status="running", started_at=persistence_started_at),
-                _event(trace_id_text, "message.persistence.completed", persistence_ended_at, phase="persistence", status="success", started_at=persistence_started_at, ended_at=persistence_ended_at, duration_ms=persistence_ms),
-                _event(trace_id_text, "agent.execution.completed", execution_completed_at, phase="execution", status="success", started_at=execution_started_at, ended_at=execution_completed_at, duration_ms=total_ms, attributes={"diagnostics": diagnostics, **binding_payload["model_binding"], **runtime_binding_payload}, span_id=trace_id_text, parent_span_id=None),
-                _event(trace_id_text, "http.response.prepared", execution_completed_at, phase="response", status="success", ended_at=execution_completed_at),
+                _event(
+                    trace_id_text,
+                    "structured_output.parse.completed",
+                    parse_completed_at,
+                    phase="structured_output",
+                    status=(
+                        "success"
+                        if kw["output_parse_error"] is None
+                        else "error"
+                    ),
+                    ended_at=parse_completed_at,
+                    attributes={
+                        "parsed": kw["parsed_output"] is not None,
+                        "error": kw["output_parse_error"],
+                        "duration_measured": False,
+                    },
+                ),
+                _event(
+                    trace_id_text,
+                    "message.persistence.started",
+                    finalization_started_at,
+                    phase="finalization",
+                    status="running",
+                    started_at=finalization_started_at,
+                ),
+                _event(
+                    trace_id_text,
+                    "message.persistence.completed",
+                    finalization_ended_at,
+                    phase="finalization",
+                    status="success",
+                    started_at=finalization_started_at,
+                    ended_at=finalization_ended_at,
+                    duration_ms=finalization_work_ms,
+                    attributes={"commit_included": False},
+                ),
+                _event(
+                    trace_id_text,
+                    "agent.execution.completed",
+                    execution_completed_at,
+                    phase="execution",
+                    status="success",
+                    started_at=execution_started_at,
+                    ended_at=execution_completed_at,
+                    duration_ms=total_ms,
+                    attributes={
+                        "diagnostics": diagnostics,
+                        **binding_payload["model_binding"],
+                        **runtime_binding_payload,
+                    },
+                    span_id=trace_id_text,
+                    parent_span_id=None,
+                ),
+                _event(
+                    trace_id_text,
+                    "http.response.prepared",
+                    execution_completed_at,
+                    phase="response",
+                    status="success",
+                    ended_at=execution_completed_at,
+                ),
             ]
         )
         execution_events = sequence_events(execution_events)
@@ -324,7 +458,7 @@ async def finalize_instrumented_execution(owner, **kw):
             "provider": kw["response_provider"] or "",
             "latency_ms": total_ms,
             "total_latency_ms": total_ms,
-            "runtime_scope": "through_response_persistence",
+            "runtime_scope": "through_terminal_persistence_work_pre_commit",
             **diagnostics,
             "fallback_used": kw["fallback_used"],
             "sources": [source.model_dump() for source in sources],
@@ -336,7 +470,10 @@ async def finalize_instrumented_execution(owner, **kw):
             "timeline_complete": True,
         }
         if kw["fallback_info"]:
-            payload["fallback_info"] = {**kw["fallback_info"], **fallback_binding_payload}
+            payload["fallback_info"] = {
+                **kw["fallback_info"],
+                **fallback_binding_payload,
+            }
         await outbox.write(completed_event(agent.id, payload))
 
         if run_id is not None:
@@ -344,7 +481,11 @@ async def finalize_instrumented_execution(owner, **kw):
             if run is not None:
                 run.status = AgentRunStatus.COMPLETED
                 run.output_message_id = message_id
-                run.usage = usage.model_dump() if hasattr(usage, "model_dump") else None
+                run.usage = (
+                    usage.model_dump()
+                    if hasattr(usage, "model_dump")
+                    else None
+                )
                 run.result = payload
                 run.completed_at = datetime.now(timezone.utc)
                 await repositories.runs.save(run)
@@ -362,7 +503,9 @@ async def finalize_instrumented_execution(owner, **kw):
             provider=kw["response_provider"],
             provider_model_id=getattr(agent, "provider_model_id", None),
             provider_credential_id=getattr(agent, "provider_credential_id", None),
-            fallback_provider_model_id=getattr(agent, "fallback_provider_model_id", None),
+            fallback_provider_model_id=getattr(
+                agent, "fallback_provider_model_id", None
+            ),
             fallback_credential_id=getattr(agent, "fallback_credential_id", None),
             fallback_used=kw["fallback_used"],
             fallback_info=payload.get("fallback_info"),

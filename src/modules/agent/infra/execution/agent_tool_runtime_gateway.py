@@ -88,6 +88,9 @@ class AgentToolRuntimeGateway:
         return {
             "success": result.success,
             "output": result.output,
+            # Legacy result field retained for Tool consumers. Diagnostics must use
+            # provider_latency_ms explicitly instead of guessing from duration_ms.
             "duration_ms": result.duration_ms,
+            "provider_latency_ms": result.duration_ms,
             "error": result.error,
         }
