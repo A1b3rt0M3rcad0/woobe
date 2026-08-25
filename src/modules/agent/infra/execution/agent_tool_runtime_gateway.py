@@ -16,6 +16,9 @@ from modules.agent.domain.errors import ToolNotFoundError
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.runtime_secret_resolver import RuntimeToolSecretResolver
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
+from modules.agent.infra.execution.tool_invocation_metrics import (
+    record_tool_provider_latency,
+)
 from modules.agent.infra.execution.tool_runtime_registry import build_tool_runtime_registry
 from shared.infra.config import Settings
 
@@ -85,12 +88,12 @@ class AgentToolRuntimeGateway:
             secret_resolver=self._secret_resolver,
         )
         result = await registry.execute(tool, runtime_input)
+        # Provider timing is operational metadata. Capture it out-of-band so the
+        # logical Tool result consumed by Agents/Networks remains stable.
+        record_tool_provider_latency(result.duration_ms)
         return {
             "success": result.success,
             "output": result.output,
-            # Legacy result field retained for Tool consumers. Diagnostics must use
-            # provider_latency_ms explicitly instead of guessing from duration_ms.
             "duration_ms": result.duration_ms,
-            "provider_latency_ms": result.duration_ms,
             "error": result.error,
         }
