@@ -6,8 +6,9 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 
-from modules.network.infra.database.models import NetworkExecutionModel
+from modules.network.infra.database.models import NetworkExecutionModel, NetworkSessionModel
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, NotFoundError
 from shared.runtime_reattach import RuntimeStreamFrame, RuntimeStreamGapError, RuntimeStreamReader
@@ -16,13 +17,40 @@ from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipa
 
 router = APIRouter(prefix="/network", tags=["network", "runtime"])
 _TERMINAL_STATUSES = {"completed", "failed", "cancelled", "timed_out", "uncertain"}
+_ACTIVE_STATUSES = {"queued", "running", "cancel_requested"}
 
 
-def _authorize_project(request: Request, project_id: UUID) -> None:
+def _runtime_target(principal: ProjectApiPrincipal) -> tuple[str | None, UUID | None]:
+    target_type = principal.target_type
+    target_id = principal.target_id
+    if target_type is None and principal.agent_id is not None:
+        target_type = "agent"
+    if target_id is None and principal.agent_id is not None:
+        target_id = principal.agent_id
+    return target_type, target_id
+
+
+def _authorize_execution(
+    request: Request,
+    execution: NetworkExecutionModel,
+    network_session: NetworkSessionModel | None,
+) -> None:
     principal = getattr(request.state, "principal", None)
     if isinstance(principal, ProjectApiPrincipal):
-        if principal.project_id != project_id:
+        if principal.project_id != execution.project_id:
             raise AuthorizationError("Runtime key does not belong to this Project")
+        if principal.kind == "runtime":
+            target_type, target_id = _runtime_target(principal)
+            if target_type != "network" or target_id != execution.network_id:
+                raise NotFoundError("Network execution not found")
+            if (
+                principal.environment is not None
+                and (
+                    network_session is None
+                    or principal.environment != network_session.environment
+                )
+            ):
+                raise NotFoundError("Network execution not found")
         return
     if isinstance(principal, AuthenticatedPrincipal):
         return
@@ -34,7 +62,8 @@ async def _load_execution(request: Request, execution_id: UUID) -> NetworkExecut
         execution = await session.get(NetworkExecutionModel, execution_id)
         if execution is None:
             raise NotFoundError("Network execution not found")
-        _authorize_project(request, execution.project_id)
+        network_session = await session.get(NetworkSessionModel, execution.network_session_id)
+        _authorize_execution(request, execution, network_session)
         return execution
 
 
@@ -51,6 +80,7 @@ def _durable_state(execution: NetworkExecutionModel) -> dict:
         "project_id": str(execution.project_id),
         "network_id": str(execution.network_id),
         "network_session_id": str(execution.network_session_id),
+        "input_message": execution.input_message,
         "failure_code": execution.failure_code,
         "failure_detail": execution.failure_detail,
         "updated_at": (
@@ -61,7 +91,7 @@ def _durable_state(execution: NetworkExecutionModel) -> dict:
     }
 
 
-def _network_sse(frame: RuntimeStreamFrame, execution_id: UUID) -> str:
+def network_runtime_sse(frame: RuntimeStreamFrame, execution_id: UUID) -> str:
     payload = dict(frame.data)
     if frame.event_type == "run.state":
         envelope = {
@@ -94,6 +124,39 @@ def _network_sse(frame: RuntimeStreamFrame, execution_id: UUID) -> str:
     )
 
 
+@router.get("/executions/active")
+async def active_network_execution(
+    request: Request,
+    network_session_id: UUID,
+):
+    async with request.app.state.session_factory() as session:
+        execution = await session.scalar(
+            select(NetworkExecutionModel)
+            .where(
+                NetworkExecutionModel.network_session_id == network_session_id,
+                NetworkExecutionModel.status.in_(_ACTIVE_STATUSES),
+            )
+            .order_by(NetworkExecutionModel.created_at.desc(), NetworkExecutionModel.id.desc())
+            .limit(1)
+        )
+        network_session = await session.get(NetworkSessionModel, network_session_id)
+    if execution is None:
+        return {"success": True, "data": None}
+    _authorize_execution(request, execution, network_session)
+    return {
+        "success": True,
+        "data": {
+            "run_id": str(execution.id),
+            "execution_id": str(execution.id),
+            "status": str(execution.status),
+            "network_session_id": str(execution.network_session_id),
+            "network_id": str(execution.network_id),
+            "input_message": execution.input_message,
+            "created_at": execution.created_at,
+        },
+    }
+
+
 @router.get("/executions/{execution_id}/stream")
 async def reattach_network_execution(
     execution_id: UUID,
@@ -122,7 +185,7 @@ async def reattach_network_execution(
                     "realtime_available": False,
                 }
             )
-            yield _network_sse(RuntimeStreamFrame("run.state", queued, sequence=0), execution_id)
+            yield network_runtime_sse(RuntimeStreamFrame("run.state", queued, sequence=0), execution_id)
 
             # Acceptance may precede worker/Redis initialization. Keep the same
             # observer attached to the canonical Run instead of submitting again.
@@ -141,7 +204,7 @@ async def reattach_network_execution(
                             "realtime_available": False,
                         }
                     )
-                    yield _network_sse(
+                    yield network_runtime_sse(
                         RuntimeStreamFrame("run.state", terminal, sequence=0),
                         execution_id,
                     )
@@ -156,7 +219,7 @@ async def reattach_network_execution(
             ):
                 if await request.is_disconnected():
                     return
-                yield _network_sse(frame, execution_id)
+                yield network_runtime_sse(frame, execution_id)
         except RuntimeStreamGapError:
             latest = await _load_execution(request, execution_id)
             state = _durable_state(latest)
@@ -169,7 +232,7 @@ async def reattach_network_execution(
                     "degraded_reason": "runtime_event_gap",
                 }
             )
-            yield _network_sse(
+            yield network_runtime_sse(
                 RuntimeStreamFrame("run.state", state, sequence=0),
                 execution_id,
             )
