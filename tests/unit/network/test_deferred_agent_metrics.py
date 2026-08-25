@@ -74,13 +74,17 @@ def test_deferred_agent_metrics_match_agent_run_v5_contract() -> None:
     assert metrics.diagnostics["persistence_latency_ms"] == 0
     assert metrics.diagnostics["usage_complete"] is True
     assert metrics.diagnostics["cost_status"] == "known"
-    assert metrics.diagnostics["cost_usd"] == 0.003
     assert metrics.diagnostics["pricing_ids"] == ["pricing-v1"]
     assert metrics.diagnostics["provider_model_id"] == str(provider_model_id)
     assert metrics.diagnostics["provider_credential_id"] == str(credential_id)
     assert metrics.diagnostics["agent_release_id"] == str(release_id)
     assert metrics.diagnostics["agent_release_version"] == "1.2.3"
-    assert metrics.diagnostics["source_count"] == 1
-    assert metrics.diagnostics["answer_length"] == 4
+    assert metrics.diagnostics["fallback_used"] is False
+    # Usage/result data has its own canonical location and is not duplicated in
+    # the diagnostics schema.
+    assert "input_tokens" not in metrics.diagnostics
+    assert "cost_usd" not in metrics.diagnostics
+    assert "source_count" not in metrics.diagnostics
+    assert "answer_length" not in metrics.diagnostics
     assert metrics.started_at == context.execution_started_at
     assert metrics.completed_at >= metrics.started_at
