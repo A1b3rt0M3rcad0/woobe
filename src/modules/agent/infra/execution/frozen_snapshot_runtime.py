@@ -8,7 +8,10 @@ from uuid import UUID
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
+from modules.agent.application.dtos.runtime_dtos import UsageInfo
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.enums import Provider, SessionMode
+from modules.agent.infra.execution.deferred_run_metrics import build_deferred_agent_metrics
 from modules.agent.infra.execution.transaction_bounded_structured_output import (
     TransactionBoundedStructuredOutputRuntime,
 )
@@ -155,6 +158,62 @@ class FrozenSnapshotStructuredOutputRuntime(TransactionBoundedStructuredOutputRu
             content=content,
         )
         return original
+
+    async def _finalize(
+        self,
+        session,
+        agent,
+        input_dto,
+        trace_id,
+        answer,
+        usage,
+        response_model,
+        response_provider,
+        llm_latency_ms,
+        sources,
+        parsed_output,
+        output_parse_error,
+        tool_calls_recorded,
+        fallback_used,
+        fallback_info_result,
+        json_format_latency_ms,
+    ):
+        output = await super()._finalize(
+            session,
+            agent,
+            input_dto,
+            trace_id,
+            answer,
+            usage,
+            response_model,
+            response_provider,
+            llm_latency_ms,
+            sources,
+            parsed_output,
+            output_parse_error,
+            tool_calls_recorded,
+            fallback_used,
+            fallback_info_result,
+            json_format_latency_ms,
+        )
+
+        context = current_execution.get()
+        if (
+            context is None
+            or not getattr(context, "defer_persistence", False)
+            or context.execution is None
+        ):
+            return output
+
+        # The Agent runtime owns AgentRun telemetry. Network only transports this
+        # immutable snapshot to Redis and materializes it in the bulk finalizer.
+        metrics = build_deferred_agent_metrics(context, output)
+        output.usage = UsageInfo.model_validate(metrics.usage)
+        output.diagnostics = metrics.diagnostics
+        object.__setattr__(output, "llm_calls", metrics.llm_calls)
+        object.__setattr__(output, "run_started_at", metrics.started_at)
+        object.__setattr__(output, "run_completed_at", metrics.completed_at)
+        return output
 
     def _apply_snapshot_override(self, agent, snapshot: dict):
         # Do not call the compatibility implementation from AskAgentUseCase here.
