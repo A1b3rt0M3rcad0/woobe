@@ -1,4 +1,4 @@
-import { get } from '@/lib/api/client'
+import { get, post } from '@/lib/api/client'
 
 export interface ActiveAgentRun {
   run_id: string
@@ -13,4 +13,8 @@ export async function getActiveAgentRun(sessionId: string): Promise<ActiveAgentR
   return get<ActiveAgentRun | null>('/runtime/runs/active', {
     params: { session_id: sessionId },
   })
+}
+
+export async function cancelAgentRun(runId: string): Promise<void> {
+  await post(`/runtime/runs/${runId}/cancel`, {})
 }
