@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
@@ -12,6 +13,9 @@ from modules.network.application.runtime import (
     NetworkInvocationState,
 )
 from shared.contracts.execution_state import ExecutionLease, ExecutionStateStore
+from shared.runtime_reattach import RuntimeEventPublisher
+
+logger = logging.getLogger(__name__)
 
 
 class RedisNetworkExecutionStore:
@@ -22,6 +26,7 @@ class RedisNetworkExecutionStore:
 
     def __init__(self, state: ExecutionStateStore) -> None:
         self._state = state
+        self._events = RuntimeEventPublisher(state)
         self._invocation_to_execution: dict[UUID, UUID] = {}
 
     async def initialize(
@@ -37,6 +42,7 @@ class RedisNetworkExecutionStore:
         initial: dict[str, Any] = {
             "status": "running",
             "phase": "network_execution",
+            "run_kind": "NETWORK",
             "project_id": str(execution.project_id),
             "network_id": str(execution.network_id),
             "network_session_id": str(execution.network_session_id),
@@ -267,7 +273,12 @@ class RedisNetworkExecutionStore:
         event_payload = dict(payload)
         if invocation_id is not None:
             event_payload["invocation_id"] = str(invocation_id)
-        await self._state.append_event(execution_id, event_type, event_payload)
+        await self._events.publish(
+            execution_id,
+            "network",
+            event_type,
+            event_payload,
+        )
 
     async def snapshot(self, execution_id: UUID) -> dict[str, Any]:
         return await self._state.get(execution_id) or {}
@@ -307,8 +318,50 @@ class RedisNetworkExecutionStore:
         status: str,
         ttl_seconds: int = 900,
     ) -> None:
-        await self._state.update(
-            execution_id,
-            {"status": status, "phase": "persisted"},
-        )
-        await self._state.expire(execution_id, ttl_seconds=ttl_seconds)
+        """Publish terminal observability only after PostgreSQL finalization returned."""
+        try:
+            state = await self.snapshot(execution_id)
+            await self._state.update(
+                execution_id,
+                {"status": status, "phase": "persisted"},
+            )
+            if not state.get("terminal_event_published"):
+                terminal = state.get("terminal_result")
+                terminal = terminal if isinstance(terminal, dict) else {}
+                if status == "completed":
+                    event_type = "execution_completed"
+                    payload = {
+                        "output": terminal.get("output"),
+                        "trace_id": terminal.get("trace_id"),
+                    }
+                elif status == "cancelled":
+                    event_type = "execution_cancelled"
+                    payload = {}
+                else:
+                    event_type = "execution_failed"
+                    payload = {
+                        "failure_code": terminal.get("failure_code"),
+                        "message": terminal.get("failure_detail"),
+                        "trace_id": terminal.get("trace_id"),
+                        "uncertain": status == "uncertain" or bool(terminal.get("uncertain")),
+                    }
+                await self._events.publish(
+                    execution_id,
+                    "network",
+                    event_type,
+                    payload,
+                    force_projection=True,
+                )
+                await self._state.update(
+                    execution_id,
+                    {"terminal_event_published": True},
+                )
+            await self._state.expire(execution_id, ttl_seconds=ttl_seconds)
+        except Exception as exc:
+            # Durable finalization has already happened. A Redis failure here must
+            # not rewrite a successful Network Run as failed.
+            logger.warning(
+                "Network terminal realtime publication degraded execution_id=%s: %s",
+                execution_id,
+                exc,
+            )
