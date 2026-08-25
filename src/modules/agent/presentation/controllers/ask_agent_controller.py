@@ -40,6 +40,7 @@ class AskAgentController(Controller):
                 parsed_output=result.parsed_output,
                 output_parse_error=result.output_parse_error,
             ).model_dump()
+            data["run_id"] = result.run_id
             data["provider_model_id"] = result.provider_model_id
             data["provider_credential_id"] = result.provider_credential_id
             data["fallback_provider_model_id"] = result.fallback_provider_model_id
