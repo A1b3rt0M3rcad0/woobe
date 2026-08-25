@@ -6,6 +6,7 @@ from uuid import UUID
 
 from sqlalchemy import (
     BigInteger,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Index,
@@ -78,15 +79,74 @@ class SecurityConcurrencyLeaseModel(Base):
 class ProjectModel(BaseModel):
     __tablename__ = "projects"
     __table_args__ = (
-        UniqueConstraint("organization_id", "slug"),
+        UniqueConstraint("workspace_id", "slug"),
         {"schema": "core"},
     )
 
-    organization_id: Mapped[UUID]
+    workspace_id: Mapped[UUID]
     name: Mapped[str] = mapped_column(String(255))
     slug: Mapped[str] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(32), default="active")
     data: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+class ProjectMemberModel(BaseModel):
+    __tablename__ = "project_members"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "user_id",
+            name="uq_core_project_members_project_user",
+        ),
+        Index("ix_core_project_members_user_status", "user_id", "status"),
+        Index("ix_core_project_members_project_status", "project_id", "status"),
+        {"schema": "core"},
+    )
+
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("core.projects.id", ondelete="CASCADE")
+    )
+    # User identity is intentionally not a cross-module FK.
+    user_id: Mapped[UUID]
+    status: Mapped[str] = mapped_column(String(32), default="active")
+    granted_by_user_id: Mapped[UUID | None] = mapped_column(nullable=True)
+
+
+class ProjectInviteAccessModel(BaseModel):
+    __tablename__ = "project_invite_access"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "workspace_invite_id",
+            name="uq_core_project_invite_access_project_invite",
+        ),
+        Index(
+            "ix_core_project_invite_access_invite_status",
+            "workspace_invite_id",
+            "status",
+        ),
+        Index(
+            "ix_core_project_invite_access_project_status",
+            "project_id",
+            "status",
+        ),
+        {"schema": "core"},
+    )
+
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey(
+            "core.projects.id",
+            name="fk_core_project_invite_access_project_id",
+            ondelete="CASCADE",
+        )
+    )
+    workspace_invite_id: Mapped[UUID]
+    status: Mapped[str] = mapped_column(
+        String(32),
+        default="pending",
+        server_default=text("'pending'"),
+    )
+    granted_by_user_id: Mapped[UUID | None] = mapped_column(nullable=True)
 
 
 class ApiKeyModel(BaseModel):
@@ -102,6 +162,46 @@ class ApiKeyModel(BaseModel):
             "environment",
             "status",
         ),
+        Index(
+            "ix_core_api_keys_runtime_target_binding",
+            "project_id",
+            "kind",
+            "target_type",
+            "target_id",
+            "environment",
+            "status",
+        ),
+        Index(
+            "ix_core_api_keys_chat_surface",
+            "project_id",
+            "kind",
+            "chat_surface_id",
+            "status",
+        ),
+        CheckConstraint(
+            "(kind = 'project' AND agent_id IS NULL AND target_type IS NULL "
+            "AND target_id IS NULL AND chat_surface_id IS NULL AND environment IS NULL) OR "
+            "(kind = 'runtime' AND target_type = 'agent' AND target_id IS NOT NULL "
+            "AND agent_id = target_id AND chat_surface_id IS NULL "
+            "AND environment IN ('staging', 'production')) OR "
+            "(kind = 'runtime' AND target_type = 'network' AND target_id IS NOT NULL "
+            "AND agent_id IS NULL AND chat_surface_id IS NULL "
+            "AND environment IN ('staging', 'production')) OR "
+            "(kind = 'chat_surface' AND agent_id IS NULL AND target_type IS NULL "
+            "AND target_id IS NULL AND chat_surface_id IS NOT NULL "
+            "AND environment IS NULL)",
+            name="ck_core_api_keys_runtime_binding",
+        ),
+        CheckConstraint(
+            "kind <> 'runtime' OR "
+            "(target_type IN ('agent', 'network') AND target_id IS NOT NULL)",
+            name="ck_core_api_keys_runtime_target",
+        ),
+        CheckConstraint(
+            "(kind <> 'runtime' OR jsonb_array_length(interfaces) > 0) AND "
+            "(kind <> 'chat_surface' OR jsonb_array_length(interfaces) = 0)",
+            name="ck_core_api_keys_runtime_interfaces",
+        ),
         {"schema": "core"},
     )
 
@@ -115,6 +215,9 @@ class ApiKeyModel(BaseModel):
     scopes: Mapped[list[str]] = mapped_column(JSONB, default=list)
     kind: Mapped[str] = mapped_column(String(32), default="project")
     agent_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    target_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    target_id: Mapped[UUID | None] = mapped_column(nullable=True)
+    chat_surface_id: Mapped[UUID | None] = mapped_column(nullable=True)
     environment: Mapped[str | None] = mapped_column(String(32), nullable=True)
     interfaces: Mapped[list[str]] = mapped_column(JSONB, default=list)
     status: Mapped[str] = mapped_column(String(32), default="active")

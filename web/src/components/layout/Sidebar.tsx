@@ -18,41 +18,39 @@ import {
   Building2,
   ChevronDown,
   List,
+  MessageSquare,
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { isCloudEdition } from '@/lib/edition'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
-import { orgProjectPath } from '@/lib/constants/routes'
-import type { OrgShape, ProjectShape } from '@/features/workspace/types'
+import { workspaceProjectPath } from '@/lib/constants/routes'
+import type { WorkspaceShape, ProjectShape } from '@/features/workspace/types'
 import { SidebarUserCard } from './SidebarUserCard'
 
 interface NavItem {
   label: string
   icon: LucideIcon
-  href: string | ((orgId: string, projId: string) => string)
+  href: string | ((workspaceId: string, projId: string) => string)
   end?: boolean
 }
 
 const buildNavItems: NavItem[] = [
-  { label: 'Overview', icon: LayoutDashboard, href: (orgId: string, projId: string) => `/organizations/${orgId}/projects/${projId}`, end: true },
-  { label: 'Network', icon: Workflow, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'network') },
-  { label: 'Agents', icon: Bot, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'agents') },
-  { label: 'Knowledge', icon: BookOpen, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'knowledge') },
-  { label: 'Tools', icon: Wrench, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'tools') },
-  { label: 'Models', icon: Boxes, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'models') },
-  { label: 'Credentials', icon: Cable, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'credentials') },
+  { label: 'Overview', icon: LayoutDashboard, href: (workspaceId: string, projId: string) => `/workspaces/${workspaceId}/projects/${projId}`, end: true },
+  { label: 'Network', icon: Workflow, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'network') },
+  { label: 'Agents', icon: Bot, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'agents') },
+  { label: 'Knowledge', icon: BookOpen, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'knowledge') },
+  { label: 'Tools', icon: Wrench, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'tools') },
+  { label: 'Models', icon: Boxes, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'models') },
+  { label: 'Credentials', icon: Cable, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'credentials') },
 ]
 
 const operateNavItems: NavItem[] = [
-  { label: 'API Keys', icon: Key, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'api-keys') },
-  { label: 'Usage', icon: BarChart3, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'usage') },
-  { label: 'Traces', icon: Activity, href: (orgId: string, projId: string) => orgProjectPath(orgId, projId, 'traces') },
-]
-
-const accountNavItems: NavItem[] = [
-  { label: 'Billing', icon: CreditCard, href: '/billing' },
-  { label: 'Settings', icon: Settings, href: '/settings' },
+  { label: 'ChatSurfaces', icon: MessageSquare, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'chat-surfaces') },
+  { label: 'API Keys', icon: Key, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'api-keys') },
+  { label: 'Usage', icon: BarChart3, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'usage') },
+  { label: 'Traces', icon: Activity, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'traces') },
 ]
 
 function SidebarSectionTitle({ children }: { children: string }) {
@@ -85,13 +83,13 @@ function SidebarNavLink({ item, href }: { item: NavItem; href: string }) {
   )
 }
 
-function ProjectNavGroup({ title, items, orgId, projId }: { title: string; items: NavItem[]; orgId: string; projId: string }) {
+function ProjectNavGroup({ title, items, workspaceId, projId }: { title: string; items: NavItem[]; workspaceId: string; projId: string }) {
   return (
     <section className="space-y-2">
       <SidebarSectionTitle>{title}</SidebarSectionTitle>
       <div className="space-y-1">
         {items.map((item) => {
-          const href = typeof item.href === 'function' ? item.href(orgId, projId) : item.href
+          const href = typeof item.href === 'function' ? item.href(workspaceId, projId) : item.href
           return <SidebarNavLink key={item.label} item={item} href={href} />
         })}
       </div>
@@ -99,13 +97,27 @@ function ProjectNavGroup({ title, items, orgId, projId }: { title: string; items
   )
 }
 
-function AccountNavGroup() {
+function WorkspaceNavGroup({ workspaceId }: { workspaceId: string }) {
+  const workspaceItems: Array<{ item: NavItem; href: string }> = [
+    {
+      item: { label: 'Workspace', icon: Building2, href: `/workspaces/${workspaceId}/settings` },
+      href: `/workspaces/${workspaceId}/settings`,
+    },
+  ]
+
+  if (isCloudEdition) {
+    workspaceItems.push({
+      item: { label: 'Billing', icon: CreditCard, href: `/workspaces/${workspaceId}/billing` },
+      href: `/workspaces/${workspaceId}/billing`,
+    })
+  }
+
   return (
     <section className="space-y-2 border-t border-border p-3">
-      <SidebarSectionTitle>Account</SidebarSectionTitle>
+      <SidebarSectionTitle>Workspace</SidebarSectionTitle>
       <div className="space-y-1">
-        {accountNavItems.map((item) => (
-          <SidebarNavLink key={item.label} item={item} href={item.href as string} />
+        {workspaceItems.map(({ item, href }) => (
+          <SidebarNavLink key={item.label} item={item} href={href} />
         ))}
       </div>
     </section>
@@ -134,18 +146,18 @@ function ContextMenuItem({ icon: Icon, title, description, active, onClick }: { 
 }
 
 function ProjectContextCard({
-  currentOrganization,
+  currentWorkspace,
   currentProject,
-  organizations,
+  workspaces,
   projects,
-  selectOrganization,
+  selectWorkspace,
   selectProject,
 }: {
-  currentOrganization: OrgShape
+  currentWorkspace: WorkspaceShape
   currentProject: ProjectShape
-  organizations: OrgShape[]
+  workspaces: WorkspaceShape[]
   projects: ProjectShape[]
-  selectOrganization: (org: OrgShape) => void
+  selectWorkspace: (workspace: WorkspaceShape) => void
   selectProject: (project: ProjectShape) => void
 }) {
   const [open, setOpen] = useState(false)
@@ -165,13 +177,13 @@ function ProjectContextCard({
 
   const handleProjectSelect = (project: ProjectShape) => {
     selectProject(project)
-    navigate(`/organizations/${currentOrganization.id}/projects/${project.id}`)
+    navigate(`/workspaces/${currentWorkspace.id}/projects/${project.id}`)
     setOpen(false)
   }
 
-  const handleOrganizationSelect = (organization: OrgShape) => {
-    selectOrganization(organization)
-    navigate(`/organizations/${organization.id}/projects`)
+  const handleWorkspaceSelect = (workspace: WorkspaceShape) => {
+    selectWorkspace(workspace)
+    navigate(`/workspaces/${workspace.id}/projects`)
     setOpen(false)
   }
 
@@ -195,7 +207,7 @@ function ProjectContextCard({
         <span className="flex items-start justify-between gap-2">
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-semibold text-white">{currentProject.name}</span>
-            <span className="mt-1 block truncate text-xs text-muted">{currentOrganization.name}</span>
+            <span className="mt-1 block truncate text-xs text-muted">{currentWorkspace.name}</span>
           </span>
           <ChevronDown className={cn('mt-0.5 h-3.5 w-3.5 shrink-0 text-muted transition-[color,transform] duration-200 ease-out', open && 'rotate-180 text-primary-light')} />
         </span>
@@ -234,33 +246,39 @@ function ProjectContextCard({
               icon={List}
               title="Manage projects"
               description="Select, create or review projects"
-              onClick={() => navigateAndClose(`/organizations/${currentOrganization.id}/projects`)}
+              onClick={() => navigateAndClose(`/workspaces/${currentWorkspace.id}/projects`)}
             />
             <ContextMenuItem
               icon={Settings}
               title="Project settings"
               description="Configure this project"
-              onClick={() => navigateAndClose(`/organizations/${currentOrganization.id}/projects/${currentProject.id}/settings`)}
+              onClick={() => navigateAndClose(`/workspaces/${currentWorkspace.id}/projects/${currentProject.id}/settings`)}
             />
           </div>
 
           <div className="border-t border-border pt-2">
-            <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/80">Organization</p>
-            {organizations.map((organization) => (
+            <p className="px-2 pb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/80">Workspace</p>
+            <ContextMenuItem
+              icon={Settings}
+              title="Workspace settings"
+              description="Members, invites and Project access"
+              onClick={() => navigateAndClose(`/workspaces/${currentWorkspace.id}/settings`)}
+            />
+            {workspaces.map((workspace) => (
               <ContextMenuItem
-                key={organization.id}
+                key={workspace.id}
                 icon={Building2}
-                title={organization.name}
-                description="Organization workspace"
-                active={organization.id === currentOrganization.id}
-                onClick={() => handleOrganizationSelect(organization)}
+                title={workspace.name}
+                description="Workspace"
+                active={workspace.id === currentWorkspace.id}
+                onClick={() => handleWorkspaceSelect(workspace)}
               />
             ))}
             <ContextMenuItem
               icon={List}
-              title="Manage organizations"
-              description="Select, create or review organizations"
-              onClick={() => navigateAndClose('/organizations')}
+              title="Manage workspaces"
+              description="Select, create or review workspaces"
+              onClick={() => navigateAndClose('/workspaces')}
             />
           </div>
         </div>
@@ -286,11 +304,11 @@ function ProjectContextSkeleton() {
   )
 }
 
-function NoOrganizationState() {
+function NoWorkspaceState() {
   return (
     <div className="rounded-xl border border-border/80 bg-background/45 p-4 text-center">
-      <p className="text-sm font-semibold text-white">Organization required</p>
-      <p className="mt-1 text-xs leading-5 text-muted">Select an organization before opening a project workspace.</p>
+      <p className="text-sm font-semibold text-white">Workspace required</p>
+      <p className="mt-1 text-xs leading-5 text-muted">Select a workspace before opening a project workspace.</p>
     </div>
   )
 }
@@ -298,22 +316,22 @@ function NoOrganizationState() {
 export function Sidebar() {
   const { pathname } = useLocation()
   const {
-    organizations,
-    currentOrganization,
+    workspaces,
+    currentWorkspace,
     projects,
     currentProject,
-    selectOrganization,
+    selectWorkspace,
     selectProject,
-    isLoadingOrganizations,
+    isLoadingWorkspaces,
     isLoadingProjects,
   } = useWorkspace()
-  const orgId = currentOrganization?.id
+  const workspaceId = currentWorkspace?.id
   const projId = currentProject?.id
-  const isProjectRoute = /^\/organizations\/[^/]+\/projects\/[^/]+(?:\/|$)/.test(pathname)
+  const isProjectRoute = /^\/workspaces\/[^/]+\/projects\/[^/]+(?:\/|$)/.test(pathname)
   const isResolvingProjectContext = isProjectRoute && (
-    isLoadingOrganizations
+    isLoadingWorkspaces
     || isLoadingProjects
-    || !currentOrganization
+    || !currentWorkspace
     || !currentProject
   )
 
@@ -321,11 +339,11 @@ export function Sidebar() {
     <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-surface">
       <div className="border-b border-border p-4">
         <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary">
-            <Play className="h-4 w-4 text-white" />
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary-light">
+            <Play className="h-4 w-4 fill-current" />
           </div>
           <div className="min-w-0">
-            <p className="truncate text-sm font-semibold text-white">ProjectRAI</p>
+            <p className="truncate text-sm font-semibold text-white">Woobe</p>
             <p className="truncate text-xs text-muted">Control plane</p>
           </div>
         </div>
@@ -335,30 +353,30 @@ export function Sidebar() {
         <nav className="space-y-5 p-3">
           {isResolvingProjectContext ? (
             <ProjectContextSkeleton />
-          ) : !orgId || !currentOrganization ? (
-            <NoOrganizationState />
+          ) : !workspaceId || !currentWorkspace ? (
+            <NoWorkspaceState />
           ) : projId && currentProject ? (
             <>
               <section className="space-y-2">
                 <SidebarSectionTitle>Project</SidebarSectionTitle>
                 <ProjectContextCard
-                  currentOrganization={currentOrganization}
+                  currentWorkspace={currentWorkspace}
                   currentProject={currentProject}
-                  organizations={organizations}
+                  workspaces={workspaces}
                   projects={projects}
-                  selectOrganization={selectOrganization}
+                  selectWorkspace={selectWorkspace}
                   selectProject={selectProject}
                 />
               </section>
 
-              <ProjectNavGroup title="Build" items={buildNavItems} orgId={orgId} projId={projId} />
-              <ProjectNavGroup title="Operate" items={operateNavItems} orgId={orgId} projId={projId} />
+              <ProjectNavGroup title="Build" items={buildNavItems} workspaceId={workspaceId} projId={projId} />
+              <ProjectNavGroup title="Operate" items={operateNavItems} workspaceId={workspaceId} projId={projId} />
             </>
           ) : null}
         </nav>
       </ScrollArea>
 
-      <AccountNavGroup />
+      {workspaceId && <WorkspaceNavGroup workspaceId={workspaceId} />}
       <SidebarUserCard />
     </aside>
   )

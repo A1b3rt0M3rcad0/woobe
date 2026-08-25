@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -18,6 +19,110 @@ from shared.security.api_keys import (
 )
 from shared.security.rate_limit import ApiKeyConcurrencyLimiter, ApiKeyRequestLimiter
 from shared.security.redaction import REDACTED, redact_sensitive_data, redact_text, redact_url
+
+
+class _FakeResult:
+    def __init__(self, *, one=None, scalar=None) -> None:
+        self._one = one
+        self._scalar = scalar
+
+    def one(self):
+        return self._one
+
+    def scalar_one(self):
+        return self._scalar
+
+
+class _FakeTransaction:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        return None
+
+
+class _FakeRateLimitSession:
+    def __init__(self, factory) -> None:
+        self._factory = factory
+
+    def begin(self):
+        return _FakeTransaction()
+
+    async def execute(self, statement, params):
+        sql = " ".join(str(statement).split())
+        if "pg_advisory_xact_lock" in sql:
+            return _FakeResult()
+        if "DELETE FROM core.security_rate_limit_events" in sql:
+            self._factory.events = [
+                event
+                for event in self._factory.events
+                if not (
+                    event["namespace"] == params["namespace"]
+                    and event["subject_key"] == params["subject_key"]
+                    and event["occurred_at"] <= params["cutoff"]
+                )
+            ]
+            return _FakeResult()
+        if "SELECT COUNT(*) AS event_count" in sql:
+            matches = [
+                event
+                for event in self._factory.events
+                if event["namespace"] == params["namespace"]
+                and event["subject_key"] == params["subject_key"]
+                and event["occurred_at"] > params["cutoff"]
+            ]
+            oldest = min((event["occurred_at"] for event in matches), default=None)
+            return _FakeResult(one=SimpleNamespace(event_count=len(matches), oldest_event=oldest))
+        if "INSERT INTO core.security_rate_limit_events" in sql:
+            self._factory.events.append(dict(params))
+            return _FakeResult()
+        if "DELETE FROM core.security_concurrency_leases" in sql and "expires_at <=" in sql:
+            self._factory.leases = {
+                lease_id: lease
+                for lease_id, lease in self._factory.leases.items()
+                if not (
+                    lease["namespace"] == params["namespace"]
+                    and lease["subject_key"] == params["subject_key"]
+                    and lease["expires_at"] <= params["now"]
+                )
+            }
+            return _FakeResult()
+        if "SELECT COUNT(*) FROM core.security_concurrency_leases" in sql:
+            count = sum(
+                1
+                for lease in self._factory.leases.values()
+                if lease["namespace"] == params["namespace"]
+                and lease["subject_key"] == params["subject_key"]
+                and lease["expires_at"] > params["now"]
+            )
+            return _FakeResult(scalar=count)
+        if "INSERT INTO core.security_concurrency_leases" in sql:
+            self._factory.leases[params["id"]] = dict(params)
+            return _FakeResult()
+        if "DELETE FROM core.security_concurrency_leases" in sql and "WHERE id" in sql:
+            self._factory.leases.pop(params["lease_id"], None)
+            return _FakeResult()
+        raise AssertionError(f"Unexpected SQL in fake rate-limit session: {sql}")
+
+
+class _FakeRateLimitSessionContext:
+    def __init__(self, factory) -> None:
+        self._factory = factory
+
+    async def __aenter__(self):
+        return _FakeRateLimitSession(self._factory)
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        return None
+
+
+class _FakeRateLimitSessionFactory:
+    def __init__(self) -> None:
+        self.events: list[dict] = []
+        self.leases: dict = {}
+
+    def __call__(self):
+        return _FakeRateLimitSessionContext(self)
 
 
 def test_issued_project_api_key_has_parseable_woobe_prefix_and_digest() -> None:
@@ -152,7 +257,12 @@ def test_redaction_removes_sensitive_nested_values_and_url_query() -> None:
 
 @pytest.mark.asyncio
 async def test_api_key_request_rate_limiter_rejects_excess_request() -> None:
-    limiter = ApiKeyRequestLimiter(max_requests=1, window_seconds=60)
+    session_factory = _FakeRateLimitSessionFactory()
+    limiter = ApiKeyRequestLimiter(
+        max_requests=1,
+        window_seconds=60,
+        session_factory=session_factory,
+    )
     subject = f"request-{uuid4()}"
 
     await limiter.consume(subject)
@@ -164,7 +274,11 @@ async def test_api_key_request_rate_limiter_rejects_excess_request() -> None:
 
 @pytest.mark.asyncio
 async def test_api_key_concurrency_limiter_releases_permit() -> None:
-    limiter = ApiKeyConcurrencyLimiter(max_concurrency=1)
+    session_factory = _FakeRateLimitSessionFactory()
+    limiter = ApiKeyConcurrencyLimiter(
+        max_concurrency=1,
+        session_factory=session_factory,
+    )
     subject = f"concurrency-{uuid4()}"
 
     lease_id = await limiter.acquire(subject)

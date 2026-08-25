@@ -23,6 +23,8 @@ class ProjectApiPrincipal(BaseModel):
     scopes: frozenset[str] = Field(default_factory=frozenset)
     kind: str = "project"
     agent_id: UUID | None = None
+    target_type: str | None = None
+    target_id: UUID | None = None
     environment: str | None = None
     interfaces: frozenset[str] = Field(default_factory=frozenset)
     authenticated_at: datetime

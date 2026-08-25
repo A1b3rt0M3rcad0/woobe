@@ -127,7 +127,7 @@ class TestRoutingKeyValidation:
             "agent.execution.completed.v1",
             "agent.execution.failed.v1",
             "identity.user.created.v1",
-            "identity.organization.created.v1",
+            "identity.workspace.created.v1",
             "billing.usage.recorded.v2",
             "metering.token.consumed.v1",
         ]
@@ -330,7 +330,7 @@ class TestRoutingKeyExtraction:
     def test_extract_version(self):
         assert extract_version_from_routing_key("agent.execution.completed.v1") == 1
         assert extract_version_from_routing_key("billing.usage.recorded.v2") == 2
-        assert extract_version_from_routing_key("identity.org.created.v3") == 3
+        assert extract_version_from_routing_key("identity.workspace.created.v3") == 3
 
     def test_extract_version_invalid_string(self):
         with pytest.raises(TopologyValidationError, match="version"):

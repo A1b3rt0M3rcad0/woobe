@@ -2,25 +2,29 @@ export const ROUTES = {
   LOGIN: '/login',
   REGISTER: '/register',
   DASHBOARD: '/dashboard',
-  ORGANIZATIONS: '/organizations',
-  ORGANIZATION_DETAIL: (id: string) => `/organizations/${id}`,
-  ORG_PROJECTS: (orgId: string) => `/organizations/${orgId}/projects`,
-  ORG_OVERVIEW: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}`,
-  ORG_PROJECT_DETAIL: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}`,
-  ORG_AGENTS: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}/agents`,
-  ORG_CREATE_AGENT: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}/agents/new`,
-  ORG_AGENT_DETAIL: (orgId: string, projectId: string, agentId: string) => `/organizations/${orgId}/projects/${projectId}/agents/${agentId}`,
-  ORG_EDIT_AGENT: (orgId: string, projectId: string, agentId: string) => `/organizations/${orgId}/projects/${projectId}/agents/${agentId}/edit`,
-  ORG_AGENT_PLAYGROUND: (orgId: string, projectId: string, agentId: string) => `/organizations/${orgId}/projects/${projectId}/agents/${agentId}/playground`,
-  ORG_KNOWLEDGE: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}/knowledge`,
-  ORG_TOOLS: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}/tools`,
-  ORG_MODELS: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}/models`,
-  ORG_API_KEYS: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}/api-keys`,
-  ORG_USAGE: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}/usage`,
-  ORG_TRACES: (orgId: string, projectId: string) => `/organizations/${orgId}/projects/${projectId}/traces`,
+  WORKSPACES: '/workspaces',
+  WORKSPACE_DETAIL: (id: string) => `/workspaces/${id}`,
+  WORKSPACE_PROJECTS: (workspaceId: string) => `/workspaces/${workspaceId}/projects`,
+  WORKSPACE_OVERVIEW: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}`,
+  WORKSPACE_PROJECT_DETAIL: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}`,
+  WORKSPACE_NETWORKS: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}/networks`,
+  WORKSPACE_NETWORK: (workspaceId: string, projectId: string, networkId: string) => `/workspaces/${workspaceId}/projects/${projectId}/networks/${networkId}`,
+  WORKSPACE_AGENTS: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}/agents`,
+  WORKSPACE_CREATE_AGENT: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}/agents/new`,
+  WORKSPACE_AGENT_DETAIL: (workspaceId: string, projectId: string, agentId: string) => `/workspaces/${workspaceId}/projects/${projectId}/agents/${agentId}`,
+  WORKSPACE_EDIT_AGENT: (workspaceId: string, projectId: string, agentId: string) => `/workspaces/${workspaceId}/projects/${projectId}/agents/${agentId}/edit`,
+  WORKSPACE_AGENT_PLAYGROUND: (workspaceId: string, projectId: string, agentId: string) => `/workspaces/${workspaceId}/projects/${projectId}/agents/${agentId}/playground`,
+  WORKSPACE_KNOWLEDGE: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}/knowledge`,
+  WORKSPACE_TOOLS: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}/tools`,
+  WORKSPACE_MODELS: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}/models`,
+  WORKSPACE_API_KEYS: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}/api-keys`,
+  WORKSPACE_USAGE: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}/usage`,
+  WORKSPACE_TRACES: (workspaceId: string, projectId: string) => `/workspaces/${workspaceId}/projects/${projectId}/traces`,
 
   PROJECTS: '/projects',
   PROJECT_DETAIL: (id: string) => `/projects/${id}`,
+  NETWORKS: (id: string) => `/projects/${id}/networks`,
+  NETWORK: (projectId: string, networkId: string) => `/projects/${projectId}/networks/${networkId}`,
   API_KEYS: (id: string) => `/projects/${id}/api-keys`,
   AGENTS: (id: string) => `/projects/${id}/agents`,
   CREATE_AGENT: (id: string) => `/projects/${id}/agents/new`,
@@ -36,9 +40,10 @@ export const ROUTES = {
   SETTINGS: '/settings',
 } as const
 
-export function orgProjectPath(orgId: string | undefined, projectId: string, ...segments: string[]): string {
-  if (orgId) {
-    return `/organizations/${orgId}/projects/${projectId}${segments.length ? '/' + segments.join('/') : ''}`
+export function workspaceProjectPath(workspaceId: string | undefined, projectId: string, ...segments: string[]): string {
+  const normalizedSegments = segments.length === 1 && segments[0] === 'network' ? ['networks'] : segments
+  if (workspaceId) {
+    return `/workspaces/${workspaceId}/projects/${projectId}${normalizedSegments.length ? '/' + normalizedSegments.join('/') : ''}`
   }
-  return `/projects/${projectId}${segments.length ? '/' + segments.join('/') : ''}`
+  return `/projects/${projectId}${normalizedSegments.length ? '/' + normalizedSegments.join('/') : ''}`
 }

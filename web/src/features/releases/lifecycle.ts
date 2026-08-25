@@ -1,6 +1,6 @@
 export type ReleaseChangeKind = 'compatibility' | 'feature' | 'change'
 export type ReleaseRuntimeTarget = 'playground' | 'staging' | 'production'
-export type ReleaseStatus = 'draft' | 'staging' | 'production' | 'archived' | 'rolled_back'
+export type ReleaseStatus = 'draft' | 'staging' | 'released' | 'production' | 'archived' | 'rolled_back'
 
 export type AgentRelease = {
   id: string

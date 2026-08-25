@@ -5,11 +5,11 @@ import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 
 export function DashboardLayout() {
   const { pathname } = useLocation()
-  const isWorkspaceSelection = pathname === '/organizations' || /^\/organizations\/[^/]+\/projects$/.test(pathname)
+  const isWorkspaceSelection = pathname === '/workspaces' || /^\/workspaces\/[^/]+\/projects$/.test(pathname)
   const isSetupFlow = /\/setup\/?$/.test(pathname)
-  const isNetworkWorkspace = /\/projects\/[^/]+\/network\/?$/.test(pathname)
+  const isNetworkWorkspace = /\/projects\/[^/]+\/networks\/[^/]+\/?$/.test(pathname)
   const hideSidebar = pathname.includes('/playground') || isSetupFlow || isNetworkWorkspace
-  const isProjectOverview = /^\/organizations\/[^/]+\/projects\/[^/]+\/?$/.test(pathname)
+  const isProjectOverview = /^\/workspaces\/[^/]+\/projects\/[^/]+\/?$/.test(pathname)
   const mainClassName = isSetupFlow || isNetworkWorkspace
     ? 'min-h-0 min-w-0 flex-1 overflow-hidden'
     : isProjectOverview

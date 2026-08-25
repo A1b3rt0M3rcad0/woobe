@@ -1,12 +1,13 @@
-import { AlertTriangle, Bot, KeyRound, RotateCcw } from 'lucide-react'
+import { AlertTriangle, Bot, KeyRound, Network, RotateCcw } from 'lucide-react'
 
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
-import type { ApiKey } from '@/features/api-keys/types'
+import type { ApiKey, RuntimeTargetType } from '@/features/api-keys/types'
 
 interface RotateApiKeyDialogProps {
   open: boolean
   apiKey: ApiKey | null
+  targetName?: string | null
   agentName?: string | null
   loading: boolean
   onClose: () => void
@@ -16,13 +17,18 @@ interface RotateApiKeyDialogProps {
 function permissionLabel(scope: string): string {
   if (scope === 'traces:read') return 'Traces'
   if (scope === 'usage:read') return 'Usage & cost'
-  if (scope === 'runtime:execute') return 'Legacy runtime access'
+  if (scope === 'runtime:execute') return 'Runtime execution'
   return scope
+}
+
+function runtimeTargetType(apiKey: ApiKey): RuntimeTargetType {
+  return apiKey.target_type === 'network' ? 'network' : 'agent'
 }
 
 export function RotateApiKeyDialog({
   open,
   apiKey,
+  targetName,
   agentName,
   loading,
   onClose,
@@ -31,6 +37,11 @@ export function RotateApiKeyDialog({
   const handleClose = () => {
     if (!loading) onClose()
   }
+
+  const targetType = apiKey ? runtimeTargetType(apiKey) : 'agent'
+  const targetLabel = targetType === 'network' ? 'Network' : 'Agent'
+  const TargetIcon = targetType === 'network' ? Network : Bot
+  const resolvedTargetName = targetName || agentName || apiKey?.target_id || apiKey?.agent_id || `${targetLabel} unavailable`
 
   return (
     <Dialog open={open} onClose={handleClose} title="Rotate API key" className="max-w-2xl" layer="nestedModal">
@@ -50,8 +61,8 @@ export function RotateApiKeyDialog({
             {apiKey.kind === 'runtime' ? (
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <div className="rounded-lg border border-border/70 bg-background/55 p-3">
-                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted"><Bot className="h-3.5 w-3.5" />Agent</div>
-                  <p className="mt-1 truncate text-sm font-medium text-white">{agentName || 'Agent unavailable'}</p>
+                  <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-muted"><TargetIcon className="h-3.5 w-3.5" />{targetLabel}</div>
+                  <p className="mt-1 truncate text-sm font-medium text-white">{resolvedTargetName}</p>
                 </div>
                 <div className="rounded-lg border border-border/70 bg-background/55 p-3">
                   <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Environment</p>
@@ -70,12 +81,12 @@ export function RotateApiKeyDialog({
             )}
           </section>
 
-          <section className="rounded-xl border border-yellow-500/30 bg-yellow-500/5 p-4">
+          <section className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-300" />
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
               <div>
-                <p className="text-sm font-semibold text-yellow-100">The current key stops working immediately</p>
-                <p className="mt-1 text-xs leading-5 text-yellow-100/70">Name, purpose, Agent binding, environment and interfaces remain unchanged. Only the secret changes.</p>
+                <p className="text-sm font-semibold text-amber-100">The current key stops working immediately</p>
+                <p className="mt-1 text-xs leading-5 text-amber-100/70">Name, purpose, {targetLabel} binding, environment and interfaces remain unchanged. Only the secret changes.</p>
               </div>
             </div>
           </section>

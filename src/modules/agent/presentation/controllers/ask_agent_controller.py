@@ -1,9 +1,9 @@
+from modules.agent.application.interfaces.use_case import UseCase
 import logging
 
 from modules.agent.presentation.schemas import AskResponse, UsageResponse
-from modules.agent.application.use_cases.ask_use_case import AskAgentUseCase
 from modules.agent.application.dtos import AskInput
-from shared.infra.errors import ConflictError, NotFoundError, ValidationError
+from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 
 class AskAgentController(Controller):
-    def __init__(self, use_case: AskAgentUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
@@ -21,6 +21,7 @@ class AskAgentController(Controller):
             result = await self._use_case.execute(input_dto)
 
             data = AskResponse(
+                run_id=result.run_id,
                 answer=result.answer,
                 session_id=result.session_id,
                 message_id=result.message_id,

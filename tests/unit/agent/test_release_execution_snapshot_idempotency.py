@@ -44,7 +44,7 @@ class Repo:
 
 
 def release(project_id, agent_id, version, status, temperature):
-    return AgentRelease(
+    item = AgentRelease(
         project_id=project_id,
         agent_id=agent_id,
         version=version,
@@ -56,6 +56,14 @@ def release(project_id, agent_id, version, status, temperature):
         output_schema={"message": "string"},
         temperature=temperature,
     )
+    item.snapshot_kind = (
+        "draft"
+        if status == ReleaseStatus.draft
+        else "staging"
+        if status == ReleaseStatus.staging
+        else "release"
+    )
+    return item
 
 
 @pytest.mark.asyncio
@@ -71,5 +79,5 @@ async def test_changed_execution_config_is_not_treated_as_unchanged_staging() ->
 
     assert result.id != production.id
     assert result.version.startswith("v1.0.")
-    assert production.status == ReleaseStatus.archived
+    assert production.status == ReleaseStatus.released
     assert len(await repo.list_by_agent(agent_id)) == 3

@@ -14,6 +14,10 @@ class Trace:
     project_id: UUID
     agent_id: UUID | None = None
     session_id: UUID | None = None
+    network_id: UUID | None = None
+    network_execution_id: UUID | None = None
+    network_session_id: UUID | None = None
+    network_version_id: UUID | None = None
     external_session_id: str | None = None
     tenant_id: str | None = None
     user_id: str | None = None

@@ -1,1 +1,0 @@
-"""Billing module worker infrastructure."""

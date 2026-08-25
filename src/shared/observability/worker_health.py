@@ -71,7 +71,7 @@ def check_worker_health(path: str, max_age_seconds: float) -> int:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="ProjectRAI worker health probe")
+    parser = argparse.ArgumentParser(description="Woobe worker health probe")
     parser.add_argument("command", choices=["check"])
     parser.add_argument("path")
     parser.add_argument("max_age_seconds", type=float)

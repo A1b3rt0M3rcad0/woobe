@@ -5,7 +5,7 @@ from modules.core.presentation.schemas import ApiKeyResponse, ProjectResponse
 def project_to_response(project: Project) -> ProjectResponse:
     return ProjectResponse(
         id=project.id,
-        organization_id=project.organization_id,
+        workspace_id=project.workspace_id,
         name=project.name,
         slug=project.slug,
         status=project.status.value if hasattr(project.status, 'value') else project.status,

@@ -3,17 +3,30 @@
 ARG NODE_VERSION=22
 ARG NGINX_VERSION=1.29.4
 
-FROM node:${NODE_VERSION}-alpine AS builder
+FROM node:${NODE_VERSION}-alpine AS deps
 WORKDIR /app
-
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 
+FROM deps AS builder
+ARG VITE_API_URL
+ARG VITE_CHAT_EMBED_URL
+ARG VITE_WOOBE_EDITION=community
 COPY . .
-RUN --mount=type=secret,id=web_env,target=/.env,required=true npm run build
+RUN test -n "${VITE_API_URL}" \
+    && test -n "${VITE_CHAT_EMBED_URL}" \
+    && test "${VITE_WOOBE_EDITION}" = "community" \
+    && node -e "const u=new URL(process.argv[1]); if (!['http:','https:'].includes(u.protocol)) process.exit(1)" "${VITE_API_URL}" \
+    && node -e "const u=new URL(process.argv[1]); if (!['http:','https:'].includes(u.protocol)) process.exit(1)" "${VITE_CHAT_EMBED_URL}" \
+    && VITE_API_URL="${VITE_API_URL}" VITE_CHAT_EMBED_URL="${VITE_CHAT_EMBED_URL}" VITE_WOOBE_EDITION="${VITE_WOOBE_EDITION}" npm run build \
+    && API_ORIGIN="$(node -e "console.log(new URL(process.argv[1]).origin)" "${VITE_API_URL}")" \
+    && CHAT_EMBED_ORIGIN="$(node -e "console.log(new URL(process.argv[1]).origin)" "${VITE_CHAT_EMBED_URL}")" \
+    && sed -e "s|__API_ORIGIN__|${API_ORIGIN}|g" -e "s|__CHAT_EMBED_ORIGIN__|${CHAT_EMBED_ORIGIN}|g" nginx.conf > /tmp/nginx.conf
 
 FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine AS runtime
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+USER root
+RUN apk upgrade --no-cache
+COPY --from=builder /tmp/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 USER 101:101

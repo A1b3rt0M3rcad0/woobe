@@ -1,57 +1,44 @@
-# Quick Start — ProjectRAI Frontend
+# Woobe Web — Quick Start
 
 ## Prerequisites
 
-- Node.js 18+
-- Backend running on the URL configured in the root `.env.web` file
+- Node.js 22+
+- root `.env` generated from `.env.example`
+- backend reachable at `VITE_API_URL`
+- ChatSurface embed reachable at `VITE_CHAT_EMBED_URL`
 
 ## Setup
 
 From the repository root:
 
 ```bash
-cp .env.web.example .env.web
-```
-
-Then install frontend dependencies:
-
-```bash
+python scripts/generate_self_host_env.py --force
 cd web
-npm install
-```
-
-## Run locally with Vite
-
-```bash
-cd web
+npm ci
 npm run dev
 ```
 
-The frontend opens at `http://localhost:5173`.
+The Vite configuration reads the canonical root deployment manifest. Only `VITE_*` values are embedded in the browser bundle; backend secrets are not passed to the frontend image.
 
-The Vite scripts run with `--mode web`, and frontend config is read from the root `.env.web` file.
+## Docker Compose
 
-## Run with Docker Compose
-
-```bash
-docker compose build web
-docker compose up web
-```
-
-## Seed demo data
+For the supported Community first-run topology:
 
 ```bash
-cd web
-npm run seed
+python scripts/generate_self_host_env.py --force
+docker compose -f docker-compose.community.yml up -d --build
 ```
 
-Login: `customer@gmail.com` / `customer`
+The browser calls `VITE_API_URL` directly. ChatSurface assets and iframe runtime use `VITE_CHAT_EMBED_URL`.
 
-## Build
+## Demo bootstrap
+
+Woobe does not ship fixed demo credentials. Provide your own values:
 
 ```bash
-cd web
-npm run build
+WOOBE_DEMO_EMAIL=owner@example.com \
+WOOBE_DEMO_PASSWORD='use-a-strong-password' \
+python scripts/seed_demo.py
 ```
 
-Output in `web/dist/`.
+This only initializes a fresh Community instance. Existing installations require the explicit owner-bootstrap flow documented in `../docs/SELF_HOSTING.md`.

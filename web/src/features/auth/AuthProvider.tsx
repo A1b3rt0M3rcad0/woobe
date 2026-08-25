@@ -36,9 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const isAuthenticated = !!user
 
-  const clearPostAuthTarget = useCallback(() => {
-    setPostAuthTarget(null)
-  }, [])
+  const clearPostAuthTarget = useCallback(() => setPostAuthTarget(null), [])
 
   const clearAuthState = useCallback(() => {
     clearCsrfToken()
@@ -49,17 +47,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let isMounted = true
-
     if (isPublicAuthRoute()) {
       setIsInitializing(false)
-      return () => {
-        isMounted = false
-      }
+      return () => { isMounted = false }
     }
 
     getCurrentUser()
-      .then((u) => {
-        if (isMounted) setUser(u)
+      .then((currentUser) => {
+        if (isMounted) setUser(currentUser)
       })
       .catch(() => {
         if (isMounted) clearAuthState()
@@ -68,29 +63,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (isMounted) setIsInitializing(false)
       })
 
-    return () => {
-      isMounted = false
-    }
+    return () => { isMounted = false }
   }, [clearAuthState])
 
   const login = useCallback(async (data: LoginRequest) => {
     setIsLoading(true)
     try {
-      const res = await apiLogin(data)
-      setUser(res.user)
+      const response = await apiLogin(data)
+      queryClient.clear()
+      setPostAuthTarget('/dashboard')
+      setUser(response.user)
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }, [queryClient])
 
   const register = useCallback(async (data: RegisterRequest) => {
     setIsLoading(true)
     try {
-      const res = await apiRegister(data)
-      queryClient.setQueryData(['organizations'], [res.organization])
-      setPostAuthTarget(`/organizations/${res.organization.id}/setup`)
-      setUser(res.user)
-      return res
+      const response = await apiRegister(data)
+      queryClient.clear()
+      queryClient.setQueryData(['workspaces', response.user.id], [{
+        ...response.workspace,
+        membership_role: 'owner',
+        can_manage_workspace: true,
+        accessible_project_count: 0,
+        access_mode: 'implicit_owner',
+      }])
+      setPostAuthTarget(`/workspaces/${response.workspace.id}/setup`)
+      setUser(response.user)
+      return response
     } finally {
       setIsLoading(false)
     }
@@ -108,29 +110,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refreshCurrentUser = useCallback(async () => {
     try {
-      const u = await getCurrentUser()
-      setUser(u)
+      const currentUser = await getCurrentUser()
+      setUser(currentUser)
     } catch {
       await logout()
     }
   }, [logout])
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        token: null,
-        isAuthenticated,
-        isLoading,
-        isInitializing,
-        postAuthTarget,
-        login,
-        register,
-        logout,
-        refreshCurrentUser,
-        clearPostAuthTarget,
-      }}
-    >
+    <AuthContext.Provider value={{
+      user,
+      token: null,
+      isAuthenticated,
+      isLoading,
+      isInitializing,
+      postAuthTarget,
+      login,
+      register,
+      logout,
+      refreshCurrentUser,
+      clearPostAuthTarget,
+    }}>
       {children}
     </AuthContext.Provider>
   )

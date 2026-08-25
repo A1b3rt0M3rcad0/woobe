@@ -1,11 +1,12 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAgent, useReleases } from '@/features/agents/hooks'
+import { useAgent, useAgentRuntimeEnvironments, useReleases } from '@/features/agents/hooks'
+import type { RuntimeEnvironment } from '@/features/agents/types'
 import { usePlaygroundTraces } from '@/features/traces/hooks'
 import { useAskStream, useAgentSessions, useCreateSession, useSessionMessages } from '@/features/playground/hooks'
 import { ErrorState } from '@/components/common/ErrorState'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
-import { orgProjectPath } from '@/lib/constants/routes'
+import { workspaceProjectPath } from '@/lib/constants/routes'
 import { PlaygroundHeader } from '@/features/playground/components/PlaygroundHeader'
 import { OperationsRail, type LeftPanelTab } from '@/features/playground/components/OperationsRail'
 import { OperationsPanel } from '@/features/playground/components/OperationsPanel'
@@ -16,7 +17,22 @@ import { AgentEditorProvider, useAgentEditor } from '@/features/playground/Agent
 import { setPlaygroundSessionId } from '@/features/playground/lib/playground-session-store'
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { AskResponse, ChatMessage, TraceItem, RawStreamEvent, ToolCallInfo, SessionListItem, SessionListPage } from '@/features/playground/types'
+import type { AskRequest, AskResponse, ChatMessage, TraceItem, RawStreamEvent, ToolCallInfo, SessionListItem, SessionListPage } from '@/features/playground/types'
+
+function titleCaseEnvironment(environment: RuntimeEnvironment) {
+  return environment.charAt(0).toUpperCase() + environment.slice(1)
+}
+
+function sessionEnvironment(item: SessionListItem): RuntimeEnvironment {
+  const value = item.runtime_environment
+  return value === 'staging' || value === 'production' || value === 'draft' ? value : 'draft'
+}
+
+function traceEnvironment(data: Record<string, unknown>): RuntimeEnvironment {
+  const value = data.execution_context
+  if (value === 'staging' || value === 'production') return value
+  return 'draft'
+}
 
 function upsertToolCall(existing: ToolCallInfo[] | null | undefined, next: ToolCallInfo): ToolCallInfo[] {
   const items = existing ? [...existing] : []
@@ -88,9 +104,7 @@ function AgentPlaygroundSkeleton() {
           </div>
         </div>
         <div className="w-[400px] shrink-0 border-l border-border bg-surface/75">
-          <div className="border-b border-border/90 px-3 py-3">
-            <SkeletonLine className="h-3 w-20" />
-          </div>
+          <div className="border-b border-border/90 px-3 py-3"><SkeletonLine className="h-3 w-20" /></div>
           <div className="space-y-3 p-4">
             <SkeletonLine className="h-3 w-24" />
             <div className="rounded-xl border border-border/70 bg-background/35 p-3">
@@ -109,26 +123,22 @@ function AgentPlaygroundSkeleton() {
   )
 }
 
-function normalizeSessionMode(value?: string): 'stateful' | 'stateless' {
-  return value === 'stateless' ? 'stateless' : 'stateful'
-}
-
 function PlaygroundContent() {
-  const { organizationId, projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
+  const { workspaceId, projectId, agentId } = useParams<{ workspaceId?: string; projectId: string; agentId: string }>()
   const navigate = useNavigate()
   const { data: agent, isLoading: agentLoading, isError: agentError } = useAgent(agentId)
   const { data: releases = [] } = useReleases(agentId)
+  const runtimeStatesQuery = useAgentRuntimeEnvironments(agentId, projectId)
   const { state, toSnapshot, isDirty } = useAgentEditor()
   const { stream, cancel: cancelStream } = useAskStream()
   const queryClient = useQueryClient()
   const { mutateAsync: createRuntimeSession, isPending: creatingSession } = useCreateSession()
+  const [environment, setEnvironment] = useState<RuntimeEnvironment>('draft')
 
-  const agentSessionMode = normalizeSessionMode(agent?.session_mode)
-  const isStateless = agentSessionMode === 'stateless'
-  const isAgentInactive = agent?.status === 'inactive'
-
-  const p = (projId: string, ...segments: string[]) => orgProjectPath(organizationId, projId, ...segments)
-  const productionRelease = releases.find(r => r.status === 'production')
+  const p = (projId: string, ...segments: string[]) => workspaceProjectPath(workspaceId, projId, ...segments)
+  const stagingRelease = useMemo(() => releases.find((release) => release.status === 'staging') ?? null, [releases])
+  const productionRelease = useMemo(() => releases.find((release) => release.status === 'production') ?? null, [releases])
+  const currentEnvironmentRelease = environment === 'staging' ? stagingRelease : environment === 'production' ? productionRelease : null
 
   const {
     data: sessionPages,
@@ -136,26 +146,40 @@ function PlaygroundContent() {
     fetchNextPage: fetchNextSessionsPage,
     hasNextPage: hasMoreSessions,
     isLoading: sessionsLoading,
+    isFetching: sessionsFetching,
     isFetchingNextPage: sessionsLoadingMore,
-  } = useAgentSessions(agentId, projectId)
+    isError: sessionsError,
+    error: sessionsQueryError,
+  } = useAgentSessions(agentId, projectId, environment)
+
+  const releaseVersionById = useMemo(
+    () => new Map(releases.map((release) => [release.id, release.version])),
+    [releases],
+  )
 
   const sessions = useMemo(() => {
     const byId = new Map<string, SessionListItem>()
     for (const page of sessionPages?.pages ?? []) {
-      for (const item of page.items) if (!byId.has(item.id)) byId.set(item.id, item)
+      for (const item of page.items) {
+        if (byId.has(item.id) || sessionEnvironment(item) !== environment) continue
+        byId.set(item.id, {
+          ...item,
+          opened_release_version: item.opened_release_id ? releaseVersionById.get(item.opened_release_id) ?? null : null,
+        })
+      }
     }
     return Array.from(byId.values())
-  }, [sessionPages])
+  }, [environment, releaseVersionById, sessionPages])
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [sessionIdState, setSessionIdState] = useState<string | null>(null)
+  const [activeSessionIdByEnvironment, setActiveSessionIdByEnvironment] = useState<Record<RuntimeEnvironment, string | null>>({ draft: null, staging: null, production: null })
   const [isSending, setIsSending] = useState(false)
   const [lastResponse, setLastResponse] = useState<AskResponse | null>(null)
   const [lastRequestPayload, setLastRequestPayload] = useState<Record<string, unknown> | null>(null)
   const [rawEvents, setRawEvents] = useState<RawStreamEvent[]>([])
   const rawEventsRef = useRef<RawStreamEvent[]>([])
   const [leftPanelTab, setLeftPanelTab] = useState<LeftPanelTab | null>('debug')
-  const [showLeftPanel, setShowLeftPanel] = useState(true)
+  const [showLeftPanel, setShowLeftPanel] = useState(false)
   const [showRightPanel, setShowRightPanel] = useState(true)
   const [rightPanelTab, setRightPanelTab] = useState('editor')
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null)
@@ -163,7 +187,17 @@ function PlaygroundContent() {
   const accumulatedRef = useRef('')
   const metadataRef = useRef<Partial<AskResponse>>({})
   const syncedSessionRef = useRef<string | null>(null)
-  const activeSessionId = isStateless ? null : sessionIdState
+
+  const sessionIdState = activeSessionIdByEnvironment[environment]
+  const environmentRelease = environment === 'draft' ? null : currentEnvironmentRelease
+  const environmentReady = environment === 'draft' || Boolean(currentEnvironmentRelease)
+  const runtimeEnabled = runtimeStatesQuery.data?.[environment]?.enabled ?? true
+  const agentSessionMode: 'stateful' | 'stateless' = environment === 'draft'
+    ? state.sessionMode === 'stateless' ? 'stateless' : 'stateful'
+    : agent?.session_mode === 'stateless' ? 'stateless' : 'stateful'
+  const isStateless = agentSessionMode === 'stateless'
+  const sessionIdForRun = isStateless ? null : sessionIdState
+  const selectedSessionId = sessionIdState
 
   const {
     data: backendTraces = [],
@@ -171,29 +205,19 @@ function PlaygroundContent() {
     isError: tracesError,
     error: tracesQueryError,
     refetch: refetchTraces,
-  } = usePlaygroundTraces(projectId, agentId, activeSessionId)
+  } = usePlaygroundTraces(projectId, agentId, selectedSessionId)
 
-  const { data: historyMessages, isFetching } = useSessionMessages(activeSessionId ?? undefined)
-  const isSessionLoading = messages.length === 0 && Boolean(activeSessionId) && isFetching && syncedSessionRef.current !== activeSessionId
+  const { data: historyMessages, isFetching } = useSessionMessages(selectedSessionId ?? undefined)
+  const isSessionLoading = messages.length === 0 && Boolean(selectedSessionId) && isFetching && syncedSessionRef.current !== selectedSessionId
 
-  useEffect(() => {
-    setPlaygroundSessionId(activeSessionId)
-  }, [activeSessionId])
+  const setCurrentSessionId = useCallback((sessionId: string | null) => {
+    setActiveSessionIdByEnvironment((current) => ({ ...current, [environment]: sessionId }))
+  }, [environment])
 
-  useEffect(() => {
-    if (!isStateless || !sessionIdState) return
-    cancelStream()
-    syncedSessionRef.current = null
-    setSessionIdState(null)
-    setMessages([])
-    setLastResponse(null)
-    setRawEvents([])
-    rawEventsRef.current = []
-    setSelectedTraceId(null)
-  }, [isStateless, sessionIdState, cancelStream])
+  useEffect(() => { setPlaygroundSessionId(selectedSessionId) }, [selectedSessionId])
 
   useEffect(() => {
-    if (historyMessages && activeSessionId && !isSending && !isFetching && syncedSessionRef.current !== activeSessionId) {
+    if (historyMessages && selectedSessionId && !isSending && !isFetching && syncedSessionRef.current !== selectedSessionId) {
       const mapped: ChatMessage[] = historyMessages.map((m) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
@@ -204,41 +228,90 @@ function PlaygroundContent() {
         provider: (m.data?.provider as string | undefined) ?? null,
         output_parse_error: (m.data?.output_parse_error as string | undefined) ?? null,
       }))
-      syncedSessionRef.current = activeSessionId
+      syncedSessionRef.current = selectedSessionId
       setMessages(mapped)
     }
-  }, [historyMessages, activeSessionId, isSending, isFetching])
+  }, [historyMessages, selectedSessionId, isSending, isFetching])
 
-  const handleSessionSelect = useCallback((sessionIdValue: string) => {
-    if (isStateless) return
+  const resetConversationView = useCallback(() => {
     syncedSessionRef.current = null
-    cancelStream()
-    setSessionIdState(sessionIdValue)
     setMessages([])
     setLastResponse(null)
+    setLastRequestPayload(null)
     setRawEvents([])
+    rawEventsRef.current = []
     setSelectedTraceId(null)
+  }, [])
+
+  const handleEnvironmentChange = useCallback((next: RuntimeEnvironment) => {
+    if (next === environment || isSending) return
+    cancelStream()
+    resetConversationView()
+    setEnvironment(next)
+  }, [cancelStream, environment, isSending, resetConversationView])
+
+  const handleSessionSelect = useCallback((sessionIdValue: string) => {
+    cancelStream()
+    resetConversationView()
+    setCurrentSessionId(sessionIdValue)
     queryClient.invalidateQueries({ queryKey: ['session-messages', sessionIdValue] })
-  }, [cancelStream, isStateless, queryClient])
+  }, [cancelStream, queryClient, resetConversationView, setCurrentSessionId])
 
   const handleNewSession = useCallback(async () => {
     if (!projectId || !agentId || creatingSession) return
+    if (!environmentReady) {
+      toast.info(`Create the ${environment} version before starting its Chat`)
+      return
+    }
+    if (!runtimeEnabled) {
+      toast.error(`${titleCaseEnvironment(environment)} runtime is off`)
+      return
+    }
     if (isStateless) {
-      toast.info('Stateless agents do not create persistent sessions')
+      toast.info('The Agent runtime is stateless and does not create persistent Sessions')
       return
     }
     cancelStream()
+    const sessionData: Record<string, unknown> = {
+      source: 'playground',
+      client_created_at: new Date().toISOString(),
+    }
+
     try {
-      const created = await createRuntimeSession({ project_id: projectId, agent_id: agentId, data: { source: 'playground', client_created_at: new Date().toISOString() } })
-      const listItem: SessionListItem = { id: created.id, project_id: created.project_id, agent_id: created.agent_id, status: created.status, mode: created.mode ?? 'chat', last_message_at: created.last_message_at ?? null, created_at: created.created_at ?? null, message_count: 0 }
-      queryClient.setQueryData<InfiniteData<SessionListPage>>(['agent-sessions', agentId, projectId], (old) => {
+      const created = await createRuntimeSession({
+        project_id: projectId,
+        agent_id: agentId,
+        runtime_environment: environment,
+        data: sessionData,
+      })
+      const listItem: SessionListItem = {
+        id: created.id,
+        project_id: created.project_id,
+        agent_id: created.agent_id,
+        runtime_environment: created.runtime_environment,
+        opened_release_id: created.opened_release_id ?? null,
+        opened_release_version: created.opened_release_id ? releaseVersionById.get(created.opened_release_id) ?? null : null,
+        status: created.status,
+        mode: created.mode ?? 'chat',
+        data: created.data ?? sessionData,
+        last_message_at: created.last_message_at ?? null,
+        created_at: created.created_at ?? null,
+        message_count: 0,
+      }
+      queryClient.setQueryData<InfiniteData<SessionListPage>>(['agent-sessions', agentId, projectId, environment], (old) => {
         const newPage: SessionListPage = { items: [listItem], next_cursor: null, has_next: false }
         if (!old || old.pages.length === 0) return { pages: [newPage], pageParams: [null] }
         const [firstPage, ...restPages] = old.pages
-        return { ...old, pages: [{ ...firstPage, items: [listItem, ...firstPage.items.filter((item) => item.id !== listItem.id)] }, ...restPages.map((page) => ({ ...page, items: page.items.filter((item) => item.id !== listItem.id) }))] }
+        return {
+          ...old,
+          pages: [
+            { ...firstPage, items: [listItem, ...firstPage.items.filter((item) => item.id !== listItem.id)] },
+            ...restPages.map((page) => ({ ...page, items: page.items.filter((item) => item.id !== listItem.id) })),
+          ],
+        }
       })
       syncedSessionRef.current = created.id
-      setSessionIdState(created.id)
+      setCurrentSessionId(created.id)
       setMessages([])
       setLastResponse(null)
       setRawEvents([])
@@ -247,9 +320,9 @@ function PlaygroundContent() {
       setIsSending(false)
       queryClient.invalidateQueries({ queryKey: ['session-messages', created.id] })
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Could not create session')
+      toast.error(err instanceof Error ? err.message : 'Could not create Session')
     }
-  }, [agentId, cancelStream, createRuntimeSession, creatingSession, isStateless, projectId, queryClient])
+  }, [agentId, cancelStream, createRuntimeSession, creatingSession, environment, environmentReady, isStateless, projectId, queryClient, releaseVersionById, runtimeEnabled, setCurrentSessionId])
 
   const updateLastAssistantMessage = useCallback((updater: (message: ChatMessage) => ChatMessage) => {
     setMessages((prev) => {
@@ -262,8 +335,12 @@ function PlaygroundContent() {
 
   const handleSend = async (content: string) => {
     if (isSending || !agent) return
-    if (isAgentInactive) {
-      toast.error('Agent is inactive')
+    if (!environmentReady) {
+      toast.info(`Create the ${environment} version before starting its Chat`)
+      return
+    }
+    if (!runtimeEnabled) {
+      toast.error(`${titleCaseEnvironment(environment)} runtime is off`)
       return
     }
 
@@ -274,12 +351,24 @@ function PlaygroundContent() {
     setIsSending(true)
 
     try {
-      const requestPayload: Record<string, unknown> = { project_id: projectId!, agent_id: agentId!, message: content, session_id: isStateless ? null : sessionIdState, execution_context: 'playground', metadata: { client_sent_at: new Date().toISOString() }, snapshot_override: toSnapshot() }
-      setLastRequestPayload(requestPayload)
-      await stream(requestPayload as any, {
+      const requestPayload: AskRequest = {
+        project_id: projectId!,
+        agent_id: agentId!,
+        message: content,
+        session_id: sessionIdForRun,
+        execution_context: environment === 'draft' ? 'playground' : environment,
+        metadata: {
+          source: 'playground',
+          runtime_environment: environment,
+          client_sent_at: new Date().toISOString(),
+        },
+        ...(environment === 'draft' ? { snapshot_override: toSnapshot() } : {}),
+      }
+      setLastRequestPayload(requestPayload as unknown as Record<string, unknown>)
+      await stream(requestPayload, {
         onMeta: (meta) => {
           rawEventsRef.current.push({ type: 'meta', timestamp: new Date().toISOString(), payload: meta })
-          if (!isStateless && meta.session_id) setSessionIdState(meta.session_id)
+          if (!isStateless && meta.session_id) setCurrentSessionId(meta.session_id)
           if (meta.trace_id) metadataRef.current.trace_id = meta.trace_id
         },
         onAgentActivity: (activity) => {
@@ -295,7 +384,7 @@ function PlaygroundContent() {
         onTokenRetract: (info) => {
           rawEventsRef.current.push({ type: 'token_retract', timestamp: new Date().toISOString(), payload: info })
           if (info.content_length > 0) accumulatedRef.current = accumulatedRef.current.slice(0, Math.max(0, accumulatedRef.current.length - info.content_length))
-          updateLastAssistantMessage((last) => ({ ...last, content: accumulatedRef.current, activity: { status: 'planning_tools', message: 'Checking whether tools are needed...' } }))
+          updateLastAssistantMessage((last) => ({ ...last, activity: { status: 'planning_tools', message: 'Checking whether tools are needed...' } }))
         },
         onInternalToken: (token) => rawEventsRef.current.push({ type: 'internal_token', timestamp: new Date().toISOString(), payload: token }),
         onSources: (sources) => {
@@ -317,7 +406,7 @@ function PlaygroundContent() {
           setRawEvents([...rawEventsRef.current])
           const meta = response
           const finalContent = meta.answer || accumulatedRef.current || ''
-          if (!isStateless && meta.session_id) setSessionIdState(meta.session_id)
+          if (!isStateless && meta.session_id) setCurrentSessionId(meta.session_id)
           setMessages((prev) => {
             const updated = [...prev]
             const last = updated[updated.length - 1]
@@ -366,48 +455,117 @@ function PlaygroundContent() {
   }, [fetchNextSessionsPage, hasMoreSessions, sessionsLoadingMore])
 
   const traces = useMemo(() => {
-    const mapped: TraceItem[] = backendTraces.map((t) => {
-      const traceData = (t.data ?? {}) as Record<string, unknown>
-      const mapStatus = (s: string): TraceItem['status'] => {
-        if (s === 'completed' || s === 'success') return 'success'
-        if (s === 'failed' || s === 'error') return 'error'
-        if (s === 'running' || s === 'processing') return 'running'
-        if (s === 'pending' || s === 'queued') return 'pending'
-        if (s === 'cancelled' || s === 'canceled') return 'cancelled'
-        return 'warning'
-      }
-      return { id: t.id, title: t.status === 'failed' ? `Failed (${t.error?.slice(0, 40) || 'error'})` : `Trace ${t.status}`, timestamp: t.created_at ?? new Date().toISOString(), status: mapStatus(t.status), latency_ms: t.total_latency_ms ?? null, model: t.model ?? null, provider: t.provider ?? null, input_tokens: (traceData.input_tokens as number) ?? null, output_tokens: (traceData.output_tokens as number) ?? null, total_tokens: (traceData.total_tokens as number) ?? null, cost_usd: (traceData.cost_usd as number) ?? t.total_cost_usd ?? null, trace_id: t.id, response: null, project_id: t.project_id, agent_id: t.agent_id }
-    })
+    const mapped: TraceItem[] = backendTraces
+      .filter((trace) => traceEnvironment((trace.data ?? {}) as Record<string, unknown>) === environment)
+      .map((t) => {
+        const traceData = (t.data ?? {}) as Record<string, unknown>
+        const mapStatus = (s: string): TraceItem['status'] => {
+          if (s === 'completed' || s === 'success') return 'success'
+          if (s === 'failed' || s === 'error') return 'error'
+          if (s === 'running' || s === 'processing') return 'running'
+          if (s === 'pending' || s === 'queued') return 'pending'
+          if (s === 'cancelled' || s === 'canceled') return 'cancelled'
+          return 'warning'
+        }
+        return { id: t.id, title: t.status === 'failed' ? `Failed (${t.error?.slice(0, 40) || 'error'})` : `Trace ${t.status}`, timestamp: t.created_at ?? new Date().toISOString(), status: mapStatus(t.status), latency_ms: t.total_latency_ms ?? null, model: t.model ?? null, provider: t.provider ?? null, input_tokens: (traceData.input_tokens as number) ?? null, output_tokens: (traceData.output_tokens as number) ?? null, total_tokens: (traceData.total_tokens as number) ?? null, cost_usd: (traceData.cost_usd as number) ?? t.total_cost_usd ?? null, trace_id: t.id, response: null, project_id: t.project_id, agent_id: t.agent_id }
+      })
     mapped.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     return mapped
-  }, [backendTraces])
+  }, [backendTraces, environment])
 
   if (agentLoading) return <AgentPlaygroundSkeleton />
-  if (agentError) return <ErrorState message="Failed to load agent" onRetry={() => navigate(p(projectId!, 'agents'))} />
+  if (agentError) return <ErrorState message="Failed to load Agent" onRetry={() => navigate(p(projectId!, 'agents'))} />
   if (!agent) return <ErrorState message="Agent not found" />
 
-  const statusLabel = isDirty ? 'Using: Draft (unsaved)' : 'Using: Current Draft'
-  const runtimeBlockReason = isAgentInactive ? 'Agent is inactive. Activate it in Runtime to run tests.' : undefined
+  const environmentLabel = titleCaseEnvironment(environment)
+  const versionLabel = environment === 'draft'
+    ? isDirty ? 'Draft (unsaved)' : 'Current Draft'
+    : currentEnvironmentRelease?.version ?? 'not created'
+  const statusLabel = `Using: ${environment === 'draft' ? versionLabel : `${environmentLabel} · ${versionLabel}`}`
+  const runtimeBlockReason = !environmentReady
+    ? environment === 'staging'
+      ? 'Staging has not been created. Create an immutable Staging snapshot before testing it.'
+      : 'Production has not been deployed. Activate an Agent Release before testing Production.'
+    : runtimeEnabled
+      ? undefined
+      : `${environmentLabel} runtime is off. Configuration and release management remain available.`
+  const sessionCreationDisabledReason = !environmentReady
+    ? `${environmentLabel} has not been created yet.`
+    : !runtimeEnabled
+      ? `${environmentLabel} runtime is off.`
+      : isStateless
+        ? 'This Agent runtime is stateless.'
+        : undefined
+  const visibleProvider = environment === 'draft' ? state.provider : currentEnvironmentRelease?.provider
+  const visibleModel = environment === 'draft' ? state.model : currentEnvironmentRelease?.model
 
   return (
     <ErrorBoundary>
       <div className="-m-6 h-[calc(100vh-3.5rem)] overflow-hidden flex flex-col bg-background">
-        <PlaygroundHeader agent={agent} showLeftPanel={showLeftPanel} showRightPanel={showRightPanel} onToggleLeftPanel={() => setShowLeftPanel(!showLeftPanel)} onToggleRightPanel={() => setShowRightPanel(!showRightPanel)} onApiClick={() => setShowApiModal(true)} onSettingsClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))} releaseVersion={productionRelease?.version} releaseStatus={productionRelease?.status} />
-        <div className="h-6 shrink-0 flex items-center px-4 border-b border-border text-[10px] bg-surface/30"><span className="text-muted font-medium">{statusLabel}</span>{isDirty && <span className="ml-2 text-yellow-400 font-medium">· unsaved changes</span>}<span className="ml-2 text-muted">· {agentSessionMode}</span>{isAgentInactive && <span className="ml-2 text-red-400 font-medium">· inactive</span>}<span className="ml-auto text-muted">{state.provider}/{state.model}</span></div>
+        <PlaygroundHeader
+          agent={agent}
+          projectId={projectId!}
+          showLeftPanel={showLeftPanel}
+          showRightPanel={showRightPanel}
+          environment={environment}
+          environmentChangeDisabled={isSending}
+          onEnvironmentChange={handleEnvironmentChange}
+          onToggleLeftPanel={() => setShowLeftPanel(!showLeftPanel)}
+          onToggleRightPanel={() => setShowRightPanel(!showRightPanel)}
+          onApiClick={() => setShowApiModal(true)}
+          onSettingsClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))}
+          releaseVersion={productionRelease?.version}
+          releaseStatus={productionRelease?.status}
+        />
+        <div className="h-6 shrink-0 flex items-center px-4 border-b border-border text-[10px] bg-surface/30">
+          <span className="text-muted font-medium">{statusLabel}</span>
+          {environment === 'draft' && isDirty && <span className="ml-2 text-yellow-400 font-medium">· unsaved changes</span>}
+          {!runtimeEnabled && <span className="ml-2 text-red-400 font-medium">· {environmentLabel} runtime off</span>}
+          {!environmentReady && <span className="ml-2 text-amber-300 font-medium">· environment not created</span>}
+          <span className="ml-auto text-muted">{visibleProvider || '—'}/{visibleModel || '—'}</span>
+        </div>
         <div className="flex flex-1 min-h-0 overflow-hidden">
-          <OperationsRail activeTab={showLeftPanel ? leftPanelTab : null} onTabChange={handleLeftPanelTabChange} />
-          {showLeftPanel && <OperationsPanel activeTab={leftPanelTab} lastResponse={lastResponse} lastRequestPayload={lastRequestPayload} rawEvents={rawEvents} traces={traces} selectedTraceId={selectedTraceId} sessions={sessions} sessionId={activeSessionId} sessionMode={agentSessionMode} onSelectTrace={setSelectedTraceId} onNewSession={handleNewSession} onSelectSession={handleSessionSelect} onLoadMoreSessions={handleLoadMoreSessions} hasMoreSessions={Boolean(hasMoreSessions)} sessionsLoading={sessionsLoading} sessionsLoadingMore={sessionsLoadingMore} creatingSession={creatingSession} tracesLoading={tracesLoading} tracesError={tracesError} tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined} onTracesRetry={refetchTraces} />}
-          <div className="flex-1 min-w-0 flex flex-col"><ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} agentName={agent?.name} runtimeBlocked={isAgentInactive} runtimeBlockReason={runtimeBlockReason} /></div>
-          {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
+          <OperationsRail activeTab={showLeftPanel ? leftPanelTab : null} environment={environment} onTabChange={handleLeftPanelTabChange} />
+          {showLeftPanel && (
+            <OperationsPanel
+              activeTab={leftPanelTab}
+              lastResponse={lastResponse}
+              lastRequestPayload={lastRequestPayload}
+              rawEvents={rawEvents}
+              traces={traces}
+              selectedTraceId={selectedTraceId}
+              sessions={sessions}
+              sessionId={selectedSessionId}
+              sessionMode={agentSessionMode}
+              sessionCreationDisabledReason={sessionCreationDisabledReason}
+              onSelectTrace={setSelectedTraceId}
+              onNewSession={handleNewSession}
+              onSelectSession={handleSessionSelect}
+              onLoadMoreSessions={handleLoadMoreSessions}
+              hasMoreSessions={Boolean(hasMoreSessions)}
+              sessionsLoading={sessionsLoading || sessionsFetching}
+              sessionsLoadingMore={sessionsLoadingMore}
+              creatingSession={creatingSession}
+              sessionsError={sessionsError}
+              sessionsErrorMessage={sessionsQueryError instanceof Error ? sessionsQueryError.message : undefined}
+              onSessionsRetry={() => { void refetchSessions() }}
+              tracesLoading={tracesLoading}
+              tracesError={tracesError}
+              tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined}
+              onTracesRetry={refetchTraces}
+            />
+          )}
+          <div className="flex-1 min-w-0 flex flex-col"><ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} agentName={agent.name} runtimeBlocked={!runtimeEnabled || !environmentReady} runtimeBlockReason={runtimeBlockReason} /></div>
+          {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={false} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
         </div>
       </div>
-      <ApiModal open={showApiModal} onClose={() => setShowApiModal(false)} agent={agent} projectId={projectId!} orgProjectPathFn={(projId, ...segments) => p(projId, ...segments)} />
+      <ApiModal open={showApiModal} onClose={() => setShowApiModal(false)} agent={agent} projectId={projectId!} workspaceProjectPathFn={(projId, ...segments) => p(projId, ...segments)} />
     </ErrorBoundary>
   )
 }
 
 export default function AgentPlaygroundPage() {
-  const { projectId, agentId } = useParams<{ organizationId?: string; projectId: string; agentId: string }>()
+  const { projectId, agentId } = useParams<{ workspaceId?: string; projectId: string; agentId: string }>()
   const { data: agent, isLoading } = useAgent(agentId)
   if (isLoading) return <AgentPlaygroundSkeleton />
   if (!agent) return <ErrorState message="Agent not found" />

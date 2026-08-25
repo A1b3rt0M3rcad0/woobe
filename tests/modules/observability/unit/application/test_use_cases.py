@@ -2,18 +2,18 @@ from uuid import UUID
 
 import pytest
 
-from modules.observability.application.use_cases import (
-    CreateTraceEventUseCase,
-    CreateTraceUseCase,
-    GetTraceUseCase,
-    ListTracesUseCase,
-)
 from modules.observability.application.dtos import (
     CreateTraceEventInput,
     CreateTraceEventOutput,
     CreateTraceInput,
     CreateTraceOutput,
     ListTracesInput,
+)
+from modules.observability.application.use_cases import (
+    CreateTraceEventUseCase,
+    CreateTraceUseCase,
+    GetTraceUseCase,
+    ListTracesUseCase,
 )
 from modules.observability.domain.entities import Trace, TraceEvent
 from modules.observability.domain.enums import TraceEventType
@@ -32,19 +32,68 @@ class FakeTraceRepository(TraceRepository):
     async def get_by_id(self, trace_id: UUID) -> Trace | None:
         return self._storage.get(trace_id)
 
-    async def list_by_project(self, project_id: UUID, limit: int = 100, offset: int = 0) -> list[Trace]:
-        return [t for t in self._storage.values() if t.project_id == project_id][offset:offset + limit]
+    async def list_by_project(
+        self,
+        project_id: UUID,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Trace]:
+        return [
+            trace for trace in self._storage.values() if trace.project_id == project_id
+        ][offset : offset + limit]
 
-    async def list_by_session(self, session_id: UUID, limit: int = 100, offset: int = 0) -> list[Trace]:
-        return [t for t in self._storage.values() if t.session_id == session_id][offset:offset + limit]
+    async def list_by_project_and_network(
+        self,
+        project_id: UUID,
+        network_id: UUID,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Trace]:
+        return [
+            trace
+            for trace in self._storage.values()
+            if trace.project_id == project_id and trace.network_id == network_id
+        ][offset : offset + limit]
 
-    async def list_by_project_and_agent(self, project_id: UUID, agent_id: UUID, limit: int = 100, offset: int = 0) -> list[Trace]:
-        return [t for t in self._storage.values() if t.project_id == project_id and t.agent_id == agent_id][offset:offset + limit]
+    async def list_by_session(
+        self,
+        session_id: UUID,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Trace]:
+        return [
+            trace for trace in self._storage.values() if trace.session_id == session_id
+        ][offset : offset + limit]
 
-    async def paginate_by_project(self, project_id: UUID, *, limit: int = 50, cursor: str | None = None):
+    async def list_by_project_and_agent(
+        self,
+        project_id: UUID,
+        agent_id: UUID,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[Trace]:
+        return [
+            trace
+            for trace in self._storage.values()
+            if trace.project_id == project_id and trace.agent_id == agent_id
+        ][offset : offset + limit]
+
+    async def paginate_by_project(
+        self,
+        project_id: UUID,
+        *,
+        limit: int = 50,
+        cursor: str | None = None,
+    ):
         raise NotImplementedError
 
-    async def paginate_by_session(self, session_id: UUID, *, limit: int = 50, cursor: str | None = None):
+    async def paginate_by_session(
+        self,
+        session_id: UUID,
+        *,
+        limit: int = 50,
+        cursor: str | None = None,
+    ):
         raise NotImplementedError
 
     async def delete(self, trace_id: UUID) -> None:
@@ -62,10 +111,23 @@ class FakeTraceEventRepository(TraceEventRepository):
     async def get_by_id(self, event_id: UUID) -> TraceEvent | None:
         return self._storage.get(event_id)
 
-    async def list_by_trace(self, trace_id: UUID, limit: int = 100, offset: int = 0) -> list[TraceEvent]:
-        return [e for e in self._storage.values() if e.trace_id == trace_id][offset:offset + limit]
+    async def list_by_trace(
+        self,
+        trace_id: UUID,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> list[TraceEvent]:
+        return [
+            event for event in self._storage.values() if event.trace_id == trace_id
+        ][offset : offset + limit]
 
-    async def paginate_by_trace(self, trace_id: UUID, *, limit: int = 50, cursor: str | None = None):
+    async def paginate_by_trace(
+        self,
+        trace_id: UUID,
+        *,
+        limit: int = 50,
+        cursor: str | None = None,
+    ):
         raise NotImplementedError
 
     async def delete(self, event_id: UUID) -> None:
@@ -76,7 +138,14 @@ class FakeOutboxWriter:
     def __init__(self):
         self.written = []
 
-    async def write(self, aggregate_type: str, aggregate_id: UUID, event_type: str, payload: dict, **kwargs) -> None:
+    async def write(
+        self,
+        aggregate_type: str,
+        aggregate_id: UUID,
+        event_type: str,
+        payload: dict,
+        **kwargs,
+    ) -> None:
         self.written.append((aggregate_type, aggregate_id, event_type, payload))
 
 
@@ -109,7 +178,13 @@ class TestCreateTraceEventUseCase:
 
         tid = UUID("00000000-0000-0000-0000-000000000001")
         pid = UUID("00000000-0000-0000-0000-000000000002")
-        result = await uc.execute(CreateTraceEventInput(trace_id=tid, project_id=pid, event_type="llm_call"))
+        result = await uc.execute(
+            CreateTraceEventInput(
+                trace_id=tid,
+                project_id=pid,
+                event_type="llm_call",
+            )
+        )
 
         assert isinstance(result, CreateTraceEventOutput)
         saved = await repo.get_by_id(result.event_id)
@@ -147,10 +222,30 @@ class TestListTracesUseCase:
         repo = FakeTraceRepository()
         pid = UUID("00000000-0000-0000-0000-000000000001")
         await repo.save(Trace(project_id=pid))
-        results = await ListTracesUseCase(repo).execute(ListTracesInput(project_id=pid))
+        results = await ListTracesUseCase(repo).execute(
+            ListTracesInput(project_id=pid)
+        )
         assert len(results) == 1
 
     @pytest.mark.asyncio
+    async def test_list_by_project_and_network(self):
+        repo = FakeTraceRepository()
+        pid = UUID("00000000-0000-0000-0000-000000000001")
+        first_network = UUID("00000000-0000-0000-0000-000000000010")
+        second_network = UUID("00000000-0000-0000-0000-000000000020")
+        await repo.save(Trace(project_id=pid, network_id=first_network))
+        await repo.save(Trace(project_id=pid, network_id=second_network))
+
+        results = await ListTracesUseCase(repo).execute(
+            ListTracesInput(project_id=pid, network_id=first_network)
+        )
+
+        assert len(results) == 1
+        assert results[0].network_id == first_network
+
+    @pytest.mark.asyncio
     async def test_list_without_project_returns_empty(self):
-        results = await ListTracesUseCase(FakeTraceRepository()).execute(ListTracesInput())
+        results = await ListTracesUseCase(FakeTraceRepository()).execute(
+            ListTracesInput()
+        )
         assert results == []

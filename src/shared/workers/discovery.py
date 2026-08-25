@@ -11,14 +11,14 @@ from shared.workers.contracts import WorkerRegistryProtocol
 
 logger = logging.getLogger(__name__)
 
-MODULE_WORKER_REGISTRIES: list[str] = [
+CORE_MODULE_WORKER_REGISTRIES: tuple[str, ...] = (
     "agent",
-    "billing",
     "core",
     "identity",
     "metering",
+    "network",
     "observability",
-]
+)
 
 
 class ModuleWorkerEntry:
@@ -34,12 +34,20 @@ class ModuleWorkerEntry:
 
 
 def discover_module_entries() -> list[ModuleWorkerEntry]:
+    module_paths = [
+        (
+            module_name,
+            "modules.agent.entrypoint"
+            if module_name == "agent"
+            else f"modules.{module_name}.infra.workers.registry",
+        )
+        for module_name in CORE_MODULE_WORKER_REGISTRIES
+    ]
+
     entries: list[ModuleWorkerEntry] = []
-    for module_name in MODULE_WORKER_REGISTRIES:
+    for module_name, module_path in module_paths:
         try:
-            mod = importlib.import_module(
-                f"modules.{module_name}.infra.workers.registry"
-            )
+            mod = importlib.import_module(module_path)
         except ImportError as exc:
             logger.warning("Could not import registry for module %s: %s", module_name, exc)
             continue

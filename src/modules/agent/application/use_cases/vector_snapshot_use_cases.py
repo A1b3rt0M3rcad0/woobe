@@ -32,8 +32,8 @@ from modules.agent.domain.enums import (
     DocumentStatus,
     ProviderModelStatus,
 )
-from modules.agent.domain.ports.embedding_factory import EmbeddingFactory
-from modules.agent.domain.repositories import (
+from modules.agent.application.interfaces.embedding_factory import EmbeddingFactory
+from modules.agent.application.interfaces.repositories import (
     DocumentCollectionRepository,
     DocumentRepository,
     ProviderCredentialRepository,
@@ -50,10 +50,9 @@ from modules.agent.domain.vector_snapshot_entities import (
     VectorSnapshotChunk,
     VectorSnapshotDocument,
 )
-from shared.infra.config import Settings
-from shared.infra.crypto import decrypt_secret
-from shared.infra.errors import ConflictError, NotFoundError, ValidationError
-from shared.infra.time import utc_now
+from shared.security.crypto import decrypt_secret
+from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
+from shared.contracts.time import utc_now
 
 EMBEDDING_BATCH_SIZE = 100
 
@@ -553,7 +552,7 @@ class BuildVectorSnapshotUseCase:
         credential_repo: ProviderCredentialRepository,
         storage: Any,
         embedding_factory: EmbeddingFactory,
-        settings: Settings | None = None,
+        encryption_key: str,
         parser: DocumentParser | None = None,
         chunker: RecursiveTextChunker | None = None,
     ) -> None:
@@ -563,7 +562,7 @@ class BuildVectorSnapshotUseCase:
         self._credential_repo = credential_repo
         self._storage = storage
         self._embedding_factory = embedding_factory
-        self._settings = settings or Settings()
+        self._encryption_key = encryption_key
         self._parser = parser or DocumentParser()
         self._chunker = chunker or RecursiveTextChunker()
 
@@ -597,7 +596,7 @@ class BuildVectorSnapshotUseCase:
 
         api_key = decrypt_secret(
             credential.encrypted_secret,
-            self._settings.encryption_key,
+            self._encryption_key,
         )
         metadata = provider_model.metadata or {}
         base_url = metadata.get("base_url") or (

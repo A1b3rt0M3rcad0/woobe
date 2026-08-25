@@ -51,6 +51,32 @@ _REPEATABLE_MUTATION_EVENT_TYPES = frozenset(
     }
 )
 
+_NETWORK_CONTEXT_FIELDS = (
+    "network_id",
+    "network_version_id",
+    "network_session_id",
+    "network_execution_id",
+    "network_invocation_id",
+    "parent_invocation_id",
+    "network_node_id",
+    "depth",
+)
+
+
+def _active_network_context_payload() -> dict[str, Any]:
+    """Return Network runtime identity without coupling event callers to Network."""
+    from modules.agent.application.interfaces.execution_context import current_execution
+
+    context = current_execution.get()
+    if context is None or context.network_id is None:
+        return {}
+    payload: dict[str, Any] = {}
+    for field_name in _NETWORK_CONTEXT_FIELDS:
+        value = getattr(context, field_name, None)
+        if value is not None:
+            payload[field_name] = str(value) if isinstance(value, UUID) else value
+    return payload
+
 
 def _validate_event_fields(
     event_version: int,
@@ -140,8 +166,11 @@ def domain_event_to_outbox(event: AgentDomainEvent) -> AgentOutboxEventModel:
         idempotency_key=idempotency_key,
         correlation_id=event.correlation_id,
     )
-    aggregate_type = event.payload.get("aggregate_type", "")
-    aggregate_id = event.payload.get("aggregate_id")
+    payload = dict(event.payload)
+    if event.event_type.startswith("agent.execution."):
+        payload = {**_active_network_context_payload(), **payload}
+    aggregate_type = payload.get("aggregate_type", "")
+    aggregate_id = payload.get("aggregate_id")
     if not aggregate_type:
         aggregate_type = "agent"
     if aggregate_id is None:
@@ -155,7 +184,7 @@ def domain_event_to_outbox(event: AgentDomainEvent) -> AgentOutboxEventModel:
     model.event_type = event.event_type
     model.event_version = event.event_version
     model.routing_key = event.routing_key
-    model.payload = event.payload
+    model.payload = payload
     model.metadata_ = event.metadata
     model.idempotency_key = idempotency_key
     model.correlation_id = event.correlation_id

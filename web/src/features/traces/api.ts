@@ -5,6 +5,7 @@ export interface GetTracesParams {
   projectId?: string
   agentId?: string
   sessionId?: string
+  networkId?: string
 }
 
 export async function getTraces(params?: GetTracesParams): Promise<Trace[]> {
@@ -13,6 +14,7 @@ export async function getTraces(params?: GetTracesParams): Promise<Trace[]> {
       project_id: params?.projectId,
       agent_id: params?.agentId,
       session_id: params?.sessionId,
+      network_id: params?.networkId,
     },
   })
 }

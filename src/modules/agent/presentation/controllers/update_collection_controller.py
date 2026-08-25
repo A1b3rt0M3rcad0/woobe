@@ -1,19 +1,19 @@
+from modules.agent.application.interfaces.use_case import UseCase
 from typing import Any, cast
 from uuid import UUID
 
 from pydantic import ValidationError as PydanticValidationError
 
 from modules.agent.application.dtos.knowledge_dtos import UpdateCollectionInput
-from modules.agent.application.use_cases.update_collection_use_case import UpdateCollectionUseCase
 from modules.agent.presentation.mappers import collection_to_response
-from shared.infra.errors import NotFoundError, ValidationError
+from shared.contracts.errors import NotFoundError, ValidationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
 
 
 class UpdateCollectionController(Controller):
-    def __init__(self, use_case: UpdateCollectionUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

@@ -8,7 +8,9 @@ from uuid import uuid4
 
 import pytest
 
-from modules.agent.infra.adapters.tool_executor import AgentToolExecutor
+from modules.agent.domain.entities import Tool
+from modules.agent.domain.enums import ToolStatus, ToolType
+from modules.agent.infra.execution.agent_tool_executor import AgentToolExecutor
 from modules.agent.infra.messaging.inbox_handlers import AgentInboxEventRouter
 
 
@@ -31,14 +33,24 @@ class TestAgentToolExecutorWiring:
     async def test_execute_tool_with_secret_resolver(self):
         tool_repo = MagicMock()
         tool_id = uuid4()
-        tool = MagicMock()
-        tool.status = "active"
-        tool.config = {
-            "url": "https://api.example.com/{{path}}",
-            "method": "POST",
-            "headers": [{"key": "Authorization", "value": "Bearer {{secret}}"}],
-            "variables": {"path": "test"},
-        }
+        tool = Tool(
+            id=tool_id,
+            project_id=uuid4(),
+            name="Example API",
+            type=ToolType.HTTP,
+            status=ToolStatus.ACTIVE,
+            config={
+                "url": "https://api.example.com/{{path}}",
+                "method": "POST",
+                "headers": [{"key": "Authorization", "value": "Bearer {{secret}}"}],
+                "variables": {"path": "test", "secret": "placeholder"},
+            },
+            input_schema={
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+                "required": ["path"],
+            },
+        )
         tool_repo.get_by_id = AsyncMock(return_value=tool)
         executor = MagicMock()
         executor.execute = AsyncMock(
@@ -62,13 +74,19 @@ class TestAgentToolExecutorWiring:
     async def test_execute_tool_without_secret_resolver(self):
         tool_repo = MagicMock()
         tool_id = uuid4()
-        tool = MagicMock()
-        tool.status = "active"
-        tool.config = {
-            "url": "https://api.example.com/test",
-            "method": "GET",
-            "headers": [],
-        }
+        tool = Tool(
+            id=tool_id,
+            project_id=uuid4(),
+            name="Example API",
+            type=ToolType.HTTP,
+            status=ToolStatus.ACTIVE,
+            config={
+                "url": "https://api.example.com/test",
+                "method": "GET",
+                "headers": [],
+            },
+            input_schema={"type": "object", "properties": {}, "required": []},
+        )
         tool_repo.get_by_id = AsyncMock(return_value=tool)
 
         executor = MagicMock()
@@ -108,18 +126,18 @@ class TestComposerConstruction:
 
     def test_execute_tool_composer_includes_secret_resolver(self):
         import inspect
-        from modules.agent.application.composers.tools_composers import execute_tool_composer
+        from modules.agent.composition.composers.tools_composers import execute_tool_composer
         source = inspect.getsource(execute_tool_composer)
         assert "secret_resolver" in source
 
     def test_create_tool_composer_includes_outbox(self):
         import inspect
-        from modules.agent.application.composers.tools_composers import create_tool_composer
+        from modules.agent.composition.composers.tools_composers import create_tool_composer
         source = inspect.getsource(create_tool_composer)
         assert "outbox" in source
 
     def test_agent_tool_executor_imports_execute_tool_use_case(self):
         import inspect
-        from modules.agent.infra.adapters.tool_executor import AgentToolExecutor
+        from modules.agent.infra.execution.agent_tool_executor import AgentToolExecutor
         source = inspect.getsource(AgentToolExecutor)
         assert "ExecuteToolUseCase" in source

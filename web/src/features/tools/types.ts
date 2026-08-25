@@ -1,10 +1,12 @@
 export type ToolProtocol = 'http' | 'mcp' | 'http_mcp' | 'api' | 'webhook' | string
-export type McpToolPermissionMode = 'allow' | 'deny' | 'review'
+export type ToolChildPermissionMode = 'allow' | 'deny' | 'review'
+export type McpToolPermissionMode = ToolChildPermissionMode
 
 export interface HttpHeader {
   key: string
-  value: string
+  value?: string
   sensitive?: boolean
+  mode?: 'set' | 'remove'
 }
 
 export interface HttpAuth {
@@ -12,12 +14,44 @@ export interface HttpAuth {
   credentials?: string[]
 }
 
+export interface ToolChildPermission {
+  mode: ToolChildPermissionMode
+  risk_level?: string | null
+}
+
+export type McpToolPermission = ToolChildPermission
+
+export interface HttpRouteConfig {
+  id: string
+  operation_id?: string
+  name: string
+  description: string
+  method: string
+  path: string
+  headers?: HttpHeader[]
+  body?: string | Record<string, unknown> | unknown[]
+  variables?: Record<string, string>
+  input_schema?: Record<string, unknown>
+  output_schema?: Record<string, unknown>
+  risk_level?: string
+  status?: 'active' | 'inactive' | string
+  default_permission?: ToolChildPermissionMode
+  permission?: ToolChildPermission
+  timeout_ms?: number
+  contract_version?: number
+  contract_hash?: string
+}
+
 export interface HttpToolConfig {
   protocol?: 'http'
-  url: string
-  method: string
+  mode?: 'single' | 'group'
+  schema_version?: number
+  base_url?: string
+  routes?: HttpRouteConfig[]
+  url?: string
+  method?: string
   headers: HttpHeader[]
-  body?: string
+  body?: string | Record<string, unknown> | unknown[]
   variables?: Record<string, string>
   auth?: HttpAuth
   timeout_ms?: number
@@ -33,17 +67,27 @@ export interface McpServerConfig {
   name?: string
 }
 
-export interface McpToolPermission {
-  mode: McpToolPermissionMode
-  risk_level?: string | null
-}
-
 export interface McpProtectedResourceMetadata {
   resource?: string | null
   authorization_servers?: string[]
   scopes_supported?: string[]
   bearer_methods_supported?: string[]
   authorization_hints?: Record<string, unknown>
+}
+
+export interface McpOAuthDiscovery {
+  status?: 'valid' | 'invalid_metadata' | 'provider_managed' | 'not_advertised' | string
+  advertised?: boolean
+  provider?: string | null
+  resource_metadata_url?: string | null
+  authorization_server_issuer?: string | null
+  authorization_endpoint?: string | null
+  token_endpoint?: string | null
+  registration_endpoint?: string | null
+  protected_resource_metadata?: McpProtectedResourceMetadata | null
+  error?: string | null
+  checked_urls?: string[]
+  checked_at?: string | null
 }
 
 export interface McpDiscoveryDiagnostic {
@@ -57,16 +101,22 @@ export interface McpDiscoveryDiagnostic {
   protected_resource?: string | null
   authorization_hints?: Record<string, unknown>
   authorization_server_issuer?: string | null
+  authorization_endpoint?: string | null
+  token_endpoint?: string | null
   token_endpoint_auth_method?: string | null
+  oauth_metadata_status?: string | null
+  oauth_metadata_error?: string | null
+  managed_provider?: string | null
+  resource_metadata_url?: string | null
   checked_at?: string | null
   www_authenticate?: string | null
 }
 
 export interface McpReadiness {
-  state: 'ready' | 'needs_connection' | 'provider_not_supported' | 'needs_permission' | 'no_tools' | 'token_rejected' | 'discovery_failed' | 'not_ready' | string
+  state: 'ready' | 'needs_connection' | 'provider_not_supported' | 'provider_managed' | 'oauth_metadata_invalid' | 'needs_permission' | 'no_tools' | 'token_rejected' | 'needs_credentials' | 'scope_denied' | 'invalid_endpoint' | 'unavailable' | 'discovery_failed' | 'not_ready' | string
   label: string
   message: string
-  action: 'connect' | 'device_code' | 'provider_credentials' | 'configure_permissions' | 'refresh' | 'disconnect' | string
+  action: 'connect' | 'device_code' | 'provider_credentials' | 'review_provider' | 'configure_credentials' | 'edit_endpoint' | 'configure_permissions' | 'refresh' | 'disconnect' | string
   can_use_tools: boolean
   oauth_connected: boolean
   mcp_ready: boolean
@@ -100,6 +150,7 @@ export interface McpToolConfig {
   oauth_discovery_error?: string
   mcp_status?: string
   mcp_resource_metadata?: McpProtectedResourceMetadata
+  mcp_oauth_discovery?: McpOAuthDiscovery
   mcp_discovery?: McpDiscoveryDiagnostic
   mcp_readiness?: McpReadiness
 }

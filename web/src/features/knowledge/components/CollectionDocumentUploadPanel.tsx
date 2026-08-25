@@ -3,6 +3,13 @@ import { CheckCircle2, Database, FileText, UploadCloud, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
+import {
+  ACCEPTED_DOCUMENT_EXTENSIONS,
+  DOCUMENT_ACCEPT_ATTRIBUTE,
+  MAX_DOCUMENT_FILE_MB,
+  titleFromDocumentFileName,
+  validateKnowledgeDocumentFile,
+} from '@/features/knowledge/documentFormats'
 import { useUploadDocumentFile } from '@/features/knowledge/hooks'
 import { formatBytes } from '@/lib/formatters/bytes'
 
@@ -12,19 +19,6 @@ interface CollectionDocumentUploadPanelProps {
   onCancel: () => void
   onUploaded: () => void
   showDestination?: boolean
-}
-
-const ACCEPTED_EXTENSIONS = ['.txt', '.md', '.pdf']
-const ACCEPTED_MIME_TYPES = ['text/plain', 'text/markdown', 'text/x-markdown', 'application/pdf', 'application/octet-stream']
-const MAX_FILE_MB = 25
-
-function extensionOf(fileName: string): string {
-  const dotIndex = fileName.lastIndexOf('.')
-  return dotIndex >= 0 ? fileName.slice(dotIndex).toLowerCase() : ''
-}
-
-function titleFromFileName(fileName: string): string {
-  return fileName.replace(/\.[^/.]+$/, '')
 }
 
 export function CollectionDocumentUploadPanel({ projectId, collection, onCancel, onUploaded, showDestination = true }: CollectionDocumentUploadPanelProps) {
@@ -43,24 +37,15 @@ export function CollectionDocumentUploadPanel({ projectId, collection, onCancel,
 
   const selectedCollectionName = useMemo(() => collection.name || collection.id.slice(0, 8), [collection])
 
-  const validateFile = (candidate: File): string | null => {
-    const extension = extensionOf(candidate.name)
-    if (!ACCEPTED_EXTENSIONS.includes(extension)) return 'Only TXT, MD and PDF files are supported.'
-    if (candidate.type && !ACCEPTED_MIME_TYPES.includes(candidate.type)) return `Invalid file type: ${candidate.type}`
-    if (candidate.size <= 0) return 'File is empty.'
-    if (candidate.size > MAX_FILE_MB * 1024 * 1024) return `File exceeds ${MAX_FILE_MB} MB.`
-    return null
-  }
-
   const setValidatedFile = (candidate: File | null) => {
     if (!candidate) return
-    const error = validateFile(candidate)
+    const error = validateKnowledgeDocumentFile(candidate)
     if (error) {
       toast.error(error)
       return
     }
     setFile(candidate)
-    if (!title.trim()) setTitle(titleFromFileName(candidate.name))
+    if (!title.trim()) setTitle(titleFromDocumentFileName(candidate.name))
   }
 
   const openNativeFilePicker = () => {
@@ -90,7 +75,7 @@ export function CollectionDocumentUploadPanel({ projectId, collection, onCancel,
       return
     }
     if (!file) {
-      toast.error('Select a TXT, MD or PDF file')
+      toast.error('Select a TXT, MD, PDF or DOCX file')
       return
     }
 
@@ -98,7 +83,7 @@ export function CollectionDocumentUploadPanel({ projectId, collection, onCancel,
       await uploadDocument.mutateAsync({
         projectId,
         collectionId: collection.id,
-        title: title.trim() || titleFromFileName(file.name),
+        title: title.trim() || titleFromDocumentFileName(file.name),
         file,
       })
       toast.success('Document uploaded')
@@ -135,7 +120,7 @@ export function CollectionDocumentUploadPanel({ projectId, collection, onCancel,
         <input
           ref={fileInputRef}
           type="file"
-          accept=".txt,.md,.pdf,text/plain,text/markdown,text/x-markdown,application/pdf"
+          accept={DOCUMENT_ACCEPT_ATTRIBUTE}
           onChange={(event) => {
             setValidatedFile(event.target.files?.[0] ?? null)
             event.target.value = ''
@@ -203,13 +188,13 @@ export function CollectionDocumentUploadPanel({ projectId, collection, onCancel,
               <p className="text-sm font-medium text-white">Drop file here</p>
               <p className="mt-1 text-xs text-muted">or click to browse from your computer</p>
               <div className="mt-4 flex flex-wrap justify-center gap-1.5">
-                {ACCEPTED_EXTENSIONS.map((extension) => (
+                {ACCEPTED_DOCUMENT_EXTENSIONS.map((extension) => (
                   <span key={extension} className="rounded-full border border-border bg-surface px-2 py-0.5 text-[11px] text-muted">
                     {extension.toUpperCase().replace('.', '')}
                   </span>
                 ))}
               </div>
-              <p className="mt-3 text-[11px] text-muted">Maximum {MAX_FILE_MB} MB</p>
+              <p className="mt-3 text-[11px] text-muted">Maximum {MAX_DOCUMENT_FILE_MB} MB</p>
             </>
           )}
         </div>
@@ -221,7 +206,7 @@ export function CollectionDocumentUploadPanel({ projectId, collection, onCancel,
       </div>
 
       <div className="rounded-xl border border-border bg-background/60 p-3 text-xs leading-5 text-muted">
-        Uploaded files are stored with the configured storage driver and registered as <span className="text-white">UPLOADED</span>. Parsing and indexing run in a later pipeline.
+        PDF files must contain selectable text. DOCX ingestion preserves text, headings, lists and tables; embedded images are not indexed. Vector generation remains a separate, versioned step.
       </div>
 
       <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">

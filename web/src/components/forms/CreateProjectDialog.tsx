@@ -52,7 +52,7 @@ export function CreateProjectDialog({ open, onClose, onSubmit, loading, firstPro
             slugPath="slug"
             namePlaceholder="Project name"
             fallback="project"
-            uniqueScope="inside this organization"
+            uniqueScope="inside this workspace"
             lockSlug
           />
         )}

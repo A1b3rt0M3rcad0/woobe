@@ -80,3 +80,37 @@ describe('API authentication refresh', () => {
     expect(attemptsB).toBe(2)
   })
 })
+
+describe('Community instance bootstrap', () => {
+  it('posts the initial bootstrap without requesting an authenticated CSRF token', async () => {
+    vi.stubEnv('VITE_API_URL', 'http://api.test')
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+
+      if (url.endsWith('/identity/auth/csrf')) {
+        throw new Error('Bootstrap must not request CSRF before authentication')
+      }
+
+      if (url.endsWith('/identity/instance/bootstrap')) {
+        expect(init?.method).toBe('POST')
+        expect(new Headers(init?.headers).has('X-CSRF-Token')).toBe(false)
+        return apiResponse({ csrf: 'bootstrap-csrf' }, 201)
+      }
+
+      throw new Error(`Unexpected request: ${url}`)
+    })
+
+    vi.stubGlobal('fetch', fetchMock)
+    const { post } = await import('./client')
+
+    await expect(
+      post('/identity/instance/bootstrap', {
+        email: 'owner@example.test',
+        password: 'ReleaseGate123!',
+      }),
+    ).resolves.toEqual({ csrf: 'bootstrap-csrf' })
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+})

@@ -3,7 +3,7 @@ from uuid import UUID
 from modules.agent.application.dtos.ai_dtos import CreatePromptInput, CreatePromptOutput, ListPromptsOutput
 from modules.agent.domain.entities import AgentPrompt
 from modules.agent.domain.enums import PromptStatus
-from modules.agent.domain.repositories import AgentPromptRepository
+from modules.agent.application.interfaces.repositories import AgentPromptRepository
 
 
 class CreatePromptUseCase:

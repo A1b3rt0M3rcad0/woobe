@@ -1,4 +1,4 @@
-import { Activity, CheckCircle, Cpu, Database, Gauge, Network, Wrench, XCircle } from 'lucide-react'
+import { Activity, CheckCircle, Cpu, Database, Gauge, Wrench, XCircle } from 'lucide-react'
 import { useTraceDetail } from '@/features/traces/hooks'
 import { formatLatency, formatTokens } from '@/lib/formatters/number'
 
@@ -30,13 +30,20 @@ function findDiagnostics(raw: unknown): Record<string, unknown> {
   return {}
 }
 
-function Metric({ label, value, icon: Icon }: {
+function formatCost(value: number | null): string {
+  if (value == null) return 'unknown'
+  if (value === 0) return '$0'
+  return `$${value.toFixed(value < 0.01 ? 6 : 4).replace(/0+$/, '').replace(/\.$/, '')}`
+}
+
+function Metric({ label, value, icon: Icon, hint }: {
   label: string
   value: string
   icon: typeof Gauge
+  hint?: string
 }) {
   return (
-    <div className="rounded-lg border border-border bg-background p-2.5">
+    <div className="rounded-lg border border-border bg-background p-2.5" title={hint}>
       <div className="flex items-center gap-1.5 text-muted">
         <Icon className="h-3.5 w-3.5" />
         <span className="text-[10px] uppercase tracking-wide">{label}</span>
@@ -51,12 +58,15 @@ export function TraceDiagnosticsPanel({ traceId }: { traceId: string }) {
   const d = findDiagnostics(data)
   if (Object.keys(d).length === 0) return null
 
-  const runtime = numberOrNull(d.agent_runtime_latency_ms)
-  const llm = numberOrNull(d.llm_runtime_latency_ms)
-  const tools = numberOrNull(d.tool_wall_latency_ms ?? d.tool_runtime_latency_ms)
-  const http = numberOrNull(d.tool_http_latency_ms)
+  const runtime = numberOrNull(d.agent_runtime_latency_ms ?? d.total_latency_ms)
+  const llmWork = numberOrNull(d.llm_work_latency_ms ?? d.llm_runtime_latency_ms)
+  const toolWall = numberOrNull(d.tool_wall_latency_ms ?? d.tool_runtime_latency_ms)
+  const toolWork = numberOrNull(d.tool_work_latency_ms ?? d.tool_call_duration_sum_ms ?? d.tool_runtime_latency_ms)
+  const parallelism = numberOrNull(d.tool_parallelism_ratio)
+    ?? (toolWall && toolWork != null ? toolWork / toolWall : null)
   const prepare = numberOrNull(d.prepare_latency_ms)
-  const persistence = numberOrNull(d.persistence_latency_ms)
+  const finalization = numberOrNull(d.finalization_work_latency_ms ?? d.persistence_latency_ms)
+  const other = numberOrNull(d.other_latency_ms ?? d.unaccounted_latency_ms)
   const orchestration = numberOrNull(d.orchestration_latency_ms)
   const toolShare = numberOrNull(d.tool_share_percent)
   const toolCount = numberOrNull(d.tool_call_count) ?? 0
@@ -67,13 +77,14 @@ export function TraceDiagnosticsPanel({ traceId }: { traceId: string }) {
   const outputTokens = numberOrNull(d.output_tokens)
   const usageComplete = d.usage_complete === true
   const costStatus = typeof d.cost_status === 'string' ? d.cost_status : 'unknown'
+  const costUsd = numberOrNull(d.cost_usd)
 
   return (
     <div className="border-b border-border px-4 py-3 space-y-2">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-xs font-medium text-white">Execution diagnostics</p>
-          <p className="text-[10px] text-muted">Measured by execution phase</p>
+          <p className="text-[10px] text-muted">Wall-clock and cumulative work are shown separately</p>
         </div>
         {toolShare != null && (
           <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-mono text-muted">
@@ -84,9 +95,24 @@ export function TraceDiagnosticsPanel({ traceId }: { traceId: string }) {
 
       <div className="grid grid-cols-2 gap-1.5">
         <Metric label="Agent runtime" value={runtime == null ? '—' : formatLatency(runtime)} icon={Activity} />
-        <Metric label="LLM total" value={llm == null ? '—' : formatLatency(llm)} icon={Cpu} />
-        <Metric label="Tool wall" value={tools == null ? '—' : formatLatency(tools)} icon={Wrench} />
-        <Metric label="Tool HTTP" value={http == null ? '—' : formatLatency(http)} icon={Network} />
+        <Metric
+          label="LLM work Σ"
+          value={llmWork == null ? '—' : formatLatency(llmWork)}
+          icon={Cpu}
+          hint="Sum of individual LLM call durations."
+        />
+        <Metric
+          label="Tool wall"
+          value={toolWall == null ? '—' : formatLatency(toolWall)}
+          icon={Wrench}
+          hint="Elapsed wall-clock spent waiting for Tool rounds."
+        />
+        <Metric
+          label="Tool work Σ"
+          value={toolWork == null ? '—' : formatLatency(toolWork)}
+          icon={Wrench}
+          hint="Sum of individual Tool durations. It can exceed Tool wall when Tools run in parallel."
+        />
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted">
@@ -94,13 +120,15 @@ export function TraceDiagnosticsPanel({ traceId }: { traceId: string }) {
         <span>{toolCount} tool call{toolCount === 1 ? '' : 's'}</span>
         <span className="inline-flex items-center gap-1 text-emerald-400"><CheckCircle className="h-3 w-3" /> {successes}</span>
         <span className="inline-flex items-center gap-1 text-red-400"><XCircle className="h-3 w-3" /> {failures}</span>
+        {parallelism != null && toolCount > 0 && <span>Tool parallelism {parallelism.toFixed(2)}×</span>}
         {prepare != null && <span>Setup {formatLatency(prepare)}</span>}
-        {persistence != null && <span className="inline-flex items-center gap-1"><Database className="h-3 w-3" /> Persist {formatLatency(persistence)}</span>}
+        {finalization != null && <span className="inline-flex items-center gap-1"><Database className="h-3 w-3" /> Finalize {formatLatency(finalization)}</span>}
+        {other != null && <span>Other {formatLatency(other)}</span>}
         {orchestration != null && <span>Orchestration {formatLatency(orchestration)}</span>}
         {inputTokens != null && outputTokens != null
           ? <span>Tokens {formatTokens(inputTokens)} → {formatTokens(outputTokens)}{usageComplete ? '' : ' (partial)'}</span>
           : <span>Token usage unavailable</span>}
-        <span>Cost {costStatus === 'known' ? 'reported' : 'unknown'}</span>
+        <span>Cost {costStatus === 'known' ? formatCost(costUsd) : costStatus}</span>
       </div>
     </div>
   )

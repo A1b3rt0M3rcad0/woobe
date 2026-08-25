@@ -29,11 +29,20 @@ class UsageEventModel(BaseModel):
             "agent_id",
             "occurred_at",
         ),
+        Index(
+            "ix_metering_usage_events_project_network_occurred",
+            "project_id",
+            "network_id",
+            "occurred_at",
+        ),
         {"schema": "metering"},
     )
 
     project_id: Mapped[UUID]
     agent_id: Mapped[UUID | None]
+    network_id: Mapped[UUID | None]
+    network_execution_id: Mapped[UUID | None]
+    network_version_id: Mapped[UUID | None]
     source_event_id: Mapped[UUID | None]
     occurred_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     trace_id: Mapped[UUID | None]

@@ -6,7 +6,7 @@ from modules.core.application.dtos.runtime_api_key_dtos import (
     CreateRuntimeApiKeyOutput,
 )
 from modules.core.domain.entities import ApiKey
-from modules.core.domain.enums import ApiKeyKind
+from modules.core.domain.enums import ApiKeyKind, RuntimeTargetType
 from modules.core.domain.errors import ProjectNotFoundError
 from modules.core.domain.repositories import ApiKeyRepository, ProjectRepository
 from shared.infra.errors import NotFoundError
@@ -18,7 +18,11 @@ from shared.security.api_keys import (
 
 
 class RuntimeKeyTargetReader(Protocol):
-    async def get_agent_project_id(self, agent_id: UUID) -> UUID | None: ...
+    async def get_target_project_id(
+        self,
+        target_type: RuntimeTargetType,
+        target_id: UUID,
+    ) -> UUID | None: ...
 
 
 class CreateRuntimeApiKeyUseCase:
@@ -41,11 +45,17 @@ class CreateRuntimeApiKeyUseCase:
         if project is None:
             raise ProjectNotFoundError(input_dto.project_id)
 
-        agent_project_id = await self._target_reader.get_agent_project_id(
-            input_dto.agent_id
+        target_id = input_dto.target_id
+        if target_id is None:
+            raise NotFoundError("Runtime key target is missing")
+        target_project_id = await self._target_reader.get_target_project_id(
+            input_dto.target_type,
+            target_id,
         )
-        if agent_project_id != input_dto.project_id:
-            raise NotFoundError(f"Agent not found: {input_dto.agent_id}")
+        if target_project_id != input_dto.project_id:
+            raise NotFoundError(
+                f"{input_dto.target_type.value.title()} not found: {target_id}"
+            )
 
         issued = issue_runtime_api_key(input_dto.environment.value)
         interfaces = [interface.value for interface in input_dto.interfaces]
@@ -58,7 +68,11 @@ class CreateRuntimeApiKeyUseCase:
             key_version=issued.key_version,
             scopes=[API_KEY_SCOPE_RUNTIME_EXECUTE],
             kind=ApiKeyKind.runtime,
-            agent_id=input_dto.agent_id,
+            agent_id=(
+                target_id if input_dto.target_type == RuntimeTargetType.agent else None
+            ),
+            target_type=input_dto.target_type,
+            target_id=target_id,
             environment=input_dto.environment,
             interfaces=interfaces,
             expires_at=input_dto.expires_at,
@@ -76,7 +90,9 @@ class CreateRuntimeApiKeyUseCase:
                 "credential_id": str(saved.credential_id or saved.id),
                 "name": saved.name,
                 "description": saved.description,
-                "agent_id": str(saved.agent_id),
+                "target_type": saved.target_type.value if saved.target_type else None,
+                "target_id": str(saved.target_id) if saved.target_id else None,
+                "agent_id": str(saved.agent_id) if saved.agent_id else None,
                 "environment": saved.environment.value if saved.environment else None,
                 "interfaces": list(saved.interfaces),
                 "key_prefix": issued.display_prefix,
@@ -98,7 +114,11 @@ class CreateRuntimeApiKeyUseCase:
             key_prefix=issued.display_prefix,
             scopes=list(saved.scopes),
             kind=saved.kind.value,
-            agent_id=input_dto.agent_id,
+            target_type=input_dto.target_type,
+            target_id=target_id,
+            agent_id=(
+                target_id if input_dto.target_type == RuntimeTargetType.agent else None
+            ),
             environment=input_dto.environment,
             interfaces=list(saved.interfaces),
             status=saved.status,

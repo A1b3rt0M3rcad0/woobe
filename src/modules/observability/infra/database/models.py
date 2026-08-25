@@ -21,6 +21,12 @@ class TraceModel(BaseModel):
             "started_at",
             postgresql_where=text("status IN ('completed', 'failed', 'cancelled')"),
         ),
+        Index(
+            "ix_observability_traces_project_network_started",
+            "project_id",
+            "network_id",
+            "started_at",
+        ),
         Index("ix_observability_traces_provider_model_id", "provider_model_id"),
         Index("ix_observability_traces_provider_credential_id", "provider_credential_id"),
         Index("ix_observability_traces_fallback_provider_model_id", "fallback_provider_model_id"),
@@ -30,6 +36,10 @@ class TraceModel(BaseModel):
     project_id: Mapped[UUID]
     agent_id: Mapped[UUID | None]
     session_id: Mapped[UUID | None]
+    network_id: Mapped[UUID | None]
+    network_execution_id: Mapped[UUID | None]
+    network_session_id: Mapped[UUID | None]
+    network_version_id: Mapped[UUID | None]
     external_session_id: Mapped[str | None] = mapped_column(String(255))
     tenant_id: Mapped[str | None] = mapped_column(String(128))
     user_id: Mapped[str | None] = mapped_column(String(255))

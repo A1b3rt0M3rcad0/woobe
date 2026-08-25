@@ -7,16 +7,23 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.infra.errors import AuthorizationError, NotFoundError
+from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
 
 DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     "api_key_id": "core.api_keys",
+    "surface_id": "chat_surface.chat_surfaces",
+    "chat_surface_id": "chat_surface.chat_surfaces",
     "agent_id": "agent.agents",
     "credential_id": "agent.provider_credentials",
     "provider_credential_id": "agent.provider_credentials",
     "fallback_credential_id": "agent.provider_credentials",
+    "provider_model_id": "agent.provider_models",
+    "fallback_provider_model_id": "agent.provider_models",
+    "embedding_provider_model_id": "agent.provider_models",
     "collection_id": "agent.document_collections",
     "document_id": "agent.documents",
+    "snapshot_id": "agent.vector_snapshots",
+    "vector_snapshot_id": "agent.vector_snapshots",
     "tool_id": "agent.tools",
     "secret_id": "agent.tool_secrets",
     "session_id": "agent.sessions",
@@ -45,26 +52,40 @@ INDIRECT_PROJECT_RESOURCE_QUERIES: dict[str, str] = {
     """,
 }
 
-ORGANIZATION_KEYS = {"organization_id", "org_id"}
+WORKSPACE_KEYS = {"workspace_id", "workspace_id"}
+
+
+def _is_identifier_key(key: object) -> bool:
+    return (
+        key in WORKSPACE_KEYS
+        or key == "project_id"
+        or key in DIRECT_PROJECT_RESOURCES
+        or key in INDIRECT_PROJECT_RESOURCE_QUERIES
+    )
 
 
 def _identifier_values(value: Any) -> list[tuple[str, Any]]:
     found: list[tuple[str, Any]] = []
     if isinstance(value, Mapping):
         for key, item in value.items():
-            if (
-                key in ORGANIZATION_KEYS
-                or key == "project_id"
-                or key in DIRECT_PROJECT_RESOURCES
-                or key in INDIRECT_PROJECT_RESOURCE_QUERIES
-            ):
-                found.append((key, item))
+            if _is_identifier_key(key):
+                found.append((str(key), item))
             elif isinstance(item, (Mapping, list, tuple)):
                 found.extend(_identifier_values(item))
     elif isinstance(value, (list, tuple)):
         for item in value:
             found.extend(_identifier_values(item))
     return found
+
+
+def _direct_identifier_values(value: Any) -> list[tuple[str, Any]]:
+    if not isinstance(value, Mapping):
+        return []
+    return [
+        (str(key), item)
+        for key, item in value.items()
+        if _is_identifier_key(key)
+    ]
 
 
 def _uuid(value: Any) -> UUID | None:
@@ -87,19 +108,25 @@ class TenantAuthorizer:
         path_params: Mapping[str, Any],
         query_params: Mapping[str, Any],
         body: Any,
+        allow_workspace_admin_for_projects: bool = False,
     ) -> None:
         identifiers = self._identifiers(path_params, query_params, body)
-        checked_organizations: set[UUID] = set()
+        self._require_consistent_identifiers(
+            self._consistency_identifiers(path_params, query_params, body)
+        )
+
+        checked_workspaces: set[UUID] = set()
         checked_projects: set[UUID] = set()
+        request_projects: set[UUID] = set()
 
         for key, raw_value in identifiers:
             resource_id = _uuid(raw_value)
             if resource_id is None:
                 continue
-            if key in ORGANIZATION_KEYS:
-                if resource_id not in checked_organizations:
+            if key in WORKSPACE_KEYS:
+                if resource_id not in checked_workspaces:
                     await self._require_membership(user_id, resource_id)
-                    checked_organizations.add(resource_id)
+                    checked_workspaces.add(resource_id)
                 continue
 
             project_id = (
@@ -109,15 +136,23 @@ class TenantAuthorizer:
             )
             if project_id is None:
                 raise NotFoundError("Resource not found")
+            request_projects.add(project_id)
+            if len(request_projects) > 1:
+                raise ConflictError("Resources from different projects cannot be combined")
             if project_id in checked_projects:
                 continue
 
-            organization_id = await self._project_organization_id(project_id)
-            if organization_id is None:
+            workspace_id = await self._project_workspace_id(project_id)
+            if workspace_id is None:
                 raise NotFoundError("Resource not found")
-            await self._require_membership(user_id, organization_id)
+            await self._require_project_access(
+                user_id=user_id,
+                workspace_id=workspace_id,
+                project_id=project_id,
+                allow_workspace_admin=allow_workspace_admin_for_projects,
+            )
             checked_projects.add(project_id)
-            checked_organizations.add(organization_id)
+            checked_workspaces.add(workspace_id)
 
     async def authorize_api_key(
         self,
@@ -128,12 +163,15 @@ class TenantAuthorizer:
         body: Any,
     ) -> None:
         identifiers = self._identifiers(path_params, query_params, body)
+        self._require_consistent_identifiers(
+            self._consistency_identifiers(path_params, query_params, body)
+        )
         checked_context = False
         for key, raw_value in identifiers:
             resource_id = _uuid(raw_value)
             if resource_id is None:
                 continue
-            if key in ORGANIZATION_KEYS:
+            if key in WORKSPACE_KEYS:
                 raise NotFoundError("Resource not found")
             resolved_project_id = (
                 resource_id
@@ -159,6 +197,30 @@ class TenantAuthorizer:
             + _identifier_values(body)
         )
 
+    @staticmethod
+    def _consistency_identifiers(
+        path_params: Mapping[str, Any],
+        query_params: Mapping[str, Any],
+        body: Any,
+    ) -> list[tuple[str, Any]]:
+        return (
+            _direct_identifier_values(path_params)
+            + _direct_identifier_values(query_params)
+            + _direct_identifier_values(body)
+        )
+
+    @staticmethod
+    def _require_consistent_identifiers(identifiers: list[tuple[str, Any]]) -> None:
+        values_by_key: dict[str, UUID] = {}
+        for key, raw_value in identifiers:
+            value = _uuid(raw_value)
+            if value is None:
+                continue
+            previous = values_by_key.get(key)
+            if previous is not None and previous != value:
+                raise ConflictError(f"Conflicting {key} values in request")
+            values_by_key[key] = value
+
     async def _project_id_for_resource(
         self,
         key: str,
@@ -170,7 +232,8 @@ class TenantAuthorizer:
                 text(indirect_query),
                 {"resource_id": resource_id},
             )
-            return result.scalar_one_or_none()
+            value = result.scalar_one_or_none()
+            return UUID(str(value)) if value is not None else None
 
         table = DIRECT_PROJECT_RESOURCES.get(key)
         if table is None:
@@ -182,27 +245,62 @@ class TenantAuthorizer:
             text(f"SELECT project_id FROM {table} WHERE id = :resource_id"),
             {"resource_id": resource_id},
         )
-        return result.scalar_one_or_none()
+        value = result.scalar_one_or_none()
+        return UUID(str(value)) if value is not None else None
 
-    async def _project_organization_id(self, project_id: UUID) -> UUID | None:
+    async def _project_workspace_id(self, project_id: UUID) -> UUID | None:
         result = await self._session.execute(
-            text("SELECT organization_id FROM core.projects WHERE id = :project_id"),
+            text("SELECT workspace_id FROM core.projects WHERE id = :project_id"),
             {"project_id": project_id},
         )
-        return result.scalar_one_or_none()
+        value = result.scalar_one_or_none()
+        return UUID(str(value)) if value is not None else None
 
-    async def _require_membership(self, user_id: UUID, organization_id: UUID) -> None:
+    async def _workspace_role(self, user_id: UUID, workspace_id: UUID) -> str | None:
+        result = await self._session.execute(
+            text(
+                """
+                SELECT role
+                FROM identity.workspace_members
+                WHERE user_id = :user_id
+                  AND workspace_id = :workspace_id
+                  AND status = 'active'
+                """
+            ),
+            {"user_id": user_id, "workspace_id": workspace_id},
+        )
+        role = result.scalar_one_or_none()
+        return str(role) if role is not None else None
+
+    async def _require_membership(self, user_id: UUID, workspace_id: UUID) -> None:
+        if await self._workspace_role(user_id, workspace_id) is None:
+            raise NotFoundError("Resource not found")
+
+    async def _require_project_access(
+        self,
+        *,
+        user_id: UUID,
+        workspace_id: UUID,
+        project_id: UUID,
+        allow_workspace_admin: bool,
+    ) -> None:
+        role = await self._workspace_role(user_id, workspace_id)
+        if role is None:
+            raise NotFoundError("Resource not found")
+        if role == "owner" or (allow_workspace_admin and role == "admin"):
+            return
+
         result = await self._session.execute(
             text(
                 """
                 SELECT 1
-                FROM identity.organization_members
+                FROM core.project_members
                 WHERE user_id = :user_id
-                  AND organization_id = :organization_id
+                  AND project_id = :project_id
                   AND status = 'active'
                 """
             ),
-            {"user_id": user_id, "organization_id": organization_id},
+            {"user_id": user_id, "project_id": project_id},
         )
         if result.scalar_one_or_none() is None:
             raise NotFoundError("Resource not found")

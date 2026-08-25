@@ -6,20 +6,20 @@ import pytest
 
 from modules.identity.application.use_cases import (
     CreateUserUseCase,
-    ListOrganizationsUseCase,
-    GetOrganizationUseCase,
+    ListWorkspacesUseCase,
+    GetWorkspaceUseCase,
     GetUserUseCase,
     GetCurrentUserUseCase,
 )
 from modules.identity.application.dtos import (
     CreateUserInput,
-    ListOrganizationsInput,
-    GetOrganizationInput,
+    ListWorkspacesInput,
+    GetWorkspaceInput,
     GetUserInput,
     GetCurrentUserInput,
 )
-from modules.identity.domain.entities import User, Organization
-from modules.identity.domain.enums import UserStatus, OrganizationStatus
+from modules.identity.domain.entities import User, Workspace
+from modules.identity.domain.enums import UserStatus, WorkspaceStatus
 
 
 class TestCreateUserUseCase:
@@ -48,40 +48,40 @@ class TestCreateUserUseCase:
         outbox.write.assert_called_once()
 
 
-class TestListOrganizationsUseCase:
+class TestListWorkspacesUseCase:
     @pytest.mark.anyio
-    async def test_list_organizations(self):
-        org_repo = AsyncMock()
-        org_repo.list_all.return_value = [
-            Organization(id=UUID("00000000-0000-0000-0000-000000000001"), name="Org A"),
-            Organization(id=UUID("00000000-0000-0000-0000-000000000002"), name="Org B"),
+    async def test_list_workspaces(self):
+        workspace_repo = AsyncMock()
+        workspace_repo.list_all.return_value = [
+            Workspace(id=UUID("00000000-0000-0000-0000-000000000001"), name="Workspace A"),
+            Workspace(id=UUID("00000000-0000-0000-0000-000000000002"), name="Workspace B"),
         ]
 
-        use_case = ListOrganizationsUseCase(org_repo)
-        result = await use_case.execute(ListOrganizationsInput())
+        use_case = ListWorkspacesUseCase(workspace_repo)
+        result = await use_case.execute(ListWorkspacesInput())
 
         assert len(result) == 2
-        assert result[0].name == "Org A"
+        assert result[0].name == "Workspace A"
 
 
-class TestGetOrganizationUseCase:
+class TestGetWorkspaceUseCase:
     @pytest.mark.anyio
-    async def test_get_organization_found(self):
-        org_repo = AsyncMock()
-        org_repo.get_by_id.return_value = Organization(
+    async def test_get_workspace_found(self):
+        workspace_repo = AsyncMock()
+        workspace_repo.get_by_id.return_value = Workspace(
             id=UUID("00000000-0000-0000-0000-000000000001"),
-            name="Test Org",
-            status=OrganizationStatus.active,
+            name="Test Workspace",
+            status=WorkspaceStatus.active,
         )
 
-        use_case = GetOrganizationUseCase(org_repo)
-        result = await use_case.execute(GetOrganizationInput(
-            organization_id=UUID("00000000-0000-0000-0000-000000000001"),
+        use_case = GetWorkspaceUseCase(workspace_repo)
+        result = await use_case.execute(GetWorkspaceInput(
+            workspace_id=UUID("00000000-0000-0000-0000-000000000001"),
         ))
 
         assert result is not None
-        assert result.name == "Test Org"
-        assert result.status == OrganizationStatus.active
+        assert result.name == "Test Workspace"
+        assert result.status == WorkspaceStatus.active
 
 
 class TestGetUserUseCase:

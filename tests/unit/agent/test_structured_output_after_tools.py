@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from modules.agent.application.use_cases.structured_output_ask_use_case import (
+from modules.agent.infra.execution.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
 
@@ -40,7 +40,7 @@ async def test_json_formatting_result_replaces_text_result_after_tool_call():
     llm_factory.create_chat_model.side_effect = [tool_model, json_model]
 
     use_case = StructuredOutputAskAgentUseCase(
-        session_factory=MagicMock(),
+        transactions=MagicMock(),
         llm_factory=llm_factory,
     )
     use_case._execute_single_tool = AsyncMock(
@@ -75,5 +75,5 @@ async def test_json_formatting_result_replaces_text_result_after_tool_call():
     assert result.content == '{"message":"16"}'
     assert tool_was_called is True
     assert len(tool_calls) == 1
-    assert isinstance(json_latency, int)
+    assert json_latency is None
     json_model.ainvoke.assert_awaited_once()

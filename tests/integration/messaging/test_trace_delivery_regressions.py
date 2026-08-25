@@ -12,8 +12,8 @@ from modules.agent.domain.events import (
 )
 from modules.agent.infra.messaging.event_mappers import domain_event_to_outbox
 from modules.agent.infra.messaging.publishers import AgentRabbitMQPublisher
-from modules.agent.presentation.controllers.ask_agent_stream_controller import (
-    _commit_safe_stream,
+from modules.agent.presentation.http.controllers.ask_agent_stream_controller import (
+    commit_safe_stream,
 )
 from modules.observability.infra.messaging.event_mappers import (
     rabbit_message_to_inbox,
@@ -101,13 +101,17 @@ async def test_done_is_exposed_only_after_source_generator_finishes() -> None:
     class FakeService:
         committed = False
 
-        async def generate(self, _input):
-            yield 'data: {"type": "token", "content": "ok"}\n\n'
+        async def stream(self, _input):
+            yield (
+                'data: {"type": "token", "content": "ok", '
+                '"visibility": "assistant", "channel": "final", '
+                '"phase": "response_generation"}\n\n'
+            )
             yield 'data: {"type": "done", "trace_id": "trace"}\n\n'
             self.committed = True
 
     service = FakeService()
-    stream = _commit_safe_stream(service, object())
+    stream = commit_safe_stream(service, object())
 
     first = await anext(stream)
     assert '"token"' in first
@@ -121,11 +125,11 @@ async def test_done_is_exposed_only_after_source_generator_finishes() -> None:
 @pytest.mark.asyncio
 async def test_finalization_error_discards_pending_done() -> None:
     class FakeService:
-        async def generate(self, _input):
+        async def stream(self, _input):
             yield 'data: {"type": "done", "trace_id": "trace"}\n\n'
             yield 'data: {"type": "error", "message": "commit failed"}\n\n'
 
-    chunks = [chunk async for chunk in _commit_safe_stream(FakeService(), object())]
+    chunks = [chunk async for chunk in commit_safe_stream(FakeService(), object())]
 
     assert len(chunks) == 1
     assert '"error"' in chunks[0]

@@ -9,8 +9,8 @@ logger = logging.getLogger(__name__)
 
 HANDLED_EVENTS: dict[str, str] = {
     "identity.user.created.v1": "handle_user_created",
-    "identity.organization.created.v1": "handle_organization_created",
-    "identity.organization.member_added.v1": "handle_member_added",
+    "identity.workspace.created.v1": "handle_workspace_created",
+    "identity.workspace.member_added.v1": "handle_member_added",
 }
 
 

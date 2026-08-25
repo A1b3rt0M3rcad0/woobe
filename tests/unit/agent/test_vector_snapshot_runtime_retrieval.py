@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
-from modules.agent.application.use_cases.execution_context import current_execution, new_execution_context
+from modules.agent.application.interfaces.execution_context import current_execution, new_execution_context
 from modules.agent.application.use_cases.vector_snapshot_rag_mixin import VectorSnapshotRAGMixin
 from modules.agent.domain.entities import Agent, KnowledgeVersion, ProviderCredential, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, Provider, ProviderModelStatus
@@ -122,6 +122,7 @@ async def test_vector_snapshot_rag_uses_agent_runtime_config_and_bound_snapshot(
     )
 
     uow = MagicMock()
+    uow.commit = AsyncMock()
     uow.knowledge_versions.get_by_id = AsyncMock(return_value=knowledge)
     uow.vector_snapshots.get_by_id = AsyncMock(return_value=snapshot)
     uow.vector_snapshots.search_similar = AsyncMock(return_value=[(chunk, 0.91)])
@@ -139,6 +140,7 @@ async def test_vector_snapshot_rag_uses_agent_runtime_config_and_bound_snapshot(
         current_execution.reset(token)
 
     embedding_client.aembed_query.assert_awaited_once_with("When does it renew?")
+    uow.commit.assert_awaited_once()
     uow.vector_snapshots.search_similar.assert_awaited_once_with(
         vector_snapshot_id=snapshot.id,
         embedding=[0.1, 0.2, 0.3],

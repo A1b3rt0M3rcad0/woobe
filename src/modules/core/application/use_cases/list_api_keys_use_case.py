@@ -45,6 +45,8 @@ class ListApiKeysByProjectUseCase:
                 scopes=list(key.scopes),
                 kind=key.kind,
                 agent_id=key.agent_id,
+                target_type=key.target_type,
+                target_id=key.target_id,
                 environment=key.environment,
                 interfaces=list(key.interfaces),
                 status=_effective_status(key, now),

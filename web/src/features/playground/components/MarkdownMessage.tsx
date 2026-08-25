@@ -1,5 +1,8 @@
 import type { ReactNode } from 'react'
+
 import { cn } from '@/lib/utils'
+
+import { MathExpression } from './MathExpression'
 
 interface MarkdownMessageProps {
   content: string
@@ -18,6 +21,11 @@ type MarkdownTable = {
   alignments: Array<'left' | 'center' | 'right'>
 }
 
+type DisplayMathBlock = {
+  expression: string
+  endIndex: number
+}
+
 type InlineRenderContext = 'body' | 'table'
 
 function inlineCodeClass(context: InlineRenderContext): string {
@@ -26,6 +34,22 @@ function inlineCodeClass(context: InlineRenderContext): string {
   }
 
   return 'rounded border border-white/10 bg-white/[0.06] px-1 py-[1px] font-mono text-[0.86em] font-medium leading-none text-slate-100'
+}
+
+function isEscaped(value: string, index: number): boolean {
+  let backslashes = 0
+  for (let cursor = index - 1; cursor >= 0 && value[cursor] === '\\'; cursor--) backslashes += 1
+  return backslashes % 2 === 1
+}
+
+function looksLikeDollarMath(value: string): boolean {
+  const expression = value.trim()
+  if (!expression || expression.length > 500) return false
+  if (/\\[A-Za-z]+/.test(expression)) return true
+  if (/[\^_={}<>±×÷∫∑√]/u.test(expression)) return true
+  if (/[+\-*/=]/.test(expression)) return true
+  if (/^[A-Za-zΑ-ω]$/u.test(expression)) return true
+  return /^(?:\d+(?:\.\d+)?)?[A-Za-zΑ-ω]+(?:\d+)?$/u.test(expression)
 }
 
 function renderInline(
@@ -37,7 +61,7 @@ function renderInline(
   if (depth > 4) return [text]
 
   const nodes: ReactNode[] = []
-  const pattern = /(\[([^\]]+)\]\((https?:\/\/[^)\s]+)\))|(`([^`]+)`)|(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(https?:\/\/[^\s<]+)/g
+  const pattern = /(\\\((.+?)\\\))|(\$([^$\n]+?)\$)|(\[([^\]]+)\]\((https?:\/\/[^)\s]+)\))|(`([^`]+)`)|(\*\*([^*]+)\*\*)|(\*([^*]+)\*)|(https?:\/\/[^\s<]+)/g
   let lastIndex = 0
   let index = 0
 
@@ -56,51 +80,70 @@ function renderInline(
     const start = match.index ?? 0
     pushText(text.slice(lastIndex, start))
 
-    if (match[2] && match[3]) {
+    if (match[1] && match[2]) {
+      nodes.push(
+        <MathExpression
+          key={`${keyPrefix}-math-${index++}`}
+          expression={match[2]}
+        />,
+      )
+    } else if (match[3] && match[4]) {
+      const closeIndex = start + match[0].length - 1
+      if (isEscaped(text, start) || isEscaped(text, closeIndex) || !looksLikeDollarMath(match[4])) {
+        pushText(match[0])
+      } else {
+        nodes.push(
+          <MathExpression
+            key={`${keyPrefix}-math-${index++}`}
+            expression={match[4]}
+          />,
+        )
+      }
+    } else if (match[6] && match[7]) {
       nodes.push(
         <a
           key={`${keyPrefix}-link-${index++}`}
-          href={match[3]}
+          href={match[7]}
           target="_blank"
           rel="noreferrer noopener"
           className="text-primary underline underline-offset-2 hover:text-primary/80"
         >
-          {match[2]}
+          {renderInline(match[6], `${keyPrefix}-link-label-${index}`, context, depth + 1)}
         </a>,
       )
-    } else if (match[5]) {
+    } else if (match[9]) {
       nodes.push(
         <code
           key={`${keyPrefix}-code-${index++}`}
           className={inlineCodeClass(context)}
         >
-          {match[5]}
+          {match[9]}
         </code>,
       )
-    } else if (match[7]) {
+    } else if (match[11]) {
       const nestedKey = `${keyPrefix}-bold-${index++}`
       nodes.push(
         <strong key={nestedKey}>
-          {renderInline(match[7], nestedKey, context, depth + 1)}
+          {renderInline(match[11], nestedKey, context, depth + 1)}
         </strong>,
       )
-    } else if (match[9]) {
+    } else if (match[13]) {
       const nestedKey = `${keyPrefix}-italic-${index++}`
       nodes.push(
         <em key={nestedKey}>
-          {renderInline(match[9], nestedKey, context, depth + 1)}
+          {renderInline(match[13], nestedKey, context, depth + 1)}
         </em>,
       )
-    } else if (match[10]) {
+    } else if (match[14]) {
       nodes.push(
         <a
           key={`${keyPrefix}-url-${index++}`}
-          href={match[10]}
+          href={match[14]}
           target="_blank"
           rel="noreferrer noopener"
           className="text-primary underline underline-offset-2 hover:text-primary/80"
         >
-          {match[10]}
+          {match[14]}
         </a>,
       )
     }
@@ -110,6 +153,46 @@ function renderInline(
 
   pushText(text.slice(lastIndex))
   return nodes
+}
+
+function parseDisplayMathAt(lines: string[], startIndex: number): DisplayMathBlock | null {
+  const firstLine = lines[startIndex]
+  const trimmed = firstLine.trim()
+  const opening = trimmed.startsWith('$$') ? '$$' : trimmed.startsWith('\\[') ? '\\[' : null
+  if (!opening) return null
+
+  const closing = opening === '$$' ? '$$' : '\\]'
+  const firstContent = trimmed.slice(opening.length)
+  const sameLineClose = firstContent.indexOf(closing)
+
+  if (sameLineClose >= 0) {
+    const remainder = firstContent.slice(sameLineClose + closing.length)
+    if (remainder.trim()) return null
+    return {
+      expression: firstContent.slice(0, sameLineClose).trim(),
+      endIndex: startIndex,
+    }
+  }
+
+  const expressionLines = firstContent ? [firstContent] : []
+  for (let cursor = startIndex + 1; cursor < lines.length; cursor++) {
+    const line = lines[cursor]
+    const closeIndex = line.indexOf(closing)
+    if (closeIndex < 0) {
+      expressionLines.push(line)
+      continue
+    }
+
+    const remainder = line.slice(closeIndex + closing.length)
+    if (remainder.trim()) return null
+    expressionLines.push(line.slice(0, closeIndex))
+    return {
+      expression: expressionLines.join('\n').trim(),
+      endIndex: cursor,
+    }
+  }
+
+  return null
 }
 
 function isHorizontalRule(line: string): boolean {
@@ -126,17 +209,14 @@ function splitTableCells(line: string): string[] {
   const withoutOuterPipes = trimmed.replace(/^\|/, '').replace(/\|$/, '')
   const cells: string[] = []
   let current = ''
-  let escaped = false
 
-  for (const char of withoutOuterPipes) {
-    if (escaped) {
-      current += char
-      escaped = false
-      continue
-    }
+  for (let index = 0; index < withoutOuterPipes.length; index++) {
+    const char = withoutOuterPipes[index]
+    const next = withoutOuterPipes[index + 1]
 
-    if (char === '\\') {
-      escaped = true
+    if (char === '\\' && next === '|') {
+      current += '|'
+      index += 1
       continue
     }
 
@@ -269,6 +349,17 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
     )
   }
 
+  const pushDisplayMath = (expression: string) => {
+    const currentKey = key++
+    blocks.push(
+      <MathExpression
+        key={`math-${currentKey}`}
+        expression={expression}
+        display
+      />,
+    )
+  }
+
   const pushTable = (table: MarkdownTable) => {
     const currentKey = key++
     blocks.push(
@@ -327,6 +418,15 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
 
     if (codeFence) {
       codeFence.lines.push(line)
+      continue
+    }
+
+    const displayMath = parseDisplayMathAt(lines, lineIndex)
+    if (displayMath) {
+      flushParagraph()
+      flushList()
+      pushDisplayMath(displayMath.expression)
+      lineIndex = displayMath.endIndex
       continue
     }
 

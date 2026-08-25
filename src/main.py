@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from contextlib import asynccontextmanager
 from typing import cast
 
 from fastapi import Depends, FastAPI, Request
@@ -11,28 +12,23 @@ from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ExceptionHandler
 
-from modules.agent.infra.adapters.http_tool_runtime import (
+from modules.agent.entrypoint import (
+    AGENT_HTTP_ROUTERS,
+    SETTINGS,
+    build_http_tool_executor,
     close_http_tool_executor,
-    configure_http_tool_executor,
 )
-from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.agent.presentation.credential_routes import router as credential_router
-from modules.agent.presentation.mcp_tools_routes import router as mcp_tools_router
-from modules.agent.presentation.public_runtime_routes import router as public_runtime_router
-from modules.agent.presentation.routes import agent_router
-from modules.agent.presentation.routes import router as agent_ai_router
-from modules.agent.presentation.routes import knowledge_router as agent_knowledge_router
-from modules.agent.presentation.routes import runtime_router as agent_runtime_router
-from modules.agent.presentation.routes import tools_router
-from modules.agent.presentation.tool_lifecycle_routes import router as tool_lifecycle_router
-from modules.agent.presentation.vector_snapshot_routes import router as vector_snapshot_router
-from modules.billing.presentation.routes import router as billing_router
+from modules.chat_surface.presentation.routes import router as chat_surface_router
+from modules.chat_surface.security import ChatSessionTokenCodec
 from modules.core.presentation.routes import router as core_router
+from modules.identity.presentation.instance_routes import router as instance_router
 from modules.identity.presentation.routes import router as identity_router
 from modules.metering.presentation.routes import router as metering_router
+from modules.network.presentation import router as network_router
 from modules.observability.presentation.routes import router as observability_router
-from shared.infra.config import Settings
-from shared.infra.database.session import create_engine, create_session_factory
+from public_runtime_routes import router as public_runtime_router
+from shared.composition_resources import DATABASE_ENGINE
+from shared.infra.database.session import create_session_factory
 from shared.infra.errors import (
     AuthenticationError,
     AuthorizationError,
@@ -60,6 +56,7 @@ from shared.presentation.errors import (
     unhandled_exception_handler,
     validation_handler,
 )
+from shared.runtime_environment_routes import router as runtime_environment_router
 from shared.security.access_tokens import AccessTokenCodec
 from shared.security.dependency import enforce_request_security
 from shared.security.http_guard import HttpSecurityGuard
@@ -77,22 +74,41 @@ def _csv_values(value: str) -> list[str]:
 
 
 def create_app() -> FastAPI:
-    settings = Settings.model_validate({})
+    settings = SETTINGS
     configure_logging(level=settings.log_level, json_logs=settings.json_logs)
     logger.info(
         "Application configuration loaded",
-        extra={"environment": settings.environment},
+        extra={
+            "environment": settings.environment,
+            "edition": settings.edition,
+            "service_role": settings.service_role,
+        },
     )
+
+    @asynccontextmanager
+    async def lifespan(runtime_app: FastAPI):
+        engine = runtime_app.state.async_engine
+        async with engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
+        logger.info("Woobe API runtime started without background workers")
+        try:
+            yield
+        finally:
+            await close_http_tool_executor()
+            await runtime_app.state.async_engine.dispose()
+            logger.info("Woobe API runtime stopped")
 
     app = FastAPI(
-        title="ProjectRAI",
-        description="Runtime AI Platform - Production-ready AI agent runtime",
+        title="Woobe",
+        description="Control plane and runtime for versioned AI products",
         version="0.1.0",
+        lifespan=lifespan,
     )
 
+    security_session_factory = create_session_factory(DATABASE_ENGINE)
     app.state.settings = settings
-    app.state.async_engine = create_engine(settings)
-    app.state.session_factory = create_session_factory(app.state.async_engine)
+    app.state.async_engine = DATABASE_ENGINE
+    app.state.session_factory = security_session_factory
     app.state.access_token_codec = AccessTokenCodec(
         signing_key=settings.secret_key,
         issuer=settings.auth_issuer,
@@ -100,12 +116,14 @@ def create_app() -> FastAPI:
         ttl_seconds=settings.access_token_ttl_seconds,
         leeway_seconds=settings.auth_clock_skew_seconds,
     )
-    app.state.http_tool_executor = HttpToolExecutor(
-        default_timeout_ms=settings.http_tool_timeout_max_ms,
-        max_timeout_ms=settings.http_tool_timeout_max_ms,
-        max_response_bytes=settings.http_tool_response_max_bytes,
+    app.state.chat_session_token_codec = ChatSessionTokenCodec(
+        signing_key=settings.chat_token_signing_key or settings.secret_key,
+        issuer=settings.chat_token_issuer,
+        audience=settings.chat_token_audience,
+        ttl_seconds=settings.chat_token_ttl_seconds,
+        leeway_seconds=settings.auth_clock_skew_seconds,
     )
-    configure_http_tool_executor(app.state.http_tool_executor)
+    app.state.http_tool_executor = build_http_tool_executor()
     app.state.security_guard = HttpSecurityGuard(
         session_factory=app.state.session_factory,
         token_codec=app.state.access_token_codec,
@@ -124,11 +142,7 @@ def create_app() -> FastAPI:
     )
 
     cors_origins = _csv_values(settings.cors_origins)
-    trusted_hosts = list(
-        dict.fromkeys(
-            [*_csv_values(settings.trusted_hosts), "127.0.0.1", "localhost", "api"]
-        )
-    )
+    trusted_hosts = _csv_values(settings.trusted_hosts)
     logger.info(
         "HTTP boundary configured",
         extra={
@@ -186,8 +200,15 @@ def create_app() -> FastAPI:
             "X-CSRF-Token",
             "X-Request-ID",
             "X-Correlation-ID",
+            "Last-Event-ID",
+            "Idempotency-Key",
+            "X-Woobe-Host-Origin",
         ],
-        expose_headers=["X-Request-ID", "X-Correlation-ID"],
+        expose_headers=[
+            "X-Request-ID",
+            "X-Correlation-ID",
+            "X-Network-Execution-ID",
+        ],
     )
 
     app.add_exception_handler(
@@ -228,47 +249,44 @@ def create_app() -> FastAPI:
         cast(ExceptionHandler, unhandled_exception_handler),
     )
 
+    app.include_router(instance_router)
+
     security_dependency = Depends(enforce_request_security)
     app.router.dependencies.append(security_dependency)
     try:
         app.include_router(identity_router)
         app.include_router(core_router)
+        app.include_router(chat_surface_router)
         app.include_router(public_runtime_router)
-        app.include_router(credential_router)
-        app.include_router(agent_router)
-        app.include_router(agent_ai_router)
-        app.include_router(agent_knowledge_router)
-        app.include_router(vector_snapshot_router)
-        app.include_router(agent_runtime_router)
-        app.include_router(tools_router)
-        app.include_router(tool_lifecycle_router)
-        app.include_router(mcp_tools_router)
+        for agent_http_router in AGENT_HTTP_ROUTERS:
+            app.include_router(agent_http_router)
+        app.include_router(runtime_environment_router)
         app.include_router(metering_router)
-        app.include_router(billing_router)
         app.include_router(observability_router)
+        app.include_router(network_router)
     finally:
         app.router.dependencies.remove(security_dependency)
 
-    @app.on_event("startup")
-    async def startup() -> None:
-        engine = app.state.async_engine
-        async with engine.begin() as conn:
-            await conn.execute(text("SELECT 1"))
-        logger.info("API runtime started without background workers")
-
-    @app.on_event("shutdown")
-    async def shutdown() -> None:
-        await close_http_tool_executor()
-        await app.state.async_engine.dispose()
-        logger.info("API runtime stopped")
-
     @app.get("/live", include_in_schema=False)
     async def live():
-        return {"status": "ok", "runtime": "api"}
+        return {"status": "ok", "runtime": "api", "product": "woobe"}
 
     @app.get("/health", include_in_schema=False)
     async def health():
         return {"status": "ok"}
+
+    @app.get("/ready", include_in_schema=False)
+    async def ready():
+        try:
+            async with asyncio.timeout(settings.readiness_timeout_seconds):
+                async with app.state.async_engine.connect() as conn:
+                    await conn.execute(text("SELECT 1"))
+        except Exception:
+            return JSONResponse(
+                status_code=503,
+                content={"status": "unavailable", "dependency": "database"},
+            )
+        return {"status": "ok", "dependency": "database"}
 
     return app
 
@@ -277,7 +295,6 @@ app = create_app()
 
 
 async def _main() -> None:
-    # Allows `python -m src.main` smoke imports without starting uvicorn.
     await asyncio.sleep(0)
 
 

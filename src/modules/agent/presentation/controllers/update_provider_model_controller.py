@@ -1,14 +1,14 @@
+from modules.agent.application.interfaces.use_case import UseCase
 from uuid import UUID
 
 from modules.agent.application.dtos import UpdateProviderModelInput
-from modules.agent.application.use_cases import UpdateProviderModelUseCase
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
 
 
 class UpdateProviderModelController(Controller):
-    def __init__(self, use_case: UpdateProviderModelUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

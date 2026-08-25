@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+from modules.agent.application.dtos.mcp_oauth_dtos import (
+    McpOAuthDevicePollInput,
+    McpOAuthDevicePollOutput,
+    McpOAuthDeviceStartInput,
+    McpOAuthDeviceStartOutput,
+)
+
 import base64
 import json
 import secrets
@@ -7,7 +14,6 @@ from datetime import timedelta
 from typing import Any
 from urllib.parse import urlencode
 
-from pydantic import BaseModel, Field
 
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput
 from modules.agent.application.mcp_oauth import (
@@ -32,49 +38,22 @@ from modules.agent.application.mcp_oauth import (
     _well_known_openid_configuration_url,
 )
 from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions
-from modules.agent.application.ports import ExecutionResult, ToolExecutionPort
-from modules.agent.domain.repositories import ToolRepository
-from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
-from shared.infra.time import utc_now
+from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
+from modules.agent.application.interfaces.repositories import ToolRepository
+from modules.agent.application.interfaces.ports import SecretCipherPort
+from shared.contracts.time import utc_now
 
 OAUTH_STATE_TTL_SECONDS = 600
 DEVICE_CODE_GRANT_TYPE = "urn:ietf:params:oauth:grant-type:device_code"
 PROJECTRAI_CLIENT_NAMES = {"projectrai", "project-rai", "project_rai"}
 
 
-class McpOAuthDeviceStartInput(BaseModel):
-    tool_id: Any
-    scopes: list[str] = Field(default_factory=list)
-    authorization_server_issuer: str | None = None
-    client_id: str | None = None
-    client_secret: str | None = None
-    timeout_ms: int = Field(default=30000, ge=1)
 
 
-class McpOAuthDeviceStartOutput(BaseModel):
-    status: str = "device_pending"
-    verification_uri: str
-    verification_uri_complete: str | None = None
-    user_code: str
-    expires_in: int | None = None
-    interval: int = 5
-    authorization_server_issuer: str | None = None
-    scopes: list[str] = Field(default_factory=list)
 
 
-class McpOAuthDevicePollInput(BaseModel):
-    tool_id: Any
-    timeout_ms: int = Field(default=30000, ge=1)
 
 
-class McpOAuthDevicePollOutput(BaseModel):
-    status: str
-    connected: bool = False
-    authorization_server_issuer: str | None = None
-    scopes: list[str] = Field(default_factory=list)
-    expires_at: str | None = None
-    error: str | None = None
-    interval: int | None = None
 
 
 def _authorization_hints(metadata: dict[str, Any]) -> dict[str, Any]:
@@ -225,7 +204,7 @@ def _token_request_auth(
 
 
 class ProviderAwareMcpOAuthStartUseCase:
-    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherAdapter) -> None:
+    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherPort) -> None:
         self._tool_repo = tool_repo
         self._executor = executor
         self._cipher = cipher
@@ -346,7 +325,7 @@ class ProviderAwareMcpOAuthStartUseCase:
 
 
 class McpOAuthDeviceStartUseCase:
-    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherAdapter) -> None:
+    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherPort) -> None:
         self._tool_repo = tool_repo
         self._executor = executor
         self._cipher = cipher
@@ -462,7 +441,7 @@ class McpOAuthDeviceStartUseCase:
 
 
 class McpOAuthDevicePollUseCase:
-    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherAdapter) -> None:
+    def __init__(self, *, tool_repo: ToolRepository, executor: ToolExecutionPort, cipher: SecretCipherPort) -> None:
         self._tool_repo = tool_repo
         self._executor = executor
         self._cipher = cipher

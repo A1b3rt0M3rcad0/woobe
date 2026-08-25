@@ -44,6 +44,8 @@ PUBLIC_PATHS = {
     "/identity/auth/logout",
     "/identity/auth/register",
     "/identity/auth/refresh",
+    "/identity/instance/status",
+    "/identity/instance/bootstrap",
 }
 _LOCAL_ENVIRONMENTS = {"development", "dev", "test", "local"}
 _ALLOWED_SAME_SITE = {"lax", "strict", "none"}
@@ -78,6 +80,10 @@ def is_runtime_path(path: str) -> bool:
         or path == "/v1/jobs"
         or path.startswith("/v1/jobs/")
     )
+
+
+def is_chat_surface_public_path(path: str) -> bool:
+    return path.startswith("/v1/chat-surfaces/") or path.startswith("/v1/chat/")
 
 
 def is_runtime_execution_request(method: str, path: str) -> bool:
@@ -139,9 +145,7 @@ def _values_for_key(value: Any, target: str) -> list[Any]:
 
 
 def _serialized_size(value: Any) -> int:
-    return len(
-        json.dumps(value, separators=(",", ":"), default=str).encode("utf-8")
-    )
+    return len(json.dumps(value, separators=(",", ":"), default=str).encode("utf-8"))
 
 
 class HttpSecurityGuard:
@@ -173,9 +177,9 @@ class HttpSecurityGuard:
         request: Request,
         principal: SecurityPrincipal | None,
     ) -> bool:
-        return isinstance(principal, ProjectApiPrincipal) and is_runtime_execution_request(
-            request.method, request.url.path
-        )
+        return isinstance(
+            principal, ProjectApiPrincipal
+        ) and is_runtime_execution_request(request.method, request.url.path)
 
     async def acquire_runtime_permit(self, principal: ProjectApiPrincipal) -> UUID:
         return await self._api_key_concurrency_limiter.acquire(
@@ -201,7 +205,7 @@ class HttpSecurityGuard:
             client = request.client.host if request.client else "unknown"
             await self._login_rate_limiter.consume(client)
 
-        if path in PUBLIC_PATHS:
+        if path in PUBLIC_PATHS or is_chat_surface_public_path(path):
             return None
 
         if is_runtime_path(path):
@@ -266,7 +270,8 @@ class HttpSecurityGuard:
                 text(
                     """
                     SELECT id, project_id, key_prefix, key_hash, key_version,
-                           scopes, kind, agent_id, environment, interfaces,
+                           scopes, kind, agent_id, target_type, target_id,
+                           environment, interfaces,
                            status, revoked_at, expires_at
                     FROM core.api_keys
                     WHERE key_prefix = :key_prefix
@@ -322,7 +327,19 @@ class HttpSecurityGuard:
                     raise AuthorizationError(
                         "A Runtime Key is required for this endpoint"
                     )
-                if matching_row.agent_id is None or key_environment is None:
+                target_type = (
+                    str(matching_row.target_type)
+                    if matching_row.target_type is not None
+                    else "agent"
+                    if matching_row.agent_id is not None
+                    else None
+                )
+                target_id = matching_row.target_id or matching_row.agent_id
+                if (
+                    target_type not in {"agent", "network"}
+                    or target_id is None
+                    or key_environment is None
+                ):
                     raise AuthorizationError("Runtime Key binding is incomplete")
                 if runtime_interface not in interfaces:
                     raise AuthorizationError(
@@ -342,6 +359,21 @@ class HttpSecurityGuard:
                 agent_id=(
                     UUID(str(matching_row.agent_id))
                     if matching_row.agent_id is not None
+                    else None
+                ),
+                target_type=(
+                    str(matching_row.target_type)
+                    if matching_row.target_type is not None
+                    else "agent"
+                    if matching_row.agent_id is not None
+                    else None
+                ),
+                target_id=(
+                    UUID(str(matching_row.target_id or matching_row.agent_id))
+                    if (
+                        matching_row.target_id is not None
+                        or matching_row.agent_id is not None
+                    )
                     else None
                 ),
                 environment=key_environment,

@@ -86,7 +86,7 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
   depth: number
   onOpenAgent: (nodeId: AgentNodeId) => void
 }) {
-  const [open, setOpen] = useState(depth === 0 || invocation.status === 'error')
+  const [open, setOpen] = useState(false)
   const routingEvent = trace.events.find((event) => event.type === 'network.route.selected' && event.spanId === invocation.spanId)
   const statusIcon = invocation.status === 'error'
     ? <XCircle className="h-3.5 w-3.5 text-red-400" />
@@ -119,6 +119,12 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
         {open ? (
           <div className="space-y-2 border-t border-border/70 p-2.5">
             <ContextSummary invocation={invocation} />
+            {invocation.failure ? (
+              <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-2.5">
+                <p className="text-[10px] font-medium text-red-300">{invocation.failure.message}</p>
+                <p className="mt-1 font-mono text-[9px] text-muted">{invocation.failure.code} · {invocation.failure.stage}{invocation.failure.retryable ? ' · retryable' : ''}</p>
+              </div>
+            ) : null}
             {invocation.input !== undefined ? <div><p className="mb-1.5 text-[9px] font-medium uppercase tracking-wide text-muted">Input</p><JsonCodeBlock value={invocation.input} maxHeight={128} /></div> : null}
             {invocation.output ? <div className="rounded-lg border border-border/70 bg-surface/45 p-2.5"><p className="text-[9px] uppercase tracking-wide text-muted">Output</p><p className="mt-1 whitespace-pre-wrap text-[10px] leading-4 text-slate-200">{invocation.output}</p></div> : null}
             {invocation.parsedOutput ? <JsonCodeBlock value={invocation.parsedOutput} maxHeight={128} /> : null}

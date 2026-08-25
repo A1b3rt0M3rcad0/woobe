@@ -1,21 +1,221 @@
-import { useState } from 'react'
-import { Copy, KeyRound, X } from 'lucide-react'
-import { ScrollArea } from '@/components/ui/ScrollArea'
-import { API_BASE_URL } from '@/lib/api/client'
-import { cn } from '@/lib/utils'
+import { useMemo } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { useParams } from 'react-router-dom'
+
+import type { RuntimeEnvironment } from '@/features/api-keys/types'
+import { getNetwork, getNetworkVersions } from '@/features/network/api'
+import type { NetworkVersion } from '@/features/network/types'
+import {
+  RuntimeApiReferenceModal,
+  type RuntimeEnvironmentReference,
+} from '@/features/runtime-reference/RuntimeApiReferenceModal'
+import { workspaceProjectPath } from '@/lib/constants/routes'
 import type { AgentNodeId, NetworkBinding } from './networkWorkspaceTypes'
 
-const surface = 'rounded-xl border border-border/75 bg-background/35'
+type Props = {
+  open: boolean
+  onClose: () => void
+  projectId: string
+  networkId: string
+  versionIds?: { staging?: string | null; production?: string | null }
+  versions?: { staging: NetworkVersion | null; production: NetworkVersion | null }
+  bindings: {
+    staging: Record<AgentNodeId, NetworkBinding>
+    production: Record<AgentNodeId, NetworkBinding>
+  }
+}
 
-export function NetworkApiModal({ open, onClose, bindings }: { open: boolean; onClose: () => void; bindings: { staging: Record<AgentNodeId, NetworkBinding>; production: Record<AgentNodeId, NetworkBinding> } }) {
-  const [environment, setEnvironment] = useState<'staging' | 'production'>('staging')
-  if (!open) return null
-  const active = bindings[environment]
-  const version = environment === 'production' ? 'v0.10.20260710.00' : 'v0.12.20260713.00'
-  const curl = `curl -X POST "${API_BASE_URL}/v1/run" \\
-  -H "Authorization: Bearer $WOOBE_API_KEY" \\
-  -H "Content-Type: application/json" \\
-  -d '{"message":"Hello!"}'`
+function outputExample(version: NetworkVersion | null): Record<string, unknown> | null {
+  const contract = version?.public_output_contract
+  if (!contract?.enabled) return null
+  const properties = contract.schema?.properties
+  if (!properties || typeof properties !== 'object') return {}
+  return Object.fromEntries(Object.entries(properties).map(([name, raw]) => {
+    const schema = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
+    const type = schema.type
+    if (type === 'number') return [name, 0.91]
+    if (type === 'integer') return [name, 1]
+    if (type === 'boolean') return [name, true]
+    if (type === 'array') return [name, []]
+    if (type === 'object') return [name, {}]
+    return [name, `<${name}>`]
+  }))
+}
 
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur"><div className="flex h-[82vh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl border border-border bg-surface"><div className="flex shrink-0 items-start border-b border-border p-5"><div><p className="text-[9px] uppercase tracking-widest text-primary-light">Network runtime</p><h2 className="mt-1 text-base font-semibold text-white">API Reference</h2><p className="mt-1 text-[10px] text-muted">Runtime API is available only for Staging and Production.</p></div><button onClick={onClose} className="ml-auto text-muted"><X className="h-4 w-4" /></button></div><div className="grid min-h-0 flex-1 grid-cols-[320px_1fr]"><ScrollArea className="border-r border-border"><div className="p-4"><p className="text-[9px] uppercase text-muted">Environment</p><div className="mt-2 grid grid-cols-2 gap-2">{(['staging', 'production'] as const).map((item) => <button key={item} onClick={() => setEnvironment(item)} className={cn('rounded-xl border p-3 text-left', item === environment ? 'border-primary/35 bg-primary/10' : 'border-border bg-background/35')}><p className="text-[10px] font-semibold capitalize text-white">{item}</p><p className="mt-1 font-mono text-[9px] text-muted">{item === 'production' ? 'v0.10' : 'v0.12'}</p></button>)}</div><div className={cn(surface, 'mt-4 p-3')}><p className="text-[9px] uppercase text-muted">Active Network snapshot</p><p className="mt-1 font-mono text-xs text-white">{version}</p></div><p className="mt-4 text-[9px] uppercase text-muted">Composition</p><div className="mt-2 space-y-2">{Object.values(active).map((item) => <div key={item.nodeId} className={cn(surface, 'flex justify-between p-2.5')}><span className="truncate text-[9px] text-white">{item.agent.name}</span><span className="font-mono text-[8px] text-emerald-300">{item.version}</span></div>)}</div><div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3"><div className="flex gap-2"><KeyRound className="h-4 w-4 text-primary-light" /><div><p className="text-[10px] text-white">{environment} Network Key</p><p className="font-mono text-[9px] text-muted">rk_{environment === 'production' ? 'live' : 'stg'}_••••••</p></div></div><p className="mt-2 text-[9px] text-muted">target_type=network · target_id · environment</p></div></div></ScrollArea><ScrollArea><section className="p-5"><div className={cn(surface, 'flex items-center gap-2 p-3')}><span className="text-[10px] font-semibold text-primary-light">POST</span><code className="text-[10px] text-white">/v1/run</code><button onClick={() => void navigator.clipboard?.writeText('/v1/run')} className="ml-auto text-muted"><Copy className="h-3.5 w-3.5" /></button></div><div className="mt-4 grid grid-cols-2 gap-4"><pre className="rounded-xl border border-border bg-black/20 p-4 text-[10px] text-slate-300">{JSON.stringify({ message: 'Hello!', session_id: '<optional-uuid>' }, null, 2)}</pre><pre className="rounded-xl border border-border bg-black/20 p-4 text-[10px] text-slate-300">{JSON.stringify({ success: true, data: { answer: 'How can I help?', network_release_version: version, composition_checksum: '<sha256>', trace_id: '<uuid>', hops: 2 } }, null, 2)}</pre></div><pre className="mt-4 rounded-xl border border-border bg-black/20 p-4 text-[10px] text-slate-300">{curl}</pre><div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-4 text-[10px] leading-4 text-muted">Draft is tested only through the internal Network Chat. Exact Agent versions remain available in Traces for every API execution.</div></section></ScrollArea></div></div></div>
+export function NetworkApiModal({
+  open,
+  onClose,
+  projectId,
+  networkId,
+  versionIds,
+  versions,
+  bindings,
+}: Props) {
+  const { workspaceId } = useParams<{ workspaceId?: string }>()
+  const networkQuery = useQuery({
+    queryKey: ['network', projectId, networkId, 'api-reference'],
+    queryFn: () => getNetwork(projectId, networkId),
+    enabled: Boolean(open && projectId && networkId),
+  })
+  const versionsQuery = useQuery({
+    queryKey: ['network-versions', projectId, networkId, 'api-reference'],
+    queryFn: () => getNetworkVersions(networkId, projectId),
+    enabled: Boolean(open && networkId && projectId && !versions),
+  })
+
+  const resolvedVersions = useMemo(() => {
+    if (versions) return versions
+    const available = versionsQuery.data ?? []
+    return {
+      staging: available.find((item) => item.id === versionIds?.staging) ?? null,
+      production: available.find((item) => item.id === versionIds?.production) ?? null,
+    }
+  }, [versionIds?.production, versionIds?.staging, versions, versionsQuery.data])
+
+  const environments = useMemo(() => {
+    return Object.fromEntries((['production', 'staging'] as RuntimeEnvironment[]).map((environment) => {
+      const version = resolvedVersions[environment]
+      const versionId = version?.id ?? versionIds?.[environment] ?? null
+      const activeBindings = bindings[environment]
+      const parsedOutput = outputExample(version)
+      const response = {
+        success: true,
+        message: 'ok',
+        data: {
+          execution_id: '<uuid>',
+          job_id: '<uuid>',
+          session_id: '<uuid>',
+          network_id: networkId,
+          network_version_id: versionId ?? '<uuid>',
+          status: 'completed',
+          answer: parsedOutput ? JSON.stringify(parsedOutput) : '<network answer>',
+          result: parsedOutput ?? '<network answer>',
+          parsed_output: parsedOutput,
+          output_parse_error: null,
+          error: null,
+          trace_id: '<uuid | null>',
+          created_at: '<iso datetime>',
+          started_at: '<iso datetime>',
+          completed_at: '<iso datetime>',
+        },
+      }
+      const streamEvents = {
+        execution_started: {
+          event: 'execution_started',
+          data: {
+            protocol_version: 1,
+            sequence: 1,
+            execution_id: '<uuid>',
+            network_session_id: '<uuid>',
+            invocation_id: '<uuid | null>',
+            parent_invocation_id: null,
+            node_id: '<uuid | null>',
+            agent_id: '<uuid | null>',
+            depth: 0,
+            data: {},
+            created_at: '<iso datetime>',
+          },
+        },
+        agent_invocation_completed: {
+          event: 'agent_invocation_completed',
+          data: {
+            protocol_version: 1,
+            sequence: 2,
+            execution_id: '<uuid>',
+            network_session_id: '<uuid>',
+            invocation_id: '<uuid>',
+            parent_invocation_id: '<uuid | null>',
+            node_id: '<uuid>',
+            agent_id: '<uuid>',
+            depth: 0,
+            data: {
+              trace_id: '<uuid | null>',
+              provider: '<provider | null>',
+              model: '<model | null>',
+              output: parsedOutput ? JSON.stringify(parsedOutput) : '<agent answer>',
+              parsed_output: parsedOutput,
+              output_parse_error: null,
+            },
+            created_at: '<iso datetime>',
+          },
+        },
+        network_result: {
+          event: 'network_result',
+          data: {
+            protocol_version: 1,
+            sequence: 3,
+            execution_id: '<uuid>',
+            network_session_id: '<uuid>',
+            invocation_id: '<root invocation uuid>',
+            data: {
+              answer: response.data.answer,
+              result: response.data.result,
+              parsed_output: response.data.parsed_output,
+              output_parse_error: null,
+              result_type: parsedOutput ? 'structured' : 'text',
+              trace_id: '<uuid | null>',
+            },
+            created_at: '<iso datetime>',
+          },
+        },
+        execution_completed: {
+          event: 'execution_completed',
+          data: {
+            protocol_version: 1,
+            sequence: 4,
+            execution_id: '<uuid>',
+            network_session_id: '<uuid>',
+            data: { trace_id: '<uuid | null>' },
+            created_at: '<iso datetime>',
+          },
+        },
+        heartbeat: {
+          event: 'heartbeat',
+          data: { protocol_version: 1, execution_id: '<uuid>' },
+        },
+      }
+      const manifest = (version?.agent_release_manifest ?? Object.values(activeBindings).map((item) => ({
+        node_id: item.nodeId,
+        agent_id: item.agent.id,
+        role: 'specialist' as const,
+        release_version: item.version,
+      }))).map((item) => ({
+        id: item.node_id,
+        name: activeBindings[item.node_id]?.agent.name ?? item.agent_id,
+        version: item.release_version,
+        role: item.role,
+      }))
+      const reference: RuntimeEnvironmentReference = {
+        available: Boolean(versionId),
+        version: version?.version ?? null,
+        summary: [
+          { label: 'Composition', value: version?.composition_hash?.slice(0, 12) ?? 'not deployed' },
+          { label: 'Entry Agent', value: version?.entry_agent_release_version ?? 'not deployed' },
+          { label: 'Session', value: version?.definition.settings.session_mode ?? 'stateful' },
+        ],
+        request: { message: 'Hello!' },
+        requestWithSession: { message: 'Hello!', session_id: '<optional-uuid>' },
+        response,
+        streamEvents,
+        outputContract: version?.public_output_contract ?? null,
+        manifest,
+        warning: null,
+        note: `The Runtime Key remains bound to this Network and always resolves the active ${environment === 'production' ? 'Production' : 'Staging'} Release. A completed Run always contains a public answer or a valid structured result; empty model output fails explicitly.`,
+      }
+      return [environment, reference]
+    })) as Record<RuntimeEnvironment, RuntimeEnvironmentReference>
+  }, [bindings, networkId, resolvedVersions, versionIds?.production, versionIds?.staging])
+
+  return (
+    <RuntimeApiReferenceModal
+      open={open}
+      onClose={onClose}
+      projectId={projectId}
+      targetType="network"
+      targetId={networkId}
+      targetName={networkQuery.data?.name ?? 'Network'}
+      manageKeysPath={workspaceProjectPath(workspaceId, projectId, 'api-keys')}
+      environments={environments}
+    />
+  )
 }

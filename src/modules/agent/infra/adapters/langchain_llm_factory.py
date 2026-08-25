@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-import importlib
-
-from modules.agent.domain.ports.llm_factory import LLMFactory
+from modules.agent.application.interfaces.llm_factory import LLMFactory
+from modules.agent.infra.llm.langchain_factory import create_chat_model
 
 
 class LangchainLLMFactory(LLMFactory):
@@ -18,8 +17,7 @@ class LangchainLLMFactory(LLMFactory):
         streaming: bool = False,
         response_format: dict | None = None,
     ):
-        langchain_mod = importlib.import_module("modules.agent.infra.llm.langchain_factory")
-        return langchain_mod.create_chat_model(
+        return create_chat_model(
             provider=provider,
             model=model,
             api_key=api_key,

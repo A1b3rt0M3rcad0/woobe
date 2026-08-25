@@ -1,4 +1,3 @@
-import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { getProjectOverview } from './api'
 import type {
@@ -10,17 +9,21 @@ import type {
 
 export const PROJECT_OVERVIEW_STALE_TIME_MS = 15_000
 export const PROJECT_OVERVIEW_REFETCH_INTERVAL_MS = 60_000
-export const PROJECT_OVERVIEW_RECENT_LIMIT = 3
+export const PROJECT_OVERVIEW_RECENT_LIMIT = 5
 
-export function projectOverviewQueryKey(params: ProjectOverviewParams) {
+interface ProjectOverviewQueryIdentity {
+  projectId: string
+  environment: DashboardEnvironment
+  range: DashboardRangePreset
+  recentLimit?: number
+}
+
+export function projectOverviewQueryKey(params: ProjectOverviewQueryIdentity) {
   return [
     'project-overview',
     params.projectId,
     params.environment,
     params.range,
-    params.bucket,
-    params.from,
-    params.to,
     params.recentLimit ?? PROJECT_OVERVIEW_RECENT_LIMIT,
   ] as const
 }
@@ -46,27 +49,30 @@ export interface UseProjectOverviewOptions {
   projectId: string | undefined
   environment: DashboardEnvironment
   range: DashboardRangePreset
-  now?: Date
   recentLimit?: number
 }
 
 export function useProjectOverview(options: UseProjectOverviewOptions) {
-  const anchorTimestamp = options.now?.getTime()
-  const window = useMemo(
-    () => resolveOverviewWindow(options.range, options.now),
-    [options.range, anchorTimestamp],
-  )
-  const params: ProjectOverviewParams = {
+  const identity: ProjectOverviewQueryIdentity = {
     projectId: options.projectId ?? '',
     environment: options.environment,
+    range: options.range,
     recentLimit: options.recentLimit,
-    ...window,
   }
 
   return useQuery({
-    queryKey: projectOverviewQueryKey(params),
-    queryFn: () => getProjectOverview(params),
+    queryKey: projectOverviewQueryKey(identity),
+    queryFn: () => {
+      const window = resolveOverviewWindow(options.range)
+      return getProjectOverview({
+        projectId: options.projectId ?? '',
+        environment: options.environment,
+        recentLimit: options.recentLimit ?? PROJECT_OVERVIEW_RECENT_LIMIT,
+        ...window,
+      })
+    },
     enabled: Boolean(options.projectId),
+    placeholderData: (previousData) => previousData,
     staleTime: PROJECT_OVERVIEW_STALE_TIME_MS,
     refetchInterval: PROJECT_OVERVIEW_REFETCH_INTERVAL_MS,
     refetchOnWindowFocus: true,

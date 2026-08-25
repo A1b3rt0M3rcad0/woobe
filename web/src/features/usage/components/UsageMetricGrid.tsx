@@ -2,10 +2,11 @@ import type { ReactNode } from 'react'
 import {
   Activity,
   BadgeDollarSign,
-  Braces,
   CircleGauge,
   Coins,
-  Workflow,
+  Network,
+  Route,
+  TriangleAlert,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -60,76 +61,114 @@ function MetricCard({ label, value, description, icon: Icon, warning }: MetricCa
   )
 }
 
+function SupportingMetric({ label, value, detail, icon: Icon }: {
+  label: string
+  value: string
+  detail: string
+  icon: LucideIcon
+}) {
+  return (
+    <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/20 p-3">
+      <Icon className="h-4 w-4 shrink-0 text-primary-light" />
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</p>
+        <p className="mt-1 text-sm font-semibold text-white">{value}</p>
+        <p className="mt-0.5 truncate text-[10px] text-muted" title={detail}>{detail}</p>
+      </div>
+    </div>
+  )
+}
+
 export function UsageMetricGrid({ summary }: { summary: ProjectUsageSummary }) {
-  const generationTokens = summary.input_tokens + summary.output_tokens
-  const partial = summary.partial_cost_requests > 0 || summary.unpriced_requests > 0
-  const successRate = summary.runtime_requests
-    ? (summary.successful_requests / summary.runtime_requests) * 100
-    : 0
-  const callsPerRequest = summary.runtime_requests
-    ? summary.llm_calls / summary.runtime_requests
-    : 0
+  const agentPricingIncomplete = summary.partial_cost_agent_runs > 0 || summary.unpriced_agent_runs > 0
+  const networkPricingIncomplete = summary.partial_cost_network_runs > 0 || summary.unpriced_network_runs > 0
+  const agentFailures = summary.failed_agent_runs + summary.cancelled_agent_runs
+  const networkFailures = summary.failed_network_runs + summary.cancelled_network_runs
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 2xl:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <MetricCard
           icon={BadgeDollarSign}
-          label="Known provider spend"
+          label="Operational cost"
           value={formatKnownMoney(summary.known_cost_usd)}
-          warning={partial}
-          description={partial
-            ? `${summary.partial_cost_requests} partial · ${summary.unpriced_requests} unpriced`
+          warning={agentPricingIncomplete}
+          description={agentPricingIncomplete
+            ? `${summary.partial_cost_agent_runs} partial · ${summary.unpriced_agent_runs} unpriced Agent Runs`
             : <Change value={summary.cost_change_percent} inverse />}
         />
         <MetricCard
           icon={Activity}
-          label="Runtime requests"
-          value={formatNumber(summary.runtime_requests)}
-          description={<Change value={summary.request_change_percent} />}
+          label="Agent Runs"
+          value={formatNumber(summary.agent_runs)}
+          description={<Change value={summary.agent_run_change_percent} />}
         />
         <MetricCard
           icon={Coins}
-          label="Cost per priced request"
-          value={formatKnownMoney(summary.cost_per_priced_request)}
-          warning={partial}
-          description={`${summary.cost_coverage_percent === null ? '—' : summary.cost_coverage_percent.toFixed(1)}% pricing coverage`}
+          label="Cost / Agent Run"
+          value={formatKnownMoney(summary.cost_per_priced_agent_run)}
+          warning={agentPricingIncomplete}
+          description={`Median ${formatKnownMoney(summary.median_agent_run_cost_usd)} · P95 ${formatKnownMoney(summary.p95_agent_run_cost_usd)}`}
         />
         <MetricCard
-          icon={CircleGauge}
-          label="Runtime success rate"
-          value={`${successRate.toFixed(1)}%`}
-          description={`${formatNumber(summary.failed_requests + summary.cancelled_requests)} failed or cancelled`}
+          icon={Network}
+          label="Network Runs"
+          value={formatNumber(summary.network_runs)}
+          description={<Change value={summary.network_run_change_percent} />}
+        />
+        <MetricCard
+          icon={Route}
+          label="Cost / Network Run"
+          value={formatKnownMoney(summary.cost_per_priced_network_run)}
+          warning={networkPricingIncomplete}
+          description={`Median ${formatKnownMoney(summary.median_network_run_cost_usd)} · P95 ${formatKnownMoney(summary.p95_network_run_cost_usd)}`}
+        />
+        <MetricCard
+          icon={TriangleAlert}
+          label="Failed cost"
+          value={formatMoney(summary.failed_spend_usd)}
+          warning={summary.failed_spend_usd > 0}
+          description={`${formatNumber(agentFailures)} Agent · ${formatNumber(networkFailures)} Network failures`}
         />
       </div>
 
-      <div className="grid gap-3 rounded-xl border border-border/80 bg-surface/45 p-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/20 p-3">
-          <Workflow className="h-4 w-4 text-primary-light" />
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">LLM calls</p>
-            <p className="mt-1 text-sm font-semibold text-white">{formatNumber(summary.llm_calls)}</p>
-            <p className="mt-0.5 text-[10px] text-muted">{callsPerRequest.toFixed(2)} per request</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/20 p-3">
-          <Braces className="h-4 w-4 text-primary-light" />
-          <div>
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Generation tokens</p>
-            <p className="mt-1 text-sm font-semibold text-white">{formatNumber(generationTokens)}</p>
-            <p className="mt-0.5 text-[10px] text-muted">{formatNumber(summary.tokens_per_request, 1)} per request</p>
-          </div>
-        </div>
-        <div className="rounded-lg border border-border/60 bg-background/20 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Failed spend</p>
-          <p className="mt-1 text-sm font-semibold text-white">{formatMoney(summary.failed_spend_usd)}</p>
-          <p className="mt-0.5 text-[10px] text-muted">Known spend on failed or cancelled runs</p>
-        </div>
-        <div className="rounded-lg border border-border/60 bg-background/20 p-3">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Priced requests</p>
-          <p className="mt-1 text-sm font-semibold text-white">{formatNumber(summary.priced_requests)}</p>
-          <p className="mt-0.5 text-[10px] text-muted">{summary.cost_coverage_percent === null ? 'No coverage baseline' : `${summary.cost_coverage_percent.toFixed(1)}% of runtime requests`}</p>
-        </div>
+      <div className="grid gap-3 rounded-xl border border-border/80 bg-surface/45 p-3 sm:grid-cols-2 xl:grid-cols-6">
+        <SupportingMetric
+          icon={Activity}
+          label="Direct Agent Runs"
+          value={formatNumber(summary.direct_agent_runs)}
+          detail="Executed outside Networks"
+        />
+        <SupportingMetric
+          icon={Network}
+          label="Agent Runs in Networks"
+          value={formatNumber(summary.network_agent_runs)}
+          detail="Contained by Network Runs"
+        />
+        <SupportingMetric
+          icon={Route}
+          label="Runs / Network"
+          value={formatNumber(summary.avg_agent_runs_per_network_run, 2)}
+          detail="Average effective composition"
+        />
+        <SupportingMetric
+          icon={CircleGauge}
+          label="Agent success"
+          value={summary.agent_run_success_rate === null ? '—' : `${summary.agent_run_success_rate.toFixed(1)}%`}
+          detail="Terminal Agent Runs"
+        />
+        <SupportingMetric
+          icon={CircleGauge}
+          label="Network success"
+          value={summary.network_run_success_rate === null ? '—' : `${summary.network_run_success_rate.toFixed(1)}%`}
+          detail="Terminal Network Runs"
+        />
+        <SupportingMetric
+          icon={BadgeDollarSign}
+          label="Pricing coverage"
+          value={summary.cost_coverage_percent === null ? '—' : `${summary.cost_coverage_percent.toFixed(1)}%`}
+          detail="Fully priced Agent Runs"
+        />
       </div>
     </div>
   )

@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from modules.agent.application.use_cases.execution_instrumentation import aggregate_usage
-from modules.agent.application.use_cases.instrumented_execution_runner import run_instrumented_execution
+from modules.agent.infra.execution.execution_instrumentation import aggregate_usage
+from modules.agent.infra.execution.instrumented_execution_runner import run_instrumented_execution
 
 
 class Result:
@@ -21,14 +21,19 @@ async def test_parallel_tools_and_no_redundant_json_repair():
         {"id": "a", "name": "sum", "args": {"a": 8, "b": 8}},
         {"id": "b", "name": "sum", "args": {"a": 9, "b": 8}},
     ], {"input_tokens": 10, "output_tokens": 2, "total_tokens": 12})
+    decision = Result("", usage={
+        "input_tokens": 5, "output_tokens": 1, "total_tokens": 6,
+    })
     final = Result('{"message":"ok"}', usage={
         "input_tokens": 20, "output_tokens": 4, "total_tokens": 24,
     })
-    model = MagicMock()
-    model.bind_tools.return_value = model
-    model.ainvoke = AsyncMock(side_effect=[planning, final])
+    tool_model = MagicMock()
+    tool_model.bind_tools.return_value = tool_model
+    tool_model.ainvoke = AsyncMock(side_effect=[planning, decision])
+    final_model = MagicMock()
+    final_model.ainvoke = AsyncMock(return_value=final)
     factory = MagicMock()
-    factory.create_chat_model.return_value = model
+    factory.create_chat_model.side_effect = [tool_model, final_model]
 
     active = 0
     peak = 0
@@ -57,10 +62,10 @@ async def test_parallel_tools_and_no_redundant_json_repair():
     )
 
     assert peak == 2
-    assert len(execution.llm_calls) == 2
+    assert len(execution.llm_calls) == 3
     assert all(call["phase"] != "json_repair" for call in execution.llm_calls)
     usage, complete, cost_status = aggregate_usage(execution.llm_calls)
-    assert (usage.input_tokens, usage.output_tokens, usage.total_tokens) == (30, 6, 36)
+    assert (usage.input_tokens, usage.output_tokens, usage.total_tokens) == (35, 7, 42)
     assert complete is True
     assert usage.cost_usd is None
-    assert cost_status == "unknown"
+    assert cost_status == "unknown_pricing"

@@ -7,14 +7,14 @@ from modules.core.domain.enums import ProjectStatus
 
 
 class CreateProjectInput(BaseModel):
-    organization_id: UUID
+    workspace_id: UUID
     name: str
     slug: str
 
 
 class CreateProjectOutput(BaseModel):
     id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     name: str
     slug: str
     status: ProjectStatus

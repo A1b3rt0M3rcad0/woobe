@@ -41,8 +41,8 @@ from modules.agent.domain.events import (
     AgentCollectionCreatedV1,
     AgentDocumentUploadedV1,
 )
-from modules.agent.domain.ports.file_storage import FileStorage, compute_sha256
-from modules.agent.domain.repositories import (
+from modules.agent.application.interfaces.file_storage import FileStorage, compute_sha256
+from modules.agent.application.interfaces.repositories import (
     AgentCollectionRepository,
     AgentRepository,
     DocumentChunkRepository,
@@ -51,10 +51,8 @@ from modules.agent.domain.repositories import (
     KnowledgeVersionRepository,
 )
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
-from shared.infra.config import Settings
-from shared.infra.config.interface.unit_of_work import UnitOfWork
-from shared.infra.errors import ConflictError, NotFoundError, ValidationError
-from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
 
 
 class ReadableUploadFile(Protocol):
@@ -62,6 +60,12 @@ class ReadableUploadFile(Protocol):
     content_type: str | None
 
     async def read(self) -> bytes: ...
+
+
+class UploadSettings(Protocol):
+    storage_driver: str
+    upload_allowed_extensions: str
+    upload_max_mb: int
 
 
 _EXTENSION_TO_PARSER = {
@@ -288,7 +292,7 @@ class UploadDocumentFileUseCase:
         collection_repo: DocumentCollectionRepository,
         outbox: OutboxEventWriter,
         storage: FileStorage,
-        settings: Settings,
+        settings: UploadSettings,
     ) -> None:
         self.doc_repo = doc_repo
         self.collection_repo = collection_repo
@@ -502,7 +506,7 @@ class GetCollectionUseCase:
 
 
 class ListDocumentsUseCase:
-    def __init__(self, repo: DocumentRepository, uow: UnitOfWork) -> None:
+    def __init__(self, repo: DocumentRepository, uow: Any) -> None:
         self._repo = repo
         self._uow = uow
 

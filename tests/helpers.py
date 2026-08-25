@@ -11,7 +11,6 @@ def fake_uuid() -> str:
 
 
 # ── Identity factories ────────────────────────────────────────────
-
 def make_user(email="user@test.com", password=b"$2b$12$hash"):
     from modules.identity.domain.entities import User
     return User(
@@ -22,16 +21,16 @@ def make_user(email="user@test.com", password=b"$2b$12$hash"):
     )
 
 
-def make_organization(name="TestOrg", slug="test-org"):
-    from modules.identity.domain.entities import Organization
-    return Organization(name=name, slug=slug, created_at=_now, updated_at=_now)
+def make_workspace(name="TestWorkspace", slug="test-workspace"):
+    from modules.identity.domain.entities import Workspace
+    return Workspace(name=name, slug=slug, created_at=_now, updated_at=_now)
 
 
-def make_organization_member(user_id=None, organization_id=None, role="member"):
-    from modules.identity.domain.entities import OrganizationMember
-    return OrganizationMember(
+def make_workspace_member(user_id=None, workspace_id=None, role="member"):
+    from modules.identity.domain.entities import WorkspaceMember
+    return WorkspaceMember(
         user_id=user_id or uuid6.uuid7(),
-        organization_id=organization_id or uuid6.uuid7(),
+        workspace_id=workspace_id or uuid6.uuid7(),
         role=role,
         joined_at=datetime.now(UTC),
         created_at=_now,
@@ -40,11 +39,10 @@ def make_organization_member(user_id=None, organization_id=None, role="member"):
 
 
 # ── Core factories ────────────────────────────────────────────────
-
-def make_project(organization_id=None, name="TestProject", slug="test-project"):
+def make_project(workspace_id=None, name="TestProject", slug="test-project"):
     from modules.core.domain.entities import Project
     return Project(
-        organization_id=organization_id or uuid6.uuid7(),
+        workspace_id=workspace_id or uuid6.uuid7(),
         name=name,
         slug=slug,
         created_at=_now,
@@ -64,8 +62,7 @@ def make_api_key(project_id=None, name="TestKey"):
     )
 
 
-# ── AI factories ──────────────────────────────────────────────────
-
+# ── Agent factories ───────────────────────────────────────────────
 def make_agent(project_id=None, name="TestAgent"):
     from modules.agent.domain.entities import Agent
     from modules.agent.domain.enums import Provider
@@ -93,7 +90,6 @@ def make_provider_credential(project_id=None, provider=None):
 
 
 # ── Knowledge factories ───────────────────────────────────────────
-
 def make_document_collection(project_id=None, name="TestCollection"):
     from modules.agent.domain.entities import DocumentCollection
     return DocumentCollection(
@@ -120,7 +116,6 @@ def make_document(project_id=None, collection_id=None):
 
 
 # ── Runtime factories ─────────────────────────────────────────────
-
 def make_session(project_id=None, agent_id=None, external_session_id="ext-123"):
     from modules.agent.domain.entities import Session
     return Session(
@@ -144,7 +139,6 @@ def make_message(session_id=None, role="user", content="Hello"):
 
 
 # ── Tools factories ───────────────────────────────────────────────
-
 def make_tool(project_id=None, agent_id=None, name="http-tool"):
     from modules.agent.domain.entities import Tool
     from modules.agent.domain.enums import ToolType
@@ -173,7 +167,6 @@ def make_secret(project_id=None, name="api-key"):
 
 
 # ── Metering factories ────────────────────────────────────────────
-
 def make_usage_event(project_id=None, agent_id=None):
     from modules.metering.domain.entities import UsageEvent
     return UsageEvent(
@@ -187,27 +180,7 @@ def make_usage_event(project_id=None, agent_id=None):
     )
 
 
-# ── Billing factories ─────────────────────────────────────────────
-
-def make_plan(code="free", name="Free", price_usd=0.0):
-    from modules.billing.domain.entities import Plan
-    return Plan(code=code, name=name, price_usd=price_usd, created_at=_now, updated_at=_now)
-
-
-def make_subscription(organization_id=None, plan_id=None):
-    from modules.billing.domain.entities import Subscription
-    return Subscription(
-        organization_id=organization_id or uuid6.uuid7(),
-        plan_id=plan_id or uuid6.uuid7(),
-        provider="manual",
-        provider_subscription_id="sub_123",
-        created_at=_now,
-        updated_at=_now,
-    )
-
-
 # ── Observability factories ───────────────────────────────────────
-
 def make_trace(project_id=None, agent_id=None):
     from modules.observability.domain.entities import Trace
     return Trace(

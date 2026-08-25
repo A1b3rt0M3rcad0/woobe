@@ -26,7 +26,7 @@ export function AuthLayout() {
                 <Play className="h-5 w-5 fill-current" />
               </div>
               <div>
-                <p className="text-sm font-semibold text-white">ProjectRAI</p>
+                <p className="text-sm font-semibold text-white">Woobe</p>
                 <p className="text-xs text-muted">Control Plane for AI Agents</p>
               </div>
             </div>
@@ -64,7 +64,7 @@ export function AuthLayout() {
               <Play className="h-4 w-4 fill-current" />
             </div>
             <div>
-              <p className="text-sm font-semibold text-white">ProjectRAI</p>
+              <p className="text-sm font-semibold text-white">Woobe</p>
               <p className="text-xs text-muted">Control plane access</p>
             </div>
           </div>
@@ -74,7 +74,7 @@ export function AuthLayout() {
           </div>
 
           <p className="mt-4 text-center text-[11px] leading-5 text-muted">
-            Secure access for organization workspaces, projects and runtime operations.
+            Secure access for workspaces, projects and runtime operations.
           </p>
         </section>
       </main>

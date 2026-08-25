@@ -1,3 +1,4 @@
+from typing import Protocol
 from uuid import UUID
 
 from modules.agent.application.dtos.ai_dtos import (
@@ -8,12 +9,27 @@ from modules.agent.application.dtos.ai_dtos import (
     UpdateAgentInput,
     UpdateAgentOutput,
 )
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
+from modules.agent.application.interfaces.provider_model_repository import (
+    ProviderModelRepository,
+)
+from modules.agent.application.interfaces.repositories import (
+    AgentRepository,
+    ProviderCredentialRepository,
+)
 from modules.agent.domain.entities import Agent
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
 from modules.agent.domain.events import AgentCreatedV1, AgentUpdatedV1
-from modules.agent.domain.repositories import AgentRepository, ProviderCredentialRepository
-from shared.infra.errors import ConflictError, ValidationError
-from shared.messaging.outbox_writer import OutboxEventWriter
+from shared.contracts.errors import ConflictError, ValidationError
+
+
+class NetworkAgentUsageReader(Protocol):
+    async def list_draft_references(
+        self,
+        *,
+        project_id: UUID,
+        agent_id: UUID,
+    ) -> list[dict[str, str]]: ...
 
 
 class CreateAgentUseCase:
@@ -22,7 +38,7 @@ class CreateAgentUseCase:
         agent_repo: AgentRepository,
         credential_repo: ProviderCredentialRepository,
         outbox: OutboxEventWriter,
-        provider_model_repo=None,
+        provider_model_repo: ProviderModelRepository | None = None,
     ) -> None:
         self._agent_repo = agent_repo
         self._credential_repo = credential_repo
@@ -58,11 +74,13 @@ class UpdateAgentUseCase:
         agent_repo: AgentRepository,
         credential_repo: ProviderCredentialRepository,
         outbox: OutboxEventWriter,
-        provider_model_repo=None,
+        provider_model_repo: ProviderModelRepository | None = None,
+        network_usage_reader: NetworkAgentUsageReader | None = None,
     ) -> None:
         self._agent_repo = agent_repo
         self._credential_repo = credential_repo
         self._provider_model_repo = provider_model_repo
+        self._network_usage_reader = network_usage_reader
         self._outbox = outbox
 
     async def execute(self, agent_id: UUID, input_dto: UpdateAgentInput) -> UpdateAgentOutput:
@@ -70,7 +88,29 @@ class UpdateAgentUseCase:
         if not existing:
             from modules.agent.domain.errors import AgentNotFoundError
             raise AgentNotFoundError(agent_id)
-        for field, value in input_dto.model_dump(exclude_unset=True).items():
+        changes = input_dto.model_dump(exclude_unset=True)
+        requested_status = changes.get("status")
+        current_status = getattr(existing.status, "value", existing.status)
+        next_status = getattr(requested_status, "value", requested_status)
+        if (
+            requested_status is not None
+            and str(current_status) == "active"
+            and str(next_status) != "active"
+            and self._network_usage_reader is not None
+        ):
+            references = await self._network_usage_reader.list_draft_references(
+                project_id=existing.project_id,
+                agent_id=existing.id,
+            )
+            if references:
+                names = ", ".join(item["name"] for item in references[:5])
+                remaining = len(references) - min(len(references), 5)
+                suffix = f" and {remaining} more" if remaining > 0 else ""
+                raise ConflictError(
+                    "Agent is referenced by active Network Drafts: "
+                    f"{names}{suffix}. Remove it from those Networks before deactivating it."
+                )
+        for field, value in changes.items():
             setattr(existing, field, value)
         _force_strict_json_settings(existing)
         await _resolve_implicit_provider_model_bindings(existing, self._provider_model_repo)
@@ -124,11 +164,24 @@ class ListAgentsUseCase:
                 id=item.id,
                 project_id=item.project_id,
                 name=item.name,
+                description=item.description,
+                type=item.type,
+                system_prompt=item.system_prompt,
                 provider=item.provider,
                 model=item.model,
                 provider_model_id=item.provider_model_id,
+                fallback_provider_model_id=item.fallback_provider_model_id,
+                provider_credential_id=item.provider_credential_id,
+                fallback_credential_id=item.fallback_credential_id,
+                fallback_provider=item.fallback_provider,
+                fallback_model=item.fallback_model,
+                temperature=item.temperature,
+                max_output_tokens=item.max_output_tokens,
+                session_mode=item.session_mode,
                 status=item.status,
+                settings=item.settings,
                 created_at=item.created_at,
+                updated_at=item.updated_at,
             )
             for item in await self._agent_repo.list_by_project(input_dto.project_id)
         ]
@@ -171,7 +224,10 @@ def _force_strict_json_settings(agent: Agent) -> None:
     agent.settings = settings
 
 
-async def _resolve_implicit_provider_model_bindings(agent: Agent, provider_model_repo) -> None:
+async def _resolve_implicit_provider_model_bindings(
+    agent: Agent,
+    provider_model_repo: ProviderModelRepository | None,
+) -> None:
     if provider_model_repo is None:
         return
 
@@ -204,7 +260,7 @@ async def _resolve_implicit_provider_model_bindings(agent: Agent, provider_model
 
 async def _resolve_provider_model_bindings(
     agent: Agent,
-    provider_model_repo,
+    provider_model_repo: ProviderModelRepository | None,
     credential_repo: ProviderCredentialRepository,
 ) -> None:
     if provider_model_repo is None:

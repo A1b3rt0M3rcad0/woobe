@@ -1,0 +1,184 @@
+name: woobe
+
+x-runtime-environment: &runtime-environment
+  WOOBE_EDITION: community
+  WOOBE_ENVIRONMENT: ${WOOBE_ENVIRONMENT:-development}
+  WOOBE_DEBUG: ${WOOBE_DEBUG:-false}
+  WOOBE_JSON_LOGS: ${WOOBE_JSON_LOGS:-true}
+  WOOBE_METRICS_ENABLED: ${WOOBE_METRICS_ENABLED:-true}
+  WOOBE_LOG_LEVEL: ${WOOBE_LOG_LEVEL:-INFO}
+  WOOBE_DATABASE_URL: postgresql://${POSTGRES_USER:?Run scripts/generate_self_host_env.py}:${POSTGRES_PASSWORD:?Run scripts/generate_self_host_env.py}@db:5432/${POSTGRES_DB:-woobe}
+  WOOBE_ENCRYPTION_KEY: ${WOOBE_ENCRYPTION_KEY:?Run scripts/generate_self_host_env.py}
+  WOOBE_DB_POOL_SIZE: ${WOOBE_DB_POOL_SIZE:-10}
+  WOOBE_DB_MAX_OVERFLOW: ${WOOBE_DB_MAX_OVERFLOW:-10}
+  WOOBE_REDIS_URL: redis://redis:6379/0
+  WOOBE_MCP_SESSION_CACHE_ENABLED: "true"
+  WOOBE_STORAGE_DRIVER: local
+  WOOBE_UPLOAD_LOCAL_DIR: /app/storage/uploads
+  WOOBE_UPLOAD_MAX_MB: ${WOOBE_UPLOAD_MAX_MB:-25}
+  WOOBE_UPLOAD_ALLOWED_EXTENSIONS: ${WOOBE_UPLOAD_ALLOWED_EXTENSIONS:-.txt,.md,.pdf,.docx}
+  WOOBE_RUNTIME_MAX_CONCURRENCY_PER_KEY: ${WOOBE_RUNTIME_MAX_CONCURRENCY_PER_KEY:-4}
+  WOOBE_RUNTIME_TOTAL_TIMEOUT_SECONDS: ${WOOBE_RUNTIME_TOTAL_TIMEOUT_SECONDS:-120}
+  WOOBE_NETWORK_RUNTIME_ENABLED: ${WOOBE_NETWORK_RUNTIME_ENABLED:-true}
+  WOOBE_NETWORK_MAX_DEPTH_DEFAULT: ${WOOBE_NETWORK_MAX_DEPTH_DEFAULT:-4}
+  WOOBE_NETWORK_MAX_DEPTH_HARD: ${WOOBE_NETWORK_MAX_DEPTH_HARD:-8}
+  WOOBE_NETWORK_MAX_INVOCATIONS_DEFAULT: ${WOOBE_NETWORK_MAX_INVOCATIONS_DEFAULT:-16}
+  WOOBE_NETWORK_MAX_INVOCATIONS_HARD: ${WOOBE_NETWORK_MAX_INVOCATIONS_HARD:-64}
+  WOOBE_NETWORK_TIMEOUT_DEFAULT_SECONDS: ${WOOBE_NETWORK_TIMEOUT_DEFAULT_SECONDS:-90}
+  WOOBE_NETWORK_TIMEOUT_HARD_SECONDS: ${WOOBE_NETWORK_TIMEOUT_HARD_SECONDS:-300}
+  WOOBE_HTTP_TOOL_TIMEOUT_MAX_MS: ${WOOBE_HTTP_TOOL_TIMEOUT_MAX_MS:-30000}
+  WOOBE_HTTP_TOOL_RESPONSE_MAX_BYTES: ${WOOBE_HTTP_TOOL_RESPONSE_MAX_BYTES:-1048576}
+  WOOBE_HTTP_TOOL_ALLOW_LOCAL_NETWORKS: ${WOOBE_HTTP_TOOL_ALLOW_LOCAL_NETWORKS:-false}
+
+x-runtime-service: &runtime-service
+  build: .
+  restart: unless-stopped
+  env_file:
+    - .env
+  environment:
+    <<: *runtime-environment
+  volumes:
+    - woobe_uploads:/app/storage/uploads
+  security_opt:
+    - no-new-privileges:true
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Run scripts/generate_self_host_env.py}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run scripts/generate_self_host_env.py}
+      POSTGRES_DB: ${POSTGRES_DB:-woobe}
+    volumes:
+      - woobe_postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:?Run scripts/generate_self_host_env.py}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Run scripts/generate_self_host_env.py}
+    volumes:
+      - woobe_rabbitmq:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    command:
+      - redis-server
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --save
+      - "300"
+      - "10"
+    volumes:
+      - woobe_redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  migrate:
+    build: .
+    env_file:
+      - .env
+    environment:
+      WOOBE_POSTGRES_URL: postgresql://${POSTGRES_USER:?Run scripts/generate_self_host_env.py}:${POSTGRES_PASSWORD:?Run scripts/generate_self_host_env.py}@db:5432/${POSTGRES_DB:-woobe}
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    <<: *runtime-service
+    environment:
+      <<: *runtime-environment
+      WOOBE_SECRET_KEY: ${WOOBE_SECRET_KEY:?Run scripts/generate_self_host_env.py}
+      WOOBE_AUTH_ISSUER: ${WOOBE_AUTH_ISSUER:-woobe}
+      WOOBE_AUTH_AUDIENCE: ${WOOBE_AUTH_AUDIENCE:-woobe-web}
+      WOOBE_ACCESS_COOKIE_NAME: ${WOOBE_ACCESS_COOKIE_NAME:-woobe_access}
+      WOOBE_REFRESH_COOKIE_NAME: ${WOOBE_REFRESH_COOKIE_NAME:-woobe_refresh}
+      WOOBE_CSRF_COOKIE_NAME: ${WOOBE_CSRF_COOKIE_NAME:-woobe_csrf}
+      WOOBE_ACCESS_COOKIE_SECURE: ${WOOBE_ACCESS_COOKIE_SECURE:-false}
+      WOOBE_REFRESH_COOKIE_SECURE: ${WOOBE_REFRESH_COOKIE_SECURE:-false}
+      WOOBE_CORS_ORIGINS: ${WOOBE_CORS_ORIGINS:?Run scripts/generate_self_host_env.py}
+      WOOBE_TRUSTED_HOSTS: ${WOOBE_TRUSTED_HOSTS:-localhost,127.0.0.1}
+      WOOBE_CHAT_SURFACE_ENABLED: "true"
+      WOOBE_CHAT_SURFACE_ALLOW_INSECURE_ORIGINS: ${WOOBE_CHAT_SURFACE_ALLOW_INSECURE_ORIGINS:-false}
+      WOOBE_CHAT_TOKEN_SIGNING_KEY: ${WOOBE_CHAT_TOKEN_SIGNING_KEY:?Run scripts/generate_self_host_env.py}
+      WOOBE_CHAT_TOKEN_ISSUER: ${WOOBE_CHAT_TOKEN_ISSUER:-woobe-chat}
+      WOOBE_CHAT_TOKEN_AUDIENCE: ${WOOBE_CHAT_TOKEN_AUDIENCE:-woobe-chat-embed}
+    ports:
+      - "${WOOBE_PORT:-8000}:8000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  workers:
+    <<: *runtime-service
+    command: ["python", "-m", "src.worker_main"]
+    environment:
+      <<: *runtime-environment
+      WOOBE_RABBITMQ_URL: amqp://${RABBITMQ_USER:?Run scripts/generate_self_host_env.py}:${RABBITMQ_PASSWORD:?Run scripts/generate_self_host_env.py}@rabbitmq:5672/
+      WOOBE_RABBITMQ_EXCHANGE: ${WOOBE_RABBITMQ_EXCHANGE:-woobe.events}
+      WOOBE_WORKER_HEALTH_FILE: ${WOOBE_WORKER_HEALTH_FILE:-/tmp/woobe/worker-health.json}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  web:
+    build:
+      context: web
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_CHAT_EMBED_URL: ${VITE_CHAT_EMBED_URL:-http://localhost:8081}
+        VITE_WOOBE_EDITION: community
+    ports:
+      - "${WOOBE_WEB_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+  chat-embed:
+    build:
+      context: embed
+    ports:
+      - "${WOOBE_CHAT_EMBED_PORT:-8081}:8080"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  woobe_postgres:
+  woobe_rabbitmq:
+  woobe_redis:
+  woobe_uploads:

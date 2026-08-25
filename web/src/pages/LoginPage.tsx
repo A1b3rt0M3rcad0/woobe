@@ -29,8 +29,8 @@ export default function LoginPage() {
           <LockKeyhole className="h-3 w-3 text-primary-light" />
           Control plane access
         </div>
-        <h2 className="mt-4 text-xl font-semibold tracking-tight text-white">Sign in to ProjectRAI</h2>
-        <p className="mt-1.5 text-sm leading-5 text-muted">Access your organization workspace and operate AI products in production.</p>
+        <h2 className="mt-4 text-xl font-semibold tracking-tight text-white">Sign in to Woobe</h2>
+        <p className="mt-1.5 text-sm leading-5 text-muted">Access your workspace and operate AI products in production.</p>
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

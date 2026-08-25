@@ -2,16 +2,21 @@ from __future__ import annotations
 
 import asyncio
 import json
+from unittest.mock import MagicMock
 from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import delete, select
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.application.use_cases.ask_agent_stream_service import (
+from modules.agent.infra.database.models import AgentOutboxEventModel
+from modules.agent.infra.database.runtime_transaction_runner import (
+    AgentRuntimeTransactionRunner,
+)
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.execution.ask_agent_stream_service import (
     AskAgentStreamService,
 )
-from modules.agent.infra.database.models import AgentOutboxEventModel
 from modules.observability.infra.database.models import TraceEventModel, TraceModel
 from modules.observability.infra.messaging.truthful_trace_projector import (
     project_agent_event,
@@ -23,12 +28,15 @@ from shared.infra.database.session import create_engine, create_session_factory
 class BlockingStreamService(AskAgentStreamService):
     def __init__(
         self,
-        session_factory,
+        engine,
         *,
         trace_id: UUID,
         session_id: UUID,
     ) -> None:
-        self._session_factory = session_factory
+        transactions = AgentRuntimeTransactionRunner(
+            lambda: AgentUnitOfWork(engine)
+        )
+        super().__init__(MagicMock(), transactions)
         self._trace_id = trace_id
         self._session_id = session_id
 
@@ -49,6 +57,13 @@ class BlockingStreamService(AskAgentStreamService):
         await asyncio.Event().wait()
 
 
+def _sse_payload(frame: str) -> dict:
+    for line in frame.splitlines():
+        if line.startswith("data:"):
+            return json.loads(line.removeprefix("data:").strip())
+    raise AssertionError("SSE frame has no data payload")
+
+
 @pytest.mark.asyncio
 async def test_client_disconnect_persists_cancellation_and_projects_cancelled_trace() -> None:
     settings = Settings.model_validate({})
@@ -60,7 +75,7 @@ async def test_client_disconnect_persists_cancellation_and_projects_cancelled_tr
     session_id = uuid4()
     trace_id = uuid4()
     service = BlockingStreamService(
-        session_factory,
+        engine,
         trace_id=trace_id,
         session_id=session_id,
     )
@@ -79,16 +94,19 @@ async def test_client_disconnect_persists_cancellation_and_projects_cancelled_tr
         return disconnect_checks >= 2
 
     frames = [
-        frame async for frame in service.generate(
+        frame async for frame in service.stream(
             input_dto,
-            is_disconnected=is_disconnected,
+            disconnect_check=is_disconnected,
         )
     ]
 
-    assert len(frames) == 1
-    meta = json.loads(frames[0].removeprefix("data: ").strip())
+    assert len(frames) == 2
+    meta = _sse_payload(frames[0])
+    cancelled = _sse_payload(frames[1])
     assert meta["type"] == "meta"
     assert meta["trace_id"] == str(trace_id)
+    assert cancelled["type"] == "cancelled"
+    assert cancelled["reason"] == "client_disconnected"
 
     cancellation_filter = (
         AgentOutboxEventModel.event_type == "agent.execution.cancelled.v1",

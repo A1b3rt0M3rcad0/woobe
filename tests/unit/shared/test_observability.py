@@ -47,13 +47,13 @@ def test_metrics_render_http_runtime_and_pool_contracts() -> None:
 
     rendered = metrics.render_prometheus()
     assert 'route="/live",status="200"' in rendered
-    assert "projectrai_runtime_ttft_seconds_count" in rendered
-    assert "projectrai_provider_failures_total" in rendered
-    assert "projectrai_tool_failures_total" in rendered
-    assert "projectrai_worker_failures_total" in rendered
-    assert "projectrai_queue_lag_seconds" in rendered
-    assert "projectrai_outbox_retries_total" in rendered
-    assert "projectrai_inbox_retries_total" in rendered
+    assert "woobe_runtime_ttft_seconds_count" in rendered
+    assert "woobe_provider_failures_total" in rendered
+    assert "woobe_tool_failures_total" in rendered
+    assert "woobe_worker_failures_total" in rendered
+    assert "woobe_queue_lag_seconds" in rendered
+    assert "woobe_outbox_retries_total" in rendered
+    assert "woobe_inbox_retries_total" in rendered
 
 
 @dataclass

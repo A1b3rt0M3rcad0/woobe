@@ -8,7 +8,7 @@ class UserStatus(StrEnum):
     deleted = auto()
 
 
-class OrganizationStatus(StrEnum):
+class WorkspaceStatus(StrEnum):
     active = auto()
     inactive = auto()
     suspended = auto()

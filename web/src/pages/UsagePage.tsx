@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { BarChart3, GitCompare, RefreshCw, SlidersHorizontal, X } from 'lucide-react'
+import { BarChart3, RefreshCw, SlidersHorizontal, X } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 
 import { ErrorState } from '@/components/common/ErrorState'
@@ -12,21 +12,20 @@ import {
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
 import { Select } from '@/components/ui/Select'
+import { useNetworks } from '@/features/network/hooks'
 import { resolveUsageWindow, useProjectUsage } from '@/features/usage/hooks'
 import { UsageMetricGrid } from '@/features/usage/components/UsageMetricGrid'
 import { UsageOperations } from '@/features/usage/components/UsageOperations'
-import { UsageStory } from '@/features/usage/components/UsageStory'
 import { UsageTrendChart, type UsageTrendMode } from '@/features/usage/components/UsageTrendChart'
 import type {
   ProjectUsageBreakdownRow,
   UsageEnvironment,
   UsageGroupBy,
+  UsageOperation,
   UsageRange,
 } from '@/features/usage/types'
-import { cn } from '@/lib/utils'
 
-type UsageLens = 'agent' | 'model' | 'provider'
-type UsageComparison = 'none' | 'environment' | 'release'
+type UsageLens = Extract<UsageGroupBy, 'agent' | 'network' | 'model' | 'provider'>
 
 interface ScopeSelection {
   id: string
@@ -47,16 +46,21 @@ const environmentLabels: Record<UsageEnvironment, string> = {
   production: 'Production',
 }
 
-const groupLabels: Record<UsageGroupBy, string> = {
+const operationLabels: Record<UsageOperation, string> = {
+  all: 'All operations',
+  agent: 'Direct Agent Runs',
+  network: 'Network Runs',
+}
+
+const groupLabels: Record<UsageLens, string> = {
   agent: 'Agent',
+  network: 'Network',
   model: 'Model',
   provider: 'Provider',
-  environment: 'Environment',
-  release: 'Release',
 }
 
 function formatDateTime(value: string | null) {
-  if (!value) return 'No completed runtime data'
+  if (!value) return 'No completed Run data'
   return new Intl.DateTimeFormat('en-US', {
     month: 'short',
     day: 'numeric',
@@ -101,38 +105,27 @@ function ScopeChip({
 }
 
 export default function UsagePage() {
-  const { organizationId, projectId } = useParams<{ organizationId: string; projectId: string }>()
+  const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>()
+  const networksQuery = useNetworks(projectId)
   const [range, setRange] = useState<UsageRange>('30d')
   const [environment, setEnvironment] = useState<UsageEnvironment>('all')
+  const [operation, setOperation] = useState<UsageOperation>('all')
   const [lens, setLens] = useState<UsageLens>('agent')
-  const [comparison, setComparison] = useState<UsageComparison>('none')
   const [trendMode, setTrendMode] = useState<UsageTrendMode>('cost')
+  const [networkScope, setNetworkScope] = useState<ScopeSelection | null>(null)
   const [agentScope, setAgentScope] = useState<ScopeSelection | null>(null)
   const [modelScope, setModelScope] = useState<ScopeSelection | null>(null)
-  const [releaseScope, setReleaseScope] = useState<ScopeSelection | null>(null)
   const [anchor, setAnchor] = useState(() => new Date())
-
-  const groupBy: UsageGroupBy = comparison === 'environment'
-    ? 'environment'
-    : comparison === 'release'
-      ? 'release'
-      : lens
 
   const scopeSummary = [
     rangeLabels[range],
     environmentLabels[environment],
-    agentScope?.label ?? 'All agents',
+    operationLabels[operation],
+    networkScope?.label,
+    agentScope?.label,
     modelScope?.label,
-    releaseScope ? `Release ${releaseScope.label}` : null,
+    `By ${groupLabels[lens]}`,
   ].filter(Boolean).join(' · ')
-
-  const analysisSummary = comparison === 'environment'
-    ? 'Comparing environments'
-    : comparison === 'release'
-      ? `Comparing releases for ${agentScope?.label ?? 'the selected agent'}`
-      : `Spend analyzed by ${groupLabels[groupBy].toLowerCase()}`
-
-  const contextLabel = `${scopeSummary} · ${analysisSummary}.`
 
   const params = useMemo(() => {
     if (!projectId) return undefined
@@ -141,26 +134,28 @@ export default function UsagePage() {
       projectId,
       ...window,
       environment,
-      group_by: groupBy,
+      operation,
+      group_by: lens,
+      network_id: networkScope?.id,
       agent_id: agentScope?.id,
       provider_model_id: modelScope?.id,
-      release_id: releaseScope?.id,
       top_limit: 10,
     }
   }, [
     agentScope?.id,
     anchor,
     environment,
-    groupBy,
+    lens,
     modelScope?.id,
+    networkScope?.id,
+    operation,
     projectId,
     range,
-    releaseScope?.id,
   ])
 
   const usageQuery = useProjectUsage(params)
   const usage = usageQuery.data
-  const hasUsage = Boolean(usage && usage.summary.runtime_requests > 0)
+  const hasUsage = Boolean(usage && (usage.summary.agent_runs > 0 || usage.summary.network_runs > 0))
 
   const refresh = () => {
     setAnchor(new Date())
@@ -169,72 +164,77 @@ export default function UsagePage() {
 
   const selectEnvironment = (value: UsageEnvironment) => {
     setEnvironment(value)
-    if (value !== 'all' && comparison === 'environment') setComparison('none')
     setAnchor(new Date())
   }
 
-  const clearAgentScope = () => {
-    setAgentScope(null)
-    setReleaseScope(null)
-    if (comparison === 'release') setComparison('none')
+  const selectOperation = (value: UsageOperation) => {
+    setOperation(value)
+    if (value === 'agent') {
+      setNetworkScope(null)
+      if (lens === 'network') setLens('agent')
+    }
+    if (value === 'network' && operation !== 'network') setLens('network')
+    setAnchor(new Date())
+  }
+
+  const selectNetwork = (networkId: string) => {
+    if (!networkId) {
+      setNetworkScope(null)
+      setAnchor(new Date())
+      return
+    }
+    const network = (networksQuery.data ?? []).find((item) => item.id === networkId)
+    setNetworkScope(network ? { id: network.id, label: network.name } : null)
+    setAnchor(new Date())
   }
 
   const clearAllScopes = () => {
     setEnvironment('all')
+    setOperation('all')
+    setNetworkScope(null)
     setAgentScope(null)
     setModelScope(null)
-    setReleaseScope(null)
-    setComparison('none')
     setLens('agent')
     setAnchor(new Date())
   }
 
   const handleDriverSelect = (row: ProjectUsageBreakdownRow) => {
-    if (groupBy === 'agent' && isUuid(row.key)) {
+    if (!isUuid(row.key)) return
+    if (lens === 'agent') {
       setAgentScope({ id: row.key, label: row.label })
       setModelScope(null)
-      setReleaseScope(null)
-      setComparison('none')
-      setLens('model')
-      return
-    }
-
-    if (groupBy === 'model' && isUuid(row.key)) {
+    } else if (lens === 'network') {
+      selectNetwork(row.key)
+    } else if (lens === 'model') {
       setModelScope({ id: row.key, label: row.label })
-      setReleaseScope(null)
-      if (agentScope) {
-        setComparison('release')
-      } else {
-        setComparison('none')
-        setLens('agent')
-      }
-      return
-    }
-
-    if (groupBy === 'environment' && row.key in environmentLabels) {
-      selectEnvironment(row.key as UsageEnvironment)
-      setComparison('none')
-      return
-    }
-
-    if (groupBy === 'release' && isUuid(row.key)) {
-      setReleaseScope({ id: row.key, label: row.label })
-      setComparison('none')
-      setLens(modelScope ? 'provider' : 'model')
     }
   }
 
   const activeScopeCount = [
     environment !== 'all',
+    operation !== 'all',
+    Boolean(networkScope),
     Boolean(agentScope),
     Boolean(modelScope),
-    Boolean(releaseScope),
   ].filter(Boolean).length
+
+  const lensOptions: Array<{ value: UsageLens; label: string }> = operation === 'agent'
+    ? [
+        { value: 'agent', label: 'Analyze by Agent' },
+        { value: 'provider', label: 'Analyze by Provider' },
+        { value: 'model', label: 'Analyze by Model' },
+      ]
+    : [
+        { value: 'network', label: 'Analyze by Network' },
+        { value: 'agent', label: 'Analyze by Agent' },
+        { value: 'provider', label: 'Analyze by Provider' },
+        { value: 'model', label: 'Analyze by Model' },
+      ]
 
   return (
     <ResourcePage
       title="Usage"
-      description="Understand what changed, why it changed and where to investigate runtime cost and consumption."
+      description="Costs and operational efficiency for this Project."
       className="max-w-[1600px]"
       action={(
         <button
@@ -254,7 +254,7 @@ export default function UsagePage() {
           ? <span>· {usage.data_quality.aggregation_lag_seconds}s freshness</span>
           : null}
         <span>·</span>
-        <span className="text-primary-light">{contextLabel}</span>
+        <span className="text-primary-light">{scopeSummary}</span>
       </div>
 
       <ResourceToolbar>
@@ -284,95 +284,57 @@ export default function UsagePage() {
             />
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-border/70 pt-4 lg:flex-row lg:items-end lg:justify-between">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-              <div className="flex items-center gap-2 text-xs font-medium text-muted">
-                <SlidersHorizontal className="h-3.5 w-3.5 text-primary-light" />
-                Analyze by
-              </div>
+          <div className="border-t border-border/70 pt-4">
+            <ResourceTabs
+              value={operation}
+              onChange={selectOperation}
+              label="Operation type"
+              tabs={[
+                { value: 'all', label: 'All operations' },
+                { value: 'agent', label: 'Direct Agent Runs' },
+                { value: 'network', label: 'Network Runs' },
+              ]}
+            />
+          </div>
+
+          <div className="flex flex-col gap-3 border-t border-border/70 pt-4 lg:flex-row lg:items-center">
+            <div className="flex items-center gap-2 text-xs font-medium text-muted">
+              <SlidersHorizontal className="h-3.5 w-3.5 text-primary-light" />
+              Scope and attribution
+            </div>
+            {operation !== 'agent' && (
               <Select
-                id="usage-analyze-by"
-                value={lens}
-                onChange={(event) => {
-                  setLens(event.target.value as UsageLens)
-                  setComparison('none')
-                }}
-                className="min-w-[180px] bg-background/35"
+                id="usage-network-scope"
+                value={networkScope?.id ?? ''}
+                onChange={(event) => selectNetwork(event.target.value)}
+                className="min-w-[200px] bg-background/35"
                 options={[
-                  { value: 'agent', label: 'Agent' },
-                  { value: 'model', label: 'Model' },
-                  { value: 'provider', label: 'Provider' },
+                  { value: '', label: 'All Networks' },
+                  ...(networksQuery.data ?? []).map((network) => ({ value: network.id, label: network.name })),
                 ]}
               />
-              <p className="text-[10px] leading-4 text-muted">
-                Environment is a scope filter. Release comparison becomes available after selecting an agent.
-              </p>
-            </div>
-
-            <div>
-              <div className="mb-2 flex items-center gap-2 text-xs font-medium text-muted">
-                <GitCompare className="h-3.5 w-3.5 text-primary-light" />
-                Compare
-              </div>
-              <div className="inline-flex flex-wrap rounded-lg border border-border/80 bg-background/35 p-1">
-                <button
-                  type="button"
-                  onClick={() => setComparison('none')}
-                  className={cn(
-                    'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                    comparison === 'none' ? 'bg-primary/15 text-primary-light' : 'text-muted hover:text-white',
-                  )}
-                >
-                  None
-                </button>
-                {environment === 'all' && (
-                  <button
-                    type="button"
-                    onClick={() => setComparison('environment')}
-                    className={cn(
-                      'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                      comparison === 'environment' ? 'bg-primary/15 text-primary-light' : 'text-muted hover:text-white',
-                    )}
-                  >
-                    Environments
-                  </button>
-                )}
-                {agentScope && !releaseScope && (
-                  <button
-                    type="button"
-                    onClick={() => setComparison('release')}
-                    className={cn(
-                      'rounded-md px-3 py-1.5 text-xs font-medium transition-colors',
-                      comparison === 'release' ? 'bg-primary/15 text-primary-light' : 'text-muted hover:text-white',
-                    )}
-                  >
-                    Releases
-                  </button>
-                )}
-              </div>
-            </div>
+            )}
+            <Select
+              id="usage-analyze-by"
+              value={lens}
+              onChange={(event) => setLens(event.target.value as UsageLens)}
+              className="min-w-[190px] bg-background/35"
+              options={lensOptions}
+            />
+            <p className="text-[10px] leading-4 text-muted">
+              Runs define the operation. Provider and Model only explain where the Run cost came from.
+            </p>
           </div>
 
           {activeScopeCount > 0 && (
             <div className="flex flex-wrap items-center gap-2 border-t border-border/70 pt-3">
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">Active scope</span>
-              {environment !== 'all' && (
-                <ScopeChip label="Environment" value={environmentLabels[environment]} onRemove={() => selectEnvironment('all')} />
-              )}
-              {agentScope && <ScopeChip label="Agent" value={agentScope.label} onRemove={clearAgentScope} />}
+              {environment !== 'all' && <ScopeChip label="Environment" value={environmentLabels[environment]} onRemove={() => selectEnvironment('all')} />}
+              {operation !== 'all' && <ScopeChip label="Operation" value={operationLabels[operation]} onRemove={() => selectOperation('all')} />}
+              {networkScope && <ScopeChip label="Network" value={networkScope.label} onRemove={() => selectNetwork('')} />}
+              {agentScope && <ScopeChip label="Agent" value={agentScope.label} onRemove={() => setAgentScope(null)} />}
               {modelScope && <ScopeChip label="Model" value={modelScope.label} onRemove={() => setModelScope(null)} />}
-              {releaseScope && (
-                <ScopeChip
-                  label="Release"
-                  value={releaseScope.label}
-                  onRemove={() => setReleaseScope(null)}
-                />
-              )}
-              <button
-                type="button"
-                onClick={clearAllScopes}
-                className="ml-auto text-[10px] font-medium text-muted transition-colors hover:text-white"
-              >
+              <button type="button" onClick={clearAllScopes} className="ml-auto text-[10px] font-medium text-muted transition-colors hover:text-white">
                 Clear scope
               </button>
             </div>
@@ -383,31 +345,20 @@ export default function UsagePage() {
       {usageQuery.isLoading ? (
         <LoadingState message="Loading Usage analytics" variant="panel" layout="metrics" />
       ) : usageQuery.isError ? (
-        <ErrorState
-          error={usageQuery.error}
-          onRetry={refresh}
-          className="rounded-xl border border-border/80 bg-surface/40 py-10"
-        />
+        <ErrorState error={usageQuery.error} onRetry={refresh} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
       ) : !usage || !hasUsage ? (
         <ResourceEmptyState
           icon={<BarChart3 className="h-4 w-4" />}
-          title="No runtime usage in this scope"
-          description="Usage appears after an Agent reaches a terminal runtime state. Widen the period or remove a scope filter if executions already exist."
+          title="No Run usage in this scope"
+          description="Usage appears after an Agent Run or Network Run reaches a terminal state. Widen the period or remove a scope filter if executions already exist."
         />
       ) : (
         <div className="space-y-4">
-          <UsageStory
-            summary={usage.summary}
-            breakdown={usage.breakdown}
-            groupBy={usage.group_by}
-            contextLabel={contextLabel}
-          />
-
           <section>
             <ResourceSectionHeader
               title="Operational scorecard"
-              description="Primary outcomes first; supporting consumption metrics remain visible without competing for equal weight."
-              count={`${formatNumber(usage.summary.runtime_requests)} runtime requests`}
+              description="Run volume, unit economics, reliability and pricing coverage."
+              count={`${formatNumber(usage.summary.agent_runs)} Agent Runs · ${formatNumber(usage.summary.network_runs)} Network Runs`}
             />
             <UsageMetricGrid summary={usage.summary} />
           </section>
@@ -416,7 +367,7 @@ export default function UsagePage() {
             points={usage.timeseries}
             mode={trendMode}
             bucket={usage.bucket}
-            contextLabel={contextLabel}
+            contextLabel={scopeSummary}
             onModeChange={setTrendMode}
           />
 
@@ -426,8 +377,8 @@ export default function UsagePage() {
             quality={usage.data_quality}
             executions={usage.top_executions}
             groupBy={usage.group_by}
-            contextLabel={contextLabel}
-            organizationId={organizationId ?? ''}
+            contextLabel={scopeSummary}
+            workspaceId={workspaceId ?? ''}
             projectId={projectId ?? ''}
             onSelectDriver={handleDriverSelect}
           />

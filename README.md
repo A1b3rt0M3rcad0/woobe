@@ -1,327 +1,226 @@
-# ProjectRAI
+# Woobe
 
-ProjectRAI é uma plataforma de runtime e control plane para produtos de IA. O objetivo é permitir que uma organização crie, versiona, teste, publique, monitore e opere agentes de IA com mais previsibilidade do que um protótipo isolado.
+### Control plane for building, releasing, and operating AI products.
 
-Na prática, o ProjectRAI centraliza o ciclo operacional de aplicações com IA: organizações, projetos, credenciais de provedores, agentes, prompts, contratos de entrada e saída, configurações de modelo, versões de conhecimento, releases, sessões de runtime, ferramentas HTTP/MCP, rastreabilidade, medição de uso e billing.
+Woobe is an **API-first, self-hostable platform for teams running AI agents and agent networks in production**. It connects configuration, versioning, releases, runtime, observability, knowledge, tools, and embedded chat under one operational model.
 
-## O que o ProjectRAI resolve
+The core principle is simple: **production should run immutable, traceable releases — not mutable drafts**.
 
-Produtos de IA em produção costumam ter problemas recorrentes: prompts sem versão, mudanças sem histórico, agentes sem contrato de saída, ferramentas externas acopladas de forma frágil, custo difícil de rastrear, ausência de observabilidade e dificuldade para saber exatamente o que está rodando em produção.
+> **Pre-release status**
+>
+> Woobe is being prepared for its first public Community release. Public interfaces, deployment contracts and the Community license remain pre-release until the release checklist is completed.
 
-O ProjectRAI foi desenhado para tratar agentes como unidades operacionais versionadas. Um agente pode ter diferentes versões de prompt, contrato, conhecimento e configuração de modelo. Essas partes podem ser agrupadas em releases, promovidas, testadas e usadas no runtime de forma rastreável.
+## Why Woobe
 
-## Principais capacidades
-
-- Gestão de organizações, membros, convites e autenticação.
-- Gestão de projetos e API keys por projeto.
-- Cadastro de credenciais de provedores de IA.
-- Criação e operação de agentes.
-- Versionamento de prompts, contratos, configurações de modelo e conhecimento.
-- Releases com promoção, rollback e testes associados.
-- Execução de agentes via runtime síncrono, stream e jobs assíncronos.
-- Sessões e mensagens para conversas stateful.
-- Knowledge base com coleções, documentos, chunks e busca.
-- Tools HTTP e MCP, com segredos criptografados, permissões e risk level.
-- Descoberta de ferramentas MCP, permissões por tool remota e OAuth/device-code para providers protegidos.
-- Observabilidade de traces e eventos de execução.
-- Metering de uso por projeto e agente.
-- Billing com planos e assinaturas por organização.
-
-## Arquitetura em alto nível
-
-O backend é uma aplicação FastAPI em Python, com arquitetura modular por bounded context. Cada módulo segue uma separação em camadas:
+Building an agent is only one part of operating an AI product. Production teams also need to know which prompt ran, which model configuration was active, which tools and knowledge were bound, which network version coordinated an execution, what happened during the run, and how to restore a previous working state.
 
 ```text
-src/modules/<module>/
-├── domain          # entidades, enums, eventos, erros, contratos de repositório
-├── application     # DTOs, use cases, handlers e composers
-├── infra           # banco, mensageria, adapters, workers e implementações técnicas
-└── presentation    # rotas HTTP, controllers, schemas e mapeamento de request/response
+Configure
+   ↓
+Draft
+   ↓
+Validate in Staging
+   ↓
+Create immutable Release
+   ↓
+Deploy to Production
+   ↓
+Run · Trace · Observe
+   ↓
+Rollback when needed
 ```
 
-A camada `domain` concentra regras e contratos do próprio módulo. A camada `application` orquestra casos de uso e define o comportamento de negócio. A camada `infra` implementa persistência, mensageria e integrações técnicas. A camada `presentation` expõe o módulo por HTTP e traduz requests para os casos de uso.
+## Key capabilities
 
-O diretório `src/shared` contém infraestrutura e contratos técnicos reutilizáveis: configuração, sessão de banco, segurança HTTP, JWT/API keys, RabbitMQ, workers, observabilidade, adapters de apresentação e erros compartilhados. Ele não deve conter regra de negócio específica de um módulo.
+- **Agents** — prompts, model settings, tools, knowledge, runtime behavior, and structured output contracts.
+- **Agent Releases** — immutable snapshots for production execution.
+- **Agent Networks** — coordinated multi-agent behavior versioned independently from individual Agents.
+- **Network Releases** — immutable snapshots of network composition and versioned bindings.
+- **Environments** — explicit Draft/Development, Staging, and Production semantics.
+- **Rollback** — restore an existing immutable release instead of rebuilding old configuration.
+- **Runtime API** — synchronous execution, streaming, and asynchronous jobs under the same Run semantics.
+- **Sessions and Runs** — long-lived conversational context separated from finite executions.
+- **Tracing and observability** — execution events, metadata, usage, and exact versions involved in each Run.
+- **Knowledge / RAG** — Collections, Documents, chunks, ingestion state, and Vector Snapshots.
+- **HTTP and MCP Tools** — external capabilities with credentials and execution policy kept server-side.
+- **BYOK providers** — use your own model-provider credentials.
+- **ChatSurface** — embed released Agents or Networks using server-side Access Keys and short-lived browser tokens.
+- **Metering** — operational usage accounting kept separate from managed-service billing.
+- **Workspaces and Projects** — commercial membership separated from technical isolation.
 
-## Módulos
+## Core concepts
 
-### `identity`
+| Concept | Responsibility |
+| --- | --- |
+| **Workspace** | Commercial and membership boundary. Owns members and Projects. |
+| **Project** | Technical isolation boundary for Agents, Networks, Tools, Knowledge, runtime, Runs, and Traces. |
+| **Agent** | Mutable AI configuration during development. |
+| **Agent Release** | Immutable Agent snapshot consumed by Production. |
+| **Agent Network** | Operational composition of Agents inside a Project. |
+| **Network Release** | Immutable snapshot of a Network and its versioned bindings. |
+| **Session** | Long-lived conversational context. |
+| **Agent Run** | One finite logical Agent execution. |
+| **Network Run** | One finite Network execution coordinating related Agent Runs. |
+| **Trace** | Observable evidence of what happened during a Run. |
+| **Collection** | Operational aggregate for Knowledge/RAG content. |
+| **Document** | Source material uploaded into a Collection. |
+| **Vector Snapshot** | Versioned representation of the exact knowledge state and indexing parameters. |
+| **Tool** | External capability exposed to an Agent through HTTP or MCP. |
+| **ChatSurface** | Embeddable browser runtime for released Agents and Networks. |
 
-Responsável por usuários, autenticação, refresh token, organizações, membros e convites. É o módulo que define a identidade operacional de quem acessa a plataforma e em qual organização atua.
+## Quick start
 
-### `core`
+Woobe Community has one supported default self-host contract: the root `compose.yaml`.
 
-Responsável por projetos e API keys. Um projeto é a unidade prática de isolamento dentro da plataforma: agentes, tools, conhecimento, credenciais e uso ficam associados a um projeto.
+Requirements:
 
-### `agent`
+- Docker with Docker Compose
+- Python 3 for first-run environment generation
 
-É o módulo principal do runtime de IA. Ele concentra agentes, credenciais de provedores, prompts versionados, contratos, configurações de modelo, knowledge versions, releases, sessões, mensagens, execução, tools, secrets e integração MCP.
+```bash
+python scripts/generate_self_host_env.py
+docker compose up -d --build
+```
 
-Dentro de `agent`, os principais conceitos são:
-
-- `Agent`: definição operacional do agente.
-- `AgentPrompt`: versões de prompt.
-- `AgentContract`: contrato de entrada/saída e validação.
-- `AgentModelConfig`: configuração versionada de provider/modelo.
-- `KnowledgeVersion`: snapshot de coleções/documentos usados por uma release.
-- `AgentRelease`: pacote versionado que combina prompt, contrato, modelo, conhecimento e runtime config.
-- `Tool`: ferramenta HTTP ou MCP disponível para o agente.
-- `Secret`: credencial criptografada usada por tools.
-- `Session` e `Message`: estado conversacional do runtime.
-- `AskJob`: execução assíncrona de perguntas ao agente.
-
-### `metering`
-
-Registra eventos de uso e consulta uso diário por projeto ou agente. É a base para análise de custo, consumo e cobrança.
-
-### `billing`
-
-Gerencia planos e assinaturas de organizações. O módulo separa regras comerciais de cobrança do runtime de agentes.
-
-### `observability`
-
-Armazena traces e eventos de trace. Serve para investigar execuções, falhas, latência, etapas de runtime e comportamento operacional.
-
-## Comunicação entre módulos
-
-O ProjectRAI usa dois estilos principais de comunicação.
-
-### 1. Comunicação síncrona via HTTP
-
-A API FastAPI monta os routers de cada módulo no bootstrap da aplicação. As rotas públicas são a fronteira síncrona do sistema. Exemplos:
-
-- `/identity/*` para autenticação, usuários e organizações.
-- `/core/*` para projetos e API keys.
-- `/agent/ai/*` para agentes, prompts, contratos, configs, releases e testes.
-- `/agent/knowledge/*` para coleções, documentos e busca.
-- `/agent/runtime/*` para sessões, mensagens, ask, stream e jobs.
-- `/agent/tools/*` para tools, secrets e execução de tools.
-- `/tools/mcp/*` para descoberta, refresh, permissões e OAuth MCP.
-- `/metering/*` para uso.
-- `/billing/*` para planos e assinaturas.
-- `/observability/*` para traces.
-
-A camada HTTP não acessa banco diretamente. Cada rota usa um composer, que cria Unit of Work, repositories, adapters e controller. O controller chama o use case e devolve uma resposta padronizada.
-
-### 2. Comunicação assíncrona via eventos
-
-Para comunicação assíncrona, o projeto usa eventos de domínio, Outbox/Inbox e RabbitMQ. Cada módulo pode publicar eventos com `routing_key` versionada. O worker central descobre os registries dos módulos, registra consumidores e processa filas por módulo.
-
-O fluxo esperado é:
+Open:
 
 ```text
-Use case
-  -> altera estado dentro de uma Unit of Work
-  -> grava evento na Outbox do módulo
-  -> worker publica no RabbitMQ
-  -> consumers de outros módulos recebem via Inbox/handler
-  -> use cases locais reagem ao evento
+Web UI:     http://localhost:8080
+API:        http://localhost:8000
+Chat Embed: http://localhost:8081
 ```
 
-Esse desenho reduz acoplamento direto entre módulos. O estado de um bounded context não deve depender de foreign keys físicas para tabelas de outro módulo. Quando um módulo precisa referenciar algo externo, ele armazena o UUID como identificador opaco e reage a eventos ou chamadas públicas.
+The first registration on a fresh Community database bootstraps the instance and creates the first Instance Owner and initial Workspace. After bootstrap, Community defaults to invite-only registration.
 
-## Runtime de agentes
+For public exposure, backup, restore, TLS, and upgrade requirements, read `docs/SELF_HOSTING.md`.
 
-O runtime permite executar agentes por diferentes modos:
+## Community topology
 
-- `POST /agent/runtime/ask` para execução síncrona.
-- `POST /agent/runtime/ask/stream` para resposta em streaming.
-- `POST /agent/runtime/ask/jobs` para execução assíncrona.
-- Sessões e mensagens para manter histórico conversacional.
+The default topology is intentionally small and single-host oriented.
 
-Durante a preparação da execução, o runtime resolve a release/configuração do agente, monta definições de tools, carrega conhecimento associado e aplica instrumentação. As execuções podem registrar eventos de LLM, tools, custos, latência e traces para observabilidade.
+| Service | Purpose | Default exposure |
+| --- | --- | --- |
+| **PostgreSQL + pgvector** | Durable application state and vector-capable persistence | Internal |
+| **RabbitMQ** | Asynchronous runtime and background work | Internal |
+| **Migrations** | Applies the database schema before API startup | One-shot |
+| **API** | Control-plane and runtime HTTP surface | `:8000` |
+| **Workers** | Background and asynchronous execution | Internal |
+| **Web** | Woobe control-plane interface | `:8080` |
+| **Chat Embed** | Browser-facing ChatSurface assets | `:8081` |
 
-## Tools HTTP e MCP
+PostgreSQL, RabbitMQ, and local Knowledge uploads use persistent Docker volumes. Redis, PgBouncer, and MinIO are not part of the default Community product topology; contributor infrastructure is layered explicitly through `deploy/dev/compose.yml`.
 
-O ProjectRAI diferencia tools HTTP de providers MCP.
+## From development to production
 
-### HTTP tools
+Draft configuration is mutable. Staging validates configuration intended for release. Production runs immutable Agent Releases and Network Releases. Rollback restores an earlier immutable release rather than reconstructing old state.
 
-São chamadas HTTP configuradas pelo usuário. Podem ter método, URL, headers, body, variáveis, schema de entrada/saída, timeout, risk level e secrets. São úteis para webhooks, APIs internas e integrações simples.
+A self-hosted Community instance uses the same root `compose.yaml` with `WOOBE_ENVIRONMENT=production` plus production-safe secrets, cookies, host allowlists, TLS termination and backup procedures.
 
-### MCP tools
+## Agent Networks
 
-MCP providers são servidores compatíveis com Model Context Protocol. Eles podem expor várias ferramentas remotas. O ProjectRAI consegue:
+Woobe starts with a single Agent and grows into an Agent Network when coordinated behavior is required. A Project owns one operational Agent Network. The Network is versioned independently from its Agents so the composition itself is a first-class production artifact.
 
-- carregar tools públicas/authless via discovery;
-- descobrir tools remotas via `initialize` + `tools/list`;
-- armazenar tools descobertas no config do provider;
-- permitir, bloquear ou colocar em revisão cada tool remota;
-- conectar providers protegidos por OAuth;
-- lidar com OAuth PKCE, protected resource metadata e device-code quando o provider exigir.
+In Production, the Network must bind to released Agents so mutable configuration cannot silently change production behavior.
 
-A regra de UX esperada é simples: MCP público começa com `Load tools`; MCP protegido por autenticação muda para `Connect`; MCP com tools descobertas exige permissões antes de expor ao agente.
+## Knowledge and RAG
 
-## Estrutura do repositório
+Knowledge is Project-scoped and organized around Collections. Documents belong to Collections; ingestion produces chunks and vectorized representations that can be bound to Agents. Vector Snapshots identify the exact knowledge state and indexing parameters associated with runtime configuration.
+
+## Tools and model providers
+
+Woobe focuses on two external Tool boundaries: HTTP Tools and MCP Tools. Provider credentials, Tool credentials, Runtime Keys, and other sensitive values remain server-side. Self-hosted deployments use their own provider accounts under a BYOK model.
+
+## ChatSurface
+
+ChatSurface is Woobe's embeddable runtime surface for released AI products. A ChatSurface targets an immutable Agent Release or Network Release. The integrating application keeps the durable relationship between its own user and the Woobe Session, while Woobe remains responsible for conversation history and execution metadata.
+
+The browser never receives the permanent server-side ChatSurface Access Key. The integrator exchanges it server-side for short-lived Session access suitable for browser use.
+
+See `docs/runtime/CHAT_SURFACE.md`.
+
+## API-first runtime
+
+The Web UI is a client of the same backend domain rules that protect the runtime. Critical behavior belongs to the backend, including ownership checks, authorization, Release immutability, runtime scopes, document duplicate rules, signup policy, and credential security.
+
+Runtime delivery can be synchronous, streaming, or asynchronous without creating separate execution models.
+
+## Distribution model
+
+This repository and the supported self-host artifacts distribute **Woobe Community/Core only**.
 
 ```text
-.
-├── src/
-│   ├── main.py                 # bootstrap FastAPI da API HTTP
-│   ├── worker_main.py          # bootstrap do runtime de workers
-│   ├── modules/                # bounded contexts da aplicação
-│   │   ├── identity/
-│   │   ├── core/
-│   │   ├── agent/
-│   │   ├── metering/
-│   │   ├── billing/
-│   │   └── observability/
-│   └── shared/                 # infraestrutura e contratos técnicos compartilhados
-├── web/                        # frontend React/Vite
-├── migrations/                 # migrations Alembic
-├── scripts/                    # scripts operacionais e seed
-├── specs/                      # ADRs, specs e inventários arquiteturais
-├── tests/                      # testes unitários, integração, contrato e arquitetura
-├── Dockerfile                  # imagem da API/workers
-├── docker-compose.yml          # stack local completa
-├── pyproject.toml              # dependências e tooling Python
-└── README.md
+Community  = Core distributed here
+Cloud      = proprietary Woobe-managed product; implementation is not distributed here
+Enterprise = not currently implemented or distributed
 ```
 
-## Stack principal
+Community does not require a Woobe Cloud account, has no required call-home dependency, and does not add a Woobe per-Run fee. The operator owns its infrastructure, model-provider costs and external services used through Tools.
 
-Backend:
+Woobe Cloud may build on the same core concepts, but proprietary Cloud implementation is intentionally outside the Community source tree and Community container build context. No empty Enterprise implementation tree is maintained.
 
-- Python 3.14
-- FastAPI
-- Pydantic / Pydantic Settings
-- SQLAlchemy async
-- Alembic
-- PostgreSQL com pgvector
-- RabbitMQ via `aio-pika`
-- Redis para cache de sessão MCP
-- LangChain / LangChain OpenAI
-- Ruff, Pyright e Pytest
+## Architecture
 
-Frontend:
+```text
+src/
+├── modules/                       # Community/Core bounded contexts
+└── shared/                        # technical shared infrastructure
 
-- React 19
-- Vite
-- TypeScript
-- React Query
-- React Router
-- React Hook Form
-- Zod
-- Tailwind CSS
-- Vitest
-
-Infra local:
-
-- PostgreSQL/pgvector
-- PgBouncer
-- RabbitMQ Management
-- Redis
-- API
-- Workers
-- Web
-
-## Configuração local
-
-Crie um `.env` na raiz. Os nomes seguem o prefixo `PROJECTRAI_`.
-
-Variáveis essenciais:
-
-```env
-PROJECTRAI_DATABASE_URL=postgresql+asyncpg://postgres:postgres@db:5432/projectrai
-PROJECTRAI_SECRET_KEY=dev-docker-secret-key-32chars!!
-PROJECTRAI_ENCRYPTION_KEY=dev-docker-enc-key-32chars!!
-PROJECTRAI_RABBITMQ_URL=amqp://projectrai:projectrai@rabbitmq:5672/
-PROJECTRAI_RABBITMQ_EXCHANGE=domain.events
-PROJECTRAI_REDIS_URL=redis://redis:6379/0
-PROJECTRAI_DEBUG=true
-PROJECTRAI_LOG_LEVEL=INFO
+web/
+└── src/                           # Community/Core web application
 ```
 
-Para produção, o `Settings` valida requisitos mínimos de segurança: `DEBUG=false`, secrets fortes, CORS com origens exatas HTTPS, trusted hosts definidos, cookies seguros, logs JSON e ausência de credenciais padrão em PostgreSQL/RabbitMQ.
+At runtime, API and Workers are separate processes. PostgreSQL stores durable state, RabbitMQ carries asynchronous work, Web serves the control plane, and Chat Embed publishes browser-facing ChatSurface assets.
 
-## Rodando com Docker Compose
+Read `docs/ARCHITECTURE.md` for domain, runtime, and distribution boundaries.
+
+## Deployment surface
+
+```text
+compose.yaml                 # supported Community self-host topology
+compose.test.yaml            # standalone validation contract
+deploy/dev/compose.yml       # optional contributor extension
+```
+
+Default user path:
 
 ```bash
-docker compose up --build
+python scripts/generate_self_host_env.py
+docker compose up -d --build
 ```
 
-Serviços principais:
-
-- API: `http://localhost:8000`
-- Web: `http://localhost:5173`
-- PostgreSQL: `localhost:5432`
-- PgBouncer: `localhost:6432`
-- RabbitMQ: `localhost:15672`
-
-O compose executa migrations com Alembic antes de subir API e workers. A API expõe healthcheck em `/health` e liveness em `/live`.
-
-## Rodando backend sem Docker
-
-Instale as dependências:
+Validation path:
 
 ```bash
-uv sync
+docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 ```
 
-Execute migrations:
+Repository workflows are manual and should be executed deliberately when validation is requested.
 
-```bash
-uv run alembic upgrade head
-```
+## Security model
 
-Suba a API:
+Woobe requires strong independent application and encryption secrets, secure cookies in Production, explicit CORS and Trusted Host allowlists, server-side provider and Tool credentials, short-lived ChatSurface browser access, immutable Production Release bindings, and backend ownership enforcement.
 
-```bash
-uv run uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
-```
+Read `SECURITY.md` before operating a public installation.
 
-Suba os workers:
+## Backup and upgrades
 
-```bash
-uv run python -m src.worker_main
-```
+Back up PostgreSQL together with the Knowledge upload volume so metadata and physical files remain consistent.
 
-## Rodando frontend
+- `docs/SELF_HOSTING.md`
+- `docs/UPGRADING.md`
+- `docs/runbooks/postgres-backup-restore.md`
+- `docs/runbooks/production-deployment.md`
 
-```bash
-cd web
-npm install
-npm run dev
-```
+## Contributing
 
-Build de produção:
+The integration branch is `development`. Feature and fix branches should target `development` through focused pull requests. Read `CONTRIBUTING.md` before opening a change.
 
-```bash
-cd web
-npm run build
-```
+External contribution acceptance remains gated by the contribution policy described in `CONTRIBUTOR_LICENSE_AGREEMENT.md` until the final process is activated.
 
-## Qualidade e testes
+## License
 
-Backend:
+Woobe Community/Core is distributed as **source-available, fair-code, and self-hostable software** under `LICENSE.md`. It is not represented as OSI Open Source software.
 
-```bash
-ruff check .
-pyright
-pytest
-```
+`LICENSING.md` explains the intended Community/Cloud/Enterprise product boundary. `TRADEMARKS.md` and `NOTICE.md` contain additional public-distribution notices.
 
-Frontend:
-
-```bash
-cd web
-npm run build
-npm run test:run
-```
-
-## Convenções arquiteturais
-
-- Cada módulo é dono do próprio domínio, banco, repositories, Unit of Work, workers e eventos.
-- `presentation` não acessa models ou repositories diretamente.
-- `application` orquestra use cases e depende de contratos, não de detalhes HTTP.
-- `infra` implementa persistência, mensageria e adapters técnicos.
-- Comunicação entre módulos deve ocorrer por contratos públicos ou eventos.
-- Eventos devem ser versionados e roteáveis.
-- Secrets sensíveis devem ser criptografados antes de persistir.
-- Tools devem ter risk level e permissões explícitas quando expõem capacidades externas.
-- MCP público deve carregar tools antes de exigir OAuth.
-- MCP protegido só deve usar OAuth quando o provider anunciar protected resource metadata ou responder challenge.
-
-## Estado do projeto
-
-ProjectRAI está em fase ativa de desenvolvimento. A arquitetura modular, o runtime de agentes, o suporte a releases, tools, MCP, metering, billing e observability já existem no código, mas a plataforma ainda deve ser tratada como produto em evolução. Antes de produção, valide migrations, testes, segurança de ambiente, controle de custos, autenticação, permissões e observabilidade operacional.
+The current Community license text is a pre-release candidate and must receive qualified legal review before public or commercial reliance. The public release also remains blocked on repository-history review and completion of third-party dependency notices as described in `docs/PUBLIC_RELEASE_CHECKLIST.md`.

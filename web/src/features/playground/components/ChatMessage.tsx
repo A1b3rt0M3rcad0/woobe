@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   AlertCircle,
   Bot,
+  Check,
   ChevronDown,
   ChevronRight,
   Copy,
@@ -9,6 +10,7 @@ import {
   ThumbsDown,
   ThumbsUp,
   User,
+  Workflow,
 } from 'lucide-react'
 
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
@@ -29,6 +31,10 @@ interface ChatMessageProps {
   isLast?: boolean
   agentName?: string
   variant?: ChatMessageVariant
+  assistantIcon?: 'bot' | 'network'
+  details?: ReactNode
+  footerMeta?: ReactNode
+  footerActions?: ReactNode
 }
 
 function SourcesCollapsible({
@@ -138,7 +144,7 @@ function AssistantContent({
   }
 
   const { isPureJson, segments } = parseAssistantMessageContent(message.content)
-  if (isPureJson && segments[0].type === 'json') {
+  if (!isStreaming && isPureJson && segments[0].type === 'json') {
     return (
       <StructuredJsonResponse
         value={segments[0].value}
@@ -207,7 +213,12 @@ export function ChatMessage({
   isLast: _isLast,
   agentName,
   variant = 'playground',
+  assistantIcon = 'bot',
+  details,
+  footerMeta,
+  footerActions,
 }: ChatMessageProps) {
+  const [copied, setCopied] = useState(false)
   const isUser = message.role === 'user'
   const compact = variant === 'network'
 
@@ -241,6 +252,14 @@ export function ChatMessage({
   const copyValue = message.parsed_output
     ? JSON.stringify(message.parsed_output, null, 2)
     : message.content
+  const AssistantIcon = assistantIcon === 'network' ? Workflow : Bot
+
+  const copyResponse = async () => {
+    if (!copyValue) return
+    await navigator.clipboard?.writeText(copyValue)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1600)
+  }
 
   return (
     <div className={cn('flex flex-col', compact ? 'gap-1' : 'gap-1.5')}>
@@ -252,7 +271,7 @@ export function ChatMessage({
               compact ? 'h-6 w-6 rounded-md' : 'h-8 w-8 rounded-full',
             )}
           >
-            <Bot className={cn('text-primary-light', compact ? 'h-3 w-3' : 'h-4 w-4')} />
+            <AssistantIcon className={cn('text-primary-light', compact ? 'h-3 w-3' : 'h-4 w-4')} />
           </div>
           {!compact && agentName && (
             <span
@@ -271,7 +290,7 @@ export function ChatMessage({
             </p>
           )}
           <AssistantContent message={message} isStreaming={isStreaming} variant={variant} />
-          {isStreaming && message.content && message.activity && (
+          {isStreaming && message.content && message.activity && !compact && (
             <ActivityBubble activity={message.activity} variant={variant} />
           )}
         </div>
@@ -282,6 +301,14 @@ export function ChatMessage({
           <ToolCallsCollapsible toolCalls={message.tool_calls} variant={variant} />
         </div>
       )}
+
+      {message.sources && message.sources.length > 0 && (
+        <div className={cn('space-y-1.5', compact ? 'pl-8' : 'pl-16')}>
+          <SourcesCollapsible sources={message.sources} variant={variant} />
+        </div>
+      )}
+
+      {details}
 
       {!isStreaming && (
         <div className={cn('space-y-1.5', compact ? 'pl-8' : 'pl-16')}>
@@ -296,59 +323,64 @@ export function ChatMessage({
               <span>{message.output_parse_error}</span>
             </div>
           )}
-          {message.sources && message.sources.length > 0 && (
-            <SourcesCollapsible sources={message.sources} variant={variant} />
-          )}
 
-          <div
-            className={cn(
-              'flex flex-wrap items-center text-muted',
-              compact ? 'gap-x-2 gap-y-1 text-[9px]' : 'gap-3 text-[11px]',
-            )}
-          >
-            {message.model && (
-              <span className="break-all">
-                {message.provider ? `${message.provider}/` : ''}{message.model}
-              </span>
-            )}
-            {message.latency_ms != null && <span>{formatLatency(message.latency_ms)}</span>}
-            {message.usage && (
-              <span>
-                {formatNumber(message.usage.input_tokens, 0)} in / {formatNumber(message.usage.output_tokens, 0)} out
-              </span>
-            )}
-            {message.trace_id && (
-              <span className="font-mono">trace {message.trace_id.slice(0, 8)}…</span>
-            )}
-          </div>
-
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => { if (copyValue) void navigator.clipboard?.writeText(copyValue) }}
-              className="flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:border-border/80 hover:bg-background/70 hover:text-white"
-              title="Copy"
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+            <div
+              className={cn(
+                'flex min-w-0 flex-wrap items-center text-muted',
+                compact ? 'gap-x-2 gap-y-1 text-[9px]' : 'gap-3 text-[11px]',
+              )}
             >
-              <Copy className="h-3 w-3" />
-            </button>
-            {!compact && (
-              <>
-                <button
-                  type="button"
-                  className="flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-300"
-                  title="Good response"
-                >
-                  <ThumbsUp className="h-3 w-3" />
-                </button>
-                <button
-                  type="button"
-                  className="flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-300"
-                  title="Bad response"
-                >
-                  <ThumbsDown className="h-3 w-3" />
-                </button>
-              </>
-            )}
+              {message.model && (
+                <span className="break-all">
+                  {message.provider ? `${message.provider}/` : ''}{message.model}
+                </span>
+              )}
+              {message.latency_ms != null && <span>{formatLatency(message.latency_ms)}</span>}
+              {message.usage && (
+                <span>
+                  {formatNumber(message.usage.input_tokens, 0)} in / {formatNumber(message.usage.output_tokens, 0)} out
+                </span>
+              )}
+              {message.trace_id && (
+                <span className="font-mono">trace {message.trace_id.slice(0, 8)}…</span>
+              )}
+              {footerMeta}
+            </div>
+
+            <div className="flex shrink-0 items-center gap-1">
+              <button
+                type="button"
+                onClick={() => void copyResponse()}
+                className={cn(
+                  'inline-flex h-6 items-center justify-center gap-1 rounded-md border border-transparent text-muted transition-colors hover:border-border/80 hover:bg-background/70 hover:text-white',
+                  compact ? 'px-1.5 text-[9px]' : 'w-6',
+                )}
+                title={copied ? 'Copied' : 'Copy response'}
+              >
+                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {compact && <span>{copied ? 'Copied' : 'Copy response'}</span>}
+              </button>
+              {footerActions}
+              {!compact && (
+                <>
+                  <button
+                    type="button"
+                    className="flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-300"
+                    title="Good response"
+                  >
+                    <ThumbsUp className="h-3 w-3" />
+                  </button>
+                  <button
+                    type="button"
+                    className="flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-300"
+                    title="Bad response"
+                  >
+                    <ThumbsDown className="h-3 w-3" />
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

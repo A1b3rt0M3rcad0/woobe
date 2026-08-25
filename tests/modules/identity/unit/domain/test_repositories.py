@@ -1,9 +1,9 @@
 from abc import ABC
 
 from modules.identity.domain.repositories import (
-    OrganizationInviteRepository,
-    OrganizationMemberRepository,
-    OrganizationRepository,
+    WorkspaceInviteRepository,
+    WorkspaceMemberRepository,
+    WorkspaceRepository,
     UserRepository,
     UserSessionRepository,
 )
@@ -30,36 +30,36 @@ class TestUserRepository:
         assert getattr(UserRepository.delete, "__isabstractmethod__", False)
 
 
-class TestOrganizationRepository:
+class TestWorkspaceRepository:
     def test_is_abstract(self):
-        assert issubclass(OrganizationRepository, ABC)
+        assert issubclass(WorkspaceRepository, ABC)
 
     def test_has_save_abstract(self):
-        assert getattr(OrganizationRepository.save, "__isabstractmethod__", False)
+        assert getattr(WorkspaceRepository.save, "__isabstractmethod__", False)
 
     def test_has_get_by_id_abstract(self):
-        assert getattr(OrganizationRepository.get_by_id, "__isabstractmethod__", False)
+        assert getattr(WorkspaceRepository.get_by_id, "__isabstractmethod__", False)
 
     def test_has_get_by_slug_abstract(self):
-        assert getattr(OrganizationRepository.get_by_slug, "__isabstractmethod__", False)
+        assert getattr(WorkspaceRepository.get_by_slug, "__isabstractmethod__", False)
 
 
-class TestOrganizationMemberRepository:
+class TestWorkspaceMemberRepository:
     def test_is_abstract(self):
-        assert issubclass(OrganizationMemberRepository, ABC)
+        assert issubclass(WorkspaceMemberRepository, ABC)
 
     def test_has_save_abstract(self):
-        assert getattr(OrganizationMemberRepository.save, "__isabstractmethod__", False)
+        assert getattr(WorkspaceMemberRepository.save, "__isabstractmethod__", False)
 
-    def test_has_get_by_organization_and_user_abstract(self):
+    def test_has_get_by_workspace_and_user_abstract(self):
         assert getattr(
-            OrganizationMemberRepository.get_by_organization_and_user, "__isabstractmethod__", False
+            WorkspaceMemberRepository.get_by_workspace_and_user, "__isabstractmethod__", False
         )
 
 
-class TestOrganizationInviteRepository:
+class TestWorkspaceInviteRepository:
     def test_is_abstract(self):
-        assert issubclass(OrganizationInviteRepository, ABC)
+        assert issubclass(WorkspaceInviteRepository, ABC)
 
 
 class TestUserSessionRepository:

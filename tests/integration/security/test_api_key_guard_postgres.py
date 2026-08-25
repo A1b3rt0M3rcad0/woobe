@@ -83,7 +83,7 @@ async def api_key_graph():
             [
                 ProjectModel(
                     id=project_id,
-                    organization_id=uuid4(),
+                    workspace_id=uuid4(),
                     name="API key project",
                     slug=f"api-key-project-{project_id}",
                     status="active",
@@ -91,7 +91,7 @@ async def api_key_graph():
                 ),
                 ProjectModel(
                     id=foreign_project_id,
-                    organization_id=uuid4(),
+                    workspace_id=uuid4(),
                     name="Foreign project",
                     slug=f"foreign-project-{foreign_project_id}",
                     status="active",
@@ -149,10 +149,11 @@ async def api_key_graph():
             ApiKeyModel(
                 id=api_key_id,
                 project_id=project_id,
+                credential_id=api_key_id,
                 name="Runtime key",
                 key_prefix=issued.public_prefix,
                 key_hash=issued.digest,
-                key_version=1,
+                key_version=issued.key_version,
                 scopes=[API_KEY_SCOPE_RUNTIME_EXECUTE],
                 status="active",
                 last_used_at=None,

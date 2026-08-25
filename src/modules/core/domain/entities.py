@@ -12,13 +12,14 @@ from modules.core.domain.enums import (
     ApiKeyStatus,
     ProjectStatus,
     RuntimeEnvironment,
+    RuntimeTargetType,
 )
 
 
 @dataclass
 class Project:
     id: UUID = field(default_factory=uuid6.uuid7)
-    organization_id: UUID = field(default_factory=uuid6.uuid7)
+    workspace_id: UUID = field(default_factory=uuid6.uuid7)
     name: str = ""
     slug: str = ""
     status: ProjectStatus = ProjectStatus.active
@@ -40,6 +41,8 @@ class ApiKey:
     scopes: list[str] = field(default_factory=list)
     kind: ApiKeyKind = ApiKeyKind.project
     agent_id: UUID | None = None
+    target_type: RuntimeTargetType | None = None
+    target_id: UUID | None = None
     environment: RuntimeEnvironment | None = None
     interfaces: list[str] = field(default_factory=list)
     status: ApiKeyStatus = ApiKeyStatus.active

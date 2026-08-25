@@ -24,6 +24,10 @@ export interface Trace {
   project_id: string
   agent_id?: string
   session_id?: string
+  network_id?: string | null
+  network_execution_id?: string | null
+  network_session_id?: string | null
+  network_version_id?: string | null
   status: string
   provider?: string
   model?: string
@@ -36,6 +40,8 @@ export interface Trace {
   total_cost_usd?: number | null
   error?: string
   data?: Record<string, unknown>
+  started_at?: string | null
+  ended_at?: string | null
   created_at?: string
 }
 
@@ -48,6 +54,9 @@ export interface TraceEvent {
   payload?: Record<string, unknown> | null
   payload_ref?: string | null
   created_at?: string | null
+  occurred_at?: string | null
+  recorded_at?: string | null
+  sequence?: number | null
 }
 
 export interface TraceDetail extends Trace {
@@ -81,16 +90,25 @@ export interface TraceUsage {
   costUsd: number | null
 }
 
+export type TraceCostStatus = 'known' | 'partial' | 'unknown' | 'unknown_tokens' | 'unknown_pricing'
+
 export interface TraceDiagnostics {
   schemaVersion: number
   agentRuntimeLatencyMs: number | null
+  llmWorkLatencyMs: number | null
   llmRuntimeLatencyMs: number | null
   toolWallLatencyMs: number | null
+  toolWorkLatencyMs: number | null
   toolCallDurationSumMs: number | null
+  toolParallelismRatio: number | null
+  toolProviderWorkMs: number | null
+  toolRuntimeOverheadMs: number | null
   toolHttpLatencyMs: number | null
   toolOverheadLatencyMs: number | null
   prepareLatencyMs: number | null
+  finalizationWorkLatencyMs: number | null
   persistenceLatencyMs: number | null
+  otherLatencyMs: number | null
   orchestrationLatencyMs: number | null
   unaccountedLatencyMs: number | null
   toolSharePercent: number | null
@@ -99,7 +117,8 @@ export interface TraceDiagnostics {
   successfulToolCalls: number
   failedToolCalls: number
   usageComplete: boolean
-  costStatus: 'known' | 'unknown'
+  costStatus: TraceCostStatus
+  costUsd: number | null
   sourceCount: number
   answerLength: number | null
   fallbackUsed: boolean
@@ -116,6 +135,10 @@ export interface TraceSummary {
   projectId: string
   agentId?: string | null
   sessionId?: string | null
+  networkId?: string | null
+  networkExecutionId?: string | null
+  networkSessionId?: string | null
+  networkVersionId?: string | null
   messageId?: string | null
   title: string
   status: TraceStatus

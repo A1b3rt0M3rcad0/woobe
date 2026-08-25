@@ -5,15 +5,17 @@ from uuid import uuid4
 import pytest
 
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
+from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot
 from modules.agent.application.use_cases.ai_release_cases import DeleteReleaseUseCase
-from modules.agent.application.use_cases.ask_agent_stream_service import AskAgentStreamService
+from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.application.use_cases.auto_compatible_release_lifecycle import AutoCompatibleReleaseLifecycleUseCase, _execution_snapshot_equal
-from modules.agent.application.use_cases.execution_context import current_execution, new_execution_context
+from modules.agent.application.interfaces.execution_context import current_execution, new_execution_context
 from modules.agent.application.use_cases.knowledge_release_validator import SafeDeleteDocumentUseCase
-from modules.agent.application.use_cases.release_runtime_resolver import ReleaseRuntimeResolver
-from modules.agent.application.use_cases.structured_output_ask_use_case import StructuredOutputAskAgentUseCase
-from modules.agent.domain.entities import AgentRelease, Tool
+from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
+from modules.agent.infra.execution.session_continuity_runtime_resolver import SessionContinuityReleaseRuntimeResolver
+from modules.agent.infra.execution.structured_output_ask_use_case import StructuredOutputAskAgentUseCase
+from modules.agent.domain.entities import Agent, AgentRelease, Tool
 from modules.agent.domain.enums import ReleaseStatus, RiskLevel, ToolStatus, ToolType
 from shared.infra.errors import ConflictError
 
@@ -24,6 +26,16 @@ class MemoryReleaseRepository:
 
     async def get_by_id(self, item_id):
         return self.items.get(item_id)
+
+    async def get_active_production(self, agent_id):
+        return next(
+            (
+                item
+                for item in self.items.values()
+                if item.agent_id == agent_id and item.status == ReleaseStatus.production
+            ),
+            None,
+        )
 
     async def save(self, item):
         self.items[item.id] = item
@@ -91,6 +103,8 @@ async def test_identical_production_does_not_mutate_release_notes():
     staging.id = uuid4()
     staging.status = ReleaseStatus.staging
     staging.version = "staging"
+    production.snapshot_kind = "release"
+    staging.snapshot_kind = "staging"
     repo = MemoryReleaseRepository(production, staging)
     result = await AutoCompatibleReleaseLifecycleUseCase(repo).execute(
         staging.agent_id,
@@ -172,6 +186,118 @@ def test_release_identity_is_bound_to_execution_context():
 
 
 @pytest.mark.asyncio
+async def test_staging_session_follows_current_staging_release_after_staging_moves():
+    project_id = uuid4()
+    agent_id = uuid4()
+    session_id = uuid4()
+    base_agent = Agent(id=agent_id, project_id=project_id, model="draft-model")
+    opened = _release(status=ReleaseStatus.released, version="staging-v1")
+    opened.project_id = project_id
+    opened.agent_id = agent_id
+    opened.model = "model-v1"
+    current = _release(status=ReleaseStatus.staging, version="staging-v2")
+    current.project_id = project_id
+    current.agent_id = agent_id
+    current.model = "model-v2"
+    session = SimpleNamespace(
+        project_id=project_id,
+        agent_id=agent_id,
+        runtime_environment="staging",
+        opened_release_id=opened.id,
+        data=None,
+    )
+    uow = SimpleNamespace(
+        agents=SimpleNamespace(get_by_id=AsyncMock(return_value=base_agent)),
+        releases=MemoryReleaseRepository(opened, current),
+        sessions=SimpleNamespace(get_by_id=AsyncMock(return_value=session)),
+        provider_models=None,
+    )
+    input_dto = AskInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        session_id=session_id,
+        message="continue",
+        execution_context="staging",
+        loaded_release_id=opened.id,
+    )
+
+    loaded = await SessionContinuityReleaseRuntimeResolver.__new__(SessionContinuityReleaseRuntimeResolver)._load_agent(uow, input_dto)
+
+    assert loaded.model == "model-v2"
+    assert input_dto.loaded_release_id == current.id
+    assert session.opened_release_id == opened.id
+
+
+@pytest.mark.asyncio
+async def test_session_cannot_cross_runtime_environments():
+    project_id = uuid4()
+    agent_id = uuid4()
+    session = SimpleNamespace(
+        project_id=project_id,
+        agent_id=agent_id,
+        runtime_environment="draft",
+        opened_release_id=None,
+        data=None,
+    )
+    uow = SimpleNamespace(sessions=SimpleNamespace(get_by_id=AsyncMock(return_value=session)))
+    input_dto = AskInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        session_id=uuid4(),
+        message="continue",
+        execution_context="production",
+    )
+
+    with pytest.raises(ConflictError, match="belongs to draft"):
+        await SessionContinuityReleaseRuntimeResolver.__new__(SessionContinuityReleaseRuntimeResolver)._session_runtime_binding(uow, input_dto)
+
+
+@pytest.mark.asyncio
+async def test_runtime_session_persists_environment_and_opening_release_provenance():
+    project_id = uuid4()
+    agent_id = uuid4()
+    release_id = uuid4()
+    input_dto = AskInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        message="hello",
+        execution_context="staging",
+        loaded_release_id=release_id,
+        metadata={"source": "playground"},
+    )
+    agent = Agent(id=agent_id, project_id=project_id, model="model-a")
+    created = SimpleNamespace(
+        id=uuid4(),
+        project_id=project_id,
+        agent_id=agent_id,
+        runtime_environment="draft",
+        opened_release_id=None,
+        data=None,
+    )
+    session_repo = SimpleNamespace(
+        create=AsyncMock(return_value=created),
+        update=AsyncMock(),
+    )
+    context = new_execution_context()
+    context.agent_release_id = release_id
+    context.agent_release_version = "staging-v1"
+    token = current_execution.set(context)
+    try:
+        session = await SessionContinuityReleaseRuntimeResolver.__new__(SessionContinuityReleaseRuntimeResolver)._resolve_session(
+            session_repo,
+            input_dto,
+            agent,
+        )
+    finally:
+        current_execution.reset(token)
+
+    assert session.runtime_environment == "staging"
+    assert session.opened_release_id == release_id
+    assert session.data == {"source": "playground"}
+    session_repo.update.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_document_delete_is_blocked_while_vector_build_is_active():
     document = SimpleNamespace(id=uuid4(), project_id=uuid4(), collection_id=uuid4(), status="READY")
     doc_repo = SimpleNamespace(
@@ -224,28 +350,28 @@ async def test_streaming_executes_release_tool_snapshot(monkeypatch):
 
     result = SimpleNamespace(success=True, output={"ok": True}, duration_ms=3, error=None)
     registry = SimpleNamespace(execute=AsyncMock(return_value=result))
-    fake_uow = SimpleNamespace(tool_secrets=object(), tools=object())
+    transactions = SimpleNamespace(
+        run=AsyncMock(
+            side_effect=AssertionError("release snapshot must not read from DB")
+        )
+    )
 
-    class FakeContext:
-        async def __aenter__(self):
-            return fake_uow
-        async def __aexit__(self, *args):
-            return None
+    monkeypatch.setattr(
+        "modules.agent.infra.execution.agent_tool_runtime_gateway.build_tool_runtime_registry",
+        lambda **_kwargs: registry,
+    )
 
-    monkeypatch.setattr("modules.agent.application.use_cases.ask_agent_stream_service.AgentUnitOfWork", lambda _factory: FakeContext())
-    monkeypatch.setattr("modules.agent.application.use_cases.ask_agent_stream_service.ToolSecretResolverAdapter", lambda *_args: object())
-    monkeypatch.setattr("modules.agent.application.use_cases.ask_agent_stream_service.build_tool_runtime_registry", lambda **_kwargs: registry)
-
-    service = AskAgentStreamService.__new__(AskAgentStreamService)
-    service._session_factory = object()
-    service._cipher = object()
-    service._settings = object()
-    service._http_executor = object()
+    gateway = AgentToolRuntimeGateway(
+        transactions,
+        SimpleNamespace(encryption_key="test-encryption-key"),
+        object(),
+    )
     try:
-        output = await service._execute_tool(tool.id, {})
+        output = await gateway.execute_tool(tool.id, {})
     finally:
         current_execution.reset(token)
 
     executed_tool = registry.execute.await_args.args[0]
     assert executed_tool.config == tool.config
     assert output["success"] is True
+    transactions.run.assert_not_awaited()

@@ -5,6 +5,9 @@ from uuid import UUID
 from sqlalchemy import delete, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from modules.agent.application.interfaces.vector_snapshot_repository import (
+    VectorSnapshotRepository,
+)
 from modules.agent.domain.vector_snapshot_entities import (
     VECTOR_SNAPSHOT_BUILDING,
     VECTOR_SNAPSHOT_FAILED,
@@ -16,13 +19,13 @@ from modules.agent.domain.vector_snapshot_entities import (
     VectorSnapshotChunk,
     VectorSnapshotDocument,
 )
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.database.vector_snapshot_models import (
     VectorSnapshotChunkModel,
     VectorSnapshotDocumentModel,
     VectorSnapshotModel,
 )
-from shared.infra.config.interface.unit_of_work import UnitOfWork
-from shared.infra.time import utc_now
+from shared.contracts.time import utc_now
 
 
 def _snapshot_model_to_entity(model: VectorSnapshotModel) -> VectorSnapshot:
@@ -105,7 +108,9 @@ def _snapshot_entity_to_model(entity: VectorSnapshot) -> VectorSnapshotModel:
     )
 
 
-def _snapshot_document_to_model(entity: VectorSnapshotDocument) -> VectorSnapshotDocumentModel:
+def _snapshot_document_to_model(
+    entity: VectorSnapshotDocument,
+) -> VectorSnapshotDocumentModel:
     return VectorSnapshotDocumentModel(
         id=entity.id,
         vector_snapshot_id=entity.vector_snapshot_id,
@@ -119,7 +124,9 @@ def _snapshot_document_to_model(entity: VectorSnapshotDocument) -> VectorSnapsho
     )
 
 
-def _snapshot_document_model_to_entity(model: VectorSnapshotDocumentModel) -> VectorSnapshotDocument:
+def _snapshot_document_model_to_entity(
+    model: VectorSnapshotDocumentModel,
+) -> VectorSnapshotDocument:
     return VectorSnapshotDocument(
         id=model.id,
         vector_snapshot_id=model.vector_snapshot_id,
@@ -153,7 +160,9 @@ def _snapshot_chunk_to_model(entity: VectorSnapshotChunk) -> VectorSnapshotChunk
     )
 
 
-def _snapshot_chunk_model_to_entity(model: VectorSnapshotChunkModel) -> VectorSnapshotChunk:
+def _snapshot_chunk_model_to_entity(
+    model: VectorSnapshotChunkModel,
+) -> VectorSnapshotChunk:
     return VectorSnapshotChunk(
         id=model.id,
         vector_snapshot_id=model.vector_snapshot_id,
@@ -173,15 +182,13 @@ def _snapshot_chunk_model_to_entity(model: VectorSnapshotChunkModel) -> VectorSn
     )
 
 
-class SQLAlchemyVectorSnapshotRepository:
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        self._session_or_uow = session
+class SQLAlchemyVectorSnapshotRepository(VectorSnapshotRepository):
+    def __init__(self, uow: AgentUnitOfWork) -> None:
+        self._uow = uow
 
     @property
     def _session(self) -> AsyncSession:
-        if isinstance(self._session_or_uow, UnitOfWork):
-            return self._session_or_uow.session
-        return self._session_or_uow
+        return self._uow.session
 
     async def create(self, snapshot: VectorSnapshot) -> VectorSnapshot:
         model = _snapshot_entity_to_model(snapshot)
@@ -223,7 +230,11 @@ class SQLAlchemyVectorSnapshotRepository:
         model = result.scalar_one_or_none()
         return _snapshot_model_to_entity(model) if model else None
 
-    async def list_by_collection(self, project_id: UUID, collection_id: UUID) -> list[VectorSnapshot]:
+    async def list_by_collection(
+        self,
+        project_id: UUID,
+        collection_id: UUID,
+    ) -> list[VectorSnapshot]:
         result = await self._session.execute(
             select(VectorSnapshotModel)
             .where(
@@ -233,7 +244,9 @@ class SQLAlchemyVectorSnapshotRepository:
             )
             .order_by(VectorSnapshotModel.created_at.desc())
         )
-        return [_snapshot_model_to_entity(model) for model in result.scalars().all()]
+        return [
+            _snapshot_model_to_entity(model) for model in result.scalars().all()
+        ]
 
     async def list_building(self, limit: int = 3) -> list[VectorSnapshot]:
         result = await self._session.execute(
@@ -246,9 +259,16 @@ class SQLAlchemyVectorSnapshotRepository:
             .limit(limit)
             .with_for_update(skip_locked=True)
         )
-        return [_snapshot_model_to_entity(model) for model in result.scalars().all()]
+        return [
+            _snapshot_model_to_entity(model) for model in result.scalars().all()
+        ]
 
-    async def mark_started(self, snapshot_id: UUID, *, locked_by: str | None = None) -> None:
+    async def mark_started(
+        self,
+        snapshot_id: UUID,
+        *,
+        locked_by: str | None = None,
+    ) -> None:
         model = await self._session.get(VectorSnapshotModel, snapshot_id)
         if model is None:
             return
@@ -335,20 +355,34 @@ class SQLAlchemyVectorSnapshotRepository:
         model.locked_by = None
         await self._session.flush()
 
-    async def add_snapshot_documents(self, documents: list[VectorSnapshotDocument]) -> None:
-        self._session.add_all([_snapshot_document_to_model(document) for document in documents])
+    async def add_snapshot_documents(
+        self,
+        documents: list[VectorSnapshotDocument],
+    ) -> None:
+        self._session.add_all(
+            [_snapshot_document_to_model(document) for document in documents]
+        )
         await self._session.flush()
 
-    async def list_snapshot_documents(self, snapshot_id: UUID) -> list[VectorSnapshotDocument]:
+    async def list_snapshot_documents(
+        self,
+        snapshot_id: UUID,
+    ) -> list[VectorSnapshotDocument]:
         result = await self._session.execute(
             select(VectorSnapshotDocumentModel)
             .where(VectorSnapshotDocumentModel.vector_snapshot_id == snapshot_id)
             .order_by(VectorSnapshotDocumentModel.created_at.asc())
         )
-        return [_snapshot_document_model_to_entity(model) for model in result.scalars().all()]
+        return [
+            _snapshot_document_model_to_entity(model)
+            for model in result.scalars().all()
+        ]
 
     async def update_snapshot_document_chunk_count(
-        self, snapshot_id: UUID, document_id: UUID, chunk_count: int
+        self,
+        snapshot_id: UUID,
+        document_id: UUID,
+        chunk_count: int,
     ) -> None:
         await self._session.execute(
             update(VectorSnapshotDocumentModel)
@@ -362,12 +396,19 @@ class SQLAlchemyVectorSnapshotRepository:
 
     async def delete_snapshot_chunks(self, snapshot_id: UUID) -> None:
         await self._session.execute(
-            delete(VectorSnapshotChunkModel).where(VectorSnapshotChunkModel.vector_snapshot_id == snapshot_id)
+            delete(VectorSnapshotChunkModel).where(
+                VectorSnapshotChunkModel.vector_snapshot_id == snapshot_id
+            )
         )
         await self._session.flush()
 
-    async def add_snapshot_chunks(self, chunks: list[VectorSnapshotChunk]) -> None:
-        self._session.add_all([_snapshot_chunk_to_model(chunk) for chunk in chunks])
+    async def add_snapshot_chunks(
+        self,
+        chunks: list[VectorSnapshotChunk],
+    ) -> None:
+        self._session.add_all(
+            [_snapshot_chunk_to_model(chunk) for chunk in chunks]
+        )
         await self._session.flush()
 
     async def search_similar(
@@ -405,8 +446,18 @@ class SQLAlchemyVectorSnapshotRepository:
         chunk_ids = [row[0] for row in rows]
         similarity_map = {row[0]: row[1] for row in rows}
         chunks_result = await self._session.execute(
-            select(VectorSnapshotChunkModel).where(VectorSnapshotChunkModel.id.in_(chunk_ids))
+            select(VectorSnapshotChunkModel).where(
+                VectorSnapshotChunkModel.id.in_(chunk_ids)
+            )
         )
-        chunks = [_snapshot_chunk_model_to_entity(model) for model in chunks_result.scalars().all()]
-        chunks.sort(key=lambda chunk: similarity_map.get(chunk.id, 0), reverse=True)
-        return [(chunk, similarity_map.get(chunk.id, 0.0)) for chunk in chunks]
+        chunks = [
+            _snapshot_chunk_model_to_entity(model)
+            for model in chunks_result.scalars().all()
+        ]
+        chunks.sort(
+            key=lambda chunk: similarity_map.get(chunk.id, 0),
+            reverse=True,
+        )
+        return [
+            (chunk, similarity_map.get(chunk.id, 0.0)) for chunk in chunks
+        ]

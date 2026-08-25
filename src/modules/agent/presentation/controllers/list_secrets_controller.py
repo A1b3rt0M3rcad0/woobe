@@ -1,4 +1,4 @@
-from modules.agent.application.use_cases.tools_use_cases import ListSecretsUseCase
+from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.application.dtos.tools_dtos import ListSecretsInput
 from modules.agent.presentation.schemas import SecretResponse
 from shared.presentation.interface.controller import Controller
@@ -7,7 +7,7 @@ from shared.presentation.http.response import Response
 
 
 class ListSecretsController(Controller):
-    def __init__(self, use_case: ListSecretsUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

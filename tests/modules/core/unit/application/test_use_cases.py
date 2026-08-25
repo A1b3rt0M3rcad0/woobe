@@ -61,13 +61,13 @@ class TestCreateProjectUseCase:
     @pytest.mark.asyncio
     async def test_create_project(self, project):
         repo = AsyncMock()
-        repo.get_by_organization_and_slug = AsyncMock(return_value=None)
+        repo.get_by_workspace_and_slug = AsyncMock(return_value=None)
         repo.save = AsyncMock(return_value=project)
         outbox = AsyncMock()
         outbox.write = AsyncMock()
         use_case = CreateProjectUseCase(repo, outbox)
         result = await use_case.execute(
-            CreateProjectInput(organization_id=UUID(int=0), name="test", slug="test")
+            CreateProjectInput(workspace_id=UUID(int=0), name="test", slug="test")
         )
         assert result.name == "test"
         assert result.slug == "test"
@@ -78,9 +78,9 @@ class TestListProjectsUseCase:
     @pytest.mark.asyncio
     async def test_list_projects(self, project):
         repo = AsyncMock()
-        repo.list_by_organization = AsyncMock(return_value=[project])
+        repo.list_by_workspace = AsyncMock(return_value=[project])
         use_case = ListProjectsUseCase(repo)
-        result = await use_case.execute(ListProjectsInput(organization_id=UUID(int=0)))
+        result = await use_case.execute(ListProjectsInput(workspace_id=UUID(int=0)))
         assert len(result) == 1
 
 

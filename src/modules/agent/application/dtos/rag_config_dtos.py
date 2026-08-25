@@ -10,11 +10,16 @@ ChunkingPreset = Literal["precise", "balanced", "broad", "custom"]
 SearchStrategy = Literal["similarity"]
 QueryMode = Literal["current_message", "conversation_context"]
 GroundingPolicy = Literal["optional", "required"]
+ParserImplementation = Literal["woobe-document-parser"]
+ParserVersion = Literal["2"]
 
 
 class RAGParserConfig(BaseModel):
+    implementation: ParserImplementation = "woobe-document-parser"
+    version: ParserVersion = "2"
     normalize_whitespace: bool = True
     preserve_page_boundaries: bool = True
+    include_docx_tables: bool = True
 
 
 class RAGChunkingConfig(BaseModel):

@@ -14,7 +14,7 @@ def test_release_seed_contains_two_disjoint_tenant_graphs() -> None:
     assert seed["schema_version"] == 1
     assert len(tenants) == 2
 
-    for key in ("user", "organization", "project", "credential", "agent"):
+    for key in ("user", "workspace", "project", "credential", "agent"):
         identifiers = {tenant[key]["id"] for tenant in tenants}
         assert len(identifiers) == 2, f"{key} identifiers must not cross tenants"
 

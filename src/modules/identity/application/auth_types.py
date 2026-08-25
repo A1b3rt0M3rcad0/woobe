@@ -10,7 +10,7 @@ class AuthenticatedUser:
 
 
 @dataclass(frozen=True)
-class AuthenticatedOrganization:
+class AuthenticatedWorkspace:
     id: UUID
     name: str
     slug: str
@@ -25,4 +25,4 @@ class IssuedAuthentication:
     token_type: str
     expires_in: int
     user: AuthenticatedUser
-    organization: AuthenticatedOrganization | None = None
+    workspace: AuthenticatedWorkspace | None = None

@@ -1,36 +1,34 @@
 from __future__ import annotations
 
+from modules.agent.application.dtos.mcp_tool_refresh_dtos import RefreshMcpProviderToolsInput, RefreshMcpProviderToolsOutput
+
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
 
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput, McpDiscoverOutput
+from modules.agent.application.mcp_oauth_metadata_validation import (
+    McpOAuthMetadataValidation,
+    oauth_validation_diagnostic_fields,
+    validate_mcp_oauth_metadata,
+    validated_mcp_status,
+    write_mcp_oauth_validation,
+)
 from modules.agent.application.mcp_permissions import merge_discovered_tools_with_existing_permissions, write_mcp_readiness
-from modules.agent.application.ports import ToolExecutionPort, ToolSecretResolverPort
+from modules.agent.application.interfaces.mcp_readiness import classify_mcp_discovery_status
+from modules.agent.application.interfaces.ports import ToolExecutionPort, ToolSecretResolverPort
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import ToolType
-from modules.agent.domain.repositories import ToolRepository
-from shared.infra.time import utc_now
+from modules.agent.application.interfaces.repositories import ToolRepository
+from shared.contracts.time import utc_now
 
 logger = logging.getLogger(__name__)
 
 
-class RefreshMcpProviderToolsInput(BaseModel):
-    tool_id: UUID
-    timeout_ms: int = Field(default=30000, ge=1)
 
 
-class RefreshMcpProviderToolsOutput(BaseModel):
-    tool_id: UUID
-    discovered_count: int
-    initialized: bool
-    status: str
-    error: str | None = None
-    http_status: int | None = None
-    phase: str | None = None
 
 
 def _enum_value(value: Any) -> str:
@@ -122,16 +120,37 @@ async def _auth_headers_for(tool: Tool, auth_header_provider: Any | None) -> dic
         return {}
 
 
-def _discovery_status(output: McpDiscoverOutput) -> str:
-    if not output.error and output.tools:
-        return "ready"
-    if output.http_status == 401:
-        return "token_invalid"
-    if output.http_status == 403:
-        return "scope_denied"
-    if output.error:
-        return "discovery_failed"
-    return "empty"
+def _preliminary_discovery_status(output: McpDiscoverOutput, *, config: dict[str, Any]) -> str:
+    oauth = config.get("oauth") if isinstance(config.get("oauth"), dict) else {}
+    protected_metadata = config.get("mcp_resource_metadata")
+    return classify_mcp_discovery_status(
+        has_tools=bool(output.tools),
+        error=output.error,
+        http_status=output.http_status,
+        www_authenticate=output.www_authenticate,
+        oauth_connected=oauth.get("status") == "connected",
+        protected_resource_metadata=protected_metadata if isinstance(protected_metadata, dict) else None,
+    )
+
+
+async def _validated_discovery_status(
+    executor: ToolExecutionPort,
+    *,
+    output: McpDiscoverOutput,
+    config: dict[str, Any],
+    server_url: str,
+    timeout_ms: int,
+) -> tuple[str, McpOAuthMetadataValidation | None]:
+    status = _preliminary_discovery_status(output, config=config)
+    if status != "oauth_required":
+        return status, None
+    validation = await validate_mcp_oauth_metadata(
+        executor,
+        server_url=server_url,
+        www_authenticate=output.www_authenticate,
+        timeout_ms=timeout_ms,
+    )
+    return validated_mcp_status(validation), validation
 
 
 def _safe_www_authenticate(value: str | None) -> str | None:
@@ -140,10 +159,17 @@ def _safe_www_authenticate(value: str | None) -> str | None:
     return value[:1000]
 
 
-def _write_discovery_diagnostic(config: dict[str, Any], output: McpDiscoverOutput, *, now: datetime, server_url: str) -> str:
-    status = _discovery_status(output)
+def _write_discovery_diagnostic(
+    config: dict[str, Any],
+    output: McpDiscoverOutput,
+    *,
+    status: str,
+    oauth_validation: McpOAuthMetadataValidation | None,
+    now: datetime,
+    server_url: str,
+) -> None:
     config["mcp_status"] = status
-    config["mcp_discovery"] = {
+    diagnostic = {
         "status": status,
         "phase": output.phase,
         "http_status": output.http_status,
@@ -153,11 +179,14 @@ def _write_discovery_diagnostic(config: dict[str, Any], output: McpDiscoverOutpu
         "checked_at": now.isoformat(),
         "www_authenticate": _safe_www_authenticate(output.www_authenticate),
     }
-    if output.error:
+    diagnostic.update(oauth_validation_diagnostic_fields(oauth_validation))
+    config["mcp_discovery"] = diagnostic
+    if oauth_validation is not None:
+        write_mcp_oauth_validation(config, oauth_validation, checked_at=now.isoformat())
+    elif output.error:
         config["oauth_discovery_error"] = output.error
     else:
         config.pop("oauth_discovery_error", None)
-    return status
 
 
 async def _discover_and_persist_tool(
@@ -188,18 +217,35 @@ async def _discover_and_persist_tool(
         )
     )
 
-    status = _write_discovery_diagnostic(config, output, now=now, server_url=str(server_url))
+    status, oauth_validation = await _validated_discovery_status(
+        executor,
+        output=output,
+        config=config,
+        server_url=str(server_url),
+        timeout_ms=timeout_ms,
+    )
+    _write_discovery_diagnostic(
+        config,
+        output,
+        status=status,
+        oauth_validation=oauth_validation,
+        now=now,
+        server_url=str(server_url),
+    )
     if output.error or not output.tools:
         write_mcp_readiness(config)
         tool.config = config
         tool.updated_at = now
         await tool_repo.update(tool)
+        result_error = None if status == "oauth_required" else (
+            oauth_validation.error if oauth_validation and oauth_validation.error else output.error
+        )
         return RefreshMcpProviderToolsOutput(
             tool_id=tool.id,
             discovered_count=0,
             initialized=output.initialized,
             status=status,
-            error=output.error,
+            error=result_error,
             http_status=output.http_status,
             phase=output.phase,
         )

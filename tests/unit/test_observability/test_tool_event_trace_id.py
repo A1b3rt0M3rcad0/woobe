@@ -22,6 +22,9 @@ async def test_completed_snapshot_persists_tool_summary_and_completed(monkeypatc
             return value
 
     class EventRepo:
+        async def get_by_id(self, _event_id):
+            return None
+
         async def save(self, value):
             saved_events.append(value)
             return value

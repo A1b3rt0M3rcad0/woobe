@@ -1,7 +1,7 @@
 """Tests for migration 0025: remove remaining cross-module FKs.
 
-Covers: metadata scan for no cross-module FK in model definitions,
-migration structure, FK names.
+Covers historical migration structure and the Community model metadata that remains
+in the public distribution.
 """
 import importlib
 
@@ -33,17 +33,12 @@ class TestMigrationStructure:
 
 
 class TestMetadataScan:
-    """No cross-module ForeignKey must remain in model definitions."""
+    """No cross-module ForeignKey must remain in Community model definitions."""
 
     def test_core_no_cross_module_fk(self):
         from modules.core.infra.database.models import ProjectModel, ApiKeyModel
-        assert "ForeignKey" not in str(ProjectModel.__table__.columns["organization_id"].foreign_keys)
+        assert "ForeignKey" not in str(ProjectModel.__table__.columns["workspace_id"].foreign_keys)
         assert "ForeignKey" not in str(ApiKeyModel.__table__.columns["created_by_user_id"].foreign_keys)
-
-    def test_billing_no_cross_module_fk(self):
-        from modules.billing.infra.database.models import CustomerModel, SubscriptionModel
-        assert "ForeignKey" not in str(CustomerModel.__table__.columns["organization_id"].foreign_keys)
-        assert "ForeignKey" not in str(SubscriptionModel.__table__.columns["organization_id"].foreign_keys)
 
     def test_metering_no_cross_module_fk(self):
         from modules.metering.infra.database.models import UsageEventModel, UsageDailyProjectModel, UsageDailyAgentModel
@@ -58,9 +53,7 @@ class TestMetadataScan:
 
     def test_internal_fks_preserved(self):
         from modules.core.infra.database.models import ApiKeyModel
-        from modules.billing.infra.database.models import SubscriptionModel
         from modules.observability.infra.database.models import TraceEventModel
         assert len(ApiKeyModel.__table__.foreign_keys) == 1  # project_id -> core.projects
-        assert len(SubscriptionModel.__table__.foreign_keys) == 2  # customer_id, plan_id
         internal_fk = list(TraceEventModel.__table__.foreign_keys)[0]
         assert "observability.traces" in str(internal_fk)

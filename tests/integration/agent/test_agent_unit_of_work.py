@@ -1,84 +1,87 @@
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 
+from modules.agent.infra.database import unit_of_work as unit_of_work_module
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
+def _build_mocked_uow(monkeypatch):
+    engine = MagicMock(spec=AsyncEngine)
+    session = AsyncMock(spec=AsyncSession)
+    session_factory = MagicMock(return_value=session)
+    async_sessionmaker = MagicMock(return_value=session_factory)
+    monkeypatch.setattr(
+        unit_of_work_module,
+        "async_sessionmaker",
+        async_sessionmaker,
+    )
+    return AgentUnitOfWork(engine), engine, session, async_sessionmaker, session_factory
+
+
 class TestAgentUnitOfWork:
+    async def test_uow_exposes_session_only_inside_transaction(self, monkeypatch):
+        uow, engine, session, async_sessionmaker, session_factory = _build_mocked_uow(
+            monkeypatch
+        )
 
-    async def test_uow_provides_tool_repo(self):
-        from unittest.mock import AsyncMock, MagicMock
-
-        session_factory = MagicMock()
-        session_factory.return_value = AsyncMock()
-        uow = AgentUnitOfWork(session_factory)
-
-        async with uow:
-            repo = uow.tools
-            assert repo is not None
-
-    async def test_uow_provides_tool_secret_repo(self):
-        from unittest.mock import AsyncMock, MagicMock
-
-        session_factory = MagicMock()
-        session_factory.return_value = AsyncMock()
-        uow = AgentUnitOfWork(session_factory)
+        with pytest.raises(RuntimeError, match="session not started"):
+            _ = uow.session
 
         async with uow:
-            repo = uow.tool_secrets
-            assert repo is not None
+            assert uow.session is session
 
-    async def test_uow_tools_and_secrets_are_distinct(self):
-        from unittest.mock import AsyncMock, MagicMock
+        async_sessionmaker.assert_called_once_with(
+            bind=engine,
+            expire_on_commit=False,
+            class_=AsyncSession,
+        )
+        session_factory.assert_called_once_with()
 
-        session_factory = MagicMock()
-        session_factory.return_value = AsyncMock()
-        uow = AgentUnitOfWork(session_factory)
+        with pytest.raises(RuntimeError, match="session not started"):
+            _ = uow.session
+
+    async def test_uow_has_no_repository_service_locator(self):
+        uow = AgentUnitOfWork(MagicMock(spec=AsyncEngine))
+
+        assert not hasattr(uow, "tools")
+        assert not hasattr(uow, "tool_secrets")
+        assert not hasattr(uow, "agents")
+
+    async def test_repositories_are_composed_explicitly_from_same_uow(
+        self,
+        monkeypatch,
+    ):
+        from modules.agent.infra.database.repositories import (
+            SQLAlchemyAgentToolRepository,
+            SQLAlchemyAgentToolSecretRepository,
+        )
+
+        uow, _, session, _, _ = _build_mocked_uow(monkeypatch)
 
         async with uow:
-            tools = uow.tools
-            secrets = uow.tool_secrets
-            assert tools is not None
-            assert secrets is not None
+            tools = SQLAlchemyAgentToolRepository(uow)
+            secrets = SQLAlchemyAgentToolSecretRepository(uow)
+
+            assert tools._session is session
+            assert secrets._session is session
             assert tools is not secrets
-
-    async def test_uow_resets_repos_after_exit(self):
-        from unittest.mock import AsyncMock, MagicMock
-
-        session_factory = MagicMock()
-        session_factory.return_value = AsyncMock()
-        uow = AgentUnitOfWork(session_factory)
-
-        async with uow:
-            _ = uow.tools
-            assert uow._tools is not None
-
-        assert uow._tools is None
-        assert uow._tool_secrets is None
 
 
 class TestUnitOfWorkCommitRollback:
-
-    async def test_commit_called_on_success(self):
-        from unittest.mock import AsyncMock, MagicMock
-
-        mock_session = AsyncMock()
-        session_factory = MagicMock(return_value=mock_session)
-        uow = AgentUnitOfWork(session_factory)
+    async def test_commit_called_on_success(self, monkeypatch):
+        uow, _, session, _, _ = _build_mocked_uow(monkeypatch)
 
         async with uow:
             pass
 
-        mock_session.commit.assert_awaited_once()
-        mock_session.rollback.assert_not_called()
-        mock_session.close.assert_awaited_once()
+        session.commit.assert_awaited_once()
+        session.rollback.assert_not_called()
+        session.close.assert_awaited_once()
 
-    async def test_rollback_called_on_error(self):
-        from unittest.mock import AsyncMock, MagicMock
-
-        mock_session = AsyncMock()
-        session_factory = MagicMock(return_value=mock_session)
-        uow = AgentUnitOfWork(session_factory)
+    async def test_rollback_called_on_error(self, monkeypatch):
+        uow, _, session, _, _ = _build_mocked_uow(monkeypatch)
 
         class TestError(Exception):
             pass
@@ -87,36 +90,30 @@ class TestUnitOfWorkCommitRollback:
             async with uow:
                 raise TestError()
 
-        mock_session.rollback.assert_awaited_once()
-        mock_session.commit.assert_not_called()
-        mock_session.close.assert_awaited_once()
+        session.rollback.assert_awaited_once()
+        session.commit.assert_not_called()
+        session.close.assert_awaited_once()
 
 
-class TestAgentUnitOfWorkIntegration:
-    """Integration-level tests for AgentUnitOfWork with tool/secrets.
-
-    These tests validate the behavior at the composite level:
-    UoW → repositories → models.
-    """
-
-    async def test_tool_repo_is_sqlalchemy_agent_tool_repo(self):
-        from unittest.mock import AsyncMock, MagicMock
+class TestAgentRepositoryComposition:
+    async def test_tool_repository_uses_agent_uow_session(self, monkeypatch):
         from modules.agent.infra.database.repositories import SQLAlchemyAgentToolRepository
 
-        session_factory = MagicMock()
-        session_factory.return_value = AsyncMock()
-        uow = AgentUnitOfWork(session_factory)
+        uow, _, session, _, _ = _build_mocked_uow(monkeypatch)
 
         async with uow:
-            assert isinstance(uow.tools, SQLAlchemyAgentToolRepository)
+            repository = SQLAlchemyAgentToolRepository(uow)
+            assert repository._session is session
+            assert repository._session is uow.session
 
-    async def test_tool_secret_repo_is_sqlalchemy_agent_secret_repo(self):
-        from unittest.mock import AsyncMock, MagicMock
-        from modules.agent.infra.database.repositories import SQLAlchemyAgentToolSecretRepository
+    async def test_tool_secret_repository_uses_agent_uow_session(self, monkeypatch):
+        from modules.agent.infra.database.repositories import (
+            SQLAlchemyAgentToolSecretRepository,
+        )
 
-        session_factory = MagicMock()
-        session_factory.return_value = AsyncMock()
-        uow = AgentUnitOfWork(session_factory)
+        uow, _, session, _, _ = _build_mocked_uow(monkeypatch)
 
         async with uow:
-            assert isinstance(uow.tool_secrets, SQLAlchemyAgentToolSecretRepository)
+            repository = SQLAlchemyAgentToolSecretRepository(uow)
+            assert repository._session is session
+            assert repository._session is uow.session

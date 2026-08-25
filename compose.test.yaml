@@ -1,0 +1,140 @@
+name: woobe-test
+
+x-backend-test-common: &backend-test-common
+  WOOBE_EDITION: community
+  WOOBE_ENVIRONMENT: test
+  WOOBE_DEBUG: "false"
+  WOOBE_JSON_LOGS: "false"
+  WOOBE_METRICS_ENABLED: "false"
+  WOOBE_LOG_LEVEL: INFO
+  WOOBE_SECRET_KEY: woobe-test-secret-key-at-least-32-characters
+  WOOBE_ENCRYPTION_KEY: woobe-test-encryption-key-at-least-32-characters
+  WOOBE_CHAT_TOKEN_SIGNING_KEY: woobe-test-chat-key-at-least-32-characters
+  WOOBE_STORAGE_DRIVER: local
+  WOOBE_MCP_SESSION_CACHE_ENABLED: "false"
+  WOOBE_ACCESS_COOKIE_SECURE: "false"
+  WOOBE_REFRESH_COOKIE_SECURE: "false"
+  WOOBE_TRUSTED_HOSTS: test,localhost,127.0.0.1
+  WOOBE_CORS_ORIGINS: http://test
+  PYTHONPATH: /app/src:/app
+
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_USER: woobe_test
+      POSTGRES_PASSWORD: woobe_test_password
+      POSTGRES_DB: woobe_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U woobe_test -d woobe_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: "no"
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    environment:
+      RABBITMQ_DEFAULT_USER: woobe_test
+      RABBITMQ_DEFAULT_PASS: woobe_test_password
+    tmpfs:
+      - /var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    restart: "no"
+
+  redis:
+    image: redis:7.4-alpine
+    tmpfs:
+      - /data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: "no"
+
+  fake-provider:
+    build:
+      context: .
+      dockerfile: docker/tests/Dockerfile.backend-integration
+    pull_policy: build
+    environment:
+      PYTHONPATH: /app/src:/app
+    command:
+      [
+        "python",
+        "-m",
+        "uvicorn",
+        "tests.fakes.openai_provider:app",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+      ]
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).read()",
+        ]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: "no"
+
+  backend-mocked:
+    build:
+      context: .
+      dockerfile: docker/tests/Dockerfile.backend-mocked
+    pull_policy: build
+    environment:
+      <<: *backend-test-common
+      WOOBE_DATABASE_URL: sqlite+aiosqlite:///./woobe-mocked.db
+      WOOBE_RABBITMQ_URL: amqp://guest:guest@localhost:5672/
+    volumes:
+      - ./.test-artifacts:/artifacts
+    restart: "no"
+
+  backend-integration:
+    build:
+      context: .
+      dockerfile: docker/tests/Dockerfile.backend-integration
+    pull_policy: build
+    environment:
+      <<: *backend-test-common
+      WOOBE_DATABASE_URL: postgresql://woobe_test:woobe_test_password@db:5432/woobe_test
+      WOOBE_POSTGRES_URL: postgresql://woobe_test:woobe_test_password@db:5432/woobe_test
+      WOOBE_RABBITMQ_URL: amqp://woobe_test:woobe_test_password@rabbitmq:5672/
+      WOOBE_RABBITMQ_EXCHANGE: woobe.test.events
+      WOOBE_REDIS_URL: redis://redis:6379/0
+      WOOBE_TEST_FAKE_PROVIDER_URL: http://fake-provider:8000/v1
+    depends_on:
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      fake-provider:
+        condition: service_healthy
+    volumes:
+      - ./.test-artifacts:/artifacts
+    restart: "no"
+
+  tests:
+    image: alpine:3.21
+    depends_on:
+      backend-mocked:
+        condition: service_completed_successfully
+      backend-integration:
+        condition: service_completed_successfully
+    command: ["/bin/sh", "-c", "echo 'Woobe backend validation completed successfully.'"]
+    restart: "no"

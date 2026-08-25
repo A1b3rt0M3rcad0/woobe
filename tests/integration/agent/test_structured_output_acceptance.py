@@ -3,11 +3,11 @@ from __future__ import annotations
 import pytest
 from langchain_core.messages import AIMessage
 
-from modules.agent.application.use_cases.execution_instrumentation import (
+from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
 )
-from modules.agent.application.use_cases.structured_json_repair import (
+from modules.agent.infra.execution.structured_json_repair import (
     repair_json_if_needed,
 )
 

@@ -11,32 +11,54 @@ from sqlalchemy.ext.asyncio import async_engine_from_config
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
-from shared.infra.database.base import Base
-from shared.infra.config import Settings
-from modules.identity.infra.database.models import *  # noqa: F401, F403
-from modules.core.infra.database.models import *  # noqa: F401, F403
-from modules.agent.infra.database.models import *  # noqa: F401, F403
-from modules.agent.infra.database.provider_model_repositories import ProviderModelModel  # noqa: F401
-from modules.agent.infra.database.vector_snapshot_models import *  # noqa: F401, F403
-from modules.metering.infra.database.models import *  # noqa: F401, F403
-from modules.billing.infra.database.models import *  # noqa: F401, F403
-from modules.observability.infra.database.models import *  # noqa: F401, F403
+from shared.infra.database.base import Base  # noqa: E402
+from modules.identity.infra.database.models import *  # noqa: E402,F401,F403
+from modules.core.infra.database.models import *  # noqa: E402,F401,F403
+from modules.chat_surface.infra.database.models import *  # noqa: E402,F401,F403
+from modules.agent.infra.database.models import *  # noqa: E402,F401,F403
+from modules.agent.infra.database.run_models import *  # noqa: E402,F401,F403
+from modules.agent.infra.database.provider_model_repositories import ProviderModelModel  # noqa: E402,F401
+from modules.agent.infra.database.release_activation_repository import AgentReleaseActivationModel  # noqa: E402,F401
+from modules.agent.infra.database.vector_snapshot_models import *  # noqa: E402,F401,F403
+from modules.network.infra.database.models import *  # noqa: E402,F401,F403
+from modules.network.infra.database.schema_extensions import *  # noqa: E402,F401,F403
+from modules.metering.infra.database.models import *  # noqa: E402,F401,F403
+from modules.observability.infra.database.models import *  # noqa: E402,F401,F403
+
+
+def _async_postgres_url(value: str) -> str:
+    normalized = value.strip()
+    if normalized.startswith("postgres://"):
+        return normalized.replace("postgres://", "postgresql+asyncpg://", 1)
+    if normalized.startswith("postgresql://"):
+        return normalized.replace("postgresql://", "postgresql+asyncpg://", 1)
+    if normalized.startswith("postgresql+asyncpg://"):
+        return normalized
+    raise RuntimeError("WOOBE_POSTGRES_URL must be a PostgreSQL connection URL")
+
 
 config = context.config
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-settings = Settings.model_validate({})
-sync_url = settings.database_url.replace("+asyncpg", "+psycopg2")
+postgres_url = os.environ.get("WOOBE_POSTGRES_URL", "").strip()
+if not postgres_url:
+    raise RuntimeError(
+        "WOOBE_POSTGRES_URL is required for migrations; migrations must connect "
+        "directly to PostgreSQL instead of the runtime pool"
+    )
+
+sync_url = _async_postgres_url(postgres_url).replace("+asyncpg", "+psycopg2")
 config.set_main_option("sqlalchemy.url", sync_url)
 
 target_metadata = Base.metadata
 MANAGED_SCHEMAS = {
     "identity",
     "core",
+    "chat_surface",
     "agent",
+    "network",
     "metering",
-    "billing",
     "observability",
 }
 
@@ -86,11 +108,7 @@ async def run_async_migrations() -> None:
     await connectable.dispose()
 
 
-def run_migrations_online() -> None:
-    asyncio.run(run_async_migrations())
-
-
 if context.is_offline_mode():
     run_migrations_offline()
 else:
-    run_migrations_online()
+    asyncio.run(run_async_migrations())

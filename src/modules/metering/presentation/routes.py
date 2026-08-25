@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Request as FastAPIRequest
 
-from modules.metering.application.composers.record_usage_composer import record_usage_composer
 from modules.metering.application.composers.get_project_daily_usage_composer import get_project_daily_usage_composer
 from modules.metering.application.composers.get_agent_daily_usage_composer import get_agent_daily_usage_composer
 from modules.metering.application.composers.get_project_usage_composer import get_project_usage_composer
+from shared.infra.errors import AuthorizationError
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 router = APIRouter(prefix="/metering", tags=["metering"])
@@ -11,9 +11,8 @@ router = APIRouter(prefix="/metering", tags=["metering"])
 
 @router.post("/usage-events", status_code=201)
 async def record_usage(request: FastAPIRequest):
-    handler = record_usage_composer(request.app.state.session_factory)
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
+    del request
+    raise AuthorizationError("Usage events are recorded by internal runtime services")
 
 
 @router.get("/projects/{project_id}/usage")

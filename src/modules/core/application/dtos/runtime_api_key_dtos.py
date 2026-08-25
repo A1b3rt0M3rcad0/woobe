@@ -7,6 +7,7 @@ from modules.core.domain.enums import (
     ApiKeyStatus,
     RuntimeEnvironment,
     RuntimeInterface,
+    RuntimeTargetType,
 )
 
 
@@ -14,7 +15,9 @@ class CreateRuntimeApiKeyInput(BaseModel):
     project_id: UUID
     name: str = Field(min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=500)
-    agent_id: UUID
+    target_type: RuntimeTargetType = RuntimeTargetType.agent
+    target_id: UUID | None = None
+    agent_id: UUID | None = None
     environment: RuntimeEnvironment
     interfaces: list[RuntimeInterface] = Field(min_length=1, max_length=3)
     created_by_user_id: UUID
@@ -41,10 +44,27 @@ class CreateRuntimeApiKeyInput(BaseModel):
     def normalize_interfaces(
         cls, value: list[RuntimeInterface]
     ) -> list[RuntimeInterface]:
-        return list(dict.fromkeys(value))
+        normalized = list(dict.fromkeys(value))
+        if RuntimeInterface.jobs in normalized:
+            raise ValueError(
+                "Jobs are coming soon and cannot be enabled on Runtime Keys"
+            )
+        return normalized
 
     @model_validator(mode="after")
-    def validate_expiration(self) -> "CreateRuntimeApiKeyInput":
+    def validate_binding_and_expiration(self) -> "CreateRuntimeApiKeyInput":
+        if self.target_id is None:
+            if self.agent_id is None:
+                raise ValueError("Runtime key target_id is required")
+            self.target_type = RuntimeTargetType.agent
+            self.target_id = self.agent_id
+        elif self.target_type == RuntimeTargetType.agent:
+            if self.agent_id is not None and self.agent_id != self.target_id:
+                raise ValueError("agent_id and target_id must reference the same Agent")
+            self.agent_id = self.target_id
+        elif self.agent_id is not None:
+            raise ValueError("agent_id is only valid for Agent Runtime Keys")
+
         if self.expires_at is None:
             return self
         expires_at = self.expires_at
@@ -66,7 +86,9 @@ class CreateRuntimeApiKeyOutput(BaseModel):
     key_prefix: str
     scopes: list[str]
     kind: str
-    agent_id: UUID
+    target_type: RuntimeTargetType
+    target_id: UUID
+    agent_id: UUID | None = None
     environment: RuntimeEnvironment
     interfaces: list[str]
     status: ApiKeyStatus

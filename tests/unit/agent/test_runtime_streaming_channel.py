@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from modules.agent.application.use_cases.runtime_streaming import (
+from modules.agent.infra.execution.runtime_streaming import (
     RuntimeStreamChannel,
     current_runtime_stream,
     invoke_model_with_optional_streaming,
@@ -23,6 +23,17 @@ class StreamingModel:
         yield Chunk("world")
 
 
+class ToolFollowupStreamingModel:
+    async def astream(self, _messages):
+        yield Chunk("16<｜end")
+        yield Chunk("▁of▁sentence｜>")
+
+
+class NonStreamingModel:
+    async def ainvoke(self, _messages):
+        return Chunk("ok<|endoftext|>")
+
+
 @pytest.mark.asyncio
 async def test_runtime_stream_emits_progressive_tokens_and_ttft() -> None:
     channel = RuntimeStreamChannel()
@@ -38,8 +49,10 @@ async def test_runtime_stream_emits_progressive_tokens_and_ttft() -> None:
     finally:
         current_runtime_stream.reset(token)
 
+    activity = channel.queue.get_nowait()
     first = channel.queue.get_nowait()
     second = channel.queue.get_nowait()
+    assert activity.event_type == "agent_activity"
     assert [first.event_type, second.event_type] == ["token", "token"]
     assert [first.payload["content"], second.payload["content"]] == [
         "hello ",
@@ -47,6 +60,44 @@ async def test_runtime_stream_emits_progressive_tokens_and_ttft() -> None:
     ]
     assert result.content == "hello world"
     assert channel.ttft_ms is not None
+
+
+@pytest.mark.asyncio
+async def test_tool_followup_is_emitted_as_final_without_provider_control_token() -> None:
+    channel = RuntimeStreamChannel()
+    token = current_runtime_stream.set(channel)
+    try:
+        result = await invoke_model_with_optional_streaming(
+            model=ToolFollowupStreamingModel(),
+            messages=[],
+            phase="tool_followup_1",
+            provider="openrouter",
+            model_name="deepseek/deepseek-v4-flash",
+        )
+    finally:
+        current_runtime_stream.reset(token)
+
+    activity = channel.queue.get_nowait()
+    visible = channel.queue.get_nowait()
+    assert activity.event_type == "agent_activity"
+    assert visible.event_type == "token"
+    assert visible.payload["content"] == "16"
+    assert visible.payload["phase"] == "tool_followup_1"
+    assert result.content == "16"
+    assert channel.queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_non_streaming_response_removes_provider_control_token() -> None:
+    result = await invoke_model_with_optional_streaming(
+        model=NonStreamingModel(),
+        messages=[],
+        phase="response_generation",
+        provider="openrouter",
+        model_name="test-model",
+    )
+
+    assert result.content == "ok"
 
 
 @pytest.mark.asyncio

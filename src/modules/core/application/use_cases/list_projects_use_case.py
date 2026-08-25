@@ -8,13 +8,13 @@ class ListProjectsUseCase:
         self._project_repo = project_repo
 
     async def execute(self, input_dto: ListProjectsInput) -> list[ListProjectsOutput]:
-        if input_dto.organization_id:
-            projects = await self._project_repo.list_by_organization(input_dto.organization_id)
+        if input_dto.workspace_id:
+            projects = await self._project_repo.list_by_workspace(input_dto.workspace_id)
         else:
             projects = []
         return [ListProjectsOutput(
             id=p.id,
-            organization_id=p.organization_id,
+            workspace_id=p.workspace_id,
             name=p.name,
             slug=p.slug,
             status=p.status,

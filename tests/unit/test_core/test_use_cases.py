@@ -11,19 +11,19 @@ from tests.helpers import make_api_key, make_project
 class TestCreateProjectUseCase:
     @pytest.mark.asyncio
     async def test_success(self, mocker):
-        org_id = uuid6.uuid7()
+        workspace_id = uuid6.uuid7()
 
         mock_repo = mocker.AsyncMock()
-        mock_repo.get_by_organization_and_slug.return_value = None
+        mock_repo.get_by_workspace_and_slug.return_value = None
         mock_repo.save.return_value = make_project(
-            organization_id=org_id, name="MyProj", slug="my-proj"
+            workspace_id=workspace_id, name="MyProj", slug="my-proj"
         )
 
         mock_outbox = mocker.AsyncMock()
 
         uc = CreateProjectUseCase(project_repo=mock_repo, outbox=mock_outbox)
         result = await uc.execute(
-            CreateProjectInput(organization_id=org_id, name="MyProj", slug="my-proj")
+            CreateProjectInput(workspace_id=workspace_id, name="MyProj", slug="my-proj")
         )
 
         assert result.name == "MyProj"
@@ -33,10 +33,10 @@ class TestCreateProjectUseCase:
 
     @pytest.mark.asyncio
     async def test_duplicate_slug(self, mocker):
-        org_id = uuid6.uuid7()
+        workspace_id = uuid6.uuid7()
 
         mock_repo = mocker.AsyncMock()
-        mock_repo.get_by_organization_and_slug.return_value = make_project(
+        mock_repo.get_by_workspace_and_slug.return_value = make_project(
             slug="dup-slug"
         )
 
@@ -44,7 +44,7 @@ class TestCreateProjectUseCase:
         with pytest.raises(DuplicateSlugError):
             await uc.execute(
                 CreateProjectInput(
-                    organization_id=org_id, name="MyProj", slug="dup-slug"
+                    workspace_id=workspace_id, name="MyProj", slug="dup-slug"
                 )
             )
         mock_repo.save.assert_not_called()
@@ -57,7 +57,7 @@ class TestCreateApiKeyUseCase:
 
         mock_project_repo = mocker.AsyncMock()
         mock_project_repo.get_by_id.return_value = make_project(
-            organization_id=uuid6.uuid7()
+            workspace_id=uuid6.uuid7()
         )
 
         mock_api_key_repo = mocker.AsyncMock()
@@ -74,6 +74,7 @@ class TestCreateApiKeyUseCase:
             CreateApiKeyInput(
                 project_id=project_id,
                 name="MyKey",
+                scopes=["reading"],
                 created_by_user_id=uuid6.uuid7(),
             )
         )
@@ -97,6 +98,7 @@ class TestCreateApiKeyUseCase:
                 CreateApiKeyInput(
                     project_id=uuid6.uuid7(),
                     name="MyKey",
+                    scopes=["reading"],
                     created_by_user_id=uuid6.uuid7(),
                 )
             )

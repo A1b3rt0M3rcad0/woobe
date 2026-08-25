@@ -1,14 +1,14 @@
+from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.presentation.mappers import upload_document_output_to_response
 from modules.agent.application.dtos import UploadDocumentInput
-from modules.agent.application.use_cases.knowledge_use_cases import UploadDocumentUseCase
-from shared.infra.errors import NotFoundError, ValidationError
+from shared.contracts.errors import NotFoundError, ValidationError
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 
 
 class UploadDocumentController(Controller):
-    def __init__(self, use_case: UploadDocumentUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

@@ -7,19 +7,17 @@ from unittest.mock import AsyncMock, MagicMock
 from uuid import UUID, uuid4
 
 import pytest
+from sqlalchemy.ext.asyncio import create_async_engine
 
-from modules.agent.application.use_cases.ask_agent_stream_service import (
+from modules.agent.infra.execution.ask_agent_stream_service import (
     AskAgentStreamService,
 )
 from modules.agent.application.use_cases.runtime_use_cases import (
     CreateAskJobInput,
     CreateAskJobUseCase,
 )
-from modules.agent.application.dtos.runtime_dtos import (
-    AskInput,
-)
+from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.domain.events import AgentExecutionRequestedV1
-from modules.agent.domain.ports.llm_factory import LLMFactory
 
 
 @pytest.fixture
@@ -32,31 +30,22 @@ def project_id() -> UUID:
     return uuid4()
 
 
-@pytest.fixture
-def mock_session_factory():
-    mock_session = AsyncMock()
-    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
-    mock_session.__aexit__ = AsyncMock(return_value=None)
-    factory = MagicMock()
-    factory.return_value = mock_session
-    return factory
-
-
 class TestStreamPhases:
-    """AskAgentStreamService must use prepare/external/finalize phases with Outbox."""
+    """AskAgentStreamService must expose an async stream for AskInput."""
 
     @pytest.mark.asyncio
-    async def test_generate_accepts_ask_input(self):
-        llm_factory = MagicMock(spec=LLMFactory)
-        session_factory = MagicMock()
-        service = AskAgentStreamService(session_factory, llm_factory)
+    async def test_stream_accepts_ask_input(self):
+        service = AskAgentStreamService(
+            use_case=MagicMock(),
+            transactions=MagicMock(),
+        )
         input_dto = AskInput(
             project_id=uuid4(), agent_id=uuid4(),
             message="test", tenant_id=None, user_id=None,
         )
-        gen = service.generate(input_dto)
-        assert gen is not None
-        assert hasattr(gen, "__aiter__")
+        stream = service.stream(input_dto)
+        assert stream is not None
+        assert hasattr(stream, "__aiter__")
 
     @pytest.mark.asyncio
     async def test_no_dynamic_imports_in_file(self):
@@ -132,25 +121,32 @@ class TestWorkerRegistration:
         from modules.agent.infra.workers.ask_job_worker import AskJobWorker
         assert isinstance(AskJobWorker, type)
         engine = MagicMock()
-        worker = AskJobWorker(async_engine=engine)
+        settings = MagicMock()
+        worker = AskJobWorker(async_engine=engine, settings=settings)
         assert hasattr(worker, "run")
         assert callable(worker.run)
 
 
 class TestNoClosedSession:
-    """Prepare phase must not leave a closed or reused session."""
+    """The UoW owns session lifecycle while repositories are composed explicitly."""
 
     @pytest.mark.asyncio
-    async def test_agent_unit_of_work_used_in_prepare(self):
+    async def test_agent_unit_of_work_is_transaction_only(self):
         from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
-        session_factory = MagicMock()
-        session_factory.return_value = MagicMock()
-        uow = AgentUnitOfWork(session_factory)
-        assert uow is not None
-        assert hasattr(uow, "agents")
-        assert hasattr(uow, "sessions")
-        assert hasattr(uow, "messages")
-        assert hasattr(uow, "outbox")
+
+        engine = create_async_engine("sqlite+aiosqlite:///:memory:")
+        uow = AgentUnitOfWork(engine)
+
+        assert not hasattr(uow, "agents")
+        assert not hasattr(uow, "sessions")
+        assert not hasattr(uow, "messages")
+        assert not hasattr(uow, "outbox")
+
+        try:
+            async with uow:
+                assert uow.session is not None
+        finally:
+            await engine.dispose()
 
     def test_ask_job_worker_uses_direct_imports_not_dynamic(self):
         import ast

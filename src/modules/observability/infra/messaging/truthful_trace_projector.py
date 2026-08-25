@@ -29,6 +29,55 @@ _RUNTIME_DIMENSION_FIELDS = (
     "fallback_credential_id",
 )
 
+_COMPLETION_EVENT_FIELDS = (
+    "trace_id",
+    "project_id",
+    "agent_id",
+    "session_id",
+    "message_id",
+    "answer_length",
+    "input_tokens",
+    "output_tokens",
+    "total_tokens",
+    "cost_usd",
+    "cost_status",
+    "cost_reason",
+    "usage_complete",
+    "model",
+    "provider",
+    "latency_ms",
+    "total_latency_ms",
+    "fallback_used",
+    "llm_call_count",
+    "tool_call_count",
+    "source_count",
+    "failed_tool_calls",
+    "successful_tool_calls",
+    "structured_output",
+    "execution_context",
+    "agent_release_id",
+    "agent_release_version",
+    "provider_model_id",
+    "provider_credential_id",
+    "fallback_provider_model_id",
+    "fallback_credential_id",
+)
+
+
+def _completion_event_payload(
+    payload: dict[str, Any],
+    diagnostics: dict[str, Any],
+) -> dict[str, Any]:
+    compact = {
+        field: payload.get(field, diagnostics.get(field))
+        for field in _COMPLETION_EVENT_FIELDS
+    }
+    return {
+        "event": "agent.execution.completed.v1",
+        **compact,
+        "diagnostics": diagnostics,
+    }
+
 
 def _apply_provider_model_refs(trace: Trace, payload: dict[str, Any]) -> None:
     trace.provider_model_id = _uuid(payload.get("provider_model_id")) or trace.provider_model_id
@@ -206,5 +255,5 @@ async def project_agent_event(
         kind=TraceEventType.info,
         latency_ms=trace.total_latency_ms,
         cost_usd=trace.total_cost_usd,
-        payload={"event": event_type, **payload, "diagnostics": diagnostics},
+        payload=_completion_event_payload(payload, diagnostics),
     )

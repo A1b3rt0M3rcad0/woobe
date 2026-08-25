@@ -30,7 +30,7 @@ async def test_health_and_non_stream_completion_are_deterministic(client: httpx.
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["choices"][0]["message"]["content"] == "ProjectRAI release gate passed"
+    assert payload["choices"][0]["message"]["content"] == "Woobe release gate passed"
     assert payload["usage"] == {
         "prompt_tokens": 7,
         "completion_tokens": 5,
@@ -56,7 +56,7 @@ async def test_stream_completion_has_tokens_terminal_chunk_usage_and_done(client
         for choice in chunk["choices"]
         if "content" in choice["delta"]
     ]
-    assert "".join(contents) == "ProjectRAI release gate passed"
+    assert "".join(contents) == "Woobe release gate passed"
     assert chunks[-1]["choices"][0]["finish_reason"] == "stop"
     assert chunks[-1]["usage"]["total_tokens"] == 12
 

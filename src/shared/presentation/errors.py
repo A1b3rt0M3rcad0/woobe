@@ -85,9 +85,17 @@ async def not_found_handler(request: Request, exc: NotFoundError) -> JSONRespons
 
 
 async def conflict_handler(request: Request, exc: ConflictError) -> JSONResponse:
+    code = getattr(exc, "code", None)
+    data = None
+    if isinstance(code, str):
+        data = {"code": code}
+        for field_name in ("target_type", "target_id", "environment"):
+            value = getattr(exc, field_name, None)
+            if value is not None:
+                data[field_name] = str(value)
     return JSONResponse(
         status_code=409,
-        content={"success": False, "message": str(exc), "data": None},
+        content={"success": False, "message": str(exc), "data": data},
     )
 
 

@@ -9,8 +9,8 @@ from modules.agent.application.tool_release_snapshots import (
     tool_from_release_snapshot,
     tool_with_permission_overrides,
 )
-from modules.agent.application.use_cases.execution_context import current_execution, new_execution_context
-from modules.agent.application.use_cases.release_runtime_resolver import ReleaseRuntimeResolver
+from modules.agent.application.interfaces.execution_context import current_execution, new_execution_context
+from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.domain.entities import Agent, AgentRelease, Tool
 from modules.agent.domain.enums import ReleaseStatus, ToolStatus, ToolType
 
@@ -201,6 +201,8 @@ async def test_playground_snapshot_override_uses_unsaved_agent_runtime_config():
         execution_context="playground",
         snapshot_override={"runtime_config": unsaved_runtime_config},
         loaded_release_id=None,
+        session_id=None,
+        metadata=None,
     )
     resolver = object.__new__(ReleaseRuntimeResolver)
 
@@ -245,6 +247,8 @@ async def test_production_runtime_uses_release_tool_snapshot_config_not_live_age
         execution_context="production",
         snapshot_override=None,
         loaded_release_id=None,
+        session_id=None,
+        metadata=None,
     )
     resolver = object.__new__(ReleaseRuntimeResolver)
 

@@ -5,6 +5,7 @@ import { UI_LAYER_CLASS, type DialogLayer } from '@/lib/ui-layers'
 import { X } from 'lucide-react'
 
 type DialogPresentation = 'modal' | 'embedded'
+type DialogScrollMode = 'overlay' | 'content'
 
 const DialogPresentationContext = createContext<DialogPresentation>('modal')
 
@@ -28,8 +29,12 @@ interface DialogProps {
   children: ReactNode
   title?: string
   className?: string
+  contentClassName?: string
   layer?: DialogLayer
+  scrollMode?: DialogScrollMode
 }
+
+const INTERNAL_SCROLLBAR = 'scrollbar-thin'
 
 export function Dialog({
   open,
@@ -37,10 +42,13 @@ export function Dialog({
   children,
   title,
   className,
+  contentClassName,
   layer = 'modal',
+  scrollMode = 'overlay',
 }: DialogProps) {
   const presentation = useContext(DialogPresentationContext)
   const overlayRef = useRef<HTMLDivElement>(null)
+  const contentScroll = scrollMode === 'content'
 
   useEffect(() => {
     if (!open || presentation !== 'modal') return
@@ -63,11 +71,12 @@ export function Dialog({
   const dialogContent = (
     <div
       className={cn(
-        'relative w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl',
+        'dialog-scrollbars relative w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl',
+        contentScroll && 'flex max-h-[calc(100svh-2rem)] flex-col overflow-hidden',
         className,
       )}
     >
-      <div className="flex items-center justify-between border-b border-border px-6 py-4">
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
         {title && <h2 className="text-lg font-semibold">{title}</h2>}
         <button
           type="button"
@@ -78,7 +87,15 @@ export function Dialog({
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="p-6">{children}</div>
+      <div
+        className={cn(
+          'p-6',
+          contentScroll && `min-h-0 flex-1 overflow-y-auto overscroll-contain ${INTERNAL_SCROLLBAR}`,
+          contentClassName,
+        )}
+      >
+        {children}
+      </div>
     </div>
   )
 
@@ -90,7 +107,8 @@ export function Dialog({
     <div
       ref={overlayRef}
       className={cn(
-        'fixed inset-0 flex min-h-svh w-screen items-center justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-md',
+        'fixed inset-0 flex min-h-svh w-screen items-center justify-center bg-black/70 p-4 backdrop-blur-md',
+        contentScroll ? 'overflow-hidden' : 'overflow-y-auto',
         UI_LAYER_CLASS[layer],
       )}
       onClick={(event) => {

@@ -15,12 +15,14 @@ export type ResponseFormat = {
   repair_attempts?: number
 }
 
+export type AgentSessionMode = 'stateful' | 'stateless'
 export type AgentToolPermissions = Record<string, Record<string, McpToolPermission>>
 
 export type AgentEditorState = {
   name: string
   description: string
   systemPrompt: string
+  sessionMode: AgentSessionMode
   responseFormat: ResponseFormat
   outputSchema: unknown | null
   provider: string
@@ -78,23 +80,49 @@ function normalizeToolPermissions(value: unknown): AgentToolPermissions {
   return result
 }
 
-function toolPermissionsFromSnapshots(value: unknown): AgentToolPermissions {
+export function childPermissionsFromToolConfig(value: unknown): Record<string, McpToolPermission> {
+  const config = recordValue(value)
+  const permissions: Record<string, McpToolPermission> = {}
+
+  const discoveredTools = Array.isArray(config.discovered_tools) ? config.discovered_tools : []
+  for (const rawDiscoveredTool of discoveredTools) {
+    const discoveredTool = recordValue(rawDiscoveredTool)
+    const name = typeof discoveredTool.name === 'string' && discoveredTool.name.trim()
+      ? discoveredTool.name.trim()
+      : null
+    if (!name) continue
+    permissions[name] = normalizePermission(discoveredTool.permission)
+  }
+
+  const routes = Array.isArray(config.routes) ? config.routes : []
+  for (const rawRoute of routes) {
+    const route = recordValue(rawRoute)
+    const routeId = typeof route.id === 'string' && route.id.trim()
+      ? route.id.trim()
+      : typeof route.operation_id === 'string' && route.operation_id.trim()
+        ? route.operation_id.trim()
+        : null
+    if (!routeId) continue
+    const permission = Object.keys(recordValue(route.permission)).length > 0
+      ? route.permission
+      : {
+          mode: route.default_permission,
+          risk_level: route.risk_level,
+        }
+    permissions[routeId] = normalizePermission(permission)
+  }
+
+  return permissions
+}
+
+export function toolPermissionsFromSnapshots(value: unknown): AgentToolPermissions {
   if (!Array.isArray(value)) return {}
   const result: AgentToolPermissions = {}
   for (const rawSnapshot of value) {
     const snapshot = recordValue(rawSnapshot)
     const toolId = typeof snapshot.id === 'string' ? snapshot.id : null
     if (!toolId) continue
-    const config = recordValue(snapshot.config)
-    const discoveredTools = Array.isArray(config.discovered_tools) ? config.discovered_tools : []
-    const permissions: Record<string, McpToolPermission> = {}
-    for (const rawDiscoveredTool of discoveredTools) {
-      const discoveredTool = recordValue(rawDiscoveredTool)
-      const name = typeof discoveredTool.name === 'string' ? discoveredTool.name : null
-      if (!name) continue
-      permissions[name] = normalizePermission(discoveredTool.permission)
-    }
-    result[toolId] = permissions
+    result[toolId] = childPermissionsFromToolConfig(snapshot.config)
   }
   return result
 }
@@ -102,16 +130,7 @@ function toolPermissionsFromSnapshots(value: unknown): AgentToolPermissions {
 export function toolPermissionsFromTools(tools: Tool[]): AgentToolPermissions {
   const result: AgentToolPermissions = {}
   for (const tool of tools) {
-    const config = recordValue(tool.config)
-    const discoveredTools = Array.isArray(config.discovered_tools) ? config.discovered_tools : []
-    const permissions: Record<string, McpToolPermission> = {}
-    for (const rawDiscoveredTool of discoveredTools) {
-      const discoveredTool = recordValue(rawDiscoveredTool)
-      const name = typeof discoveredTool.name === 'string' ? discoveredTool.name : null
-      if (!name) continue
-      permissions[name] = normalizePermission(discoveredTool.permission)
-    }
-    result[tool.id] = permissions
+    result[tool.id] = childPermissionsFromToolConfig(tool.config)
   }
   return result
 }
@@ -162,6 +181,7 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[], knowl
     name: agent.name || '',
     description: agent.description || '',
     systemPrompt: agent.system_prompt || '',
+    sessionMode: agent.session_mode === 'stateless' ? 'stateless' : 'stateful',
     responseFormat: {
       enabled: Boolean(responseFormat.enabled && responseFormat.type === 'json'),
       type: responseFormat.type === 'json' ? 'json' : 'text',
@@ -197,6 +217,11 @@ export function releaseToEditorState(release: AgentRelease, current: AgentEditor
     name: release.name ?? current.name,
     description: release.description ?? current.description,
     systemPrompt: release.system_prompt ?? current.systemPrompt,
+    sessionMode: release.session_mode === 'stateless'
+      ? 'stateless'
+      : release.session_mode === 'stateful'
+        ? 'stateful'
+        : current.sessionMode,
     provider: release.provider ?? current.provider,
     model: release.model ?? current.model,
     providerModelId: release.provider_model_id ?? current.providerModelId,
@@ -233,6 +258,7 @@ export function canonicalSnapshot(state: AgentEditorState): Record<string, unkno
     name: state.name,
     description: state.description,
     system_prompt: state.systemPrompt,
+    session_mode: state.sessionMode,
     response_format: {
       enabled: state.responseFormat.enabled,
       type: state.responseFormat.type,

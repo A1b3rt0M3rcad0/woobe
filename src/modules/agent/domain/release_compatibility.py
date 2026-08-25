@@ -60,6 +60,9 @@ def classify_release_change(
     if previous is None:
         return ReleaseChangeKind.CHANGE
 
+    if previous.session_mode != candidate.session_mode:
+        return ReleaseChangeKind.COMPATIBILITY
+
     simple_contract_kind = _simple_contract_change_kind(
         previous.output_schema,
         candidate.output_schema,

@@ -7,10 +7,10 @@ from uuid import UUID, uuid4
 import pytest
 
 from modules.agent.application.mcp_tool_refresh import refresh_stale_mcp_server_tools
-from modules.agent.application.ports import ExecutionResult, ToolExecutionPort, ToolSecretResolverPort
+from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort, ToolSecretResolverPort
 from modules.agent.domain.entities import Tool
 from modules.agent.domain.enums import RiskLevel, ToolStatus, ToolType
-from modules.agent.domain.repositories import ToolRepository
+from modules.agent.application.interfaces.repositories import ToolRepository
 from shared.infra.objects import CursorPage
 from shared.infra.time import utc_now
 
@@ -46,6 +46,25 @@ class FakeExecutor(ToolExecutionPort):
                 }
             },
         )
+
+
+class SequenceExecutor(ToolExecutionPort):
+    def __init__(self, results: list[ExecutionResult]) -> None:
+        self.results = results
+        self.calls: list[dict] = []
+
+    async def execute(
+        self,
+        method: str,
+        url: str,
+        headers: dict[str, str] | None = None,
+        body: str | None = None,
+        timeout_ms: int = 30000,
+    ) -> ExecutionResult:
+        self.calls.append({"method": method, "url": url, "headers": headers or {}, "body": body, "timeout_ms": timeout_ms})
+        if not self.results:
+            raise AssertionError("Unexpected executor call")
+        return self.results.pop(0)
 
 
 class FakeSecretResolver(ToolSecretResolverPort):
@@ -177,3 +196,44 @@ async def test_refresh_stale_mcp_server_tools_skips_fresh_cache() -> None:
     assert refreshed == [tool]
     assert repo.updated == []
     assert executor.calls == []
+
+
+@pytest.mark.asyncio
+async def test_refresh_classifies_incomplete_run_tools_oauth_as_managed_provider() -> None:
+    server_url = "https://skillflow--rafsilva85.run.tools"
+    resource_metadata_url = f"{server_url}/.well-known/oauth-protected-resource"
+    tool = mcp_provider(
+        {
+            "protocol": "mcp",
+            "mode": "server",
+            "exposure": "all_discovered",
+            "server": {"transport": "streamable_http", "url": server_url},
+            "discovery_cache_ttl_seconds": 0,
+            "discovered_tools": [],
+        }
+    )
+    repo = FakeToolRepository()
+    executor = SequenceExecutor([
+        ExecutionResult(
+            success=False,
+            status_code=401,
+            error="Unauthorized",
+            headers={"www-authenticate": f"Bearer resource_metadata=\"{resource_metadata_url}\""},
+        ),
+        ExecutionResult(
+            success=True,
+            status_code=200,
+            output={"body": {"authorization_servers": ["https://auth.smithery.example"]}},
+        ),
+        ExecutionResult(success=False, status_code=404, error="Not found"),
+        ExecutionResult(success=False, status_code=404, error="Not found"),
+    ])
+
+    refreshed = await refresh_stale_mcp_server_tools(tools=[tool], tool_repo=repo, executor=executor)
+
+    assert refreshed[0].config["mcp_status"] == "provider_managed"
+    assert refreshed[0].config["mcp_oauth_discovery"]["status"] == "provider_managed"
+    assert refreshed[0].config["mcp_oauth_discovery"]["provider"] == "smithery"
+    assert refreshed[0].config["mcp_readiness"]["state"] == "provider_managed"
+    assert refreshed[0].config["mcp_readiness"]["action"] == "provider_credentials"
+    assert len(executor.calls) == 4

@@ -8,26 +8,26 @@ import {
 
 describe('first-run setup paths', () => {
   it('continues Project creation inside the same setup workspace', () => {
-    expect(firstRunProjectSetupPath('org-1', 'project-1'))
-      .toBe('/organizations/org-1/projects/project-1/setup')
+    expect(firstRunProjectSetupPath('workspace-1', 'project-1'))
+      .toBe('/workspaces/workspace-1/projects/project-1/setup')
   })
 
   it('keeps Agent details, model and review inside one stable setup route', () => {
-    const setupPath = firstRunProjectSetupPath('org-1', 'project-1')
+    const setupPath = firstRunProjectSetupPath('workspace-1', 'project-1')
     expect(setupPath).not.toContain('/details')
     expect(setupPath).not.toContain('/model')
     expect(setupPath).not.toContain('/review')
   })
 
   it('opens the created Agent directly in the explicit first-run Playground', () => {
-    expect(firstRunPlaygroundPath('org-1', 'project-1', 'agent-1'))
-      .toBe('/organizations/org-1/projects/project-1/agents/agent-1/playground?firstRun=1')
+    expect(firstRunPlaygroundPath('workspace-1', 'project-1', 'agent-1'))
+      .toBe('/workspaces/workspace-1/projects/project-1/agents/agent-1/playground?firstRun=1')
   })
 
   it('uses the correct exit destination before and after Project creation', () => {
-    expect(firstRunExitPath('org-1'))
-      .toBe('/organizations/org-1/projects')
-    expect(firstRunExitPath('org-1', 'project-1'))
-      .toBe('/organizations/org-1/projects/project-1/agents')
+    expect(firstRunExitPath('workspace-1'))
+      .toBe('/workspaces/workspace-1/projects')
+    expect(firstRunExitPath('workspace-1', 'project-1'))
+      .toBe('/workspaces/workspace-1/projects/project-1/agents')
   })
 })

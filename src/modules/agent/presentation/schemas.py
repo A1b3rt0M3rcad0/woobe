@@ -534,6 +534,7 @@ class ToolCallResponse(BaseModel):
 
 
 class AskResponse(BaseModel):
+    run_id: UUID | None = None
     answer: str
     session_id: UUID | None = None
     message_id: UUID | None = None

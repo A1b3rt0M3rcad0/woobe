@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from shared.infra.errors import ValidationError
+from shared.contracts.errors import ValidationError
 
 
 PAGE_SEPARATOR = "\n<<<PAGE_BREAK>>>\n"

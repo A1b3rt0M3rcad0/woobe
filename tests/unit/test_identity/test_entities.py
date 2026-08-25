@@ -3,9 +3,9 @@ from datetime import datetime
 from uuid import UUID
 
 from modules.identity.domain.entities import (
-    Organization,
-    OrganizationInvite,
-    OrganizationMember,
+    Workspace,
+    WorkspaceInvite,
+    WorkspaceMember,
     User,
     UserSession,
 )
@@ -13,7 +13,7 @@ from modules.identity.domain.enums import (
     InviteStatus,
     MemberRole,
     MemberStatus,
-    OrganizationStatus,
+    WorkspaceStatus,
     UserSessionStatus,
     UserStatus,
 )
@@ -52,44 +52,44 @@ class TestUser:
         assert user1.id != user2.id
 
 
-class TestOrganization:
+class TestWorkspace:
     def test_default_creation(self):
-        org = Organization()
-        assert isinstance(org.id, UUID)
-        assert org.name == ""
-        assert org.slug == ""
-        assert org.status == OrganizationStatus.active
-        assert org.created_at is None
-        assert org.updated_at is None
+        workspace = Workspace()
+        assert isinstance(workspace.id, UUID)
+        assert workspace.name == ""
+        assert workspace.slug == ""
+        assert workspace.status == WorkspaceStatus.active
+        assert workspace.created_at is None
+        assert workspace.updated_at is None
 
     def test_field_types(self):
         now = datetime.now()
-        org = Organization(
+        workspace = Workspace(
             id=uuid6.uuid7(),
-            name="MyOrg",
-            slug="my-org",
-            status=OrganizationStatus.suspended,
+            name="MyWorkspace",
+            slug="my-workspace",
+            status=WorkspaceStatus.suspended,
             created_at=now,
             updated_at=now,
         )
-        assert isinstance(org.id, UUID)
-        assert isinstance(org.name, str)
-        assert isinstance(org.slug, str)
-        assert isinstance(org.status, OrganizationStatus)
-        assert isinstance(org.created_at, datetime)
+        assert isinstance(workspace.id, UUID)
+        assert isinstance(workspace.name, str)
+        assert isinstance(workspace.slug, str)
+        assert isinstance(workspace.status, WorkspaceStatus)
+        assert isinstance(workspace.created_at, datetime)
 
     def test_uuid_generation(self):
-        o1 = Organization()
-        o2 = Organization()
+        o1 = Workspace()
+        o2 = Workspace()
         assert o1.id != o2.id
 
 
-class TestOrganizationMember:
+class TestWorkspaceMember:
     def test_default_creation(self):
-        m = OrganizationMember()
+        m = WorkspaceMember()
         assert isinstance(m.id, UUID)
         assert isinstance(m.user_id, UUID)
-        assert isinstance(m.organization_id, UUID)
+        assert isinstance(m.workspace_id, UUID)
         assert m.role == MemberRole.member
         assert m.status == MemberStatus.active
         assert m.joined_at is None
@@ -98,10 +98,10 @@ class TestOrganizationMember:
 
     def test_field_types(self):
         now = datetime.now()
-        m = OrganizationMember(
+        m = WorkspaceMember(
             id=uuid6.uuid7(),
             user_id=uuid6.uuid7(),
-            organization_id=uuid6.uuid7(),
+            workspace_id=uuid6.uuid7(),
             role=MemberRole.admin,
             status=MemberStatus.inactive,
             joined_at=now,
@@ -112,16 +112,16 @@ class TestOrganizationMember:
         assert isinstance(m.status, MemberStatus)
 
     def test_uuid_generation(self):
-        m1 = OrganizationMember()
-        m2 = OrganizationMember()
+        m1 = WorkspaceMember()
+        m2 = WorkspaceMember()
         assert m1.id != m2.id
 
 
-class TestOrganizationInvite:
+class TestWorkspaceInvite:
     def test_default_creation(self):
-        inv = OrganizationInvite()
+        inv = WorkspaceInvite()
         assert isinstance(inv.id, UUID)
-        assert isinstance(inv.organization_id, UUID)
+        assert isinstance(inv.workspace_id, UUID)
         assert inv.email == ""
         assert inv.role == MemberRole.member
         assert inv.token_hash == ""
@@ -134,9 +134,9 @@ class TestOrganizationInvite:
 
     def test_field_types(self):
         now = datetime.now()
-        inv = OrganizationInvite(
+        inv = WorkspaceInvite(
             id=uuid6.uuid7(),
-            organization_id=uuid6.uuid7(),
+            workspace_id=uuid6.uuid7(),
             email="invite@test.com",
             role=MemberRole.viewer,
             token_hash="abc123",
@@ -151,8 +151,8 @@ class TestOrganizationInvite:
         assert isinstance(inv.status, InviteStatus)
 
     def test_uuid_generation(self):
-        i1 = OrganizationInvite()
-        i2 = OrganizationInvite()
+        i1 = WorkspaceInvite()
+        i2 = WorkspaceInvite()
         assert i1.id != i2.id
 
 

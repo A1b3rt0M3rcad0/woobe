@@ -18,8 +18,8 @@ from modules.agent.infra.database.models import (
 )
 from modules.core.infra.database.models import ApiKeyModel, ProjectModel
 from modules.identity.infra.database.models import (
-    OrganizationMemberModel,
-    OrganizationModel,
+    WorkspaceMemberModel,
+    WorkspaceModel,
     UserModel,
 )
 from modules.observability.infra.database.models import TraceModel
@@ -36,7 +36,7 @@ async def tenant_graph():
     now = datetime.now(UTC)
 
     user_a_id, user_b_id = uuid4(), uuid4()
-    org_a_id, org_b_id = uuid4(), uuid4()
+    workspace_a_id, workspace_b_id = uuid4(), uuid4()
     project_a_id, project_b_id = uuid4(), uuid4()
     credential_id = uuid4()
     agent_id = uuid4()
@@ -67,16 +67,16 @@ async def tenant_graph():
                     password=b"password-hash-b",
                     status="active",
                 ),
-                OrganizationModel(
-                    id=org_a_id,
+                WorkspaceModel(
+                    id=workspace_a_id,
                     name="Tenant A",
-                    slug=f"tenant-a-{org_a_id}",
+                    slug=f"tenant-a-{workspace_a_id}",
                     status="active",
                 ),
-                OrganizationModel(
-                    id=org_b_id,
+                WorkspaceModel(
+                    id=workspace_b_id,
                     name="Tenant B",
-                    slug=f"tenant-b-{org_b_id}",
+                    slug=f"tenant-b-{workspace_b_id}",
                     status="active",
                 ),
             ]
@@ -85,25 +85,25 @@ async def tenant_graph():
 
         session.add_all(
             [
-                OrganizationMemberModel(
+                WorkspaceMemberModel(
                     id=uuid4(),
                     user_id=user_a_id,
-                    organization_id=org_a_id,
+                    workspace_id=workspace_a_id,
                     role="owner",
                     status="active",
                     joined_at=now,
                 ),
-                OrganizationMemberModel(
+                WorkspaceMemberModel(
                     id=uuid4(),
                     user_id=user_b_id,
-                    organization_id=org_b_id,
+                    workspace_id=workspace_b_id,
                     role="owner",
                     status="active",
                     joined_at=now,
                 ),
                 ProjectModel(
                     id=project_a_id,
-                    organization_id=org_a_id,
+                    workspace_id=workspace_a_id,
                     name="Project A",
                     slug=f"project-a-{project_a_id}",
                     status="active",
@@ -111,7 +111,7 @@ async def tenant_graph():
                 ),
                 ProjectModel(
                     id=project_b_id,
-                    organization_id=org_b_id,
+                    workspace_id=workspace_b_id,
                     name="Project B",
                     slug=f"project-b-{project_b_id}",
                     status="active",
@@ -126,6 +126,7 @@ async def tenant_graph():
                 ApiKeyModel(
                     id=api_key_id,
                     project_id=project_b_id,
+                    credential_id=api_key_id,
                     name="Tenant B key",
                     key_prefix=f"tb{api_key_id.hex[:10]}",
                     key_hash=api_key_id.bytes + project_b_id.bytes,
@@ -282,7 +283,7 @@ async def tenant_graph():
         yield session, {
             "owner_user_id": user_b_id,
             "foreign_user_id": user_a_id,
-            "organization_id": org_b_id,
+            "workspace_id": workspace_b_id,
             "project_id": project_b_id,
             "api_key_id": api_key_id,
             "credential_id": credential_id,
@@ -310,7 +311,7 @@ async def test_postgres_tenant_matrix_hides_every_private_resource_from_foreign_
     authorizer = TenantAuthorizer(session)
 
     resource_matrix: list[tuple[str, UUID]] = [
-        ("organization_id", graph["organization_id"]),
+        ("workspace_id", graph["workspace_id"]),
         ("project_id", graph["project_id"]),
         ("api_key_id", graph["api_key_id"]),
         ("credential_id", graph["credential_id"]),

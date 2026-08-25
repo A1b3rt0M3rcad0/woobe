@@ -5,11 +5,11 @@ from uuid import uuid4
 import pytest
 
 from modules.identity.application.authentication_service import (
-    DEFAULT_ORGANIZATION_NAME,
+    DEFAULT_WORKSPACE_NAME,
     AuthenticationService,
 )
 from modules.identity.application.session_lifecycle import IssuedSession
-from modules.identity.domain.enums import MemberRole, OrganizationStatus, UserStatus
+from modules.identity.domain.enums import MemberRole, WorkspaceStatus, UserStatus
 
 
 class FakeIdentityUnitOfWork:
@@ -35,9 +35,9 @@ def make_service() -> AuthenticationService:
 
 
 @pytest.mark.asyncio
-async def test_register_provisions_default_owned_organization_and_returns_it(monkeypatch) -> None:
+async def test_register_provisions_default_owned_workspace_and_returns_it(monkeypatch) -> None:
     user_id = uuid4()
-    organization_id = uuid4()
+    workspace_id = uuid4()
     member_id = uuid4()
     session_id = uuid4()
 
@@ -47,16 +47,16 @@ async def test_register_provisions_default_owned_organization_and_returns_it(mon
         password="hashed",
         status=UserStatus.active,
     )
-    organization = SimpleNamespace(
-        id=organization_id,
-        name=DEFAULT_ORGANIZATION_NAME,
-        slug=f"org-{str(user_id)[:8]}",
-        status=OrganizationStatus.active,
+    workspace = SimpleNamespace(
+        id=workspace_id,
+        name=DEFAULT_WORKSPACE_NAME,
+        slug=f"workspace-{str(user_id)[:8]}",
+        status=WorkspaceStatus.active,
     )
     member = SimpleNamespace(
         id=member_id,
         user_id=user_id,
-        organization_id=organization_id,
+        workspace_id=workspace_id,
         role=MemberRole.owner,
     )
 
@@ -65,9 +65,9 @@ async def test_register_provisions_default_owned_organization_and_returns_it(mon
             get_by_email=AsyncMock(return_value=None),
             save=AsyncMock(return_value=user),
         ),
-        organizations=SimpleNamespace(
+        workspaces=SimpleNamespace(
             get_by_slug=AsyncMock(return_value=None),
-            save=AsyncMock(return_value=organization),
+            save=AsyncMock(return_value=workspace),
         ),
         members=SimpleNamespace(save=AsyncMock(return_value=member)),
         outbox=SimpleNamespace(write=AsyncMock()),
@@ -95,18 +95,18 @@ async def test_register_provisions_default_owned_organization_and_returns_it(mon
     )
 
     assert result.user.id == user_id
-    assert result.organization is not None
-    assert result.organization.id == organization_id
-    assert result.organization.name == DEFAULT_ORGANIZATION_NAME
-    assert result.organization.slug == f"org-{str(user_id)[:8]}"
+    assert result.workspace is not None
+    assert result.workspace.id == workspace_id
+    assert result.workspace.name == DEFAULT_WORKSPACE_NAME
+    assert result.workspace.slug == f"workspace-{str(user_id)[:8]}"
 
-    saved_organization = uow.organizations.save.await_args.args[0]
-    assert saved_organization.name == DEFAULT_ORGANIZATION_NAME
-    assert saved_organization.slug == f"org-{str(user_id)[:8]}"
+    saved_workspace = uow.workspaces.save.await_args.args[0]
+    assert saved_workspace.name == DEFAULT_WORKSPACE_NAME
+    assert saved_workspace.slug == f"workspace-{str(user_id)[:8]}"
 
     saved_member = uow.members.save.await_args.args[0]
     assert saved_member.user_id == user_id
-    assert saved_member.organization_id == organization_id
+    assert saved_member.workspace_id == workspace_id
     assert saved_member.role == MemberRole.owner
 
     event_types = [
@@ -115,35 +115,35 @@ async def test_register_provisions_default_owned_organization_and_returns_it(mon
     ]
     assert event_types == [
         "user.created.v1",
-        "organization.created.v1",
-        "organization.member_added.v1",
+        "workspace.created.v1",
+        "workspace.member_added.v1",
     ]
 
 
 @pytest.mark.asyncio
-async def test_create_organization_adds_authenticated_user_as_owner(monkeypatch) -> None:
+async def test_create_workspace_adds_authenticated_user_as_owner(monkeypatch) -> None:
     user_id = uuid4()
-    organization_id = uuid4()
+    workspace_id = uuid4()
     member_id = uuid4()
 
     user = SimpleNamespace(id=user_id, status=UserStatus.active)
-    organization = SimpleNamespace(
-        id=organization_id,
-        name="Second Organization",
-        slug="second-organization",
-        status=OrganizationStatus.active,
+    workspace = SimpleNamespace(
+        id=workspace_id,
+        name="Second Workspace",
+        slug="second-workspace",
+        status=WorkspaceStatus.active,
     )
     member = SimpleNamespace(
         id=member_id,
         user_id=user_id,
-        organization_id=organization_id,
+        workspace_id=workspace_id,
         role=MemberRole.owner,
     )
     uow = SimpleNamespace(
         users=SimpleNamespace(get_by_id=AsyncMock(return_value=user)),
-        organizations=SimpleNamespace(
+        workspaces=SimpleNamespace(
             get_by_slug=AsyncMock(return_value=None),
-            save=AsyncMock(return_value=organization),
+            save=AsyncMock(return_value=workspace),
         ),
         members=SimpleNamespace(save=AsyncMock(return_value=member)),
         outbox=SimpleNamespace(write=AsyncMock()),
@@ -154,16 +154,16 @@ async def test_create_organization_adds_authenticated_user_as_owner(monkeypatch)
         FakeIdentityUnitOfWork,
     )
 
-    result = await make_service().create_organization(
+    result = await make_service().create_workspace(
         user_id=user_id,
-        name=" Second Organization ",
-        slug="SECOND-ORGANIZATION",
+        name=" Second Workspace ",
+        slug="SECOND-WORKSPACE",
     )
 
-    assert result.id == organization_id
+    assert result.id == workspace_id
     saved_member = uow.members.save.await_args.args[0]
     assert saved_member.user_id == user_id
-    assert saved_member.organization_id == organization_id
+    assert saved_member.workspace_id == workspace_id
     assert saved_member.role == MemberRole.owner
 
     event_types = [
@@ -171,6 +171,6 @@ async def test_create_organization_adds_authenticated_user_as_owner(monkeypatch)
         for call in uow.outbox.write.await_args_list
     ]
     assert event_types == [
-        "organization.created.v1",
-        "organization.member_added.v1",
+        "workspace.created.v1",
+        "workspace.member_added.v1",
     ]

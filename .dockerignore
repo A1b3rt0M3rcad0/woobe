@@ -13,12 +13,14 @@ __pycache__/
 .pyright/
 .coverage
 htmlcov/
+.test-artifacts/
 .python-version
 node_modules/
 web/
-tests/
 docs/
 specs/
 .opencode/
+src/editions/cloud/
+src/editions/enterprise/
 *.log
 README.md

@@ -16,16 +16,16 @@ class CreateProjectUseCase:
         self._outbox = outbox
 
     async def execute(self, input_dto: CreateProjectInput) -> CreateProjectOutput:
-        existing = await self._project_repo.get_by_organization_and_slug(
-            input_dto.organization_id, input_dto.slug
+        existing = await self._project_repo.get_by_workspace_and_slug(
+            input_dto.workspace_id, input_dto.slug
         )
         if existing:
             raise DuplicateSlugError(
-                f"Project with slug '{input_dto.slug}' already exists in this organization"
+                f"Project with slug '{input_dto.slug}' already exists in this workspace"
             )
 
         project = Project(
-            organization_id=input_dto.organization_id,
+            workspace_id=input_dto.workspace_id,
             name=input_dto.name,
             slug=input_dto.slug,
         )
@@ -36,7 +36,7 @@ class CreateProjectUseCase:
             aggregate_id=saved.id,
             event_type="project.created.v1",
             payload={
-                "organization_id": str(saved.organization_id),
+                "workspace_id": str(saved.workspace_id),
                 "name": saved.name,
                 "slug": saved.slug,
             },
@@ -46,7 +46,7 @@ class CreateProjectUseCase:
 
         return CreateProjectOutput(
             id=saved.id,
-            organization_id=saved.organization_id,
+            workspace_id=saved.workspace_id,
             name=saved.name,
             slug=saved.slug,
             status=saved.status,

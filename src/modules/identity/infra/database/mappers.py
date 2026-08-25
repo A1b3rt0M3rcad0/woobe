@@ -1,7 +1,7 @@
 from modules.identity.domain.entities import (
-    Organization,
-    OrganizationInvite,
-    OrganizationMember,
+    Workspace,
+    WorkspaceInvite,
+    WorkspaceMember,
     User,
     UserSession,
 )
@@ -9,14 +9,14 @@ from modules.identity.domain.enums import (
     InviteStatus,
     MemberRole,
     MemberStatus,
-    OrganizationStatus,
+    WorkspaceStatus,
     UserSessionStatus,
     UserStatus,
 )
 from modules.identity.infra.database.models import (
-    OrganizationInviteModel,
-    OrganizationMemberModel,
-    OrganizationModel,
+    WorkspaceInviteModel,
+    WorkspaceMemberModel,
+    WorkspaceModel,
     UserModel,
     UserSessionModel,
 )
@@ -42,19 +42,19 @@ def user_entity_to_model(entity: User) -> UserModel:
     )
 
 
-def organization_model_to_entity(model: OrganizationModel) -> Organization:
-    return Organization(
+def workspace_model_to_entity(model: WorkspaceModel) -> Workspace:
+    return Workspace(
         id=model.id,
         name=model.name,
         slug=model.slug,
-        status=OrganizationStatus(model.status),
+        status=WorkspaceStatus(model.status),
         created_at=model.created_at,
         updated_at=model.updated_at,
     )
 
 
-def organization_entity_to_model(entity: Organization) -> OrganizationModel:
-    return OrganizationModel(
+def workspace_entity_to_model(entity: Workspace) -> WorkspaceModel:
+    return WorkspaceModel(
         id=entity.id,
         name=entity.name,
         slug=entity.slug,
@@ -62,13 +62,13 @@ def organization_entity_to_model(entity: Organization) -> OrganizationModel:
     )
 
 
-def organization_member_model_to_entity(
-    model: OrganizationMemberModel,
-) -> OrganizationMember:
-    return OrganizationMember(
+def workspace_member_model_to_entity(
+    model: WorkspaceMemberModel,
+) -> WorkspaceMember:
+    return WorkspaceMember(
         id=model.id,
         user_id=model.user_id,
-        organization_id=model.organization_id,
+        workspace_id=model.workspace_id,
         role=MemberRole(model.role),
         status=MemberStatus(model.status),
         joined_at=model.joined_at,
@@ -77,25 +77,25 @@ def organization_member_model_to_entity(
     )
 
 
-def organization_member_entity_to_model(
-    entity: OrganizationMember,
-) -> OrganizationMemberModel:
-    return OrganizationMemberModel(
+def workspace_member_entity_to_model(
+    entity: WorkspaceMember,
+) -> WorkspaceMemberModel:
+    return WorkspaceMemberModel(
         id=entity.id,
         user_id=entity.user_id,
-        organization_id=entity.organization_id,
+        workspace_id=entity.workspace_id,
         role=entity.role.value,
         status=entity.status.value,
         joined_at=entity.joined_at,
     )
 
 
-def organization_invite_model_to_entity(
-    model: OrganizationInviteModel,
-) -> OrganizationInvite:
-    return OrganizationInvite(
+def workspace_invite_model_to_entity(
+    model: WorkspaceInviteModel,
+) -> WorkspaceInvite:
+    return WorkspaceInvite(
         id=model.id,
-        organization_id=model.organization_id,
+        workspace_id=model.workspace_id,
         email=model.email,
         role=MemberRole(model.role),
         token_hash=model.token_hash,
@@ -108,12 +108,12 @@ def organization_invite_model_to_entity(
     )
 
 
-def organization_invite_entity_to_model(
-    entity: OrganizationInvite,
-) -> OrganizationInviteModel:
-    return OrganizationInviteModel(
+def workspace_invite_entity_to_model(
+    entity: WorkspaceInvite,
+) -> WorkspaceInviteModel:
+    return WorkspaceInviteModel(
         id=entity.id,
-        organization_id=entity.organization_id,
+        workspace_id=entity.workspace_id,
         email=entity.email,
         role=entity.role.value,
         token_hash=entity.token_hash,

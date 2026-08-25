@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from uuid import UUID
 
-from modules.agent.domain.ports.file_storage import (
+from modules.agent.application.interfaces.file_storage import (
     StoredFile,
     build_document_storage_key,
     compute_sha256,
@@ -23,15 +23,13 @@ class S3FileStorage:
         server_side_encryption: str | None = None,
     ) -> None:
         if not bucket:
-            raise ValueError("PROJECTRAI_S3_BUCKET is required when PROJECTRAI_STORAGE_DRIVER=s3")
+            raise ValueError("WOOBE_S3_BUCKET is required when WOOBE_STORAGE_DRIVER=s3")
 
         try:
             import boto3
             from botocore.config import Config
         except ImportError as exc:
-            raise RuntimeError(
-                "boto3 is required when PROJECTRAI_STORAGE_DRIVER=s3"
-            ) from exc
+            raise RuntimeError("boto3 is required when WOOBE_STORAGE_DRIVER=s3") from exc
 
         config = Config(
             s3={"addressing_style": "path" if force_path_style else "auto"}

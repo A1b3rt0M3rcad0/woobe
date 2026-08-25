@@ -1,16 +1,20 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, Field
 
 from modules.agent.domain.enums import MessageRole, RuntimeSessionMode as SessionMode, SessionStatus
 
+RuntimeEnvironment = Literal["draft", "staging", "production"]
+
 
 class CreateSessionInput(BaseModel):
     project_id: UUID
     agent_id: UUID
+    runtime_environment: RuntimeEnvironment = "draft"
     external_session_id: str | None = None
     tenant_id: str | None = None
     user_id: str | None = None
@@ -22,6 +26,8 @@ class CreateSessionOutput(BaseModel):
     id: UUID
     project_id: UUID
     agent_id: UUID
+    runtime_environment: RuntimeEnvironment
+    opened_release_id: UUID | None = None
     external_session_id: str | None
     tenant_id: str | None
     user_id: str | None
@@ -80,6 +86,7 @@ class ListMessagesOutput(BaseModel):
 class ListAgentSessionsInput(BaseModel):
     project_id: UUID
     agent_id: UUID
+    environment: RuntimeEnvironment | None = None
     cursor: str | None = None
     limit: int = Field(default=20, ge=1, le=100)
 
@@ -88,8 +95,11 @@ class ListAgentSessionsOutput(BaseModel):
     id: UUID
     project_id: UUID
     agent_id: UUID
+    runtime_environment: RuntimeEnvironment
+    opened_release_id: UUID | None = None
     status: SessionStatus
     mode: SessionMode
+    data: dict | None = None
     last_message_at: datetime | None = None
     created_at: datetime | None = None
     message_count: int = 0
@@ -137,10 +147,13 @@ class ToolCallInfo(BaseModel):
     output: dict | None = None
     duration_ms: float | None = None
     success: bool = True
+    status: str | None = None
+    error_code: str | None = None
     error: str | None = None
 
 
 class AskOutput(BaseModel):
+    run_id: UUID | None = None
     answer: str
     session_id: UUID | None = None
     message_id: UUID | None = None

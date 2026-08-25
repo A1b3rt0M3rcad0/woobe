@@ -3,32 +3,32 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from modules.identity.domain.entities import (
-    Organization,
-    OrganizationInvite,
-    OrganizationMember,
+    Workspace,
+    WorkspaceInvite,
+    WorkspaceMember,
     User,
 )
 from modules.identity.domain.enums import InviteStatus, MemberRole
 from modules.identity.domain.errors import (
     EmailAlreadyExistsError,
-    OrganizationNotFoundError,
+    WorkspaceNotFoundError,
     UserNotFoundError,
 )
 from modules.identity.domain.repositories import (
-    OrganizationInviteRepository,
-    OrganizationMemberRepository,
-    OrganizationRepository,
+    WorkspaceInviteRepository,
+    WorkspaceMemberRepository,
+    WorkspaceRepository,
     UserRepository,
 )
 from modules.identity.application.dtos import (
     AddMemberInput,
     AddMemberOutput,
-    CreateOrganizationInput,
-    CreateOrganizationOutput,
+    CreateWorkspaceInput,
+    CreateWorkspaceOutput,
     GetCurrentUserInput,
     GetCurrentUserOutput,
-    GetOrganizationInput,
-    GetOrganizationOutput,
+    GetWorkspaceInput,
+    GetWorkspaceOutput,
     GetUserInput,
     GetUserOutput,
     InviteUserInput,
@@ -37,14 +37,14 @@ from modules.identity.application.dtos import (
     ListInvitesOutput,
     ListMembersInput,
     ListMembersOutput,
-    ListOrganizationsInput,
-    ListOrganizationsOutput,
+    ListWorkspacesInput,
+    ListWorkspacesOutput,
     LoginInput,
     LoginOutput,
     RegisterInput,
     RegisterOutput,
-    UpdateOrganizationInput,
-    UpdateOrganizationOutput,
+    UpdateWorkspaceInput,
+    UpdateWorkspaceOutput,
     CreateUserInput,
     CreateUserOutput,
 )
@@ -89,36 +89,36 @@ class CreateUserUseCase:
         )
 
 
-class CreateOrganizationUseCase:
+class CreateWorkspaceUseCase:
 
     def __init__(
         self,
-        org_repo: OrganizationRepository,
+        workspace_repo: WorkspaceRepository,
         outbox: OutboxEventWriter,
     ) -> None:
-        self._org_repo = org_repo
+        self._workspace_repo = workspace_repo
         self._outbox = outbox
 
     async def execute(
-        self, input_dto: CreateOrganizationInput
-    ) -> CreateOrganizationOutput:
-        existing = await self._org_repo.get_by_slug(input_dto.slug)
+        self, input_dto: CreateWorkspaceInput
+    ) -> CreateWorkspaceOutput:
+        existing = await self._workspace_repo.get_by_slug(input_dto.slug)
         if existing:
-            raise ConflictError(f"Organization with slug '{input_dto.slug}' already exists")
+            raise ConflictError(f"Workspace with slug '{input_dto.slug}' already exists")
 
-        org = Organization(name=input_dto.name, slug=input_dto.slug)
-        saved = await self._org_repo.save(org)
+        workspace = Workspace(name=input_dto.name, slug=input_dto.slug)
+        saved = await self._workspace_repo.save(workspace)
 
         await self._outbox.write(
-            aggregate_type="organization",
+            aggregate_type="workspace",
             aggregate_id=saved.id,
-            event_type="organization.created.v1",
+            event_type="workspace.created.v1",
             payload={"name": saved.name, "slug": saved.slug},
-            routing_key="organization.created.v1",
-            idempotency_key=f"identity:organization.created.v1:{saved.id}",
+            routing_key="workspace.created.v1",
+            idempotency_key=f"identity:workspace.created.v1:{saved.id}",
         )
 
-        return CreateOrganizationOutput(
+        return CreateWorkspaceOutput(
             id=saved.id,
             name=saved.name,
             slug=saved.slug,
@@ -127,105 +127,105 @@ class CreateOrganizationUseCase:
         )
 
 
-class AddMemberToOrganizationUseCase:
+class AddMemberToWorkspaceUseCase:
 
     def __init__(
         self,
-        org_repo: OrganizationRepository,
+        workspace_repo: WorkspaceRepository,
         user_repo: UserRepository,
-        member_repo: OrganizationMemberRepository,
+        member_repo: WorkspaceMemberRepository,
         outbox: OutboxEventWriter,
     ) -> None:
-        self._org_repo = org_repo
+        self._workspace_repo = workspace_repo
         self._user_repo = user_repo
         self._member_repo = member_repo
         self._outbox = outbox
 
     async def execute(self, input_dto: AddMemberInput) -> AddMemberOutput:
-        org = await self._org_repo.get_by_id(input_dto.organization_id)
-        if not org:
-            raise OrganizationNotFoundError(input_dto.organization_id)
+        workspace = await self._workspace_repo.get_by_id(input_dto.workspace_id)
+        if not workspace:
+            raise WorkspaceNotFoundError(input_dto.workspace_id)
 
         user = await self._user_repo.get_by_id(input_dto.user_id)
         if not user:
             raise UserNotFoundError(input_dto.user_id)
 
-        existing_member = await self._member_repo.get_by_organization_and_user(
-            input_dto.organization_id, input_dto.user_id
+        existing_member = await self._member_repo.get_by_workspace_and_user(
+            input_dto.workspace_id, input_dto.user_id
         )
         if existing_member:
-            raise ConflictError("User is already a member of this organization")
+            raise ConflictError("User is already a member of this workspace")
 
-        member = OrganizationMember(
+        member = WorkspaceMember(
             user_id=input_dto.user_id,
-            organization_id=input_dto.organization_id,
+            workspace_id=input_dto.workspace_id,
             role=input_dto.role,
             joined_at=datetime.now(UTC),
         )
         saved = await self._member_repo.save(member)
 
         await self._outbox.write(
-            aggregate_type="organization_member",
+            aggregate_type="workspace_member",
             aggregate_id=saved.id,
-            event_type="organization.member_added.v1",
+            event_type="workspace.member_added.v1",
             payload={
                 "user_id": str(saved.user_id),
-                "organization_id": str(saved.organization_id),
+                "workspace_id": str(saved.workspace_id),
                 "role": saved.role.value,
             },
-            routing_key="organization.member_added.v1",
-            idempotency_key=f"identity:organization.member_added.v1:{saved.id}",
+            routing_key="workspace.member_added.v1",
+            idempotency_key=f"identity:workspace.member_added.v1:{saved.id}",
         )
 
         return AddMemberOutput(
             id=saved.id,
             user_id=saved.user_id,
-            organization_id=saved.organization_id,
+            workspace_id=saved.workspace_id,
             role=saved.role,
             status=saved.status,
             joined_at=saved.joined_at,
         )
 
 
-class UpdateOrganizationUseCase:
+class UpdateWorkspaceUseCase:
 
     def __init__(
         self,
-        org_repo: OrganizationRepository,
+        workspace_repo: WorkspaceRepository,
         outbox: OutboxEventWriter,
     ) -> None:
-        self._org_repo = org_repo
+        self._workspace_repo = workspace_repo
         self._outbox = outbox
 
     async def execute(
-        self, org_id: UUID, input_dto: UpdateOrganizationInput
-    ) -> UpdateOrganizationOutput:
-        org = await self._org_repo.get_by_id(org_id)
-        if not org:
-            raise OrganizationNotFoundError(org_id)
+        self, workspace_id: UUID, input_dto: UpdateWorkspaceInput
+    ) -> UpdateWorkspaceOutput:
+        workspace = await self._workspace_repo.get_by_id(workspace_id)
+        if not workspace:
+            raise WorkspaceNotFoundError(workspace_id)
 
         if input_dto.name is not None:
-            org.name = input_dto.name
+            workspace.name = input_dto.name
         if input_dto.slug is not None:
-            existing = await self._org_repo.get_by_slug(input_dto.slug)
-            if existing and existing.id != org_id:
+            existing = await self._workspace_repo.get_by_slug(input_dto.slug)
+            if existing and existing.id != workspace_id:
                 from shared.infra.errors import ConflictError
-                raise ConflictError(f"Organization with slug '{input_dto.slug}' already exists")
-            org.slug = input_dto.slug
+                raise ConflictError(f"Workspace with slug '{input_dto.slug}' already exists")
+            workspace.slug = input_dto.slug
 
-        org.updated_at = datetime.now(UTC)
-        saved = await self._org_repo.save(org)
+        workspace.updated_at = datetime.now(UTC)
+        saved = await self._workspace_repo.save(workspace)
 
         await self._outbox.write(
-            aggregate_type="organization",
+            aggregate_type="workspace",
             aggregate_id=saved.id,
-            event_type="organization.updated.v1",
+            event_type="workspace.updated.v1",
             payload={"name": saved.name, "slug": saved.slug},
-            routing_key="organization.updated.v1",
-            idempotency_key=f"identity:organization.updated.v1:{saved.id}",
+            routing_key="workspace.updated.v1",
+            idempotency_key=f"identity:workspace.updated.v1:{saved.id}",
         )
 
-        return UpdateOrganizationOutput(
+        return UpdateWorkspaceOutput(
             id=saved.id,
             name=saved.name,
             slug=saved.slug,
@@ -239,28 +239,28 @@ class InviteUserUseCase:
 
     def __init__(
         self,
-        org_repo: OrganizationRepository,
-        invite_repo: OrganizationInviteRepository,
+        workspace_repo: WorkspaceRepository,
+        invite_repo: WorkspaceInviteRepository,
         outbox: OutboxEventWriter,
     ) -> None:
-        self._org_repo = org_repo
+        self._workspace_repo = workspace_repo
         self._invite_repo = invite_repo
         self._outbox = outbox
 
     async def execute(self, input_dto: InviteUserInput) -> InviteUserOutput:
-        org = await self._org_repo.get_by_id(input_dto.organization_id)
-        if not org:
-            raise OrganizationNotFoundError(input_dto.organization_id)
+        workspace = await self._workspace_repo.get_by_id(input_dto.workspace_id)
+        if not workspace:
+            raise WorkspaceNotFoundError(input_dto.workspace_id)
 
-        existing = await self._invite_repo.get_by_organization_and_email(
-            input_dto.organization_id, input_dto.email
+        existing = await self._invite_repo.get_by_workspace_and_email(
+            input_dto.workspace_id, input_dto.email
         )
         if existing and existing.status == InviteStatus.pending:
             raise ConflictError("A pending invite already exists for this email")
 
         expires_at = datetime.now(UTC) + timedelta(days=7)
-        invite = OrganizationInvite(
-            organization_id=input_dto.organization_id,
+        invite = WorkspaceInvite(
+            workspace_id=input_dto.workspace_id,
             email=input_dto.email,
             role=input_dto.role,
             token_hash="",
@@ -270,21 +270,21 @@ class InviteUserUseCase:
         saved = await self._invite_repo.save(invite)
 
         await self._outbox.write(
-            aggregate_type="organization_invite",
+            aggregate_type="workspace_invite",
             aggregate_id=saved.id,
-            event_type="organization.invite_created.v1",
+            event_type="workspace.invite_created.v1",
             payload={
-                "organization_id": str(saved.organization_id),
+                "workspace_id": str(saved.workspace_id),
                 "email": saved.email,
                 "role": saved.role.value,
             },
-            routing_key="organization.invite_created.v1",
-            idempotency_key=f"identity:organization.invite_created.v1:{saved.id}",
+            routing_key="workspace.invite_created.v1",
+            idempotency_key=f"identity:workspace.invite_created.v1:{saved.id}",
         )
 
         return InviteUserOutput(
             id=saved.id,
-            organization_id=saved.organization_id,
+            workspace_id=saved.workspace_id,
             email=saved.email,
             role=saved.role,
             status=saved.status,
@@ -293,20 +293,20 @@ class InviteUserUseCase:
         )
 
 
-class ListOrganizationsUseCase:
+class ListWorkspacesUseCase:
 
-    def __init__(self, org_repo: OrganizationRepository) -> None:
-        self._org_repo = org_repo
+    def __init__(self, workspace_repo: WorkspaceRepository) -> None:
+        self._workspace_repo = workspace_repo
 
-    async def execute(self, input_dto: ListOrganizationsInput) -> list[ListOrganizationsOutput]:
-        orgs = await self._org_repo.list_all()
-        return [ListOrganizationsOutput(
-            id=o.id,
-            name=o.name,
-            slug=o.slug,
-            status=o.status,
-            created_at=o.created_at,
-        ) for o in orgs]
+    async def execute(self, input_dto: ListWorkspacesInput) -> list[ListWorkspacesOutput]:
+        workspaces = await self._workspace_repo.list_all()
+        return [ListWorkspacesOutput(
+            id=workspace.id,
+            name=workspace.name,
+            slug=workspace.slug,
+            status=workspace.status,
+            created_at=workspace.created_at,
+        ) for workspace in workspaces]
 
 
 class LoginUseCase:
@@ -332,12 +332,12 @@ class RegisterUseCase:
     def __init__(
         self,
         user_repo: UserRepository,
-        org_repo: OrganizationRepository,
-        member_repo: OrganizationMemberRepository,
+        workspace_repo: WorkspaceRepository,
+        member_repo: WorkspaceMemberRepository,
         outbox: OutboxEventWriter,
     ) -> None:
         self._user_repo = user_repo
-        self._org_repo = org_repo
+        self._workspace_repo = workspace_repo
         self._member_repo = member_repo
         self._outbox = outbox
 
@@ -355,40 +355,40 @@ class RegisterUseCase:
             idempotency_key=f"identity:user.created.v1:{saved_user.id}",
         )
 
-        org = Organization(
-            name=input_dto.organization_name,
-            slug=input_dto.organization_name.lower().replace(" ", "-"),
+        workspace = Workspace(
+            name=input_dto.workspace_name,
+            slug=input_dto.workspace_name.lower().replace(" ", "-"),
         )
-        saved_org = await self._org_repo.save(org)
+        saved_workspace = await self._workspace_repo.save(workspace)
 
         await self._outbox.write(
-            aggregate_type="organization",
-            aggregate_id=saved_org.id,
-            event_type="organization.created.v1",
-            payload={"name": saved_org.name, "slug": saved_org.slug},
-            routing_key="organization.created.v1",
-            idempotency_key=f"identity:organization.created.v1:{saved_org.id}",
+            aggregate_type="workspace",
+            aggregate_id=saved_workspace.id,
+            event_type="workspace.created.v1",
+            payload={"name": saved_workspace.name, "slug": saved_workspace.slug},
+            routing_key="workspace.created.v1",
+            idempotency_key=f"identity:workspace.created.v1:{saved_workspace.id}",
         )
 
-        member = OrganizationMember(
+        member = WorkspaceMember(
             user_id=saved_user.id,
-            organization_id=saved_org.id,
+            workspace_id=saved_workspace.id,
             role=MemberRole.owner,
             joined_at=datetime.now(UTC),
         )
         await self._member_repo.save(member)
 
         await self._outbox.write(
-            aggregate_type="organization_member",
+            aggregate_type="workspace_member",
             aggregate_id=member.id,
-            event_type="organization.member_added.v1",
+            event_type="workspace.member_added.v1",
             payload={
                 "user_id": str(member.user_id),
-                "organization_id": str(member.organization_id),
+                "workspace_id": str(member.workspace_id),
                 "role": member.role.value,
             },
-            routing_key="organization.member_added.v1",
-            idempotency_key=f"identity:organization.member_added.v1:{member.id}",
+            routing_key="workspace.member_added.v1",
+            idempotency_key=f"identity:workspace.member_added.v1:{member.id}",
         )
 
         token = base64.b64encode(str(saved_user.id).encode()).decode()
@@ -398,35 +398,35 @@ class RegisterUseCase:
         )
 
 
-class GetOrganizationUseCase:
+class GetWorkspaceUseCase:
 
-    def __init__(self, org_repo: OrganizationRepository) -> None:
-        self._org_repo = org_repo
+    def __init__(self, workspace_repo: WorkspaceRepository) -> None:
+        self._workspace_repo = workspace_repo
 
-    async def execute(self, input_dto: GetOrganizationInput) -> GetOrganizationOutput | None:
-        org = await self._org_repo.get_by_id(input_dto.organization_id)
-        if not org:
+    async def execute(self, input_dto: GetWorkspaceInput) -> GetWorkspaceOutput | None:
+        workspace = await self._workspace_repo.get_by_id(input_dto.workspace_id)
+        if not workspace:
             return None
-        return GetOrganizationOutput(
-            id=org.id,
-            name=org.name,
-            slug=org.slug,
-            status=org.status,
-            created_at=org.created_at,
+        return GetWorkspaceOutput(
+            id=workspace.id,
+            name=workspace.name,
+            slug=workspace.slug,
+            status=workspace.status,
+            created_at=workspace.created_at,
         )
 
 
 class ListMembersUseCase:
 
-    def __init__(self, member_repo: OrganizationMemberRepository) -> None:
+    def __init__(self, member_repo: WorkspaceMemberRepository) -> None:
         self._member_repo = member_repo
 
     async def execute(self, input_dto: ListMembersInput) -> list[ListMembersOutput]:
-        members = await self._member_repo.list_by_organization(input_dto.organization_id)
+        members = await self._member_repo.list_by_workspace(input_dto.workspace_id)
         return [ListMembersOutput(
             id=m.id,
             user_id=m.user_id,
-            organization_id=m.organization_id,
+            workspace_id=m.workspace_id,
             role=m.role,
             status=m.status,
             joined_at=m.joined_at,
@@ -435,14 +435,14 @@ class ListMembersUseCase:
 
 class ListInvitesUseCase:
 
-    def __init__(self, invite_repo: OrganizationInviteRepository) -> None:
+    def __init__(self, invite_repo: WorkspaceInviteRepository) -> None:
         self._invite_repo = invite_repo
 
     async def execute(self, input_dto: ListInvitesInput) -> list[ListInvitesOutput]:
-        invites = await self._invite_repo.list_by_organization(input_dto.organization_id)
+        invites = await self._invite_repo.list_by_workspace(input_dto.workspace_id)
         return [ListInvitesOutput(
             id=i.id,
-            organization_id=i.organization_id,
+            workspace_id=i.workspace_id,
             email=i.email,
             role=i.role,
             status=i.status,

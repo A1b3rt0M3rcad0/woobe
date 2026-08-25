@@ -1,3 +1,4 @@
+from modules.agent.application.interfaces.use_case import UseCase
 from collections.abc import Awaitable, Callable
 from uuid import UUID
 
@@ -5,14 +6,8 @@ from modules.agent.application.dtos.public_runtime_dtos import (
     PublicCreateJobRequest,
     PublicRunRequest,
 )
-from modules.agent.application.dtos.runtime_dtos import (
-    CreateAskJobInput,
-    GetAskJobOutput,
-)
-from modules.agent.application.use_cases.runtime_use_cases import CreateAskJobUseCase
-from modules.agent.domain.errors import AskJobNotFoundError
-from modules.agent.domain.repositories import AskJobRepository
-from shared.infra.errors import AuthenticationError, AuthorizationError
+from modules.agent.application.dtos.runtime_dtos import CreateAskJobInput
+from shared.contracts.errors import AuthenticationError, AuthorizationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
@@ -41,8 +36,12 @@ def build_internal_runtime_body(
     payload: PublicRunRequest,
     principal: ProjectApiPrincipal,
 ) -> dict:
+    body = payload.model_dump()
+    metadata = dict(payload.metadata or {})
+    metadata.setdefault("source", "public_runtime")
     return {
-        **payload.model_dump(),
+        **body,
+        "metadata": metadata,
         "project_id": principal.project_id,
         "agent_id": principal.agent_id,
         "execution_context": principal.environment,
@@ -76,7 +75,7 @@ class PublicRunController(Controller):
 class PublicCreateJobController(Controller):
     def __init__(
         self,
-        use_case: CreateAskJobUseCase,
+        use_case: UseCase,
         request_preparer: RequestPreparer,
     ) -> None:
         self._use_case = use_case
@@ -106,30 +105,17 @@ class PublicCreateJobController(Controller):
 
 
 class PublicGetJobController(Controller):
-    def __init__(self, repo: AskJobRepository) -> None:
-        self._repo = repo
+    def __init__(self, use_case: UseCase) -> None:
+        self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
         principal = require_runtime_principal(request)
         job_id = UUID(request.path_params["job_id"])
-        job = await self._repo.get_by_id(job_id)
-        job_environment = (job.params or {}).get("execution_context")
-        if (
-            job.project_id != principal.project_id
-            or job.agent_id != principal.agent_id
-            or job_environment != principal.environment
-        ):
-            raise AskJobNotFoundError(job_id)
-
-        result = GetAskJobOutput(
-            job_id=job.id,
-            status=job.status,
-            result=job.result,
-            error=job.error,
-            trace_id=job.trace_id,
-            created_at=job.created_at,
-            started_at=job.started_at,
-            completed_at=job.completed_at,
+        result = await self._use_case.execute(
+            job_id,
+            project_id=principal.project_id,
+            agent_id=principal.agent_id,
+            environment=principal.environment,
         )
         return Response(
             status_code=200,

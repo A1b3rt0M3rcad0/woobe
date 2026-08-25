@@ -1,5 +1,5 @@
-import { useState, useRef, useLayoutEffect } from 'react'
-import { Bug, CheckCircle, XCircle, AlertTriangle, Copy, ChevronDown, ChevronRight } from 'lucide-react'
+import { useState, type ReactNode } from 'react'
+import { Activity, AlertTriangle, CheckCircle, ChevronDown, ChevronRight, Copy, XCircle } from 'lucide-react'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { formatTokens, formatCurrency, formatLatency } from '@/lib/formatters/number'
 import type { AskResponse, RawStreamEvent } from '@/features/playground/types'
@@ -10,309 +10,120 @@ interface DebugViewProps {
   rawEvents?: RawStreamEvent[]
 }
 
-// ── Clamped text (CSS line-clamp + fade gradient) ──
-
-function ClampedText({ text, lines = 2 }: { text: string; lines?: number }) {
-  const ref = useRef<HTMLParagraphElement>(null)
-  const [expanded, setExpanded] = useState(false)
-  const [overflows, setOverflows] = useState(false)
-
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (el) {
-      setOverflows(el.scrollHeight > el.clientHeight)
-    }
-  }, [text, expanded])
-
+function CollapsibleSection({ title, badge, children, defaultOpen = false }: { title: string; badge?: string; children: ReactNode; defaultOpen?: boolean }) {
+  const [open, setOpen] = useState(defaultOpen)
   return (
-    <div className="relative">
-      <p
-        ref={ref}
-        className={`text-xs text-white whitespace-pre-wrap break-words leading-relaxed ${expanded ? '' : `line-clamp-${lines}`}`}
-      >
-        {text}
-      </p>
-      {overflows && !expanded && (
-        <div className="absolute bottom-0 inset-x-0 h-6 bg-gradient-to-t from-background to-transparent pointer-events-none" />
-      )}
-      {overflows && (
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="text-xs text-blue-400 hover:text-blue-300 mt-0.5"
-        >
-          {expanded ? 'Show less' : 'Show more'}
-        </button>
-      )}
-    </div>
+    <section className="border-t border-border/70 first:border-t-0">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex w-full items-center gap-1.5 py-2 text-xs font-medium text-muted transition-colors hover:text-white" aria-expanded={open}>
+        {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+        <span>{title}</span>{badge && <span className="ml-auto text-[10px] text-muted">{badge}</span>}
+      </button>
+      {open && <div className="pb-3">{children}</div>}
+    </section>
   )
 }
-
-// ── Copyable ID row (aligned grid) ──
 
 function CopyableIdRow({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false)
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(value)
+  const copy = () => {
+    void navigator.clipboard.writeText(value)
     setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    window.setTimeout(() => setCopied(false), 1200)
   }
-
-  const truncated = value.length > 12 ? `${value.slice(0, 8)}…` : value
-
   return (
-    <div className="grid grid-cols-[60px_1fr_20px] items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5">
-      <span className="text-[10px] text-muted uppercase leading-none">{label}</span>
-      <code className="text-[11px] text-white font-mono truncate">{truncated}</code>
-      <button
-        onClick={handleCopy}
-        className="text-muted hover:text-white transition-colors justify-self-end"
-        title={copied ? 'Copied!' : 'Copy'}
-      >
-        <Copy className="h-3 w-3" />
-      </button>
+    <div className="grid grid-cols-[72px_minmax(0,1fr)_22px] items-center gap-2 rounded-md border border-border bg-background px-2.5 py-1.5">
+      <span className="text-[10px] uppercase text-muted">{label}</span>
+      <code className="truncate text-[11px] text-white">{value}</code>
+      <button type="button" onClick={copy} className="text-muted hover:text-white" title={copied ? 'Copied' : 'Copy'}><Copy className="h-3 w-3" /></button>
     </div>
   )
 }
 
-// ── Collapsible section line ──
-
-function CollapsibleSection({
-  title,
-  defaultOpen = false,
-  children,
-  badge,
-}: {
-  title: string
-  defaultOpen?: boolean
-  children: React.ReactNode
-  badge?: string
-}) {
-  const [open, setOpen] = useState(defaultOpen)
-  return (
-    <div>
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1.5 w-full py-1.5 text-xs font-medium text-muted hover:text-white transition-colors group"
-      >
-        {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
-        <span className="group-hover:text-white transition-colors">{title}</span>
-        {badge && <span className="text-[10px] text-muted ml-auto">{badge}</span>}
-      </button>
-      {open && <div className="pb-2">{children}</div>}
-    </div>
-  )
+function UsageSummary({ usage }: { usage: AskResponse['usage'] }) {
+  if (!usage) return <p className="text-xs text-muted">Usage was not consolidated for this Run.</p>
+  const items = [
+    ['Input', usage.input_tokens == null ? '—' : formatTokens(usage.input_tokens)],
+    ['Output', usage.output_tokens == null ? '—' : formatTokens(usage.output_tokens)],
+    ['Total', usage.total_tokens == null ? '—' : formatTokens(usage.total_tokens)],
+    ['Cost', usage.cost_usd == null ? 'Unknown' : formatCurrency(usage.cost_usd)],
+  ]
+  return <div className="grid grid-cols-2 gap-2">{items.map(([label, value]) => <div key={label} className="rounded-lg border border-border bg-background/55 p-2"><p className="text-[10px] uppercase text-muted">{label}</p><p className="mt-1 text-xs font-medium text-white">{value}</p></div>)}</div>
 }
-
-// ── Collapsible JSON section (for details) ──
-
-function CollapsibleJson({
-  title,
-  data,
-  defaultOpen = false,
-  maxHeight = 160,
-}: {
-  title: string
-  data: unknown
-  defaultOpen?: boolean
-  maxHeight?: number
-}) {
-  const [open, setOpen] = useState(defaultOpen)
-  return (
-    <div className="border border-border rounded-lg overflow-hidden">
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-2 w-full px-3 py-2 text-xs font-medium text-muted hover:text-white hover:bg-accent transition-colors"
-      >
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-        {title}
-      </button>
-      {open && (
-        <div className="px-3 pb-3 pt-1">
-          <JsonCodeBlock value={data} maxHeight={maxHeight} />
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Inline usage chips ──
-
-function UsageInline({ usage }: { usage: AskResponse['usage'] }) {
-  if (!usage) return null
-  const parts: string[] = []
-  if (usage.input_tokens != null) parts.push(`Input ${formatTokens(usage.input_tokens)}`)
-  if (usage.output_tokens != null) parts.push(`Output ${formatTokens(usage.output_tokens)}`)
-  if (usage.total_tokens != null) parts.push(`Total ${formatTokens(usage.total_tokens)}`)
-  if (usage.cost_usd != null) parts.push(formatCurrency(usage.cost_usd))
-  if (parts.length === 0) return null
-  return <p className="text-[11px] text-muted">{parts.join('  ·  ')}</p>
-}
-
-// ── Event Timeline (for SSE event log) ──
 
 function EventTimeline({ events }: { events: RawStreamEvent[] }) {
   return (
-    <div className="space-y-1">
-      {events.map((evt, idx) => (
-        <div key={idx} className="rounded-lg border border-border bg-background px-3 py-2">
-          <div className="flex items-center justify-between">
-            <code className="text-[11px] text-white font-mono">{evt.type}</code>
-            <span className="text-[10px] text-muted">{new Date(evt.timestamp).toLocaleTimeString()}</span>
-          </div>
-          <JsonCodeBlock value={evt.payload} maxHeight={72} className="mt-1" />
+    <div className="space-y-1.5">
+      {events.map((event, index) => (
+        <div key={`${event.type}-${event.timestamp}-${index}`} className="rounded-lg border border-border bg-background px-3 py-2">
+          <div className="flex items-center justify-between gap-2"><code className="truncate text-[11px] text-white">{event.type}</code><span className="shrink-0 text-[10px] text-muted">{new Date(event.timestamp).toLocaleTimeString()}</span></div>
+          <JsonCodeBlock value={event.payload} maxHeight={88} className="mt-1" />
         </div>
       ))}
     </div>
   )
 }
 
-// ── Main component ──
-
 export function DebugView({ lastResponse, lastRequestPayload, rawEvents = [] }: DebugViewProps) {
   if (!lastResponse) {
     return (
       <div className="p-4 text-center">
-        <Bug className="h-8 w-8 text-muted mx-auto mb-2" />
-        <p className="text-sm text-muted">Send a message to inspect debug data.</p>
-        <p className="text-xs text-muted mt-1">Debug information will appear here after each request.</p>
+        <Activity className="mx-auto h-8 w-8 text-muted/50" />
+        <p className="mt-2 text-sm font-medium text-white">No current Agent Run</p>
+        <p className="mt-1 text-xs leading-5 text-muted">Send a message to create an Agent Run. Its result, activity, cost, and diagnostic evidence will appear here.</p>
       </div>
     )
   }
 
-  const hasDetailSections = !!(
-    (lastResponse.sources?.length ?? 0) > 0 ||
-    (lastResponse.tool_calls?.length ?? 0) > 0 ||
-    lastResponse.parsed_output ||
-    lastRequestPayload ||
-    rawEvents.length > 0
-  )
-
-  // Parse error blocks the overview (highest priority)
-  if (lastResponse.output_parse_error) {
-    return (
-      <div className="p-4 space-y-2">
-        <h3 className="text-sm font-medium text-white">Debug</h3>
-        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-2">
-          <div className="flex items-center gap-2">
-            <XCircle className="h-4 w-4 text-red-400 shrink-0" />
-            <span className="text-xs font-medium text-red-400">Parse Error</span>
-          </div>
-          <p className="text-xs text-muted break-all">{lastResponse.output_parse_error}</p>
-        </div>
-        <CollapsibleJson title="Raw" data={lastResponse} />
-      </div>
-    )
-  }
+  const failed = Boolean(lastResponse.output_parse_error)
+  const StatusIcon = failed ? XCircle : CheckCircle
+  const toolCount = lastResponse.tool_calls?.length ?? 0
+  const sourceCount = lastResponse.sources?.length ?? 0
 
   return (
-    <div className="p-4 space-y-1.5">
-      <h3 className="text-sm font-medium text-white mb-2">Debug</h3>
+    <div className="space-y-4 p-4">
+      <header>
+        <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-primary-light">Current Agent Run</p>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${failed ? 'border-red-500/25 bg-red-500/10 text-red-300' : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'}`}><StatusIcon className="h-3 w-3" />{failed ? 'Failed' : 'Completed'}</span>
+          {lastResponse.latency_ms != null && <span className="rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted">{formatLatency(lastResponse.latency_ms)}</span>}
+          {(lastResponse.provider || lastResponse.model) && <span className="rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-[11px] text-muted">{lastResponse.provider || '—'}/{lastResponse.model || '—'}</span>}
+          {lastResponse.fallback_used && <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-300"><AlertTriangle className="h-3 w-3" />Fallback</span>}
+        </div>
+      </header>
 
-      {/* ── Badge row ── */}
-      <div className="flex items-center gap-1.5 flex-wrap">
-        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-          <CheckCircle className="h-3 w-3" />
-          Completed
-        </span>
-        {lastResponse.latency_ms != null && (
-          <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] text-muted font-mono bg-background border border-border">
-            {formatLatency(lastResponse.latency_ms)}
-          </span>
-        )}
-        {(lastResponse.provider || lastResponse.model) && (
-          <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[11px] text-muted font-mono bg-background border border-border">
-            {lastResponse.provider || '—'}/{lastResponse.model || '—'}
-          </span>
-        )}
-        {lastResponse.fallback_used && (
-          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-yellow-500/10 text-yellow-400 border border-yellow-500/20">
-            <AlertTriangle className="h-3 w-3" />
-            Fallback
-          </span>
-        )}
+      {failed && <section className="rounded-xl border border-red-500/25 bg-red-500/5 p-3"><p className="text-xs font-medium text-red-300">Run output validation failed</p><p className="mt-1 break-words text-xs text-muted">{lastResponse.output_parse_error}</p></section>}
+
+      <section className="rounded-xl border border-border/80 bg-background/35 p-3">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted">Result</p>
+        <p className="mt-2 whitespace-pre-wrap break-words text-xs leading-5 text-white">{lastResponse.answer || 'The Agent Run produced no final response.'}</p>
+      </section>
+
+      <section>
+        <p className="mb-2 text-[10px] font-medium uppercase tracking-wide text-muted">Usage</p>
+        <UsageSummary usage={lastResponse.usage} />
+      </section>
+
+      <section className="rounded-xl border border-border/80 bg-background/30 p-3">
+        <p className="text-[10px] font-medium uppercase tracking-wide text-muted">Activity</p>
+        <div className="mt-2 grid grid-cols-3 gap-2 text-center"><div><p className="text-lg font-semibold text-white">{toolCount}</p><p className="text-[10px] text-muted">Tool Calls</p></div><div><p className="text-lg font-semibold text-white">{sourceCount}</p><p className="text-[10px] text-muted">Sources</p></div><div><p className="text-lg font-semibold text-white">{rawEvents.length}</p><p className="text-[10px] text-muted">Events</p></div></div>
+      </section>
+
+      <div className="rounded-xl border border-border/80 bg-background/20 px-3">
+        {lastResponse.tool_calls?.length ? <CollapsibleSection title="Tool Calls" badge={String(toolCount)}><JsonCodeBlock value={lastResponse.tool_calls} maxHeight={180} /></CollapsibleSection> : null}
+        {lastResponse.sources?.length ? <CollapsibleSection title="Sources" badge={String(sourceCount)}><JsonCodeBlock value={lastResponse.sources} maxHeight={180} /></CollapsibleSection> : null}
+        {lastResponse.parsed_output ? <CollapsibleSection title="Structured Output"><JsonCodeBlock value={lastResponse.parsed_output} maxHeight={180} /></CollapsibleSection> : null}
+        {lastRequestPayload ? <CollapsibleSection title="Request & Context"><JsonCodeBlock value={lastRequestPayload} maxHeight={180} /></CollapsibleSection> : null}
+        {rawEvents.length ? <CollapsibleSection title="Run Activity Timeline" badge={String(rawEvents.length)}><EventTimeline events={rawEvents} /></CollapsibleSection> : null}
+        <CollapsibleSection title="Diagnostics"><JsonCodeBlock value={{ response: lastResponse, events: rawEvents }} maxHeight={240} /></CollapsibleSection>
       </div>
 
-      {/* ── Usage inline ── */}
-      <UsageInline usage={lastResponse.usage} />
-
-      {/* ── Fallback details ── */}
-      {lastResponse.fallback_used && lastResponse.fallback_info && (
-        <div className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-2.5 space-y-1">
-          <p className="text-[10px] font-medium text-yellow-400 uppercase tracking-wider">Fallback Details</p>
-          <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-[11px]">
-            <span className="text-muted">Primary:</span>
-            <span className="text-white font-mono text-right truncate">{lastResponse.fallback_info.primary_provider}/{lastResponse.fallback_info.primary_model}</span>
-            <span className="text-muted">Fallback:</span>
-            <span className="text-white font-mono text-right truncate">{lastResponse.fallback_info.fallback_provider}/{lastResponse.fallback_info.fallback_model}</span>
-            <span className="text-muted col-span-2">Error:</span>
-            <span className="text-red-400 font-mono text-[10px] col-span-2 break-all">{lastResponse.fallback_info.primary_error}</span>
-          </div>
-        </div>
-      )}
-
-      {/* ── Answer ── */}
-      {lastResponse.answer && (
-        <div className="rounded-lg border border-border bg-background p-2.5 mt-2.5">
-          <p className="text-[10px] font-medium text-muted uppercase tracking-wider mb-1">Answer</p>
-          <ClampedText text={lastResponse.answer} lines={2} />
-        </div>
-      )}
-
-      {/* ── Detail sections (collapsed by default) ── */}
-      {hasDetailSections && (
-        <div className="border-t border-border pt-1.5 mt-2.5 space-y-0.5">
-          {lastResponse.sources && lastResponse.sources.length > 0 && (
-            <CollapsibleSection title="Sources" badge={`${lastResponse.sources.length}`}>
-              <JsonCodeBlock value={lastResponse.sources} maxHeight={128} />
-            </CollapsibleSection>
-          )}
-          {lastResponse.tool_calls && lastResponse.tool_calls.length > 0 && (
-            <CollapsibleSection title="Tool Calls" badge={`${lastResponse.tool_calls.length}`}>
-              <JsonCodeBlock value={lastResponse.tool_calls} maxHeight={128} />
-            </CollapsibleSection>
-          )}
-          {lastResponse.parsed_output && (
-            <CollapsibleSection title="Structured Output">
-              <JsonCodeBlock value={lastResponse.parsed_output} maxHeight={128} />
-            </CollapsibleSection>
-          )}
-          {lastRequestPayload && (
-            <CollapsibleSection title="Request &amp; Context">
-              <div className="space-y-1.5">
-                <JsonCodeBlock value={lastRequestPayload} maxHeight={128} />
-                {!!lastRequestPayload.snapshot_override && (
-                  <CollapsibleJson title="Snapshot Override" data={lastRequestPayload.snapshot_override} />
-                )}
-              </div>
-            </CollapsibleSection>
-          )}
-          {rawEvents.length > 0 && (
-            <CollapsibleSection title="Event Log" badge={`${rawEvents.length}`}>
-              <EventTimeline events={rawEvents} />
-            </CollapsibleSection>
-          )}
-          <CollapsibleSection title="Raw">
-            <JsonCodeBlock value={{ response: lastResponse, events: rawEvents }} maxHeight={128} />
-          </CollapsibleSection>
-        </div>
-      )}
-
-      {/* ── IDs list (always at bottom) ── */}
-      {!!(
-        lastResponse.trace_id ||
-        lastResponse.message_id ||
-        lastResponse.session_id ||
-        lastRequestPayload?.project_id ||
-        lastRequestPayload?.agent_id
-      ) && (
-        <div className="border-t border-border pt-1.5 mt-2.5 space-y-1">
-          {lastResponse.trace_id && <CopyableIdRow label="trace" value={lastResponse.trace_id} />}
-          {lastResponse.message_id && <CopyableIdRow label="message" value={lastResponse.message_id} />}
-          {lastResponse.session_id && <CopyableIdRow label="session" value={lastResponse.session_id} />}
-          {!!lastRequestPayload?.project_id && <CopyableIdRow label="project" value={String(lastRequestPayload.project_id)} />}
-          {!!lastRequestPayload?.agent_id && <CopyableIdRow label="agent" value={String(lastRequestPayload.agent_id)} />}
-        </div>
+      {(lastResponse.trace_id || lastResponse.session_id || lastResponse.message_id) && (
+        <section className="space-y-1.5 border-t border-border pt-3">
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted">Technical identifiers</p>
+          {lastResponse.trace_id && <CopyableIdRow label="Trace" value={lastResponse.trace_id} />}
+          {lastResponse.session_id && <CopyableIdRow label="Session" value={lastResponse.session_id} />}
+          {lastResponse.message_id && <CopyableIdRow label="Message" value={lastResponse.message_id} />}
+        </section>
       )}
     </div>
   )

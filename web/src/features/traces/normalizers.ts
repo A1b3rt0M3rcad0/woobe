@@ -2,6 +2,7 @@ import type {
   FallbackInfo,
   ModelBindingInfo,
   Trace,
+  TraceCostStatus,
   TraceDetail,
   TraceDetailNormalized,
   TraceEvent,
@@ -63,6 +64,13 @@ function safeNumber(value: unknown): number | null {
   return null
 }
 
+function normalizeCostStatus(value: unknown): TraceCostStatus {
+  if (value === 'known' || value === 'partial' || value === 'unknown_tokens' || value === 'unknown_pricing') {
+    return value
+  }
+  return 'unknown'
+}
+
 function normalizeBinding(raw: unknown, fallback?: ModelBindingInfo | null): ModelBindingInfo | null {
   const binding = asRecord(raw)
   const result: ModelBindingInfo = {
@@ -86,8 +94,7 @@ function normalizeFallbackInfo(raw: unknown): FallbackInfo | null {
     fallback_model: typeof fallback.fallback_model === 'string' ? fallback.fallback_model : null,
     fallback_provider: typeof fallback.fallback_provider === 'string' ? fallback.fallback_provider : null,
     fallback_provider_model_id: pickString(fallback.fallback_provider_model_id),
-    fallback_credential_id:
-      pickString(fallback.fallback_credential_id),
+    fallback_credential_id: pickString(fallback.fallback_credential_id),
   }
 }
 
@@ -115,6 +122,10 @@ export function normalizeTraceSummary(raw: Trace): TraceSummary {
     projectId: raw.project_id,
     agentId: raw.agent_id ?? null,
     sessionId: raw.session_id ?? null,
+    networkId: raw.network_id ?? null,
+    networkExecutionId: raw.network_execution_id ?? null,
+    networkSessionId: raw.network_session_id ?? null,
+    networkVersionId: raw.network_version_id ?? null,
     messageId: typeof data.message_id === 'string' ? data.message_id : null,
     title: inferTitle(raw),
     status: normalizeStatus(raw.status),
@@ -171,6 +182,21 @@ function normalizeToolCalls(raw: unknown): TraceToolCall[] {
   })
 }
 
+const EVENT_BOUNDARY: Record<string, number> = {
+  'agent.execution.requested.v1': 10,
+  'agent.execution.started.v1': 20,
+  'observability.execution.summary.v1': 80,
+  'agent.execution.completed.v1': 90,
+  'agent.execution.failed.v1': 90,
+}
+
+function eventTimestamp(event: TraceEvent): number {
+  const value = event.occurred_at ?? event.recorded_at ?? event.created_at
+  if (!value) return Number.POSITIVE_INFINITY
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : Number.POSITIVE_INFINITY
+}
+
 function normalizeEvents(raw: unknown): TraceEvent[] {
   if (!Array.isArray(raw)) return []
 
@@ -178,11 +204,12 @@ function normalizeEvents(raw: unknown): TraceEvent[] {
     const event = asRecord(item)
     const payload = asRecord(event.payload)
     const payloadTraceId = payload.trace_id ?? payload.execution_id
+    const recordedAt = typeof event.created_at === 'string' ? event.created_at : null
     const occurredAt = typeof payload.occurred_at === 'string'
       ? payload.occurred_at
       : typeof payload.ended_at === 'string'
         ? payload.ended_at
-        : null
+        : recordedAt
     return {
       id: typeof event.id === 'string' ? event.id : '',
       trace_id: typeof event.trace_id === 'string'
@@ -195,7 +222,11 @@ function normalizeEvents(raw: unknown): TraceEvent[] {
       cost_usd: safeNumber(event.cost_usd),
       payload: Object.keys(payload).length > 0 ? payload : null,
       payload_ref: typeof event.payload_ref === 'string' ? event.payload_ref : null,
-      created_at: occurredAt ?? (typeof event.created_at === 'string' ? event.created_at : null),
+      occurred_at: occurredAt,
+      recorded_at: recordedAt,
+      sequence: safeNumber(payload.causal_sequence ?? payload.sequence),
+      // Backward-compatible display timestamp: operational time wins.
+      created_at: occurredAt,
     }
   })
 
@@ -212,7 +243,7 @@ function normalizeEvents(raw: unknown): TraceEvent[] {
       .filter((name): name is string => typeof name === 'string'),
   )
 
-  return events.filter((event) => {
+  const filtered = events.filter((event) => {
     if (event.event_type !== 'tool_call') return true
     const payload = asRecord(event.payload)
     const toolName = payload.tool_name
@@ -220,6 +251,21 @@ function normalizeEvents(raw: unknown): TraceEvent[] {
       || !Object.prototype.hasOwnProperty.call(payload, 'input')
       || !Object.prototype.hasOwnProperty.call(payload, 'output')
     return !(isIncomplete && typeof toolName === 'string' && completeToolNames.has(toolName))
+  })
+
+  return filtered.sort((left, right) => {
+    const leftPayload = asRecord(left.payload)
+    const rightPayload = asRecord(right.payload)
+    const leftName = typeof leftPayload.event === 'string' ? leftPayload.event : ''
+    const rightName = typeof rightPayload.event === 'string' ? rightPayload.event : ''
+    const leftBoundary = EVENT_BOUNDARY[leftName] ?? 30
+    const rightBoundary = EVENT_BOUNDARY[rightName] ?? 30
+    if (leftBoundary !== rightBoundary) return leftBoundary - rightBoundary
+    const timeDelta = eventTimestamp(left) - eventTimestamp(right)
+    if (timeDelta !== 0) return timeDelta
+    const sequenceDelta = (left.sequence ?? 0) - (right.sequence ?? 0)
+    if (sequenceDelta !== 0) return sequenceDelta
+    return left.id.localeCompare(right.id)
   })
 }
 
@@ -243,26 +289,38 @@ export function normalizeTraceDetail(raw: TraceDetail): TraceDetailNormalized {
     ?? (typeof completion?.message_id === 'string' ? completion.message_id : null)
 
   const diagnosticsRaw = asRecord(data.diagnostics ?? completion?.diagnostics)
+  const llmWork = safeNumber(diagnosticsRaw.llm_work_latency_ms ?? diagnosticsRaw.llm_runtime_latency_ms)
+  const toolWork = safeNumber(diagnosticsRaw.tool_work_latency_ms ?? diagnosticsRaw.tool_call_duration_sum_ms)
+  const finalizationWork = safeNumber(diagnosticsRaw.finalization_work_latency_ms ?? diagnosticsRaw.persistence_latency_ms)
+  const other = safeNumber(diagnosticsRaw.other_latency_ms ?? diagnosticsRaw.unaccounted_latency_ms)
   const diagnostics = Object.keys(diagnosticsRaw).length > 0
     ? {
         schemaVersion: safeNumber(diagnosticsRaw.schema_version) ?? 1,
         agentRuntimeLatencyMs: safeNumber(diagnosticsRaw.agent_runtime_latency_ms ?? diagnosticsRaw.total_latency_ms),
-        llmRuntimeLatencyMs: safeNumber(diagnosticsRaw.llm_runtime_latency_ms),
+        llmWorkLatencyMs: llmWork,
+        llmRuntimeLatencyMs: llmWork,
         toolWallLatencyMs: safeNumber(diagnosticsRaw.tool_wall_latency_ms),
-        toolCallDurationSumMs: safeNumber(diagnosticsRaw.tool_call_duration_sum_ms),
+        toolWorkLatencyMs: toolWork,
+        toolCallDurationSumMs: toolWork,
+        toolParallelismRatio: safeNumber(diagnosticsRaw.tool_parallelism_ratio),
+        toolProviderWorkMs: safeNumber(diagnosticsRaw.tool_provider_work_ms),
+        toolRuntimeOverheadMs: safeNumber(diagnosticsRaw.tool_runtime_overhead_ms),
         toolHttpLatencyMs: safeNumber(diagnosticsRaw.tool_http_latency_ms),
         toolOverheadLatencyMs: safeNumber(diagnosticsRaw.tool_overhead_latency_ms),
         prepareLatencyMs: safeNumber(diagnosticsRaw.prepare_latency_ms),
-        persistenceLatencyMs: safeNumber(diagnosticsRaw.persistence_latency_ms),
+        finalizationWorkLatencyMs: finalizationWork,
+        persistenceLatencyMs: finalizationWork,
+        otherLatencyMs: other,
         orchestrationLatencyMs: safeNumber(diagnosticsRaw.orchestration_latency_ms),
-        unaccountedLatencyMs: safeNumber(diagnosticsRaw.unaccounted_latency_ms),
+        unaccountedLatencyMs: other,
         toolSharePercent: safeNumber(diagnosticsRaw.tool_share_percent),
         toolCallCount: safeNumber(diagnosticsRaw.tool_call_count) ?? 0,
         llmCallCount: safeNumber(diagnosticsRaw.llm_call_count) ?? 0,
         successfulToolCalls: safeNumber(diagnosticsRaw.successful_tool_calls) ?? 0,
         failedToolCalls: safeNumber(diagnosticsRaw.failed_tool_calls) ?? 0,
         usageComplete: Boolean(diagnosticsRaw.usage_complete),
-        costStatus: diagnosticsRaw.cost_status === 'unknown' ? 'unknown' as const : 'known' as const,
+        costStatus: normalizeCostStatus(diagnosticsRaw.cost_status),
+        costUsd: safeNumber(diagnosticsRaw.cost_usd ?? usage.costUsd),
         sourceCount: safeNumber(diagnosticsRaw.source_count) ?? 0,
         answerLength: safeNumber(diagnosticsRaw.answer_length),
         fallbackUsed: Boolean(diagnosticsRaw.fallback_used),
@@ -271,7 +329,9 @@ export function normalizeTraceDetail(raw: TraceDetail): TraceDetailNormalized {
         providerCredentialId: pickString(diagnosticsRaw.provider_credential_id, summary.providerCredentialId),
         fallbackProviderModelId: pickString(diagnosticsRaw.fallback_provider_model_id, summary.fallbackProviderModelId),
         fallbackCredentialId: pickString(diagnosticsRaw.fallback_credential_id, summary.fallbackCredentialId),
-        notes: Array.isArray(diagnosticsRaw.notes) ? diagnosticsRaw.notes.filter((item): item is string => typeof item === 'string') : undefined,
+        notes: Array.isArray(diagnosticsRaw.notes)
+          ? diagnosticsRaw.notes.filter((item): item is string => typeof item === 'string')
+          : undefined,
       }
     : null
 

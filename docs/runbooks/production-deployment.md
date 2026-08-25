@@ -1,92 +1,78 @@
-# Production deployment runbook
+# Woobe Community production deployment
 
-## Scope and invariants
+## Deployment contract
 
-This runbook deploys the MVP with `docker-compose.prod.yml`. PostgreSQL, PgBouncer and RabbitMQ remain on an internal Docker network. Only the unprivileged web reverse proxy publishes a host port. TLS must terminate at the platform ingress or load balancer in front of that port; direct Internet exposure of plain HTTP is not supported.
+The root `compose.yaml` is the supported Woobe Community self-host topology. Production is selected through configuration (`WOOBE_ENVIRONMENT=production`), not through a separate production Compose file.
 
-For a real deployment, mirror the images to a registry and pin immutable digests through a reviewed Compose override. The base file uses local `projectrai-api:0.1.0` and `projectrai-web:0.1.0` tags for staging validation.
+The default single-host topology contains:
 
-## Required configuration
-
-Copy `.env.production.example` outside the repository and replace every placeholder. Store the resulting values in the deployment secret manager, not in Git. Production startup rejects debug mode, wildcard or HTTP CORS origins, wildcard trusted hosts, weak keys, default database/RabbitMQ credentials and non-JSON logging.
-
-Required externally managed values:
-
-- `PROJECTRAI_SECRET_KEY` and `PROJECTRAI_ENCRYPTION_KEY`: independent random values, at least 32 characters.
-- exact HTTPS `PROJECTRAI_CORS_ORIGINS` and exact `PROJECTRAI_TRUSTED_HOSTS`.
-- non-default PostgreSQL and RabbitMQ credentials.
-- a reviewed Compose override that pins immutable application image digests.
-
-## Build and preflight
-
-```bash
-docker build --pull -t projectrai-api:0.1.0 .
-docker build --pull -t projectrai-web:0.1.0 web
-
-docker image inspect projectrai-api:0.1.0 --format '{{.Config.User}}'
-docker image inspect projectrai-web:0.1.0 --format '{{.Config.User}}'
-
-docker compose --env-file /run/secrets/projectrai.env \
-  -f docker-compose.prod.yml config --quiet
+```text
+db
+rabbitmq
+migrate
+api
+workers
+web
+chat-embed
 ```
 
-Both image user values must be non-empty and not `0`/`root`. Review the rendered Compose output and confirm that `db`, `pgbouncer` and `rabbitmq` have no host `ports` entries and that no service uses bind mounts.
+`deploy/dev/compose.yml` is a contributor-only extension and is not the production deployment contract.
 
-## Deploy
+## Production configuration
 
-1. Start stateful dependencies.
-2. Run the migration service once and require exit code zero.
-3. Start API, workers and web.
-4. Run health and authenticated smoke checks.
+Set strong, independent secrets and exact public origins/hosts. At minimum:
 
-```bash
-export ENV_FILE=/run/secrets/projectrai.env
-COMPOSE="docker compose --env-file $ENV_FILE -f docker-compose.prod.yml"
-
-$COMPOSE up -d db rabbitmq pgbouncer
-$COMPOSE run --rm migrate
-$COMPOSE up -d api workers web
-
-PROJECTRAI_BASE_URL=https://app.example.com \
-SMOKE_EMAIL="$SMOKE_EMAIL" \
-SMOKE_PASSWORD="$SMOKE_PASSWORD" \
-SMOKE_PROJECT_ID="$SMOKE_PROJECT_ID" \
-./scripts/smoke_production.sh
+```env
+WOOBE_ENVIRONMENT=production
+WOOBE_SECRET_KEY=<strong random secret>
+WOOBE_ENCRYPTION_KEY=<different strong random secret>
+WOOBE_CHAT_TOKEN_SIGNING_KEY=<third strong random secret>
+WOOBE_ACCESS_COOKIE_SECURE=true
+WOOBE_REFRESH_COOKIE_SECURE=true
+WOOBE_CORS_ORIGINS=https://app.example.com,https://chat.example.com
+WOOBE_TRUSTED_HOSTS=api.example.com
+VITE_API_URL=https://api.example.com
+VITE_CHAT_EMBED_URL=https://chat.example.com
 ```
 
-`/live` proves process liveness. `/ready` performs a bounded database check and returns 503 while the dependency is unavailable. The worker container health check verifies the PID 1 worker runtime remains active; worker loop failures are emitted as structured logs and metrics.
+Terminate TLS before the exposed services. Do not expose PostgreSQL or RabbitMQ to the public network. Keep generated `.env`, provider credentials, Tool credentials, Runtime Keys, and ChatSurface Access Keys outside source control.
 
-## Operational visibility
+## Rollout
 
-Application logs are JSON and include `request_id` and `correlation_id`. Incoming valid IDs are propagated; otherwise the API generates them. Sensitive values continue through the shared redaction filter.
-
-The API exposes Prometheus text metrics on its internal `/metrics` endpoint. The public Nginx route intentionally does not proxy that endpoint. Scrape it from the application network. Metrics include HTTP request count/status/latency, TTFT, provider/tool/worker failures, queue lag/retry hooks and SQLAlchemy pool state.
-
-RabbitMQ queue and dead-letter state remains private. Inspect it from the deployment host:
+Generate configuration once for a fresh installation, then replace local/public endpoint values with the actual production domains:
 
 ```bash
-$COMPOSE exec rabbitmq rabbitmqctl list_queues \
-  name messages_ready messages_unacknowledged consumers message_bytes
-$COMPOSE exec rabbitmq rabbitmqctl list_exchanges name type durable
+python scripts/generate_self_host_env.py
 ```
 
-Alert initially on: `/ready` failures for 2 minutes, an unhealthy worker container, sustained queue growth, worker/provider/tool failure rate, HTTP 5xx rate and database pool exhaustion.
+Build application artifacts:
 
-## Graceful shutdown
+```bash
+docker compose build
+```
 
-API and workers receive SIGTERM and have a 45-second grace period. During rollout, remove a replica from ingress before stopping it. Do not force-kill a process with an active SSE stream unless the grace period expires. Worker shutdown sets its stop event, cancels child tasks and closes RabbitMQ and database connections.
+Start durable infrastructure, run migrations explicitly, and then start application services:
+
+```bash
+docker compose up -d db rabbitmq
+docker compose run --rm migrate
+docker compose up -d api workers web chat-embed
+```
+
+Verify `/live`, `/ready`, Web, `/chat/v1/health`, and representative Agent/Network execution. `scripts/smoke_production.sh` contains the integrated HTTP smoke contract used by the repository's manual acceptance workflow.
+
+## Storage and recovery
+
+The supported Community topology uses persistent local Knowledge storage. PostgreSQL and the `woobe_uploads` volume must be part of the same backup/recovery plan.
+
+Configuration hooks for external PostgreSQL, RabbitMQ, Redis, or S3-compatible services do not by themselves create an officially supported distributed topology. The Community MVP does not currently publish a separate external-infrastructure Compose contract.
 
 ## Rollback
 
-Application rollback is image-based. Create a reviewed `docker-compose.rollback.yml` that overrides the API and web images with the previous immutable digests, then run:
+Platform deployment rollback is image/source rollback and is separate from Agent/Network Release rollback inside Woobe. Do not run Alembic downgrade automatically because an application artifact is rolled back. Follow release-specific schema compatibility notes and restore a tested backup when required.
 
-```bash
-docker compose -f docker-compose.prod.yml -f docker-compose.rollback.yml up -d --no-deps api workers web
-./scripts/smoke_production.sh
-```
+## Release evidence
 
-Do not automatically downgrade Alembic during an application rollback. Migrations in this MVP must be backward-compatible for at least one application version. A schema rollback requires a reviewed migration-specific procedure and a verified backup.
+Before a public production release, intentionally execute the relevant manual backend, frontend, container, acceptance, and security workflows; review image vulnerability findings; verify backup/restore; and attach the relevant evidence to the release process.
 
-## Release gate
-
-Before production promotion, attach evidence for image sizes, image users, SBOMs, vulnerability reports, Compose policy validation, two consecutive migration runs, reverse-proxy smoke, graceful shutdown and the latest restore drill. The `development-mvp -> development` promotion remains a separate human decision.
+Repository workflows are intentionally manual and are not started merely by opening a pull request.

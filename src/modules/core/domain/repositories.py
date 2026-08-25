@@ -13,18 +13,18 @@ class ProjectRepository(ABC):
     async def get_by_id(self, project_id: UUID) -> Project | None: ...
 
     @abstractmethod
-    async def get_by_organization_and_slug(
-        self, organization_id: UUID, slug: str
+    async def get_by_workspace_and_slug(
+        self, workspace_id: UUID, slug: str
     ) -> Project | None: ...
 
     @abstractmethod
-    async def list_by_organization(
-        self, organization_id: UUID
+    async def list_by_workspace(
+        self, workspace_id: UUID
     ) -> list[Project]: ...  # TODO: Remove after pagination migration
 
     @abstractmethod
-    async def paginate_by_organization(
-        self, organization_id: UUID, *, limit: int = 50, cursor: str | None = None
+    async def paginate_by_workspace(
+        self, workspace_id: UUID, *, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[Project]: ...
 
     @abstractmethod

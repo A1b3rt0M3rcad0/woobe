@@ -1,60 +1,179 @@
-import { useState } from 'react'
-import { Bot, CheckCircle2, ChevronDown, ChevronRight, CircleDot, Loader2, Workflow, XCircle } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { CheckCircle2, ChevronDown, ChevronRight, Loader2, XCircle } from 'lucide-react'
 
-import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
-import { MarkdownMessage } from '@/features/playground/components/MarkdownMessage'
-import { StructuredJsonResponse } from '@/features/playground/components/StructuredJsonResponse'
-import { ToolCallsCollapsible } from '@/features/playground/components/ToolCallsCollapsible'
-import type { SourceInfo } from '@/features/playground/types'
-import { formatLatency, formatNumber } from '@/lib/formatters/number'
-import { parseAssistantMessageContent } from '@/lib/parse-assistant-message'
+import { ChatMessage } from '@/features/playground/components/ChatMessage'
+import type { ChatMessage as PlaygroundChatMessage, SourceInfo, ToolCallInfo } from '@/features/playground/types'
+import { formatCurrency } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 
+import type { LiveNetworkAgent } from './networkLiveExecution'
 import type { AgentNodeId } from './networkWorkspaceTypes'
-import { invocationCount, invocationPath, sourceCount, toolCount, type AgentInvocationStatus, type NetworkAgentInvocation, type NetworkExecution, type NetworkTurn } from './networkChatExecution'
+import { invocationCount, operationalTools, type NetworkAgentInvocation, type NetworkExecution, type NetworkTurn } from './networkChatExecution'
 
-const sourceTone: Record<NetworkAgentInvocation['source'], string> = {
-  draft: 'border-blue-500/30 bg-blue-500/10 text-blue-300',
-  staging: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300',
-  release: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+function flattenTools(invocation: NetworkAgentInvocation): ToolCallInfo[] {
+  return [
+    ...operationalTools(invocation.tools),
+    ...invocation.children.flatMap(flattenTools),
+  ]
 }
 
-function RichMessageContent({ content, parsedOutput, compact = false }: { content: string; parsedOutput?: Record<string, unknown> | null; compact?: boolean }) {
-  if (parsedOutput) return <StructuredJsonResponse value={parsedOutput} density={compact ? 'compact' : 'comfortable'} />
-  const parsed = parseAssistantMessageContent(content)
-  if (parsed.isPureJson && parsed.segments[0]?.type === 'json') return <StructuredJsonResponse value={parsed.segments[0].value} raw={parsed.segments[0].raw} density={compact ? 'compact' : 'comfortable'} />
-  if (parsed.segments.length === 1 && parsed.segments[0]?.type === 'text') return <MarkdownMessage content={parsed.segments[0].content} />
-  return <div className="space-y-3">{parsed.segments.map((segment, index) => segment.type === 'text' ? <MarkdownMessage key={`${segment.type}-${index}`} content={segment.content} /> : <JsonCodeBlock key={`${segment.type}-${index}`} value={segment.value} maxHeight={compact ? 150 : 220} />)}</div>
+function flattenSources(invocation: NetworkAgentInvocation): SourceInfo[] {
+  return [
+    ...invocation.sources,
+    ...invocation.children.flatMap(flattenSources),
+  ]
 }
 
-function SourcesSection({ sources }: { sources: SourceInfo[] }) {
+function invocationNames(invocation: NetworkAgentInvocation): Array<{
+  id?: AgentNodeId
+  name: string
+  depth: number
+  status: NetworkAgentInvocation['status']
+}> {
+  const visit = (node: NetworkAgentInvocation, depth: number): Array<{
+    id?: AgentNodeId
+    name: string
+    depth: number
+    status: NetworkAgentInvocation['status']
+  }> => [
+    { id: node.nodeId, name: node.agentName, depth, status: node.status },
+    ...node.children.flatMap((child) => visit(child, depth + 1)),
+  ]
+  return visit(invocation, 0)
+}
+
+function AgentStatusIcon({ status }: { status: NetworkAgentInvocation['status'] | LiveNetworkAgent['status'] }) {
+  if (status === 'running' || status === 'pending') {
+    return <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary-light" />
+  }
+  if (status === 'error') {
+    return <XCircle className="h-3 w-3 shrink-0 text-red-400" />
+  }
+  return <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400" />
+}
+
+function agentSummary(agents: Array<{ name: string; status: NetworkAgentInvocation['status'] | LiveNetworkAgent['status'] }>) {
+  const running = agents.filter((agent) => agent.status === 'running' || agent.status === 'pending').length
+  const failed = agents.filter((agent) => agent.status === 'error').length
+  const completed = agents.length - running - failed
+  const singleAgent = agents.length === 1 ? agents[0].name : null
+  const parts = [`Agents called (${agents.length})${singleAgent ? ` · ${singleAgent}` : ''}`]
+  if (running) parts.push(`${running} running`)
+  if (completed) parts.push(`${completed} completed`)
+  if (failed) parts.push(`${failed} failed`)
+  return parts.join(' · ')
+}
+
+function AgentsCalled({ root, onSelectAgent }: { root: NetworkAgentInvocation; onSelectAgent: (nodeId: AgentNodeId) => void }) {
   const [open, setOpen] = useState(false)
-  if (!sources.length) return null
-  return <div className="rounded-lg border border-border/70 bg-background/35"><button type="button" onClick={() => setOpen((value) => !value)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[10px] text-primary-light hover:text-white">{open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}<span className="font-medium">Sources</span><span className="text-muted">{sources.length}</span></button>{open ? <div className="space-y-2 border-t border-border/70 p-2.5">{sources.map((source, index) => <article key={source.chunk_id || `${source.document_id || 'source'}-${index}`} className="rounded-lg border border-border/70 bg-surface/45 p-2.5"><div className="flex flex-wrap items-center gap-x-2 gap-y-1"><p className="min-w-0 flex-1 truncate text-[10px] font-medium text-white">{source.document_title || 'Untitled document'}</p>{source.page_number != null ? <span className="text-[9px] text-muted">Page {source.page_number}</span> : null}{source.score != null ? <span className="text-[9px] text-muted">Score {formatNumber(source.score, 3)}</span> : null}</div>{source.content_preview ? <p className="mt-1.5 line-clamp-3 text-[9px] leading-4 text-muted">“{source.content_preview}”</p> : null}</article>)}</div> : null}</div>
+  const agents = useMemo(() => invocationNames(root).filter((agent) => agent.depth > 0), [root])
+  if (!agents.length) return null
+
+  return (
+    <div className="pl-8">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-1 text-[9px] text-primary-light transition-colors hover:text-white">
+        {open ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+        <span className="truncate">{agentSummary(agents)}</span>
+      </button>
+      {open ? (
+        <div className="mt-1.5 space-y-1 border-l border-border/70 pl-2">
+          {agents.map((agent, index) => agent.id ? (
+            <button key={`${agent.id}-${index}`} type="button" onClick={() => onSelectAgent(agent.id!)} className="flex max-w-full items-center gap-1.5 text-left text-[9px] text-muted hover:text-white" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
+              <AgentStatusIcon status={agent.status} />
+              <span className="truncate">{agent.name}</span>
+            </button>
+          ) : (
+            <div key={`${agent.name}-${index}`} className="flex max-w-full items-center gap-1.5 text-[9px] text-muted" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
+              <AgentStatusIcon status={agent.status} />
+              <span className="truncate">{agent.name}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
-function statusIcon(status: AgentInvocationStatus) {
-  if (status === 'running') return <Loader2 className="h-3.5 w-3.5 animate-spin text-primary-light" />
-  if (status === 'error') return <XCircle className="h-3.5 w-3.5 text-red-400" />
-  if (status === 'success') return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-  return <CircleDot className="h-3.5 w-3.5 text-muted" />
-}
-
-function AgentInvocationNode({ invocation, depth, onSelectAgent }: { invocation: NetworkAgentInvocation; depth: number; onSelectAgent: (nodeId: AgentNodeId) => void }) {
-  const [open, setOpen] = useState(depth === 0 || invocation.status === 'error')
-  const hasDetails = Boolean(invocation.output || invocation.parsedOutput || invocation.outputParseError || invocation.tools.length || invocation.sources.length || invocation.children.length)
-  return <div className={cn(depth > 0 && 'border-l border-border/80 pl-3')}><article className={cn('overflow-hidden rounded-xl border bg-background/35', invocation.status === 'error' ? 'border-red-500/30' : 'border-border/80')}><div className="flex w-full items-start gap-2.5 px-3 py-2.5 text-left"><div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-surface">{statusIcon(invocation.status)}</div><div className="min-w-0 flex-1"><div className="flex min-w-0 flex-wrap items-center gap-2">{invocation.nodeId ? <button type="button" onClick={() => onSelectAgent(invocation.nodeId!)} className="truncate text-[11px] font-semibold text-white hover:text-primary-light">{invocation.agentName}</button> : <span className="truncate text-[11px] font-semibold text-white">{invocation.agentName}</span>}<span className={cn('rounded border px-1.5 py-0.5 text-[8px] font-semibold uppercase', sourceTone[invocation.source])}>{invocation.source}</span><span className="truncate font-mono text-[8px] text-muted">{invocation.version}</span></div><div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-muted">{invocation.provider || invocation.model ? <span>{invocation.provider || '—'}/{invocation.model || '—'}</span> : null}{invocation.durationMs != null ? <span>{formatLatency(invocation.durationMs)}</span> : null}{invocation.usage ? <span>{formatNumber(invocation.usage.input_tokens, 0)} in / {formatNumber(invocation.usage.output_tokens, 0)} out</span> : null}{invocation.costUsd != null ? <span>${invocation.costUsd.toFixed(3)}</span> : null}</div></div>{hasDetails ? <button type="button" onClick={() => setOpen((value) => !value)} className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-muted hover:bg-surface hover:text-white" aria-label={open ? `Collapse ${invocation.agentName}` : `Expand ${invocation.agentName}`}>{open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}</button> : null}</div>{open ? <div className="space-y-2.5 border-t border-border/70 px-3 py-3">{invocation.output || invocation.parsedOutput ? <div className="rounded-lg border border-border/70 bg-surface/55 p-3 text-[10px] leading-5 text-slate-200"><RichMessageContent content={invocation.output || ''} parsedOutput={invocation.parsedOutput} compact /></div> : null}{invocation.outputParseError ? <div className="rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[9px] text-amber-200">{invocation.outputParseError}</div> : null}{invocation.tools.length ? <ToolCallsCollapsible toolCalls={invocation.tools} variant="network" /> : null}<SourcesSection sources={invocation.sources} />{invocation.children.length ? <div className="space-y-2"><div className="flex items-center gap-2 text-[9px] font-medium uppercase tracking-wide text-muted"><Bot className="h-3 w-3" />Agents called ({invocation.children.length})</div><div className="space-y-2">{invocation.children.map((child) => <AgentInvocationNode key={child.spanId} invocation={child} depth={Math.min(depth + 1, 3)} onSelectAgent={onSelectAgent} />)}</div></div> : null}</div> : null}</article></div>
-}
-
-function NetworkExecutionSummary({ execution, onOpenTrace, onSelectAgent }: { execution: NetworkExecution; onOpenTrace: (execution: NetworkExecution) => void; onSelectAgent: (nodeId: AgentNodeId) => void }) {
+export function NetworkLiveAgents({ agents, onSelectAgent }: {
+  agents: LiveNetworkAgent[]
+  onSelectAgent: (nodeId: AgentNodeId) => void
+}) {
   const [open, setOpen] = useState(false)
-  const agents = invocationCount(execution.root)
-  const tools = toolCount(execution.root)
-  const sources = sourceCount(execution.root)
-  const path = ['ENTRY', ...invocationPath(execution.root), 'END'].join(' → ')
-  return <div className="overflow-hidden rounded-xl border border-border/80 bg-background/35"><div className="flex flex-wrap items-center gap-2 px-3 py-2.5"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" /><span className="text-[10px] font-medium text-white">Execution completed</span><span className="text-[9px] text-muted">{agents} Agents · {tools} {tools === 1 ? 'Tool' : 'Tools'} · {sources} Sources</span><span className="ml-auto text-[9px] text-muted">{formatLatency(execution.durationMs)} · ${execution.costUsd.toFixed(3)}</span></div><div className="border-t border-border/70 px-3 py-2"><p className="truncate text-[9px] text-primary-light" title={path}>{path}</p><div className="mt-2 flex items-center gap-3"><button type="button" onClick={() => setOpen((value) => !value)} className="text-[9px] font-medium text-primary-light hover:text-white">{open ? 'Hide execution' : 'View execution'}</button><button type="button" onClick={() => onOpenTrace(execution)} className="text-[9px] text-muted hover:text-white">Open trace</button><span className="ml-auto font-mono text-[8px] text-muted">trace {execution.traceId.slice(0, 8)}…</span></div></div>{open ? <div className="border-t border-border/70 p-3"><AgentInvocationNode invocation={execution.root} depth={0} onSelectAgent={onSelectAgent} /></div> : null}</div>
+  const calledAgents = useMemo(() => agents.filter((agent) => agent.depth > 0), [agents])
+  if (!calledAgents.length) return null
+
+  return (
+    <div className="pl-8">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-1 text-[9px] text-primary-light transition-colors hover:text-white">
+        {open ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+        <span className="truncate">{agentSummary(calledAgents)}</span>
+      </button>
+      {open ? (
+        <div className="mt-1.5 space-y-1 border-l border-border/70 pl-2">
+          {calledAgents.map((agent) => agent.nodeId ? (
+            <button key={agent.invocationId} type="button" onClick={() => onSelectAgent(agent.nodeId!)} className="flex max-w-full items-center gap-1.5 text-left text-[9px] text-muted hover:text-white" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
+              <AgentStatusIcon status={agent.status} />
+              <span className="truncate">{agent.name}</span>
+            </button>
+          ) : (
+            <div key={agent.invocationId} className="flex max-w-full items-center gap-1.5 text-[9px] text-muted" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
+              <AgentStatusIcon status={agent.status} />
+              <span className="truncate">{agent.name}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
-export function NetworkAnswer({ networkName, turn, onOpenTrace, onSelectAgent }: { networkName: string; turn: NetworkTurn; onOpenTrace: (execution: NetworkExecution) => void; onSelectAgent: (nodeId: AgentNodeId) => void }) {
-  return <div className="space-y-2.5"><div className="flex gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10"><Workflow className="h-4 w-4 text-primary-light" /></div><div className="min-w-0 flex-1"><p className="mb-1.5 truncate text-[10px] font-medium text-muted">{networkName}</p><div className="rounded-xl rounded-bl-md border border-border/80 bg-surface/75 px-4 py-3 text-[12px] leading-5 text-white shadow-sm shadow-black/5"><RichMessageContent content={turn.answer} parsedOutput={turn.parsedOutput} /></div>{turn.outputParseError ? <div className="mt-2 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[9px] text-amber-200">{turn.outputParseError}</div> : null}<div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[9px] text-muted"><span>{turn.provider}/{turn.model}</span><span>{formatLatency(turn.execution.durationMs)}</span><span>{formatNumber(turn.usage.input_tokens, 0)} in / {formatNumber(turn.usage.output_tokens, 0)} out</span><span>${turn.execution.costUsd.toFixed(3)}</span></div></div></div><div className="pl-11"><NetworkExecutionSummary execution={turn.execution} onOpenTrace={onOpenTrace} onSelectAgent={onSelectAgent} /></div></div>
+export function NetworkAnswer({ networkName, turn, onOpenTrace, onSelectAgent }: {
+  networkName: string
+  turn: NetworkTurn
+  onOpenTrace: (execution: NetworkExecution) => void
+  onSelectAgent: (nodeId: AgentNodeId) => void
+}) {
+  const failed = turn.execution.status === 'error'
+  const failure = turn.execution.root.failure
+  const fallback = failure?.partialResultAvailable
+    ? `${failure.message}\n\nCompleted Tool and Agent results remain available below.`
+    : failure?.message || 'The Network Run failed before producing a response.'
+  const message: PlaygroundChatMessage = {
+    role: 'assistant',
+    content: turn.answer || fallback,
+    usage: turn.usage,
+    sources: flattenSources(turn.execution.root),
+    tool_calls: flattenTools(turn.execution.root),
+    model: turn.model || null,
+    provider: turn.provider || null,
+    latency_ms: turn.execution.durationMs,
+    trace_id: turn.execution.traceId,
+    parsed_output: turn.parsedOutput ?? null,
+    output_parse_error: turn.outputParseError ?? null,
+  }
+  const agents = invocationCount(turn.execution.root)
+  const cost = turn.execution.costUsd == null ? 'cost unknown' : formatCurrency(turn.execution.costUsd)
+
+  return (
+    <div className={cn(failed && 'rounded-xl border border-red-500/25 bg-red-500/[0.03] p-2')}>
+      <ChatMessage
+        message={message}
+        agentName={networkName}
+        variant="network"
+        assistantIcon="network"
+        details={<AgentsCalled root={turn.execution.root} onSelectAgent={onSelectAgent} />}
+        footerMeta={(
+          <>
+            <span>{agents} Agent{agents === 1 ? '' : 's'}</span>
+            <span>{cost}</span>
+          </>
+        )}
+        footerActions={(
+          <button type="button" onClick={() => onOpenTrace(turn.execution)} className="h-6 rounded-md px-1.5 text-[9px] font-medium text-primary-light transition-colors hover:bg-background/70 hover:text-white">
+            Open Run
+          </button>
+        )}
+      />
+    </div>
+  )
 }

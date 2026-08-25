@@ -3,7 +3,7 @@
 Known defects (initially RED — shrinks as hardening fixes each):
 - billing: plan.created, customer.created, subscription.created
 - core: project.created, api_key.created
-- identity: user.created, organization.created
+- identity: user.created, workspace.created
 - observability: trace.created, trace_event.created
 
 Corrective spec: 003

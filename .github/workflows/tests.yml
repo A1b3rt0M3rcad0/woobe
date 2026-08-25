@@ -1,0 +1,53 @@
+name: Backend test suite
+
+on:
+  pull_request:
+    branches: [development]
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Reset stale validation stack
+        run: docker compose -f compose.test.yaml down -v --remove-orphans || true
+
+      - name: Prepare validation artifacts
+        run: |
+          rm -rf .test-artifacts
+          mkdir -p .test-artifacts
+
+      - name: Validate standalone backend test Compose contract
+        run: docker compose -f compose.test.yaml config --quiet
+
+      - name: Run the local/CI backend test contract
+        run: docker compose -f compose.test.yaml up --build --exit-code-from tests tests
+
+      - name: Capture Compose diagnostics
+        if: failure()
+        run: |
+          docker compose -f compose.test.yaml ps --all | tee .test-artifacts/compose-ps.txt || true
+          docker compose -f compose.test.yaml logs --no-color 2>&1 | tee .test-artifacts/compose.log || true
+
+      - name: Tear down validation stack
+        if: always()
+        run: docker compose -f compose.test.yaml down -v --remove-orphans
+
+      - name: Upload backend test evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: woobe-backend-test-evidence
+          path: .test-artifacts
+          if-no-files-found: warn
+          include-hidden-files: true

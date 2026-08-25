@@ -6,6 +6,11 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field, model_validator
 
+from modules.agent.application.http_tool_contract import (
+    compile_http_tool_group_contract,
+    compile_http_tool_contract,
+    is_http_tool_group,
+)
 from modules.agent.application.tool_types import is_mcp_tool_type
 from modules.agent.domain.enums import RiskLevel, SecretType, ToolStatus, ToolType
 
@@ -14,6 +19,7 @@ class HttpHeaderConfig(BaseModel):
     key: str = Field(..., min_length=1)
     value: str = ""
     sensitive: bool | None = None
+    mode: Literal["set", "remove"] = "set"
 
 
 class HttpAuthConfig(BaseModel):
@@ -21,15 +27,51 @@ class HttpAuthConfig(BaseModel):
     credentials: list[str] | None = None
 
 
+class HttpRouteConfig(BaseModel):
+    id: str = Field(..., min_length=1)
+    operation_id: str | None = None
+    name: str = Field(..., min_length=1)
+    description: str = Field(..., min_length=1)
+    method: Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] = "GET"
+    path: str = Field(..., min_length=1)
+    headers: list[HttpHeaderConfig] = Field(default_factory=list)
+    body: str | dict[str, Any] | list[Any] | None = None
+    variables: dict[str, Any] = Field(default_factory=dict)
+    input_schema: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | None = None
+    risk_level: Literal["low", "medium", "high", "critical"] = "low"
+    status: Literal["active", "inactive"] = "active"
+    default_permission: Literal["allow", "deny", "review"] = "review"
+    permission: dict[str, Any] | None = None
+    timeout_ms: int | None = Field(default=None, ge=1)
+    contract_version: int | None = None
+    contract_hash: str | None = None
+
+
 class HttpToolConfig(BaseModel):
     protocol: Literal["http"] | None = None
+    mode: Literal["single", "group"] = "single"
+    schema_version: int | None = None
     url: str = ""
     method: Literal["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD"] = "GET"
+    base_url: str | None = None
+    routes: list[HttpRouteConfig] = Field(default_factory=list)
     headers: list[HttpHeaderConfig] = Field(default_factory=list)
     body: str | dict[str, Any] | list[Any] | None = None
     variables: dict[str, Any] = Field(default_factory=dict)
     auth: HttpAuthConfig | None = None
     timeout_ms: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def validate_target(self) -> "HttpToolConfig":
+        if self.mode == "group":
+            if not self.base_url:
+                raise ValueError("HTTP API base_url is required for group mode")
+            if not self.routes:
+                raise ValueError("HTTP API group requires at least one route")
+        elif not self.url:
+            raise ValueError("HTTP Tool url is required")
+        return self
 
 
 class McpServerConfig(BaseModel):
@@ -72,6 +114,24 @@ class McpToolConfig(BaseModel):
         return self
 
 
+def _compile_http_config(
+    raw_config: dict[str, Any],
+    declared_schema: dict[str, Any] | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    parsed = HttpToolConfig.model_validate(raw_config)
+    normalized = parsed.model_dump(exclude_none=True)
+    if is_http_tool_group(normalized):
+        compiled_group = compile_http_tool_group_contract(normalized)
+        return compiled_group.config, {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        }
+    compiled = compile_http_tool_contract(normalized, declared_schema)
+    return compiled.config, compiled.input_schema
+
+
 class CreateToolInput(BaseModel):
     project_id: UUID
     agent_id: UUID | None = None
@@ -91,7 +151,7 @@ class CreateToolInput(BaseModel):
         if is_mcp_tool_type(self.type):
             McpToolConfig.model_validate(self.config)
         else:
-            HttpToolConfig.model_validate(self.config)
+            self.config, self.input_schema = _compile_http_config(self.config, self.input_schema)
         return self
 
 
@@ -143,12 +203,13 @@ class UpdateToolInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_protocol_config(self) -> "UpdateToolInput":
-        if self.config is None or self.type is None:
+        if self.config is None:
             return self
-        if is_mcp_tool_type(self.type):
+        protocol = self.type or self.config.get("protocol")
+        if is_mcp_tool_type(protocol):
             McpToolConfig.model_validate(self.config)
         else:
-            HttpToolConfig.model_validate(self.config)
+            self.config, self.input_schema = _compile_http_config(self.config, self.input_schema)
         return self
 
 

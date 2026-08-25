@@ -5,7 +5,7 @@ class EmailAlreadyExistsError(ConflictError):
     pass
 
 
-class OrganizationNotFoundError(NotFoundError):
+class WorkspaceNotFoundError(NotFoundError):
     pass
 
 

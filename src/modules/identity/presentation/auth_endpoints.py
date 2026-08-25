@@ -3,10 +3,11 @@ from urllib.parse import urlsplit
 from uuid import UUID
 
 from fastapi import Request as FastAPIRequest
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 
 from modules.identity.application.authentication_service import AuthenticationService
-from modules.identity.application.dtos import CreateOrganizationInput, LoginInput, RegisterInput
+from modules.identity.application.dtos import CreateWorkspaceInput, LoginInput, RegisterInput
 from shared.infra.errors import AuthenticationError
 
 
@@ -79,16 +80,16 @@ def set_csrf_cookie(
     response.headers[CSRF_RESPONSE_HEADER] = csrf_value
 
 
-def organization_payload(organization) -> dict:
+def workspace_payload(workspace) -> dict:
     return {
-        "id": str(organization.id),
-        "name": organization.name,
-        "slug": organization.slug,
-        "status": organization.status.value
-        if hasattr(organization.status, "value")
-        else organization.status,
-        "created_at": organization.created_at.isoformat()
-        if getattr(organization, "created_at", None)
+        "id": str(workspace.id),
+        "name": workspace.name,
+        "slug": workspace.slug,
+        "status": workspace.status.value
+        if hasattr(workspace.status, "value")
+        else workspace.status,
+        "created_at": workspace.created_at.isoformat()
+        if getattr(workspace, "created_at", None)
         else None,
     }
 
@@ -110,8 +111,8 @@ def authentication_response(
             "status": result.user.status,
         },
     }
-    if result.organization is not None:
-        response_data["organization"] = organization_payload(result.organization)
+    if result.workspace is not None:
+        response_data["workspace"] = workspace_payload(result.workspace)
 
     response = JSONResponse(
         status_code=status_code,
@@ -211,28 +212,28 @@ def clear_auth_cookies(request: FastAPIRequest, response: JSONResponse) -> None:
     )
 
 
-async def list_organizations_endpoint(request: FastAPIRequest) -> JSONResponse:
+async def list_workspaces_endpoint(request: FastAPIRequest) -> JSONResponse:
     principal = getattr(request.state, "principal", None)
     if principal is None:
         raise AuthenticationError("Authentication required")
-    organizations = await authentication_service(request).list_organizations(
+    workspaces = await authentication_service(request).list_workspaces(
         principal.user_id
     )
     return JSONResponse(
         content={
             "success": True,
             "message": "ok",
-            "data": [organization_payload(organization) for organization in organizations],
+            "data": jsonable_encoder(workspaces),
         }
     )
 
 
-async def create_organization_endpoint(request: FastAPIRequest) -> JSONResponse:
+async def create_workspace_endpoint(request: FastAPIRequest) -> JSONResponse:
     principal = getattr(request.state, "principal", None)
     if principal is None:
         raise AuthenticationError("Authentication required")
-    data = CreateOrganizationInput(**(await request.json()))
-    organization = await authentication_service(request).create_organization(
+    data = CreateWorkspaceInput(**(await request.json()))
+    workspace = await authentication_service(request).create_workspace(
         user_id=principal.user_id,
         name=data.name,
         slug=data.slug,
@@ -242,7 +243,7 @@ async def create_organization_endpoint(request: FastAPIRequest) -> JSONResponse:
         content={
             "success": True,
             "message": "created",
-            "data": organization_payload(organization),
+            "data": workspace_payload(workspace),
         },
     )
 

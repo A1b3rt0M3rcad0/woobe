@@ -7,7 +7,7 @@ from modules.identity.domain.enums import (
     InviteStatus,
     MemberRole,
     MemberStatus,
-    OrganizationStatus,
+    WorkspaceStatus,
     UserStatus,
 )
 
@@ -24,50 +24,50 @@ class CreateUserOutput(BaseModel):
     created_at: datetime
 
 
-class CreateOrganizationInput(BaseModel):
+class CreateWorkspaceInput(BaseModel):
     name: str
     slug: str
 
 
-class CreateOrganizationOutput(BaseModel):
+class CreateWorkspaceOutput(BaseModel):
     id: UUID
     name: str
     slug: str
-    status: OrganizationStatus
+    status: WorkspaceStatus
     created_at: datetime
 
 
-class UpdateOrganizationInput(BaseModel):
+class UpdateWorkspaceInput(BaseModel):
     name: str | None = None
     slug: str | None = None
 
 
-class UpdateOrganizationOutput(BaseModel):
+class UpdateWorkspaceOutput(BaseModel):
     id: UUID
     name: str
     slug: str
-    status: OrganizationStatus
+    status: WorkspaceStatus
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
 class AddMemberInput(BaseModel):
     user_id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     role: MemberRole = MemberRole.member
 
 
 class AddMemberOutput(BaseModel):
     id: UUID
     user_id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     role: MemberRole
     status: MemberStatus
     joined_at: datetime
 
 
 class InviteUserInput(BaseModel):
-    organization_id: UUID
+    workspace_id: UUID
     email: str
     role: MemberRole = MemberRole.member
     invited_by_user_id: UUID
@@ -75,7 +75,7 @@ class InviteUserInput(BaseModel):
 
 class InviteUserOutput(BaseModel):
     id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     email: str
     role: MemberRole
     status: InviteStatus
@@ -83,15 +83,15 @@ class InviteUserOutput(BaseModel):
     created_at: datetime
 
 
-class ListOrganizationsInput(BaseModel):
+class ListWorkspacesInput(BaseModel):
     pass
 
 
-class ListOrganizationsOutput(BaseModel):
+class ListWorkspacesOutput(BaseModel):
     id: UUID
     name: str
     slug: str
-    status: OrganizationStatus
+    status: WorkspaceStatus
     created_at: datetime | None = None
 
 
@@ -108,47 +108,47 @@ class LoginOutput(BaseModel):
 class RegisterInput(BaseModel):
     email: str
     password: str
-    organization_name: str = "My Organization"
+    workspace_name: str = "My Workspace"
 
 
 class RegisterOutput(BaseModel):
     token: str
     user: dict
-    organization: dict | None = None
+    workspace: dict | None = None
 
 
-class GetOrganizationInput(BaseModel):
-    organization_id: UUID
+class GetWorkspaceInput(BaseModel):
+    workspace_id: UUID
 
 
-class GetOrganizationOutput(BaseModel):
+class GetWorkspaceOutput(BaseModel):
     id: UUID
     name: str
     slug: str
-    status: OrganizationStatus
+    status: WorkspaceStatus
     created_at: datetime | None = None
 
 
 class ListMembersInput(BaseModel):
-    organization_id: UUID
+    workspace_id: UUID
 
 
 class ListMembersOutput(BaseModel):
     id: UUID
     user_id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     role: MemberRole
     status: MemberStatus
     joined_at: datetime | None = None
 
 
 class ListInvitesInput(BaseModel):
-    organization_id: UUID
+    workspace_id: UUID
 
 
 class ListInvitesOutput(BaseModel):
     id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     email: str
     role: MemberRole
     status: InviteStatus

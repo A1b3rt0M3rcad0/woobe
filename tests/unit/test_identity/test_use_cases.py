@@ -3,27 +3,27 @@ from datetime import UTC, datetime
 
 import pytest
 
-from modules.identity.domain.entities import OrganizationInvite
+from modules.identity.domain.entities import WorkspaceInvite
 from modules.identity.domain.enums import InviteStatus, MemberRole
 from modules.identity.domain.errors import (
     EmailAlreadyExistsError,
-    OrganizationNotFoundError,
+    WorkspaceNotFoundError,
     UserNotFoundError,
 )
 from modules.identity.application.dtos import (
     AddMemberInput,
-    CreateOrganizationInput,
+    CreateWorkspaceInput,
     CreateUserInput,
     InviteUserInput,
 )
 from modules.identity.application.use_cases import (
-    AddMemberToOrganizationUseCase,
-    CreateOrganizationUseCase,
+    AddMemberToWorkspaceUseCase,
+    CreateWorkspaceUseCase,
     CreateUserUseCase,
     InviteUserUseCase,
 )
 from shared.infra.errors import ConflictError
-from tests.helpers import make_organization, make_organization_member, make_user
+from tests.helpers import make_workspace, make_workspace_member, make_user
 
 
 class TestCreateUserUseCase:
@@ -53,62 +53,62 @@ class TestCreateUserUseCase:
         mock_repo.save.assert_not_called()
 
 
-class TestCreateOrganizationUseCase:
+class TestCreateWorkspaceUseCase:
     @pytest.mark.asyncio
     async def test_success(self, mocker):
         mock_repo = mocker.AsyncMock()
         mock_repo.get_by_slug.return_value = None
-        mock_repo.save.return_value = make_organization(name="TestOrg", slug="test-org")
+        mock_repo.save.return_value = make_workspace(name="TestWorkspace", slug="test-workspace")
 
         mock_outbox = mocker.AsyncMock()
 
-        uc = CreateOrganizationUseCase(org_repo=mock_repo, outbox=mock_outbox)
-        result = await uc.execute(CreateOrganizationInput(name="TestOrg", slug="test-org"))
+        uc = CreateWorkspaceUseCase(workspace_repo=mock_repo, outbox=mock_outbox)
+        result = await uc.execute(CreateWorkspaceInput(name="TestWorkspace", slug="test-workspace"))
 
-        assert result.name == "TestOrg"
-        assert result.slug == "test-org"
+        assert result.name == "TestWorkspace"
+        assert result.slug == "test-workspace"
         mock_repo.save.assert_awaited_once()
         mock_outbox.write.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_duplicate_slug(self, mocker):
         mock_repo = mocker.AsyncMock()
-        mock_repo.get_by_slug.return_value = make_organization(slug="dup-slug")
+        mock_repo.get_by_slug.return_value = make_workspace(slug="dup-slug")
 
-        uc = CreateOrganizationUseCase(org_repo=mock_repo, outbox=mocker.AsyncMock())
+        uc = CreateWorkspaceUseCase(workspace_repo=mock_repo, outbox=mocker.AsyncMock())
         with pytest.raises(ConflictError):
-            await uc.execute(CreateOrganizationInput(name="TestOrg", slug="dup-slug"))
+            await uc.execute(CreateWorkspaceInput(name="TestWorkspace", slug="dup-slug"))
         mock_repo.save.assert_not_called()
 
 
-class TestAddMemberToOrganizationUseCase:
+class TestAddMemberToWorkspaceUseCase:
     @pytest.mark.asyncio
     async def test_success(self, mocker):
-        org_id = uuid6.uuid7()
+        workspace_id = uuid6.uuid7()
         user_id = uuid6.uuid7()
 
-        mock_org_repo = mocker.AsyncMock()
-        mock_org_repo.get_by_id.return_value = make_organization()
+        mock_workspace_repo = mocker.AsyncMock()
+        mock_workspace_repo.get_by_id.return_value = make_workspace()
 
         mock_user_repo = mocker.AsyncMock()
         mock_user_repo.get_by_id.return_value = make_user()
 
         mock_member_repo = mocker.AsyncMock()
-        mock_member_repo.get_by_organization_and_user.return_value = None
-        mock_member_repo.save.return_value = make_organization_member(
-            user_id=user_id, organization_id=org_id, role=MemberRole.member
+        mock_member_repo.get_by_workspace_and_user.return_value = None
+        mock_member_repo.save.return_value = make_workspace_member(
+            user_id=user_id, workspace_id=workspace_id, role=MemberRole.member
         )
 
         mock_outbox = mocker.AsyncMock()
 
-        uc = AddMemberToOrganizationUseCase(
-            org_repo=mock_org_repo,
+        uc = AddMemberToWorkspaceUseCase(
+            workspace_repo=mock_workspace_repo,
             user_repo=mock_user_repo,
             member_repo=mock_member_repo,
             outbox=mock_outbox,
         )
         result = await uc.execute(
-            AddMemberInput(user_id=user_id, organization_id=org_id)
+            AddMemberInput(user_id=user_id, workspace_id=workspace_id)
         )
 
         assert result.role == MemberRole.member
@@ -116,34 +116,34 @@ class TestAddMemberToOrganizationUseCase:
         mock_outbox.write.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_organization_not_found(self, mocker):
-        mock_org_repo = mocker.AsyncMock()
-        mock_org_repo.get_by_id.return_value = None
+    async def test_workspace_not_found(self, mocker):
+        mock_workspace_repo = mocker.AsyncMock()
+        mock_workspace_repo.get_by_id.return_value = None
 
-        uc = AddMemberToOrganizationUseCase(
-            org_repo=mock_org_repo,
+        uc = AddMemberToWorkspaceUseCase(
+            workspace_repo=mock_workspace_repo,
             user_repo=mocker.AsyncMock(),
             member_repo=mocker.AsyncMock(),
             outbox=mocker.AsyncMock(),
         )
-        with pytest.raises(OrganizationNotFoundError):
+        with pytest.raises(WorkspaceNotFoundError):
             await uc.execute(
                 AddMemberInput(
                     user_id=uuid6.uuid7(),
-                    organization_id=uuid6.uuid7(),
+                    workspace_id=uuid6.uuid7(),
                 )
             )
 
     @pytest.mark.asyncio
     async def test_user_not_found(self, mocker):
-        mock_org_repo = mocker.AsyncMock()
-        mock_org_repo.get_by_id.return_value = make_organization()
+        mock_workspace_repo = mocker.AsyncMock()
+        mock_workspace_repo.get_by_id.return_value = make_workspace()
 
         mock_user_repo = mocker.AsyncMock()
         mock_user_repo.get_by_id.return_value = None
 
-        uc = AddMemberToOrganizationUseCase(
-            org_repo=mock_org_repo,
+        uc = AddMemberToWorkspaceUseCase(
+            workspace_repo=mock_workspace_repo,
             user_repo=mock_user_repo,
             member_repo=mocker.AsyncMock(),
             outbox=mocker.AsyncMock(),
@@ -152,33 +152,33 @@ class TestAddMemberToOrganizationUseCase:
             await uc.execute(
                 AddMemberInput(
                     user_id=uuid6.uuid7(),
-                    organization_id=uuid6.uuid7(),
+                    workspace_id=uuid6.uuid7(),
                 )
             )
 
     @pytest.mark.asyncio
     async def test_already_member(self, mocker):
-        org_id = uuid6.uuid7()
+        workspace_id = uuid6.uuid7()
         user_id = uuid6.uuid7()
 
-        mock_org_repo = mocker.AsyncMock()
-        mock_org_repo.get_by_id.return_value = make_organization()
+        mock_workspace_repo = mocker.AsyncMock()
+        mock_workspace_repo.get_by_id.return_value = make_workspace()
 
         mock_user_repo = mocker.AsyncMock()
         mock_user_repo.get_by_id.return_value = make_user()
 
         mock_member_repo = mocker.AsyncMock()
-        mock_member_repo.get_by_organization_and_user.return_value = make_organization_member()
+        mock_member_repo.get_by_workspace_and_user.return_value = make_workspace_member()
 
-        uc = AddMemberToOrganizationUseCase(
-            org_repo=mock_org_repo,
+        uc = AddMemberToWorkspaceUseCase(
+            workspace_repo=mock_workspace_repo,
             user_repo=mock_user_repo,
             member_repo=mock_member_repo,
             outbox=mocker.AsyncMock(),
         )
         with pytest.raises(ConflictError):
             await uc.execute(
-                AddMemberInput(user_id=user_id, organization_id=org_id)
+                AddMemberInput(user_id=user_id, workspace_id=workspace_id)
             )
         mock_member_repo.save.assert_not_called()
 
@@ -186,17 +186,17 @@ class TestAddMemberToOrganizationUseCase:
 class TestInviteUserUseCase:
     @pytest.mark.asyncio
     async def test_success(self, mocker):
-        org_id = uuid6.uuid7()
+        workspace_id = uuid6.uuid7()
 
-        mock_org_repo = mocker.AsyncMock()
-        mock_org_repo.get_by_id.return_value = make_organization()
+        mock_workspace_repo = mocker.AsyncMock()
+        mock_workspace_repo.get_by_id.return_value = make_workspace()
 
         mock_invite_repo = mocker.AsyncMock()
-        mock_invite_repo.get_by_organization_and_email.return_value = None
+        mock_invite_repo.get_by_workspace_and_email.return_value = None
 
-        saved_invite = OrganizationInvite(
+        saved_invite = WorkspaceInvite(
             id=uuid6.uuid7(),
-            organization_id=org_id,
+            workspace_id=workspace_id,
             email="invite@test.com",
             role=MemberRole.member,
             token_hash="tok",
@@ -210,13 +210,13 @@ class TestInviteUserUseCase:
         mock_outbox = mocker.AsyncMock()
 
         uc = InviteUserUseCase(
-            org_repo=mock_org_repo,
+            workspace_repo=mock_workspace_repo,
             invite_repo=mock_invite_repo,
             outbox=mock_outbox,
         )
         result = await uc.execute(
             InviteUserInput(
-                organization_id=org_id,
+                workspace_id=workspace_id,
                 email="invite@test.com",
                 invited_by_user_id=uuid6.uuid7(),
             )
@@ -228,19 +228,19 @@ class TestInviteUserUseCase:
         mock_outbox.write.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_organization_not_found(self, mocker):
-        mock_org_repo = mocker.AsyncMock()
-        mock_org_repo.get_by_id.return_value = None
+    async def test_workspace_not_found(self, mocker):
+        mock_workspace_repo = mocker.AsyncMock()
+        mock_workspace_repo.get_by_id.return_value = None
 
         uc = InviteUserUseCase(
-            org_repo=mock_org_repo,
+            workspace_repo=mock_workspace_repo,
             invite_repo=mocker.AsyncMock(),
             outbox=mocker.AsyncMock(),
         )
-        with pytest.raises(OrganizationNotFoundError):
+        with pytest.raises(WorkspaceNotFoundError):
             await uc.execute(
                 InviteUserInput(
-                    organization_id=uuid6.uuid7(),
+                    workspace_id=uuid6.uuid7(),
                     email="invite@test.com",
                     invited_by_user_id=uuid6.uuid7(),
                 )
@@ -248,28 +248,28 @@ class TestInviteUserUseCase:
 
     @pytest.mark.asyncio
     async def test_pending_invite_exists(self, mocker):
-        org_id = uuid6.uuid7()
+        workspace_id = uuid6.uuid7()
 
-        mock_org_repo = mocker.AsyncMock()
-        mock_org_repo.get_by_id.return_value = make_organization()
+        mock_workspace_repo = mocker.AsyncMock()
+        mock_workspace_repo.get_by_id.return_value = make_workspace()
 
-        existing_invite = OrganizationInvite(
+        existing_invite = WorkspaceInvite(
             email="invite@test.com",
-            organization_id=org_id,
+            workspace_id=workspace_id,
             status=InviteStatus.pending,
         )
         mock_invite_repo = mocker.AsyncMock()
-        mock_invite_repo.get_by_organization_and_email.return_value = existing_invite
+        mock_invite_repo.get_by_workspace_and_email.return_value = existing_invite
 
         uc = InviteUserUseCase(
-            org_repo=mock_org_repo,
+            workspace_repo=mock_workspace_repo,
             invite_repo=mock_invite_repo,
             outbox=mocker.AsyncMock(),
         )
         with pytest.raises(ConflictError):
             await uc.execute(
                 InviteUserInput(
-                    organization_id=org_id,
+                    workspace_id=workspace_id,
                     email="invite@test.com",
                     invited_by_user_id=uuid6.uuid7(),
                 )

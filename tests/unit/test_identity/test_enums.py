@@ -4,7 +4,7 @@ from modules.identity.domain.enums import (
     InviteStatus,
     MemberRole,
     MemberStatus,
-    OrganizationStatus,
+    WorkspaceStatus,
     UserSessionStatus,
     UserStatus,
 )
@@ -24,17 +24,17 @@ class TestUserStatus:
         assert len(UserStatus) == 4
 
 
-class TestOrganizationStatus:
+class TestWorkspaceStatus:
     def test_values(self):
-        assert OrganizationStatus.active == "active"
-        assert OrganizationStatus.inactive == "inactive"
-        assert OrganizationStatus.suspended == "suspended"
+        assert WorkspaceStatus.active == "active"
+        assert WorkspaceStatus.inactive == "inactive"
+        assert WorkspaceStatus.suspended == "suspended"
 
     def test_is_strenum(self):
-        assert issubclass(OrganizationStatus, StrEnum)
+        assert issubclass(WorkspaceStatus, StrEnum)
 
     def test_members_count(self):
-        assert len(OrganizationStatus) == 3
+        assert len(WorkspaceStatus) == 3
 
 
 class TestMemberRole:

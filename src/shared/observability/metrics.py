@@ -79,9 +79,9 @@ class RuntimeMetrics:
         try:
             pool = engine.sync_engine.pool
             return [
-                f"projectrai_db_pool_size {float(pool.size())}",
-                f"projectrai_db_pool_checked_out {float(pool.checkedout())}",
-                f"projectrai_db_pool_overflow {float(pool.overflow())}",
+                f"woobe_db_pool_size {float(pool.size())}",
+                f"woobe_db_pool_checked_out {float(pool.checkedout())}",
+                f"woobe_db_pool_overflow {float(pool.overflow())}",
             ]
         except (AttributeError, NotImplementedError, TypeError):
             return []
@@ -101,98 +101,71 @@ class RuntimeMetrics:
             inbox_retries = dict(self._inbox_retries)
 
         lines = [
-            "# HELP projectrai_http_requests_total HTTP requests by route and status.",
-            "# TYPE projectrai_http_requests_total counter",
+            "# HELP woobe_http_requests_total HTTP requests by route and status.",
+            "# TYPE woobe_http_requests_total counter",
         ]
         for (method, route, status), value in sorted(http_requests.items()):
-            lines.append(
-                "projectrai_http_requests_total"
-                + _labels(method=method, route=route, status=status)
-                + f" {value}"
-            )
-
+            lines.append("woobe_http_requests_total" + _labels(method=method, route=route, status=status) + f" {value}")
         lines.extend([
-            "# HELP projectrai_http_request_duration_seconds HTTP request latency.",
-            "# TYPE projectrai_http_request_duration_seconds summary",
+            "# HELP woobe_http_request_duration_seconds HTTP request latency.",
+            "# TYPE woobe_http_request_duration_seconds summary",
         ])
         for (method, route), value in sorted(http_duration_count.items()):
             label_set = _labels(method=method, route=route)
-            lines.append(f"projectrai_http_request_duration_seconds_count{label_set} {value}")
-            lines.append(
-                "projectrai_http_request_duration_seconds_sum"
-                f"{label_set} {http_duration_sum[(method, route)]:.9f}"
-            )
-
+            lines.append(f"woobe_http_request_duration_seconds_count{label_set} {value}")
+            lines.append(f"woobe_http_request_duration_seconds_sum{label_set} {http_duration_sum[(method, route)]:.9f}")
         lines.extend([
-            "# HELP projectrai_provider_failures_total Provider invocation failures.",
-            "# TYPE projectrai_provider_failures_total counter",
+            "# HELP woobe_provider_failures_total Provider invocation failures.",
+            "# TYPE woobe_provider_failures_total counter",
         ])
         for (provider, model), value in sorted(provider_failures.items()):
-            lines.append(
-                "projectrai_provider_failures_total"
-                + _labels(provider=provider, model=model)
-                + f" {value}"
-            )
-
+            lines.append("woobe_provider_failures_total" + _labels(provider=provider, model=model) + f" {value}")
         lines.extend([
-            "# HELP projectrai_tool_failures_total Tool execution failures.",
-            "# TYPE projectrai_tool_failures_total counter",
+            "# HELP woobe_tool_failures_total Tool execution failures.",
+            "# TYPE woobe_tool_failures_total counter",
         ])
         for tool, value in sorted(tool_failures.items()):
-            lines.append("projectrai_tool_failures_total" + _labels(tool=tool) + f" {value}")
-
+            lines.append("woobe_tool_failures_total" + _labels(tool=tool) + f" {value}")
         lines.extend([
-            "# HELP projectrai_runtime_ttft_seconds Time to first streamed token.",
-            "# TYPE projectrai_runtime_ttft_seconds summary",
+            "# HELP woobe_runtime_ttft_seconds Time to first streamed token.",
+            "# TYPE woobe_runtime_ttft_seconds summary",
         ])
         for (provider, model), value in sorted(ttft_count.items()):
             label_set = _labels(provider=provider, model=model)
-            lines.append(f"projectrai_runtime_ttft_seconds_count{label_set} {value}")
-            lines.append(
-                f"projectrai_runtime_ttft_seconds_sum{label_set} "
-                f"{ttft_sum[(provider, model)]:.9f}"
-            )
-
+            lines.append(f"woobe_runtime_ttft_seconds_count{label_set} {value}")
+            lines.append(f"woobe_runtime_ttft_seconds_sum{label_set} {ttft_sum[(provider, model)]:.9f}")
         lines.extend([
-            "# HELP projectrai_worker_failures_total Worker loop failures.",
-            "# TYPE projectrai_worker_failures_total counter",
+            "# HELP woobe_worker_failures_total Worker loop failures.",
+            "# TYPE woobe_worker_failures_total counter",
         ])
         for (worker, worker_type), value in sorted(worker_failures.items()):
-            lines.append(
-                "projectrai_worker_failures_total"
-                + _labels(worker=worker, worker_type=worker_type)
-                + f" {value}"
-            )
-
+            lines.append("woobe_worker_failures_total" + _labels(worker=worker, worker_type=worker_type) + f" {value}")
         lines.extend([
-            "# HELP projectrai_queue_lag_seconds Oldest observed queue message age.",
-            "# TYPE projectrai_queue_lag_seconds gauge",
+            "# HELP woobe_queue_lag_seconds Oldest observed queue message age.",
+            "# TYPE woobe_queue_lag_seconds gauge",
         ])
         for queue, value in sorted(queue_lag.items()):
             if math.isfinite(value):
-                lines.append("projectrai_queue_lag_seconds" + _labels(queue=queue) + f" {value}")
-
+                lines.append("woobe_queue_lag_seconds" + _labels(queue=queue) + f" {value}")
         lines.extend([
-            "# HELP projectrai_outbox_retries_total Outbox publish retries.",
-            "# TYPE projectrai_outbox_retries_total counter",
+            "# HELP woobe_outbox_retries_total Outbox publish retries.",
+            "# TYPE woobe_outbox_retries_total counter",
         ])
         for worker, value in sorted(outbox_retries.items()):
-            lines.append("projectrai_outbox_retries_total" + _labels(worker=worker) + f" {value}")
-
+            lines.append("woobe_outbox_retries_total" + _labels(worker=worker) + f" {value}")
         lines.extend([
-            "# HELP projectrai_inbox_retries_total Inbox processing retries.",
-            "# TYPE projectrai_inbox_retries_total counter",
+            "# HELP woobe_inbox_retries_total Inbox processing retries.",
+            "# TYPE woobe_inbox_retries_total counter",
         ])
         for worker, value in sorted(inbox_retries.items()):
-            lines.append("projectrai_inbox_retries_total" + _labels(worker=worker) + f" {value}")
-
+            lines.append("woobe_inbox_retries_total" + _labels(worker=worker) + f" {value}")
         lines.extend([
-            "# HELP projectrai_db_pool_size Configured SQLAlchemy pool size.",
-            "# TYPE projectrai_db_pool_size gauge",
-            "# HELP projectrai_db_pool_checked_out Checked-out DB connections.",
-            "# TYPE projectrai_db_pool_checked_out gauge",
-            "# HELP projectrai_db_pool_overflow Current DB overflow connections.",
-            "# TYPE projectrai_db_pool_overflow gauge",
+            "# HELP woobe_db_pool_size Configured SQLAlchemy pool size.",
+            "# TYPE woobe_db_pool_size gauge",
+            "# HELP woobe_db_pool_checked_out Checked-out DB connections.",
+            "# TYPE woobe_db_pool_checked_out gauge",
+            "# HELP woobe_db_pool_overflow Current DB overflow connections.",
+            "# TYPE woobe_db_pool_overflow gauge",
         ])
         lines.extend(self._db_pool_samples(engine))
         return "\n".join(lines) + "\n"

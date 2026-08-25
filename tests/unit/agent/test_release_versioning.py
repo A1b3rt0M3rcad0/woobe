@@ -19,12 +19,12 @@ def test_parse_release_version_contract() -> None:
     assert str(version) == "v0.1.20260620.07"
 
 
-def test_first_release_starts_at_zero_bucket() -> None:
+def test_first_release_starts_at_first_daily_sequence() -> None:
     assert calculate_next_release_version(
         [],
         ReleaseChangeKind.CHANGE,
         now=datetime(2026, 6, 20, tzinfo=timezone.utc),
-    ) == "v0.0.20260620.00"
+    ) == "v0.0.20260620.01"
 
 
 def test_regular_change_increments_daily_sequence_only() -> None:
@@ -35,20 +35,20 @@ def test_regular_change_increments_daily_sequence_only() -> None:
     ) == "v0.0.20260620.01"
 
 
-def test_feature_change_increments_feature_bucket_and_resets_sequence() -> None:
+def test_feature_change_increments_feature_bucket_and_keeps_daily_sequence() -> None:
     assert calculate_next_release_version(
         ["v0.0.20260620.02"],
         ReleaseChangeKind.FEATURE,
         now=datetime(2026, 6, 20, tzinfo=timezone.utc),
-    ) == "v0.1.20260620.00"
+    ) == "v0.1.20260620.03"
 
 
-def test_compatibility_change_increments_compatibility_and_resets_feature() -> None:
+def test_compatibility_change_increments_compatibility_and_keeps_daily_sequence() -> None:
     assert calculate_next_release_version(
         ["v0.3.20260620.02"],
         ReleaseChangeKind.COMPATIBILITY,
         now=datetime(2026, 6, 20, tzinfo=timezone.utc),
-    ) == "v1.0.20260620.00"
+    ) == "v1.0.20260620.03"
 
 
 def test_daily_sequence_is_scoped_by_date() -> None:
@@ -56,7 +56,7 @@ def test_daily_sequence_is_scoped_by_date() -> None:
         ["v0.0.20260619.09"],
         ReleaseChangeKind.CHANGE,
         now=datetime(2026, 6, 20, tzinfo=timezone.utc),
-    ) == "v0.0.20260620.00"
+    ) == "v0.0.20260620.01"
 
 
 def test_invalid_existing_versions_do_not_block_generation() -> None:

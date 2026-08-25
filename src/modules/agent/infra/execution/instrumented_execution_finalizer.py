@@ -1,0 +1,434 @@
+from __future__ import annotations
+
+import time
+from datetime import datetime, timezone
+from typing import Any
+from uuid import uuid4
+
+from modules.agent.application.dtos.runtime_dtos import AskOutput
+from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.application.interfaces.outbox import OutboxEventWriter
+from modules.agent.application.use_cases.execution_event_factory import (
+    completed_event,
+    fallback_event,
+    llm_event,
+    tool_event,
+)
+from modules.agent.application.use_cases.trace_event_builder import (
+    build_operation_events,
+    sequence_events,
+)
+from modules.agent.domain.run import AgentRunStatus
+from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
+from modules.agent.infra.execution.agent_run_metrics import build_agent_run_metrics
+
+
+def _utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _id_text(value) -> str | None:
+    return str(value) if value else None
+
+
+def _provider_value(value) -> str | None:
+    if value is None:
+        return None
+    return value.value if hasattr(value, "value") else str(value)
+
+
+def _model_binding_payload(agent) -> dict[str, Any]:
+    return {
+        "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
+        "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
+        "model_binding": {
+            "provider_model_id": _id_text(getattr(agent, "provider_model_id", None)),
+            "provider_credential_id": _id_text(getattr(agent, "provider_credential_id", None)),
+            "provider": _provider_value(getattr(agent, "provider", None)),
+            "model": getattr(agent, "model", None),
+        },
+    }
+
+
+def _fallback_model_binding_payload(agent) -> dict[str, Any]:
+    return {
+        "fallback_provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
+        "fallback_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
+        "fallback_provider": _provider_value(getattr(agent, "fallback_provider", None)),
+        "fallback_model": getattr(agent, "fallback_model", None),
+        "fallback_model_binding": {
+            "provider_model_id": _id_text(getattr(agent, "fallback_provider_model_id", None)),
+            "provider_credential_id": _id_text(getattr(agent, "fallback_credential_id", None)),
+            "provider": _provider_value(getattr(agent, "fallback_provider", None)),
+            "model": getattr(agent, "fallback_model", None),
+        },
+    }
+
+
+def _runtime_binding_payload(context, input_dto) -> dict[str, Any]:
+    return {
+        "execution_context": (
+            context.execution_context
+            if context and context.execution_context
+            else input_dto.execution_context
+        ),
+        "agent_release_id": _id_text(context.agent_release_id if context else None),
+        "agent_release_version": context.agent_release_version if context else None,
+    }
+
+
+def _event(
+    trace_id: str,
+    event_type: str,
+    occurred_at: str,
+    *,
+    phase: str,
+    status: str,
+    started_at: str | None = None,
+    ended_at: str | None = None,
+    duration_ms: int | float | None = None,
+    attributes: dict[str, Any] | None = None,
+    span_id: str | None = None,
+    parent_span_id: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "event_id": str(uuid4()),
+        "trace_id": trace_id,
+        "root_span_id": trace_id,
+        "span_id": span_id or str(uuid4()),
+        "parent_span_id": parent_span_id or trace_id,
+        "sequence": 0,
+        "event_type": event_type,
+        "phase": phase,
+        "status": status,
+        "occurred_at": occurred_at,
+        "started_at": started_at,
+        "ended_at": ended_at,
+        "duration_ms": duration_ms,
+        "attributes": attributes or {},
+    }
+
+
+async def finalize_instrumented_execution(owner, **kw):
+    session = kw["session"]
+    agent = kw["agent"]
+    execution = kw["execution"]
+    trace_id = kw["trace_id"]
+    trace_id_text = str(trace_id)
+    usage = kw["usage"]
+    context = current_execution.get()
+    run_id = context.run_id if context else None
+    parse_completed_at = _utc_now()
+    project_id_text = str(kw["input_dto"].project_id)
+    agent_id_text = str(agent.id)
+    binding_payload = _model_binding_payload(agent)
+    fallback_binding_payload = _fallback_model_binding_payload(agent)
+    runtime_binding_payload = _runtime_binding_payload(context, kw["input_dto"])
+    trace_binding_payload = {
+        **binding_payload,
+        **fallback_binding_payload,
+        **runtime_binding_payload,
+    }
+    sources = kw["sources"] or []
+
+    await owner._hot_terminal_pending(
+        terminal_status="completed",
+        result={
+            "answer": kw["answer"],
+            "trace_id": trace_id_text,
+            "usage": usage.model_dump() if hasattr(usage, "model_dump") else None,
+            "tool_calls": [tool.model_dump() for tool in execution.tool_calls],
+            "llm_calls": execution.llm_calls,
+        },
+    )
+
+    async def persist_terminal(
+        repositories: AgentRuntimeRepositories,
+        outbox: OutboxEventWriter,
+    ) -> AskOutput:
+        finalization_started_at = _utc_now()
+        finalization_started = time.monotonic()
+        message_id = None
+        if session:
+            message = await owner._do_save_assistant_message(
+                repositories.messages,
+                repositories.sessions,
+                outbox,
+                session,
+                kw["answer"],
+                usage,
+                agent,
+                tool_calls=execution.tool_calls,
+            )
+            message_id = message.id
+
+        for item in sorted(execution.timeline, key=lambda value: value.get("occurred_at", "")):
+            event_payload = {
+                "run_id": str(run_id) if run_id else None,
+                "trace_id": trace_id_text,
+                "project_id": project_id_text,
+                "agent_id": agent_id_text,
+                **trace_binding_payload,
+                **item["payload"],
+            }
+            event = (
+                llm_event(agent.id, event_payload)
+                if item["kind"] == "llm"
+                else tool_event(agent.id, event_payload)
+            )
+            await outbox.write(event)
+
+        if kw["fallback_info"]:
+            await outbox.write(
+                fallback_event(
+                    agent.id,
+                    {
+                        "run_id": str(run_id) if run_id else None,
+                        "trace_id": trace_id_text,
+                        "project_id": project_id_text,
+                        "agent_id": agent_id_text,
+                        **trace_binding_payload,
+                        **kw["fallback_info"],
+                    },
+                )
+            )
+
+        # The finalizer measures only its own pre-commit work. The canonical
+        # AgentRun builder owns every metric formula shared by standalone and
+        # Network-deferred executions.
+        finalization_work_ms = round(
+            (time.monotonic() - finalization_started) * 1000
+        )
+        finalization_ended_at = _utc_now()
+        execution_completed_at = _utc_now()
+        metrics = build_agent_run_metrics(
+            context=context,
+            execution=execution,
+            binding=agent,
+            fallback_used=kw["fallback_used"],
+            finalization_work_ms=finalization_work_ms,
+            prepare_latency_ms=kw["prepare_latency_ms"],
+            usage=usage,
+            usage_complete=kw["usage_complete"],
+            cost_status=kw["cost_status"],
+            completed_at=execution_completed_at,
+        )
+        canonical_usage = metrics.usage
+        diagnostics = metrics.diagnostics
+        cost_details = metrics.cost_details
+        total_ms = metrics.total_latency_ms
+
+        request_received_at = (
+            context.request_received_at if context else execution_completed_at
+        )
+        execution_started_at = (
+            context.execution_started_at if context else request_received_at
+        )
+        execution_events = [
+            _event(
+                trace_id_text,
+                "http.request.received",
+                request_received_at,
+                phase="request",
+                status="success",
+                started_at=request_received_at,
+                ended_at=request_received_at,
+                duration_ms=0,
+                attributes={
+                    "client_sent_at": context.client_sent_at if context else None,
+                    **runtime_binding_payload,
+                },
+                span_id=trace_id_text,
+                parent_span_id=None,
+            ),
+            _event(
+                trace_id_text,
+                "agent.execution.started",
+                execution_started_at,
+                phase="execution",
+                status="running",
+                started_at=execution_started_at,
+                span_id=trace_id_text,
+                parent_span_id=None,
+                attributes={
+                    **binding_payload["model_binding"],
+                    **runtime_binding_payload,
+                },
+            ),
+        ]
+        if context and context.prepare_started_at:
+            prepare_span = str(uuid4())
+            execution_events.extend(
+                [
+                    _event(
+                        trace_id_text,
+                        "agent.prepare.started",
+                        context.prepare_started_at,
+                        phase="prepare",
+                        status="running",
+                        started_at=context.prepare_started_at,
+                        span_id=prepare_span,
+                    ),
+                    _event(
+                        trace_id_text,
+                        "agent.prepare.completed",
+                        context.prepare_ended_at or context.prepare_started_at,
+                        phase="prepare",
+                        status="success",
+                        started_at=context.prepare_started_at,
+                        ended_at=context.prepare_ended_at,
+                        duration_ms=context.prepare_latency_ms,
+                        span_id=prepare_span,
+                    ),
+                ]
+            )
+        execution_events.extend(build_operation_events(trace_id_text, execution.timeline))
+        execution_events.extend(
+            [
+                _event(
+                    trace_id_text,
+                    "structured_output.parse.completed",
+                    parse_completed_at,
+                    phase="structured_output",
+                    status=(
+                        "success"
+                        if kw["output_parse_error"] is None
+                        else "error"
+                    ),
+                    ended_at=parse_completed_at,
+                    attributes={
+                        "parsed": kw["parsed_output"] is not None,
+                        "error": kw["output_parse_error"],
+                        "duration_measured": False,
+                    },
+                ),
+                _event(
+                    trace_id_text,
+                    "message.persistence.started",
+                    finalization_started_at,
+                    phase="finalization",
+                    status="running",
+                    started_at=finalization_started_at,
+                ),
+                _event(
+                    trace_id_text,
+                    "message.persistence.completed",
+                    finalization_ended_at,
+                    phase="finalization",
+                    status="success",
+                    started_at=finalization_started_at,
+                    ended_at=finalization_ended_at,
+                    duration_ms=finalization_work_ms,
+                    attributes={"commit_included": False},
+                ),
+                _event(
+                    trace_id_text,
+                    "agent.execution.completed",
+                    execution_completed_at,
+                    phase="execution",
+                    status="success",
+                    started_at=execution_started_at,
+                    ended_at=execution_completed_at,
+                    duration_ms=total_ms,
+                    attributes={
+                        "diagnostics": diagnostics,
+                        **binding_payload["model_binding"],
+                        **runtime_binding_payload,
+                    },
+                    span_id=trace_id_text,
+                    parent_span_id=None,
+                ),
+                _event(
+                    trace_id_text,
+                    "http.response.prepared",
+                    execution_completed_at,
+                    phase="response",
+                    status="success",
+                    ended_at=execution_completed_at,
+                ),
+            ]
+        )
+        execution_events = sequence_events(execution_events)
+        payload = {
+            "run_id": str(run_id) if run_id else None,
+            "trace_id": trace_id_text,
+            "project_id": project_id_text,
+            "agent_id": agent_id_text,
+            "session_id": str(session.id) if session else None,
+            "message_id": str(message_id) if message_id else None,
+            "answer_length": len(kw["answer"]),
+            "input_tokens": canonical_usage.input_tokens,
+            "output_tokens": canonical_usage.output_tokens,
+            "total_tokens": canonical_usage.total_tokens,
+            "cost_usd": canonical_usage.cost_usd,
+            "cost_status": diagnostics["cost_status"],
+            "cost_reason": cost_details["cost_reason"],
+            "pricing_id": cost_details["pricing_id"],
+            "pricing_snapshot": cost_details["pricing_snapshot"],
+            "usage_complete": diagnostics["usage_complete"],
+            **trace_binding_payload,
+            "model": kw["response_model"] or agent.model,
+            "provider": kw["response_provider"] or "",
+            "latency_ms": total_ms,
+            "total_latency_ms": total_ms,
+            "runtime_scope": "through_terminal_persistence_work_pre_commit",
+            **diagnostics,
+            "fallback_used": kw["fallback_used"],
+            "sources": [source.model_dump() for source in sources],
+            "parsed_output": kw["parsed_output"],
+            "output_parse_error": kw["output_parse_error"],
+            "tool_calls": [tool.model_dump() for tool in execution.tool_calls],
+            "llm_calls": execution.llm_calls,
+            "execution_events": execution_events,
+            "timeline_complete": True,
+        }
+        if kw["fallback_info"]:
+            payload["fallback_info"] = {
+                **kw["fallback_info"],
+                **fallback_binding_payload,
+            }
+        await outbox.write(completed_event(agent.id, payload))
+
+        if run_id is not None:
+            run = await repositories.runs.get_by_id(run_id)
+            if run is not None:
+                run.status = AgentRunStatus.COMPLETED
+                run.output_message_id = message_id
+                run.usage = canonical_usage.model_dump()
+                run.result = payload
+                run.completed_at = datetime.now(timezone.utc)
+                await repositories.runs.save(run)
+
+        output = AskOutput(
+            run_id=run_id,
+            answer=kw["answer"],
+            session_id=session.id if session else None,
+            message_id=message_id,
+            usage=canonical_usage,
+            sources=sources,
+            tool_calls=execution.tool_calls,
+            trace_id=trace_id,
+            model=kw["response_model"],
+            provider=kw["response_provider"],
+            provider_model_id=getattr(agent, "provider_model_id", None),
+            provider_credential_id=getattr(agent, "provider_credential_id", None),
+            fallback_provider_model_id=getattr(
+                agent, "fallback_provider_model_id", None
+            ),
+            fallback_credential_id=getattr(agent, "fallback_credential_id", None),
+            fallback_used=kw["fallback_used"],
+            fallback_info=payload.get("fallback_info"),
+            latency_ms=total_ms,
+            parsed_output=kw["parsed_output"],
+            output_parse_error=kw["output_parse_error"],
+        )
+        object.__setattr__(output, "execution_events", execution_events)
+        object.__setattr__(output, "diagnostics", diagnostics)
+        return output
+
+    output = await owner._transactions.run(persist_terminal)
+    if context is not None:
+        context.terminal_persisted = True
+    await owner._hot_persisted("completed")
+    return output

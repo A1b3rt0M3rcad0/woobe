@@ -70,6 +70,7 @@ class ModelConfigStatus(StrEnum):
 class ReleaseStatus(StrEnum):
     draft = auto()
     staging = auto()
+    released = auto()
     production = auto()
     archived = auto()
     rolled_back = auto()

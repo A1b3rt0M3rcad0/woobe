@@ -72,6 +72,16 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
   const totalSize = useMemo(() => items.reduce((sum, document) => sum + document.size_bytes, 0), [items])
   const hasChanges = collection ? name.trim() !== collection.name || description.trim() !== (collection.description || '') : false
   const hasRunningBuild = overview?.rag_status === 'BUILDING' || vectorSnapshots.some((snapshot) => snapshot.status === 'BUILDING')
+  const latestSnapshot = vectorSnapshots[0] ?? overview?.latest_snapshot ?? null
+  const latestBuildFailed = latestSnapshot?.status === 'FAILED'
+  const vectorStatusDetail = latestBuildFailed
+    ? latestSnapshot?.error_message || 'The latest vector build failed.'
+    : overview?.warnings?.[0] || 'Build an immutable vector snapshot from the current documents.'
+  const buildButtonLabel = latestBuildFailed
+    ? 'Retry build'
+    : overview?.rag_status === 'OUTDATED'
+      ? 'Rebuild vectors'
+      : 'Build vectors'
 
   const refreshAll = () => {
     void refetch()
@@ -176,9 +186,9 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-white">Vector readiness</h3><StatusBadge status={overview?.rag_status || 'UNKNOWN'} /></div>
-            <p className="mt-1 text-xs text-muted">{overview?.warnings?.[0] || 'Build an immutable vector snapshot from the current documents.'}</p>
+            <p className="mt-1 text-xs text-muted">{vectorStatusDetail}</p>
           </div>
-          <Button type="button" size="sm" onClick={() => setBuildModalOpen(true)} disabled={items.length === 0 || hasRunningBuild}><Cpu className="mr-2 h-3.5 w-3.5" />{overview?.rag_status === 'OUTDATED' ? 'Rebuild vectors' : 'Build vectors'}</Button>
+          <Button type="button" size="sm" onClick={() => setBuildModalOpen(true)} disabled={items.length === 0 || hasRunningBuild}><Cpu className="mr-2 h-3.5 w-3.5" />{buildButtonLabel}</Button>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-3">
           <TechItem label="Latest snapshot" value={overview?.latest_ready_snapshot?.version || 'Not built'} detail={`${numberLabel(overview?.latest_ready_snapshot?.chunk_count)} chunks`} />
@@ -186,6 +196,16 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
           <TechItem label="Embedding" value={overview?.technology.embedding_model || 'Not selected'} />
         </div>
         {overview?.processing.has_running_job && <div className="mt-4 rounded-xl border border-primary/25 bg-primary/10 p-3 text-sm text-primary-light">Building vectors · {overview.processing.stage || 'QUEUED'} · {overview.processing.embedded_chunks}/{overview.processing.total_chunks || 0} chunks</div>}
+        {latestBuildFailed && (
+          <div className="mt-4 flex gap-3 rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-red-200">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Vector build failed</p>
+              <p className="mt-1 break-words text-xs leading-5 text-red-200/85">{latestSnapshot?.error_message || 'The latest vector build failed.'}</p>
+              {latestSnapshot && <p className="mt-2 text-[11px] text-red-200/65">{latestSnapshot.embedding_provider} · {latestSnapshot.embedding_model} · {latestSnapshot.build_stage || 'FAILED'}</p>}
+            </div>
+          </div>
+        )}
       </section>
 
       <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
@@ -200,6 +220,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
                 <button type="button" onClick={() => setSnapshotToView(snapshot)} className="min-w-0 text-left">
                   <div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium text-white">{snapshot.version}</p><StatusBadge status={snapshot.status} /></div>
                   <p className="mt-1 text-xs text-muted">{snapshot.embedding_model} · {numberLabel(snapshot.chunk_count)} chunks · {numberLabel(snapshot.vector_count ?? snapshot.chunk_count)} vectors</p>
+                  {snapshot.status === 'FAILED' && snapshot.error_message && <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-red-300">{snapshot.error_message}</p>}
                 </button>
                 <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
                   <p className="text-xs text-muted">{snapshot.completed_at ? formatDate(snapshot.completed_at) : snapshot.build_stage || 'Queued'}</p>

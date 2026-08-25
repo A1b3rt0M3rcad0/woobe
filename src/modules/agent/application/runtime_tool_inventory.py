@@ -4,11 +4,11 @@ from contextvars import ContextVar
 from typing import Any
 from uuid import UUID
 
-RUNTIME_TOOL_INVENTORY_NAME = "projectrai_list_available_tools"
+RUNTIME_TOOL_INVENTORY_NAME = "woobe_list_available_tools"
 RUNTIME_TOOL_INVENTORY_UUID = UUID("00000000-0000-4000-8000-00000000f001")
 
 _current_runtime_tool_inventory: ContextVar[list[dict[str, Any]]] = ContextVar(
-    "projectrai_runtime_tool_inventory",
+    "woobe_runtime_tool_inventory",
     default=[],
 )
 

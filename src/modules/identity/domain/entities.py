@@ -10,7 +10,7 @@ from modules.identity.domain.enums import (
     InviteStatus,
     MemberRole,
     MemberStatus,
-    OrganizationStatus,
+    WorkspaceStatus,
     UserSessionStatus,
     UserStatus,
 )
@@ -27,20 +27,20 @@ class User:
 
 
 @dataclass
-class Organization:
+class Workspace:
     id: UUID = field(default_factory=uuid6.uuid7)
     name: str = ""
     slug: str = ""
-    status: OrganizationStatus = OrganizationStatus.active
+    status: WorkspaceStatus = WorkspaceStatus.active
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
 
 @dataclass
-class OrganizationMember:
+class WorkspaceMember:
     id: UUID = field(default_factory=uuid6.uuid7)
     user_id: UUID = field(default_factory=uuid6.uuid7)
-    organization_id: UUID = field(default_factory=uuid6.uuid7)
+    workspace_id: UUID = field(default_factory=uuid6.uuid7)
     role: MemberRole = MemberRole.member
     status: MemberStatus = MemberStatus.active
     joined_at: datetime | None = None
@@ -49,9 +49,9 @@ class OrganizationMember:
 
 
 @dataclass
-class OrganizationInvite:
+class WorkspaceInvite:
     id: UUID = field(default_factory=uuid6.uuid7)
-    organization_id: UUID = field(default_factory=uuid6.uuid7)
+    workspace_id: UUID = field(default_factory=uuid6.uuid7)
     email: str = ""
     role: MemberRole = MemberRole.member
     token_hash: str = ""

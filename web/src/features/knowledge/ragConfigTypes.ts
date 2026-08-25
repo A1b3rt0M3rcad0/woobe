@@ -4,8 +4,11 @@ export type RagQueryMode = 'current_message' | 'conversation_context'
 export type RagGroundingPolicy = 'optional' | 'required'
 
 export interface RagParserConfig {
+  implementation?: string
+  version?: string
   normalize_whitespace: boolean
   preserve_page_boundaries: boolean
+  include_docx_tables?: boolean
 }
 
 export interface RagChunkingConfig {

@@ -1,12 +1,10 @@
+from modules.agent.application.interfaces.use_case import UseCase
 from uuid import UUID
 
 from modules.agent.application.dtos.provider_credential_rotation_dtos import (
     RotateProviderCredentialInput,
 )
-from modules.agent.application.use_cases.rotate_provider_credential_use_case import (
-    RotateProviderCredentialUseCase,
-)
-from shared.infra.errors import AuthenticationError
+from shared.contracts.errors import AuthenticationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
@@ -14,7 +12,7 @@ from shared.security.principal import AuthenticatedPrincipal
 
 
 class RotateProviderCredentialController(Controller):
-    def __init__(self, use_case: RotateProviderCredentialUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

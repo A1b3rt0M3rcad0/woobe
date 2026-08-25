@@ -1,6 +1,6 @@
+from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.application.dtos.tools_dtos import ListToolsInput
-from modules.agent.application.mcp_readiness import with_mcp_readiness
-from modules.agent.application.use_cases.tools_use_cases import ListToolsUseCase
+from modules.agent.application.interfaces.mcp_readiness import with_mcp_readiness
 from modules.agent.presentation.schemas import ToolResponse
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
@@ -14,7 +14,7 @@ def render_tool(tool) -> dict:
 
 
 class ListToolsController(Controller):
-    def __init__(self, use_case: ListToolsUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

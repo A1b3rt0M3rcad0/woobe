@@ -1,25 +1,17 @@
 #!/bin/sh
 set -eu
 
-: "${POSTGRES_HOST:=db}"
-: "${POSTGRES_PORT:=5432}"
-: "${POSTGRES_DB:=projectrai}"
-: "${POSTGRES_USER:?POSTGRES_USER is required}"
-: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}"
+: "${WOOBE_POSTGRES_URL:?WOOBE_POSTGRES_URL is required}"
 : "${BACKUP_DIR:=/backups}"
 
 umask 077
 mkdir -p "$BACKUP_DIR"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
-backup="$BACKUP_DIR/projectrai-$timestamp.dump"
+backup="$BACKUP_DIR/woobe-$timestamp.dump"
 temporary="$backup.partial"
 
-export PGPASSWORD="$POSTGRES_PASSWORD"
 pg_dump \
-  --host "$POSTGRES_HOST" \
-  --port "$POSTGRES_PORT" \
-  --username "$POSTGRES_USER" \
-  --dbname "$POSTGRES_DB" \
+  --dbname "$WOOBE_POSTGRES_URL" \
   --format custom \
   --compress 9 \
   --no-owner \

@@ -2,11 +2,12 @@ import { useCallback } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createSession,
-  getAgentSessions,
   ask,
   getSessionMessages,
 } from './api'
+import { getAgentSessionsByEnvironment } from './session-api'
 import { askStreamV1, type StreamCallbacks } from './stream-client'
+import type { RuntimeEnvironment } from '@/features/agents/types'
 import type { CreateSessionRequest, AskRequest } from './types'
 
 let activeStreamController: AbortController | null = null
@@ -60,20 +61,31 @@ export function useAsk() {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: AskRequest) => ask(withStrictOutputContract(data)),
-    onSettled: () => queryClient.invalidateQueries({ queryKey: ['project-overview'] }),
+    onSettled: () => {
+      void queryClient.invalidateQueries({
+        queryKey: ['project-overview'],
+        refetchType: 'none',
+      })
+    },
   })
 }
 
-export function useAgentSessions(agentId: string | undefined, projectId: string | undefined) {
+export function useAgentSessions(
+  agentId: string | undefined,
+  projectId: string | undefined,
+  environment: RuntimeEnvironment = 'draft',
+) {
   return useInfiniteQuery({
-    queryKey: ['agent-sessions', agentId, projectId],
-    queryFn: ({ pageParam }) => getAgentSessions(agentId!, projectId!, {
+    queryKey: ['agent-sessions', agentId, projectId, environment],
+    queryFn: ({ pageParam }) => getAgentSessionsByEnvironment(agentId!, projectId!, environment, {
       limit: AGENT_SESSIONS_PAGE_SIZE,
       cursor: pageParam,
     }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.has_next ? lastPage.next_cursor : undefined,
     enabled: !!agentId && !!projectId,
+    staleTime: 10_000,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -82,6 +94,8 @@ export function useSessionMessages(sessionId: string | undefined) {
     queryKey: ['session-messages', sessionId],
     queryFn: () => getSessionMessages(sessionId!),
     enabled: !!sessionId,
+    staleTime: 30_000,
+    refetchOnWindowFocus: false,
   })
 }
 
@@ -98,7 +112,10 @@ export function useAskStream() {
       await askStreamV1(withStrictOutputContract(data), callbacks, controller.signal)
     } finally {
       if (activeStreamController === controller) activeStreamController = null
-      await queryClient.invalidateQueries({ queryKey: ['project-overview'] })
+      void queryClient.invalidateQueries({
+        queryKey: ['project-overview'],
+        refetchType: 'none',
+      })
     }
   }, [queryClient])
   const cancel = useCallback(() => cancelActiveAskStream(), [])

@@ -1,0 +1,228 @@
+name: Acceptance
+
+on:
+  pull_request:
+    branches: [development]
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend-acceptance:
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: woobe
+        ports: [5432:5432]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d woobe"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      rabbitmq:
+        image: rabbitmq:4-management
+        env:
+          RABBITMQ_DEFAULT_USER: woobe
+          RABBITMQ_DEFAULT_PASS: woobe
+        ports: [5672:5672]
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PYTHONPATH: src:.
+      WOOBE_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/woobe
+      WOOBE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woobe
+      WOOBE_SECRET_KEY: acceptance-secret-key-at-least-32-characters
+      WOOBE_ENCRYPTION_KEY: acceptance-encryption-key-at-least-32-characters
+      WOOBE_CHAT_TOKEN_SIGNING_KEY: acceptance-chat-key-at-least-32-characters
+      WOOBE_RABBITMQ_URL: amqp://woobe:woobe@localhost:5672/
+      WOOBE_ENVIRONMENT: test
+      WOOBE_DEBUG: "false"
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v6
+      - name: Install dependencies and prepare PostgreSQL 17 client
+        run: |
+          set -euo pipefail
+          uv sync --frozen --all-groups --extra test
+
+          pg_client_bin="$RUNNER_TEMP/pg-client-bin"
+          mkdir -p "$pg_client_bin"
+          cat > "$pg_client_bin/pg-client" <<'SH'
+          #!/bin/sh
+          set -eu
+          tool="$(basename "$0")"
+          exec docker run --rm -i --network host \
+            -e PGPASSWORD \
+            -v "${RUNNER_TEMP}:${RUNNER_TEMP}" \
+            --entrypoint "$tool" \
+            pgvector/pgvector:pg17 "$@"
+          SH
+          chmod +x "$pg_client_bin/pg-client"
+          for tool in pg_dump pg_restore psql dropdb createdb; do
+            ln -sf pg-client "$pg_client_bin/$tool"
+          done
+          echo "$pg_client_bin" >> "$GITHUB_PATH"
+          export PATH="$pg_client_bin:$PATH"
+          pg_dump --version | grep -Eq ' 17\.'
+      - name: Migration rollback and re-upgrade
+        run: |
+          set -euo pipefail
+          uv run alembic upgrade head
+          uv run alembic downgrade -1
+          uv run alembic upgrade head
+          uv run alembic check
+      - name: Backup and restore isolated database
+        run: |
+          set -euo pipefail
+          psql -h localhost -U postgres -d woobe -v ON_ERROR_STOP=1 <<'SQL'
+          CREATE TABLE IF NOT EXISTS public.release_restore_probe (id integer PRIMARY KEY, value text NOT NULL);
+          INSERT INTO public.release_restore_probe (id, value) VALUES (1, 'woobe')
+          ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;
+          SQL
+          mkdir -p "$RUNNER_TEMP/backups"
+          backup="$(WOOBE_POSTGRES_URL=postgresql://postgres:postgres@localhost:5432/woobe BACKUP_DIR="$RUNNER_TEMP/backups" sh scripts/backup_postgres.sh)"
+          dropdb --if-exists -h localhost -U postgres woobe_restore
+          createdb -h localhost -U postgres --template=template0 woobe_restore
+          RESTORE_FILE="$backup" RESTORE_CONFIRM=restore-woobe RESTORE_CLEAN=false WOOBE_POSTGRES_URL=postgresql://postgres:postgres@localhost:5432/woobe_restore sh scripts/restore_postgres.sh
+          test "$(psql -h localhost -U postgres -d woobe_restore -Atc "SELECT value FROM public.release_restore_probe WHERE id = 1")" = "woobe"
+      - name: Security and integration matrix
+        run: uv run pytest -q tests/fakes tests/security tests/performance tests/integration/security tests/integration/agent --junitxml=acceptance-backend.xml
+      - name: Upload backend evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-backend-evidence
+          path: acceptance-backend.xml
+          if-no-files-found: warn
+
+  community-smoke:
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 40
+    env:
+      COMPOSE_PROJECT_NAME: woobe-community-${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Allocate isolated Community ports
+        run: |
+          python - <<'PY' >> "$GITHUB_ENV"
+          import socket
+
+          sockets = []
+          ports = []
+          for _ in range(3):
+              sock = socket.socket()
+              sock.bind(("127.0.0.1", 0))
+              sockets.append(sock)
+              ports.append(sock.getsockname()[1])
+
+          api_port, web_port, chat_port = ports
+          print(f"WOOBE_PORT={api_port}")
+          print(f"WOOBE_WEB_PORT={web_port}")
+          print(f"WOOBE_CHAT_EMBED_PORT={chat_port}")
+          print(f"VITE_API_URL=http://localhost:{api_port}")
+          print(f"VITE_CHAT_EMBED_URL=http://localhost:{chat_port}")
+          print(f"WOOBE_API_BASE_URL=http://127.0.0.1:{api_port}")
+          print(f"WOOBE_WEB_BASE_URL=http://127.0.0.1:{web_port}")
+          print(f"WOOBE_CHAT_EMBED_BASE_URL=http://127.0.0.1:{chat_port}")
+
+          for sock in sockets:
+              sock.close()
+          PY
+      - name: Generate production-shaped Community environment
+        run: |
+          python scripts/generate_self_host_env.py --force
+          python - <<'PY'
+          from pathlib import Path
+
+          def set_env(content: str, key: str, value: str) -> str:
+              lines = content.splitlines()
+              prefix = f"{key}="
+              for index, line in enumerate(lines):
+                  if line.startswith(prefix):
+                      lines[index] = f"{key}={value}"
+                      return "\n".join(lines) + "\n"
+              lines.append(f"{key}={value}")
+              return "\n".join(lines) + "\n"
+
+          content = Path(".env").read_text()
+          for key, value in {
+              "WOOBE_ENVIRONMENT": "production",
+              "WOOBE_ACCESS_COOKIE_SECURE": "true",
+              "WOOBE_REFRESH_COOKIE_SECURE": "true",
+              "WOOBE_CORS_ORIGINS": "https://app.example.test,https://chat.example.test",
+              "WOOBE_TRUSTED_HOSTS": "localhost,127.0.0.1",
+          }.items():
+              content = set_env(content, key, value)
+          Path(".env").write_text(content)
+          PY
+      - name: Validate supported Community topology
+        run: docker compose config --quiet
+      - name: Build and start production-shaped Community stack
+        run: |
+          set -euo pipefail
+          docker compose up -d --build db rabbitmq
+          docker compose run --rm migrate
+          if ! docker compose up -d api workers web chat-embed; then
+            docker compose ps --all || true
+            docker compose logs --no-color api workers || true
+            exit 1
+          fi
+          for attempt in $(seq 1 60); do
+            if sh scripts/smoke_production.sh; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose ps
+          docker compose logs --no-color
+          exit 1
+      - name: Exercise graceful application restart
+        run: |
+          set -euo pipefail
+          docker compose stop --timeout 45 web chat-embed api workers
+          docker compose up -d api workers web chat-embed
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent "$WOOBE_API_BASE_URL/ready" >/dev/null && curl --fail --silent "$WOOBE_CHAT_EMBED_BASE_URL/chat/v1/health" >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+      - name: Capture smoke evidence
+        if: always()
+        run: |
+          docker compose ps --all > community-compose-ps.txt || true
+          docker compose logs --no-color > community-compose.log 2>&1 || true
+          cat community-compose-ps.txt || true
+          cat community-compose.log || true
+      - name: Tear down
+        if: always()
+        run: docker compose down -v --remove-orphans
+      - name: Upload smoke evidence
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: acceptance-community-smoke-evidence
+          path: |
+            community-compose-ps.txt
+            community-compose.log
+          if-no-files-found: warn

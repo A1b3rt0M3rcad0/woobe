@@ -24,12 +24,14 @@ const AUTH_CSRF_PATH = '/identity/auth/csrf'
 const AUTH_PUBLIC_PATHS = new Set([
   '/identity/auth/login',
   '/identity/auth/register',
+  '/identity/instance/bootstrap',
   AUTH_REFRESH_PATH,
 ])
 const CSRF_EXEMPT_PATHS = new Set([
   '/identity/auth/login',
   '/identity/auth/logout',
   '/identity/auth/register',
+  '/identity/instance/bootstrap',
   AUTH_REFRESH_PATH,
   AUTH_CSRF_PATH,
 ])

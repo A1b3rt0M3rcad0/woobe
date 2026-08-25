@@ -12,14 +12,14 @@ from modules.core.application.dtos import (
 class TestCreateProjectInput:
     def test_creation(self):
         oid = UUID("00000000-0000-0000-0000-000000000001")
-        dto = CreateProjectInput(organization_id=oid, name="MyProj", slug="my-proj")
-        assert dto.organization_id == oid
+        dto = CreateProjectInput(workspace_id=oid, name="MyProj", slug="my-proj")
+        assert dto.workspace_id == oid
         assert dto.name == "MyProj"
         assert dto.slug == "my-proj"
 
     def test_field_presence(self):
         fields = CreateProjectInput.model_fields
-        assert "organization_id" in fields
+        assert "workspace_id" in fields
         assert "name" in fields
         assert "slug" in fields
 
@@ -29,13 +29,13 @@ class TestCreateProjectOutput:
         oid = UUID("00000000-0000-0000-0000-000000000002")
         dto = CreateProjectOutput(
             id=UUID("00000000-0000-0000-0000-000000000003"),
-            organization_id=oid,
+            workspace_id=oid,
             name="MyProj",
             slug="my-proj",
             status=ProjectStatus.active,
             created_at="2025-01-01T00:00:00Z",
         )
-        assert dto.organization_id == oid
+        assert dto.workspace_id == oid
         assert dto.name == "MyProj"
         assert dto.slug == "my-proj"
         assert dto.status == ProjectStatus.active
@@ -43,7 +43,7 @@ class TestCreateProjectOutput:
     def test_field_presence(self):
         fields = CreateProjectOutput.model_fields
         assert "id" in fields
-        assert "organization_id" in fields
+        assert "workspace_id" in fields
         assert "name" in fields
         assert "slug" in fields
         assert "status" in fields
@@ -65,11 +65,8 @@ class TestCreateApiKeyInput:
         assert dto.scopes == ["reading"]
         assert dto.created_by_user_id == uid
 
-    def test_default_scopes(self):
-        pid = UUID("00000000-0000-0000-0000-000000000004")
-        uid = UUID("00000000-0000-0000-0000-000000000005")
-        dto = CreateApiKeyInput(project_id=pid, name="MyKey", created_by_user_id=uid)
-        assert dto.scopes == []
+    def test_scopes_are_required(self):
+        assert CreateApiKeyInput.model_fields["scopes"].is_required()
 
     def test_field_presence(self):
         fields = CreateApiKeyInput.model_fields
@@ -84,6 +81,7 @@ class TestCreateApiKeyOutput:
         dto = CreateApiKeyOutput(
             id=UUID("00000000-0000-0000-0000-000000000006"),
             project_id=UUID("00000000-0000-0000-0000-000000000007"),
+            credential_id=UUID("00000000-0000-0000-0000-000000000008"),
             name="MyKey",
             key_prefix="rai_abc123",
             key_hash=b"hash",
@@ -98,6 +96,7 @@ class TestCreateApiKeyOutput:
         fields = CreateApiKeyOutput.model_fields
         assert "id" in fields
         assert "project_id" in fields
+        assert "credential_id" in fields
         assert "name" in fields
         assert "key_prefix" in fields
         assert "key_hash" in fields

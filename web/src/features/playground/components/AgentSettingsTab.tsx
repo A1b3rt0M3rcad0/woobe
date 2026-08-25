@@ -1,3 +1,4 @@
+import { AgentSessionModeField } from '@/features/agents/components/AgentSessionModeField'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
 import { useAgentEditor } from '../AgentEditorContext'
@@ -20,6 +21,8 @@ export function AgentSettingsTab() {
           </div>
         </div>
       </div>
+
+      <AgentSessionModeField />
 
       <div className="rounded-xl border border-border bg-surface">
         <div className="p-4 space-y-3">

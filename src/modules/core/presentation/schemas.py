@@ -5,7 +5,7 @@ from pydantic import BaseModel, Field
 
 
 class CreateProjectRequest(BaseModel):
-    organization_id: UUID
+    workspace_id: UUID
     name: str
     slug: str
 
@@ -17,7 +17,7 @@ class UpdateProjectRequest(BaseModel):
 
 class ProjectResponse(BaseModel):
     id: UUID
-    organization_id: UUID
+    workspace_id: UUID
     name: str
     slug: str
     status: str
@@ -42,6 +42,8 @@ class ApiKeyResponse(BaseModel):
     scopes: list[str] = Field(default_factory=list)
     kind: str = "project"
     agent_id: UUID | None = None
+    target_type: str | None = None
+    target_id: UUID | None = None
     environment: str | None = None
     interfaces: list[str] = Field(default_factory=list)
     status: str
@@ -64,5 +66,7 @@ class ApiKeyCredentialResponse(BaseModel):
     description: str | None = None
     kind: str
     agent_id: UUID | None = None
+    target_type: str | None = None
+    target_id: UUID | None = None
     environment: str | None = None
     updated_at: datetime | None = None

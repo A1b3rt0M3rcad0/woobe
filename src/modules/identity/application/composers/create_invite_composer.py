@@ -8,6 +8,6 @@ from shared.infra.transactional_handler import TransactionalHandler
 
 def create_invite_composer(session_factory: async_sessionmaker[AsyncSession]) -> TransactionalHandler:
     uow = IdentityUnitOfWork(session_factory)
-    use_case = InviteUserUseCase(uow.organizations, uow.invites, uow.outbox)
+    use_case = InviteUserUseCase(uow.workspaces, uow.invites, uow.outbox)
     controller = CreateInviteController(use_case)
     return TransactionalHandler(uow, controller.handle)

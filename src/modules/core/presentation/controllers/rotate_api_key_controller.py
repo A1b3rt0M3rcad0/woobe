@@ -36,6 +36,8 @@ class RotateApiKeyController(Controller):
             scopes=result.scopes,
             kind=result.kind.value,
             agent_id=result.agent_id,
+            target_type=result.target_type.value if result.target_type else None,
+            target_id=result.target_id,
             environment=result.environment.value if result.environment else None,
             interfaces=result.interfaces,
             status=result.status.value,

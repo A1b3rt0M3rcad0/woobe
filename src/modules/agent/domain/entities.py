@@ -302,6 +302,8 @@ class Session:
     id: UUID = field(default_factory=uuid4)
     project_id: UUID | None = None
     agent_id: UUID | None = None
+    runtime_environment: str = "draft"
+    opened_release_id: UUID | None = None
     external_session_id: str | None = None
     tenant_id: str | None = None
     user_id: str | None = None

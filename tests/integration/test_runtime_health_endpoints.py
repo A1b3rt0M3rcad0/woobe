@@ -42,7 +42,7 @@ async def test_live_and_ready_when_database_is_available(app) -> None:
     assert live.status_code == 200
     assert live.json()["status"] == "ok"
     assert ready.status_code == 200
-    assert ready.json()["dependencies"] == {"database": "ok"}
+    assert ready.json() == {"status": "ok", "dependency": "database"}
 
 
 @pytest.mark.asyncio
@@ -52,7 +52,7 @@ async def test_ready_returns_503_when_database_is_unavailable(app) -> None:
         response = await client.get("/ready")
 
     assert response.status_code == 503
-    assert response.json()["dependencies"] == {"database": "unavailable"}
+    assert response.json() == {"status": "unavailable", "dependency": "database"}
 
 
 @pytest.mark.asyncio

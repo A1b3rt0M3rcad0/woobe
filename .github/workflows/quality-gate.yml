@@ -1,0 +1,34 @@
+name: Quality Gate
+
+on:
+  pull_request:
+    branches:
+      - development
+    paths:
+      - "src/**"
+      - "quality_gate/**"
+      - "tests/quality_gate/**"
+      - "pyproject.toml"
+      - "uv.lock"
+      - ".github/workflows/quality-gate.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  agent-architecture:
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v6
+      - name: Install development dependencies
+        run: uv sync --frozen --all-groups --extra test
+      - name: Quality gate self-tests
+        run: uv run pytest -q tests/quality_gate
+      - name: Agent architecture policy
+        run: uv run python -m quality_gate.architecture.checker

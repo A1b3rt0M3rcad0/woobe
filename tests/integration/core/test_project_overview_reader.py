@@ -15,9 +15,9 @@ from shared.infra.config import Settings
 _PROJECT_INSERT = text(
     """
     INSERT INTO core.projects (
-        id, organization_id, name, slug, status, data
+        id, workspace_id, name, slug, status, data
     ) VALUES (
-        :id, :organization_id, :name, :slug, 'active', CAST(:data AS jsonb)
+        :id, :workspace_id, :name, :slug, 'active', CAST(:data AS jsonb)
     )
     """
 )
@@ -37,9 +37,11 @@ _AGENT_INSERT = text(
 _RELEASE_INSERT = text(
     """
     INSERT INTO agent.agent_releases (
-        id, project_id, agent_id, version, status, promoted_at
+        id, project_id, agent_id, version, status, promoted_at,
+        session_mode, snapshot_kind
     ) VALUES (
-        :id, :project_id, :agent_id, :version, :status, :promoted_at
+        :id, :project_id, :agent_id, :version, :status, :promoted_at,
+        :session_mode, :snapshot_kind
     )
     """
 )
@@ -110,7 +112,7 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
 
     project_id = uuid4()
     other_project_id = uuid4()
-    organization_id = uuid4()
+    workspace_id = uuid4()
     prod_agent_id = uuid4()
     staging_agent_id = uuid4()
     draft_agent_id = uuid4()
@@ -134,14 +136,14 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
                 [
                     {
                         "id": project_id,
-                        "organization_id": organization_id,
+                        "workspace_id": workspace_id,
                         "name": "Overview fixture",
                         "slug": f"overview-{project_id.hex[:12]}",
                         "data": "{}",
                     },
                     {
                         "id": other_project_id,
-                        "organization_id": organization_id,
+                        "workspace_id": workspace_id,
                         "name": "Isolation fixture",
                         "slug": f"isolation-{other_project_id.hex[:12]}",
                         "data": "{}",
@@ -191,6 +193,8 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
                         "version": "1.0.0",
                         "status": "production",
                         "promoted_at": start - timedelta(days=1),
+                        "session_mode": "stateless",
+                        "snapshot_kind": "release",
                     },
                     {
                         "id": uuid4(),
@@ -199,6 +203,8 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
                         "version": "1.0.0-rc1",
                         "status": "staging",
                         "promoted_at": start - timedelta(days=1),
+                        "session_mode": "stateless",
+                        "snapshot_kind": "staging",
                     },
                     {
                         "id": uuid4(),
@@ -207,6 +213,8 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
                         "version": "9.9.9",
                         "status": "production",
                         "promoted_at": start - timedelta(days=1),
+                        "session_mode": "stateless",
+                        "snapshot_kind": "release",
                     },
                 ],
             )
@@ -317,6 +325,7 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
         try:
             uow = CoreUnitOfWork(session_factory)
             async with uow:
+                expected_query_count = uow.project_overview.query_count
                 await uow.session.execute(
                     text("SET LOCAL TIME ZONE 'America/Sao_Paulo'")
                 )
@@ -344,14 +353,14 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
         finally:
             event.remove(engine.sync_engine, "before_cursor_execute", capture_statement)
 
-        assert query_count == 7
-        assert production_query_count == 7
+        assert query_count == expected_query_count
+        assert production_query_count == expected_query_count
 
         summary = overview["summary"]
         assert summary["active_agents"] == 3
         assert summary["production_agents"] == 1
-        assert summary["requests"] == 3
-        assert summary["request_change_percent"] == 200.0
+        assert summary["requests"] == 4
+        assert summary["request_change_percent"] == 300.0
         assert summary["avg_latency_ms"] == 150.0
         assert summary["p95_latency_ms"] == 280.0
         assert summary["success_rate"] == 66.67
@@ -366,13 +375,13 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
         }
         assert len(overview["timeseries"]) == 24
         assert overview["timeseries"][0]["bucket_start"].astimezone(UTC) == start
-        assert sum(point["requests"] for point in overview["timeseries"]) == 3
+        assert sum(point["requests"] for point in overview["timeseries"]) == 4
         assert {trace["id"] for trace in overview["recent_traces"]} == current_trace_ids
 
         production_summary = production["summary"]
         assert production_summary["active_agents"] == 1
-        assert production_summary["requests"] == 2
-        assert production_summary["request_change_percent"] == 100.0
+        assert production_summary["requests"] == 3
+        assert production_summary["request_change_percent"] == 200.0
         assert production_summary["avg_latency_ms"] == 200.0
         assert production_summary["p95_latency_ms"] == 290.0
         assert production_summary["success_rate"] == 50.0

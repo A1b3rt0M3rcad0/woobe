@@ -6,12 +6,13 @@ from uuid import UUID
 
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.dtos.runtime_dtos import SourceInfo
-from modules.agent.application.use_cases.execution_context import current_execution
+from modules.agent.application.interfaces.embedding_errors import EmbeddingProviderError
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
-from modules.agent.domain.ports.embedding_factory import EmbeddingFactory
+from modules.agent.application.interfaces.embedding_factory import EmbeddingFactory
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
-from shared.infra.crypto import decrypt_secret
-from shared.infra.errors import ValidationError
+from shared.security.crypto import decrypt_secret
+from shared.contracts.errors import ValidationError
 
 
 _rag_history_context: ContextVar[list[Any]] = ContextVar("rag_history_context", default=[])
@@ -112,6 +113,11 @@ class VectorSnapshotRAGMixin:
         parent = cast(_VectorSnapshotRAGSuper, super())
         history = await parent._load_history(message_repo, session)
         _rag_history_context.set(history)
+        context = current_execution.get()
+        if context is not None:
+            context.project_id = getattr(session, "project_id", None)
+            context.agent_id = getattr(session, "agent_id", None)
+            context.session_id = getattr(session, "id", None)
         return history
 
     def _apply_release_to_agent(self, agent: Any, release: Any) -> Any:
@@ -221,17 +227,61 @@ class VectorSnapshotRAGMixin:
             history_turns=effective.history_turns,
         )
 
+        rag_metadata: dict[str, Any] = {
+            "knowledge_version_id": str(knowledge.id),
+            "knowledge_version": knowledge.version,
+            "vector_snapshot_id": str(snapshot.id),
+            "vector_snapshot_version": snapshot.version,
+            "snapshot_hash": snapshot.snapshot_hash,
+            "embedding_provider_model_id": str(snapshot.embedding_provider_model_id),
+            "embedding_provider": snapshot.embedding_provider,
+            "embedding_model": snapshot.embedding_model,
+            "embedding_dimensions": snapshot.embedding_dimensions,
+            "rag_runtime_config": effective.model_dump(),
+            "rag_runtime_config_source": _runtime_config_source(),
+            "retrieval_query_mode": effective.query_mode,
+        }
+        execution_context = current_execution.get()
+        if execution_context:
+            execution_context.rag_metadata = dict(rag_metadata)
+
         if self._embedding_factory is None:
             raise ValidationError("RAG embedding runtime is not configured")
-        embedding_client = self._embedding_factory.create_embedding_client(
-            provider=provider,
-            model=snapshot.embedding_model,
-            api_key=api_key,
-            base_url=str(base_url) if base_url else None,
-            dimensions=snapshot.embedding_dimensions,
-        )
-        query_embedding = await embedding_client.aembed_query(retrieval_query)
+
+        # Session creation and the user's message happen before RAG in AskAgentUseCase.
+        # Commit that admission state before crossing the external embedding boundary so
+        # a provider failure does not make the user's submitted message disappear.
+        commit = getattr(uow, "commit", None)
+        if callable(commit):
+            await commit()
+
+        try:
+            embedding_client = self._embedding_factory.create_embedding_client(
+                provider=provider,
+                model=snapshot.embedding_model,
+                api_key=api_key,
+                base_url=str(base_url) if base_url else None,
+                dimensions=snapshot.embedding_dimensions,
+            )
+            query_embedding = await embedding_client.aembed_query(retrieval_query)
+        except EmbeddingProviderError as exc:
+            rag_metadata.update(
+                {
+                    "failure_phase": "rag_query_embedding",
+                    "embedding_error_category": exc.category,
+                    "upstream_status": exc.upstream_status,
+                    "upstream_error_code": exc.upstream_error_code,
+                    "embedding_retryable": exc.retryable,
+                }
+            )
+            if execution_context:
+                execution_context.rag_metadata = dict(rag_metadata)
+            raise
+
         if len(query_embedding) != snapshot.embedding_dimensions:
+            rag_metadata["failure_phase"] = "rag_query_embedding_validation"
+            if execution_context:
+                execution_context.rag_metadata = dict(rag_metadata)
             raise ValidationError(
                 "Query embedding dimensions do not match snapshot: "
                 f"expected {snapshot.embedding_dimensions}, got {len(query_embedding)}"
@@ -293,28 +343,17 @@ class VectorSnapshotRAGMixin:
                 )
             )
 
-        rag_metadata: dict[str, Any] = {
-            "knowledge_version_id": str(knowledge.id),
-            "knowledge_version": knowledge.version,
-            "vector_snapshot_id": str(snapshot.id),
-            "vector_snapshot_version": snapshot.version,
-            "snapshot_hash": snapshot.snapshot_hash,
-            "embedding_provider_model_id": str(snapshot.embedding_provider_model_id),
-            "embedding_provider": snapshot.embedding_provider,
-            "embedding_model": snapshot.embedding_model,
-            "embedding_dimensions": snapshot.embedding_dimensions,
-            "rag_runtime_config": effective.model_dump(),
-            "rag_runtime_config_source": _runtime_config_source(),
-            "retrieval_query_mode": effective.query_mode,
-            "candidate_count": len(candidates),
-            "best_score": candidate_scores[0] if candidate_scores else None,
-            "top_scores": candidate_scores[:10],
-            "filtered_count": len(filtered),
-            "matched_chunks": len(selected),
-            "context_chunks": len(sources),
-            "context_chars": context_chars,
-        }
-        execution_context = current_execution.get()
+        rag_metadata.update(
+            {
+                "candidate_count": len(candidates),
+                "best_score": candidate_scores[0] if candidate_scores else None,
+                "top_scores": candidate_scores[:10],
+                "filtered_count": len(filtered),
+                "matched_chunks": len(selected),
+                "context_chunks": len(sources),
+                "context_chars": context_chars,
+            }
+        )
         if execution_context:
             execution_context.rag_metadata = rag_metadata
 

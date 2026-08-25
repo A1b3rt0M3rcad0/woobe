@@ -8,14 +8,31 @@ wheels/
 web\node_modules
 */node_modules
 
+# Test, type-check and coverage caches
+.pytest_cache/
+.ruff_cache/
+.pyright/
+.mypy_cache/
+.coverage
+coverage.xml
+htmlcov/
+.test-artifacts/
+
+# Notebook, editor and operating-system artifacts
+.ipynb_checkpoints/
+*.log
+*.tmp
+*.bak
+*.swp
+.DS_Store
+Thumbs.db
+
 # Virtual environments
 .venv
 
 # Local upload storage
 /storage/uploads/
 
-# Local and production secrets
+# Deployment environment files
 .env*
 !.env.example
-!.env.web.example
-!.env.production.example
