@@ -15,6 +15,7 @@ interface ChatCanvasProps {
   isSending: boolean
   isSessionLoading?: boolean
   onSend: (content: string) => void
+  onStop: () => void
   agentName?: string
   runtimeBlocked?: boolean
   runtimeBlockReason?: string
@@ -57,7 +58,7 @@ function SessionMessagesLoading() {
   )
 }
 
-export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSend, agentName, runtimeBlocked = false, runtimeBlockReason }: ChatCanvasProps) {
+export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSend, onStop, agentName, runtimeBlocked = false, runtimeBlockReason }: ChatCanvasProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesContentRef = useRef<HTMLDivElement>(null)
   const shouldStickToBottomRef = useRef(true)
@@ -202,7 +203,7 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
         )}
       </ScrollArea>
 
-      <ChatComposer isSending={isSending} onSend={handleSend} runtimeBlocked={runtimeBlocked} runtimeBlockReason={runtimeBlockReason} />
+      <ChatComposer isSending={isSending} onSend={handleSend} onStop={onStop} runtimeBlocked={runtimeBlocked} runtimeBlockReason={runtimeBlockReason} />
     </section>
   )
 }
