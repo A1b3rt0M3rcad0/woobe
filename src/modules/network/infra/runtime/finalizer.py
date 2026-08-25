@@ -12,6 +12,7 @@ from modules.agent.infra.database.run_models import AgentRunModel
 from modules.network.application.runtime import NetworkVersionSnapshot
 from modules.network.infra.database.models import (
     NetworkAgentContextModel,
+    NetworkExecutionEventModel,
     NetworkExecutionModel,
     NetworkInvocationModel,
 )
@@ -22,6 +23,18 @@ def _uuid(value: Any) -> UUID | None:
     if value in {None, ""}:
         return None
     return value if isinstance(value, UUID) else UUID(str(value))
+
+
+def _datetime(value: Any, *, fallback: datetime) -> datetime:
+    if isinstance(value, datetime):
+        return value
+    if isinstance(value, str) and value.strip():
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+        except ValueError:
+            pass
+    return fallback
 
 
 def _message_id(invocation_id: UUID, role: str) -> UUID:
@@ -52,6 +65,15 @@ class NetworkRuntimeFinalizer:
         )
         return value if isinstance(value, dict) else {}
 
+    @staticmethod
+    def _binding_source(environment: str, binding: dict[str, Any]) -> str:
+        source = binding.get("binding_source")
+        if source in {"draft", "staging", "release"}:
+            return str(source)
+        if environment == "draft":
+            return "draft"
+        return "release" if environment == "production" else "staging"
+
     async def finalize(
         self,
         *,
@@ -80,6 +102,10 @@ class NetworkRuntimeFinalizer:
 
             environment = self._environment(version)
             bindings = self._bindings(version, execution)
+            repository = NetworkRuntimeRepository(session)
+            durable_invocation_events: list[
+                tuple[datetime, int, str, dict[str, Any], dict[str, Any]]
+            ] = []
 
             for item in invocation_states:
                 invocation_id = _uuid(item.get("id"))
@@ -94,6 +120,10 @@ class NetworkRuntimeFinalizer:
                 binding = bindings.get(str(node_id))
                 binding = binding if isinstance(binding, dict) else {}
                 release_id = _uuid(binding.get("release_id"))
+                started_at = _datetime(item.get("started_at"), fallback=now)
+                completed_at = _datetime(item.get("completed_at"), fallback=now)
+                if completed_at < started_at:
+                    completed_at = started_at
                 execution_snapshot = {
                     "network_execution_id": str(execution.id),
                     "network_version_id": (
@@ -105,15 +135,30 @@ class NetworkRuntimeFinalizer:
                     "network_binding": binding,
                 }
                 usage = item.get("usage") if isinstance(item.get("usage"), dict) else None
+                diagnostics = (
+                    item.get("diagnostics")
+                    if isinstance(item.get("diagnostics"), dict)
+                    else None
+                )
+                llm_calls = (
+                    item.get("llm_calls")
+                    if isinstance(item.get("llm_calls"), list)
+                    else []
+                )
                 result_payload = {
                     "answer": item.get("output_message"),
                     "provider": item.get("provider"),
                     "model": item.get("model"),
                     "usage": usage,
+                    "diagnostics": diagnostics,
+                    "llm_calls": llm_calls,
                     "tool_calls": item.get("tool_calls") or [],
                     "sources": item.get("sources") or [],
                     "parsed_output": item.get("parsed_output"),
                     "output_parse_error": item.get("output_parse_error"),
+                    "fallback_used": bool((diagnostics or {}).get("fallback_used")),
+                    "cost_status": (diagnostics or {}).get("cost_status"),
+                    "cost_usd": (usage or {}).get("cost_usd"),
                 }
 
                 if session_id is not None:
@@ -128,11 +173,11 @@ class NetworkRuntimeFinalizer:
                             status="active",
                             mode="chat",
                             data={},
-                            last_message_at=now,
+                            last_message_at=completed_at,
                         )
                         session.add(agent_session)
                     else:
-                        agent_session.last_message_at = now
+                        agent_session.last_message_at = completed_at
 
                     user_message_id = _message_id(invocation_id, "user")
                     if await session.get(MessageModel, user_message_id) is None:
@@ -167,7 +212,20 @@ class NetworkRuntimeFinalizer:
                                     data={
                                         "network_execution_id": str(execution.id),
                                         "network_invocation_id": str(invocation_id),
+                                        "trace_id": (
+                                            str(invocation_trace_id)
+                                            if invocation_trace_id
+                                            else None
+                                        ),
+                                        "provider": item.get("provider"),
+                                        "model": item.get("model"),
+                                        "latency_ms": (diagnostics or {}).get(
+                                            "agent_runtime_latency_ms"
+                                        ),
                                         "tool_calls": item.get("tool_calls") or [],
+                                        "sources": item.get("sources") or [],
+                                        "parsed_output": item.get("parsed_output"),
+                                        "output_parse_error": item.get("output_parse_error"),
                                     },
                                 )
                             )
@@ -199,8 +257,8 @@ class NetworkRuntimeFinalizer:
                         network_execution_id=execution.id,
                         network_invocation_id=invocation_id,
                         parent_run_id=parent_id,
-                        started_at=now,
-                        completed_at=now,
+                        started_at=started_at,
+                        completed_at=completed_at,
                     )
                     session.add(run)
 
@@ -231,6 +289,91 @@ class NetworkRuntimeFinalizer:
                         )
                     session.add(invocation)
 
+                source = self._binding_source(environment, binding)
+                version_label = (
+                    f"r{execution.draft_revision}"
+                    if environment == "draft"
+                    else binding.get("release_version")
+                )
+                durable_invocation_events.append(
+                    (
+                        started_at,
+                        0,
+                        "agent_invocation_started",
+                        {
+                            "provider": item.get("provider"),
+                            "model": item.get("model"),
+                            "session_mode": binding.get("session_mode"),
+                            "context_state": (
+                                "created" if item.get("persist_context") else "stateless"
+                            ),
+                            "source": source,
+                            "version": version_label,
+                            "started_at": started_at.isoformat(),
+                        },
+                        {
+                            "id": invocation_id,
+                            "parent_id": parent_id,
+                            "node_id": node_id,
+                            "agent_id": agent_id,
+                            "depth": int(item.get("depth") or 0),
+                        },
+                    )
+                )
+                terminal_event_type = (
+                    "agent_invocation_completed"
+                    if status == "completed"
+                    else "agent_invocation_failed"
+                )
+                terminal_payload = (
+                    {
+                        "trace_id": (
+                            str(invocation_trace_id) if invocation_trace_id else None
+                        ),
+                        "agent_session_id": str(session_id) if session_id else None,
+                        "provider": item.get("provider"),
+                        "model": item.get("model"),
+                        "usage": usage,
+                        "diagnostics": diagnostics,
+                        "tool_calls": item.get("tool_calls") or [],
+                        "sources": item.get("sources") or [],
+                        "parsed_output": item.get("parsed_output"),
+                        "output_parse_error": item.get("output_parse_error"),
+                        "output": item.get("output_message"),
+                        "started_at": started_at.isoformat(),
+                        "completed_at": completed_at.isoformat(),
+                    }
+                    if status == "completed"
+                    else {
+                        "code": "network_agent_failure",
+                        "message": item.get("error") or "Agent invocation failed",
+                        "retryable": False,
+                        "trace_id": (
+                            str(invocation_trace_id) if invocation_trace_id else None
+                        ),
+                        "cause_invocation_id": str(invocation_id),
+                        "cause_node_id": str(node_id),
+                        "cause_agent_id": str(agent_id),
+                        "started_at": started_at.isoformat(),
+                        "completed_at": completed_at.isoformat(),
+                    }
+                )
+                durable_invocation_events.append(
+                    (
+                        completed_at,
+                        1,
+                        terminal_event_type,
+                        terminal_payload,
+                        {
+                            "id": invocation_id,
+                            "parent_id": parent_id,
+                            "node_id": node_id,
+                            "agent_id": agent_id,
+                            "depth": int(item.get("depth") or 0),
+                        },
+                    )
+                )
+
                 if item.get("persist_context") and session_id is not None:
                     context = await session.scalar(
                         select(NetworkAgentContextModel).where(
@@ -252,7 +395,27 @@ class NetworkRuntimeFinalizer:
                         context.agent_id = agent_id
                         context.agent_session_id = session_id
 
-            repository = NetworkRuntimeRepository(session)
+            for occurred_at, _, event_type, payload, identity in sorted(
+                durable_invocation_events,
+                key=lambda value: (value[0], value[1], str(value[4]["id"])),
+            ):
+                execution.last_event_sequence += 1
+                session.add(
+                    NetworkExecutionEventModel(
+                        network_execution_id=execution.id,
+                        network_session_id=execution.network_session_id,
+                        sequence=execution.last_event_sequence,
+                        event_type=event_type,
+                        invocation_id=identity["id"],
+                        parent_invocation_id=identity["parent_id"],
+                        node_id=identity["node_id"],
+                        agent_id=identity["agent_id"],
+                        depth=identity["depth"],
+                        payload=payload,
+                        created_at=occurred_at,
+                    )
+                )
+
             if terminal_status == "completed":
                 await repository.mark_completed(
                     execution,
