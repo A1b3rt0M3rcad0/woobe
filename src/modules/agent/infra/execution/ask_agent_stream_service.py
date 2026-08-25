@@ -108,14 +108,14 @@ class AskAgentStreamService:
         cancellation_persisted: bool,
         reason: str,
     ) -> RuntimeStreamEvent:
-        if cancellation_persisted or not execution_task.done():
+        if cancellation_persisted:
             return RuntimeStreamEvent(
                 event_type="cancelled",
                 payload={"reason": reason},
             )
 
         try:
-            result = execution_task.result()
+            result = await execution_task
         except asyncio.CancelledError:
             return RuntimeStreamEvent(
                 event_type="cancelled",
