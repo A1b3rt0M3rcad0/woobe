@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from sqlalchemy import select
+
 from modules.agent.application.interfaces.agent_run_repository import AgentRunRepository
 from modules.agent.domain.run import AgentRun, AgentRunStatus
 from modules.agent.infra.database.run_models import AgentRunModel
@@ -79,6 +81,15 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
 
     async def get_by_id(self, run_id: UUID) -> AgentRun | None:
         model = await self._uow.session.get(AgentRunModel, run_id)
+        return _to_entity(model) if model is not None else None
+
+    async def get_by_id_for_update(self, run_id: UUID) -> AgentRun | None:
+        result = await self._uow.session.execute(
+            select(AgentRunModel)
+            .where(AgentRunModel.id == run_id)
+            .with_for_update()
+        )
+        model = result.scalar_one_or_none()
         return _to_entity(model) if model is not None else None
 
     async def save(self, run: AgentRun) -> AgentRun:
