@@ -159,8 +159,10 @@ def build_network_run_diagnostics(
     """Aggregate Network metrics from canonical child AgentRuns."""
 
     now = now or datetime.now(timezone.utc)
+    run_starts = [run.started_at for run in agent_runs if run.started_at is not None]
+    network_start = execution.started_at or (min(run_starts) if run_starts else None)
     network_end = execution.completed_at or now
-    network_wall_ms = _elapsed_ms(execution.started_at, network_end)
+    network_wall_ms = _elapsed_ms(network_start, network_end)
     agent_work_ms, timing_count = _agent_work_latency_ms(agent_runs, now=now)
 
     llm_values: list[float | None] = []
