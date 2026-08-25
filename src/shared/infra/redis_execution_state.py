@@ -7,7 +7,7 @@ from uuid import UUID
 
 from redis.asyncio import Redis
 
-from shared.contracts.execution_state import ExecutionLease, ExecutionStateStore
+from shared.contracts.execution_state import ExecutionEvent, ExecutionLease, ExecutionStateStore
 
 
 _ACQUIRE_LEASE_SCRIPT = """
@@ -34,6 +34,25 @@ if redis.call('GET', lease_key) == owner then
   return 1
 end
 return 0
+"""
+
+_APPEND_EVENT_SCRIPT = """
+local state_key = KEYS[1]
+local events_key = KEYS[2]
+local event_type = ARGV[1]
+local payload = ARGV[2]
+local occurred_at = ARGV[3]
+local maxlen = tonumber(ARGV[4])
+local sequence = redis.call('HINCRBY', state_key, 'event_sequence', 1)
+local cursor = redis.call(
+  'XADD', events_key, 'MAXLEN', '~', maxlen, '*',
+  'sequence', sequence,
+  'type', event_type,
+  'payload', payload,
+  'at', occurred_at
+)
+redis.call('HSET', state_key, 'last_event_cursor', cursor, 'updated_at', occurred_at)
+return {cursor, sequence}
 """
 
 
@@ -64,6 +83,17 @@ class RedisExecutionStateStore(ExecutionStateStore):
         except (TypeError, json.JSONDecodeError):
             return value
 
+    @classmethod
+    def _event(cls, cursor: str, fields: dict[str, str]) -> ExecutionEvent:
+        payload = cls._decode(fields.get("payload", "{}"))
+        return ExecutionEvent(
+            sequence=int(fields.get("sequence") or 0),
+            cursor=str(cursor),
+            event_type=str(fields.get("type") or "runtime.event"),
+            payload=payload if isinstance(payload, dict) else {"value": payload},
+            occurred_at=str(fields.get("at") or ""),
+        )
+
     async def create(
         self,
         run_id: UUID,
@@ -76,6 +106,7 @@ class RedisExecutionStateStore(ExecutionStateStore):
         encoded.setdefault("run_id", self._encode(str(run_id)))
         encoded.setdefault("cancel_requested", self._encode(False))
         encoded.setdefault("lease_generation", self._encode(0))
+        encoded.setdefault("event_sequence", self._encode(0))
         encoded["updated_at"] = self._encode(datetime.now(timezone.utc).isoformat())
         async with self._client.pipeline(transaction=False) as pipe:
             pipe.hset(state_key, mapping=encoded)
@@ -103,17 +134,79 @@ class RedisExecutionStateStore(ExecutionStateStore):
         *,
         maxlen: int = 2000,
     ) -> str | None:
-        event_id = await self._client.xadd(
+        occurred_at = datetime.now(timezone.utc).isoformat()
+        result = await self._client.eval(
+            _APPEND_EVENT_SCRIPT,
+            2,
+            self._state_key(run_id),
             self._events_key(run_id),
-            {
-                "type": event_type,
-                "payload": self._encode(payload),
-                "at": datetime.now(timezone.utc).isoformat(),
-            },
-            maxlen=maxlen,
-            approximate=True,
+            event_type,
+            self._encode(payload),
+            occurred_at,
+            max(1, int(maxlen)),
         )
-        return str(event_id) if event_id is not None else None
+        if not result:
+            return None
+        cursor = result[0]
+        return str(cursor) if cursor is not None else None
+
+    async def list_events_after(
+        self,
+        run_id: UUID,
+        sequence: int,
+        *,
+        through_sequence: int | None = None,
+        limit: int = 2000,
+    ) -> list[ExecutionEvent]:
+        rows = await self._client.xrange(
+            self._events_key(run_id),
+            min="-",
+            max="+",
+            count=max(1, int(limit)),
+        )
+        events: list[ExecutionEvent] = []
+        for cursor, fields in rows:
+            event = self._event(str(cursor), fields)
+            if event.sequence <= sequence:
+                continue
+            if through_sequence is not None and event.sequence > through_sequence:
+                break
+            events.append(event)
+        return events
+
+    async def read_events_after_cursor(
+        self,
+        run_id: UUID,
+        cursor: str,
+        *,
+        block_ms: int = 1000,
+        limit: int = 100,
+    ) -> list[ExecutionEvent]:
+        rows = await self._client.xread(
+            {self._events_key(run_id): cursor or "0-0"},
+            count=max(1, int(limit)),
+            block=max(0, int(block_ms)),
+        )
+        if not rows:
+            return []
+        events: list[ExecutionEvent] = []
+        for _stream_name, entries in rows:
+            for event_cursor, fields in entries:
+                events.append(self._event(str(event_cursor), fields))
+        return events
+
+    async def first_event_sequence(self, run_id: UUID) -> int | None:
+        rows = await self._client.xrange(
+            self._events_key(run_id),
+            min="-",
+            max="+",
+            count=1,
+        )
+        if not rows:
+            return None
+        _cursor, fields = rows[0]
+        raw_sequence = fields.get("sequence")
+        return int(raw_sequence) if raw_sequence is not None else None
 
     async def request_cancel(self, run_id: UUID) -> None:
         await self.update(run_id, {"cancel_requested": True})
