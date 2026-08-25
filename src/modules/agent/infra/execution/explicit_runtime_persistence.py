@@ -32,6 +32,7 @@ from modules.agent.infra.execution.runtime_preparation import (
     prepare_rag_binding,
     prepare_tool_state,
 )
+from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
 from shared.contracts.execution_state import ExecutionStateStore
 from shared.infra.crypto import decrypt_secret
 from shared.runtime_environment import normalize_runtime_environment
@@ -90,6 +91,83 @@ class ExplicitRuntimePersistenceMixin:
             context.run_id,
             ttl_seconds=self._execution_terminal_ttl_seconds,
         )
+
+    async def _persist_prepare_failure(
+        self,
+        input_dto: AskInput,
+        error: Exception,
+    ) -> None:
+        context = current_execution.get()
+        if context is None or context.run_id is None or context.terminal_persisted:
+            return
+
+        run_id = context.run_id
+        trace_id = context.trace_id
+        error_text = str(error)
+        result = {
+            "run_id": str(run_id),
+            "trace_id": str(trace_id) if trace_id else None,
+            "project_id": str(input_dto.project_id),
+            "agent_id": str(context.agent_id or input_dto.agent_id),
+            "session_id": str(context.session_id) if context.session_id else None,
+            "error": error_text,
+            "failure_phase": "prepare",
+        }
+
+        try:
+            await self._hot_terminal_pending(
+                terminal_status="failed",
+                result=result,
+            )
+        except Exception as hot_state_error:
+            logger.warning(
+                "Failed to mark Agent Run terminal_pending_persist after prepare failure: %s",
+                hot_state_error,
+            )
+
+        async def persist_failure(
+            repositories: AgentRuntimeRepositories,
+            outbox: OutboxEventWriter,
+        ) -> bool:
+            run = await repositories.runs.get_by_id(run_id)
+            if run is None or run.status != AgentRunStatus.RUNNING:
+                return False
+
+            await outbox.write(
+                AgentExecutionFailedV1.create(
+                    agent_id=context.agent_id or input_dto.agent_id,
+                    session_id=context.session_id or trace_id or input_dto.agent_id,
+                    payload=result,
+                )
+            )
+            run.status = AgentRunStatus.FAILED
+            run.failure_code = "prepare_failed"
+            run.failure_detail = error_text[:8000]
+            run.result = result
+            run.completed_at = datetime.now(timezone.utc)
+            await repositories.runs.save(run)
+            return True
+
+        try:
+            persisted = await self._transactions.run(persist_failure)
+        except Exception as persistence_error:
+            logger.warning(
+                "Failed to persist Agent Run prepare failure: %s",
+                persistence_error,
+            )
+            return
+
+        if not persisted:
+            return
+
+        context.terminal_persisted = True
+        try:
+            await self._hot_persisted("failed")
+        except Exception as hot_state_error:
+            logger.warning(
+                "Failed to mark Agent Run failed in execution state: %s",
+                hot_state_error,
+            )
 
     async def _prepare(self, input_dto: AskInput):
         async def accept_run(
@@ -253,29 +331,8 @@ class ExplicitRuntimePersistenceMixin:
             history,
         ) = await self._transactions.run(accept_run)
 
-        # Decryption and all external work happen after the Acceptance COMMIT.
-        api_key = self._decrypt_api_key(primary_credential)
-        base_url = self._resolve_base_url(agent, primary_credential)
-        fallback_data = None
-        if fallback_credential is not None:
-            fallback_provider = (
-                agent.fallback_provider.value
-                if hasattr(agent.fallback_provider, "value")
-                else agent.fallback_provider
-            )
-            fallback_data = {
-                "api_key": self._decrypt_api_key(fallback_credential),
-                "base_url": self._resolve_base_url_for_provider(
-                    fallback_provider,
-                    fallback_credential,
-                    agent.settings,
-                ),
-            }
-        tool_secrets = {
-            name: decrypt_secret(ciphertext, self._encryption_key)
-            for name, ciphertext in encrypted_tool_secrets.items()
-        }
-
+        # Acceptance is durable at this point. Bind the canonical identity before
+        # any decrypt, Redis operation, embedding, vector search or other external work.
         context = current_execution.get()
         if context is not None:
             context.run_id = run_id
@@ -283,47 +340,81 @@ class ExplicitRuntimePersistenceMixin:
             context.agent_id = agent.id
             context.session_id = session.id if session else None
             context.trace_id = trace_id
-            context.prepared_fallback = fallback_data
-            context.prepared_tools = {str(tool.id): tool for tool in tools}
-            context.prepared_tool_secrets = tool_secrets
-            context.prepared_rag = rag_binding
 
-        if self._execution_state_store is not None:
-            await self._execution_state_store.create(
-                run_id,
-                {
-                    "status": "running",
-                    "phase": "prepared",
-                    "project_id": str(input_dto.project_id),
-                    "agent_id": str(agent.id),
-                    "session_id": str(session.id) if session else None,
-                    "trace_id": str(trace_id),
-                    "environment": normalize_runtime_environment(input_dto.execution_context),
-                    "network_execution_id": str(context.network_execution_id) if context and context.network_execution_id else None,
-                    "network_invocation_id": str(context.network_invocation_id) if context and context.network_invocation_id else None,
-                    "attempt": 1,
-                },
-                ttl_seconds=self._execution_state_ttl_seconds,
-            )
-            await self._execution_state_store.append_event(
-                run_id,
-                "agent.run.accepted",
-                {"trace_id": str(trace_id)},
-            )
+        stream = current_runtime_stream.get()
+        if stream is not None:
+            setattr(stream, "run_id", run_id)
 
-        rag_context, sources = await self._load_rag_context(
-            agent,
-            input_dto.message,
-            self._transactions,
-        )
-        messages = self._build_messages(
-            agent,
-            rag_context,
-            history,
-            input_dto.message,
-            response_format if json_enabled else None,
-        )
-        await self._hot_update({"phase": "llm", "rag_sources": len(sources or [])})
+        try:
+            # Decryption and all external work happen after the Acceptance COMMIT.
+            api_key = self._decrypt_api_key(primary_credential)
+            base_url = self._resolve_base_url(agent, primary_credential)
+            fallback_data = None
+            if fallback_credential is not None:
+                fallback_provider = (
+                    agent.fallback_provider.value
+                    if hasattr(agent.fallback_provider, "value")
+                    else agent.fallback_provider
+                )
+                fallback_data = {
+                    "api_key": self._decrypt_api_key(fallback_credential),
+                    "base_url": self._resolve_base_url_for_provider(
+                        fallback_provider,
+                        fallback_credential,
+                        agent.settings,
+                    ),
+                }
+            tool_secrets = {
+                name: decrypt_secret(ciphertext, self._encryption_key)
+                for name, ciphertext in encrypted_tool_secrets.items()
+            }
+
+            if context is not None:
+                context.prepared_fallback = fallback_data
+                context.prepared_tools = {str(tool.id): tool for tool in tools}
+                context.prepared_tool_secrets = tool_secrets
+                context.prepared_rag = rag_binding
+
+            if self._execution_state_store is not None:
+                await self._execution_state_store.create(
+                    run_id,
+                    {
+                        "status": "running",
+                        "phase": "prepared",
+                        "project_id": str(input_dto.project_id),
+                        "agent_id": str(agent.id),
+                        "session_id": str(session.id) if session else None,
+                        "trace_id": str(trace_id),
+                        "environment": normalize_runtime_environment(input_dto.execution_context),
+                        "network_execution_id": str(context.network_execution_id) if context and context.network_execution_id else None,
+                        "network_invocation_id": str(context.network_invocation_id) if context and context.network_invocation_id else None,
+                        "attempt": 1,
+                    },
+                    ttl_seconds=self._execution_state_ttl_seconds,
+                )
+                await self._execution_state_store.append_event(
+                    run_id,
+                    "agent.run.accepted",
+                    {"trace_id": str(trace_id)},
+                )
+
+            rag_context, sources = await self._load_rag_context(
+                agent,
+                input_dto.message,
+                self._transactions,
+            )
+            messages = self._build_messages(
+                agent,
+                rag_context,
+                history,
+                input_dto.message,
+                response_format if json_enabled else None,
+            )
+            await self._hot_update({"phase": "llm", "rag_sources": len(sources or [])})
+        except Exception as exc:
+            await self._persist_prepare_failure(input_dto, exc)
+            raise
+
         return (
             agent,
             session,
