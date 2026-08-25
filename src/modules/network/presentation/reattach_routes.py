@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from uuid import UUID
 
 from fastapi import APIRouter, Request
@@ -9,12 +10,7 @@ from fastapi.responses import StreamingResponse
 from modules.network.infra.database.models import NetworkExecutionModel
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, NotFoundError
-from shared.runtime_reattach import (
-    RuntimeStreamFrame,
-    RuntimeStreamGapError,
-    RuntimeStreamReader,
-    format_sse_frame,
-)
+from shared.runtime_reattach import RuntimeStreamFrame, RuntimeStreamGapError, RuntimeStreamReader
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
 
 
@@ -65,6 +61,39 @@ def _durable_state(execution: NetworkExecutionModel) -> dict:
     }
 
 
+def _network_sse(frame: RuntimeStreamFrame, execution_id: UUID) -> str:
+    payload = dict(frame.data)
+    if frame.event_type == "run.state":
+        envelope = {
+            "protocol_version": 1,
+            "sequence": frame.sequence,
+            "execution_id": str(execution_id),
+            "data": payload,
+            "created_at": payload.get("updated_at"),
+        }
+    else:
+        occurred_at = payload.pop("occurred_at", None)
+        payload.pop("run_id", None)
+        payload.pop("sequence", None)
+        envelope = {
+            "protocol_version": 1,
+            "sequence": frame.sequence,
+            "execution_id": str(execution_id),
+            "invocation_id": payload.pop("invocation_id", None),
+            "parent_invocation_id": payload.pop("parent_invocation_id", None),
+            "node_id": payload.pop("node_id", None),
+            "agent_id": payload.pop("agent_id", None),
+            "depth": payload.pop("depth", None),
+            "data": payload,
+            "created_at": occurred_at,
+        }
+    prefix = f"id: {frame.sequence}\n" if frame.sequence is not None else ""
+    return (
+        f"{prefix}event: {frame.event_type}\n"
+        f"data: {json.dumps(envelope, ensure_ascii=False, default=str)}\n\n"
+    )
+
+
 @router.get("/executions/{execution_id}/stream")
 async def reattach_network_execution(
     execution_id: UUID,
@@ -93,10 +122,10 @@ async def reattach_network_execution(
                     "realtime_available": False,
                 }
             )
-            yield format_sse_frame(RuntimeStreamFrame("run.state", queued, sequence=0))
+            yield _network_sse(RuntimeStreamFrame("run.state", queued, sequence=0), execution_id)
 
-            # The durable Acceptance may precede worker/Redis initialization. Keep
-            # the observer attached to the same Run instead of forcing a new POST.
+            # Acceptance may precede worker/Redis initialization. Keep the same
+            # observer attached to the canonical Run instead of submitting again.
             while hot is None:
                 if await request.is_disconnected():
                     return
@@ -112,8 +141,9 @@ async def reattach_network_execution(
                             "realtime_available": False,
                         }
                     )
-                    yield format_sse_frame(
-                        RuntimeStreamFrame("run.state", terminal, sequence=0)
+                    yield _network_sse(
+                        RuntimeStreamFrame("run.state", terminal, sequence=0),
+                        execution_id,
                     )
                     return
                 hot = await EXECUTION_STATE_STORE.get(execution_id)
@@ -126,7 +156,7 @@ async def reattach_network_execution(
             ):
                 if await request.is_disconnected():
                     return
-                yield format_sse_frame(frame)
+                yield _network_sse(frame, execution_id)
         except RuntimeStreamGapError:
             latest = await _load_execution(request, execution_id)
             state = _durable_state(latest)
@@ -139,7 +169,10 @@ async def reattach_network_execution(
                     "degraded_reason": "runtime_event_gap",
                 }
             )
-            yield format_sse_frame(RuntimeStreamFrame("run.state", state, sequence=0))
+            yield _network_sse(
+                RuntimeStreamFrame("run.state", state, sequence=0),
+                execution_id,
+            )
 
     return StreamingResponse(
         generate(),

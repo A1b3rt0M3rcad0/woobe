@@ -1,62 +1,182 @@
-# Playground SSE protocol v1
+# Runtime streaming and reattach protocol
 
-The playground streaming endpoint is `POST /runtime/ask/stream` with media type `text/event-stream`.
+Woobe treats streaming as an observation interface over an existing Run. The HTTP/SSE connection does not own the Agent Run or Network Run lifecycle.
 
-Every event is encoded as one JSON object in an SSE `data:` field and contains:
+The runtime invariant is:
 
-- `type`: event type;
-- `protocol_version`: currently `1`;
-- `request_id`: server-generated request identifier;
-- `occurred_at`: UTC timestamp.
+```text
+Acceptance (durable PostgreSQL)
+        ↓
+Execution (runtime + Redis hot state/events)
+        ↓
+Finalization (durable PostgreSQL)
+```
 
-## Event sequence
+SSE observes this lifecycle. Closing a tab, refreshing the page, losing the network, or disconnecting an SSE client only removes that observer. It must not cancel, restart, or duplicate the Run.
 
-A successful execution emits an early `meta` event after trace, session, and user-message persistence. It can then emit `agent_activity`, `sources`, assistant-visible `token` events, tool events, `fallback`, and periodic `heartbeat` events. A `usage` event precedes the terminal `done` event.
+## Public observation model
 
-Text events are visibility-scoped. Only `token` events with `visibility: "assistant"` and `channel: "final"` are eligible for the chat canvas. Internal reasoning, tool planning, provider-specific thinking blocks, and debug text must not be appended to the assistant message content.
+A client attaches to an existing Run and receives:
 
-Tool-capable phases must not stream candidate assistant text directly into the chat canvas. The server buffers assistant-visible text produced by tool planning and tool follow-up phases until the model result is known. If the model selects another tool call, the buffered candidate text is discarded. If the model produces a final answer without tool calls, the buffered text can be emitted as committed assistant-visible `token` events.
+```text
+current projected state
+        ↓
+live tail after that state
+```
 
-Assistant-visible token payload:
+The first frame is `run.state`. It has replacement semantics: the consumer should reconcile its local view to the complete state carried by the frame rather than visually replaying every event that occurred while it was disconnected.
 
-- `content`: text delta to append to the visible assistant answer;
-- `visibility`: currently `assistant` for visible chat text;
-- `channel`: currently `final` for visible chat text;
-- `phase`: execution phase that produced the token;
-- `provider`: model provider;
-- `model`: model name.
+Example:
 
-Runtime activity uses `agent_activity` events. These are runtime-generated operational states, not model-authored answer content. Consumers may show them as a lightweight status indicator while the assistant message has no visible final text or while a tool is running.
+```text
+client last saw sequence 125
+runtime advanced through 126..131
+client reconnects
+→ run.state @131
+→ event 132
+→ event 133
+```
 
-Activity payload:
+The server folds 126..131 into the projection before sending the initial state. The browser does not need to animate those events individually.
 
-- `status`: `thinking`, `planning_tools`, `calling_tool`, `processing_tool_result`, `generating_answer`, or `formatting_response`;
-- `message`: user-facing status message;
-- `phase`: execution phase when applicable;
-- `tool_name`: tool name when applicable;
-- `provider` and `model`: model metadata when applicable.
+## High-watermark rule
 
-Tool execution uses two events:
+Attach must avoid a gap between state reconstruction and the live stream:
 
-- `tool_call_started`: tool name, call identifier, input, and start time;
-- `tool_call_completed`: output, status, duration, and error when applicable.
+```text
+1. load saved projection P
+2. capture the current event high-watermark H
+3. read and fold P.sequence < events <= H
+4. emit run.state @H
+5. follow events > H
+```
 
-Tool events are operational events. Consumers may render them as tool activity, but must not concatenate them into the assistant answer.
+Events published while step 3 is running remain after `H` and are delivered by the live tail. If the retained stream can no longer bridge the projection because Redis trimming removed required events, Woobe reports a degraded state instead of inventing continuity.
 
-`token_retract` remains part of the protocol as a defensive compatibility event. Consumers should remove the last `content_length` characters from the current visible stream buffer and return to an operational activity state when it is received. Normal tool-capable flows should avoid relying on `token_retract` because candidate text is buffered server-side before it reaches the chat canvas.
+## Event identity and ordering
 
-Exactly one terminal event is emitted:
+Woobe distinguishes:
 
-- `done`: persisted response and execution metadata;
-- `error`: safe error code and correlation identifiers;
-- `cancelled`: execution cancelled because the client disconnected or the stream closed.
+- `RuntimeEvent.sequence`: monotonic logical ordering within one Run;
+- Redis Stream ID/cursor: infrastructure cursor used to continue reading the stream.
 
-Consumers must ignore unknown event types, tolerate arbitrary network chunk boundaries, process a final unterminated buffer, and never assume that `Response.body` is present. When `done.answer` is present, it is the authoritative final assistant content and should replace any accumulated visible stream buffer.
+The domain and clients must not use the Redis Stream ID as the semantic ordering contract.
+
+## Redis responsibilities
+
+Redis is hot operational state, not the durable source of truth. It stores:
+
+- in-flight execution state;
+- ordered runtime events;
+- runtime projection checkpoints;
+- cancellation flags and execution coordination where applicable;
+- short-lived data required for reattach.
+
+Projection checkpoints may be batched for high-frequency token events. Structural transitions are checkpointed eagerly. The stream remains the catch-up source between the saved projection and the captured high-watermark.
+
+PostgreSQL remains authoritative for accepted Runs, final results, semantic history, messages, versions, usage, traces, and final statuses.
+
+## Agent endpoints
+
+The existing convenience endpoint can create and immediately observe an Agent Run:
+
+```text
+POST /runtime/ask/stream
+```
+
+After the canonical Run identity is known, transport retries use:
+
+```text
+GET /runtime/runs/{run_id}/stream
+```
+
+Explicit cancellation is independent from stream disconnect:
+
+```text
+POST /runtime/runs/{run_id}/cancel
+```
+
+The Agent client never automatically submits a second POST after a Run ID is known. A transport interruption becomes a reattach operation.
+
+## Network endpoints
+
+The existing Network streaming POST remains a convenience create-and-observe entrypoint. The canonical Network Run can be observed independently through:
+
+```text
+GET /network/executions/{execution_id}/stream
+```
+
+Once the Network execution ID is known, the web client switches transport retries to this GET endpoint. Before the ID is available, the existing Network idempotency key is reused so retries resolve to the same logical Network Run.
+
+Network execution is already worker-owned; observer disconnects do not own worker cancellation.
+
+## SSE frames
+
+### `run.state`
+
+`run.state` is the initial replacement frame for an attach/reattach operation. It contains the effective current public projection, including the current output and status. For Network consumers it is wrapped in the existing `NetworkRuntimeEvent` envelope so the public protocol remains compatible.
+
+### Incremental events
+
+After `run.state`, only events newer than the captured high-watermark are sent. Public output deltas use the existing token semantics. Internal/debug/private events are sanitized or suppressed from the public projection.
+
+### Heartbeat
+
+Heartbeat keeps long-lived connections active and is not part of the semantic event history.
+
+### Terminal state
+
+A public terminal event/state is emitted only after durable Finalization has succeeded. Woobe must not advertise `completed` in Redis and then discover that the PostgreSQL finalization failed.
+
+Terminal statuses include:
+
+- `completed`;
+- `failed`;
+- `cancelled`;
+- `timed_out`;
+- `uncertain` when the runtime cannot safely assert the external outcome.
+
+If Redis data has expired for a terminal Run, the reattach endpoint synthesizes `run.state` from the durable PostgreSQL result and closes the stream.
 
 ## Cancellation
 
-Closing the browser request cancels the provider task. When a trace has already been created, the runtime writes an `agent.execution.cancelled.v1` outbox event so observability can project the terminal cancelled state.
+Transport disconnect is not cancellation.
 
-## Security
+```text
+close browser / F5 / network loss / SSE abort
+→ unsubscribe observer
+→ Run continues
+```
 
-Error events do not contain provider responses, credentials, request headers, or raw exception text. Administrative playground calls may use a draft snapshot override; production API-key calls must not use playground overrides. Reasoning/thinking content is not part of the public chat contract and must remain outside persisted assistant answers and the default chat canvas.
+Cancellation requires an explicit Run operation or a runtime policy. Agent cancellation is represented by the hot cancellation flag and is finalized durably by the execution owner. Network cancellation continues to use its explicit execution control path.
+
+## Failure and degradation
+
+Realtime infrastructure must not become business truth.
+
+For standalone Agent execution, hot-state writes are best-effort: a Redis publication failure may degrade realtime observation, but it does not rewrite a successful model execution as failed. Durable finalization still owns the Run outcome.
+
+For Network execution, Redis remains part of the active orchestration store. After PostgreSQL finalization has succeeded, failure to publish the final Redis event is treated as realtime degradation rather than a failed Network Run.
+
+Clients can receive `run.realtime_unavailable` or a `run.state` with `realtime_available: false` when only durable state is available.
+
+## Security and visibility
+
+Public runtime streams do not expose Redis keys, infrastructure cursors, credentials, authorization headers, provider secrets, hidden reasoning, or unrestricted Tool payloads.
+
+Runtime events are projected through a public visibility/redaction layer. Tool inputs/outputs and internal Agent activity require explicit safe representations before they can appear in a public projection. Administrative Debug/Trace views may use richer authorized data, but they are not the public chat contract.
+
+## Client rules
+
+Consumers should:
+
+1. treat `run.state` as replacement/current-state reconciliation;
+2. ignore events at or below the local logical sequence;
+3. apply contiguous newer events incrementally;
+4. reattach instead of guessing when a sequence gap is detected;
+5. distinguish transport failure from Run failure;
+6. retain the canonical `run_id`/`execution_id` as soon as it is observed;
+7. use explicit cancel when the user requests Stop;
+8. use durable Session/message history for terminal Runs after hot retention expires.
+
+The central rule is: **the Run belongs to the runtime; the connection belongs to the observer.**

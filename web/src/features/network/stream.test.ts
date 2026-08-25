@@ -36,6 +36,47 @@ function terminalResponse(): Response {
   )
 }
 
+function nonTerminalResponse(): Response {
+  return new Response(
+    `id: 1\nevent: token\ndata: ${JSON.stringify({
+      ...TERMINAL_EVENT,
+      data: { content: 'partial', visibility: 'assistant', channel: 'final' },
+    })}\n\n`,
+    {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'X-Network-Execution-ID': 'execution-1',
+      },
+    },
+  )
+}
+
+function completedStateResponse(): Response {
+  return new Response(
+    `id: 7\nevent: run.state\ndata: ${JSON.stringify({
+      protocol_version: 1,
+      execution_id: 'execution-1',
+      sequence: 7,
+      data: {
+        run_id: 'execution-1',
+        kind: 'NETWORK',
+        sequence: 7,
+        status: 'completed',
+        output: 'partial answer',
+        trace_id: 'trace-1',
+      },
+    })}\n\n`,
+    {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'X-Network-Execution-ID': 'execution-1',
+      },
+    },
+  )
+}
+
 function bodyFrom(fetchMock: ReturnType<typeof vi.fn>, index: number): Record<string, unknown> {
   const init = fetchMock.mock.calls[index]?.[1] as RequestInit | undefined
   return JSON.parse(String(init?.body)) as Record<string, unknown>
@@ -85,7 +126,7 @@ describe('isTerminalNetworkEvent', () => {
   })
 })
 
-describe('streamNetworkExecution idempotency', () => {
+describe('streamNetworkExecution idempotency and reattach', () => {
   it('sends a browser-safe UUID when randomUUID is unavailable', async () => {
     vi.stubGlobal('crypto', {
       getRandomValues: (bytes: Uint8Array) => {
@@ -116,7 +157,7 @@ describe('streamNetworkExecution idempotency', () => {
     expect(bodyFrom(fetchMock, 0).idempotency_key).toBe('network-send-123')
   })
 
-  it('reuses one generated key across transport retries', async () => {
+  it('reuses one generated key across transport retries before the execution id is known', async () => {
     vi.useFakeTimers()
     const randomUUID = vi.fn(() => '11111111-1111-4111-8111-111111111111')
     vi.stubGlobal('crypto', { randomUUID })
@@ -150,5 +191,26 @@ describe('streamNetworkExecution idempotency', () => {
     expect(vi.mocked(refreshAuthSession)).toHaveBeenCalledTimes(1)
     expect(bodyFrom(fetchMock, 0).idempotency_key).toBe('22222222-2222-4222-8222-222222222222')
     expect(bodyFrom(fetchMock, 1).idempotency_key).toBe('22222222-2222-4222-8222-222222222222')
+  })
+
+  it('switches to GET reattach after the canonical Network Run id is known', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(nonTerminalResponse())
+      .mockResolvedValueOnce(completedStateResponse())
+    vi.stubGlobal('fetch', fetchMock)
+    const onEvent = vi.fn()
+
+    const execution = streamNetworkExecution(streamInput('stable-key'), { onEvent })
+    await vi.runAllTimersAsync()
+    await execution
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('http://api.test/network/network-1/executions/stream')
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).method).toBe('POST')
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe('http://api.test/network/executions/execution-1/stream')
+    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).method).toBe('GET')
+    expect(onEvent).toHaveBeenCalledWith('run.state', expect.any(Object))
+    expect(onEvent).toHaveBeenCalledWith('execution_completed', expect.any(Object))
   })
 })
