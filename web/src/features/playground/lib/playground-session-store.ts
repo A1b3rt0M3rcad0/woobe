@@ -4,8 +4,12 @@ import type { RuntimeEnvironment } from '@/features/agents/types'
 let currentSessionId: string | null = null
 const listeners = new Set<() => void>()
 
-function storageKey(projectId: string, agentId: string, environment: RuntimeEnvironment) {
+function sessionStorageKey(projectId: string, agentId: string, environment: RuntimeEnvironment) {
   return `woobe:agent-session:${projectId}:${agentId}:${environment}`
+}
+
+function runStorageKey(projectId: string, agentId: string, environment: RuntimeEnvironment) {
+  return `woobe:agent-active-run:${projectId}:${agentId}:${environment}`
 }
 
 export function setPlaygroundSessionId(sessionId: string | null) {
@@ -23,7 +27,7 @@ export function getStoredPlaygroundSessionId(
   environment: RuntimeEnvironment,
 ): string | null {
   try {
-    return window.localStorage.getItem(storageKey(projectId, agentId, environment))
+    return window.localStorage.getItem(sessionStorageKey(projectId, agentId, environment))
   } catch {
     return null
   }
@@ -36,11 +40,38 @@ export function setStoredPlaygroundSessionId(
   sessionId: string | null,
 ) {
   try {
-    const key = storageKey(projectId, agentId, environment)
+    const key = sessionStorageKey(projectId, agentId, environment)
     if (sessionId) window.localStorage.setItem(key, sessionId)
     else window.localStorage.removeItem(key)
   } catch {
     // Storage is only an ergonomic pointer. Session/Run truth remains server-side.
+  }
+}
+
+export function getStoredPlaygroundRunId(
+  projectId: string,
+  agentId: string,
+  environment: RuntimeEnvironment,
+): string | null {
+  try {
+    return window.localStorage.getItem(runStorageKey(projectId, agentId, environment))
+  } catch {
+    return null
+  }
+}
+
+export function setStoredPlaygroundRunId(
+  projectId: string,
+  agentId: string,
+  environment: RuntimeEnvironment,
+  runId: string | null,
+) {
+  try {
+    const key = runStorageKey(projectId, agentId, environment)
+    if (runId) window.localStorage.setItem(key, runId)
+    else window.localStorage.removeItem(key)
+  } catch {
+    // Reattach still works by Session lookup when local storage is unavailable.
   }
 }
 
