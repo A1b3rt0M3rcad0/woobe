@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
@@ -10,6 +11,7 @@ from modules.agent.infra.database.models import AgentModel, MessageModel, Sessio
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.network.infra.database.models import (
     NetworkAgentContextModel,
+    NetworkExecutionEventModel,
     NetworkExecutionModel,
     NetworkInvocationModel,
     NetworkModel,
@@ -38,6 +40,12 @@ async def test_network_bulk_finalizer_materializes_children_in_one_commit() -> N
     child_invocation_id = uuid4()
     root_agent_session_id = uuid4()
     child_agent_session_id = uuid4()
+    root_trace_id = uuid4()
+    child_trace_id = uuid4()
+    root_started_at = datetime(2026, 8, 25, 12, 0, tzinfo=timezone.utc)
+    child_started_at = root_started_at + timedelta(milliseconds=150)
+    child_completed_at = root_started_at + timedelta(milliseconds=550)
+    root_completed_at = root_started_at + timedelta(milliseconds=900)
 
     async with session_factory() as session:
         async with session.begin():
@@ -151,7 +159,7 @@ async def test_network_bulk_finalizer_materializes_children_in_one_commit() -> N
                     "node_id": str(root_node_id),
                     "parent_invocation_id": None,
                     "agent_session_id": str(root_agent_session_id),
-                    "trace_id": str(uuid4()),
+                    "trace_id": str(root_trace_id),
                     "depth": 0,
                     "status": "completed",
                     "input_message": "root input",
@@ -164,8 +172,25 @@ async def test_network_bulk_finalizer_materializes_children_in_one_commit() -> N
                         "total_tokens": 15,
                         "cost_usd": 0.01,
                     },
+                    "diagnostics": {
+                        "schema_version": 5,
+                        "llm_work_latency_ms": 500,
+                        "tool_work_latency_ms": 0,
+                        "usage_complete": True,
+                        "cost_status": "known",
+                        "cost_usd": 0.01,
+                    },
+                    "llm_calls": [
+                        {
+                            "call_id": "root-llm",
+                            "latency_ms": 500,
+                            "cost_status": "known",
+                        }
+                    ],
                     "tool_calls": [],
                     "sources": [],
+                    "started_at": root_started_at.isoformat(),
+                    "completed_at": root_completed_at.isoformat(),
                     "persist_context": True,
                 },
                 {
@@ -174,7 +199,7 @@ async def test_network_bulk_finalizer_materializes_children_in_one_commit() -> N
                     "node_id": str(child_node_id),
                     "parent_invocation_id": str(root_invocation_id),
                     "agent_session_id": str(child_agent_session_id),
-                    "trace_id": str(uuid4()),
+                    "trace_id": str(child_trace_id),
                     "depth": 1,
                     "status": "completed",
                     "input_message": "delegated input",
@@ -187,14 +212,37 @@ async def test_network_bulk_finalizer_materializes_children_in_one_commit() -> N
                         "total_tokens": 7,
                         "cost_usd": 0.002,
                     },
-                    "tool_calls": [{"tool_name": "lookup", "success": True}],
+                    "diagnostics": {
+                        "schema_version": 5,
+                        "llm_work_latency_ms": 250,
+                        "tool_work_latency_ms": 25,
+                        "usage_complete": True,
+                        "cost_status": "known",
+                        "cost_usd": 0.002,
+                    },
+                    "llm_calls": [
+                        {
+                            "call_id": "child-llm",
+                            "latency_ms": 250,
+                            "cost_status": "known",
+                        }
+                    ],
+                    "tool_calls": [
+                        {
+                            "tool_name": "lookup",
+                            "duration_ms": 25,
+                            "success": True,
+                        }
+                    ],
                     "sources": [],
+                    "started_at": child_started_at.isoformat(),
+                    "completed_at": child_completed_at.isoformat(),
                     "persist_context": True,
                 },
             ],
             terminal_status="completed",
             output="root output",
-            trace_id=uuid4(),
+            trace_id=root_trace_id,
             streamed_output=True,
         )
     finally:
@@ -220,6 +268,15 @@ async def test_network_bulk_finalizer_materializes_children_in_one_commit() -> N
                     select(AgentRunModel).where(
                         AgentRunModel.network_execution_id == execution_id
                     )
+                )
+            ).all()
+        )
+        execution_events = list(
+            (
+                await session.scalars(
+                    select(NetworkExecutionEventModel)
+                    .where(NetworkExecutionEventModel.network_execution_id == execution_id)
+                    .order_by(NetworkExecutionEventModel.sequence.asc())
                 )
             ).all()
         )
@@ -264,6 +321,25 @@ async def test_network_bulk_finalizer_materializes_children_in_one_commit() -> N
     child_run = next(item for item in runs if item.id == child_invocation_id)
     assert child_run.parent_run_id == root_invocation_id
     assert child_run.usage["total_tokens"] == 7
+    assert child_run.result["diagnostics"]["schema_version"] == 5
+    assert child_run.result["diagnostics"]["llm_work_latency_ms"] == 250
+    assert child_run.result["llm_calls"][0]["call_id"] == "child-llm"
+    assert child_run.started_at == child_started_at
+    assert child_run.completed_at == child_completed_at
+
+    completed_events = [
+        item
+        for item in execution_events
+        if item.event_type == "agent_invocation_completed"
+    ]
+    assert len(completed_events) == 2
+    child_completed_event = next(
+        item for item in completed_events if item.invocation_id == child_invocation_id
+    )
+    assert child_completed_event.payload["usage"]["total_tokens"] == 7
+    assert child_completed_event.payload["diagnostics"]["schema_version"] == 5
+    assert child_completed_event.payload["tool_calls"][0]["tool_name"] == "lookup"
+
     assert len(agent_sessions) == 2
     assert len(messages) == 4
     assert {item.network_node_id for item in contexts} == {root_node_id, child_node_id}
