@@ -81,7 +81,12 @@ class AskAgentStreamService:
             outbox: OutboxEventWriter,
         ) -> bool:
             if run_id is not None:
-                run = await repositories.runs.get_by_id(run_id)
+                lock_reader = getattr(
+                    repositories.runs,
+                    "get_by_id_for_update",
+                    repositories.runs.get_by_id,
+                )
+                run = await lock_reader(run_id)
                 if run is None or run.status != AgentRunStatus.RUNNING:
                     return False
                 run.status = AgentRunStatus.CANCELLED
@@ -205,9 +210,6 @@ class AskAgentStreamService:
         finally:
             if not execution_task.done():
                 execution_task.cancel()
-            if execution_task.cancelled():
-                return
-            if not execution_task.done():
                 try:
                     await execution_task
                 except asyncio.CancelledError:
