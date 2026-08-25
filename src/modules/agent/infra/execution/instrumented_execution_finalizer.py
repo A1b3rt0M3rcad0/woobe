@@ -20,6 +20,7 @@ from modules.agent.application.use_cases.trace_event_builder import (
 )
 from modules.agent.domain.run import AgentRunStatus
 from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
+from modules.agent.infra.execution.agent_run_metrics import build_agent_run_metrics
 
 
 def _utc_now() -> str:
@@ -76,47 +77,6 @@ def _runtime_binding_payload(context, input_dto) -> dict[str, Any]:
     }
 
 
-def _cost_diagnostics(llm_calls: list[dict[str, Any]]) -> dict[str, Any]:
-    pricing_ids: list[Any] = []
-    cost_reasons: list[str] = []
-    cost_statuses: list[str] = []
-    first_pricing_snapshot = None
-    for call in llm_calls:
-        pricing_id = call.get("pricing_id")
-        if pricing_id and pricing_id not in pricing_ids:
-            pricing_ids.append(pricing_id)
-        reason = call.get("cost_reason")
-        if reason and reason not in cost_reasons:
-            cost_reasons.append(reason)
-        status = call.get("cost_status")
-        if status and status not in cost_statuses:
-            cost_statuses.append(status)
-        if first_pricing_snapshot is None and isinstance(call.get("pricing_snapshot"), dict):
-            first_pricing_snapshot = call.get("pricing_snapshot")
-    return {
-        "pricing_ids": pricing_ids,
-        "cost_reasons": cost_reasons,
-        "cost_statuses": cost_statuses,
-        "pricing_id": pricing_ids[0] if pricing_ids else None,
-        "cost_reason": "; ".join(cost_reasons) if cost_reasons else None,
-        "pricing_snapshot": first_pricing_snapshot,
-    }
-
-
-def _tool_provider_work_ms(timeline: list[dict[str, Any]]) -> int | None:
-    values: list[int] = []
-    for item in timeline:
-        if item.get("kind") != "tool":
-            continue
-        payload = item.get("payload")
-        if not isinstance(payload, dict):
-            continue
-        value = payload.get("provider_latency_ms")
-        if isinstance(value, (int, float)) and not isinstance(value, bool):
-            values.append(round(float(value)))
-    return sum(values) if values else None
-
-
 def _event(
     trace_id: str,
     event_type: str,
@@ -170,7 +130,6 @@ async def finalize_instrumented_execution(owner, **kw):
         **fallback_binding_payload,
         **runtime_binding_payload,
     }
-    cost_details = _cost_diagnostics(execution.llm_calls)
     sources = kw["sources"] or []
 
     await owner._hot_terminal_pending(
@@ -235,75 +194,30 @@ async def finalize_instrumented_execution(owner, **kw):
                 )
             )
 
-        # Snapshot timings at the latest point available before the terminal
-        # summary/outbox is materialized. The physical PostgreSQL COMMIT happens
-        # after this callback returns and is intentionally not claimed here.
+        # The finalizer measures only its own pre-commit work. The canonical
+        # AgentRun builder owns every metric formula shared by standalone and
+        # Network-deferred executions.
         finalization_work_ms = round(
             (time.monotonic() - finalization_started) * 1000
         )
         finalization_ended_at = _utc_now()
-        total_ms = round((time.monotonic() - kw["started_at"]) * 1000)
         execution_completed_at = _utc_now()
-        llm_work_ms = sum(
-            int(call.get("latency_ms") or 0)
-            for call in execution.llm_calls
+        metrics = build_agent_run_metrics(
+            context=context,
+            execution=execution,
+            binding=agent,
+            fallback_used=kw["fallback_used"],
+            finalization_work_ms=finalization_work_ms,
+            prepare_latency_ms=kw["prepare_latency_ms"],
+            usage=usage,
+            usage_complete=kw["usage_complete"],
+            cost_status=kw["cost_status"],
+            completed_at=execution_completed_at,
         )
-        tool_wall_ms = int(execution.tool_wall_latency_ms or 0)
-        tool_work_ms = int(execution.tool_call_duration_sum_ms or 0)
-        provider_work_ms = _tool_provider_work_ms(execution.timeline)
-        tool_runtime_overhead_ms = (
-            max(tool_work_ms - provider_work_ms, 0)
-            if provider_work_ms is not None
-            else None
-        )
-        tool_parallelism_ratio = (
-            round(tool_work_ms / tool_wall_ms, 3)
-            if tool_wall_ms > 0
-            else None
-        )
-        other_ms = max(
-            total_ms
-            - int(kw["prepare_latency_ms"] or 0)
-            - llm_work_ms
-            - tool_wall_ms
-            - finalization_work_ms,
-            0,
-        )
-        diagnostics = {
-            "schema_version": 5,
-            "agent_runtime_latency_ms": total_ms,
-            "total_latency_ms": total_ms,
-            "prepare_latency_ms": kw["prepare_latency_ms"],
-            "llm_work_latency_ms": llm_work_ms,
-            # Legacy alias retained for historical API consumers.
-            "llm_runtime_latency_ms": llm_work_ms,
-            "tool_wall_latency_ms": tool_wall_ms,
-            "tool_work_latency_ms": tool_work_ms,
-            # Legacy alias retained for historical API consumers.
-            "tool_call_duration_sum_ms": tool_work_ms,
-            "tool_parallelism_ratio": tool_parallelism_ratio,
-            "tool_provider_work_ms": provider_work_ms,
-            "tool_runtime_overhead_ms": tool_runtime_overhead_ms,
-            "finalization_work_latency_ms": finalization_work_ms,
-            # Legacy alias. This is pre-commit finalization work, not DB commit RTT.
-            "persistence_latency_ms": finalization_work_ms,
-            "other_latency_ms": other_ms,
-            "unaccounted_latency_ms": other_ms,
-            # Never synthesize orchestration from a residual.
-            "orchestration_latency_ms": None,
-            "llm_call_count": len(execution.llm_calls),
-            "tool_call_count": len(execution.tool_calls),
-            "usage_complete": kw["usage_complete"],
-            "cost_status": kw["cost_status"],
-            "cost_reason": cost_details["cost_reason"],
-            "cost_statuses": cost_details["cost_statuses"],
-            "pricing_ids": cost_details["pricing_ids"],
-            "provider_model_id": binding_payload["provider_model_id"],
-            "provider_credential_id": binding_payload["provider_credential_id"],
-            "fallback_provider_model_id": fallback_binding_payload["fallback_provider_model_id"],
-            "fallback_credential_id": fallback_binding_payload["fallback_credential_id"],
-            **runtime_binding_payload,
-        }
+        canonical_usage = metrics.usage
+        diagnostics = metrics.diagnostics
+        cost_details = metrics.cost_details
+        total_ms = metrics.total_latency_ms
 
         request_received_at = (
             context.request_received_at if context else execution_completed_at
@@ -444,15 +358,15 @@ async def finalize_instrumented_execution(owner, **kw):
             "session_id": str(session.id) if session else None,
             "message_id": str(message_id) if message_id else None,
             "answer_length": len(kw["answer"]),
-            "input_tokens": usage.input_tokens,
-            "output_tokens": usage.output_tokens,
-            "total_tokens": usage.total_tokens,
-            "cost_usd": usage.cost_usd,
-            "cost_status": kw["cost_status"],
+            "input_tokens": canonical_usage.input_tokens,
+            "output_tokens": canonical_usage.output_tokens,
+            "total_tokens": canonical_usage.total_tokens,
+            "cost_usd": canonical_usage.cost_usd,
+            "cost_status": diagnostics["cost_status"],
             "cost_reason": cost_details["cost_reason"],
             "pricing_id": cost_details["pricing_id"],
             "pricing_snapshot": cost_details["pricing_snapshot"],
-            "usage_complete": kw["usage_complete"],
+            "usage_complete": diagnostics["usage_complete"],
             **trace_binding_payload,
             "model": kw["response_model"] or agent.model,
             "provider": kw["response_provider"] or "",
@@ -481,11 +395,7 @@ async def finalize_instrumented_execution(owner, **kw):
             if run is not None:
                 run.status = AgentRunStatus.COMPLETED
                 run.output_message_id = message_id
-                run.usage = (
-                    usage.model_dump()
-                    if hasattr(usage, "model_dump")
-                    else None
-                )
+                run.usage = canonical_usage.model_dump()
                 run.result = payload
                 run.completed_at = datetime.now(timezone.utc)
                 await repositories.runs.save(run)
@@ -495,7 +405,7 @@ async def finalize_instrumented_execution(owner, **kw):
             answer=kw["answer"],
             session_id=session.id if session else None,
             message_id=message_id,
-            usage=usage,
+            usage=canonical_usage,
             sources=sources,
             tool_calls=execution.tool_calls,
             trace_id=trace_id,
