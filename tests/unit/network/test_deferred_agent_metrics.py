@@ -4,7 +4,7 @@ import time
 from types import SimpleNamespace
 from uuid import uuid4
 
-from modules.network.infra.runtime.agent_metrics import build_deferred_agent_metrics
+from modules.agent.infra.execution.deferred_run_metrics import build_deferred_agent_metrics
 
 
 def test_deferred_agent_metrics_match_agent_run_v5_contract() -> None:
