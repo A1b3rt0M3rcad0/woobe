@@ -5,7 +5,89 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
 
-from modules.agent.infra.execution.execution_instrumentation import aggregate_usage
+
+def _sum_int_field(calls: list[dict[str, Any]], field: str) -> int | None:
+    values: list[int] = []
+    for call in calls:
+        value = call.get(field)
+        if not isinstance(value, int) or isinstance(value, bool):
+            return None
+        values.append(value)
+    return sum(values)
+
+
+def _sum_available_int_field(calls: list[dict[str, Any]], field: str) -> int | None:
+    values = [
+        value
+        for call in calls
+        if isinstance((value := call.get(field)), int) and not isinstance(value, bool)
+    ]
+    return sum(values) if values else None
+
+
+def _sum_known_costs(calls: list[dict[str, Any]]) -> float | None:
+    values = [
+        float(value)
+        for call in calls
+        if isinstance((value := call.get("cost_usd")), (int, float))
+        and not isinstance(value, bool)
+    ]
+    return sum(values) if values else None
+
+
+def _aggregate_cost_status(calls: list[dict[str, Any]]) -> str:
+    if not calls:
+        return "unknown"
+    statuses = {str(call.get("cost_status") or "unknown") for call in calls}
+    known_cost_count = sum(
+        1
+        for call in calls
+        if isinstance(call.get("cost_usd"), (int, float))
+        and not isinstance(call.get("cost_usd"), bool)
+    )
+    if statuses == {"known"}:
+        return "known"
+    if known_cost_count > 0 or "known" in statuses:
+        return "partial"
+    if "unknown_tokens" in statuses:
+        return "unknown_tokens"
+    if "unknown_pricing" in statuses:
+        return "unknown_pricing"
+    return "unknown"
+
+
+def _aggregate_usage(
+    llm_calls: list[dict[str, Any]],
+) -> tuple[dict[str, Any], bool, str]:
+    successful = [call for call in llm_calls if call.get("status") == "success"]
+    complete = bool(llm_calls) and len(successful) == len(llm_calls) and all(
+        call.get("usage_complete") is True for call in successful
+    )
+    input_tokens = (
+        _sum_int_field(successful, "input_tokens")
+        if complete
+        else _sum_available_int_field(successful, "input_tokens")
+    )
+    output_tokens = (
+        _sum_int_field(successful, "output_tokens")
+        if complete
+        else _sum_available_int_field(successful, "output_tokens")
+    )
+    total_tokens = (
+        _sum_int_field(successful, "total_tokens")
+        if complete
+        else _sum_available_int_field(successful, "total_tokens")
+    )
+    return (
+        {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total_tokens,
+            "cost_usd": _sum_known_costs(llm_calls),
+        },
+        complete,
+        _aggregate_cost_status(llm_calls),
+    )
 
 
 def _cost_details(llm_calls: list[dict[str, Any]]) -> dict[str, Any]:
@@ -57,8 +139,7 @@ def build_deferred_agent_metrics(context, output) -> DeferredAgentMetrics:
 
     execution = context.execution
     llm_calls = list(execution.llm_calls) if execution is not None else []
-    aggregate, usage_complete, cost_status = aggregate_usage(llm_calls)
-    usage = aggregate.model_dump()
+    usage, usage_complete, cost_status = _aggregate_usage(llm_calls)
 
     completed_at = datetime.now(timezone.utc).isoformat()
     total_ms = round((time.monotonic() - context.started_at) * 1000)
