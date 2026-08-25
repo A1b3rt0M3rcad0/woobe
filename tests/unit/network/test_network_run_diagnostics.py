@@ -237,3 +237,47 @@ def test_network_run_diagnostics_preserve_real_parallel_agent_work():
     assert result["delegation_count"] == 2
     assert result["max_fan_out"] == 2
     assert result["telemetry_status"] == "complete"
+
+
+def test_network_run_diagnostics_use_first_agent_run_when_durable_start_is_absent():
+    started_at = datetime(2026, 8, 25, 12, 0, tzinfo=timezone.utc)
+    completed_at = started_at + timedelta(milliseconds=900)
+    execution = SimpleNamespace(
+        id=uuid4(),
+        status="completed",
+        started_at=None,
+        completed_at=completed_at,
+    )
+    run_id = uuid4()
+    run = _run(
+        run_id=run_id,
+        parent_run_id=None,
+        started_at=started_at,
+        completed_at=completed_at,
+        diagnostics={
+            "schema_version": 5,
+            "llm_work_latency_ms": 500,
+            "tool_work_latency_ms": 0,
+            "prepare_latency_ms": 10,
+            "finalization_work_latency_ms": 0,
+            "llm_call_count": 1,
+            "usage_complete": True,
+            "cost_status": "known",
+            "cost_usd": 0.001,
+        },
+        usage={
+            "input_tokens": 10,
+            "output_tokens": 5,
+            "total_tokens": 15,
+            "cost_usd": 0.001,
+        },
+    )
+
+    result = build_network_run_diagnostics(
+        execution=execution,
+        invocations=[_invocation(invocation_id=run_id, parent_id=None, depth=0)],
+        agent_runs=[run],
+    )
+
+    assert result["network_wall_latency_ms"] == 900
+    assert result["telemetry_status"] == "complete"
