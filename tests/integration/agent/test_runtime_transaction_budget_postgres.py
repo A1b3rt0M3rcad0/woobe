@@ -9,12 +9,13 @@ from sqlalchemy.orm import Session as SyncSession
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.infra.database.models import AgentModel, ProviderCredentialModel
+from modules.agent.infra.database.run_models import AgentRunModel
 from modules.agent.infra.database.runtime_transaction_runner import (
     AgentRuntimeTransactionRunner,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
-from modules.agent.infra.execution.explicit_runtime_persistence import (
-    TransactionalAskAgentUseCase,
+from modules.agent.infra.execution.frozen_snapshot_runtime import (
+    FrozenSnapshotStructuredOutputRuntime,
 )
 from modules.core.infra.database.models import ProjectModel
 from shared.infra.config import Settings
@@ -109,8 +110,8 @@ async def test_agent_happy_path_uses_exactly_two_postgres_commits() -> None:
             )
 
     transactions = AgentRuntimeTransactionRunner(lambda: AgentUnitOfWork(engine))
-    runtime = TransactionalAskAgentUseCase(
-        transactions,
+    runtime = FrozenSnapshotStructuredOutputRuntime(
+        transactions=transactions,
         llm_factory=_ProviderFactory(),
         encryption_key=settings.encryption_key,
     )
@@ -139,5 +140,12 @@ async def test_agent_happy_path_uses_exactly_two_postgres_commits() -> None:
     assert commits == 2, (
         "Agent happy path must persist only Acceptance and Finalization"
     )
+
+    async with session_factory() as session:
+        persisted_run = await session.get(AgentRunModel, result.run_id)
+        assert persisted_run is not None
+        assert persisted_run.status == "completed"
+        assert persisted_run.result is not None
+        assert persisted_run.result["run_id"] == str(result.run_id)
 
     await engine.dispose()
