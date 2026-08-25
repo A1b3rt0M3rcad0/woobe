@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 from typing import Any
+from uuid import UUID
 
 import uuid6
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
 from modules.agent.application.interfaces.execution_context import current_execution
@@ -31,6 +33,83 @@ from modules.agent.infra.execution.transaction_bounded_rag import (
 )
 from shared.infra.crypto import decrypt_secret
 from shared.runtime_environment import normalize_runtime_environment
+
+
+_NETWORK_INVOCATION_PREFIX = "invocation:"
+
+
+def _network_hot_session_history(
+    state: dict[str, Any],
+    *,
+    session_id: UUID,
+) -> list[Any] | None:
+    """Rebuild deferred Agent history from completed Network invocations in Redis."""
+
+    session_text = str(session_id)
+    completed: list[dict[str, Any]] = []
+    for key, raw in state.items():
+        if not key.startswith(_NETWORK_INVOCATION_PREFIX) or not isinstance(raw, dict):
+            continue
+        if str(raw.get("agent_session_id") or "") != session_text:
+            continue
+        if raw.get("status") != "completed":
+            continue
+        completed.append(dict(raw))
+
+    if not completed:
+        return None
+
+    # Network invocation ids are UUIDv7, so lexical UUID order preserves creation
+    # order for invocations created by the runtime.
+    completed.sort(key=lambda item: str(item.get("id") or ""))
+    history: list[Any] = []
+    for item in completed:
+        input_message = item.get("input_message")
+        if isinstance(input_message, str) and input_message:
+            history.append(HumanMessage(content=input_message))
+
+        raw_tool_calls = item.get("tool_calls")
+        tool_calls = raw_tool_calls if isinstance(raw_tool_calls, list) else []
+        model_tool_calls = [
+            {
+                "id": str(call["tool_call_id"]),
+                "name": str(call["tool_name"]),
+                "args": call.get("input") or {},
+            }
+            for call in tool_calls
+            if isinstance(call, dict)
+            and call.get("tool_call_id")
+            and call.get("tool_name")
+        ]
+
+        output_message = item.get("output_message")
+        if output_message is not None:
+            content = str(output_message)
+            history.append(
+                AIMessage(content=content, tool_calls=model_tool_calls)
+                if model_tool_calls
+                else AIMessage(content=content)
+            )
+
+        for call in tool_calls:
+            if (
+                not isinstance(call, dict)
+                or not call.get("tool_call_id")
+                or call.get("output") is None
+            ):
+                continue
+            history.append(
+                ToolMessage(
+                    content=json.dumps(
+                        call["output"],
+                        ensure_ascii=False,
+                        default=str,
+                    ),
+                    tool_call_id=str(call["tool_call_id"]),
+                )
+            )
+
+    return history
 
 
 class TransactionBoundedStructuredOutputRuntime(
@@ -66,13 +145,22 @@ class TransactionBoundedStructuredOutputRuntime(
             rag_binding = await prepare_rag_binding(repositories, agent=agent)
             session = None
             existing_session = False
+            session_missing = False
             if input_dto.session_id is not None:
                 session = await repositories.sessions.get_by_id(input_dto.session_id)
                 if session is None:
-                    raise ValueError("Pinned Agent Session was not found")
-                if session.project_id != input_dto.project_id or session.agent_id != agent.id:
-                    raise ValueError("Pinned Agent Session does not belong to this Agent")
-                existing_session = True
+                    # A stateful Agent Session created earlier in this same Network
+                    # Run is intentionally not durable until Network Finalization.
+                    session_missing = True
+                else:
+                    if (
+                        session.project_id != input_dto.project_id
+                        or session.agent_id != agent.id
+                    ):
+                        raise ValueError(
+                            "Pinned Agent Session does not belong to this Agent"
+                        )
+                    existing_session = True
             elif str(getattr(agent.session_mode, "value", agent.session_mode)) == "stateful":
                 session = Session(
                     id=uuid6.uuid7(),
@@ -89,9 +177,14 @@ class TransactionBoundedStructuredOutputRuntime(
                 else []
             )
             response_format = self._get_response_format(agent)
-            json_enabled = response_format.get("enabled", False) and response_format.get("type") == "json"
+            json_enabled = (
+                response_format.get("enabled", False)
+                and response_format.get("type") == "json"
+            )
             definitions, name_to_id = (
-                agent_tools_to_openai_definitions_and_mapping(tools) if tools else ([], {})
+                agent_tools_to_openai_definitions_and_mapping(tools)
+                if tools
+                else ([], {})
             )
             return (
                 agent,
@@ -106,6 +199,7 @@ class TransactionBoundedStructuredOutputRuntime(
                 json_enabled,
                 definitions,
                 name_to_id,
+                session_missing,
             )
 
         (
@@ -121,9 +215,46 @@ class TransactionBoundedStructuredOutputRuntime(
             json_enabled,
             definitions,
             name_to_id,
+            session_missing,
         ) = await self._transactions.read(read_prepare)
 
         context = current_execution.get()
+        if session_missing:
+            if (
+                input_dto.session_id is None
+                or context is None
+                or context.network_execution_id is None
+                or self._execution_state_store is None
+            ):
+                raise ValueError("Pinned Agent Session was not found")
+
+            # Redis is consulted only after the short SQL read scope has ended. A
+            # missing SQL Session is valid only when a completed invocation in this
+            # same Network Run proves that the session exists in deferred hot state.
+            network_state = (
+                await self._execution_state_store.get(context.network_execution_id)
+                or {}
+            )
+            hot_history = _network_hot_session_history(
+                network_state,
+                session_id=input_dto.session_id,
+            )
+            if hot_history is None:
+                raise ValueError("Pinned Agent Session was not found")
+
+            session = Session(
+                id=input_dto.session_id,
+                project_id=input_dto.project_id,
+                agent_id=agent.id,
+                runtime_environment=normalize_runtime_environment(
+                    input_dto.execution_context
+                ),
+                opened_release_id=input_dto.loaded_release_id,
+                tenant_id=input_dto.tenant_id,
+                user_id=input_dto.user_id,
+            )
+            history = hot_history
+
         # Every NetworkInvocation causes exactly one AgentRun. Reusing the UUID
         # gives the bulk finalizer a stable identity without a child SQL write.
         run_id = (
@@ -174,14 +305,26 @@ class TransactionBoundedStructuredOutputRuntime(
                     "agent_id": str(agent.id),
                     "session_id": str(session.id) if session else None,
                     "trace_id": str(trace_id),
-                    "network_execution_id": str(context.network_execution_id) if context and context.network_execution_id else None,
-                    "network_invocation_id": str(context.network_invocation_id) if context and context.network_invocation_id else None,
+                    "network_execution_id": (
+                        str(context.network_execution_id)
+                        if context and context.network_execution_id
+                        else None
+                    ),
+                    "network_invocation_id": (
+                        str(context.network_invocation_id)
+                        if context and context.network_invocation_id
+                        else None
+                    ),
                     "input_message": input_dto.message,
                 },
                 ttl_seconds=self._execution_state_ttl_seconds,
             )
 
-        rag_context, sources = await self._load_rag_context(agent, input_dto.message, self._transactions)
+        rag_context, sources = await self._load_rag_context(
+            agent,
+            input_dto.message,
+            self._transactions,
+        )
         messages = self._build_messages(
             agent,
             rag_context,
@@ -237,12 +380,18 @@ class TransactionBoundedStructuredOutputRuntime(
             if updated[9]:
                 messages = list(updated[11])
                 insert_at = len(messages) - 1 if messages else 0
-                messages.insert(insert_at, SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES))
+                messages.insert(
+                    insert_at,
+                    SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES),
+                )
                 updated[11] = messages
             if RUNTIME_TOOL_INVENTORY_NAME in tool_name_to_id:
                 messages = list(updated[11])
                 insert_at = len(messages) - 1 if messages else 0
-                messages.insert(insert_at, SystemMessage(content=_RUNTIME_TOOL_INVENTORY_RUNTIME_RULES))
+                messages.insert(
+                    insert_at,
+                    SystemMessage(content=_RUNTIME_TOOL_INVENTORY_RUNTIME_RULES),
+                )
                 updated[11] = messages
             return tuple(updated)
         finally:
@@ -276,7 +425,10 @@ class TransactionBoundedStructuredOutputRuntime(
             and response_format.get("type") == "json"
             and parsed_output is not None
         ):
-            validation_errors = validate_output_against_contract(parsed_output, response_format.get("schema"))
+            validation_errors = validate_output_against_contract(
+                parsed_output,
+                response_format.get("schema"),
+            )
             if validation_errors:
                 output_parse_error = output_parse_error or (
                     "Output validation failed: " + format_contract_errors(validation_errors)
@@ -287,9 +439,13 @@ class TransactionBoundedStructuredOutputRuntime(
         if context and getattr(context, "defer_persistence", False):
             result_payload = {
                 "answer": answer,
-                "usage": usage.model_dump() if hasattr(usage, "model_dump") else None,
+                "usage": (
+                    usage.model_dump() if hasattr(usage, "model_dump") else None
+                ),
                 "sources": [item.model_dump() for item in sources or []],
-                "tool_calls": [item.model_dump() for item in tool_calls_recorded or []],
+                "tool_calls": [
+                    item.model_dump() for item in tool_calls_recorded or []
+                ],
                 "parsed_output": parsed_output,
                 "output_parse_error": output_parse_error,
                 "provider": response_provider,
@@ -299,7 +455,10 @@ class TransactionBoundedStructuredOutputRuntime(
                 "session_id": str(session.id) if session else None,
                 "llm_calls": context.execution.llm_calls if context.execution else [],
             }
-            await self._hot_terminal_pending(terminal_status="completed", result=result_payload)
+            await self._hot_terminal_pending(
+                terminal_status="completed",
+                result=result_payload,
+            )
             return AskOutput(
                 run_id=context.run_id,
                 answer=answer,
@@ -312,7 +471,11 @@ class TransactionBoundedStructuredOutputRuntime(
                 provider=response_provider,
                 provider_model_id=getattr(agent, "provider_model_id", None),
                 provider_credential_id=getattr(agent, "provider_credential_id", None),
-                fallback_provider_model_id=getattr(agent, "fallback_provider_model_id", None),
+                fallback_provider_model_id=getattr(
+                    agent,
+                    "fallback_provider_model_id",
+                    None,
+                ),
                 fallback_credential_id=getattr(agent, "fallback_credential_id", None),
                 fallback_used=fallback_used,
                 fallback_info=fallback_info_result,
@@ -355,8 +518,18 @@ class TransactionBoundedStructuredOutputRuntime(
             return
         if context and context.execution and context.execution.llm_calls:
             return await StructuredOutputAskAgentUseCase._fail(
-                self, trace_id, agent, session, error, input_dto
+                self,
+                trace_id,
+                agent,
+                session,
+                error,
+                input_dto,
             )
         return await ExplicitRuntimePersistenceMixin._fail(
-            self, trace_id, agent, session, error, input_dto
+            self,
+            trace_id,
+            agent,
+            session,
+            error,
+            input_dto,
         )
