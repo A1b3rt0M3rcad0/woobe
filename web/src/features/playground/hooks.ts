@@ -6,7 +6,7 @@ import {
   getSessionMessages,
 } from './api'
 import { getAgentSessionsByEnvironment } from './session-api'
-import { askStreamV1, type StreamCallbacks } from './stream-client'
+import { askStreamV1, reattachAgentRunV1, type StreamCallbacks } from './stream-client'
 import type { RuntimeEnvironment } from '@/features/agents/types'
 import type { CreateSessionRequest, AskRequest } from './types'
 
@@ -101,15 +101,15 @@ export function useSessionMessages(sessionId: string | undefined) {
 
 export function useAskStream() {
   const queryClient = useQueryClient()
-  const stream = useCallback(async (
-    data: AskRequest,
-    callbacks: StreamCallbacks,
+
+  const withController = useCallback(async (
+    operation: (signal: AbortSignal) => Promise<void>,
   ) => {
     activeStreamController?.abort()
     const controller = new AbortController()
     activeStreamController = controller
     try {
-      await askStreamV1(withStrictOutputContract(data), callbacks, controller.signal)
+      await operation(controller.signal)
     } finally {
       if (activeStreamController === controller) activeStreamController = null
       void queryClient.invalidateQueries({
@@ -118,6 +118,21 @@ export function useAskStream() {
       })
     }
   }, [queryClient])
+
+  const stream = useCallback(async (
+    data: AskRequest,
+    callbacks: StreamCallbacks,
+  ) => withController(
+    (signal) => askStreamV1(withStrictOutputContract(data), callbacks, signal),
+  ), [withController])
+
+  const reattach = useCallback(async (
+    runId: string,
+    callbacks: StreamCallbacks,
+  ) => withController(
+    (signal) => reattachAgentRunV1(runId, callbacks, signal),
+  ), [withController])
+
   const cancel = useCallback(() => cancelActiveAskStream(), [])
-  return { stream, cancel }
+  return { stream, reattach, cancel }
 }
