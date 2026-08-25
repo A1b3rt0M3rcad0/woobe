@@ -148,7 +148,9 @@ async def test_agent_happy_path_uses_exactly_two_postgres_commits() -> None:
         assert persisted_run.result is not None
         assert persisted_run.result["run_id"] == str(result.run_id)
 
-        diagnostics = persisted_run.result["diagnostics"]
+        # AgentRun.result is itself the canonical terminal payload. Observability
+        # later projects a nested diagnostics view for Trace consumers.
+        diagnostics = persisted_run.result
         assert diagnostics["schema_version"] == 5
         assert diagnostics["agent_runtime_latency_ms"] >= 0
         assert diagnostics["llm_work_latency_ms"] >= 0
