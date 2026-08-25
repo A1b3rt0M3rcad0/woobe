@@ -13,6 +13,7 @@ from modules.network.application.release_environment_separation import install_d
 from modules.network.application.release_equivalent_binding_fix import install_equivalent_binding_result_fix
 from modules.network.application.release_lifecycle import install_network_release_lifecycle
 from modules.network.application.service import NetworkApplicationService
+from modules.network.application.session_mode_runtime_guard import install_runtime_session_mode_guards
 from modules.network.application.structured_output_persistence import install_structured_output_persistence
 
 
@@ -44,3 +45,4 @@ install_atomic_network_promotion()
 install_detached_network_agent_releases()
 install_equivalent_binding_result_fix()
 install_structured_output_persistence()
+install_runtime_session_mode_guards()
