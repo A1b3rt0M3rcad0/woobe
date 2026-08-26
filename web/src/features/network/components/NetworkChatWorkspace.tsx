@@ -55,7 +55,6 @@ function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
   if (eventType === 'execution_completed') return 'Network execution completed'
   if (eventType === 'execution_failed') return `Execution failed: ${String(event.data.message ?? event.data.code ?? 'runtime error')}`
   if (eventType === 'execution_cancelled') return 'Network execution cancelled'
-  if (eventType === 'run.state') return 'Reattached to current Network Run state'
   return eventType.replace(/_/g, ' ')
 }
 
@@ -170,7 +169,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
       setRunning(true)
       setPendingMessage(active.input_message)
       setLiveAnswer('')
-      setLiveActivity(['Reattaching to active Network Run...'])
+      setLiveActivity(['Resuming active Network Run...'])
       setLiveExecution(emptyLiveNetworkExecution())
       setLiveResponseCommitted(false)
       setLiveParsedOutput(null)
@@ -193,7 +192,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
           onExecutionId: (id) => { executionIdRef.current = id },
           onEvent: (eventType, event) => {
             setLiveExecution((current) => applyNetworkRuntimeEvent(current, eventType, event))
-            if (eventType !== 'token' && eventType !== 'token_retract') {
+            if (eventType !== 'token' && eventType !== 'token_retract' && eventType !== 'run.state') {
               setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
             }
             if (eventType === 'token' && isPublicFinalToken(event)) {
@@ -227,7 +226,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
         await refreshPersistedSession(active.network_session_id)
       } catch (error) {
         if (!controller.signal.aborted) {
-          toast.warning(error instanceof Error ? error.message : 'Network Run reattach failed')
+          toast.warning(error instanceof Error ? error.message : 'Network Run resume failed')
         }
       } finally {
         const ownsObserver = abortRef.current === controller
@@ -334,7 +333,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
           if (!executionId && event.execution_id) { executionId = event.execution_id; executionIdRef.current = event.execution_id; reattachExecutionRef.current = event.execution_id }
           records.push({ eventType, event })
           setLiveExecution((current) => applyNetworkRuntimeEvent(current, eventType, event))
-          if (eventType !== 'token' && eventType !== 'token_retract') setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
+          if (eventType !== 'token' && eventType !== 'token_retract' && eventType !== 'run.state') setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
           if (eventType === 'token' && isPublicFinalToken(event)) {
             const chunk = event.data.content
             if (typeof chunk === 'string') { answer += chunk; setLiveAnswer(answer) }
