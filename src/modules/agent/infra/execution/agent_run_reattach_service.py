@@ -166,13 +166,13 @@ class AgentRunReattachService:
                 {
                     "run_id": str(run_id),
                     "kind": "AGENT",
-                    "sequence": 0,
+                    "sequence": None,
                     "realtime_available": False,
                     "degraded_reason": "runtime_event_gap",
                 }
             )
             yield format_sse_frame(
-                RuntimeStreamFrame("run.state", state, sequence=0)
+                RuntimeStreamFrame("run.state", state, sequence=None)
             )
 
     async def cancel(
