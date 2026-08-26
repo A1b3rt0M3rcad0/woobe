@@ -341,6 +341,19 @@ class RedisNetworkExecutionStore:
         if event_type == "agent_invocation_failed" and invocation_id is not None:
             invocation = await self._invocation(execution_id, invocation_id)
             if invocation is not None:
+                event_payload["cause_invocation_id"] = (
+                    event_payload.get("cause_invocation_id") or str(invocation_id)
+                )
+                event_payload["cause_node_id"] = (
+                    event_payload.get("cause_node_id")
+                    or event_payload.get("node_id")
+                    or invocation.get("node_id")
+                )
+                event_payload["cause_agent_id"] = (
+                    event_payload.get("cause_agent_id")
+                    or event_payload.get("agent_id")
+                    or invocation.get("agent_id")
+                )
                 failure = dict(event_payload)
                 failure.setdefault(
                     "internal_detail",
