@@ -3,6 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from modules.agent.infra.database.agent_run_repository import SQLAlchemyAgentRunRepository
+from modules.agent.infra.database.project_access_repository import (
+    SQLAlchemyProjectAccessRepository,
+)
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentReleaseRepositoryWithProviderModels,
     SQLAlchemyAgentRepositoryWithProviderModels,
@@ -44,6 +47,7 @@ class AgentRuntimeRepositories:
     sessions: SQLAlchemyRuntimeSessionRepository
     messages: SQLAlchemyMessageRepository
     runs: SQLAlchemyAgentRunRepository
+    project_access: SQLAlchemyProjectAccessRepository
     environment: SQLAlchemyAgentRuntimeEnvironmentReader
     tools: SQLAlchemyAgentToolRepository
     tool_secrets: SQLAlchemyAgentToolSecretRepository
@@ -64,6 +68,7 @@ def build_agent_runtime_repositories(
         sessions=SQLAlchemyRuntimeSessionRepository(uow),
         messages=SQLAlchemyMessageRepository(uow),
         runs=SQLAlchemyAgentRunRepository(uow),
+        project_access=SQLAlchemyProjectAccessRepository(uow),
         environment=SQLAlchemyAgentRuntimeEnvironmentReader(uow),
         tools=SQLAlchemyAgentToolRepository(uow),
         tool_secrets=SQLAlchemyAgentToolSecretRepository(uow),

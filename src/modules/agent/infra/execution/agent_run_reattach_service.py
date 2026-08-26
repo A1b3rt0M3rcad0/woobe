@@ -3,10 +3,11 @@ from __future__ import annotations
 from collections.abc import AsyncIterator
 from uuid import UUID
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-from modules.agent.infra.database.run_models import AgentRunModel
+from modules.agent.domain.run import AgentRun
+from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
+from modules.agent.infra.database.runtime_transaction_runner import (
+    AgentRuntimeTransactionRunner,
+)
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError
 from shared.contracts.execution_state import ExecutionStateStore
 from shared.runtime_reattach import (
@@ -16,7 +17,6 @@ from shared.runtime_reattach import (
     format_sse_frame,
 )
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
-from shared.security.tenancy import TenantAuthorizer
 
 
 _TERMINAL_STATUSES = {"completed", "failed", "cancelled", "timed_out", "uncertain"}
@@ -25,17 +25,17 @@ _TERMINAL_STATUSES = {"completed", "failed", "cancelled", "timed_out", "uncertai
 class AgentRunReattachService:
     """Own Agent Run discovery, authorization and hot-stream recovery.
 
-    HTTP is an observer only. This service keeps database/runtime-state access out of
-    presentation while preserving the existing public and Control Plane contracts.
+    Database work is always executed through short Agent UnitOfWork scopes owned by
+    AgentRuntimeTransactionRunner. The SSE observer never owns a database session.
     """
 
     def __init__(
         self,
         *,
-        session_factory: async_sessionmaker[AsyncSession],
+        transactions: AgentRuntimeTransactionRunner,
         state_store: ExecutionStateStore,
     ) -> None:
-        self._session_factory = session_factory
+        self._transactions = transactions
         self._state_store = state_store
 
     @staticmethod
@@ -52,9 +52,9 @@ class AgentRunReattachService:
 
     async def _authorize_run(
         self,
-        session: AsyncSession,
+        repositories: AgentRuntimeRepositories,
         principal: object | None,
-        run: AgentRunModel,
+        run: AgentRun,
     ) -> None:
         if isinstance(principal, ProjectApiPrincipal):
             if principal.project_id != run.project_id:
@@ -71,11 +71,9 @@ class AgentRunReattachService:
             return
 
         if isinstance(principal, AuthenticatedPrincipal):
-            await TenantAuthorizer(session).authorize(
+            await repositories.project_access.require_user_access(
                 user_id=principal.user_id,
-                path_params={},
-                query_params={"project_id": run.project_id},
-                body=None,
+                project_id=run.project_id,
             )
             return
 
@@ -85,18 +83,21 @@ class AgentRunReattachService:
         self,
         run_id: UUID,
         principal: object | None,
-    ) -> AgentRunModel:
-        async with self._session_factory() as session:
-            run = await session.get(AgentRunModel, run_id)
+    ) -> AgentRun:
+        async def read_run(repositories: AgentRuntimeRepositories, _outbox):
+            run = await repositories.runs.get_by_id(run_id)
             if run is None:
                 raise NotFoundError("Agent Run not found")
-            await self._authorize_run(session, principal, run)
+            await self._authorize_run(repositories, principal, run)
             return run
 
+        return await self._transactions.read(read_run)
+
     @staticmethod
-    def _durable_state(run: AgentRunModel) -> dict:
+    def _durable_state(run: AgentRun) -> dict:
         result = run.result if isinstance(run.result, dict) else None
         answer = result.get("answer") if result else None
+        updated_at = run.completed_at or run.updated_at or run.created_at
         return {
             "status": str(run.status),
             "output": answer or "",
@@ -106,11 +107,7 @@ class AgentRunReattachService:
             "project_id": str(run.project_id),
             "agent_id": str(run.agent_id),
             "session_id": str(run.session_id) if run.session_id else None,
-            "updated_at": (
-                run.completed_at.isoformat()
-                if run.completed_at is not None
-                else run.updated_at.isoformat()
-            ),
+            "updated_at": updated_at.isoformat() if updated_at is not None else None,
         }
 
     async def authorize(
@@ -127,20 +124,11 @@ class AgentRunReattachService:
         session_id: UUID,
         principal: object | None,
     ) -> dict | None:
-        async with self._session_factory() as session:
-            run = await session.scalar(
-                select(AgentRunModel)
-                .where(
-                    AgentRunModel.session_id == session_id,
-                    AgentRunModel.status == "running",
-                    AgentRunModel.network_execution_id.is_(None),
-                )
-                .order_by(AgentRunModel.created_at.desc(), AgentRunModel.id.desc())
-                .limit(1)
-            )
+        async def read_active(repositories: AgentRuntimeRepositories, _outbox):
+            run = await repositories.runs.get_active_direct_by_session(session_id)
             if run is None:
                 return None
-            await self._authorize_run(session, principal, run)
+            await self._authorize_run(repositories, principal, run)
             return {
                 "run_id": str(run.id),
                 "status": str(run.status),
@@ -149,6 +137,8 @@ class AgentRunReattachService:
                 "environment": run.environment,
                 "created_at": run.created_at,
             }
+
+        return await self._transactions.read(read_active)
 
     async def stream_sse(
         self,
@@ -197,6 +187,9 @@ class AgentRunReattachService:
 
         state = await self._state_store.get(run_id)
         if state is None:
+            latest = await self._load_run(run_id, principal)
+            if str(latest.status) in _TERMINAL_STATUSES:
+                return {"run_id": str(run_id), "status": str(latest.status)}
             raise ConflictError(
                 "Agent Run has no active runtime state; cancellation cannot be confirmed safely"
             )

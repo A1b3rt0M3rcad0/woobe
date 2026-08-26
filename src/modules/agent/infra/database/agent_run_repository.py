@@ -83,6 +83,23 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
         model = await self._uow.session.get(AgentRunModel, run_id)
         return _to_entity(model) if model is not None else None
 
+    async def get_active_direct_by_session(
+        self,
+        session_id: UUID,
+    ) -> AgentRun | None:
+        result = await self._uow.session.execute(
+            select(AgentRunModel)
+            .where(
+                AgentRunModel.session_id == session_id,
+                AgentRunModel.status == AgentRunStatus.RUNNING.value,
+                AgentRunModel.network_execution_id.is_(None),
+            )
+            .order_by(AgentRunModel.created_at.desc(), AgentRunModel.id.desc())
+            .limit(1)
+        )
+        model = result.scalar_one_or_none()
+        return _to_entity(model) if model is not None else None
+
     async def get_by_id_for_update(self, run_id: UUID) -> AgentRun | None:
         result = await self._uow.session.execute(
             select(AgentRunModel)

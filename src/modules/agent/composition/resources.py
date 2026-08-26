@@ -4,7 +4,6 @@ from modules.agent.infra.storage.factory import create_file_storage
 from shared.composition_resources import (
     DATABASE_ENGINE,
     EXECUTION_STATE_STORE,
-    SESSION_FACTORY,
     SETTINGS,
 )
 

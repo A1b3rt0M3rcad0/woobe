@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from modules.agent.composition.resources import EXECUTION_STATE_STORE, SESSION_FACTORY
+from modules.agent.composition.factories.agent_uow_factory import (
+    build_agent_read_uow,
+    build_agent_uow,
+)
+from modules.agent.composition.resources import EXECUTION_STATE_STORE
+from modules.agent.infra.database.runtime_transaction_runner import (
+    AgentRuntimeTransactionRunner,
+)
 from modules.agent.infra.execution.agent_run_reattach_service import (
     AgentRunReattachService,
 )
@@ -11,28 +18,25 @@ from modules.agent.presentation.http.controllers.agent_run_reattach_controller i
 )
 
 
-def active_agent_run_composer() -> Callable:
+def _build_controller() -> AgentRunReattachController:
+    transactions = AgentRuntimeTransactionRunner(
+        build_agent_uow,
+        build_agent_read_uow,
+    )
     service = AgentRunReattachService(
-        session_factory=SESSION_FACTORY,
+        transactions=transactions,
         state_store=EXECUTION_STATE_STORE,
     )
-    controller = AgentRunReattachController(service)
-    return controller.active
+    return AgentRunReattachController(service)
+
+
+def active_agent_run_composer() -> Callable:
+    return _build_controller().active
 
 
 def attach_agent_run_composer() -> Callable:
-    service = AgentRunReattachService(
-        session_factory=SESSION_FACTORY,
-        state_store=EXECUTION_STATE_STORE,
-    )
-    controller = AgentRunReattachController(service)
-    return controller.attach
+    return _build_controller().attach
 
 
 def cancel_agent_run_composer() -> Callable:
-    service = AgentRunReattachService(
-        session_factory=SESSION_FACTORY,
-        state_store=EXECUTION_STATE_STORE,
-    )
-    controller = AgentRunReattachController(service)
-    return controller.cancel
+    return _build_controller().cancel
