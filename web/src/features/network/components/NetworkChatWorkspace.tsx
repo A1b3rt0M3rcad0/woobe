@@ -94,6 +94,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   const executionIdRef = useRef<string | null>(null)
   const reattachExecutionRef = useRef<string | null>(null)
   const previousSessionIdRef = useRef<string | null>(activeSession?.id ?? null)
+  const mountedRef = useRef(true)
   const changed = Boolean(activeSession && environment !== 'draft' && activeSession.networkVersion !== currentVersionId)
   const turns = useMemo(() => reconcileNetworkTurns(historyTurns, localTurns), [historyTurns, localTurns])
   const counts = Object.values(bindings).reduce<Record<NetworkBinding['source'], number>>((result, binding) => ({ ...result, [binding.source]: result[binding.source] + 1 }), { draft: 0, staging: 0, release: 0 })
@@ -109,7 +110,11 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
     setLiveOutputParseError(null)
   }
 
-  useLayoutEffect(() => () => abortRef.current?.abort(), [])
+  useLayoutEffect(() => () => {
+    mountedRef.current = false
+    abortRef.current?.abort()
+    abortRef.current = null
+  }, [])
   useLayoutEffect(() => {
     const nextSessionId = activeSession?.id ?? null
     if (previousSessionIdRef.current === nextSessionId) return
@@ -176,6 +181,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
       const controller = new AbortController()
       abortRef.current = controller
       let answer = ''
+      let terminalObserved = false
       try {
         await streamNetworkExecution({
           networkId,
@@ -209,18 +215,28 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
               setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
               setLiveResponseCommitted(true)
             }
+            if (eventType === 'execution_completed') {
+              setLiveParsedOutput(parsedOutputFromEvent(event))
+              setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
+              setLiveResponseCommitted(true)
+            }
           },
           onHeartbeat: () => setLastHeartbeatAt(Date.now()),
         }, controller.signal)
+        terminalObserved = true
         await refreshPersistedSession(active.network_session_id)
       } catch (error) {
         if (!controller.signal.aborted) {
           toast.warning(error instanceof Error ? error.message : 'Network Run reattach failed')
         }
       } finally {
-        if (abortRef.current === controller) abortRef.current = null
+        const ownsObserver = abortRef.current === controller
+        if (ownsObserver) abortRef.current = null
         if (executionIdRef.current === active.execution_id) executionIdRef.current = null
-        if (!disposed) clearLiveState()
+        if (terminalObserved && reattachExecutionRef.current === active.execution_id) {
+          reattachExecutionRef.current = null
+        }
+        if (ownsObserver && mountedRef.current) clearLiveState()
       }
     })()
 
@@ -335,6 +351,9 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
           if (eventType === 'execution_completed') {
             const id = event.data.trace_id
             if (typeof id === 'string') traceId = id
+            setLiveParsedOutput(parsedOutputFromEvent(event))
+            setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
+            setLiveResponseCommitted(true)
           }
           if (eventType === 'execution_failed' || eventType === 'execution_cancelled') status = 'error'
         },
