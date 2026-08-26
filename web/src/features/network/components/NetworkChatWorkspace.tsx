@@ -9,6 +9,7 @@ import { streamNetworkExecution } from '@/features/network/stream'
 import type { NetworkRuntimeEvent } from '@/features/network/types'
 import type { AgentNodeId, Environment, NetworkBinding } from './networkWorkspaceTypes'
 import { buildTurnFromRuntimeEvents, type NetworkExecution, type NetworkTurn, type RuntimeEventRecord } from './networkChatExecution'
+import { createNetworkLiveAnswerScheduler } from './networkLiveAnswerScheduler'
 import { createNetworkTraceRecord } from './networkObservabilityFactory'
 import type { NetworkTraceRecord } from './networkObservabilityTypes'
 import type { NetworkSession } from './networkSessionTypes'
@@ -40,6 +41,17 @@ interface NetworkChatWorkspaceProps {
 }
 
 const BOTTOM_THRESHOLD_PX = 56
+const LIVE_EXECUTION_EVENT_TYPES = new Set([
+  'agent_invocation_started',
+  'agent_invocation_completed',
+  'agent_invocation_failed',
+  'tool_call_started',
+  'tool_call_completed',
+  'sources',
+  'delegation_started',
+  'execution_failed',
+  'execution_cancelled',
+])
 
 function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
   if (eventType === 'execution_accepted') return `Execution accepted in ${String(event.data.environment ?? 'runtime')}`
@@ -64,6 +76,14 @@ function isNearBottom(element: HTMLDivElement) {
 
 function isPublicFinalToken(event: NetworkRuntimeEvent) {
   return event.data.visibility === 'assistant' && event.data.channel === 'final'
+}
+
+function updatesLiveExecution(eventType: string) {
+  return LIVE_EXECUTION_EVENT_TYPES.has(eventType)
+}
+
+function shouldRecordRuntimeEvent(eventType: string) {
+  return eventType !== 'token' && eventType !== 'token_retract' && eventType !== 'run.state'
 }
 
 function parsedOutputFromEvent(event: NetworkRuntimeEvent): Record<string, unknown> | null {
@@ -94,11 +114,24 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   const reattachExecutionRef = useRef<string | null>(null)
   const previousSessionIdRef = useRef<string | null>(activeSession?.id ?? null)
   const mountedRef = useRef(true)
+  const liveAnswerSchedulerRef = useRef<ReturnType<typeof createNetworkLiveAnswerScheduler> | null>(null)
+  if (liveAnswerSchedulerRef.current === null) {
+    liveAnswerSchedulerRef.current = createNetworkLiveAnswerScheduler(setLiveAnswer)
+  }
   const changed = Boolean(activeSession && environment !== 'draft' && activeSession.networkVersion !== currentVersionId)
   const turns = useMemo(() => reconcileNetworkTurns(historyTurns, localTurns), [historyTurns, localTurns])
   const counts = Object.values(bindings).reduce<Record<NetworkBinding['source'], number>>((result, binding) => ({ ...result, [binding.source]: result[binding.source] + 1 }), { draft: 0, staging: 0, release: 0 })
 
+  const scheduleLiveAnswer = (answer: string) => {
+    liveAnswerSchedulerRef.current?.schedule(answer)
+  }
+
+  const flushLiveAnswer = (answer: string) => {
+    liveAnswerSchedulerRef.current?.flush(answer)
+  }
+
   const clearLiveState = () => {
+    liveAnswerSchedulerRef.current?.clear()
     setRunning(false)
     setPendingMessage(null)
     setLiveAnswer('')
@@ -111,6 +144,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
 
   useLayoutEffect(() => () => {
     mountedRef.current = false
+    liveAnswerSchedulerRef.current?.clear()
     abortRef.current?.abort()
     abortRef.current = null
   }, [])
@@ -166,6 +200,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
 
       reattachExecutionRef.current = active.execution_id
       executionIdRef.current = active.execution_id
+      liveAnswerSchedulerRef.current?.clear()
       setRunning(true)
       setPendingMessage(active.input_message)
       setLiveAnswer('')
@@ -191,7 +226,9 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
         }, {
           onExecutionId: (id) => { executionIdRef.current = id },
           onEvent: (eventType, event) => {
-            setLiveExecution((current) => applyNetworkRuntimeEvent(current, eventType, event))
+            if (updatesLiveExecution(eventType)) {
+              setLiveExecution((current) => applyNetworkRuntimeEvent(current, eventType, event))
+            }
             if (eventType !== 'token' && eventType !== 'token_retract' && eventType !== 'run.state') {
               setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
             }
@@ -199,25 +236,30 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
               const chunk = event.data.content
               if (typeof chunk === 'string') {
                 answer += chunk
-                setLiveAnswer(answer)
+                scheduleLiveAnswer(answer)
               }
             }
             if (eventType === 'token_retract') {
               const length = event.data.content_length
               if (typeof length === 'number' && length > 0) {
                 answer = answer.slice(0, Math.max(0, answer.length - length))
-                setLiveAnswer(answer)
+                scheduleLiveAnswer(answer)
               }
             }
             if (eventType === 'agent_invocation_completed' && !event.parent_invocation_id) {
+              flushLiveAnswer(answer)
               setLiveParsedOutput(parsedOutputFromEvent(event))
               setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
               setLiveResponseCommitted(true)
             }
             if (eventType === 'execution_completed') {
+              flushLiveAnswer(answer)
               setLiveParsedOutput(parsedOutputFromEvent(event))
               setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
               setLiveResponseCommitted(true)
+            }
+            if (eventType === 'execution_failed' || eventType === 'execution_cancelled') {
+              flushLiveAnswer(answer)
             }
           },
           onHeartbeat: () => setLastHeartbeatAt(Date.now()),
@@ -305,6 +347,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
       if (environment === 'draft') preparedDraftRevision = session.draftRevision ?? undefined
     }
 
+    liveAnswerSchedulerRef.current?.clear()
     setText('')
     setRunning(true)
     setPendingMessage(content)
@@ -331,18 +374,21 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
         onExecutionId: (id) => { executionId = id; executionIdRef.current = id; reattachExecutionRef.current = id },
         onEvent: (eventType, event) => {
           if (!executionId && event.execution_id) { executionId = event.execution_id; executionIdRef.current = event.execution_id; reattachExecutionRef.current = event.execution_id }
-          records.push({ eventType, event })
-          setLiveExecution((current) => applyNetworkRuntimeEvent(current, eventType, event))
+          if (shouldRecordRuntimeEvent(eventType)) records.push({ eventType, event })
+          if (updatesLiveExecution(eventType)) {
+            setLiveExecution((current) => applyNetworkRuntimeEvent(current, eventType, event))
+          }
           if (eventType !== 'token' && eventType !== 'token_retract' && eventType !== 'run.state') setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
           if (eventType === 'token' && isPublicFinalToken(event)) {
             const chunk = event.data.content
-            if (typeof chunk === 'string') { answer += chunk; setLiveAnswer(answer) }
+            if (typeof chunk === 'string') { answer += chunk; scheduleLiveAnswer(answer) }
           }
           if (eventType === 'token_retract') {
             const length = event.data.content_length
-            if (typeof length === 'number' && length > 0) { answer = answer.slice(0, Math.max(0, answer.length - length)); setLiveAnswer(answer) }
+            if (typeof length === 'number' && length > 0) { answer = answer.slice(0, Math.max(0, answer.length - length)); scheduleLiveAnswer(answer) }
           }
           if (eventType === 'agent_invocation_completed' && !event.parent_invocation_id) {
+            flushLiveAnswer(answer)
             setLiveParsedOutput(parsedOutputFromEvent(event))
             setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
             setLiveResponseCommitted(true)
@@ -350,11 +396,15 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
           if (eventType === 'execution_completed') {
             const id = event.data.trace_id
             if (typeof id === 'string') traceId = id
+            flushLiveAnswer(answer)
             setLiveParsedOutput(parsedOutputFromEvent(event))
             setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
             setLiveResponseCommitted(true)
           }
-          if (eventType === 'execution_failed' || eventType === 'execution_cancelled') status = 'error'
+          if (eventType === 'execution_failed' || eventType === 'execution_cancelled') {
+            flushLiveAnswer(answer)
+            status = 'error'
+          }
         },
         onHeartbeat: () => setLastHeartbeatAt(Date.now()),
       }, controller.signal)
