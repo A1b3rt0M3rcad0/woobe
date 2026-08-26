@@ -161,7 +161,8 @@ class NetworkRuntimeFinalizer:
                 parent_id = _uuid(item.get("parent_invocation_id"))
                 session_id = _uuid(item.get("agent_session_id"))
                 invocation_trace_id = _uuid(item.get("trace_id"))
-                status = str(item.get("status") or "failed")
+                hot_status = str(item.get("status") or "failed")
+                status = "completed" if hot_status == "completed" else "failed"
                 failure = (
                     None
                     if status == "completed"
@@ -300,7 +301,7 @@ class NetworkRuntimeFinalizer:
                         ),
                         environment=environment,
                         origin="network_runtime",
-                        status=("completed" if status == "completed" else "failed"),
+                        status=status,
                         input_message=str(item.get("input_message") or ""),
                         execution_snapshot=execution_snapshot,
                         usage=usage,
