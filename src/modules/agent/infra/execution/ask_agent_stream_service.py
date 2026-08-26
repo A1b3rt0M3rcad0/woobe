@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -33,6 +34,7 @@ from shared.runtime_reattach import (
 from shared.security.redaction import redact_text
 
 DisconnectCheck = Callable[[], Awaitable[bool]]
+logger = logging.getLogger(__name__)
 
 # Strong references are intentional: closing an observer must not garbage-collect or
 # cancel the execution it was watching.
@@ -42,7 +44,27 @@ _DETACHED_AGENT_EVENT_PUMPS: set[asyncio.Task[Any]] = set()
 
 def _track(task: asyncio.Task[Any], registry: set[asyncio.Task[Any]]) -> None:
     registry.add(task)
-    task.add_done_callback(registry.discard)
+
+    def completed(done: asyncio.Task[Any]) -> None:
+        registry.discard(done)
+        if done.cancelled():
+            return
+        try:
+            error = done.exception()
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            logger.exception("Detached Agent runtime task completion could not be inspected")
+            return
+        # Agent execution errors are already durably finalized and projected into the
+        # Run stream. Pump failures are infrastructure defects and must remain visible.
+        if error is not None and registry is _DETACHED_AGENT_EVENT_PUMPS:
+            logger.error(
+                "Detached Agent runtime event pump failed",
+                exc_info=(type(error), error, error.__traceback__),
+            )
+
+    task.add_done_callback(completed)
 
 
 class AskAgentStreamService:
