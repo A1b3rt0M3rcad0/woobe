@@ -21,6 +21,13 @@ interface SurfaceConfiguration {
   protocol_version: number;
 }
 
+interface ActiveRun {
+  message_request_id: string;
+  run_id: string | null;
+  status: string;
+  target_type: "agent" | "network";
+}
+
 class SessionExpiredError extends Error {
   constructor() {
     super("Session expired");
@@ -142,28 +149,18 @@ async function loadHistory() {
   emit("history.loaded", { count: items.length });
 }
 
+async function loadActiveRun(): Promise<ActiveRun | null> {
+  const response = await api(`/v1/chat/sessions/${sessionId}/active-run`);
+  const payload = await response.json();
+  const active = payload.data as ActiveRun | null | undefined;
+  return active?.run_id ? active : null;
+}
+
 function appendError(error: unknown) {
   if (error instanceof SessionExpiredError) return;
   const text = error instanceof Error ? error.message : "Run failed";
   ensureUi().appendError(text);
   emit("error", { message: text });
-}
-
-async function bootstrap() {
-  if (bootstrapping || initialized) return;
-  bootstrapping = true;
-  try {
-    const configuration = await loadConfiguration();
-    appearance = normalizeAppearance(configuration.appearance);
-    ensureUi(appearance).clearSessionExpired();
-    await loadHistory();
-    initialized = true;
-  } catch (error) {
-    ensureUi(DEFAULT_APPEARANCE);
-    appendError(error);
-  } finally {
-    bootstrapping = false;
-  }
 }
 
 function publicActivity(data: unknown): PublicAgentActivity | null {
@@ -178,19 +175,186 @@ function publicActivity(data: unknown): PublicAgentActivity | null {
   return { status, tool_name: toolName };
 }
 
+function nestedData(data: Record<string, unknown>): Record<string, unknown> {
+  return data.data && typeof data.data === "object" && !Array.isArray(data.data)
+    ? data.data as Record<string, unknown>
+    : data;
+}
+
+async function consumeRuntimeStream(response: Response, resumed: boolean) {
+  const chatUi = ensureUi();
+  const assistant = chatUi.appendPendingAssistant();
+  let answer = "";
+  let streamingStarted = false;
+
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Streaming is not available");
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const beginStreaming = () => {
+    if (streamingStarted) return;
+    streamingStarted = true;
+    chatUi.beginAssistantStreaming(assistant);
+  };
+
+  const replaceAnswer = (content: string) => {
+    beginStreaming();
+    answer = content;
+    chatUi.updateAssistantStreaming(assistant, answer);
+  };
+
+  const consumeFrame = (frame: string) => {
+    const lines = frame.split("\n");
+    const eventLine = lines.find((line) => line.startsWith("event:"));
+    const dataLines = lines.filter((line) => line.startsWith("data:"));
+    if (!dataLines.length) return;
+    const eventType = eventLine?.slice(6).trim();
+    const data = JSON.parse(dataLines.map((line) => line.slice(5).trim()).join("\n")) as Record<string, unknown>;
+    const payload = nestedData(data);
+
+    if (eventType === "run.state" || data.type === "run.state") {
+      const output = typeof payload.output === "string" ? payload.output : "";
+      replaceAnswer(output);
+      const status = typeof payload.status === "string" ? payload.status : "";
+      if (status === "failed" || status === "uncertain" || status === "timed_out") {
+        throw new Error(
+          typeof payload.failure_detail === "string"
+            ? payload.failure_detail
+            : "Run failed",
+        );
+      }
+      if (status === "cancelled") throw new Error("Run cancelled");
+      return;
+    }
+
+    if (eventType === "agent_activity" || data.type === "agent_activity") {
+      const activity = publicActivity(data);
+      if (activity) {
+        const label = chatUi.updateAssistantActivity(assistant, activity);
+        emit("run.activity", {
+          status: activity.status,
+          message: label || undefined,
+        });
+      }
+      return;
+    }
+
+    const token =
+      typeof data.token === "string"
+        ? data.token
+        : typeof data.content === "string"
+          ? data.content
+          : typeof payload.content === "string"
+            ? payload.content
+            : "";
+
+    if ((eventType === "token" || data.type === "token") && token) {
+      beginStreaming();
+      answer += token;
+      chatUi.updateAssistantStreaming(assistant, answer);
+    }
+
+    if (eventType === "token_retract" || data.type === "token_retract") {
+      const length = typeof payload.content_length === "number" ? payload.content_length : 0;
+      if (length > 0) replaceAnswer(answer.slice(0, Math.max(0, answer.length - length)));
+    }
+
+    if (data.type === "done" && typeof data.answer === "string") {
+      replaceAnswer(data.answer);
+    }
+
+    if (
+      data.type === "error" ||
+      eventType === "execution_failed" ||
+      eventType === "execution_timed_out" ||
+      eventType === "execution_cancelled"
+    ) {
+      throw new Error(
+        typeof data.message === "string"
+          ? data.message
+          : typeof payload.message === "string"
+            ? payload.message
+            : "Run failed",
+      );
+    }
+  };
+
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const frames = buffer.split(/\r?\n\r?\n/);
+      buffer = frames.pop() ?? "";
+      for (const frame of frames) consumeFrame(frame);
+    }
+    buffer += decoder.decode();
+    if (buffer.trim()) consumeFrame(buffer);
+
+    if (!answer) {
+      chatUi.removeMessage(assistant);
+      if (!resumed) throw new Error("The Run completed without a response");
+      return;
+    }
+    chatUi.finishAssistantStreaming(assistant);
+    emit("run.completed", { resumed });
+  } catch (error) {
+    if (!answer) chatUi.removeMessage(assistant);
+    else chatUi.finishAssistantStreaming(assistant);
+    throw error;
+  }
+}
+
+async function resumeActiveRun() {
+  if (submitting) return;
+  const active = await loadActiveRun();
+  if (!active) return;
+
+  const chatUi = ensureUi();
+  submitting = true;
+  chatUi.setSubmitting(true);
+  emit("run.started", { resumed: true, runId: active.run_id });
+  try {
+    const response = await api(`/v1/chat/sessions/${sessionId}/active-run/stream`);
+    await consumeRuntimeStream(response, true);
+    await loadHistory();
+  } catch (error) {
+    appendError(error);
+  } finally {
+    submitting = false;
+    chatUi.setSubmitting(false);
+    chatUi.focusComposer();
+  }
+}
+
+async function bootstrap() {
+  if (bootstrapping || initialized) return;
+  bootstrapping = true;
+  try {
+    const configuration = await loadConfiguration();
+    appearance = normalizeAppearance(configuration.appearance);
+    ensureUi(appearance).clearSessionExpired();
+    await loadHistory();
+    initialized = true;
+    void resumeActiveRun();
+  } catch (error) {
+    ensureUi(DEFAULT_APPEARANCE);
+    appendError(error);
+  } finally {
+    bootstrapping = false;
+  }
+}
+
 async function sendMessage(message: string) {
   if (submitting) return;
   const chatUi = ensureUi();
   submitting = true;
   chatUi.clearComposer();
   chatUi.appendMessage("user", message, true);
-  const assistant = chatUi.appendPendingAssistant();
   chatUi.setSubmitting(true);
   emit("message.sent");
-  emit("run.started");
-
-  let answer = "";
-  let streamingStarted = false;
+  emit("run.started", { resumed: false });
 
   try {
     const response = await api(`/v1/chat/sessions/${sessionId}/messages:stream`, {
@@ -201,90 +365,8 @@ async function sendMessage(message: string) {
       },
       body: JSON.stringify({ message }),
     });
-    const reader = response.body?.getReader();
-    if (!reader) throw new Error("Streaming is not available");
-
-    const decoder = new TextDecoder();
-    let buffer = "";
-
-    const beginStreaming = () => {
-      if (streamingStarted) return;
-      streamingStarted = true;
-      chatUi.beginAssistantStreaming(assistant);
-    };
-
-    const consumeFrame = (frame: string) => {
-      const lines = frame.split("\n");
-      const eventLine = lines.find((line) => line.startsWith("event:"));
-      const dataLine = lines.find((line) => line.startsWith("data:"));
-      if (!dataLine) return;
-      const eventType = eventLine?.slice(6).trim();
-      const data = JSON.parse(dataLine.slice(5).trim());
-
-      if (eventType === "agent_activity" || data.type === "agent_activity") {
-        const activity = publicActivity(data);
-        if (activity) {
-          const label = chatUi.updateAssistantActivity(assistant, activity);
-          emit("run.activity", {
-            status: activity.status,
-            message: label || undefined,
-          });
-        }
-        return;
-      }
-
-      const token =
-        typeof data.token === "string"
-          ? data.token
-          : typeof data.content === "string"
-            ? data.content
-            : typeof data.data?.content === "string"
-              ? data.data.content
-              : "";
-
-      if ((eventType === "token" || data.type === "token") && token) {
-        beginStreaming();
-        answer += token;
-        chatUi.updateAssistantStreaming(assistant, answer);
-      }
-
-      if (data.type === "done" && typeof data.answer === "string" && !answer) {
-        beginStreaming();
-        answer = data.answer;
-        chatUi.updateAssistantStreaming(assistant, answer);
-      }
-
-      if (
-        data.type === "error" ||
-        eventType === "execution_failed" ||
-        eventType === "execution_timed_out" ||
-        eventType === "execution_cancelled"
-      ) {
-        throw new Error(data.message ?? data.data?.message ?? "Run failed");
-      }
-    };
-
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const frames = buffer.split("\n\n");
-      buffer = frames.pop() ?? "";
-      for (const frame of frames) consumeFrame(frame);
-    }
-    buffer += decoder.decode();
-    if (buffer.trim()) consumeFrame(buffer);
-
-    if (!answer) {
-      chatUi.removeMessage(assistant);
-      throw new Error("The Run completed without a response");
-    }
-
-    chatUi.finishAssistantStreaming(assistant);
-    emit("run.completed");
+    await consumeRuntimeStream(response, false);
   } catch (error) {
-    if (!answer) chatUi.removeMessage(assistant);
-    else chatUi.finishAssistantStreaming(assistant);
     appendError(error);
   } finally {
     submitting = false;
