@@ -19,7 +19,7 @@ export type HostMessage =
       protocolVersion: 1;
       instanceId: string;
       surfaceId: string;
-      type: "open" | "close";
+      type: "open" | "close" | "run.cancel";
       payload?: never;
     };
 
@@ -29,6 +29,8 @@ export type FrameEventType =
   | "message.sent"
   | "run.started"
   | "run.activity"
+  | "run.stopping"
+  | "run.cancelled"
   | "run.completed"
   | "session.expired"
   | "error"
@@ -61,5 +63,5 @@ export function isHostMessage(value: unknown): value is HostMessage {
   if (value.type === "token.update") {
     return isRecord(value.payload) && typeof value.payload.token === "string";
   }
-  return value.type === "open" || value.type === "close";
+  return value.type === "open" || value.type === "close" || value.type === "run.cancel";
 }
