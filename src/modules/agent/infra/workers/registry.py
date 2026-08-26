@@ -7,7 +7,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 from modules.agent.infra.messaging.publishers import AgentRabbitMQPublisher
 from modules.agent.infra.workers.ask_job_worker import AskJobWorker
 from modules.agent.infra.workers.outbox_dispatcher import AgentOutboxDispatcherWorker
+from modules.agent.infra.workers.run_recovery_worker import AgentRunRecoveryWorker
 from modules.agent.infra.workers.vector_snapshot_worker import VectorSnapshotWorker
+from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
 
@@ -30,9 +32,19 @@ def register_agent_workers(
     rabbitmq_manager: RabbitMQManager | None = None,
 ) -> None:
     # Database-backed pollers must run even when RabbitMQ is disabled. Otherwise
-    # Ask jobs and Vector Snapshot builds can remain queued forever.
+    # Ask jobs, Vector Snapshot builds and orphan Run recovery can remain pending.
     registry.register(AskJobWorker(async_engine=engine, settings=settings))
     registry.register(VectorSnapshotWorker(async_engine=engine))
+    registry.register(
+        AgentRunRecoveryWorker(
+            async_engine=engine,
+            state_store=EXECUTION_STATE_STORE,
+            stale_after_seconds=max(
+                900.0,
+                float(getattr(settings, "runtime_total_timeout_seconds", 120.0)) * 3,
+            ),
+        )
+    )
 
     if rabbitmq_manager is None:
         return
