@@ -53,8 +53,14 @@ async def run_instrumented_execution(
         streaming=streaming_enabled,
         response_format=base_response_format,
     )
-    final_model = None
     if has_tools:
+        model = model.bind_tools(agent_tools, tool_choice="auto")
+
+    # Text Agents with Tools use the same model invocation as both the Tool decision
+    # and the final response. A dedicated final model is only kept for structured
+    # output, where the provider may need a Tool-free JSON response phase.
+    final_model = None
+    if has_tools and json_enabled:
         final_model = llm_factory.create_chat_model(
             provider=provider,
             model=agent.model,
@@ -63,9 +69,8 @@ async def run_instrumented_execution(
             temperature=agent.temperature or 0.2,
             max_tokens=agent.max_output_tokens or 1000,
             streaming=streaming_enabled,
-            response_format={"type": "json_object"} if json_enabled else None,
+            response_format={"type": "json_object"},
         )
-        model = model.bind_tools(agent_tools, tool_choice="auto")
 
     instruction = None
     if json_enabled and has_tools:
@@ -85,7 +90,11 @@ async def run_instrumented_execution(
         tool_name_to_id=tool_name_to_id,
         provider=provider,
         model_name=agent.model,
-        initial_phase="tool_planning" if has_tools else "response_generation",
+        initial_phase=(
+            "tool_planning"
+            if final_model is not None
+            else "response_generation"
+        ),
         final_json_instruction=instruction,
         pricing_snapshot=pricing_snapshot,
     )
