@@ -55,7 +55,6 @@ async def run_stream(request: FastAPIRequest):
 async def reattach_run(run_id: UUID, request: FastAPIRequest):
     principal = _runtime_principal(request)
     if principal.target_type == "network":
-        await enforce_public_network_runtime_environment(request)
         return await reattach_network_execution(run_id, request)
     return await attach_agent_run(run_id, request)
 
@@ -64,7 +63,6 @@ async def reattach_run(run_id: UUID, request: FastAPIRequest):
 async def active_session_run(session_id: UUID, request: FastAPIRequest):
     principal = _runtime_principal(request)
     if principal.target_type == "network":
-        await enforce_public_network_runtime_environment(request)
         return await active_network_execution(
             request,
             network_session_id=session_id,
