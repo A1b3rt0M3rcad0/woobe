@@ -28,6 +28,10 @@ class RedisNetworkExecutionStore:
         self._state = state
         self._events = RuntimeEventPublisher(state)
         self._invocation_to_execution: dict[UUID, UUID] = {}
+        # Active invocation identity is already known by this worker. Keep only the
+        # causal routing fields in memory so token publication does not require a
+        # Redis state read for every provider delta.
+        self._invocation_event_context: dict[UUID, dict[str, Any]] = {}
 
     async def initialize(
         self,
@@ -93,6 +97,33 @@ class RedisNetworkExecutionStore:
     async def request_cancel(self, execution_id: UUID) -> None:
         await self._state.request_cancel(execution_id)
 
+    def _remember_invocation_event_context(
+        self,
+        invocation: NetworkInvocationState,
+    ) -> None:
+        self._invocation_event_context[invocation.id] = {
+            "execution_id": str(invocation.network_execution_id),
+            "parent_invocation_id": (
+                str(invocation.parent_invocation_id)
+                if invocation.parent_invocation_id
+                else None
+            ),
+            "node_id": str(invocation.node_id),
+            "agent_id": str(invocation.agent_id),
+            "depth": invocation.depth,
+        }
+
+    def _forget_invocation(self, invocation_id: UUID) -> None:
+        self._invocation_event_context.pop(invocation_id, None)
+        self._invocation_to_execution.pop(invocation_id, None)
+
+    def _forget_execution_invocations(self, execution_id: UUID) -> None:
+        for invocation_id, current_execution_id in list(
+            self._invocation_to_execution.items()
+        ):
+            if current_execution_id == execution_id:
+                self._forget_invocation(invocation_id)
+
     async def start_invocation(
         self,
         *,
@@ -123,6 +154,7 @@ class RedisNetworkExecutionStore:
             input_message=message,
         )
         self._invocation_to_execution[invocation.id] = execution.id
+        self._remember_invocation_event_context(invocation)
         await self._state.update(
             execution.id,
             {
@@ -154,6 +186,29 @@ class RedisNetworkExecutionStore:
         state = await self._state.get(execution_id) or {}
         value = state.get(f"{self.INVOCATION_PREFIX}{invocation_id}")
         return dict(value) if isinstance(value, dict) else None
+
+    async def _event_context(
+        self,
+        execution_id: UUID,
+        invocation_id: UUID,
+    ) -> dict[str, Any] | None:
+        cached = self._invocation_event_context.get(invocation_id)
+        if cached is not None and cached.get("execution_id") == str(execution_id):
+            return cached
+
+        invocation = await self._invocation(execution_id, invocation_id)
+        if invocation is None:
+            return None
+        recovered = {
+            "execution_id": str(execution_id),
+            "parent_invocation_id": invocation.get("parent_invocation_id"),
+            "node_id": invocation.get("node_id"),
+            "agent_id": invocation.get("agent_id"),
+            "depth": invocation.get("depth"),
+        }
+        self._invocation_event_context[invocation_id] = recovered
+        self._invocation_to_execution.setdefault(invocation_id, execution_id)
+        return recovered
 
     async def complete_invocation(
         self,
@@ -274,39 +329,46 @@ class RedisNetworkExecutionStore:
         invocation: dict[str, Any] | None = None
         if invocation_id is not None:
             event_payload["invocation_id"] = str(invocation_id)
-            invocation = await self._invocation(execution_id, invocation_id)
-            if invocation is not None:
+            context = await self._event_context(execution_id, invocation_id)
+            if context is not None:
                 for key in ("parent_invocation_id", "node_id", "agent_id", "depth"):
-                    if invocation.get(key) is not None:
-                        event_payload[key] = invocation[key]
+                    if context.get(key) is not None:
+                        event_payload[key] = context[key]
 
         # The structured failure emitted by NetworkExecutor is the canonical
         # classification. Capture it in hot state so the bulk finalizer does not
         # have to reconstruct or replace the Agent failure later.
-        if (
-            event_type == "agent_invocation_failed"
-            and invocation_id is not None
-            and invocation is not None
-        ):
-            failure = dict(event_payload)
-            failure.setdefault(
-                "internal_detail",
-                invocation.get("error") or failure.get("message") or "Agent invocation failed",
-            )
-            invocation["failure"] = failure
-            if not invocation.get("trace_id") and failure.get("trace_id"):
-                invocation["trace_id"] = failure["trace_id"]
-            await self._state.update(
-                execution_id,
-                {f"{self.INVOCATION_PREFIX}{invocation_id}": invocation},
-            )
+        if event_type == "agent_invocation_failed" and invocation_id is not None:
+            invocation = await self._invocation(execution_id, invocation_id)
+            if invocation is not None:
+                failure = dict(event_payload)
+                failure.setdefault(
+                    "internal_detail",
+                    invocation.get("error")
+                    or failure.get("message")
+                    or "Agent invocation failed",
+                )
+                invocation["failure"] = failure
+                if not invocation.get("trace_id") and failure.get("trace_id"):
+                    invocation["trace_id"] = failure["trace_id"]
+                await self._state.update(
+                    execution_id,
+                    {f"{self.INVOCATION_PREFIX}{invocation_id}": invocation},
+                )
 
-        await self._events.publish(
-            execution_id,
-            "network",
-            event_type,
-            event_payload,
-        )
+        try:
+            await self._events.publish(
+                execution_id,
+                "network",
+                event_type,
+                event_payload,
+            )
+        finally:
+            if invocation_id is not None and event_type in {
+                "agent_invocation_completed",
+                "agent_invocation_failed",
+            }:
+                self._forget_invocation(invocation_id)
 
     async def snapshot(self, execution_id: UUID) -> dict[str, Any]:
         return await self._state.get(execution_id) or {}
@@ -397,3 +459,5 @@ class RedisNetworkExecutionStore:
                 execution_id,
                 exc,
             )
+        finally:
+            self._forget_execution_invocations(execution_id)
