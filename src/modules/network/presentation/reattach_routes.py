@@ -13,6 +13,7 @@ from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, NotFoundError, ValidationError
 from shared.runtime_reattach import RuntimeStreamFrame, RuntimeStreamGapError, RuntimeStreamReader
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
+from shared.security.tenancy import TenantAuthorizer
 
 
 router = APIRouter(prefix="/network", tags=["network", "runtime"])
@@ -30,10 +31,12 @@ def _runtime_target(principal: ProjectApiPrincipal) -> tuple[str | None, UUID | 
     return target_type, target_id
 
 
-def _authorize_execution(
+async def _authorize_execution(
     request: Request,
     execution: NetworkExecutionModel,
     network_session: NetworkSessionModel | None,
+    *,
+    database=None,
 ) -> None:
     principal = getattr(request.state, "principal", None)
     if isinstance(principal, ProjectApiPrincipal):
@@ -53,6 +56,21 @@ def _authorize_execution(
                 raise NotFoundError("Network execution not found")
         return
     if isinstance(principal, AuthenticatedPrincipal):
+        if database is not None:
+            await TenantAuthorizer(database).authorize(
+                user_id=principal.user_id,
+                path_params={},
+                query_params={"project_id": execution.project_id},
+                body=None,
+            )
+            return
+        async with request.app.state.session_factory() as session:
+            await TenantAuthorizer(session).authorize(
+                user_id=principal.user_id,
+                path_params={},
+                query_params={"project_id": execution.project_id},
+                body=None,
+            )
         return
     raise AuthorizationError("Authentication required")
 
@@ -63,7 +81,12 @@ async def _load_execution(request: Request, execution_id: UUID) -> NetworkExecut
         if execution is None:
             raise NotFoundError("Network execution not found")
         network_session = await session.get(NetworkSessionModel, execution.network_session_id)
-        _authorize_execution(request, execution, network_session)
+        await _authorize_execution(
+            request,
+            execution,
+            network_session,
+            database=session,
+        )
         return execution
 
 
@@ -163,9 +186,15 @@ async def active_network_execution(
             if execution is not None
             else None
         )
+        if execution is not None:
+            await _authorize_execution(
+                request,
+                execution,
+                network_session,
+                database=session,
+            )
     if execution is None:
         return {"success": True, "data": None}
-    _authorize_execution(request, execution, network_session)
     return {
         "success": True,
         "data": {
@@ -208,7 +237,10 @@ async def reattach_network_execution(
                     "realtime_available": False,
                 }
             )
-            yield network_runtime_sse(RuntimeStreamFrame("run.state", queued, sequence=0), execution_id)
+            yield network_runtime_sse(
+                RuntimeStreamFrame("run.state", queued, sequence=0),
+                execution_id,
+            )
 
             # Acceptance may precede worker/Redis initialization. Keep the same
             # observer attached to the canonical Run instead of submitting again.
