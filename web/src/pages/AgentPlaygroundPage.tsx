@@ -200,6 +200,7 @@ function PlaygroundContent() {
   const syncedSessionRef = useRef<string | null>(null)
   const currentRunIdRef = useRef<string | null>(null)
   const reattachingRunRef = useRef<string | null>(null)
+  const mountedRef = useRef(true)
 
   const sessionIdState = activeSessionIdByEnvironment[environment]
   const environmentRelease = environment === 'draft' ? null : currentEnvironmentRelease
@@ -233,6 +234,7 @@ function PlaygroundContent() {
     if (projectId && agentId) setStoredPlaygroundRunId(projectId, agentId, environment, runId)
   }, [agentId, environment, projectId])
 
+  useEffect(() => () => { mountedRef.current = false }, [])
   useEffect(() => { setPlaygroundSessionId(selectedSessionId) }, [selectedSessionId])
 
   useEffect(() => {
@@ -379,6 +381,7 @@ function PlaygroundContent() {
         return [...current, { role: 'assistant', content: '', activity: { status: 'working', message: 'Reattaching to active Run...' } }]
       })
       setIsSending(true)
+      let terminalObserved = false
 
       try {
         await reattach(runId, {
@@ -456,13 +459,17 @@ function PlaygroundContent() {
             updateLastAssistantMessage((last) => ({ ...last, content: '', activity: { status: 'working', message: `Trying ${info.fallback_provider}/${info.fallback_model}...` } }))
           },
         })
+        terminalObserved = true
       } catch (error) {
         if (!(error instanceof DOMException && error.name === 'AbortError')) {
           // Keep the Run id after transport failure. A later reload/reattach can recover it.
           toast.warning(error instanceof Error ? error.message : 'Active Run reattach failed')
         }
       } finally {
-        if (!disposed) setIsSending(false)
+        if (terminalObserved && reattachingRunRef.current === runId) {
+          reattachingRunRef.current = null
+        }
+        if (mountedRef.current) setIsSending(false)
       }
     })()
 
