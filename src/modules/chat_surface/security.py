@@ -131,7 +131,7 @@ class ChatSessionTokenCodec:
             "target_release_id": str(target_release_id),
             "environment": "production",
             "sid": str(session_id),
-            "permissions": ["chat:history", "chat:send", "chat:stream"],
+            "permissions": ["chat:history", "chat:send", "chat:stream", "chat:cancel"],
             "origin": origin,
             "surface_credential_id": str(surface_credential_id),
             "token_epoch": token_epoch,
