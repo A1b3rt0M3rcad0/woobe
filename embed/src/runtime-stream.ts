@@ -67,6 +67,16 @@ export function acceptRuntimeFrameSequence(
   frame: ParsedRuntimeFrame,
   state: RuntimeSequenceState,
 ): boolean {
+  // Durable-only run.state is an authoritative snapshot, not an event from the
+  // retained hot log. It must be accepted even after a client previously observed
+  // a higher Redis sequence, and it must not move that hot sequence backwards.
+  if (
+    frame.eventType === "run.state"
+    && frame.payload.realtime_available === false
+  ) {
+    return true;
+  }
+
   const sequence = frame.sequence;
   if (sequence === null) return true;
 
