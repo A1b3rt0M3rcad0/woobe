@@ -10,8 +10,12 @@ from sqlalchemy import select
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.chat_surface.infra.database.models import ChatSurfaceMessageRequestModel
 from modules.chat_surface.presentation.routes import _authorized_session, _service
+from modules.network.application.service import NetworkApplicationService
 from modules.network.infra.database.models import NetworkExecutionModel
-from modules.network.presentation.reattach_routes import network_runtime_sse
+from modules.network.presentation.reattach_routes import (
+    _durable_state as network_durable_state,
+    network_runtime_sse,
+)
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
 from shared.runtime_reattach import (
@@ -30,6 +34,16 @@ _NETWORK_ACTIVE = {"queued", "running", "cancel_requested"}
 _MESSAGE_ACTIVE = {"accepted", "streaming"}
 
 
+def _network_service(request: Request) -> NetworkApplicationService:
+    settings = request.app.state.settings
+    return NetworkApplicationService(
+        request.app.state.session_factory,
+        hard_max_depth=settings.network_max_depth_hard,
+        hard_max_invocations=settings.network_max_invocations_hard,
+        hard_timeout_seconds=settings.network_timeout_hard_seconds,
+    )
+
+
 def _agent_state(run: AgentRunModel) -> dict:
     result = run.result if isinstance(run.result, dict) else None
     answer = result.get("answer") if result else None
@@ -46,30 +60,6 @@ def _agent_state(run: AgentRunModel) -> dict:
             run.completed_at.isoformat()
             if run.completed_at is not None
             else run.updated_at.isoformat()
-        ),
-    }
-
-
-def _network_state(execution: NetworkExecutionModel) -> dict:
-    return {
-        "status": str(execution.status),
-        "output": execution.output_message or "",
-        "result": (
-            {"answer": execution.output_message}
-            if execution.output_message is not None
-            else None
-        ),
-        "trace_id": str(execution.root_trace_id) if execution.root_trace_id else None,
-        "project_id": str(execution.project_id),
-        "network_id": str(execution.network_id),
-        "network_session_id": str(execution.network_session_id),
-        "input_message": execution.input_message,
-        "failure_code": execution.failure_code,
-        "failure_detail": execution.failure_detail,
-        "updated_at": (
-            execution.completed_at.isoformat()
-            if execution.completed_at is not None
-            else execution.updated_at.isoformat()
         ),
     }
 
@@ -189,14 +179,17 @@ async def _authorized_active_request(
     request: Request,
     session_id: UUID,
     host_origin: str | None,
+    *,
+    permission: str = "chat:history",
+    require_stream: bool = True,
 ):
     authorized = await _authorized_session(
         request,
         session_id,
-        permission="chat:history",
+        permission=permission,
         host_origin=host_origin,
     )
-    if "chat:stream" not in authorized.claims.permissions:
+    if require_stream and "chat:stream" not in authorized.claims.permissions:
         raise AuthorizationError("ChatSurface Session token scope is insufficient")
 
     message_request = await _latest_message_request(request, authorized.binding.id)
@@ -273,6 +266,78 @@ async def get_chat_active_run(
     }
 
 
+@router.post("/v1/chat/sessions/{session_id}/active-run/cancel")
+async def cancel_chat_active_run(
+    session_id: UUID,
+    request: Request,
+    host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
+):
+    authorized, message_request, run_id, run_status = await _authorized_active_request(
+        request,
+        session_id,
+        host_origin,
+        permission="chat:cancel",
+        require_stream=False,
+    )
+    if message_request is None or run_id is None:
+        raise NotFoundError("ChatSurface Session has no active Run")
+
+    terminal_statuses = (
+        _AGENT_TERMINAL
+        if authorized.binding.target_type == "agent"
+        else _NETWORK_TERMINAL
+    )
+    if run_status in terminal_statuses:
+        return {
+            "success": True,
+            "data": {
+                "run_id": str(run_id),
+                "status": run_status,
+                "target_type": authorized.binding.target_type,
+            },
+        }
+
+    if authorized.binding.target_type == "agent":
+        async with request.app.state.session_factory() as session:
+            run = await session.get(AgentRunModel, run_id)
+        if not _valid_agent_run(run, authorized):
+            raise NotFoundError("Agent Run not found")
+        state = await EXECUTION_STATE_STORE.get(run_id)
+        if state is None:
+            if str(run.status) in _AGENT_TERMINAL:
+                status = str(run.status)
+            else:
+                raise ConflictError(
+                    "Agent Run has no active runtime state; cancellation cannot be confirmed safely"
+                )
+        else:
+            await EXECUTION_STATE_STORE.request_cancel(run_id)
+            status = "cancel_requested"
+    else:
+        async with request.app.state.session_factory() as session:
+            execution = await session.get(NetworkExecutionModel, run_id)
+        if not _valid_network_run(execution, authorized):
+            raise NotFoundError("Network execution not found")
+        await _network_service(request).request_cancellation(
+            execution.id,
+            execution.project_id,
+        )
+        status = (
+            str(execution.status)
+            if str(execution.status) in _NETWORK_TERMINAL
+            else "cancel_requested"
+        )
+
+    return {
+        "success": True,
+        "data": {
+            "run_id": str(run_id),
+            "status": status,
+            "target_type": authorized.binding.target_type,
+        },
+    }
+
+
 @router.get("/v1/chat/sessions/{session_id}/active-run/stream")
 async def stream_chat_active_run(
     session_id: UUID,
@@ -314,7 +379,7 @@ async def stream_chat_active_run(
                 execution = await session.get(NetworkExecutionModel, run_id)
             if not _valid_network_run(execution, authorized):
                 raise NotFoundError("Network execution not found")
-            return _network_state(execution)
+            return network_durable_state(execution)
 
         formatter = lambda frame: network_runtime_sse(frame, run_id)
         kind = "network"
@@ -352,27 +417,30 @@ async def stream_chat_active_run(
                 **durable,
                 "run_id": str(run_id),
                 "kind": kind.upper(),
-                "sequence": 0,
+                "sequence": None,
                 "realtime_available": False,
                 "degraded_reason": "runtime_event_gap",
             }
-            yield formatter(RuntimeStreamFrame("run.state", degraded, sequence=0))
+            yield formatter(RuntimeStreamFrame("run.state", degraded, sequence=None))
         finally:
             # Observer loss leaves the message request active. Only durable terminal
             # state may close it, preserving reload/reattach semantics.
             if terminal_status is not None:
+                message_status = (
+                    "completed"
+                    if terminal_status == "completed"
+                    else "cancelled"
+                    if terminal_status == "cancelled"
+                    else "failed"
+                )
                 await _service(request).mark_message(
                     message_request.id,
-                    status=(
-                        "completed"
-                        if terminal_status == "completed"
-                        else "cancelled"
-                        if terminal_status == "cancelled"
-                        else "failed"
-                    ),
+                    status=message_status,
                     target_run_id=run_id,
                     error_code=(
-                        None if terminal_status == "completed" else "runtime_failed"
+                        None
+                        if message_status in {"completed", "cancelled"}
+                        else "runtime_failed"
                     ),
                 )
 
