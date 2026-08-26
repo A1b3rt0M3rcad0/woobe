@@ -114,6 +114,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   const shouldStickToBottomRef = useRef(true)
   const abortRef = useRef<AbortController | null>(null)
   const executionIdRef = useRef<string | null>(null)
+  const stopIntentRef = useRef(false)
   const reattachExecutionRef = useRef<string | null>(null)
   const previousSessionIdRef = useRef<string | null>(activeSession?.id ?? null)
   const mountedRef = useRef(true)
@@ -135,6 +136,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
 
   const clearLiveState = () => {
     liveAnswerSchedulerRef.current?.clear()
+    stopIntentRef.current = false
     setRunning(false)
     setStopping(false)
     setPendingMessage(null)
@@ -178,6 +180,18 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
       queryClient.invalidateQueries({ queryKey: ['network-session-messages', projectId, networkId, sessionId] }),
       queryClient.invalidateQueries({ queryKey: ['network-sessions', projectId, networkId] }),
     ])
+  }
+
+  const requestCancellation = (executionId: string) => {
+    stopIntentRef.current = false
+    setStopping(true)
+    setLiveActivity((items) => [...items.slice(-5), 'Cancellation requested. Waiting for runtime finalization...'])
+    void cancelNetworkExecution(executionId, projectId)
+      .then(() => toast.info('Network execution cancellation requested'))
+      .catch((error) => {
+        setStopping(false)
+        toast.warning(error instanceof Error ? error.message : 'Run cancellation could not be confirmed')
+      })
   }
 
   useLayoutEffect(() => {
@@ -293,20 +307,13 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   const stop = () => {
     if (!running || stopping) return
     const executionId = executionIdRef.current
+    setStopping(true)
     if (!executionId) {
-      setStopping(true)
+      stopIntentRef.current = true
       setLiveActivity((items) => [...items.slice(-5), 'Waiting for Network Run identity before stopping...'])
       return
     }
-
-    setStopping(true)
-    setLiveActivity((items) => [...items.slice(-5), 'Cancellation requested. Waiting for runtime finalization...'])
-    void cancelNetworkExecution(executionId, projectId)
-      .then(() => toast.info('Network execution cancellation requested'))
-      .catch((error) => {
-        setStopping(false)
-        toast.warning(error instanceof Error ? error.message : 'Run cancellation could not be confirmed')
-      })
+    requestCancellation(executionId)
   }
 
   const startNew = () => {
@@ -356,6 +363,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
     }
 
     liveAnswerSchedulerRef.current?.clear()
+    stopIntentRef.current = false
     setText('')
     setRunning(true)
     setStopping(false)
@@ -375,18 +383,6 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
     let executionId = ''
     let traceId = ''
     let status: NetworkExecution['status'] = 'success'
-    let pendingCancel = false
-
-    const requestPendingCancel = (id: string) => {
-      if (!pendingCancel || !id) return
-      pendingCancel = false
-      void cancelNetworkExecution(id, projectId)
-        .then(() => toast.info('Network execution cancellation requested'))
-        .catch((error) => {
-          setStopping(false)
-          toast.warning(error instanceof Error ? error.message : 'Run cancellation could not be confirmed')
-        })
-    }
 
     try {
       const expectedDraftRevision = environment === 'draft' ? preparedDraftRevision ?? await onBeforeDraftRun() : undefined
@@ -396,14 +392,14 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
           executionId = id
           executionIdRef.current = id
           reattachExecutionRef.current = id
-          requestPendingCancel(id)
+          if (stopIntentRef.current) requestCancellation(id)
         },
         onEvent: (eventType, event) => {
           if (!executionId && event.execution_id) {
             executionId = event.execution_id
             executionIdRef.current = event.execution_id
             reattachExecutionRef.current = event.execution_id
-            requestPendingCancel(event.execution_id)
+            if (stopIntentRef.current) requestCancellation(event.execution_id)
           }
           if (shouldRecordRuntimeEvent(eventType)) records.push({ eventType, event })
           if (updatesLiveExecution(eventType)) {
@@ -468,31 +464,6 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
     }
   }
 
-  // Stop can be requested during the short POST -> execution-id window. Once the
-  // id arrives, the running send closure sees `stopping` only on the next render,
-  // so signal intent through a stable ref visible to that callback.
-  const stopIntentRef = useRef(false)
-  if (!running && stopIntentRef.current) stopIntentRef.current = false
-
-  const stopWithPendingIdentity = () => {
-    if (!running || stopping) return
-    const executionId = executionIdRef.current
-    setStopping(true)
-    if (!executionId) {
-      stopIntentRef.current = true
-      setLiveActivity((items) => [...items.slice(-5), 'Waiting for Network Run identity before stopping...'])
-      return
-    }
-    setLiveActivity((items) => [...items.slice(-5), 'Cancellation requested. Waiting for runtime finalization...'])
-    void cancelNetworkExecution(executionId, projectId)
-      .then(() => toast.info('Network execution cancellation requested'))
-      .catch((error) => {
-        setStopping(false)
-        stopIntentRef.current = false
-        toast.warning(error instanceof Error ? error.message : 'Run cancellation could not be confirmed')
-      })
-  }
-
   const disabledReason = runtimeEnabled ? undefined : `${environment.charAt(0).toUpperCase() + environment.slice(1)} runtime is off. Inspection and release management remain available.`
 
   return (
@@ -502,7 +473,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
       {!runtimeEnabled ? <div className="border-b border-red-500/20 bg-red-500/5 px-4 py-2 text-[9px] font-medium text-red-300">{disabledReason}</div> : null}
       <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} pendingMessage={pendingMessage} liveAnswer={liveAnswer} liveActivity={liveActivity} liveExecution={liveExecution} liveResponseCommitted={liveResponseCommitted} liveParsedOutput={liveParsedOutput} liveOutputParseError={liveOutputParseError} onScroll={(event) => { shouldStickToBottomRef.current = isNearBottom(event.currentTarget) }} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
       {running ? <div className="mx-4 mb-2 text-right text-[9px] text-muted">{stopping ? 'Stopping… waiting for finalization' : lastHeartbeatAt ? 'Runtime heartbeat received' : 'Runtime connection open'}</div> : null}
-      <NetworkChatComposer value={text} running={running} stopping={stopping} preparing={creatingSession} disabled={!runtimeEnabled} disabledReason={disabledReason} onChange={setText} onSend={() => { void send() }} onStop={stopWithPendingIdentity} />
+      <NetworkChatComposer value={text} running={running} stopping={stopping} preparing={creatingSession} disabled={!runtimeEnabled} disabledReason={disabledReason} onChange={setText} onSend={() => { void send() }} onStop={stop} />
     </div>
   )
 }
