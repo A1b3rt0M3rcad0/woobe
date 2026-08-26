@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import os
+from contextlib import suppress
 from typing import Any
 from uuid import UUID
 
@@ -124,7 +125,10 @@ class NetworkExecutionProcessor:
         )
         try:
             executor = NetworkExecutor(invoker=self._agent_invoker, store=self._store)
-            result = await executor.execute(execution, version)
+            result = await self._execute_with_cancellation(
+                execution_id,
+                executor.execute(execution, version),
+            )
             if lease_lost.is_set():
                 logger.warning("Network execution lease lost execution_id=%s", execution_id)
                 return
@@ -151,14 +155,7 @@ class NetworkExecutionProcessor:
             )
             await self._store.mark_persisted(execution_id, status="completed")
         except NetworkExecutionCancelled:
-            await self._terminal_failure(
-                execution_id,
-                version,
-                status="cancelled",
-                code="execution_cancelled",
-                detail="Network execution was cancelled",
-                uncertain=False,
-            )
+            await self._terminal_cancelled(execution_id, version)
         except NetworkBudgetExceeded as exc:
             await self._terminal_failure(
                 execution_id,
@@ -193,6 +190,26 @@ class NetworkExecutionProcessor:
             stop_heartbeat.set()
             await heartbeat_task
 
+    async def _execute_with_cancellation(self, execution_id: UUID, execution_coro):
+        """Interrupt the active Agent/provider task when Run cancellation is requested."""
+        execution_task = asyncio.create_task(execution_coro)
+        try:
+            while True:
+                done, _ = await asyncio.wait({execution_task}, timeout=0.2)
+                if execution_task in done:
+                    return await execution_task
+                if await self._store.is_cancel_requested(execution_id):
+                    execution_task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await execution_task
+                    await self._store.cancel_running_invocations(execution_id)
+                    raise NetworkExecutionCancelled("Network execution was cancelled")
+        finally:
+            if not execution_task.done():
+                execution_task.cancel()
+                with suppress(asyncio.CancelledError):
+                    await execution_task
+
     async def _heartbeat(
         self,
         execution_id: UUID,
@@ -213,6 +230,34 @@ class NetworkExecutionProcessor:
             if not renewed:
                 lease_lost.set()
                 return
+
+    async def _terminal_cancelled(self, execution_id: UUID, version) -> None:
+        await self._store.cancel_running_invocations(execution_id)
+        output = await self._store.partial_output(execution_id)
+        invocations = await self._store.invocations(execution_id)
+        root = next((item for item in invocations if int(item.get("depth") or 0) == 0), None)
+        raw_trace_id = root.get("trace_id") if root is not None else None
+        trace_id = UUID(str(raw_trace_id)) if raw_trace_id else None
+        terminal = {
+            "output": output,
+            "trace_id": str(trace_id) if trace_id else None,
+            "partial": bool(output),
+            "cancelled": True,
+        }
+        await self._store.mark_terminal_pending(
+            execution_id,
+            status="cancelled",
+            result=terminal,
+        )
+        await self._finalizer.finalize(
+            execution_id=execution_id,
+            version=version,
+            invocation_states=invocations,
+            terminal_status="cancelled",
+            output=output,
+            trace_id=trace_id,
+        )
+        await self._store.mark_persisted(execution_id, status="cancelled")
 
     async def _terminal_failure(
         self,
