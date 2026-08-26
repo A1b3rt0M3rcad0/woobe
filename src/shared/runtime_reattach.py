@@ -89,6 +89,16 @@ def initial_projection(
         or terminal_result.get("answer")
         or ""
     )
+    parsed_output = (
+        root_result.get("parsed_output")
+        if "parsed_output" in root_result
+        else terminal_result.get("parsed_output")
+    )
+    output_parse_error = (
+        root_result.get("output_parse_error")
+        if "output_parse_error" in root_result
+        else terminal_result.get("output_parse_error")
+    )
     return {
         "run_id": str(run_id),
         "kind": run_kind.upper(),
@@ -102,6 +112,8 @@ def initial_projection(
         "current_route": None,
         "usage": state.get("usage") if isinstance(state.get("usage"), dict) else {},
         "result": root_result or terminal_result or None,
+        "parsed_output": parsed_output,
+        "output_parse_error": output_parse_error,
         "updated_at": state.get("updated_at") or _now_iso(),
         "realtime_available": True,
     }
@@ -197,7 +209,8 @@ def reduce_projection(
     elif event_type in {"network.route.selected", "route.selected"}:
         state["current_route"] = payload.get("route") or payload.get("target")
     elif event_type == "usage":
-        state["usage"] = deepcopy(payload)
+        usage = payload.get("usage")
+        state["usage"] = deepcopy(usage if isinstance(usage, dict) else payload)
     elif event_type in {"done", "execution_completed"}:
         state["status"] = "completed"
         result = payload.get("result")
@@ -205,6 +218,10 @@ def reduce_projection(
         answer = payload.get("answer") or payload.get("output")
         if isinstance(answer, str):
             state["output"] = answer
+        if "parsed_output" in payload:
+            state["parsed_output"] = deepcopy(payload.get("parsed_output"))
+        if "output_parse_error" in payload:
+            state["output_parse_error"] = payload.get("output_parse_error")
         state["activity"] = None
         state["active_tools"] = []
         state["active_agents"] = []
@@ -308,7 +325,21 @@ class RuntimeEventPublisher:
                 through_sequence=high_watermark,
                 limit=max(self._maxlen, high_watermark - sequence + 1),
             )
+            expected = sequence + 1
             for event in events:
+                if event.sequence != expected:
+                    logger.warning(
+                        "Runtime projection checkpoint skipped because event continuity was lost",
+                        extra={
+                            "run_id": str(run_id),
+                            "run_kind": run_kind.upper(),
+                            "projection_sequence": sequence,
+                            "expected_sequence": expected,
+                            "observed_sequence": event.sequence,
+                            "high_watermark": high_watermark,
+                        },
+                    )
+                    return
                 public_type, public_payload = _public_event(event)
                 projection = reduce_projection(
                     projection,
@@ -317,6 +348,7 @@ class RuntimeEventPublisher:
                     sequence=event.sequence,
                     occurred_at=event.occurred_at,
                 )
+                expected += 1
             if events and events[-1].sequence == high_watermark:
                 await self._store.update(run_id, {"runtime_projection": projection})
 
@@ -428,7 +460,13 @@ class RuntimeStreamReader:
                     f"projection={projection_sequence} high_watermark={high_watermark}"
                 )
             catchup_events = len(events)
+            expected = projection_sequence + 1
             for event in events:
+                if event.sequence != expected:
+                    raise RuntimeStreamGapError(
+                        f"Runtime projection sequence gap run_id={run_id} "
+                        f"expected={expected} observed={event.sequence}"
+                    )
                 public_type, public_payload = _public_event(event)
                 projection = reduce_projection(
                     projection,
@@ -437,6 +475,7 @@ class RuntimeStreamReader:
                     sequence=event.sequence,
                     occurred_at=event.occurred_at,
                 )
+                expected += 1
             if high_cursor is None:
                 high_cursor = events[-1].cursor
 
@@ -528,6 +567,23 @@ class RuntimeStreamReader:
 
                 for event in events:
                     cursor = event.cursor
+                    if event.sequence <= sequence:
+                        continue
+                    expected = sequence + 1
+                    if event.sequence != expected:
+                        logger.warning(
+                            "Runtime live tail sequence gap",
+                            extra={
+                                "run_id": str(run_id),
+                                "run_kind": run_kind.upper(),
+                                "expected_sequence": expected,
+                                "observed_sequence": event.sequence,
+                            },
+                        )
+                        raise RuntimeStreamGapError(
+                            f"Runtime live tail sequence gap run_id={run_id} "
+                            f"expected={expected} observed={event.sequence}"
+                        )
                     public_type, public_payload = _public_event(event)
                     projection = reduce_projection(
                         projection,
@@ -536,6 +592,7 @@ class RuntimeStreamReader:
                         sequence=event.sequence,
                         occurred_at=event.occurred_at,
                     )
+                    sequence = event.sequence
                     frame = RuntimeStreamFrame(
                         public_type,
                         {
