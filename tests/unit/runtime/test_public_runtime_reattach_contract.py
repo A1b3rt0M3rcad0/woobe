@@ -11,35 +11,35 @@ from shared.security.http_guard import (
 )
 
 
+RUN_ID = "00000000-0000-0000-0000-000000000001"
+
+
 def test_public_runtime_reattach_uses_stream_interface() -> None:
     assert public_runtime_interface(
         "GET",
-        "/v1/runs/00000000-0000-0000-0000-000000000001/stream",
+        f"/v1/runs/{RUN_ID}/stream",
     ) == "stream"
     assert public_runtime_interface(
         "GET",
-        "/v1/sessions/00000000-0000-0000-0000-000000000001/active-run",
+        f"/v1/sessions/{RUN_ID}/active-run",
     ) == "stream"
-    assert (
-        is_runtime_path(
-            "/v1/runs/00000000-0000-0000-0000-000000000001/stream"
-        )
-        is True
-    )
-    assert (
-        is_runtime_path(
-            "/v1/sessions/00000000-0000-0000-0000-000000000001/active-run"
-        )
-        is True
-    )
+    assert is_runtime_path(f"/v1/runs/{RUN_ID}/stream") is True
+    assert is_runtime_path(f"/v1/sessions/{RUN_ID}/active-run") is True
+
+
+def test_public_runtime_run_cancel_is_control_not_new_execution() -> None:
+    path = f"/v1/runs/{RUN_ID}/cancel"
+    assert public_runtime_interface("POST", path) == "http"
+    assert is_runtime_path(path) is True
+    assert is_runtime_execution_request("POST", path) is False
 
 
 def test_public_runtime_reattach_does_not_consume_execution_concurrency() -> None:
     assert is_runtime_execution_request(
-        "GET", "/v1/runs/00000000-0000-0000-0000-000000000001/stream"
+        "GET", f"/v1/runs/{RUN_ID}/stream"
     ) is False
     assert is_runtime_execution_request(
-        "GET", "/v1/sessions/00000000-0000-0000-0000-000000000001/active-run"
+        "GET", f"/v1/sessions/{RUN_ID}/active-run"
     ) is False
 
 
