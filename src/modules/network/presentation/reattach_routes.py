@@ -133,6 +133,8 @@ def _durable_state(execution: NetworkExecutionModel) -> dict:
                 "answer": execution.output_message,
                 "parsed_output": execution.parsed_output,
                 "output_parse_error": execution.output_parse_error,
+                "partial": str(execution.status) == "cancelled" and bool(execution.output_message),
+                "cancelled": str(execution.status) == "cancelled",
             }
             if execution.output_message is not None
             or execution.parsed_output is not None
@@ -275,12 +277,12 @@ async def reattach_network_execution(
                 {
                     "run_id": str(execution_id),
                     "kind": "NETWORK",
-                    "sequence": 0,
+                    "sequence": None,
                     "realtime_available": False,
                 }
             )
             yield network_runtime_sse(
-                RuntimeStreamFrame("run.state", queued, sequence=0),
+                RuntimeStreamFrame("run.state", queued, sequence=None),
                 execution_id,
             )
 
@@ -297,12 +299,12 @@ async def reattach_network_execution(
                         {
                             "run_id": str(execution_id),
                             "kind": "NETWORK",
-                            "sequence": 0,
+                            "sequence": None,
                             "realtime_available": False,
                         }
                     )
                     yield network_runtime_sse(
-                        RuntimeStreamFrame("run.state", terminal, sequence=0),
+                        RuntimeStreamFrame("run.state", terminal, sequence=None),
                         execution_id,
                     )
                     return
@@ -324,13 +326,13 @@ async def reattach_network_execution(
                 {
                     "run_id": str(execution_id),
                     "kind": "NETWORK",
-                    "sequence": 0,
+                    "sequence": None,
                     "realtime_available": False,
                     "degraded_reason": "runtime_event_gap",
                 }
             )
             yield network_runtime_sse(
-                RuntimeStreamFrame("run.state", state, sequence=0),
+                RuntimeStreamFrame("run.state", state, sequence=None),
                 execution_id,
             )
 
