@@ -52,6 +52,10 @@ local cursor = redis.call(
   'at', occurred_at
 )
 redis.call('HSET', state_key, 'last_event_cursor', cursor, 'updated_at', occurred_at)
+local state_ttl_ms = redis.call('PTTL', state_key)
+if state_ttl_ms > 0 then
+  redis.call('PEXPIRE', events_key, state_ttl_ms)
+end
 return {cursor, sequence}
 """
 
