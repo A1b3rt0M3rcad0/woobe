@@ -23,7 +23,6 @@ class SequenceToolModel:
                     }
                 ],
             ),
-            AIMessage(content=""),
             AIMessage(content="16"),
         ]
         self.invocation_count = 0
@@ -40,10 +39,7 @@ class SequenceToolModel:
 
 class NoToolDecisionModel:
     def __init__(self) -> None:
-        self.responses = [
-            AIMessage(content=""),
-            AIMessage(content="Hello from the final response phase"),
-        ]
+        self.responses = [AIMessage(content="Hello from the first response")]
         self.invocation_count = 0
 
     def bind_tools(self, _tools, *, tool_choice):
@@ -97,7 +93,7 @@ def _agent_tools():
 
 
 @pytest.mark.asyncio
-async def test_text_tool_execution_uses_dedicated_final_response() -> None:
+async def test_text_tool_execution_only_invokes_again_after_tool_call() -> None:
     model = SequenceToolModel()
     factory = RecordingLlmFactory(model)
 
@@ -128,12 +124,11 @@ async def test_text_tool_execution_uses_dedicated_final_response() -> None:
         messages=[],
     )
 
-    assert factory.create_count == 2
-    assert model.invocation_count == 3
+    assert factory.create_count == 1
+    assert model.invocation_count == 2
     assert [call["phase"] for call in execution.llm_calls] == [
-        "tool_planning",
+        "response_generation",
         "tool_followup_1",
-        "final_response_generation",
     ]
     assert execution.result.content == "16"
     assert len(execution.tool_calls) == 1
@@ -141,7 +136,7 @@ async def test_text_tool_execution_uses_dedicated_final_response() -> None:
 
 
 @pytest.mark.asyncio
-async def test_text_agent_with_tools_generates_final_response_without_tool_call() -> None:
+async def test_text_agent_with_tools_finishes_in_first_model_call_without_tool_call() -> None:
     model = NoToolDecisionModel()
     factory = RecordingLlmFactory(model)
 
@@ -163,11 +158,8 @@ async def test_text_agent_with_tools_generates_final_response_without_tool_call(
         messages=[],
     )
 
-    assert factory.create_count == 2
-    assert model.invocation_count == 2
-    assert [call["phase"] for call in execution.llm_calls] == [
-        "tool_planning",
-        "final_response_generation",
-    ]
-    assert execution.result.content == "Hello from the final response phase"
+    assert factory.create_count == 1
+    assert model.invocation_count == 1
+    assert [call["phase"] for call in execution.llm_calls] == ["response_generation"]
+    assert execution.result.content == "Hello from the first response"
     assert execution.tool_calls == []
