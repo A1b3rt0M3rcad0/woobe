@@ -45,6 +45,7 @@ const LIVE_EXECUTION_EVENT_TYPES = new Set([
   'agent_invocation_started',
   'agent_invocation_completed',
   'agent_invocation_failed',
+  'agent_invocation_cancelled',
   'tool_call_started',
   'tool_call_completed',
   'sources',
@@ -60,6 +61,7 @@ function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
   if (eventType === 'agent_invocation_started') return `Agent started: ${String(event.data.label ?? event.agent_id ?? 'unknown')}`
   if (eventType === 'agent_invocation_completed') return `Agent completed at depth ${event.depth ?? 0}`
   if (eventType === 'agent_invocation_failed') return `Agent failed: ${String(event.data.message ?? event.data.code ?? 'runtime error')}`
+  if (eventType === 'agent_invocation_cancelled') return `Agent cancelled at depth ${event.depth ?? 0}`
   if (eventType === 'tool_call_started') return `Calling tool: ${String(event.data.tool_name ?? 'tool')}`
   if (eventType === 'tool_call_completed') return `Tool completed: ${String(event.data.tool_name ?? 'tool')}`
   if (eventType === 'delegation_started') return `Delegating to ${String(event.data.target ?? event.data.target_node_id ?? 'Agent')}`
@@ -99,6 +101,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   const [localTurns, setLocalTurns] = useState<NetworkTurn[]>([])
   const [creatingSession, setCreatingSession] = useState(false)
   const [running, setRunning] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
   const [liveAnswer, setLiveAnswer] = useState('')
   const [liveActivity, setLiveActivity] = useState<string[]>([])
@@ -133,6 +136,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   const clearLiveState = () => {
     liveAnswerSchedulerRef.current?.clear()
     setRunning(false)
+    setStopping(false)
     setPendingMessage(null)
     setLiveAnswer('')
     setLiveActivity([])
@@ -202,9 +206,10 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
       executionIdRef.current = active.execution_id
       liveAnswerSchedulerRef.current?.clear()
       setRunning(true)
+      setStopping(active.status === 'cancel_requested')
       setPendingMessage(active.input_message)
       setLiveAnswer('')
-      setLiveActivity(['Resuming active Network Run...'])
+      setLiveActivity([active.status === 'cancel_requested' ? 'Stopping active Network Run...' : 'Resuming active Network Run...'])
       setLiveExecution(emptyLiveNetworkExecution())
       setLiveResponseCommitted(false)
       setLiveParsedOutput(null)
@@ -260,6 +265,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
             }
             if (eventType === 'execution_failed' || eventType === 'execution_cancelled') {
               flushLiveAnswer(answer)
+              setStopping(false)
             }
           },
           onHeartbeat: () => setLastHeartbeatAt(Date.now()),
@@ -285,20 +291,22 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   }, [activeSession?.id, creatingSession, environment, networkId, onSelectSession, projectId, running, runtimeEnabled])
 
   const stop = () => {
-    const wasRunning = running
+    if (!running || stopping) return
     const executionId = executionIdRef.current
-    abortRef.current?.abort()
-    abortRef.current = null
-    executionIdRef.current = null
-    clearLiveState()
-    if (wasRunning && executionId) {
-      void cancelNetworkExecution(executionId, projectId)
-        .then(async () => {
-          toast.info('Network execution cancellation requested')
-          if (activeSession) await refreshPersistedSession(activeSession.id)
-        })
-        .catch(() => toast.warning('Connection closed, but cancellation could not be confirmed'))
-    } else if (wasRunning) toast.info('Network execution connection stopped')
+    if (!executionId) {
+      setStopping(true)
+      setLiveActivity((items) => [...items.slice(-5), 'Waiting for Network Run identity before stopping...'])
+      return
+    }
+
+    setStopping(true)
+    setLiveActivity((items) => [...items.slice(-5), 'Cancellation requested. Waiting for runtime finalization...'])
+    void cancelNetworkExecution(executionId, projectId)
+      .then(() => toast.info('Network execution cancellation requested'))
+      .catch((error) => {
+        setStopping(false)
+        toast.warning(error instanceof Error ? error.message : 'Run cancellation could not be confirmed')
+      })
   }
 
   const startNew = () => {
@@ -350,6 +358,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
     liveAnswerSchedulerRef.current?.clear()
     setText('')
     setRunning(true)
+    setStopping(false)
     setPendingMessage(content)
     setLiveAnswer('')
     setLiveActivity([])
@@ -366,14 +375,36 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
     let executionId = ''
     let traceId = ''
     let status: NetworkExecution['status'] = 'success'
+    let pendingCancel = false
+
+    const requestPendingCancel = (id: string) => {
+      if (!pendingCancel || !id) return
+      pendingCancel = false
+      void cancelNetworkExecution(id, projectId)
+        .then(() => toast.info('Network execution cancellation requested'))
+        .catch((error) => {
+          setStopping(false)
+          toast.warning(error instanceof Error ? error.message : 'Run cancellation could not be confirmed')
+        })
+    }
 
     try {
       const expectedDraftRevision = environment === 'draft' ? preparedDraftRevision ?? await onBeforeDraftRun() : undefined
       const executionBindings = environment === 'draft' ? Object.fromEntries(Object.entries(bindings).map(([nodeId, binding]) => [nodeId, { ...binding, version: `r${expectedDraftRevision}`, dirty: false }])) as Record<AgentNodeId, NetworkBinding> : bindings
       await streamNetworkExecution({ networkId, projectId, networkSessionId: session.id, message: content, expectedDraftRevision }, {
-        onExecutionId: (id) => { executionId = id; executionIdRef.current = id; reattachExecutionRef.current = id },
+        onExecutionId: (id) => {
+          executionId = id
+          executionIdRef.current = id
+          reattachExecutionRef.current = id
+          requestPendingCancel(id)
+        },
         onEvent: (eventType, event) => {
-          if (!executionId && event.execution_id) { executionId = event.execution_id; executionIdRef.current = event.execution_id; reattachExecutionRef.current = event.execution_id }
+          if (!executionId && event.execution_id) {
+            executionId = event.execution_id
+            executionIdRef.current = event.execution_id
+            reattachExecutionRef.current = event.execution_id
+            requestPendingCancel(event.execution_id)
+          }
           if (shouldRecordRuntimeEvent(eventType)) records.push({ eventType, event })
           if (updatesLiveExecution(eventType)) {
             setLiveExecution((current) => applyNetworkRuntimeEvent(current, eventType, event))
@@ -400,10 +431,19 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
             setLiveParsedOutput(parsedOutputFromEvent(event))
             setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
             setLiveResponseCommitted(true)
+            setStopping(false)
           }
-          if (eventType === 'execution_failed' || eventType === 'execution_cancelled') {
+          if (eventType === 'execution_failed') {
             flushLiveAnswer(answer)
             status = 'error'
+            setStopping(false)
+          }
+          if (eventType === 'execution_cancelled') {
+            const output = event.data.output
+            if (typeof output === 'string') answer = output
+            flushLiveAnswer(answer)
+            status = 'cancelled'
+            setStopping(false)
           }
         },
         onHeartbeat: () => setLastHeartbeatAt(Date.now()),
@@ -428,6 +468,31 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
     }
   }
 
+  // Stop can be requested during the short POST -> execution-id window. Once the
+  // id arrives, the running send closure sees `stopping` only on the next render,
+  // so signal intent through a stable ref visible to that callback.
+  const stopIntentRef = useRef(false)
+  if (!running && stopIntentRef.current) stopIntentRef.current = false
+
+  const stopWithPendingIdentity = () => {
+    if (!running || stopping) return
+    const executionId = executionIdRef.current
+    setStopping(true)
+    if (!executionId) {
+      stopIntentRef.current = true
+      setLiveActivity((items) => [...items.slice(-5), 'Waiting for Network Run identity before stopping...'])
+      return
+    }
+    setLiveActivity((items) => [...items.slice(-5), 'Cancellation requested. Waiting for runtime finalization...'])
+    void cancelNetworkExecution(executionId, projectId)
+      .then(() => toast.info('Network execution cancellation requested'))
+      .catch((error) => {
+        setStopping(false)
+        stopIntentRef.current = false
+        toast.warning(error instanceof Error ? error.message : 'Run cancellation could not be confirmed')
+      })
+  }
+
   const disabledReason = runtimeEnabled ? undefined : `${environment.charAt(0).toUpperCase() + environment.slice(1)} runtime is off. Inspection and release management remain available.`
 
   return (
@@ -436,8 +501,8 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
       {historyLoading ? <div className="border-b border-border/60 px-4 py-2 text-[9px] text-muted">Loading persisted Network history…</div> : null}
       {!runtimeEnabled ? <div className="border-b border-red-500/20 bg-red-500/5 px-4 py-2 text-[9px] font-medium text-red-300">{disabledReason}</div> : null}
       <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} pendingMessage={pendingMessage} liveAnswer={liveAnswer} liveActivity={liveActivity} liveExecution={liveExecution} liveResponseCommitted={liveResponseCommitted} liveParsedOutput={liveParsedOutput} liveOutputParseError={liveOutputParseError} onScroll={(event) => { shouldStickToBottomRef.current = isNearBottom(event.currentTarget) }} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
-      {running ? <div className="mx-4 mb-2 text-right text-[9px] text-muted">{lastHeartbeatAt ? 'Runtime heartbeat received' : 'Runtime connection open'}</div> : null}
-      <NetworkChatComposer value={text} running={running} preparing={creatingSession} disabled={!runtimeEnabled} disabledReason={disabledReason} onChange={setText} onSend={() => { void send() }} onStop={stop} />
+      {running ? <div className="mx-4 mb-2 text-right text-[9px] text-muted">{stopping ? 'Stopping… waiting for finalization' : lastHeartbeatAt ? 'Runtime heartbeat received' : 'Runtime connection open'}</div> : null}
+      <NetworkChatComposer value={text} running={running} stopping={stopping} preparing={creatingSession} disabled={!runtimeEnabled} disabledReason={disabledReason} onChange={setText} onSend={() => { void send() }} onStop={stopWithPendingIdentity} />
     </div>
   )
 }
