@@ -1,14 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-import json
-import time
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from uuid import UUID
 
 from fastapi import APIRouter, Header, Request
-from fastapi.responses import StreamingResponse
 from sqlalchemy import delete, func, select
 
 from modules.network.application.service import NetworkApplicationService
@@ -20,7 +17,11 @@ from modules.network.infra.database.models import (
     NetworkSessionModel,
 )
 from modules.network.infra.database.repositories import NetworkRuntimeRepository
-from modules.network.presentation.reattach_routes import reattach_network_execution
+from modules.network.presentation.reattach_routes import (
+    _durable_state as _network_durable_state,
+    network_runtime_sse,
+    reattach_network_execution,
+)
 from modules.network.presentation.schemas import (
     CreateNetworkSessionRequest,
     EnsureNetworkRequest,
@@ -29,7 +30,9 @@ from modules.network.presentation.schemas import (
     RunNetworkRequest,
     SaveNetworkDraftRequest,
 )
+from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, NotFoundError
+from shared.runtime_reattach import RuntimeStreamFrame, RuntimeStreamGapError, RuntimeStreamReader
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
 
 
@@ -457,68 +460,98 @@ async def reset_network_session_context(
     return {"success": True, "data": {"network_session_id": str(network_session_id)}}
 
 
-def _sse(event_type: str, data: dict, *, sequence: int | None = None) -> str:
-    prefix = f"id: {sequence}\n" if sequence is not None else ""
-    return f"{prefix}event: {event_type}\ndata: {json.dumps(data, default=str)}\n\n"
-
-
 async def _execution_stream(
     request: Request,
     execution_id: UUID,
     project_id: UUID,
     start_sequence: int,
 ) -> AsyncIterator[str]:
-    sequence = start_sequence
-    last_heartbeat = time.monotonic()
-    heartbeat_seconds = request.app.state.settings.network_stream_heartbeat_seconds
-    poll_interval = 0.1
-    while True:
-        if await request.is_disconnected():
-            return
+    # This compatibility helper is still used by ChatSurface, but realtime events
+    # now live in the canonical Redis Run stream. PostgreSQL is terminal history.
+    del start_sequence
+    async with request.app.state.session_factory() as session:
+        initial = await session.get(NetworkExecutionModel, execution_id)
+    if initial is None or initial.project_id != project_id:
+        raise NotFoundError("Network execution not found")
+
+    reader = RuntimeStreamReader(
+        EXECUTION_STATE_STORE,
+        heartbeat_seconds=request.app.state.settings.network_stream_heartbeat_seconds,
+        block_ms=500,
+    )
+
+    async def durable_fallback() -> dict | None:
         async with request.app.state.session_factory() as session:
             execution = await session.get(NetworkExecutionModel, execution_id)
-            if execution is None or execution.project_id != project_id:
+        if execution is None or execution.project_id != project_id:
+            raise NotFoundError("Network execution not found")
+        return _network_durable_state(execution)
+
+    hot = await EXECUTION_STATE_STORE.get(execution_id)
+    if hot is None and str(initial.status) not in TERMINAL_STATUSES:
+        queued = _network_durable_state(initial)
+        queued.update(
+            {
+                "run_id": str(execution_id),
+                "kind": "NETWORK",
+                "sequence": 0,
+                "realtime_available": False,
+            }
+        )
+        yield network_runtime_sse(
+            RuntimeStreamFrame("run.state", queued, sequence=0),
+            execution_id,
+        )
+        while hot is None:
+            if await request.is_disconnected():
+                return
+            await asyncio.sleep(0.25)
+            async with request.app.state.session_factory() as session:
+                latest = await session.get(NetworkExecutionModel, execution_id)
+            if latest is None or latest.project_id != project_id:
                 raise NotFoundError("Network execution not found")
-            events = await NetworkRuntimeRepository(session).list_events_after(
-                execution_id,
-                sequence,
-            )
-            status = execution.status
-        for event in events:
-            sequence = event.sequence
-            yield _sse(
-                event.event_type,
-                {
-                    "protocol_version": 1,
-                    "event_id": str(event.id),
-                    "sequence": event.sequence,
-                    "execution_id": str(event.network_execution_id),
-                    "network_session_id": str(event.network_session_id),
-                    "invocation_id": str(event.invocation_id)
-                    if event.invocation_id
-                    else None,
-                    "parent_invocation_id": str(event.parent_invocation_id)
-                    if event.parent_invocation_id
-                    else None,
-                    "node_id": str(event.node_id) if event.node_id else None,
-                    "agent_id": str(event.agent_id) if event.agent_id else None,
-                    "depth": event.depth,
-                    "data": event.payload,
-                    "created_at": event.created_at,
-                },
-                sequence=event.sequence,
-            )
-        poll_interval = 0.1 if events else min(1.0, poll_interval * 1.5)
-        if status in TERMINAL_STATUSES and not events:
-            return
-        now = time.monotonic()
-        if now - last_heartbeat >= heartbeat_seconds:
-            yield _sse(
-                "heartbeat",
-                {"protocol_version": 1, "execution_id": str(execution_id)},
-            )
-            last_heartbeat = now
-        await asyncio.sleep(poll_interval)
+            if str(latest.status) in TERMINAL_STATUSES:
+                terminal = _network_durable_state(latest)
+                terminal.update(
+                    {
+                        "run_id": str(execution_id),
+                        "kind": "NETWORK",
+                        "sequence": 0,
+                        "realtime_available": False,
+                    }
+                )
+                yield network_runtime_sse(
+                    RuntimeStreamFrame("run.state", terminal, sequence=0),
+                    execution_id,
+                )
+                return
+            hot = await EXECUTION_STATE_STORE.get(execution_id)
+
+    try:
+        async for frame in reader.stream(
+            execution_id,
+            "network",
+            durable_fallback=durable_fallback,
+        ):
+            if await request.is_disconnected():
+                return
+            yield network_runtime_sse(frame, execution_id)
+    except RuntimeStreamGapError:
+        durable = await durable_fallback()
+        if durable is None:
+            raise
+        degraded = {
+            **durable,
+            "run_id": str(execution_id),
+            "kind": "NETWORK",
+            "sequence": 0,
+            "realtime_available": False,
+            "degraded_reason": "runtime_event_gap",
+        }
+        yield network_runtime_sse(
+            RuntimeStreamFrame("run.state", degraded, sequence=0),
+            execution_id,
+        )
 
 
 @router.post("/{network_id}/executions/stream")
