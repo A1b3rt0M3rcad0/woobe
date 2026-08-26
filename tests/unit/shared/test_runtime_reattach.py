@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from uuid import uuid4
 
 import pytest
@@ -67,6 +68,39 @@ async def test_reattach_folds_125_to_131_into_initial_state_then_tails_132() -> 
     assert live.event_type == "token"
     assert live.sequence == 132
     assert live.data["content"] == "132,"
+    await stream.aclose()
+
+
+@pytest.mark.asyncio
+async def test_hot_run_without_events_waits_for_first_live_event() -> None:
+    store = InMemoryExecutionStateStore()
+    run_id = uuid4()
+    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+
+    reader = RuntimeStreamReader(store, block_ms=20)
+    stream = reader.stream(
+        run_id,
+        "agent",
+        durable_fallback=lambda: _completed_fallback(run_id),
+    )
+
+    state = await anext(stream)
+    assert state.event_type == "run.state"
+    assert state.sequence == 0
+    assert state.data["status"] == "running"
+
+    pending = asyncio.create_task(anext(stream))
+    await asyncio.sleep(0)
+    assert pending.done() is False
+
+    await store.append_event(
+        run_id,
+        "agent_activity",
+        {"status": "working", "message": "Working..."},
+    )
+    live = await asyncio.wait_for(pending, timeout=1)
+    assert live.event_type == "agent_activity"
+    assert live.sequence == 1
     await stream.aclose()
 
 
