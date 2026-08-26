@@ -38,11 +38,15 @@ def _caused_by_empty_model_output(exception: Exception) -> bool:
 
 
 def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
-    # Agent runtime owns the public-output classification. Network transports the
-    # contract instead of reinterpreting internal phase names such as tool_followup_1.
+    phase = payload.get("phase")
+    public_phase = (
+        phase in {"response_generation", "final_response_generation"}
+        or (isinstance(phase, str) and phase.startswith("tool_followup_"))
+    )
     return (
         payload.get("visibility") == "assistant"
         and payload.get("channel") == "final"
+        and public_phase
     )
 
 
