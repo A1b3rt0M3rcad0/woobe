@@ -3,7 +3,11 @@ from uuid import UUID
 from fastapi import APIRouter, HTTPException, Request as FastAPIRequest
 
 from modules.agent.entrypoint import public_run_composer, public_stream_composer
-from modules.agent.presentation.http.run_routes import active_agent_run, attach_agent_run
+from modules.agent.presentation.http.run_routes import (
+    active_agent_run,
+    attach_agent_run,
+    cancel_agent_run,
+)
 from modules.network.presentation.public_runtime import (
     is_network_runtime_request,
     run_network_http,
@@ -11,6 +15,7 @@ from modules.network.presentation.public_runtime import (
 )
 from modules.network.presentation.reattach_routes import (
     active_network_execution,
+    cancel_network_run,
     reattach_network_execution,
 )
 from modules.network.presentation.runtime_environment_dependency import (
@@ -57,6 +62,14 @@ async def reattach_run(run_id: UUID, request: FastAPIRequest):
     if principal.target_type == "network":
         return await reattach_network_execution(run_id, request)
     return await attach_agent_run(run_id, request)
+
+
+@router.post("/runs/{run_id}/cancel", status_code=202)
+async def cancel_run(run_id: UUID, request: FastAPIRequest):
+    principal = _runtime_principal(request)
+    if principal.target_type == "network":
+        return await cancel_network_run(run_id, request)
+    return await cancel_agent_run(run_id, request)
 
 
 @router.get("/sessions/{session_id}/active-run")
