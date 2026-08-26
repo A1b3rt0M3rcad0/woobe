@@ -23,7 +23,6 @@ from modules.network.application.runtime_failures import (
 from shared.infra.config import Settings
 
 AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
-_PUBLIC_TOKEN_PHASES = {"response_generation", "final_response_generation"}
 _TOKEN_BATCH_SECONDS = 0.05
 
 
@@ -39,10 +38,11 @@ def _caused_by_empty_model_output(exception: Exception) -> bool:
 
 
 def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
+    # Agent runtime owns the public-output classification. Network transports the
+    # contract instead of reinterpreting internal phase names such as tool_followup_1.
     return (
         payload.get("visibility") == "assistant"
         and payload.get("channel") == "final"
-        and payload.get("phase") in _PUBLIC_TOKEN_PHASES
     )
 
 
