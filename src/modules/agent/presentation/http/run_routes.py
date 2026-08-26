@@ -20,6 +20,7 @@ from shared.runtime_reattach import (
     format_sse_frame,
 )
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
+from shared.security.tenancy import TenantAuthorizer
 
 
 router = APIRouter(prefix="/runtime/runs", tags=["runtime", "agent-runs"])
@@ -36,7 +37,12 @@ def _runtime_target(principal: ProjectApiPrincipal) -> tuple[str | None, UUID | 
     return target_type, target_id
 
 
-def _authorize_run(request: FastAPIRequest, run: AgentRunModel) -> None:
+async def _authorize_run(
+    request: FastAPIRequest,
+    run: AgentRunModel,
+    *,
+    database=None,
+) -> None:
     principal = getattr(request.state, "principal", None)
     if isinstance(principal, ProjectApiPrincipal):
         if principal.project_id != run.project_id:
@@ -49,6 +55,21 @@ def _authorize_run(request: FastAPIRequest, run: AgentRunModel) -> None:
                 raise NotFoundError("Agent Run not found")
         return
     if isinstance(principal, AuthenticatedPrincipal):
+        if database is not None:
+            await TenantAuthorizer(database).authorize(
+                user_id=principal.user_id,
+                path_params={},
+                query_params={"project_id": run.project_id},
+                body=None,
+            )
+            return
+        async with request.app.state.session_factory() as session:
+            await TenantAuthorizer(session).authorize(
+                user_id=principal.user_id,
+                path_params={},
+                query_params={"project_id": run.project_id},
+                body=None,
+            )
         return
     raise AuthorizationError("Authentication required")
 
@@ -58,7 +79,7 @@ async def _load_run(request: FastAPIRequest, run_id: UUID) -> AgentRunModel:
         run = await session.get(AgentRunModel, run_id)
         if run is None:
             raise NotFoundError("Agent Run not found")
-        _authorize_run(request, run)
+        await _authorize_run(request, run, database=session)
         return run
 
 
@@ -98,9 +119,10 @@ async def active_agent_run(
             .order_by(AgentRunModel.created_at.desc(), AgentRunModel.id.desc())
             .limit(1)
         )
+        if run is not None:
+            await _authorize_run(request, run, database=session)
     if run is None:
         return {"success": True, "data": None}
-    _authorize_run(request, run)
     return {
         "success": True,
         "data": {
@@ -163,7 +185,10 @@ async def attach_agent_run(run_id: UUID, request: FastAPIRequest) -> StreamingRe
 async def cancel_agent_run(run_id: UUID, request: FastAPIRequest):
     run = await _load_run(request, run_id)
     if str(run.status) in _TERMINAL_STATUSES:
-        return {"success": True, "data": {"run_id": str(run_id), "status": str(run.status)}}
+        return {
+            "success": True,
+            "data": {"run_id": str(run_id), "status": str(run.status)},
+        }
 
     state = await EXECUTION_STATE_STORE.get(run_id)
     if state is None:
