@@ -20,6 +20,7 @@ from modules.network.infra.database.models import (
     NetworkSessionModel,
 )
 from modules.network.infra.database.repositories import NetworkRuntimeRepository
+from modules.network.presentation.reattach_routes import reattach_network_execution
 from modules.network.presentation.schemas import (
     CreateNetworkSessionRequest,
     EnsureNetworkRequest,
@@ -536,19 +537,11 @@ async def run_network_stream(
         idempotency_key=payload.idempotency_key,
         expected_draft_revision=payload.expected_draft_revision,
     )
-    start_sequence = (
-        int(last_event_id) if last_event_id and last_event_id.isdigit() else 0
-    )
-    return StreamingResponse(
-        _execution_stream(request, execution.id, payload.project_id, start_sequence),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-            "X-Network-Execution-ID": str(execution.id),
-        },
-    )
+    # The POST is only create+observe convenience. From Acceptance onward the
+    # canonical Redis-backed Run stream owns realtime delivery; Last-Event-ID is
+    # replaced by current-state reconciliation plus a live tail.
+    del last_event_id
+    return await reattach_network_execution(execution.id, request)
 
 
 @router.get("/executions/{execution_id}/events")
