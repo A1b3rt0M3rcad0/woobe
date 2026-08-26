@@ -73,6 +73,16 @@ class NetworkRuntimeFailure(RuntimeError):
             "trace_id": str(self.trace_id) if self.trace_id else None,
         }
 
+    def state_payload(self) -> dict[str, Any]:
+        """Failure envelope stored in hot state and later materialized durably."""
+        return {
+            **self.public_payload(),
+            "internal_detail": self.internal_detail,
+            "agent_session_id": (
+                str(self.agent_session_id) if self.agent_session_id else None
+            ),
+        }
+
 
 def _failure_context(chain: list[Exception]) -> dict[str, Any]:
     for item in chain:
