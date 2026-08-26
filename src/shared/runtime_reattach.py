@@ -22,6 +22,7 @@ _STRUCTURAL_EVENTS = {
     "agent_invocation_started",
     "agent_invocation_completed",
     "agent_invocation_failed",
+    "agent_invocation_cancelled",
     "delegation_started",
     "delegation_completed",
     "tool_call_started",
@@ -109,6 +110,7 @@ def initial_projection(
         "active_tools": [],
         "active_agents": [],
         "completed_agents": [],
+        "cancelled_agents": [],
         "current_route": None,
         "usage": state.get("usage") if isinstance(state.get("usage"), dict) else {},
         "result": root_result or terminal_result or None,
@@ -197,15 +199,24 @@ def reduce_projection(
             active = set(_as_list(state.get("active_agents")))
             active.add(str(agent_id))
             state["active_agents"] = sorted(active)
-    elif event_type in {"agent_invocation_completed", "agent_invocation_failed"}:
+    elif event_type in {
+        "agent_invocation_completed",
+        "agent_invocation_failed",
+        "agent_invocation_cancelled",
+    }:
         agent_id = payload.get("agent_id") or payload.get("label")
         if agent_id:
             active = set(_as_list(state.get("active_agents")))
-            completed = set(_as_list(state.get("completed_agents")))
             active.discard(str(agent_id))
-            completed.add(str(agent_id))
             state["active_agents"] = sorted(active)
-            state["completed_agents"] = sorted(completed)
+            if event_type == "agent_invocation_completed":
+                completed = set(_as_list(state.get("completed_agents")))
+                completed.add(str(agent_id))
+                state["completed_agents"] = sorted(completed)
+            elif event_type == "agent_invocation_cancelled":
+                cancelled = set(_as_list(state.get("cancelled_agents")))
+                cancelled.add(str(agent_id))
+                state["cancelled_agents"] = sorted(cancelled)
     elif event_type in {"network.route.selected", "route.selected"}:
         state["current_route"] = payload.get("route") or payload.get("target")
     elif event_type == "usage":
@@ -237,6 +248,14 @@ def reduce_projection(
         state["active_agents"] = []
     elif event_type in {"cancelled", "execution_cancelled"}:
         state["status"] = "cancelled"
+        answer = payload.get("answer") or payload.get("output")
+        if isinstance(answer, str):
+            state["output"] = answer
+        result = payload.get("result")
+        if isinstance(result, dict):
+            state["result"] = deepcopy(result)
+        elif payload:
+            state["result"] = deepcopy(payload)
         state["activity"] = None
         state["active_tools"] = []
         state["active_agents"] = []
@@ -393,7 +412,10 @@ class RuntimeStreamReader:
             state.update(deepcopy(durable))
             state["run_id"] = str(run_id)
             state["kind"] = run_kind.upper()
-            state["sequence"] = int(state.get("sequence") or 0)
+            # A durable-only snapshot has no Redis event watermark. Sequence zero
+            # would be a fabricated hot-stream cursor and can make a reconnecting
+            # client reject the authoritative terminal state as stale.
+            state["sequence"] = None
             state["realtime_available"] = False
             logger.info(
                 "Runtime reattach state resolved",
@@ -401,8 +423,8 @@ class RuntimeStreamReader:
                     "run_id": str(run_id),
                     "run_kind": run_kind.upper(),
                     "realtime_available": False,
-                    "high_watermark": 0,
-                    "projection_sequence": int(state.get("sequence") or 0),
+                    "high_watermark": None,
+                    "projection_sequence": None,
                     "projection_lag": 0,
                     "catchup_events": 0,
                     "attach_latency_ms": round((time.perf_counter() - started) * 1000, 3),
@@ -517,8 +539,18 @@ class RuntimeStreamReader:
                 run_kind,
                 durable_fallback=durable_fallback,
             )
-            sequence = int(projection.get("sequence") or 0)
-            state_frame = RuntimeStreamFrame("run.state", projection, sequence=sequence)
+            raw_sequence = projection.get("sequence")
+            state_sequence = (
+                raw_sequence
+                if isinstance(raw_sequence, int) and not isinstance(raw_sequence, bool)
+                else None
+            )
+            sequence = state_sequence or 0
+            state_frame = RuntimeStreamFrame(
+                "run.state",
+                projection,
+                sequence=state_sequence,
+            )
             frame_count += 1
             approx_stream_bytes += _frame_size(state_frame)
             yield state_frame
