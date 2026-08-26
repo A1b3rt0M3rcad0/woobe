@@ -10,7 +10,7 @@ COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 
 COPY . .
-RUN npm run typecheck && npm run build
+RUN npm run test && npm run typecheck && npm run build
 
 FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine AS runtime
 USER root

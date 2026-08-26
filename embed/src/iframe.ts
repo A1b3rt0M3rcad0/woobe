@@ -12,6 +12,15 @@ import {
   type FrameEventType,
 } from "./protocol";
 import { randomUuid } from "./random-uuid";
+import {
+  RuntimeStreamGapError,
+  acceptRuntimeFrameSequence,
+  parseRuntimeFrame,
+  runtimeTerminalStatus,
+  type ParsedRuntimeFrame,
+  type RuntimeSequenceState,
+  type RuntimeTerminalStatus,
+} from "./runtime-stream";
 import "./styles.css";
 
 interface SurfaceConfiguration {
@@ -28,10 +37,25 @@ interface ActiveRun {
   target_type: "agent" | "network";
 }
 
+interface RuntimeObserverState {
+  assistant: HTMLElement;
+  answer: string;
+  streamingStarted: boolean;
+  sequence: RuntimeSequenceState;
+  terminalStatus: RuntimeTerminalStatus | null;
+}
+
 class SessionExpiredError extends Error {
   constructor() {
     super("Session expired");
     this.name = "SessionExpiredError";
+  }
+}
+
+class RuntimeTerminalError extends Error {
+  constructor(message: string, readonly status: RuntimeTerminalStatus) {
+    super(message);
+    this.name = "RuntimeTerminalError";
   }
 }
 
@@ -175,71 +199,59 @@ function publicActivity(data: unknown): PublicAgentActivity | null {
   return { status, tool_name: toolName };
 }
 
-function nestedData(data: Record<string, unknown>): Record<string, unknown> {
-  return data.data && typeof data.data === "object" && !Array.isArray(data.data)
-    ? data.data as Record<string, unknown>
-    : data;
+function runtimeFailureMessage(frame: ParsedRuntimeFrame): string {
+  const payload = frame.payload;
+  if (typeof payload.failure_detail === "string") return payload.failure_detail;
+  if (typeof payload.message === "string") return payload.message;
+  if (typeof frame.data.message === "string") return frame.data.message;
+  if (frame.eventType === "execution_cancelled" || frame.eventType === "cancelled") {
+    return "Run cancelled";
+  }
+  if (frame.eventType === "execution_timed_out") return "Run timed out";
+  return "Run failed";
 }
 
-async function consumeRuntimeStream(response: Response, resumed: boolean) {
-  const chatUi = ensureUi();
-  const assistant = chatUi.appendPendingAssistant();
-  let answer = "";
-  let streamingStarted = false;
-
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error("Streaming is not available");
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  const beginStreaming = () => {
-    if (streamingStarted) return;
-    streamingStarted = true;
-    chatUi.beginAssistantStreaming(assistant);
+function createRuntimeObserver(): RuntimeObserverState {
+  return {
+    assistant: ensureUi().appendPendingAssistant(),
+    answer: "",
+    streamingStarted: false,
+    sequence: { sequence: null },
+    terminalStatus: null,
   };
+}
 
-  const replaceAnswer = (content: string) => {
-    beginStreaming();
-    answer = content;
-    chatUi.updateAssistantStreaming(assistant, answer);
-  };
+function beginStreaming(observer: RuntimeObserverState) {
+  if (observer.streamingStarted) return;
+  observer.streamingStarted = true;
+  ensureUi().beginAssistantStreaming(observer.assistant);
+}
 
-  const consumeFrame = (frame: string) => {
-    const lines = frame.split("\n");
-    const eventLine = lines.find((line) => line.startsWith("event:"));
-    const dataLines = lines.filter((line) => line.startsWith("data:"));
-    if (!dataLines.length) return;
-    const eventType = eventLine?.slice(6).trim();
-    const data = JSON.parse(dataLines.map((line) => line.slice(5).trim()).join("\n")) as Record<string, unknown>;
-    const payload = nestedData(data);
+function replaceAnswer(observer: RuntimeObserverState, content: string) {
+  beginStreaming(observer);
+  observer.answer = content;
+  ensureUi().updateAssistantStreaming(observer.assistant, observer.answer);
+}
 
-    if (eventType === "run.state" || data.type === "run.state") {
-      const output = typeof payload.output === "string" ? payload.output : "";
-      replaceAnswer(output);
-      const status = typeof payload.status === "string" ? payload.status : "";
-      if (status === "failed" || status === "uncertain" || status === "timed_out") {
-        throw new Error(
-          typeof payload.failure_detail === "string"
-            ? payload.failure_detail
-            : "Run failed",
-        );
-      }
-      if (status === "cancelled") throw new Error("Run cancelled");
-      return;
+function applyRuntimeFrame(
+  parsed: ParsedRuntimeFrame,
+  observer: RuntimeObserverState,
+): RuntimeTerminalStatus | null {
+  if (!acceptRuntimeFrameSequence(parsed, observer.sequence)) return null;
+
+  const { eventType, data, payload } = parsed;
+  if (eventType === "run.state") {
+    replaceAnswer(observer, typeof payload.output === "string" ? payload.output : "");
+  } else if (eventType === "agent_activity" || data.type === "agent_activity") {
+    const activity = publicActivity(data);
+    if (activity) {
+      const label = ensureUi().updateAssistantActivity(observer.assistant, activity);
+      emit("run.activity", {
+        status: activity.status,
+        message: label || undefined,
+      });
     }
-
-    if (eventType === "agent_activity" || data.type === "agent_activity") {
-      const activity = publicActivity(data);
-      if (activity) {
-        const label = chatUi.updateAssistantActivity(assistant, activity);
-        emit("run.activity", {
-          status: activity.status,
-          message: label || undefined,
-        });
-      }
-      return;
-    }
-
+  } else {
     const token =
       typeof data.token === "string"
         ? data.token
@@ -250,60 +262,144 @@ async function consumeRuntimeStream(response: Response, resumed: boolean) {
             : "";
 
     if ((eventType === "token" || data.type === "token") && token) {
-      beginStreaming();
-      answer += token;
-      chatUi.updateAssistantStreaming(assistant, answer);
+      beginStreaming(observer);
+      observer.answer += token;
+      ensureUi().updateAssistantStreaming(observer.assistant, observer.answer);
     }
 
     if (eventType === "token_retract" || data.type === "token_retract") {
       const length = typeof payload.content_length === "number" ? payload.content_length : 0;
-      if (length > 0) replaceAnswer(answer.slice(0, Math.max(0, answer.length - length)));
+      if (length > 0) {
+        replaceAnswer(
+          observer,
+          observer.answer.slice(0, Math.max(0, observer.answer.length - length)),
+        );
+      }
     }
 
-    if (data.type === "done" && typeof data.answer === "string") {
-      replaceAnswer(data.answer);
+    if (eventType === "done" && typeof data.answer === "string") {
+      replaceAnswer(observer, data.answer);
     }
+  }
 
-    if (
-      data.type === "error" ||
-      eventType === "execution_failed" ||
-      eventType === "execution_timed_out" ||
-      eventType === "execution_cancelled"
-    ) {
-      throw new Error(
-        typeof data.message === "string"
-          ? data.message
-          : typeof payload.message === "string"
-            ? payload.message
-            : "Run failed",
-      );
-    }
+  const terminal = runtimeTerminalStatus(parsed);
+  if (terminal !== null) observer.terminalStatus = terminal;
+  return terminal;
+}
+
+async function consumeRuntimeStream(
+  response: Response,
+  observer: RuntimeObserverState,
+): Promise<RuntimeTerminalStatus | null> {
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error("Streaming is not available");
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const consumeFrame = (frame: string) => {
+    const parsed = parseRuntimeFrame(frame);
+    if (!parsed) return;
+    applyRuntimeFrame(parsed, observer);
   };
 
   try {
-    while (true) {
+    while (observer.terminalStatus === null) {
       const { value, done } = await reader.read();
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const frames = buffer.split(/\r?\n\r?\n/);
       buffer = frames.pop() ?? "";
-      for (const frame of frames) consumeFrame(frame);
+      for (const frame of frames) {
+        consumeFrame(frame);
+        if (observer.terminalStatus !== null) break;
+      }
     }
     buffer += decoder.decode();
-    if (buffer.trim()) consumeFrame(buffer);
-
-    if (!answer) {
-      chatUi.removeMessage(assistant);
-      if (!resumed) throw new Error("The Run completed without a response");
-      return;
-    }
-    chatUi.finishAssistantStreaming(assistant);
-    emit("run.completed", { resumed });
+    if (observer.terminalStatus === null && buffer.trim()) consumeFrame(buffer);
+    return observer.terminalStatus;
   } catch (error) {
-    if (!answer) chatUi.removeMessage(assistant);
-    else chatUi.finishAssistantStreaming(assistant);
+    await reader.cancel().catch(() => undefined);
     throw error;
+  } finally {
+    if (observer.terminalStatus !== null) {
+      await reader.cancel().catch(() => undefined);
+    }
   }
+}
+
+function finalizeObserver(
+  observer: RuntimeObserverState,
+  terminal: RuntimeTerminalStatus,
+  resumed: boolean,
+) {
+  const chatUi = ensureUi();
+  if (!observer.answer) {
+    chatUi.removeMessage(observer.assistant);
+  } else {
+    chatUi.finishAssistantStreaming(observer.assistant);
+  }
+
+  if (terminal === "completed") {
+    if (!observer.answer && !resumed) {
+      throw new Error("The Run completed without a response");
+    }
+    emit("run.completed", { resumed });
+    return;
+  }
+
+  throw new RuntimeTerminalError(
+    terminal === "cancelled"
+      ? "Run cancelled"
+      : terminal === "timed_out"
+        ? "Run timed out"
+        : terminal === "uncertain"
+          ? "Run outcome is uncertain"
+          : "Run failed",
+    terminal,
+  );
+}
+
+function retryDelay(attempt: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, 250 * (attempt + 1)));
+}
+
+async function observeRuntimeRun(
+  firstResponse: Response,
+  *,
+  resumed: boolean,
+): Promise<void> {
+  const observer = createRuntimeObserver();
+  let response = firstResponse;
+  let lastTransportError: unknown = null;
+
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    try {
+      const terminal = await consumeRuntimeStream(response, observer);
+      if (terminal !== null) {
+        finalizeObserver(observer, terminal, resumed);
+        return;
+      }
+      lastTransportError = new Error("Runtime stream ended before a terminal event");
+    } catch (error) {
+      if (error instanceof SessionExpiredError || error instanceof RuntimeTerminalError) {
+        throw error;
+      }
+      if (!(error instanceof RuntimeStreamGapError) && !(error instanceof Error)) {
+        throw error;
+      }
+      lastTransportError = error;
+    }
+
+    if (attempt === 3) break;
+    await retryDelay(attempt);
+    response = await api(`/v1/chat/sessions/${sessionId}/active-run/stream`);
+  }
+
+  if (!observer.answer) ensureUi().removeMessage(observer.assistant);
+  else ensureUi().finishAssistantStreaming(observer.assistant);
+  throw lastTransportError instanceof Error
+    ? lastTransportError
+    : new Error("Active Run reattach failed");
 }
 
 async function resumeActiveRun() {
@@ -317,7 +413,7 @@ async function resumeActiveRun() {
   emit("run.started", { resumed: true, runId: active.run_id });
   try {
     const response = await api(`/v1/chat/sessions/${sessionId}/active-run/stream`);
-    await consumeRuntimeStream(response, true);
+    await observeRuntimeRun(response, { resumed: true });
     await loadHistory();
   } catch (error) {
     appendError(error);
@@ -365,7 +461,9 @@ async function sendMessage(message: string) {
       },
       body: JSON.stringify({ message }),
     });
-    await consumeRuntimeStream(response, false);
+    // The POST is create+observe convenience only. Once it returns, any transport
+    // recovery happens through active-run/stream and never submits the message again.
+    await observeRuntimeRun(response, { resumed: false });
   } catch (error) {
     appendError(error);
   } finally {
