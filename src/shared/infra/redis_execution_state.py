@@ -107,6 +107,7 @@ class RedisExecutionStateStore(ExecutionStateStore):
         encoded.setdefault("cancel_requested", self._encode(False))
         encoded.setdefault("lease_generation", self._encode(0))
         encoded.setdefault("event_sequence", self._encode(0))
+        encoded.setdefault("last_event_cursor", self._encode("0-0"))
         encoded["updated_at"] = self._encode(datetime.now(timezone.utc).isoformat())
         async with self._client.pipeline(transaction=False) as pipe:
             pipe.hset(state_key, mapping=encoded)
