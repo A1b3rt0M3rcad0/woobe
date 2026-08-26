@@ -9,6 +9,9 @@ from uuid import UUID
 
 from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
+from modules.agent.domain.entities import Message
+from modules.agent.domain.enums import MessageRole
+from modules.agent.domain.events import AgentMessageCreatedV1
 from modules.agent.domain.run import AgentRunStatus
 from modules.agent.domain.runtime_events import AgentExecutionCancelledV1
 from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
@@ -26,6 +29,7 @@ from modules.agent.infra.execution.structured_output_ask_use_case import (
 )
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.contracts.execution_state import ExecutionStateStore
+from shared.contracts.time import utc_now
 from shared.runtime_reattach import (
     RuntimeEventPublisher,
     RuntimeStreamReader,
@@ -95,8 +99,27 @@ class AskAgentStreamService:
             await channel.emit("done", **result.model_dump(mode="json"))
             return result
         except asyncio.CancelledError:
-            await self._persist_cancelled(channel, input_dto, "cancel_requested")
-            await channel.emit("cancelled", reason="cancel_requested")
+            persisted = await self._persist_cancelled(
+                channel,
+                input_dto,
+                "cancel_requested",
+            )
+            result = {
+                "answer": channel.public_output,
+                "partial": bool(channel.public_output),
+                "cancelled": True,
+                "reason": "cancel_requested",
+                "usage": channel.latest_usage,
+            }
+            await channel.emit(
+                "cancelled",
+                reason="cancel_requested",
+                output=channel.public_output,
+                result=result,
+                usage=channel.latest_usage,
+                partial=bool(channel.public_output),
+                persisted=persisted,
+            )
             raise
         except Exception as exc:
             # The use case owns durable failure finalization. This terminal runtime
@@ -119,6 +142,17 @@ class AskAgentStreamService:
         agent_id = channel.agent_id or input_dto.agent_id
         session_id = channel.session_id or input_dto.session_id
         run_id = getattr(channel, "run_id", None)
+        partial_output = channel.public_output
+        usage = dict(channel.latest_usage or {})
+        result = {
+            "answer": partial_output,
+            "partial": bool(partial_output),
+            "cancelled": True,
+            "reason": reason,
+            "usage": usage or None,
+            "trace_id": str(channel.trace_id),
+            "session_id": str(session_id) if session_id is not None else None,
+        }
         payload = {
             "run_id": str(run_id) if run_id is not None else None,
             "trace_id": str(channel.trace_id),
@@ -127,12 +161,14 @@ class AskAgentStreamService:
             "session_id": str(session_id) if session_id is not None else None,
             "request_id": str(channel.request_id),
             "reason": reason,
+            "partial": bool(partial_output),
         }
         event = AgentExecutionCancelledV1.create(
             agent_id=agent_id,
             session_id=session_id,
             payload=payload,
         )
+        completed_at = datetime.now(timezone.utc)
 
         async def persist(
             repositories: AgentRuntimeRepositories,
@@ -148,11 +184,44 @@ class AskAgentStreamService:
                 if run is None or run.status != AgentRunStatus.RUNNING:
                     return False
                 run.status = AgentRunStatus.CANCELLED
-                run.failure_code = "cancelled"
-                run.failure_detail = reason
-                run.result = payload
-                run.completed_at = datetime.now(timezone.utc)
+                run.failure_code = None
+                run.failure_detail = None
+                run.result = result
+                if usage:
+                    run.usage = usage
+                run.completed_at = completed_at
                 await repositories.runs.save(run)
+
+            if session_id is not None and partial_output:
+                session = await repositories.sessions.get_by_id(session_id)
+                message = Message(
+                    project_id=project_id,
+                    agent_id=agent_id,
+                    session_id=session_id,
+                    role=MessageRole.ASSISTANT,
+                    content=partial_output,
+                    input_tokens=usage.get("input_tokens"),
+                    output_tokens=usage.get("output_tokens"),
+                    cost_usd=usage.get("cost_usd"),
+                    data={
+                        "cancelled": True,
+                        "partial": True,
+                        "run_id": str(run_id) if run_id is not None else None,
+                        "trace_id": str(channel.trace_id),
+                    },
+                )
+                created = await repositories.messages.create(message)
+                session.last_message_at = utc_now()
+                await repositories.sessions.update(session)
+                await outbox.write(
+                    AgentMessageCreatedV1.create(
+                        message_id=created.id,
+                        session_id=session_id,
+                        project_id=project_id,
+                        agent_id=agent_id,
+                        role="assistant",
+                    )
+                )
 
             await outbox.write(event)
             return True
@@ -162,7 +231,12 @@ class AskAgentStreamService:
             try:
                 await self._state_store.update(
                     run_id,
-                    {"status": "cancelled", "phase": "persisted"},
+                    {
+                        "status": "cancelled",
+                        "phase": "persisted",
+                        "terminal_result": result,
+                        "usage": usage,
+                    },
                 )
             except Exception:
                 pass
