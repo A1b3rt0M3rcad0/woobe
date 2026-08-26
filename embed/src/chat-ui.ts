@@ -26,9 +26,11 @@ export interface ChatUi {
   finishAssistantStreaming(element: HTMLElement): void;
   removeMessage(element: HTMLElement): void;
   appendError(message: string): void;
+  appendStatus(message: string): void;
   showSessionExpired(): void;
   clearSessionExpired(): void;
   setSubmitting(value: boolean): void;
+  setStopping(value: boolean): void;
   clearComposer(): void;
   focusComposer(): void;
   scrollToLatest(force?: boolean): void;
@@ -36,6 +38,7 @@ export interface ChatUi {
 
 interface CreateChatUiOptions {
   onSubmit?: (message: string) => void;
+  onStop?: () => void;
 }
 
 const ACTIVITY_STATUSES = new Set([
@@ -103,10 +106,13 @@ function renderSendButton(
   button: HTMLButtonElement,
   appearance: SurfaceAppearance,
   submitting: boolean,
+  stopping: boolean,
 ) {
   button.replaceChildren();
   if (submitting) {
-    button.textContent = "Sending…";
+    const label = stopping ? "Stopping…" : "Stop";
+    button.textContent = label;
+    button.setAttribute("aria-label", label);
     return;
   }
 
@@ -170,6 +176,7 @@ export function createChatUi(
 ): ChatUi {
   let appearance = normalizeAppearance(initialAppearance);
   let submitting = false;
+  let stopping = false;
   let sessionExpired = false;
   let followLatest = true;
   const streamingFrames = new Map<HTMLElement, number>();
@@ -227,10 +234,9 @@ export function createChatUi(
   };
 
   const updateComposerState = () => {
-    const disabled = submitting || sessionExpired;
-    input.disabled = disabled;
-    button.disabled = disabled;
-    renderSendButton(button, appearance, submitting);
+    input.disabled = submitting || sessionExpired;
+    button.disabled = sessionExpired || stopping;
+    renderSendButton(button, appearance, submitting, stopping);
   };
 
   const setAppearance = (next: SurfaceAppearance) => {
@@ -315,7 +321,11 @@ export function createChatUi(
 
   form.addEventListener("submit", (event) => {
     event.preventDefault();
-    if (submitting || sessionExpired) return;
+    if (sessionExpired) return;
+    if (submitting) {
+      if (!stopping) options.onStop?.();
+      return;
+    }
     const message = input.value.trim();
     if (!message) return;
     options.onSubmit?.(message);
@@ -404,6 +414,15 @@ export function createChatUi(
       messages.appendChild(item);
       scrollToLatest(true);
     },
+    appendStatus(message) {
+      const item = document.createElement("article");
+      item.className = "message message--system";
+      const detail = document.createElement("span");
+      detail.textContent = message;
+      item.append(detail);
+      messages.appendChild(item);
+      scrollToLatest(true);
+    },
     showSessionExpired() {
       sessionExpired = true;
       updateComposerState();
@@ -425,6 +444,11 @@ export function createChatUi(
     },
     setSubmitting(value) {
       submitting = value;
+      if (!value) stopping = false;
+      updateComposerState();
+    },
+    setStopping(value) {
+      stopping = value;
       updateComposerState();
     },
     clearComposer() {
