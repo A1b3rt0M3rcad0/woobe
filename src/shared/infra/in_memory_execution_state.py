@@ -34,6 +34,7 @@ class InMemoryExecutionStateStore(ExecutionStateStore):
                 "cancel_requested": False,
                 "lease_generation": 0,
                 "event_sequence": 0,
+                "last_event_cursor": "0",
                 **deepcopy(state),
             }
 
