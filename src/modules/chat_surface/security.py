@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -20,9 +21,12 @@ def _encode_segment(value: bytes) -> str:
 def _decode_segment(value: str) -> bytes:
     padding = "=" * (-len(value) % 4)
     try:
-        return base64.urlsafe_b64decode(value + padding)
-    except (ValueError, TypeError) as exc:
+        decoded = base64.urlsafe_b64decode(value + padding)
+    except (binascii.Error, ValueError, TypeError) as exc:
         raise AuthenticationError("Invalid ChatSurface Session token") from exc
+    if _encode_segment(decoded) != value:
+        raise AuthenticationError("Invalid ChatSurface Session token")
+    return decoded
 
 
 def normalize_origin(value: str, *, allow_insecure: bool = False) -> str:
