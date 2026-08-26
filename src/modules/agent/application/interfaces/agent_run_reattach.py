@@ -5,7 +5,7 @@ from typing import Protocol
 from uuid import UUID
 
 
-class AgentRunReattachGateway(Protocol):
+class AgentRunReattachOperations(Protocol):
     async def authorize(self, *, run_id: UUID, principal: object | None) -> None: ...
 
     async def active(

@@ -6,13 +6,13 @@ from fastapi import Request as FastAPIRequest
 from fastapi.responses import StreamingResponse
 
 from modules.agent.application.interfaces.agent_run_reattach import (
-    AgentRunReattachGateway,
+    AgentRunReattachOperations,
 )
 
 
 class AgentRunReattachController:
-    def __init__(self, gateway: AgentRunReattachGateway) -> None:
-        self._gateway = gateway
+    def __init__(self, operations: AgentRunReattachOperations) -> None:
+        self._operations = operations
 
     @staticmethod
     def _principal(request: FastAPIRequest) -> object | None:
@@ -23,7 +23,7 @@ class AgentRunReattachController:
         request: FastAPIRequest,
         session_id: UUID,
     ) -> dict:
-        data = await self._gateway.active(
+        data = await self._operations.active(
             session_id=session_id,
             principal=self._principal(request),
         )
@@ -35,10 +35,10 @@ class AgentRunReattachController:
         request: FastAPIRequest,
     ) -> StreamingResponse:
         principal = self._principal(request)
-        await self._gateway.authorize(run_id=run_id, principal=principal)
+        await self._operations.authorize(run_id=run_id, principal=principal)
 
         async def generate():
-            async for chunk in self._gateway.stream_sse(
+            async for chunk in self._operations.stream_sse(
                 run_id=run_id,
                 principal=principal,
             ):
@@ -62,7 +62,7 @@ class AgentRunReattachController:
         run_id: UUID,
         request: FastAPIRequest,
     ) -> dict:
-        data = await self._gateway.cancel(
+        data = await self._operations.cancel(
             run_id=run_id,
             principal=self._principal(request),
         )
