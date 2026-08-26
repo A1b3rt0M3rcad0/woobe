@@ -5,19 +5,29 @@ from uuid import UUID
 
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 
 from modules.agent.infra.database.run_models import AgentRunModel
+from modules.chat_surface.infra.database.models import ChatSurfaceMessageRequestModel
 from modules.chat_surface.presentation.routes import _authorized_session, _service
 from modules.network.infra.database.models import NetworkExecutionModel
 from modules.network.presentation.reattach_routes import network_runtime_sse
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
-from shared.runtime_reattach import RuntimeStreamFrame, RuntimeStreamGapError, RuntimeStreamReader, format_sse_frame
+from shared.runtime_reattach import (
+    RuntimeStreamFrame,
+    RuntimeStreamGapError,
+    RuntimeStreamReader,
+    format_sse_frame,
+)
 
 
 router = APIRouter(tags=["chat-surfaces", "runtime"])
 _AGENT_TERMINAL = {"completed", "failed", "cancelled", "uncertain"}
 _NETWORK_TERMINAL = {"completed", "failed", "cancelled", "timed_out", "uncertain"}
+_AGENT_ACTIVE = {"running"}
+_NETWORK_ACTIVE = {"queued", "running", "cancel_requested"}
+_MESSAGE_ACTIVE = {"accepted", "streaming"}
 
 
 def _agent_state(run: AgentRunModel) -> dict:
@@ -64,6 +74,117 @@ def _network_state(execution: NetworkExecutionModel) -> dict:
     }
 
 
+def _valid_agent_run(run: AgentRunModel | None, authorized) -> bool:
+    return bool(
+        run is not None
+        and run.project_id == authorized.binding.project_id
+        and run.agent_id == authorized.binding.target_id
+        and run.session_id == authorized.binding.session_id
+        and run.agent_release_id == authorized.binding.target_release_id
+        and run.network_execution_id is None
+    )
+
+
+def _valid_network_run(execution: NetworkExecutionModel | None, authorized) -> bool:
+    return bool(
+        execution is not None
+        and execution.project_id == authorized.binding.project_id
+        and execution.network_id == authorized.binding.target_id
+        and execution.network_session_id == authorized.binding.session_id
+        and execution.network_version_id == authorized.binding.target_release_id
+    )
+
+
+async def _latest_message_request(request: Request, binding_id: UUID):
+    async with request.app.state.session_factory() as session:
+        active = await session.scalar(
+            select(ChatSurfaceMessageRequestModel)
+            .where(
+                ChatSurfaceMessageRequestModel.session_binding_id == binding_id,
+                ChatSurfaceMessageRequestModel.status.in_(_MESSAGE_ACTIVE),
+            )
+            .order_by(
+                ChatSurfaceMessageRequestModel.created_at.desc(),
+                ChatSurfaceMessageRequestModel.id.desc(),
+            )
+            .limit(1)
+        )
+        if active is not None:
+            return active
+        return await session.scalar(
+            select(ChatSurfaceMessageRequestModel)
+            .where(ChatSurfaceMessageRequestModel.session_binding_id == binding_id)
+            .order_by(
+                ChatSurfaceMessageRequestModel.created_at.desc(),
+                ChatSurfaceMessageRequestModel.id.desc(),
+            )
+            .limit(1)
+        )
+
+
+async def _resolve_run_identity(request: Request, authorized, message_request):
+    if message_request is None:
+        return None, None
+
+    async with request.app.state.session_factory() as session:
+        if authorized.binding.target_type == "agent":
+            if message_request.target_run_id is not None:
+                candidate = await session.get(AgentRunModel, message_request.target_run_id)
+                if _valid_agent_run(candidate, authorized) and (
+                    str(candidate.status) in _AGENT_ACTIVE
+                    or message_request.status in _MESSAGE_ACTIVE
+                ):
+                    return candidate.id, str(candidate.status)
+
+            candidate = await session.scalar(
+                select(AgentRunModel)
+                .where(
+                    AgentRunModel.project_id == authorized.binding.project_id,
+                    AgentRunModel.agent_id == authorized.binding.target_id,
+                    AgentRunModel.session_id == authorized.binding.session_id,
+                    AgentRunModel.agent_release_id == authorized.binding.target_release_id,
+                    AgentRunModel.network_execution_id.is_(None),
+                    AgentRunModel.status.in_(_AGENT_ACTIVE),
+                )
+                .order_by(AgentRunModel.created_at.desc(), AgentRunModel.id.desc())
+                .limit(1)
+            )
+            if _valid_agent_run(candidate, authorized):
+                return candidate.id, str(candidate.status)
+            return None, None
+
+        if message_request.target_run_id is not None:
+            candidate = await session.get(
+                NetworkExecutionModel,
+                message_request.target_run_id,
+            )
+            if _valid_network_run(candidate, authorized) and (
+                str(candidate.status) in _NETWORK_ACTIVE
+                or message_request.status in _MESSAGE_ACTIVE
+            ):
+                return candidate.id, str(candidate.status)
+
+        candidate = await session.scalar(
+            select(NetworkExecutionModel)
+            .where(
+                NetworkExecutionModel.project_id == authorized.binding.project_id,
+                NetworkExecutionModel.network_id == authorized.binding.target_id,
+                NetworkExecutionModel.network_session_id == authorized.binding.session_id,
+                NetworkExecutionModel.network_version_id
+                == authorized.binding.target_release_id,
+                NetworkExecutionModel.status.in_(_NETWORK_ACTIVE),
+            )
+            .order_by(
+                NetworkExecutionModel.created_at.desc(),
+                NetworkExecutionModel.id.desc(),
+            )
+            .limit(1)
+        )
+        if _valid_network_run(candidate, authorized):
+            return candidate.id, str(candidate.status)
+        return None, None
+
+
 async def _authorized_active_request(
     request: Request,
     session_id: UUID,
@@ -78,17 +199,54 @@ async def _authorized_active_request(
     if "chat:stream" not in authorized.claims.permissions:
         raise AuthorizationError("ChatSurface Session token scope is insufficient")
 
-    service = _service(request)
-    active = await service.active_message_request(authorized)
-    if active is not None and active.target_run_id is None:
-        # Agent Acceptance and ChatSurface admission are separate durable boundaries.
-        # Give the runtime a short window to expose the canonical Run identity.
+    message_request = await _latest_message_request(request, authorized.binding.id)
+    run_id, run_status = await _resolve_run_identity(
+        request,
+        authorized,
+        message_request,
+    )
+
+    # Agent Acceptance and ChatSurface admission are separate durable boundaries.
+    # A disconnect can also close the old observer before ChatSurface persisted the
+    # canonical Run id. Recover identity from the underlying Run bound to this Session.
+    if message_request is not None and run_id is None:
         for _ in range(20):
             await asyncio.sleep(0.05)
-            active = await service.active_message_request(authorized)
-            if active is None or active.target_run_id is not None:
+            message_request = await _latest_message_request(
+                request,
+                authorized.binding.id,
+            )
+            run_id, run_status = await _resolve_run_identity(
+                request,
+                authorized,
+                message_request,
+            )
+            if run_id is not None:
                 break
-    return authorized, active
+
+    if (
+        message_request is not None
+        and run_id is not None
+        and run_status in (_AGENT_ACTIVE | _NETWORK_ACTIVE)
+        and (
+            message_request.status not in _MESSAGE_ACTIVE
+            or message_request.target_run_id != run_id
+        )
+    ):
+        # Restore the operational gate if the previous observer disconnected after
+        # the Run had already been accepted. The Run, not that observer, owns life.
+        await _service(request).mark_message(
+            message_request.id,
+            status="streaming",
+            target_run_id=run_id,
+            error_code=None,
+        )
+        message_request = await _latest_message_request(
+            request,
+            authorized.binding.id,
+        )
+
+    return authorized, message_request, run_id, run_status
 
 
 @router.get("/v1/chat/sessions/{session_id}/active-run")
@@ -97,19 +255,19 @@ async def get_chat_active_run(
     request: Request,
     host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
 ):
-    authorized, active = await _authorized_active_request(
+    authorized, message_request, run_id, run_status = await _authorized_active_request(
         request,
         session_id,
         host_origin,
     )
-    if active is None:
+    if message_request is None or run_id is None:
         return {"success": True, "data": None}
     return {
         "success": True,
         "data": {
-            "message_request_id": str(active.id),
-            "run_id": str(active.target_run_id) if active.target_run_id else None,
-            "status": active.status,
+            "message_request_id": str(message_request.id),
+            "run_id": str(run_id),
+            "status": run_status or message_request.status,
             "target_type": authorized.binding.target_type,
         },
     }
@@ -121,17 +279,16 @@ async def stream_chat_active_run(
     request: Request,
     host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
 ) -> StreamingResponse:
-    authorized, active = await _authorized_active_request(
+    authorized, message_request, run_id, _ = await _authorized_active_request(
         request,
         session_id,
         host_origin,
     )
-    if active is None:
+    if message_request is None:
         raise NotFoundError("ChatSurface Session has no active Run")
-    if active.target_run_id is None:
+    if run_id is None:
         raise ConflictError("ChatSurface Run was accepted but its identity is not ready")
 
-    run_id = active.target_run_id
     reader = RuntimeStreamReader(
         EXECUTION_STATE_STORE,
         heartbeat_seconds=request.app.state.settings.network_stream_heartbeat_seconds,
@@ -139,16 +296,11 @@ async def stream_chat_active_run(
     )
 
     if authorized.binding.target_type == "agent":
+
         async def durable_fallback() -> dict | None:
             async with request.app.state.session_factory() as session:
                 run = await session.get(AgentRunModel, run_id)
-            if (
-                run is None
-                or run.project_id != authorized.binding.project_id
-                or run.agent_id != authorized.binding.target_id
-                or run.session_id != authorized.binding.session_id
-                or run.agent_release_id != authorized.binding.target_release_id
-            ):
+            if not _valid_agent_run(run, authorized):
                 raise NotFoundError("Agent Run not found")
             return _agent_state(run)
 
@@ -156,16 +308,11 @@ async def stream_chat_active_run(
         kind = "agent"
         terminal_statuses = _AGENT_TERMINAL
     else:
+
         async def durable_fallback() -> dict | None:
             async with request.app.state.session_factory() as session:
                 execution = await session.get(NetworkExecutionModel, run_id)
-            if (
-                execution is None
-                or execution.project_id != authorized.binding.project_id
-                or execution.network_id != authorized.binding.target_id
-                or execution.network_session_id != authorized.binding.session_id
-                or execution.network_version_id != authorized.binding.target_release_id
-            ):
+            if not _valid_network_run(execution, authorized):
                 raise NotFoundError("Network execution not found")
             return _network_state(execution)
 
@@ -215,7 +362,7 @@ async def stream_chat_active_run(
             # state may close it, preserving reload/reattach semantics.
             if terminal_status is not None:
                 await _service(request).mark_message(
-                    active.id,
+                    message_request.id,
                     status=(
                         "completed"
                         if terminal_status == "completed"
@@ -236,7 +383,7 @@ async def stream_chat_active_run(
             "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
-            "X-Woobe-Message-Request-ID": str(active.id),
+            "X-Woobe-Message-Request-ID": str(message_request.id),
             "X-Woobe-Run-ID": str(run_id),
         },
     )
