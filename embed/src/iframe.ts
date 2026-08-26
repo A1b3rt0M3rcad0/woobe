@@ -76,6 +76,7 @@ let sessionToken = "";
 let sessionId = "";
 let appearance = DEFAULT_APPEARANCE;
 let submitting = false;
+let stopping = false;
 let initialized = false;
 let bootstrapping = false;
 let ui: ChatUi | null = null;
@@ -111,6 +112,9 @@ function ensureUi(nextAppearance = appearance): ChatUi {
     ui = createChatUi(root, appearance, {
       onSubmit(message) {
         void sendMessage(message);
+      },
+      onStop() {
+        void requestCancel();
       },
     });
   } else {
@@ -268,6 +272,13 @@ function applyRuntimeFrame(
     if (eventType === "done" && typeof data.answer === "string") {
       replaceAnswer(observer, data.answer);
     }
+
+    if (
+      (eventType === "cancelled" || eventType === "execution_cancelled")
+      && typeof payload.output === "string"
+    ) {
+      replaceAnswer(observer, payload.output);
+    }
   }
 
   const terminal = runtimeTerminalStatus(parsed);
@@ -335,14 +346,21 @@ function finalizeObserver(
     return;
   }
 
+  if (terminal === "cancelled") {
+    chatUi.appendStatus("Stopped");
+    emit("run.cancelled", {
+      resumed,
+      partial: Boolean(observer.answer),
+    });
+    return;
+  }
+
   throw new RuntimeTerminalError(
-    terminal === "cancelled"
-      ? "Run cancelled"
-      : terminal === "timed_out"
-        ? "Run timed out"
-        : terminal === "uncertain"
-          ? "Run outcome is uncertain"
-          : "Run failed",
+    terminal === "timed_out"
+      ? "Run timed out"
+      : terminal === "uncertain"
+        ? "Run outcome is uncertain"
+        : "Run failed",
     terminal,
   );
 }
@@ -390,6 +408,23 @@ async function observeRuntimeRun(
     : new Error("Active Run reattach failed");
 }
 
+async function requestCancel() {
+  if (!submitting || stopping || !sessionId) return;
+  const chatUi = ensureUi();
+  stopping = true;
+  chatUi.setStopping(true);
+  emit("run.stopping");
+  try {
+    await api(`/v1/chat/sessions/${sessionId}/active-run/cancel`, {
+      method: "POST",
+    });
+  } catch (error) {
+    stopping = false;
+    chatUi.setStopping(false);
+    appendError(error);
+  }
+}
+
 async function resumeActiveRun() {
   if (submitting) return;
   const active = await loadActiveRun();
@@ -397,6 +432,8 @@ async function resumeActiveRun() {
 
   const chatUi = ensureUi();
   submitting = true;
+  stopping = false;
+  chatUi.setStopping(false);
   chatUi.setSubmitting(true);
   emit("run.started", { resumed: true, runId: active.run_id });
   try {
@@ -407,6 +444,8 @@ async function resumeActiveRun() {
     appendError(error);
   } finally {
     submitting = false;
+    stopping = false;
+    chatUi.setStopping(false);
     chatUi.setSubmitting(false);
     chatUi.focusComposer();
   }
@@ -434,6 +473,8 @@ async function sendMessage(message: string) {
   if (submitting) return;
   const chatUi = ensureUi();
   submitting = true;
+  stopping = false;
+  chatUi.setStopping(false);
   chatUi.clearComposer();
   chatUi.appendMessage("user", message, true);
   chatUi.setSubmitting(true);
@@ -464,6 +505,8 @@ async function sendMessage(message: string) {
     appendError(error);
   } finally {
     submitting = false;
+    stopping = false;
+    chatUi.setStopping(false);
     chatUi.setSubmitting(false);
     chatUi.focusComposer();
   }
@@ -500,9 +543,13 @@ window.addEventListener("message", async (event) => {
     sessionId = nextSessionId;
     ensureUi().clearSessionExpired();
     await bootstrap();
+  } else if (event.data.type === "run.cancel") {
+    await requestCancel();
   } else if (event.data.type === "open") {
     emit("opened");
   } else if (event.data.type === "close") {
+    // Closing the surface only disconnects/hides the observer. It never requests
+    // execution cancellation; Stop/run.cancel is the explicit lifecycle command.
     emit("closed");
   }
 });
