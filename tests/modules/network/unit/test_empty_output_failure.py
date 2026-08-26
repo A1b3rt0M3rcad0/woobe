@@ -54,3 +54,13 @@ def test_network_stream_accepts_final_response_tokens() -> None:
             "phase": "final_response_generation",
         }
     ) is True
+
+
+def test_network_stream_accepts_committed_tool_followup_tokens() -> None:
+    assert _is_public_runtime_token(
+        {
+            "visibility": "assistant",
+            "channel": "final",
+            "phase": "tool_followup_1",
+        }
+    ) is True
