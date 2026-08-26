@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from modules.network.infra.database.models import NetworkExecutionModel, NetworkSessionModel
 from shared.composition_resources import EXECUTION_STATE_STORE
-from shared.infra.errors import AuthorizationError, NotFoundError
+from shared.infra.errors import AuthorizationError, NotFoundError, ValidationError
 from shared.runtime_reattach import RuntimeStreamFrame, RuntimeStreamGapError, RuntimeStreamReader
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
 
@@ -127,19 +127,42 @@ def network_runtime_sse(frame: RuntimeStreamFrame, execution_id: UUID) -> str:
 @router.get("/executions/active")
 async def active_network_execution(
     request: Request,
-    network_session_id: UUID,
+    network_session_id: UUID | None = None,
+    network_id: UUID | None = None,
+    environment: str | None = None,
 ):
+    if network_session_id is None and network_id is None:
+        raise ValidationError("network_session_id or network_id is required")
+    if environment is not None and environment not in {"draft", "staging", "production"}:
+        raise ValidationError("environment must be draft, staging or production")
+
     async with request.app.state.session_factory() as session:
-        execution = await session.scalar(
+        statement = (
             select(NetworkExecutionModel)
-            .where(
-                NetworkExecutionModel.network_session_id == network_session_id,
-                NetworkExecutionModel.status.in_(_ACTIVE_STATUSES),
+            .join(
+                NetworkSessionModel,
+                NetworkSessionModel.id == NetworkExecutionModel.network_session_id,
             )
+            .where(NetworkExecutionModel.status.in_(_ACTIVE_STATUSES))
+        )
+        if network_session_id is not None:
+            statement = statement.where(
+                NetworkExecutionModel.network_session_id == network_session_id
+            )
+        if network_id is not None:
+            statement = statement.where(NetworkExecutionModel.network_id == network_id)
+        if environment is not None:
+            statement = statement.where(NetworkSessionModel.environment == environment)
+        execution = await session.scalar(
+            statement
             .order_by(NetworkExecutionModel.created_at.desc(), NetworkExecutionModel.id.desc())
             .limit(1)
         )
-        network_session = await session.get(NetworkSessionModel, network_session_id)
+        network_session = (
+            await session.get(NetworkSessionModel, execution.network_session_id)
+            if execution is not None
+            else None
+        )
     if execution is None:
         return {"success": True, "data": None}
     _authorize_execution(request, execution, network_session)
