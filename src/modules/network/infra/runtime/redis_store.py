@@ -271,6 +271,7 @@ class RedisNetworkExecutionStore:
         invocation_id: UUID | None = None,
     ) -> None:
         event_payload = dict(payload)
+        invocation: dict[str, Any] | None = None
         if invocation_id is not None:
             event_payload["invocation_id"] = str(invocation_id)
             invocation = await self._invocation(execution_id, invocation_id)
@@ -278,6 +279,28 @@ class RedisNetworkExecutionStore:
                 for key in ("parent_invocation_id", "node_id", "agent_id", "depth"):
                     if invocation.get(key) is not None:
                         event_payload[key] = invocation[key]
+
+        # The structured failure emitted by NetworkExecutor is the canonical
+        # classification. Capture it in hot state so the bulk finalizer does not
+        # have to reconstruct or replace the Agent failure later.
+        if (
+            event_type == "agent_invocation_failed"
+            and invocation_id is not None
+            and invocation is not None
+        ):
+            failure = dict(event_payload)
+            failure.setdefault(
+                "internal_detail",
+                invocation.get("error") or failure.get("message") or "Agent invocation failed",
+            )
+            invocation["failure"] = failure
+            if not invocation.get("trace_id") and failure.get("trace_id"):
+                invocation["trace_id"] = failure["trace_id"]
+            await self._state.update(
+                execution_id,
+                {f"{self.INVOCATION_PREFIX}{invocation_id}": invocation},
+            )
+
         await self._events.publish(
             execution_id,
             "network",
