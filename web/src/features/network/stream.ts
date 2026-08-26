@@ -93,6 +93,11 @@ function acceptSequence(
   event: NetworkRuntimeEvent,
   streamState: NetworkStreamState,
 ): boolean {
+  const data = eventData(event)
+  // Durable-only run.state is authoritative and is not part of Redis ordering.
+  // Never reject it because an earlier observer saw a larger hot-stream sequence.
+  if (parsed.event === 'run.state' && data.realtime_available === false) return true
+
   const sequence = eventSequence(parsed, event)
   if (sequence === null) return true
   event.sequence = sequence
@@ -163,7 +168,12 @@ function applyRunState(
       output_parse_error: data.output_parse_error ?? null,
     }))
   } else if (status === 'cancelled') {
-    callbacks.onEvent('execution_cancelled', syntheticEvent(event, {}))
+    callbacks.onEvent('execution_cancelled', syntheticEvent(event, {
+      output,
+      trace_id: data.trace_id ?? null,
+      partial: Boolean(output),
+      cancelled: true,
+    }))
   } else {
     callbacks.onEvent('execution_failed', syntheticEvent(event, {
       code: data.failure_code ?? 'runtime_error',
