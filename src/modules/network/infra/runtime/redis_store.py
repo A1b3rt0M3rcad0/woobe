@@ -273,6 +273,11 @@ class RedisNetworkExecutionStore:
         event_payload = dict(payload)
         if invocation_id is not None:
             event_payload["invocation_id"] = str(invocation_id)
+            invocation = await self._invocation(execution_id, invocation_id)
+            if invocation is not None:
+                for key in ("parent_invocation_id", "node_id", "agent_id", "depth"):
+                    if invocation.get(key) is not None:
+                        event_payload[key] = invocation[key]
         await self._events.publish(
             execution_id,
             "network",
@@ -328,11 +333,15 @@ class RedisNetworkExecutionStore:
             if not state.get("terminal_event_published"):
                 terminal = state.get("terminal_result")
                 terminal = terminal if isinstance(terminal, dict) else {}
+                root_result = state.get("root_result")
+                root_result = root_result if isinstance(root_result, dict) else {}
                 if status == "completed":
                     event_type = "execution_completed"
                     payload = {
-                        "output": terminal.get("output"),
-                        "trace_id": terminal.get("trace_id"),
+                        "output": terminal.get("output") or root_result.get("answer"),
+                        "trace_id": terminal.get("trace_id") or root_result.get("trace_id"),
+                        "parsed_output": root_result.get("parsed_output"),
+                        "output_parse_error": root_result.get("output_parse_error"),
                     }
                 elif status == "cancelled":
                     event_type = "execution_cancelled"
