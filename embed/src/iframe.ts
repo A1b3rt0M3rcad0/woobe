@@ -199,18 +199,6 @@ function publicActivity(data: unknown): PublicAgentActivity | null {
   return { status, tool_name: toolName };
 }
 
-function runtimeFailureMessage(frame: ParsedRuntimeFrame): string {
-  const payload = frame.payload;
-  if (typeof payload.failure_detail === "string") return payload.failure_detail;
-  if (typeof payload.message === "string") return payload.message;
-  if (typeof frame.data.message === "string") return frame.data.message;
-  if (frame.eventType === "execution_cancelled" || frame.eventType === "cancelled") {
-    return "Run cancelled";
-  }
-  if (frame.eventType === "execution_timed_out") return "Run timed out";
-  return "Run failed";
-}
-
 function createRuntimeObserver(): RuntimeObserverState {
   return {
     assistant: ensureUi().appendPendingAssistant(),
@@ -365,9 +353,9 @@ function retryDelay(attempt: number): Promise<void> {
 
 async function observeRuntimeRun(
   firstResponse: Response,
-  *,
-  resumed: boolean,
+  options: { resumed: boolean },
 ): Promise<void> {
+  const { resumed } = options;
   const observer = createRuntimeObserver();
   let response = firstResponse;
   let lastTransportError: unknown = null;
@@ -453,16 +441,24 @@ async function sendMessage(message: string) {
   emit("run.started", { resumed: false });
 
   try {
-    const response = await api(`/v1/chat/sessions/${sessionId}/messages:stream`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Idempotency-Key": randomUuid(),
-      },
-      body: JSON.stringify({ message }),
-    });
-    // The POST is create+observe convenience only. Once it returns, any transport
-    // recovery happens through active-run/stream and never submits the message again.
+    let response: Response;
+    try {
+      response = await api(`/v1/chat/sessions/${sessionId}/messages:stream`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Idempotency-Key": randomUuid(),
+        },
+        body: JSON.stringify({ message }),
+      });
+    } catch (error) {
+      if (error instanceof SessionExpiredError) throw error;
+      // The POST may have crossed the durable Acceptance boundary before the
+      // transport failed. Recover by Session/Run identity; never submit it again.
+      const active = await loadActiveRun();
+      if (!active) throw error;
+      response = await api(`/v1/chat/sessions/${sessionId}/active-run/stream`);
+    }
     await observeRuntimeRun(response, { resumed: false });
   } catch (error) {
     appendError(error);
