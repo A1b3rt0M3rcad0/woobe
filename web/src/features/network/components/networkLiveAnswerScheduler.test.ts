@@ -40,6 +40,20 @@ describe('createNetworkLiveAnswerScheduler', () => {
     expect(commit).toHaveBeenLastCalledWith('ABC')
   })
 
+  it('schedules another frame after the previous frame was committed', () => {
+    const commit = vi.fn()
+    const { callbacks, driver } = frameDriver()
+    const scheduler = createNetworkLiveAnswerScheduler(commit, driver)
+
+    scheduler.schedule('A')
+    callbacks.get(1)?.(0)
+    scheduler.schedule('AB')
+
+    expect(driver.request).toHaveBeenCalledTimes(2)
+    callbacks.get(2)?.(16)
+    expect(commit).toHaveBeenLastCalledWith('AB')
+  })
+
   it('flushes the newest value before a pending frame', () => {
     const commit = vi.fn()
     const { callbacks, driver } = frameDriver()
