@@ -15,6 +15,7 @@ from modules.network.infra.database.models import (
     NetworkExecutionEventModel,
     NetworkExecutionModel,
     NetworkInvocationModel,
+    NetworkMessageModel,
 )
 from modules.network.infra.database.repositories import NetworkRuntimeRepository
 
@@ -162,15 +163,22 @@ class NetworkRuntimeFinalizer:
                 session_id = _uuid(item.get("agent_session_id"))
                 invocation_trace_id = _uuid(item.get("trace_id"))
                 hot_status = str(item.get("status") or "failed")
-                status = "completed" if hot_status == "completed" else "failed"
+                if hot_status == "completed":
+                    status = "completed"
+                elif hot_status == "cancelled" or (
+                    terminal_status == "cancelled" and hot_status == "running"
+                ):
+                    status = "cancelled"
+                else:
+                    status = "failed"
                 failure = (
-                    None
-                    if status == "completed"
-                    else _invocation_failure(
+                    _invocation_failure(
                         item,
                         terminal_failure_code=failure_code,
                         terminal_failure_detail=failure_detail,
                     )
+                    if status == "failed"
+                    else None
                 )
                 binding = bindings.get(str(node_id))
                 binding = binding if isinstance(binding, dict) else {}
@@ -214,6 +222,8 @@ class NetworkRuntimeFinalizer:
                     "fallback_used": bool((diagnostics or {}).get("fallback_used")),
                     "cost_status": (diagnostics or {}).get("cost_status"),
                     "cost_usd": (usage or {}).get("cost_usd"),
+                    "cancelled": status == "cancelled",
+                    "partial": status == "cancelled" and bool(item.get("output_message")),
                     "failure": failure,
                 }
 
@@ -282,6 +292,8 @@ class NetworkRuntimeFinalizer:
                                         "sources": item.get("sources") or [],
                                         "parsed_output": item.get("parsed_output"),
                                         "output_parse_error": item.get("output_parse_error"),
+                                        "cancelled": status == "cancelled",
+                                        "partial": status == "cancelled",
                                     },
                                 )
                             )
@@ -394,13 +406,15 @@ class NetworkRuntimeFinalizer:
                         },
                     )
                 )
-                terminal_event_type = (
-                    "agent_invocation_completed"
-                    if status == "completed"
-                    else "agent_invocation_failed"
-                )
-                terminal_payload = (
-                    {
+                if status == "completed":
+                    terminal_event_type = "agent_invocation_completed"
+                elif status == "cancelled":
+                    terminal_event_type = "agent_invocation_cancelled"
+                else:
+                    terminal_event_type = "agent_invocation_failed"
+
+                if status in {"completed", "cancelled"}:
+                    terminal_payload = {
                         "trace_id": (
                             str(invocation_trace_id) if invocation_trace_id else None
                         ),
@@ -414,11 +428,13 @@ class NetworkRuntimeFinalizer:
                         "parsed_output": item.get("parsed_output"),
                         "output_parse_error": item.get("output_parse_error"),
                         "output": item.get("output_message"),
+                        "cancelled": status == "cancelled",
+                        "partial": status == "cancelled" and bool(item.get("output_message")),
                         "started_at": started_at.isoformat(),
                         "completed_at": completed_at.isoformat(),
                     }
-                    if failure is None
-                    else {
+                else:
+                    terminal_payload = {
                         "code": str(failure.get("code") or "network_agent_failure"),
                         "stage": str(failure.get("stage") or "network_runtime"),
                         "message": str(
@@ -453,7 +469,6 @@ class NetworkRuntimeFinalizer:
                         "started_at": started_at.isoformat(),
                         "completed_at": completed_at.isoformat(),
                     }
-                )
                 durable_invocation_events.append(
                     (
                         completed_at,
@@ -535,10 +550,39 @@ class NetworkRuntimeFinalizer:
                 )
             elif terminal_status == "cancelled":
                 execution.status = "cancelled"
+                execution.output_message = output or ""
+                execution.failure_code = None
+                execution.failure_detail = None
+                if trace_id is not None:
+                    execution.root_trace_id = trace_id
                 execution.completed_at = now
                 execution.lease_owner = None
                 execution.lease_expires_at = None
-                await repository.append_event(execution, "execution_cancelled", {})
+                if output:
+                    session.add(
+                        NetworkMessageModel(
+                            network_session_id=execution.network_session_id,
+                            network_execution_id=execution.id,
+                            project_id=execution.project_id,
+                            role="assistant",
+                            content=output,
+                            data={
+                                "trace_id": str(trace_id) if trace_id else None,
+                                "cancelled": True,
+                                "partial": True,
+                            },
+                        )
+                    )
+                await repository.append_event(
+                    execution,
+                    "execution_cancelled",
+                    {
+                        "output": output or "",
+                        "trace_id": str(trace_id) if trace_id else None,
+                        "partial": bool(output),
+                        "cancelled": True,
+                    },
+                )
             else:
                 await repository.mark_failed(
                     execution,
