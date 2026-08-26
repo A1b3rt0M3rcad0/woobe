@@ -32,6 +32,10 @@ class RedisNetworkExecutionStore:
         # causal routing fields in memory so token publication does not require a
         # Redis state read for every provider delta.
         self._invocation_event_context: dict[UUID, dict[str, Any]] = {}
+        # Exact public root output is kept in the execution owner process. Projection
+        # writes remain batched, but cancellation can still finalize the last emitted
+        # assistant delta instead of losing up to one checkpoint interval.
+        self._partial_output: dict[UUID, str] = {}
 
     async def initialize(
         self,
@@ -63,6 +67,7 @@ class RedisNetworkExecutionStore:
         for node_id, session_id in (agent_contexts or {}).items():
             initial[f"{self.CONTEXT_PREFIX}{node_id}"] = session_id
         await self._state.create(execution.id, initial, ttl_seconds=ttl_seconds)
+        self._partial_output.setdefault(execution.id, "")
         await self.emit(execution.id, "execution_started", {})
 
     async def acquire_lease(
@@ -300,11 +305,58 @@ class RedisNetworkExecutionStore:
             )
         await self._state.update(execution_id, updates)
 
+    async def cancel_running_invocations(
+        self,
+        execution_id: UUID,
+        *,
+        reason: str = "Network execution was cancelled",
+    ) -> None:
+        for item in await self.invocations(execution_id):
+            if str(item.get("status") or "") != "running":
+                continue
+            raw_id = item.get("id")
+            if not raw_id:
+                continue
+            invocation_id = UUID(str(raw_id))
+            item["status"] = "cancelled"
+            item["error"] = None
+            item["completed_at"] = datetime.now(timezone.utc).isoformat()
+            if int(item.get("depth") or 0) == 0:
+                partial = await self.partial_output(execution_id)
+                if partial:
+                    item["output_message"] = partial
+            await self._state.update(
+                execution_id,
+                {f"{self.INVOCATION_PREFIX}{invocation_id}": item},
+            )
+            self._invocation_to_execution.setdefault(invocation_id, execution_id)
+            await self.emit(
+                execution_id,
+                "agent_invocation_cancelled",
+                {
+                    "reason": reason,
+                    "output": item.get("output_message"),
+                    "partial": bool(item.get("output_message")),
+                },
+                invocation_id=invocation_id,
+            )
+
+    async def partial_output(self, execution_id: UUID) -> str:
+        captured = self._partial_output.get(execution_id)
+        if captured is not None:
+            return captured
+        state = await self.snapshot(execution_id)
+        projection = state.get("runtime_projection")
+        if isinstance(projection, dict) and isinstance(projection.get("output"), str):
+            return str(projection.get("output") or "")
+        return ""
+
     async def persist_execution_output(
         self,
         execution_id: UUID,
         result: AgentInvocationResult,
     ) -> None:
+        self._partial_output[execution_id] = result.answer
         await self._state.update(
             execution_id,
             {
@@ -316,6 +368,33 @@ class RedisNetworkExecutionStore:
                 }
             },
         )
+
+    def _capture_partial_output(
+        self,
+        execution_id: UUID,
+        event_type: str,
+        event_payload: dict[str, Any],
+    ) -> None:
+        depth = event_payload.get("depth")
+        if depth not in {0, "0"}:
+            return
+        if event_type == "token":
+            if (
+                event_payload.get("visibility", "assistant") == "assistant"
+                and event_payload.get("channel", "final") == "final"
+            ):
+                content = event_payload.get("content")
+                if isinstance(content, str):
+                    self._partial_output[execution_id] = (
+                        self._partial_output.get(execution_id, "") + content
+                    )
+        elif event_type == "token_retract":
+            size = event_payload.get("content_length")
+            if isinstance(size, int) and not isinstance(size, bool) and size > 0:
+                current = self._partial_output.get(execution_id, "")
+                self._partial_output[execution_id] = (
+                    current[:-size] if size < len(current) else ""
+                )
 
     async def emit(
         self,
@@ -334,6 +413,8 @@ class RedisNetworkExecutionStore:
                 for key in ("parent_invocation_id", "node_id", "agent_id", "depth"):
                     if context.get(key) is not None:
                         event_payload[key] = context[key]
+
+        self._capture_partial_output(execution_id, event_type, event_payload)
 
         # The structured failure emitted by NetworkExecutor is the canonical
         # classification. Capture it in hot state so the bulk finalizer does not
@@ -380,6 +461,7 @@ class RedisNetworkExecutionStore:
             if invocation_id is not None and event_type in {
                 "agent_invocation_completed",
                 "agent_invocation_failed",
+                "agent_invocation_cancelled",
             }:
                 self._forget_invocation(invocation_id)
 
@@ -443,7 +525,18 @@ class RedisNetworkExecutionStore:
                     }
                 elif status == "cancelled":
                     event_type = "execution_cancelled"
-                    payload = {}
+                    output = terminal.get("output") or root_result.get("answer") or ""
+                    payload = {
+                        "output": output,
+                        "trace_id": terminal.get("trace_id") or root_result.get("trace_id"),
+                        "partial": bool(output),
+                        "cancelled": True,
+                        "result": {
+                            "answer": output,
+                            "partial": bool(output),
+                            "cancelled": True,
+                        },
+                    }
                 else:
                     event_type = "execution_failed"
                     payload = {
@@ -474,3 +567,4 @@ class RedisNetworkExecutionStore:
             )
         finally:
             self._forget_execution_invocations(execution_id)
+            self._partial_output.pop(execution_id, None)
