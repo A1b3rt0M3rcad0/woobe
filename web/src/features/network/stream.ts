@@ -14,13 +14,13 @@ export interface NetworkStreamInput {
   networkSessionId: string
   message: string
   idempotencyKey?: string
+  executionId?: string
   lastEventId?: number
   expectedDraftRevision?: number
 }
 
 type PreparedNetworkStreamInput = Omit<NetworkStreamInput, 'idempotencyKey'> & {
   idempotencyKey: string
-  executionId?: string
 }
 
 export interface NetworkStreamCallbacks {
