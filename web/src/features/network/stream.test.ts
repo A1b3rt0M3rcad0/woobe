@@ -107,6 +107,18 @@ function gapResponse(): Response {
   )
 }
 
+function eventEnvelope(sequence: number, data: Record<string, unknown>) {
+  return {
+    ...TERMINAL_EVENT,
+    sequence,
+    data,
+  }
+}
+
+function sseEvent(sequence: number, eventType: string, data: Record<string, unknown>) {
+  return `id: ${sequence}\nevent: ${eventType}\ndata: ${JSON.stringify(eventEnvelope(sequence, data))}\n\n`
+}
+
 function bodyFrom(fetchMock: ReturnType<typeof vi.fn>, index: number): Record<string, unknown> {
   const init = fetchMock.mock.calls[index]?.[1] as RequestInit | undefined
   return JSON.parse(String(init?.body)) as Record<string, unknown>
@@ -153,6 +165,107 @@ describe('isTerminalNetworkEvent', () => {
 
   it('does not treat invocation completion as terminal', () => {
     expect(isTerminalNetworkEvent('agent_invocation_completed')).toBe(false)
+  })
+})
+
+describe('streamNetworkExecution token delivery', () => {
+  it('preserves granular token events in sequence order', async () => {
+    const body = [
+      sseEvent(1, 'token', { content: 'A', visibility: 'assistant', channel: 'final' }),
+      sseEvent(2, 'token', { content: 'B', visibility: 'assistant', channel: 'final' }),
+      sseEvent(3, 'token', { content: 'C', visibility: 'assistant', channel: 'final' }),
+      sseEvent(4, 'execution_completed', { trace_id: 'trace-1' }),
+    ].join('')
+    const fetchMock = vi.fn().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'X-Network-Execution-ID': 'execution-1',
+      },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const chunks: string[] = []
+
+    await streamNetworkExecution(streamInput('stable-key'), {
+      onEvent: (eventType, event) => {
+        if (eventType === 'token' && typeof event.data.content === 'string') {
+          chunks.push(event.data.content)
+        }
+      },
+    })
+
+    expect(chunks).toEqual(['A', 'B', 'C'])
+  })
+
+  it('preserves token retract ordering', async () => {
+    const body = [
+      sseEvent(1, 'token', { content: 'Hello', visibility: 'assistant', channel: 'final' }),
+      sseEvent(2, 'token', { content: ' world', visibility: 'assistant', channel: 'final' }),
+      sseEvent(3, 'token_retract', { content_length: 6, reason: 'tool_call_selected' }),
+      sseEvent(4, 'token', { content: 'Woobe', visibility: 'assistant', channel: 'final' }),
+      sseEvent(5, 'execution_completed', { trace_id: 'trace-1' }),
+    ].join('')
+    const fetchMock = vi.fn().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'X-Network-Execution-ID': 'execution-1',
+      },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    let output = ''
+
+    await streamNetworkExecution(streamInput('stable-key'), {
+      onEvent: (eventType, event) => {
+        if (eventType === 'token' && typeof event.data.content === 'string') {
+          output += event.data.content
+        }
+        if (eventType === 'token_retract' && typeof event.data.content_length === 'number') {
+          output = output.slice(0, Math.max(0, output.length - event.data.content_length))
+        }
+      },
+    })
+
+    expect(output).toBe('HelloWoobe')
+  })
+
+  it('reconciles current state before continuing the live tail', async () => {
+    const state = {
+      protocol_version: 1,
+      execution_id: 'execution-1',
+      sequence: 3,
+      data: {
+        run_id: 'execution-1',
+        kind: 'NETWORK',
+        sequence: 3,
+        status: 'running',
+        output: 'Hello wor',
+      },
+    }
+    const body = [
+      `id: 3\nevent: run.state\ndata: ${JSON.stringify(state)}\n\n`,
+      sseEvent(4, 'token', { content: 'ld', visibility: 'assistant', channel: 'final' }),
+      sseEvent(5, 'execution_completed', { trace_id: 'trace-1' }),
+    ].join('')
+    const fetchMock = vi.fn().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'X-Network-Execution-ID': 'execution-1',
+      },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    let output = ''
+
+    await streamNetworkExecution(streamInput('stable-key'), {
+      onEvent: (eventType, event) => {
+        if (eventType === 'token' && typeof event.data.content === 'string') {
+          output += event.data.content
+        }
+      },
+    })
+
+    expect(output).toBe('Hello world')
   })
 })
 

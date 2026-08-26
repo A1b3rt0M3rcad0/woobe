@@ -61,6 +61,40 @@ class _StreamingBridgeUseCase(_RuntimeBridgeUseCase):
         return _AgentOutput()
 
 
+class _OrderedStreamingBridgeUseCase(_RuntimeBridgeUseCase):
+    async def execute(self, input_dto):
+        assert input_dto.metadata["source"] == "network_runtime"
+        channel = current_runtime_stream.get()
+        assert channel is not None
+        await channel.emit(
+            "token",
+            content="A",
+            visibility="assistant",
+            channel="final",
+            phase="response_generation",
+        )
+        await channel.emit(
+            "agent_activity",
+            status="generating_answer",
+            phase="response_generation",
+            message="Generating response...",
+        )
+        await channel.emit(
+            "token",
+            content="B",
+            visibility="assistant",
+            channel="final",
+            phase="response_generation",
+        )
+        await channel.emit(
+            "token_retract",
+            content_length=1,
+            reason="test_retract",
+            phase="response_generation",
+        )
+        return _AgentOutput()
+
+
 class _DelegationBridgeUseCase(_RuntimeBridgeUseCase):
     async def execute(self, input_dto):
         assert input_dto.metadata["source"] == "network_runtime"
@@ -173,7 +207,7 @@ async def test_network_agent_runtime_is_reused_between_invocations(monkeypatch) 
 
 
 @pytest.mark.asyncio
-async def test_network_agent_bridge_batches_public_final_tokens(monkeypatch) -> None:
+async def test_network_agent_bridge_preserves_public_final_token_granularity(monkeypatch) -> None:
     _patch_runtime(monkeypatch, _StreamingBridgeUseCase)
     invoker, _settings, _http_executor = _invoker()
     events = []
@@ -188,8 +222,32 @@ async def test_network_agent_bridge_batches_public_final_tokens(monkeypatch) -> 
     assert result.answer == "network final answer"
     assert result.streamed_output is True
     assert [(event_type, payload["content"]) for event_type, payload in events] == [
-        ("token", "network final answer"),
+        ("token", "network "),
+        ("token", "final "),
+        ("token", "answer"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_network_agent_bridge_preserves_runtime_event_order(monkeypatch) -> None:
+    _patch_runtime(monkeypatch, _OrderedStreamingBridgeUseCase)
+    invoker, _settings, _http_executor = _invoker()
+    events = []
+
+    async def stream_handler(event_type, payload):
+        events.append((event_type, payload))
+
+    await invoker.invoke(**_invoke_kwargs(stream_handler=stream_handler))
+
+    assert [event_type for event_type, _payload in events] == [
+        "token",
+        "agent_activity",
+        "token",
+        "token_retract",
+    ]
+    assert events[0][1]["content"] == "A"
+    assert events[2][1]["content"] == "B"
+    assert events[3][1]["content_length"] == 1
 
 
 @pytest.mark.asyncio

@@ -144,6 +144,91 @@ async def test_network_store_keeps_invocations_context_cancel_and_terminal_state
 
 
 @pytest.mark.asyncio
+async def test_network_store_uses_cached_invocation_identity_for_hot_events(monkeypatch) -> None:
+    state = InMemoryExecutionStateStore()
+    store = RedisNetworkExecutionStore(state)
+    execution = NetworkExecutionSnapshot(
+        id=uuid4(),
+        network_id=uuid4(),
+        network_version_id=None,
+        network_session_id=uuid4(),
+        project_id=uuid4(),
+        input_message="network input",
+        draft_revision=1,
+        definition_snapshot={"nodes": [], "edges": []},
+        resolved_bindings_snapshot={},
+        status="queued",
+    )
+    node_id = uuid4()
+    agent_id = uuid4()
+
+    await store.initialize(execution, ttl_seconds=3600)
+    invocation = await store.start_invocation(
+        execution=execution,
+        node_id=node_id,
+        agent_id=agent_id,
+        depth=0,
+        message="agent input",
+        parent_invocation_id=None,
+        persist_context=False,
+    )
+
+    get_calls = 0
+    original_get = state.get
+
+    async def counting_get(run_id):
+        nonlocal get_calls
+        get_calls += 1
+        return await original_get(run_id)
+
+    published = []
+
+    async def capture_publish(run_id, run_kind, event_type, payload, **kwargs):
+        published.append((run_id, run_kind, event_type, dict(payload), kwargs))
+        return "cursor"
+
+    monkeypatch.setattr(state, "get", counting_get)
+    monkeypatch.setattr(store._events, "publish", capture_publish)
+
+    await store.emit(
+        execution.id,
+        "token",
+        {
+            "content": "A",
+            "visibility": "assistant",
+            "channel": "final",
+            "phase": "response_generation",
+        },
+        invocation_id=invocation.id,
+    )
+
+    assert get_calls == 0
+    payload = published[-1][3]
+    assert payload["invocation_id"] == str(invocation.id)
+    assert payload["node_id"] == str(node_id)
+    assert payload["agent_id"] == str(agent_id)
+    assert payload["depth"] == 0
+
+    store._invocation_event_context.clear()
+    await store.emit(
+        execution.id,
+        "agent_activity",
+        {"status": "generating_answer"},
+        invocation_id=invocation.id,
+    )
+    assert get_calls == 1
+
+    await store.emit(
+        execution.id,
+        "agent_invocation_completed",
+        {},
+        invocation_id=invocation.id,
+    )
+    assert invocation.id not in store._invocation_event_context
+    assert invocation.id not in store._invocation_to_execution
+
+
+@pytest.mark.asyncio
 async def test_network_store_captures_structured_failure_from_runtime_event() -> None:
     state = InMemoryExecutionStateStore()
     store = RedisNetworkExecutionStore(state)
