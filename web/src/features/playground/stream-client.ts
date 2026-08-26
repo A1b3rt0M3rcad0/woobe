@@ -52,6 +52,7 @@ export interface StreamCallbacks {
 interface RuntimeClientState {
   runId: string | null
   output: string
+  sequence: number | null
 }
 
 function stringOrNull(value: unknown): string | null {
@@ -60,6 +61,44 @@ function stringOrNull(value: unknown): string | null {
 
 function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function logicalSequence(frame: SseFrame, item: Record<string, unknown>): number | null {
+  const payloadSequence = numberOrNull(item.sequence)
+  if (payloadSequence !== null && Number.isInteger(payloadSequence) && payloadSequence >= 0) {
+    return payloadSequence
+  }
+  if (frame.id && /^\d+$/.test(frame.id)) return Number(frame.id)
+  return null
+}
+
+function acceptSequence(
+  frame: SseFrame,
+  item: Record<string, unknown>,
+  type: string,
+  callbacks: StreamCallbacks,
+  state: RuntimeClientState,
+): boolean {
+  const sequence = logicalSequence(frame, item)
+  if (sequence === null) return true
+
+  if (type === 'run.state') {
+    if (state.sequence !== null && sequence < state.sequence) return false
+    state.sequence = sequence
+    return true
+  }
+
+  if (state.sequence !== null) {
+    if (sequence <= state.sequence) return false
+    const expected = state.sequence + 1
+    if (sequence !== expected) {
+      const message = `Runtime stream sequence gap: expected ${expected}, received ${sequence}`
+      callbacks.onProtocolError?.(message, frame)
+      throw new Error(message)
+    }
+  }
+  state.sequence = sequence
+  return true
 }
 
 function sanitizeAssistantContent(value: string): string {
@@ -239,6 +278,8 @@ function reconcileRunState(
       session_id: result.session_id ?? item.session_id,
       trace_id: result.trace_id ?? item.trace_id,
       usage: result.usage ?? item.usage,
+      parsed_output: result.parsed_output ?? item.parsed_output,
+      output_parse_error: result.output_parse_error ?? item.output_parse_error,
     }))
   } else if (status === 'cancelled') callbacks.onCancelled?.(item)
   else callbacks.onError(new Error(
@@ -262,6 +303,7 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks, state: RuntimeCli
   }
 
   const type = typeof item.type === 'string' ? item.type : frame.event || 'unknown'
+  if (!acceptSequence(frame, item, type, callbacks, state)) return false
   if (type === 'run.state') return reconcileRunState(item, callbacks, state)
   if (type === 'run.progress') return false
   if (type === 'run.realtime_unavailable') {
@@ -342,14 +384,17 @@ async function consumeResponse(
     for (const frame of frames) if (dispatch(frame, callbacks, state)) terminal = true
   }
 
-  while (!terminal) {
-    const { done, value } = await reader.read()
-    if (done) break
-    consume(parser.push(decoder.decode(value, { stream: true })))
+  try {
+    while (!terminal) {
+      const { done, value } = await reader.read()
+      if (done) break
+      consume(parser.push(decoder.decode(value, { stream: true })))
+    }
+    consume(parser.finish(decoder.decode()))
+    return terminal
+  } finally {
+    if (terminal || signal?.aborted) await reader.cancel().catch(() => undefined)
   }
-  consume(parser.finish(decoder.decode()))
-  if (terminal) await reader.cancel().catch(() => undefined)
-  return terminal
 }
 
 async function requestNewRun(
@@ -405,9 +450,18 @@ export async function reattachAgentRunV1(
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
-  const state: RuntimeClientState = { runId, output: '' }
-  const terminal = await requestReattach(runId, callbacks, state, signal, false)
-  if (!terminal && !signal?.aborted) throw new Error('Run reattach ended without a terminal event')
+  const state: RuntimeClientState = { runId, output: '', sequence: null }
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (signal?.aborted) throw new DOMException('Agent stream aborted', 'AbortError')
+    try {
+      const terminal = await requestReattach(runId, callbacks, state, signal, false)
+      if (terminal) return
+    } catch (error) {
+      if (signal?.aborted || attempt === 3) throw error
+    }
+    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
+  }
+  throw new Error('Run reattach ended without a terminal event')
 }
 
 export async function askStreamV1(
@@ -415,7 +469,7 @@ export async function askStreamV1(
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
-  const state: RuntimeClientState = { runId: null, output: '' }
+  const state: RuntimeClientState = { runId: null, output: '', sequence: null }
   for (let attempt = 0; attempt < 4; attempt += 1) {
     if (signal?.aborted) throw new DOMException('Agent stream aborted', 'AbortError')
     try {
