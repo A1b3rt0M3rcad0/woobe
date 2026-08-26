@@ -6,7 +6,11 @@ from uuid import uuid4
 import pytest
 
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
-from shared.runtime_reattach import RuntimeStreamGapError, RuntimeStreamReader
+from shared.runtime_reattach import (
+    RuntimeEventPublisher,
+    RuntimeStreamGapError,
+    RuntimeStreamReader,
+)
 
 
 async def _completed_fallback(run_id):
@@ -162,6 +166,89 @@ async def test_trim_gap_is_detected_instead_of_inventing_continuity() -> None:
             "agent",
             durable_fallback=lambda: _completed_fallback(run_id),
         )
+
+
+@pytest.mark.asyncio
+async def test_projection_checkpoint_never_hides_a_trim_gap() -> None:
+    store = InMemoryExecutionStateStore()
+    run_id = uuid4()
+    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+    for sequence in range(1, 6):
+        await store.append_event(
+            run_id,
+            "token",
+            {"content": str(sequence)},
+            maxlen=3,
+        )
+    await store.update(
+        run_id,
+        {
+            "runtime_projection": {
+                "run_id": str(run_id),
+                "kind": "AGENT",
+                "status": "running",
+                "sequence": 1,
+                "output": "1",
+            }
+        },
+    )
+
+    publisher = RuntimeEventPublisher(store)
+    await publisher._checkpoint(run_id, "agent")
+
+    hot = await store.get(run_id)
+    assert hot is not None
+    assert hot["runtime_projection"]["sequence"] == 1
+    assert hot["runtime_projection"]["output"] == "1"
+
+
+@pytest.mark.asyncio
+async def test_live_tail_gap_is_detected_after_initial_state() -> None:
+    store = InMemoryExecutionStateStore()
+    run_id = uuid4()
+    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+    await store.append_event(run_id, "token", {"content": "1"})
+
+    reader = RuntimeStreamReader(store, block_ms=20)
+    stream = reader.stream(
+        run_id,
+        "agent",
+        durable_fallback=lambda: _completed_fallback(run_id),
+    )
+    state = await anext(stream)
+    assert state.sequence == 1
+
+    await store.append_event(run_id, "token", {"content": "2"})
+    await store.append_event(run_id, "token", {"content": "3"})
+    store._events[run_id] = [store._events[run_id][-1]]
+
+    with pytest.raises(RuntimeStreamGapError):
+        await anext(stream)
+    await stream.aclose()
+
+
+@pytest.mark.asyncio
+async def test_usage_projection_accepts_nested_runtime_usage_payload() -> None:
+    store = InMemoryExecutionStateStore()
+    run_id = uuid4()
+    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+    await store.append_event(
+        run_id,
+        "usage",
+        {"usage": {"input_tokens": 10, "output_tokens": 4, "total_tokens": 14}},
+    )
+
+    reader = RuntimeStreamReader(store)
+    state, _ = await reader.current_state(
+        run_id,
+        "agent",
+        durable_fallback=lambda: _completed_fallback(run_id),
+    )
+    assert state["usage"] == {
+        "input_tokens": 10,
+        "output_tokens": 4,
+        "total_tokens": 14,
+    }
 
 
 @pytest.mark.asyncio
