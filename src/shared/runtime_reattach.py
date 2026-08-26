@@ -56,6 +56,10 @@ def format_sse_frame(frame: RuntimeStreamFrame) -> str:
     )
 
 
+def _frame_size(frame: RuntimeStreamFrame) -> int:
+    return len(format_sse_frame(frame).encode("utf-8"))
+
+
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
@@ -343,6 +347,7 @@ class RuntimeStreamReader:
         *,
         durable_fallback: DurableFallback,
     ) -> tuple[dict[str, Any], str | None]:
+        started = time.perf_counter()
         try:
             hot = await self._store.get(run_id)
         except Exception as exc:
@@ -358,7 +363,25 @@ class RuntimeStreamReader:
             state["kind"] = run_kind.upper()
             state["sequence"] = int(state.get("sequence") or 0)
             state["realtime_available"] = False
+            logger.info(
+                "Runtime reattach state resolved",
+                extra={
+                    "run_id": str(run_id),
+                    "run_kind": run_kind.upper(),
+                    "realtime_available": False,
+                    "high_watermark": 0,
+                    "projection_sequence": int(state.get("sequence") or 0),
+                    "projection_lag": 0,
+                    "catchup_events": 0,
+                    "attach_latency_ms": round((time.perf_counter() - started) * 1000, 3),
+                },
+            )
             return state, None
+
+        try:
+            reconnect_count = await self._store.increment(run_id, "reattach_count")
+        except Exception:
+            reconnect_count = None
 
         high_watermark = int(hot.get("event_sequence") or 0)
         high_cursor = hot.get("last_event_cursor")
@@ -369,6 +392,8 @@ class RuntimeStreamReader:
             else initial_projection(run_id, run_kind, hot)
         )
         projection_sequence = int(projection.get("sequence") or 0)
+        projection_lag = max(0, high_watermark - projection_sequence)
+        catchup_events = 0
 
         if projection_sequence < high_watermark:
             first_sequence = await self._store.first_event_sequence(run_id)
@@ -376,6 +401,17 @@ class RuntimeStreamReader:
                 first_sequence is not None
                 and first_sequence > projection_sequence + 1
             ):
+                logger.warning(
+                    "Runtime reattach projection gap",
+                    extra={
+                        "run_id": str(run_id),
+                        "run_kind": run_kind.upper(),
+                        "projection_sequence": projection_sequence,
+                        "first_retained_sequence": first_sequence,
+                        "high_watermark": high_watermark,
+                        "projection_lag": projection_lag,
+                    },
+                )
                 raise RuntimeStreamGapError(
                     f"Runtime event history was trimmed before projection catch-up "
                     f"run_id={run_id} projection={projection_sequence} first={first_sequence}"
@@ -391,6 +427,7 @@ class RuntimeStreamReader:
                     f"Runtime projection cannot reach high-watermark run_id={run_id} "
                     f"projection={projection_sequence} high_watermark={high_watermark}"
                 )
+            catchup_events = len(events)
             for event in events:
                 public_type, public_payload = _public_event(event)
                 projection = reduce_projection(
@@ -407,6 +444,20 @@ class RuntimeStreamReader:
         projection["run_id"] = str(run_id)
         projection["kind"] = run_kind.upper()
         projection["realtime_available"] = True
+        logger.info(
+            "Runtime reattach state resolved",
+            extra={
+                "run_id": str(run_id),
+                "run_kind": run_kind.upper(),
+                "realtime_available": True,
+                "high_watermark": high_watermark,
+                "projection_sequence": projection_sequence,
+                "projection_lag": projection_lag,
+                "catchup_events": catchup_events,
+                "reattach_count": reconnect_count,
+                "attach_latency_ms": round((time.perf_counter() - started) * 1000, 3),
+            },
+        )
         return projection, str(high_cursor) if high_cursor is not None else None
 
     async def stream(
@@ -416,65 +467,103 @@ class RuntimeStreamReader:
         *,
         durable_fallback: DurableFallback,
     ) -> AsyncIterator[RuntimeStreamFrame]:
-        projection, cursor = await self.current_state(
-            run_id,
-            run_kind,
-            durable_fallback=durable_fallback,
-        )
-        sequence = int(projection.get("sequence") or 0)
-        yield RuntimeStreamFrame("run.state", projection, sequence=sequence)
+        started = time.perf_counter()
+        frame_count = 0
+        live_event_count = 0
+        approx_stream_bytes = 0
+        final_status = "observer_closed"
+        try:
+            projection, cursor = await self.current_state(
+                run_id,
+                run_kind,
+                durable_fallback=durable_fallback,
+            )
+            sequence = int(projection.get("sequence") or 0)
+            state_frame = RuntimeStreamFrame("run.state", projection, sequence=sequence)
+            frame_count += 1
+            approx_stream_bytes += _frame_size(state_frame)
+            yield state_frame
 
-        if str(projection.get("status") or "").lower() in _TERMINAL_STATUSES:
-            return
-        if cursor is None:
-            return
-
-        last_heartbeat = time.monotonic()
-        while True:
-            try:
-                events = await self._store.read_events_after_cursor(
-                    run_id,
-                    cursor,
-                    block_ms=self._block_ms,
-                    limit=100,
-                )
-            except Exception as exc:
-                logger.warning("Runtime live tail unavailable run_id=%s: %s", run_id, exc)
-                yield RuntimeStreamFrame(
-                    "run.realtime_unavailable",
-                    {"run_id": str(run_id)},
-                )
+            status = str(projection.get("status") or "").lower()
+            if status in _TERMINAL_STATUSES:
+                final_status = status
+                return
+            if cursor is None:
+                final_status = "realtime_unavailable"
                 return
 
-            if not events:
-                now = time.monotonic()
-                if now - last_heartbeat >= self._heartbeat_seconds:
-                    last_heartbeat = now
-                    yield RuntimeStreamFrame(
-                        "heartbeat",
-                        {"run_id": str(run_id), "ts": _now_iso()},
+            last_heartbeat = time.monotonic()
+            while True:
+                try:
+                    events = await self._store.read_events_after_cursor(
+                        run_id,
+                        cursor,
+                        block_ms=self._block_ms,
+                        limit=100,
                     )
-                continue
-
-            for event in events:
-                cursor = event.cursor
-                public_type, public_payload = _public_event(event)
-                projection = reduce_projection(
-                    projection,
-                    public_type,
-                    public_payload,
-                    sequence=event.sequence,
-                    occurred_at=event.occurred_at,
-                )
-                yield RuntimeStreamFrame(
-                    public_type,
-                    {
-                        "run_id": str(run_id),
-                        "sequence": event.sequence,
-                        "occurred_at": event.occurred_at,
-                        **public_payload,
-                    },
-                    sequence=event.sequence,
-                )
-                if str(projection.get("status") or "").lower() in _TERMINAL_STATUSES:
+                except Exception as exc:
+                    logger.warning("Runtime live tail unavailable run_id=%s: %s", run_id, exc)
+                    unavailable_frame = RuntimeStreamFrame(
+                        "run.realtime_unavailable",
+                        {"run_id": str(run_id)},
+                    )
+                    frame_count += 1
+                    approx_stream_bytes += _frame_size(unavailable_frame)
+                    yield unavailable_frame
+                    final_status = "realtime_unavailable"
                     return
+
+                if not events:
+                    now = time.monotonic()
+                    if now - last_heartbeat >= self._heartbeat_seconds:
+                        last_heartbeat = now
+                        heartbeat = RuntimeStreamFrame(
+                            "heartbeat",
+                            {"run_id": str(run_id), "ts": _now_iso()},
+                        )
+                        frame_count += 1
+                        approx_stream_bytes += _frame_size(heartbeat)
+                        yield heartbeat
+                    continue
+
+                for event in events:
+                    cursor = event.cursor
+                    public_type, public_payload = _public_event(event)
+                    projection = reduce_projection(
+                        projection,
+                        public_type,
+                        public_payload,
+                        sequence=event.sequence,
+                        occurred_at=event.occurred_at,
+                    )
+                    frame = RuntimeStreamFrame(
+                        public_type,
+                        {
+                            "run_id": str(run_id),
+                            "sequence": event.sequence,
+                            "occurred_at": event.occurred_at,
+                            **public_payload,
+                        },
+                        sequence=event.sequence,
+                    )
+                    frame_count += 1
+                    live_event_count += 1
+                    approx_stream_bytes += _frame_size(frame)
+                    yield frame
+                    status = str(projection.get("status") or "").lower()
+                    if status in _TERMINAL_STATUSES:
+                        final_status = status
+                        return
+        finally:
+            logger.info(
+                "Runtime reattach stream closed",
+                extra={
+                    "run_id": str(run_id),
+                    "run_kind": run_kind.upper(),
+                    "stream_status": final_status,
+                    "stream_frames": frame_count,
+                    "live_events": live_event_count,
+                    "approx_stream_bytes": approx_stream_bytes,
+                    "stream_duration_ms": round((time.perf_counter() - started) * 1000, 3),
+                },
+            )
