@@ -52,21 +52,51 @@ function nonTerminalResponse(): Response {
   )
 }
 
-function completedStateResponse(): Response {
+function completedStateResponse(sequence = 7): Response {
   return new Response(
-    `id: 7\nevent: run.state\ndata: ${JSON.stringify({
+    `id: ${sequence}\nevent: run.state\ndata: ${JSON.stringify({
       protocol_version: 1,
       execution_id: 'execution-1',
-      sequence: 7,
+      sequence,
       data: {
         run_id: 'execution-1',
         kind: 'NETWORK',
-        sequence: 7,
+        sequence,
         status: 'completed',
         output: 'partial answer',
         trace_id: 'trace-1',
       },
     })}\n\n`,
+    {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'X-Network-Execution-ID': 'execution-1',
+      },
+    },
+  )
+}
+
+function gapResponse(): Response {
+  const state = {
+    protocol_version: 1,
+    execution_id: 'execution-1',
+    sequence: 3,
+    data: {
+      run_id: 'execution-1',
+      kind: 'NETWORK',
+      sequence: 3,
+      status: 'running',
+      output: 'partial',
+    },
+  }
+  const skipped = {
+    ...TERMINAL_EVENT,
+    sequence: 5,
+    data: { content: 'must-not-apply', visibility: 'assistant', channel: 'final' },
+  }
+  return new Response(
+    `id: 3\nevent: run.state\ndata: ${JSON.stringify(state)}\n\nid: 5\nevent: token\ndata: ${JSON.stringify(skipped)}\n\n`,
     {
       status: 200,
       headers: {
@@ -211,6 +241,28 @@ describe('streamNetworkExecution idempotency and reattach', () => {
     expect(String(fetchMock.mock.calls[1]?.[0])).toBe('http://api.test/network/executions/execution-1/stream')
     expect((fetchMock.mock.calls[1]?.[1] as RequestInit).method).toBe('GET')
     expect(onEvent).toHaveBeenCalledWith('run.state', expect.any(Object))
+    expect(onEvent).toHaveBeenCalledWith('execution_completed', expect.any(Object))
+  })
+
+  it('rejects a live sequence gap and recovers through current-state reattach', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(gapResponse())
+      .mockResolvedValueOnce(completedStateResponse(8))
+    vi.stubGlobal('fetch', fetchMock)
+    const onEvent = vi.fn()
+
+    const execution = streamNetworkExecution(streamInput('stable-key'), { onEvent })
+    await vi.runAllTimersAsync()
+    await execution
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).method).toBe('POST')
+    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).method).toBe('GET')
+    expect(onEvent).not.toHaveBeenCalledWith(
+      'token',
+      expect.objectContaining({ data: expect.objectContaining({ content: 'must-not-apply' }) }),
+    )
     expect(onEvent).toHaveBeenCalledWith('execution_completed', expect.any(Object))
   })
 })
