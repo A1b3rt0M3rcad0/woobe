@@ -18,6 +18,7 @@ RUN test -n "${VITE_API_URL}" \
     && test "${VITE_WOOBE_EDITION}" = "community" \
     && node -e "const u=new URL(process.argv[1]); if (!['http:','https:'].includes(u.protocol)) process.exit(1)" "${VITE_API_URL}" \
     && node -e "const u=new URL(process.argv[1]); if (!['http:','https:'].includes(u.protocol)) process.exit(1)" "${VITE_CHAT_EMBED_URL}" \
+    && VITE_API_URL="${VITE_API_URL}" VITE_CHAT_EMBED_URL="${VITE_CHAT_EMBED_URL}" VITE_WOOBE_EDITION="${VITE_WOOBE_EDITION}" npm run test:run \
     && VITE_API_URL="${VITE_API_URL}" VITE_CHAT_EMBED_URL="${VITE_CHAT_EMBED_URL}" VITE_WOOBE_EDITION="${VITE_WOOBE_EDITION}" npm run build \
     && API_ORIGIN="$(node -e "console.log(new URL(process.argv[1]).origin)" "${VITE_API_URL}")" \
     && CHAT_EMBED_ORIGIN="$(node -e "console.log(new URL(process.argv[1]).origin)" "${VITE_CHAT_EMBED_URL}")" \
