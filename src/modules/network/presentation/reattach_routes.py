@@ -8,6 +8,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
+from modules.network.application.service import NetworkApplicationService
 from modules.network.infra.database.models import NetworkExecutionModel, NetworkSessionModel
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, NotFoundError, ValidationError
@@ -19,6 +20,16 @@ from shared.security.tenancy import TenantAuthorizer
 router = APIRouter(prefix="/network", tags=["network", "runtime"])
 _TERMINAL_STATUSES = {"completed", "failed", "cancelled", "timed_out", "uncertain"}
 _ACTIVE_STATUSES = {"queued", "running", "cancel_requested"}
+
+
+def _service(request: Request) -> NetworkApplicationService:
+    settings = request.app.state.settings
+    return NetworkApplicationService(
+        request.app.state.session_factory,
+        hard_max_depth=settings.network_max_depth_hard,
+        hard_max_invocations=settings.network_max_invocations_hard,
+        hard_timeout_seconds=settings.network_timeout_hard_seconds,
+    )
 
 
 def _runtime_target(principal: ProjectApiPrincipal) -> tuple[str | None, UUID | None]:
@@ -90,15 +101,46 @@ async def _load_execution(request: Request, execution_id: UUID) -> NetworkExecut
         return execution
 
 
+async def cancel_network_run(execution_id: UUID, request: Request):
+    """Cancel a Network Run after applying the same target-aware attach authorization."""
+    execution = await _load_execution(request, execution_id)
+    if str(execution.status) in _TERMINAL_STATUSES:
+        return {
+            "success": True,
+            "data": {
+                "run_id": str(execution.id),
+                "execution_id": str(execution.id),
+                "status": str(execution.status),
+            },
+        }
+    await _service(request).request_cancellation(execution.id, execution.project_id)
+    return {
+        "success": True,
+        "data": {
+            "run_id": str(execution.id),
+            "execution_id": str(execution.id),
+            "status": "cancel_requested",
+        },
+    }
+
+
 def _durable_state(execution: NetworkExecutionModel) -> dict:
     return {
         "status": str(execution.status),
         "output": execution.output_message or "",
         "result": (
-            {"answer": execution.output_message}
+            {
+                "answer": execution.output_message,
+                "parsed_output": execution.parsed_output,
+                "output_parse_error": execution.output_parse_error,
+            }
             if execution.output_message is not None
+            or execution.parsed_output is not None
+            or execution.output_parse_error is not None
             else None
         ),
+        "parsed_output": execution.parsed_output,
+        "output_parse_error": execution.output_parse_error,
         "trace_id": str(execution.root_trace_id) if execution.root_trace_id else None,
         "project_id": str(execution.project_id),
         "network_id": str(execution.network_id),
