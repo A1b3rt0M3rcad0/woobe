@@ -3,7 +3,7 @@ import type { NetworkRuntimeEvent } from '@/features/network/types'
 
 import type { AgentNodeId, Environment, NetworkBinding, NodeId } from './networkWorkspaceTypes'
 
-export type AgentInvocationStatus = 'pending' | 'running' | 'success' | 'error' | 'skipped'
+export type AgentInvocationStatus = 'pending' | 'running' | 'success' | 'error' | 'cancelled' | 'skipped'
 
 export interface NetworkAgentInvocation {
   spanId: string
@@ -51,7 +51,7 @@ export interface NetworkInvocationFailure {
 export interface NetworkExecution {
   id: string
   traceId: string | null
-  status: 'running' | 'success' | 'error'
+  status: 'running' | 'success' | 'error' | 'cancelled'
   environment: Environment
   startedAt: string
   durationMs: number
@@ -257,6 +257,20 @@ function markRunningToolsFailed(tools: ToolCallInfo[]): ToolCallInfo[] {
   ))
 }
 
+function markRunningToolsCancelled(tools: ToolCallInfo[]): ToolCallInfo[] {
+  return tools.map((tool) => (
+    tool.status === 'running' || tool.success == null
+      ? {
+          ...tool,
+          success: false,
+          status: 'cancelled',
+          error_code: null,
+          error: null,
+        }
+      : tool
+  ))
+}
+
 function placeholderInvocation(
   bindings: Record<AgentNodeId, NetworkBinding>,
   status: NetworkExecution['status'],
@@ -277,7 +291,7 @@ function placeholderInvocation(
     model: binding?.agent.model ?? null,
     source: binding?.source ?? 'draft',
     version: binding?.version ?? 'current',
-    status: status === 'error' ? 'error' : status,
+    status: status === 'error' ? 'error' : status === 'cancelled' ? 'cancelled' : status,
     startedAt: null,
     completedAt: null,
     durationMs: null,
@@ -360,6 +374,9 @@ export function buildExecutionFromRuntimeEvents({
       if (eventType === 'execution_failed' && typeof event.data.trace_id === 'string') {
         traceId = event.data.trace_id
       }
+      if (eventType === 'execution_cancelled' && typeof event.data.trace_id === 'string') {
+        traceId = event.data.trace_id
+      }
       continue
     }
 
@@ -428,6 +445,18 @@ export function buildExecutionFromRuntimeEvents({
       continue
     }
 
+    if (eventType === 'agent_invocation_cancelled') {
+      const childTraceId = typeof event.data.trace_id === 'string' ? event.data.trace_id : null
+      if (!current.parentSpanId && childTraceId) traceId = childTraceId
+      current.status = 'cancelled'
+      current.completedAt = event.created_at ?? null
+      current.durationMs = elapsedMilliseconds(current.startedAt, current.completedAt)
+      current.childTraceId = childTraceId
+      current.output = typeof event.data.output === 'string' ? event.data.output : current.output
+      current.tools = markRunningToolsCancelled(current.tools)
+      continue
+    }
+
     if (eventType === 'agent_invocation_failed') {
       const childTraceId = typeof event.data.trace_id === 'string'
         ? event.data.trace_id
@@ -459,6 +488,9 @@ export function buildExecutionFromRuntimeEvents({
       .reverse()
       .find((item) => item.eventType === 'execution_failed')
     root.failure = terminalFailure ? asFailure(terminalFailure.event.data) : null
+  } else if (status === 'cancelled' && root.status === 'running') {
+    root.status = 'cancelled'
+    root.tools = markRunningToolsCancelled(root.tools)
   }
 
   const explicitStart = sorted.find(
