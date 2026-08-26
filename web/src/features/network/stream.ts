@@ -37,6 +37,7 @@ interface ParsedSseEvent {
 
 interface NetworkStreamState {
   output: string
+  sequence: number | null
 }
 
 const TERMINAL_NETWORK_EVENTS = new Set([
@@ -77,6 +78,40 @@ function syntheticEvent(
   data: Record<string, unknown>,
 ): NetworkRuntimeEvent {
   return { ...source, data }
+}
+
+function eventSequence(parsed: ParsedSseEvent, event: NetworkRuntimeEvent): number | null {
+  if (typeof event.sequence === 'number' && Number.isInteger(event.sequence) && event.sequence >= 0) {
+    return event.sequence
+  }
+  if (parsed.id && /^\d+$/.test(parsed.id)) return Number(parsed.id)
+  return null
+}
+
+function acceptSequence(
+  parsed: ParsedSseEvent,
+  event: NetworkRuntimeEvent,
+  streamState: NetworkStreamState,
+): boolean {
+  const sequence = eventSequence(parsed, event)
+  if (sequence === null) return true
+  event.sequence = sequence
+
+  if (parsed.event === 'run.state') {
+    if (streamState.sequence !== null && sequence < streamState.sequence) return false
+    streamState.sequence = sequence
+    return true
+  }
+
+  if (streamState.sequence !== null) {
+    if (sequence <= streamState.sequence) return false
+    const expected = streamState.sequence + 1
+    if (sequence !== expected) {
+      throw new Error(`Network stream sequence gap: expected ${expected}, received ${sequence}`)
+    }
+  }
+  streamState.sequence = sequence
+  return true
 }
 
 function applyRunState(
@@ -124,6 +159,8 @@ function applyRunState(
     callbacks.onEvent('execution_completed', syntheticEvent(event, {
       trace_id: data.trace_id ?? null,
       output,
+      parsed_output: data.parsed_output ?? null,
+      output_parse_error: data.output_parse_error ?? null,
     }))
   } else if (status === 'cancelled') {
     callbacks.onEvent('execution_cancelled', syntheticEvent(event, {}))
@@ -159,14 +196,13 @@ async function consumeResponse(
     const parsed = parseSseBlock(block)
     if (!parsed) return false
     const event = JSON.parse(parsed.data) as NetworkRuntimeEvent
-    if (parsed.id) {
-      input.lastEventId = Number(parsed.id)
-      if (event.sequence == null) event.sequence = input.lastEventId
-    }
+    const sequence = eventSequence(parsed, event)
+    if (sequence !== null) input.lastEventId = sequence
     if (parsed.event === 'heartbeat') {
       callbacks.onHeartbeat?.(event)
       return false
     }
+    if (!acceptSequence(parsed, event, streamState)) return false
     if (parsed.event === 'run.state') return applyRunState(event, callbacks, streamState)
 
     if (parsed.event === 'token') {
@@ -183,23 +219,28 @@ async function consumeResponse(
     return isTerminalNetworkEvent(parsed.event)
   }
 
-  while (true) {
-    const { value, done } = await reader.read()
-    buffer += decoder.decode(value, { stream: !done })
-    const blocks = buffer.split(/\r?\n\r?\n/)
-    buffer = blocks.pop() ?? ''
+  try {
+    while (true) {
+      const { value, done } = await reader.read()
+      buffer += decoder.decode(value, { stream: !done })
+      const blocks = buffer.split(/\r?\n\r?\n/)
+      buffer = blocks.pop() ?? ''
 
-    for (const block of blocks) {
-      if (!dispatchBlock(block)) continue
-      await reader.cancel().catch(() => undefined)
-      return true
+      for (const block of blocks) {
+        if (!dispatchBlock(block)) continue
+        await reader.cancel().catch(() => undefined)
+        return true
+      }
+
+      if (done && buffer.trim() && dispatchBlock(buffer)) return true
+      if (done) break
     }
 
-    if (done && buffer.trim() && dispatchBlock(buffer)) return true
-    if (done) break
+    return false
+  } catch (error) {
+    await reader.cancel().catch(() => undefined)
+    throw error
   }
-
-  return false
 }
 
 async function requestInitialStream(
@@ -269,7 +310,7 @@ export async function streamNetworkExecution(
     ...input,
     idempotencyKey: input.idempotencyKey ?? createUuid(),
   }
-  const streamState: NetworkStreamState = { output: '' }
+  const streamState: NetworkStreamState = { output: '', sequence: null }
 
   for (let attempt = 0; attempt < 4; attempt += 1) {
     if (signal?.aborted) throw new DOMException('Network stream aborted', 'AbortError')
