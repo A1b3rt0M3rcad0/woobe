@@ -398,7 +398,9 @@ class ControlPlaneChatSurfaceService(ChatSurfaceService):
                 request.id,
                 status=status,
                 target_run_id=run_id,
-                error_code=None if status == "completed" else "runtime_failed",
+                error_code=(
+                    None if status in {"completed", "cancelled"} else "runtime_failed"
+                ),
             )
             return None
         return request
@@ -460,7 +462,11 @@ class ControlPlaneChatSurfaceService(ChatSurfaceService):
                 if run_status == "cancelled"
                 else "failed"
             )
-            error_code = None if status == "completed" else error_code or "runtime_failed"
+            error_code = (
+                None
+                if status in {"completed", "cancelled"}
+                else error_code or "runtime_failed"
+            )
 
         # A successful observer iterator with no canonical Run is not proof that the
         # execution completed. Preserve the gate; reattach or stale-run recovery can
