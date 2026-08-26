@@ -151,9 +151,7 @@ function applyRunState(
     streamState.output = output
   }
 
-  // run.state is a transport/projection reconciliation frame, not evidence that
-  // the observer reconnected. Reattach UX is driven explicitly by the caller that
-  // recovered an active execution after reload.
+  callbacks.onEvent('run.state', event)
   const status = typeof data.status === 'string' ? data.status : ''
   if (!TERMINAL_RUN_STATUSES.has(status)) return false
 
