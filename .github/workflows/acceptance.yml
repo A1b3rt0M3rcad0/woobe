@@ -2,7 +2,7 @@ name: Acceptance
 
 on:
   pull_request:
-    branches: [development]
+    branches: [development, master]
     types: [opened, reopened, synchronize, ready_for_review]
   workflow_dispatch:
 
