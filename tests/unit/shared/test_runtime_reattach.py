@@ -58,6 +58,9 @@ async def test_reattach_folds_125_to_131_into_initial_state_then_tails_132() -> 
     assert state.sequence == 131
     assert state.data["sequence"] == 131
     assert state.data["output"].endswith("126,127,128,129,130,131,")
+    hot = await store.get(run_id)
+    assert hot is not None
+    assert hot["reattach_count"] == 1
 
     await store.append_event(run_id, "token", {"content": "132,"})
     live = await anext(stream)
