@@ -5,17 +5,20 @@ import {
   getTraceDetail,
   getTraceModelInvocations,
   getRunModelInvocations,
+  getAgentRunDetail,
+  getAgentRunDetailByTrace,
   getAskJob,
   type AskJobResponse,
   type GetTracesParams,
 } from './api'
-import type { ContextModelInvocation, Trace, TraceDetail } from './types'
+import type { AgentRunDetail, ContextModelInvocation, Trace, TraceDetail } from './types'
 
 const TRACE_REFRESH_INTERVAL_MS = 1_500
 const PLAYGROUND_IDLE_TRACE_LIST_REFRESH_INTERVAL_MS = 3_000
 const IDLE_TRACE_LIST_REFRESH_INTERVAL_MS = 10_000
 const TRACE_NOT_FOUND_RETRIES = 20
 const CONTEXT_EVIDENCE_NOT_FOUND_RETRIES = 6
+const AGENT_RUN_DETAIL_NOT_FOUND_RETRIES = 6
 
 function isTerminalStatus(status: string | undefined): boolean {
   if (!status) return false
@@ -44,6 +47,12 @@ function shouldRetryContextEvidence(failureCount: number, error: Error): boolean
   return error.status >= 500 && failureCount < 2
 }
 
+function shouldRetryAgentRunDetail(failureCount: number, error: Error): boolean {
+  if (!(error instanceof ApiError)) return false
+  if (error.status === 404) return failureCount < AGENT_RUN_DETAIL_NOT_FOUND_RETRIES
+  return error.status >= 500 && failureCount < 2
+}
+
 export function useTraces(projectId?: string, networkId?: string) {
   return useQuery({
     queryKey: ['traces', { projectId, networkId }],
@@ -67,6 +76,29 @@ export function useTraceDetail(id: string | undefined) {
     refetchInterval: (query) => {
       const trace = query.state.data
       return isTerminalTrace(trace) ? false : TRACE_REFRESH_INTERVAL_MS
+    },
+    refetchIntervalInBackground: false,
+  })
+}
+
+export function useAgentRunDetail({
+  runId,
+  traceId,
+}: {
+  runId?: string
+  traceId?: string
+}) {
+  const identity = runId ? { kind: 'run', id: runId } : traceId ? { kind: 'trace', id: traceId } : null
+  return useQuery<AgentRunDetail, Error>({
+    queryKey: ['agent-run-detail', identity],
+    queryFn: () => runId ? getAgentRunDetail(runId) : getAgentRunDetailByTrace(traceId!),
+    enabled: Boolean(identity),
+    retry: shouldRetryAgentRunDetail,
+    retryDelay: (failureCount) => Math.min(300 * 2 ** failureCount, 1_200),
+    staleTime: 30_000,
+    refetchInterval: (query) => {
+      const run = query.state.data
+      return run && isTerminalStatus(run.status) ? false : TRACE_REFRESH_INTERVAL_MS
     },
     refetchIntervalInBackground: false,
   })
@@ -111,9 +143,6 @@ export function usePlaygroundTraces(
         agentId: sessionId ? undefined : agentId,
         sessionId: sessionId ?? undefined,
       } as GetTracesParams),
-    // Agent Runs exist independently of Sessions. Stateless Agents must still
-    // expose their Runs through the Agent filter. The list also owns the active
-    // Run UX, so it keeps a light idle refresh instead of waiting for completion.
     enabled: Boolean(projectId) && Boolean(agentId),
     staleTime: 1_000,
     refetchInterval: (query) => hasActiveTrace(query.state.data)
