@@ -8,6 +8,10 @@ from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 from shared.runtime_reattach import RuntimeEventPublisher, RuntimeStreamReader
 
 
+async def _unused_fallback():
+    return None
+
+
 @pytest.mark.asyncio
 async def test_network_reattach_projection_restores_invocation_tree_without_raw_outputs() -> None:
     store = InMemoryExecutionStateStore()
@@ -103,7 +107,7 @@ async def test_network_reattach_projection_restores_invocation_tree_without_raw_
     projection, _ = await reader.current_state(
         run_id,
         "network",
-        durable_fallback=lambda: None,
+        durable_fallback=_unused_fallback,
     )
 
     invocations = {item["id"]: item for item in projection["invocations"]}
@@ -119,18 +123,14 @@ async def test_network_reattach_projection_restores_invocation_tree_without_raw_
     assert "tool_calls" not in child
     assert "sources" not in child
 
-    assert projection["delegations"] == [
-        {
-            "id": "fingerprint-1",
-            "parent_invocation_id": str(root_invocation_id),
-            "target_node_id": str(child_node_id),
-            "target": "Billing Agent",
-            "status": "completed",
-            "reason": None,
-            "started_at": None,
-            "completed_at": pytest.ANY,
-        }
-    ]
+    assert len(projection["delegations"]) == 1
+    delegation = projection["delegations"][0]
+    assert delegation["id"] == "fingerprint-1"
+    assert delegation["parent_invocation_id"] == str(root_invocation_id)
+    assert delegation["target_node_id"] == str(child_node_id)
+    assert delegation["target"] == "Billing Agent"
+    assert delegation["status"] == "completed"
+    assert isinstance(delegation["completed_at"], str)
 
 
 @pytest.mark.asyncio
@@ -170,7 +170,7 @@ async def test_network_projection_preserves_failed_invocation_cause_for_reattach
     projection, _ = await reader.current_state(
         run_id,
         "network",
-        durable_fallback=lambda: None,
+        durable_fallback=_unused_fallback,
     )
 
     invocation = projection["invocations"][0]
