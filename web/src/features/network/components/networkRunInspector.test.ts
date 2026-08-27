@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { NetworkAgentInvocation } from './networkChatExecution'
+import { uniqueAgentCount, type NetworkAgentInvocation } from './networkChatExecution'
 import { findNetworkInvocation, flattenNetworkInvocationPath, networkRunOutcome, summarizeInvocationTools } from './networkRunInspector'
 
 function invocation(spanId: string, overrides: Partial<NetworkAgentInvocation> = {}): NetworkAgentInvocation {
@@ -32,6 +32,21 @@ describe('networkRunInspector', () => {
       { spanId: 'specialist', depth: 1, role: 'delegated' },
     ])
     expect(findNetworkInvocation(root, 'specialist')).toBe(child)
+  })
+
+  it('counts Agent Runs separately from distinct Agents', () => {
+    const repeated = invocation('specialist-2', {
+      parentSpanId: 'root',
+      agentId: 'agent-specialist',
+    })
+    const first = invocation('specialist-1', {
+      parentSpanId: 'root',
+      agentId: 'agent-specialist',
+    })
+    const root = invocation('root', { children: [first, repeated] })
+
+    expect(flattenNetworkInvocationPath(root)).toHaveLength(3)
+    expect(uniqueAgentCount(root)).toBe(2)
   })
 
   it('summarizes Tool Calls without expanding their payloads', () => {
