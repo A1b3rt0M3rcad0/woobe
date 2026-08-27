@@ -4,6 +4,7 @@ import {
   getTraces,
   getTraceDetail,
   getTraceModelInvocations,
+  getRunModelInvocations,
   getAskJob,
   type AskJobResponse,
   type GetTracesParams,
@@ -13,6 +14,7 @@ import type { ContextModelInvocation, Trace, TraceDetail } from './types'
 const TRACE_REFRESH_INTERVAL_MS = 1_500
 const IDLE_TRACE_LIST_REFRESH_INTERVAL_MS = 10_000
 const TRACE_NOT_FOUND_RETRIES = 20
+const CONTEXT_EVIDENCE_NOT_FOUND_RETRIES = 6
 
 function isTerminalStatus(status: string | undefined): boolean {
   if (!status) return false
@@ -33,6 +35,12 @@ function shouldRetryTrace(failureCount: number, error: Error): boolean {
   return error instanceof ApiError
     && error.status === 404
     && failureCount < TRACE_NOT_FOUND_RETRIES
+}
+
+function shouldRetryContextEvidence(failureCount: number, error: Error): boolean {
+  if (!(error instanceof ApiError)) return false
+  if (error.status === 404) return failureCount < CONTEXT_EVIDENCE_NOT_FOUND_RETRIES
+  return error.status >= 500 && failureCount < 2
 }
 
 export function useTraces(projectId?: string, networkId?: string) {
@@ -63,15 +71,30 @@ export function useTraceDetail(id: string | undefined) {
   })
 }
 
-export function useTraceModelInvocations(id: string | undefined) {
+export function useContextModelInvocations({
+  runId,
+  traceId,
+}: {
+  runId?: string
+  traceId?: string
+}) {
+  const identity = runId ? { kind: 'run', id: runId } : traceId ? { kind: 'trace', id: traceId } : null
   return useQuery<ContextModelInvocation[], Error>({
-    queryKey: ['trace-context', id],
-    queryFn: () => getTraceModelInvocations(id!),
-    enabled: Boolean(id),
-    retry: shouldRetryTrace,
-    retryDelay: (failureCount) => Math.min(250 * 2 ** failureCount, 1_500),
+    queryKey: ['context-evidence', identity],
+    queryFn: () => runId ? getRunModelInvocations(runId) : getTraceModelInvocations(traceId!),
+    enabled: Boolean(identity),
+    retry: shouldRetryContextEvidence,
+    retryDelay: (failureCount) => Math.min(300 * 2 ** failureCount, 1_200),
     staleTime: 30_000,
   })
+}
+
+export function useTraceModelInvocations(id: string | undefined) {
+  return useContextModelInvocations({ traceId: id })
+}
+
+export function useRunModelInvocations(id: string | undefined) {
+  return useContextModelInvocations({ runId: id })
 }
 
 export function usePlaygroundTraces(
