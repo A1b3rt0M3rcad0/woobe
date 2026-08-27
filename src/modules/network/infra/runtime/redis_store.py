@@ -129,6 +129,23 @@ class RedisNetworkExecutionStore:
             if current_execution_id == execution_id:
                 self._forget_invocation(invocation_id)
 
+    @classmethod
+    def _completed_node_invocation_count(
+        cls,
+        state: dict[str, Any],
+        *,
+        node_id: UUID,
+    ) -> int:
+        node_text = str(node_id)
+        return sum(
+            1
+            for key, value in state.items()
+            if key.startswith(cls.INVOCATION_PREFIX)
+            and isinstance(value, dict)
+            and str(value.get("node_id") or "") == node_text
+            and value.get("status") == "completed"
+        )
+
     async def start_invocation(
         self,
         *,
@@ -145,6 +162,17 @@ class RedisNetworkExecutionStore:
             state.get(f"{self.CONTEXT_PREFIX}{node_id}") if persist_context else None
         )
         session_id = UUID(str(raw_session_id)) if raw_session_id else None
+        previous_invocation_count = self._completed_node_invocation_count(
+            state,
+            node_id=node_id,
+        )
+        context_state = (
+            "stateless"
+            if not persist_context
+            else "reused"
+            if session_id is not None
+            else "created"
+        )
         invocation = NetworkInvocationState(
             id=uuid6.uuid7(),
             network_execution_id=execution.id,
@@ -157,6 +185,8 @@ class RedisNetworkExecutionStore:
             depth=depth,
             status="running",
             input_message=message,
+            context_state=context_state,
+            previous_invocation_count=previous_invocation_count,
         )
         self._invocation_to_execution[invocation.id] = execution.id
         self._remember_invocation_event_context(invocation)
@@ -176,6 +206,8 @@ class RedisNetworkExecutionStore:
                     "agent_session_id": str(session_id) if session_id else None,
                     "status": "running",
                     "persist_context": persist_context,
+                    "context_state": context_state,
+                    "previous_invocation_count": previous_invocation_count,
                     "started_at": datetime.now(timezone.utc).isoformat(),
                 }
             },
@@ -260,6 +292,7 @@ class RedisNetworkExecutionStore:
         updates: dict[str, Any] = {
             f"{self.INVOCATION_PREFIX}{invocation_id}": invocation
         }
+        # A successful invocation is the only logical commit point for continuity.
         if result.session_id and persist_context:
             updates[f"{self.CONTEXT_PREFIX}{invocation['node_id']}"] = str(
                 result.session_id
@@ -288,6 +321,8 @@ class RedisNetworkExecutionStore:
                 "trace_id": (
                     str(trace_id) if trace_id else invocation.get("trace_id")
                 ),
+                # Preserve the failed attempt's Session identity as evidence, but do
+                # not advance the node's continuity pointer with a failed Session.
                 "agent_session_id": (
                     str(agent_session_id)
                     if agent_session_id
@@ -296,14 +331,10 @@ class RedisNetworkExecutionStore:
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }
         )
-        updates: dict[str, Any] = {
-            f"{self.INVOCATION_PREFIX}{invocation_id}": invocation
-        }
-        if agent_session_id and persist_context:
-            updates[f"{self.CONTEXT_PREFIX}{invocation['node_id']}"] = str(
-                agent_session_id
-            )
-        await self._state.update(execution_id, updates)
+        await self._state.update(
+            execution_id,
+            {f"{self.INVOCATION_PREFIX}{invocation_id}": invocation},
+        )
 
     async def cancel_running_invocations(
         self,
@@ -539,11 +570,20 @@ class RedisNetworkExecutionStore:
                     }
                 else:
                     event_type = "execution_failed"
+                    output = terminal.get("output") or ""
                     payload = {
                         "failure_code": terminal.get("failure_code"),
-                        "message": terminal.get("failure_detail"),
+                        "message": (
+                            terminal.get("failure_message")
+                            or "The Network Run failed before producing a complete result."
+                        ),
                         "trace_id": terminal.get("trace_id"),
                         "uncertain": status == "uncertain" or bool(terminal.get("uncertain")),
+                        "partial_result_available": bool(
+                            terminal.get("partial_result_available") or output
+                        ),
+                        "output": output,
+                        "partial": bool(output),
                     }
                 await self._events.publish(
                     execution_id,
