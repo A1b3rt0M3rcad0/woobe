@@ -20,9 +20,11 @@ import {
 } from 'lucide-react'
 
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
+import { AgentRunOperationalView } from '@/features/playground/components/AgentRunOperationalView'
 import { ToolCallsCollapsible } from '@/features/playground/components/ToolCallsCollapsible'
-import { TraceDiagnosticsPanel } from '@/features/playground/components/TraceDiagnosticsPanel'
-import { ContextInspector } from '@/features/traces/components/ContextInspector'
+import { TraceDetails } from '@/features/playground/components/TraceDetails'
+import '@/features/playground/components/trace-details-embedded.css'
+import type { TraceItem } from '@/features/playground/types'
 import { formatCurrency, formatLatency, formatTokens } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 
@@ -40,8 +42,8 @@ import {
   summarizeInvocationTools,
 } from './networkRunInspector'
 
-type InspectorView = 'execution' | 'context' | 'agent' | 'evidence'
-type AgentDetailView = 'execution' | 'context'
+type InspectorView = 'run' | 'agent' | 'evidence'
+type AgentDetailView = 'run' | 'evidence'
 
 function CollapsibleSection({ title, badge, children }: { title: string; badge?: string; children: ReactNode }) {
   const [open, setOpen] = useState(false)
@@ -105,24 +107,57 @@ function statusIcon(status: NetworkAgentInvocation['status']) {
   return <CheckCircle2 className="h-4 w-4 text-emerald-400" />
 }
 
-function AgentRunDetail({ invocation, root, onBack, onOpenAgent, onEvidence }: {
+function traceStatus(status: NetworkAgentInvocation['status']): TraceItem['status'] {
+  if (status === 'success') return 'success'
+  if (status === 'error') return 'error'
+  if (status === 'cancelled') return 'cancelled'
+  if (status === 'running') return 'running'
+  if (status === 'pending') return 'pending'
+  return 'warning'
+}
+
+function invocationTraceItem(invocation: NetworkAgentInvocation, projectId: string): TraceItem | null {
+  if (!invocation.childTraceId) return null
+  return {
+    id: invocation.childTraceId,
+    title: `${invocation.agentName} Agent Run`,
+    timestamp: invocation.startedAt ?? new Date().toISOString(),
+    status: traceStatus(invocation.status),
+    latency_ms: invocation.durationMs ?? null,
+    model: invocation.model ?? null,
+    provider: invocation.provider ?? null,
+    input_tokens: invocation.usage?.input_tokens ?? null,
+    output_tokens: invocation.usage?.output_tokens ?? null,
+    total_tokens: invocation.usage?.total_tokens ?? null,
+    cost_usd: invocation.costUsd ?? null,
+    trace_id: invocation.childTraceId,
+    response: null,
+    project_id: projectId,
+    agent_id: invocation.agentId,
+  }
+}
+
+function AgentRunDetail({ invocation, root, projectId, onBack, onOpenAgent, onNetworkEvidence }: {
   invocation: NetworkAgentInvocation
   root: NetworkAgentInvocation
+  projectId: string
   onBack: () => void
   onOpenAgent: (nodeId: AgentNodeId) => void
-  onEvidence: () => void
+  onNetworkEvidence: () => void
 }) {
-  const [detailView, setDetailView] = useState<AgentDetailView>('execution')
+  const [detailView, setDetailView] = useState<AgentDetailView>('run')
   const role = invocation.spanId === root.spanId ? 'Entry Agent' : 'Delegated Agent'
   const tools = summarizeInvocationTools(invocation)
+  const evidenceTrace = invocationTraceItem(invocation, projectId)
+  const finalizing = invocation.status === 'running' || invocation.status === 'pending'
 
   useEffect(() => {
-    setDetailView('execution')
+    setDetailView('run')
   }, [invocation.spanId])
 
   return (
     <div className="space-y-4">
-      <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-[9px] font-medium text-muted hover:text-white"><ArrowLeft className="h-3.5 w-3.5" />Network execution</button>
+      <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-[9px] font-medium text-muted hover:text-white"><ArrowLeft className="h-3.5 w-3.5" />Network Run</button>
 
       <section className="rounded-xl border border-border/75 bg-background/30 p-3">
         <div className="flex items-start gap-3">
@@ -142,58 +177,62 @@ function AgentRunDetail({ invocation, root, onBack, onOpenAgent, onEvidence }: {
       </section>
 
       <nav className="grid grid-cols-2 rounded-lg border border-border/75 bg-background/25 p-1" aria-label="Agent Run detail views">
-        <button type="button" onClick={() => setDetailView('execution')} className={cn('rounded-md px-2 py-1.5 text-[9px] font-medium', detailView === 'execution' ? 'bg-primary/10 text-primary-light' : 'text-muted hover:text-white')}>Execution</button>
-        <button type="button" onClick={() => setDetailView('context')} className={cn('rounded-md px-2 py-1.5 text-[9px] font-medium', detailView === 'context' ? 'bg-primary/10 text-primary-light' : 'text-muted hover:text-white')}>Context</button>
+        <button type="button" onClick={() => setDetailView('run')} className={cn('rounded-md px-2 py-1.5 text-[9px] font-medium', detailView === 'run' ? 'bg-primary/10 text-primary-light' : 'text-muted hover:text-white')}>Run</button>
+        <button type="button" onClick={() => setDetailView('evidence')} className={cn('rounded-md px-2 py-1.5 text-[9px] font-medium', detailView === 'evidence' ? 'bg-primary/10 text-primary-light' : 'text-muted hover:text-white')}>Evidence</button>
       </nav>
 
-      {detailView === 'execution' ? (
-        <>
-          {invocation.childTraceId ? <TraceDiagnosticsPanel traceId={invocation.childTraceId} /> : (
-            <section className="rounded-xl border border-dashed border-border/80 px-3 py-2.5 text-[9px] text-muted">
-              Trace diagnostics are unavailable for this Agent Run.
+      {detailView === 'run' ? (
+        <div className="overflow-hidden rounded-xl border border-border/75 bg-background/20">
+          <AgentRunOperationalView traceId={invocation.childTraceId} runId={invocation.spanId} finalizing={finalizing}>
+            <section>
+              <p className="text-[8px] uppercase tracking-wide text-muted">Model</p>
+              <p className="mt-1 truncate font-mono text-[9px] text-slate-300">{invocation.provider || '—'}/{invocation.model || '—'}</p>
             </section>
-          )}
 
-          <section>
-            <p className="text-[8px] uppercase tracking-wide text-muted">Model</p>
-            <p className="mt-1 truncate font-mono text-[9px] text-slate-300">{invocation.provider || '—'}/{invocation.model || '—'}</p>
-          </section>
-
-          <section className="border-t border-border/70 pt-3">
-            <div className="flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Session continuity</p><Info className="h-3 w-3 text-muted" aria-label="Session continuity used by this Agent Run" /></div>
-            <p className="mt-1 text-[10px] text-slate-300">{invocation.contextState === 'stateless' ? 'Stateless invocation' : invocation.contextState === 'created' ? 'Stateful session continuity created for this Agent Run' : `Stateful session continuity reused after ${invocation.previousInvocationCount} invocation${invocation.previousInvocationCount === 1 ? '' : 's'}`}</p>
-          </section>
-
-          {invocation.failure ? (
-            <section className="rounded-xl border border-red-500/25 bg-red-500/5 p-3">
-              <p className="text-[10px] font-medium text-red-300">{invocation.failure.message}</p>
-              <p className="mt-1 font-mono text-[9px] text-muted">{invocation.failure.code} · {invocation.failure.stage}</p>
-              <button type="button" onClick={onEvidence} className="mt-2 text-[9px] font-medium text-red-200 hover:text-white">Review failure evidence</button>
+            <section className="border-t border-border/70 pt-3">
+              <div className="flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Session continuity</p><Info className="h-3 w-3 text-muted" aria-label="Session continuity used by this Agent Run" /></div>
+              <p className="mt-1 text-[10px] text-slate-300">{invocation.contextState === 'stateless' ? 'Stateless invocation' : invocation.contextState === 'created' ? 'Stateful session continuity created for this Agent Run' : `Stateful session continuity reused after ${invocation.previousInvocationCount} invocation${invocation.previousInvocationCount === 1 ? '' : 's'}`}</p>
             </section>
-          ) : null}
 
-          <section className="rounded-xl border border-border/75 bg-background/30 p-3">
-            <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Result</p>
-            <div className="mt-2"><OutputPreview value={invocation.output} /></div>
-          </section>
+            {invocation.failure ? (
+              <section className="rounded-xl border border-red-500/25 bg-red-500/5 p-3">
+                <p className="text-[10px] font-medium text-red-300">{invocation.failure.message}</p>
+                <p className="mt-1 font-mono text-[9px] text-muted">{invocation.failure.code} · {invocation.failure.stage}</p>
+                <button type="button" onClick={() => setDetailView('evidence')} className="mt-2 text-[9px] font-medium text-red-200 hover:text-white">Review Agent Run evidence</button>
+              </section>
+            ) : null}
 
-          {tools.total ? <ToolCallsCollapsible toolCalls={invocation.tools} variant="network" /> : null}
+            <section className="rounded-xl border border-border/75 bg-background/30 p-3">
+              <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Result</p>
+              <div className="mt-2"><OutputPreview value={invocation.output} /></div>
+            </section>
 
-          {invocation.sources.length ? (
-            <CollapsibleSection title="Sources" badge={String(invocation.sources.length)}>
-              <div className="space-y-1.5">
-                {invocation.sources.map((source, index) => <div key={source.chunk_id || `${source.document_id || 'source'}-${index}`} className="flex items-start gap-2 rounded-lg bg-background/40 px-2.5 py-2"><Database className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300" /><div className="min-w-0"><p className="truncate text-[10px] text-white">{source.document_title || 'Untitled source'}</p>{source.content_preview ? <p className="mt-1 line-clamp-2 text-[9px] leading-4 text-muted">{source.content_preview}</p> : null}</div></div>)}
-              </div>
-            </CollapsibleSection>
-          ) : null}
-        </>
-      ) : (
-        <div className="rounded-xl border border-border/75 bg-background/20 pt-3">
-          <ContextInspector runId={invocation.spanId} finalizing />
+            {tools.total ? <ToolCallsCollapsible toolCalls={invocation.tools} variant="network" /> : null}
+
+            {invocation.sources.length ? (
+              <CollapsibleSection title="Sources" badge={String(invocation.sources.length)}>
+                <div className="space-y-1.5">
+                  {invocation.sources.map((source, index) => <div key={source.chunk_id || `${source.document_id || 'source'}-${index}`} className="flex items-start gap-2 rounded-lg bg-background/40 px-2.5 py-2"><Database className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300" /><div className="min-w-0"><p className="truncate text-[10px] text-white">{source.document_title || 'Untitled source'}</p>{source.content_preview ? <p className="mt-1 line-clamp-2 text-[9px] leading-4 text-muted">{source.content_preview}</p> : null}</div></div>)}
+                </div>
+              </CollapsibleSection>
+            ) : null}
+          </AgentRunOperationalView>
         </div>
-      )}
+      ) : null}
 
-      <button type="button" onClick={onEvidence} className="inline-flex items-center gap-1.5 text-[9px] font-medium text-muted hover:text-white"><SquareTerminal className="h-3.5 w-3.5" />View Network evidence</button>
+      {detailView === 'evidence' ? (
+        evidenceTrace ? (
+          <div className="trace-details-embedded overflow-hidden rounded-xl border border-border/75 bg-background/20">
+            <TraceDetails trace={evidenceTrace} onBack={() => setDetailView('run')} />
+          </div>
+        ) : (
+          <section className="rounded-xl border border-dashed border-border/80 px-3 py-3 text-[9px] text-muted">
+            Agent Run evidence is unavailable until this invocation has a child Trace.
+          </section>
+        )
+      ) : null}
+
+      <button type="button" onClick={onNetworkEvidence} className="inline-flex items-center gap-1.5 text-[9px] font-medium text-muted hover:text-white"><SquareTerminal className="h-3.5 w-3.5" />View Network evidence</button>
     </div>
   )
 }
@@ -204,7 +243,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
   onViewCanvas: (trace: NetworkTraceRecord) => void
   onOpenAgent: (nodeId: AgentNodeId) => void
 }) {
-  const [view, setView] = useState<InspectorView>('execution')
+  const [view, setView] = useState<InspectorView>('run')
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null)
   const agents = invocationCount(trace.execution.root)
   const tools = toolCount(trace.execution.root)
@@ -227,7 +266,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
   }, [session.networkId, session.projectId, trace.networkSessionId, trace.traceId])
 
   useEffect(() => {
-    setView('execution')
+    setView('run')
     setSelectedSpanId(null)
   }, [trace.id])
 
@@ -256,16 +295,15 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
         </div>
       </header>
 
-      <nav className="grid grid-cols-3 border-b border-border/80 bg-background/20 p-1.5" aria-label="Run inspector views">
+      <nav className="grid grid-cols-2 border-b border-border/80 bg-background/20 p-1.5" aria-label="Run inspector views">
         {([
-          ['execution', Activity, 'Execution'],
-          ['context', Brain, 'Context'],
+          ['run', Activity, 'Run'],
           ['evidence', SquareTerminal, 'Evidence'],
-        ] as const).map(([target, Icon, label]) => <button key={target} type="button" onClick={() => setView(target)} className={cn('flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] font-medium', view === target || (view === 'agent' && target === 'execution') ? 'bg-primary/10 text-primary-light' : 'text-muted hover:text-white')}><Icon className="h-3.5 w-3.5" />{label}</button>)}
+        ] as const).map(([target, Icon, label]) => <button key={target} type="button" onClick={() => setView(target)} className={cn('flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] font-medium', view === target || (view === 'agent' && target === 'run') ? 'bg-primary/10 text-primary-light' : 'text-muted hover:text-white')}><Icon className="h-3.5 w-3.5" />{label}</button>)}
       </nav>
 
       <div className="space-y-4 p-4">
-        {view === 'execution' ? (
+        {view === 'run' ? (
           <>
             <NetworkRunDiagnosticsPanel executionId={trace.id} projectId={session.projectId} running={trace.status === 'running'} mode="execution" />
 
@@ -291,7 +329,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
             </section>
 
             <section className="rounded-xl border border-border/75 bg-background/30 p-3">
-              <div className="mb-2 flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Execution path</p><Info className="h-3 w-3 text-muted" aria-label="Select an Agent Run to inspect its execution or Context" /><span className="ml-auto text-[8px] text-muted">{agents} Agent Run{agents === 1 ? '' : 's'} · {delegations} delegation{delegations === 1 ? '' : 's'}</span></div>
+              <div className="mb-2 flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Execution path</p><Info className="h-3 w-3 text-muted" aria-label="Select an Agent Run to inspect its Run or Evidence" /><span className="ml-auto text-[8px] text-muted">{agents} Agent Run{agents === 1 ? '' : 's'} · {delegations} delegation{delegations === 1 ? '' : 's'}</span></div>
               <NetworkExecutionPath root={trace.execution.root} selectedSpanId={selectedSpanId} onSelect={openInvocation} />
             </section>
 
@@ -304,25 +342,26 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
               <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Activity</p>
               <div className="mt-2 grid grid-cols-3 gap-3"><MetaItem label="Tools" value={`${tools} calls`} /><MetaItem label="Session states" value={String(trace.agentContexts.length)} /><MetaItem label="Events" value={String(trace.events.length)} /></div>
             </section>
+
+            <section className="space-y-3 border-t border-border/70 pt-4">
+              <div className="flex items-start gap-2">
+                <Brain className="mt-0.5 h-3.5 w-3.5 text-muted" />
+                <div>
+                  <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Network Context</p>
+                  <p className="mt-1 text-[9px] leading-4 text-muted">Aggregated from the actual Model Invocations executed by child Agent Runs.</p>
+                </div>
+              </div>
+              <NetworkRunDiagnosticsPanel executionId={trace.id} projectId={session.projectId} running={trace.status === 'running'} mode="context" />
+              <p className="rounded-lg border border-border/75 bg-background/25 px-3 py-2 text-[9px] leading-4 text-muted">Select an Agent Run from the Execution path to inspect that Agent's execution diagnostics, Model Invocations and Context Snapshots together.</p>
+            </section>
           </>
         ) : null}
 
-        {view === 'context' ? (
-          <>
-            <div>
-              <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Network Context</p>
-              <p className="mt-1 text-[9px] leading-4 text-muted">Aggregated from the actual Model Invocations executed by child Agent Runs.</p>
-            </div>
-            <NetworkRunDiagnosticsPanel executionId={trace.id} projectId={session.projectId} running={trace.status === 'running'} mode="context" />
-            <p className="rounded-lg border border-border/75 bg-background/25 px-3 py-2 text-[9px] leading-4 text-muted">Open an Agent Run from the Execution tab to inspect its individual Model Invocations and Context Snapshots.</p>
-          </>
-        ) : null}
-
-        {view === 'agent' && selectedInvocation ? <AgentRunDetail invocation={selectedInvocation} root={trace.execution.root} onBack={() => setView('execution')} onOpenAgent={onOpenAgent} onEvidence={() => setView('evidence')} /> : null}
+        {view === 'agent' && selectedInvocation ? <AgentRunDetail invocation={selectedInvocation} root={trace.execution.root} projectId={session.projectId} onBack={() => setView('run')} onOpenAgent={onOpenAgent} onNetworkEvidence={() => setView('evidence')} /> : null}
 
         {view === 'evidence' ? (
           <>
-            <div><div className="flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Evidence</p><Info className="h-3 w-3 text-muted" aria-label="Trace events, Session continuity and raw runtime data" /></div><p className="mt-1 text-[9px] leading-4 text-muted">Technical and causal evidence is preserved here and stays out of the operational views until needed.</p></div>
+            <div><div className="flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Evidence</p><Info className="h-3 w-3 text-muted" aria-label="Trace events, Session continuity and raw runtime data" /></div><p className="mt-1 text-[9px] leading-4 text-muted">Technical and causal evidence is preserved here and stays out of the operational Run view until needed.</p></div>
 
             {trace.execution.root.failure ? <section className="rounded-xl border border-red-500/25 bg-red-500/5 p-3"><p className="text-[10px] font-medium text-red-300">{trace.execution.root.failure.message}</p><p className="mt-1 font-mono text-[9px] text-muted">{trace.execution.root.failure.code} · {trace.execution.root.failure.stage}{trace.execution.root.failure.phase ? ` · ${trace.execution.root.failure.phase}` : ''}</p></section> : null}
 
