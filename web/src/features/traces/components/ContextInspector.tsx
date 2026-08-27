@@ -2,7 +2,7 @@ import { AlertTriangle, Brain, ChevronRight, RefreshCw } from 'lucide-react'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { formatTokens } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
-import { useTraceModelInvocations } from '../hooks'
+import { useContextModelInvocations } from '../hooks'
 import type { ContextModelInvocation, ContextSnapshotEvidence } from '../types'
 
 function pressureClass(status: string | undefined): string {
@@ -96,10 +96,10 @@ function RunContextSummary({ invocations }: { invocations: ContextModelInvocatio
     <div className="rounded-lg border border-border bg-background px-2.5 py-2">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <p className="text-[9px] uppercase tracking-wider text-muted">Run model input</p>
+          <p className="text-[9px] uppercase tracking-wider text-muted">Model input</p>
           <p className="mt-0.5 text-sm font-mono text-white">{formatUnits(totalInput)}</p>
         </div>
-        <span className="text-[9px] text-muted">{snapshots.length} invocation{snapshots.length === 1 ? '' : 's'}</span>
+        <span className="text-[9px] text-muted">Across {snapshots.length} invocation{snapshots.length === 1 ? '' : 's'}</span>
       </div>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-muted">
         {utilizations.length ? <span>Median utilization {formatPercent(median(utilizations))}</span> : null}
@@ -291,15 +291,23 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
   )
 }
 
-export function ContextInspector({ traceId }: { traceId: string }) {
-  const { data, isLoading, isError, error, refetch } = useTraceModelInvocations(traceId)
+export function ContextInspector({
+  traceId,
+  runId,
+  finalizing = false,
+}: {
+  traceId?: string
+  runId?: string
+  finalizing?: boolean
+}) {
+  const { data, isLoading, isError, error, refetch } = useContextModelInvocations({ traceId, runId })
 
   if (isLoading) {
     return (
       <div className="px-4 pb-4">
         <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/30 p-3 text-xs text-muted">
           <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-          Loading Context evidence...
+          {finalizing ? 'Finalizing Context evidence…' : 'Loading Context evidence…'}
         </div>
       </div>
     )
@@ -313,7 +321,11 @@ export function ContextInspector({ traceId }: { traceId: string }) {
             <Brain className="h-3.5 w-3.5" />
             Context evidence unavailable
           </div>
-          {error instanceof Error ? <p className="text-[10px] text-muted">{error.message}</p> : null}
+          <p className="text-[10px] text-muted">
+            {finalizing
+              ? 'The Agent Run completed, but Context evidence has not been finalized yet.'
+              : error instanceof Error ? error.message : 'Context evidence could not be loaded.'}
+          </p>
           <button onClick={() => refetch()} className="text-[10px] text-primary hover:underline">
             Retry
           </button>
@@ -322,7 +334,16 @@ export function ContextInspector({ traceId }: { traceId: string }) {
     )
   }
 
-  if (!data?.length) return null
+  if (!data?.length) {
+    return finalizing ? (
+      <div className="px-4 pb-4">
+        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/30 p-3 text-xs text-muted">
+          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+          Finalizing Context evidence…
+        </div>
+      </div>
+    ) : null
+  }
 
   return (
     <div className="space-y-2 px-4 pb-4">
