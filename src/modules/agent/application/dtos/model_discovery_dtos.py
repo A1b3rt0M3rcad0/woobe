@@ -19,6 +19,7 @@ class AvailableProviderModelOutput(BaseModel):
     source: str = "remote"
     owned_by: str | None = None
     context_window: int | None = None
+    max_output_tokens: int | None = None
     input_cost_per_1m_tokens: float | None = None
     output_cost_per_1m_tokens: float | None = None
     supports_tools: bool | None = None
