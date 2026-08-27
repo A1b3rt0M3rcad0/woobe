@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import time
 from dataclasses import dataclass
@@ -56,6 +57,8 @@ class NetworkInvocationState:
     depth: int
     status: str
     input_message: str
+    context_state: str = "stateless"
+    previous_invocation_count: int = 0
 
 
 def agent_capability_summary(node: NetworkNode) -> str:
@@ -70,8 +73,35 @@ def delegation_tool_description(node: NetworkNode) -> str:
         f"Specialist capability: {capability} "
         "Use this specialist only when that capability is required. Send the "
         "precise task and only the context needed to complete it, then integrate "
-        "the returned result into your response."
+        "the returned result into your response. This runtime Tool is the source "
+        "of truth for whether this Agent can be delegated to; never claim a "
+        "delegation occurred unless the Tool actually completed successfully."
     )
+
+
+def _delegation_fingerprint(
+    *,
+    target_node_id: UUID,
+    task: str,
+    context: object,
+    expected_output: str,
+) -> str:
+    normalized_task = " ".join(task.lower().split())
+    normalized_expected = " ".join(expected_output.lower().split())
+    payload = {
+        "target_node_id": str(target_node_id),
+        "task": normalized_task,
+        "context": context if isinstance(context, dict) else None,
+        "expected_output": normalized_expected,
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 class NetworkBudgetExceeded(RuntimeError):
@@ -332,6 +362,16 @@ class NetworkExecutor:
                     node=node,
                 ) from exc
 
+            invocation_context_state = str(
+                getattr(
+                    invocation,
+                    "context_state",
+                    "created" if persist_agent_context else "stateless",
+                )
+            )
+            previous_invocation_count = int(
+                getattr(invocation, "previous_invocation_count", 0) or 0
+            )
             try:
                 await self._store.emit(
                     execution.id,
@@ -350,7 +390,13 @@ class NetworkExecutor:
                             else None
                         ),
                         "session_mode": agent_session_mode,
-                        "context_state": "created" if persist_agent_context else "stateless",
+                        "agent_session_id": (
+                            str(invocation.agent_session_id)
+                            if invocation.agent_session_id
+                            else None
+                        ),
+                        "context_state": invocation_context_state,
+                        "previous_invocation_count": previous_invocation_count,
                         "source": (
                             "draft"
                             if runtime_environment == "draft"
@@ -378,6 +424,7 @@ class NetworkExecutor:
                 ) from exc
 
             tools: list[InternalDelegationTool] = []
+            delegation_fingerprints: set[str] = set()
             for target_id in outgoing[node_id]:
                 target = nodes[target_id]
                 tool_id = uuid5(
@@ -395,9 +442,41 @@ class NetworkExecutor:
                 ) -> dict:
                     task = str(arguments.get("task") or "").strip()
                     if not task:
-                        return {"success": False, "error": "Delegation task cannot be blank"}
+                        return {
+                            "success": False,
+                            "error_code": "invalid_delegation_task",
+                            "error": "Delegation task cannot be blank",
+                        }
                     context = arguments.get("context")
                     expected_output = str(arguments.get("expected_output") or "").strip()
+                    fingerprint = _delegation_fingerprint(
+                        target_node_id=delegated_target_id,
+                        task=task,
+                        context=context,
+                        expected_output=expected_output,
+                    )
+                    if fingerprint in delegation_fingerprints:
+                        await self._store.emit(
+                            execution.id,
+                            "delegation_skipped",
+                            {
+                                "target_node_id": str(delegated_target_id),
+                                "target": delegated_target_label,
+                                "reason": "duplicate_delegation",
+                                "task_fingerprint": fingerprint,
+                            },
+                            invocation_id=invocation.id,
+                        )
+                        return {
+                            "success": False,
+                            "error_code": "duplicate_delegation",
+                            "error": (
+                                "An equivalent task was already delegated to this "
+                                "Agent in the current parent invocation."
+                            ),
+                        }
+                    delegation_fingerprints.add(fingerprint)
+
                     envelope: dict[str, object] = {
                         "delegated_by": delegating_agent_label,
                         "delegated_to": delegated_target_label,
@@ -421,15 +500,35 @@ class NetworkExecutor:
                             "target_node_id": str(delegated_target_id),
                             "target": delegated_target_label,
                             "target_capability": delegated_target_capability,
+                            "task_fingerprint": fingerprint,
                         },
                         invocation_id=invocation.id,
                     )
-                    child = await invoke_node(
-                        delegated_target_id,
-                        delegated_message,
-                        depth + 1,
-                        invocation.id,
-                    )
+                    try:
+                        child = await invoke_node(
+                            delegated_target_id,
+                            delegated_message,
+                            depth + 1,
+                            invocation.id,
+                        )
+                    except NetworkRuntimeFailure as failure:
+                        await self._store.emit(
+                            execution.id,
+                            "delegation_failed",
+                            {
+                                "target_node_id": str(delegated_target_id),
+                                "target": delegated_target_label,
+                                "task_fingerprint": fingerprint,
+                                **failure.public_payload(),
+                            },
+                            invocation_id=invocation.id,
+                        )
+                        return {
+                            "success": False,
+                            "error_code": failure.code,
+                            "error": failure.safe_message,
+                            "failure": failure.public_payload(),
+                        }
                     await self._store.emit(
                         execution.id,
                         "delegation_completed",
@@ -439,6 +538,7 @@ class NetworkExecutor:
                             "result_type": (
                                 "structured" if child.parsed_output is not None else "text"
                             ),
+                            "task_fingerprint": fingerprint,
                         },
                         invocation_id=invocation.id,
                     )
