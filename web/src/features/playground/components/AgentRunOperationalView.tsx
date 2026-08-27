@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { ContextInspector } from '@/features/traces/components/ContextInspector'
 import { TraceDiagnosticsPanel } from './TraceDiagnosticsPanel'
 
@@ -5,7 +6,7 @@ interface AgentRunOperationalViewProps {
   traceId?: string | null
   runId?: string | null
   finalizing?: boolean
-  children?: React.ReactNode
+  children?: ReactNode
 }
 
 export function AgentRunOperationalView({
