@@ -7,6 +7,7 @@ import { TraceDiagnosticsPanel } from './TraceDiagnosticsPanel'
 import { SessionsPanel } from './SessionsPanel'
 import './trace-details-embedded.css'
 import { ScrollArea } from '@/components/ui/ScrollArea'
+import { ContextInspector } from '@/features/traces/components/ContextInspector'
 import type { AskResponse, RawStreamEvent, SessionListItem, TraceItem } from '@/features/playground/types'
 
 interface OperationsPanelProps {
@@ -93,11 +94,12 @@ export function OperationsPanel(props: OperationsPanelProps) {
               <div className="flex items-center justify-between border-b border-border/90 bg-background/25 px-4 py-3">
                 <div>
                   <h3 className="text-sm font-medium text-white">Agent Run Detail</h3>
-                  <p className="mt-0.5 text-[10px] text-muted">Overview, activity, and diagnostic trace evidence</p>
+                  <p className="mt-0.5 text-[10px] text-muted">Overview, activity, Context, and diagnostic trace evidence</p>
                 </div>
                 <button type="button" onClick={() => onSelectTrace(null)} className="rounded-lg border border-transparent p-1 text-muted transition-colors hover:border-border/80 hover:bg-background/60 hover:text-white" aria-label="Close Agent Run details"><X className="h-4 w-4" /></button>
               </div>
               <TraceDiagnosticsPanel traceId={selectedRun.id} />
+              <ContextInspector traceId={selectedRun.trace_id || selectedRun.id} />
               <div className="trace-details-embedded"><TraceDetails trace={selectedRun} onBack={() => onSelectTrace(null)} /></div>
             </>
           ) : (
