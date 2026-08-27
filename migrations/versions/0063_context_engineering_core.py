@@ -47,7 +47,6 @@ def upgrade() -> None:
         sa.Column("id", sa.Uuid(), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
-        sa.ForeignKeyConstraint(["agent_run_id"], ["agent.agent_runs.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         schema="context",
     )
@@ -80,7 +79,6 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False),
         sa.ForeignKeyConstraint(["model_invocation_id"], ["context.model_invocations.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["agent_run_id"], ["agent.agent_runs.id"], ondelete="CASCADE"),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("model_invocation_id", name="uq_context_snapshot_model_invocation"),
         schema="context",
