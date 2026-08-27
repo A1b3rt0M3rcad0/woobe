@@ -84,7 +84,6 @@ def _context_window_from_metadata(metadata: dict[str, Any]) -> int | None:
         raw.get("max_context_tokens"),
         raw.get("max_input_tokens"),
         raw_top_provider.get("context_length"),
-        raw_top_provider.get("max_completion_tokens"),
     )
 
 
