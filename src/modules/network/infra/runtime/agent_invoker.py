@@ -37,15 +37,13 @@ def _caused_by_empty_model_output(exception: Exception) -> bool:
 
 
 def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
+    # Network Tool/delegation planning is never a committed user-facing answer.
+    # Only the normal no-Tool response or the dedicated terminal synthesis streams.
     phase = payload.get("phase")
-    public_phase = (
-        phase in {"response_generation", "final_response_generation"}
-        or (isinstance(phase, str) and phase.startswith("tool_followup_"))
-    )
     return (
         payload.get("visibility") == "assistant"
         and payload.get("channel") == "final"
-        and public_phase
+        and phase in {"response_generation", "final_response_generation"}
     )
 
 
