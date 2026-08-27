@@ -37,8 +37,9 @@ async def list_agent_run_model_invocations_by_trace(
     trace_id: UUID,
     request: FastAPIRequest,
 ):
-    handler = agent_run_context_by_trace_composer()
-    return await handler(trace_id, request)
+    del trace_id
+    response = await request_adapter(request, agent_run_context_by_trace_composer())
+    return response_adapter(response)
 
 
 @router.get("/{run_id}/model-invocations")
@@ -46,8 +47,9 @@ async def list_agent_run_model_invocations(
     run_id: UUID,
     request: FastAPIRequest,
 ):
-    handler = agent_run_context_composer()
-    return await handler(run_id, request)
+    del run_id
+    response = await request_adapter(request, agent_run_context_composer())
+    return response_adapter(response)
 
 
 @router.get("/{run_id}/stream")
