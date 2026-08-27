@@ -33,6 +33,7 @@ import { get } from '@/lib/api/client'
 
 const SEARCH_THRESHOLD = 6
 type ModelStatusFilter = 'all' | 'active' | 'inactive'
+type CapabilityChoice = 'unknown' | 'true' | 'false'
 
 const providerLabels: Record<string, string> = {
   openai: 'OpenAI',
@@ -73,6 +74,12 @@ function metadataOf(item?: { metadata?: Record<string, unknown> | null } | null)
   return (item?.metadata || {}) as Record<string, unknown>
 }
 
+function recordOf(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+}
+
 function isEmbeddingModel(model: ProviderModel) {
   const metadata = metadataOf(model)
   const capability = String(metadata.capability || metadata.type || '').trim().toLowerCase()
@@ -97,6 +104,45 @@ function numberOrNull(value: unknown): number | null {
   return null
 }
 
+function positiveIntegerOrNull(value: unknown): number | null {
+  const parsed = numberOrNull(value)
+  return parsed != null && Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function capabilityChoice(value: unknown): CapabilityChoice {
+  if (value === true) return 'true'
+  if (value === false) return 'false'
+  return 'unknown'
+}
+
+function capabilityValue(value: CapabilityChoice): boolean | null {
+  if (value === 'true') return true
+  if (value === 'false') return false
+  return null
+}
+
+function capabilitiesOf(model?: ProviderModel | null) {
+  const metadata = metadataOf(model)
+  const catalog = recordOf(metadata.catalog)
+  const capabilities = recordOf(metadata.capabilities)
+  const contextWindow = positiveIntegerOrNull(
+    metadata.context_window ?? catalog.context_window,
+  )
+  const maxOutputTokens = positiveIntegerOrNull(
+    metadata.max_output_tokens ?? capabilities.max_output_tokens ?? catalog.max_output_tokens,
+  )
+  return {
+    contextWindow,
+    maxOutputTokens,
+    supportsTools: capabilityChoice(capabilities.supports_tools),
+    supportsJson: capabilityChoice(capabilities.supports_json),
+    supportsStreaming: capabilityChoice(capabilities.supports_streaming),
+    source: typeof metadata.capability_source === 'string'
+      ? metadata.capability_source
+      : catalog.context_window != null ? 'provider_catalog' : 'manual',
+  }
+}
+
 function pricingOf(model?: ProviderModel | null) {
   const metadata = metadataOf(model)
   const raw = typeof metadata.pricing === 'object' && metadata.pricing !== null
@@ -113,6 +159,10 @@ function priceText(value: number | null, currency: string) {
   return value === null ? 'not set' : `${currency} ${value.toLocaleString(undefined, { maximumFractionDigits: 8 })}`
 }
 
+function capacityText(value: number | null) {
+  return value == null ? 'Context unknown' : `${value.toLocaleString()} context`
+}
+
 function formatDate(value?: string | null) {
   return value ? new Date(value).toLocaleString() : 'Never'
 }
@@ -123,27 +173,40 @@ function buildModelMetadata(
   inputCost: string,
   outputCost: string,
   currency: string,
+  contextWindow: string,
+  maxOutputTokens: string,
+  supportsTools: CapabilityChoice,
+  supportsJson: CapabilityChoice,
+  supportsStreaming: CapabilityChoice,
 ) {
   const base = metadataOf(selectedModel)
   const input = inputCost.trim() ? Number(inputCost) : null
   const output = outputCost.trim() ? Number(outputCost) : null
+  const context = contextWindow.trim() ? Number(contextWindow) : null
+  const maxOutput = maxOutputTokens.trim() ? Number(maxOutputTokens) : null
 
   return {
     ...base,
     capability: 'generation',
     source: catalogModel ? 'remote' : 'manual',
+    capability_source: catalogModel ? 'provider_catalog' : 'manual',
+    context_window: context,
+    max_output_tokens: maxOutput,
     catalog: catalogModel ? {
       provider: catalogModel.provider,
       model_id: catalogModel.id,
       label: catalogModel.label,
       owned_by: catalogModel.owned_by ?? null,
       context_window: catalogModel.context_window ?? null,
+      max_output_tokens: catalogModel.max_output_tokens ?? null,
     } : base.catalog,
-    capabilities: catalogModel ? {
-      supports_tools: catalogModel.supports_tools ?? null,
-      supports_json: catalogModel.supports_json ?? null,
-      supports_streaming: catalogModel.supports_streaming ?? null,
-    } : base.capabilities,
+    capabilities: {
+      ...recordOf(base.capabilities),
+      max_output_tokens: maxOutput,
+      supports_tools: capabilityValue(supportsTools),
+      supports_json: capabilityValue(supportsJson),
+      supports_streaming: capabilityValue(supportsStreaming),
+    },
     pricing: {
       input_cost_per_1m_tokens: input,
       output_cost_per_1m_tokens: output,
@@ -193,6 +256,7 @@ function ModelCard({
   onClick: () => void
 }) {
   const pricing = pricingOf(model)
+  const capabilities = capabilitiesOf(model)
   return (
     <ResourceCard
       onClick={onClick}
@@ -205,6 +269,7 @@ function ModelCard({
         <>
           <ResourcePill tone="primary">{providerLabel(model.provider || credential?.provider)}</ResourcePill>
           {credential?.name && <ResourcePill>{credential.name}</ResourcePill>}
+          <ResourcePill>{capacityText(capabilities.contextWindow)}</ResourcePill>
           <ResourcePill>In · {priceText(pricing.input, pricing.currency)}</ResourcePill>
           <ResourcePill>Out · {priceText(pricing.output, pricing.currency)}</ResourcePill>
         </>
@@ -310,6 +375,12 @@ function CatalogList({
   )
 }
 
+const capabilityOptions = [
+  { value: 'unknown', label: 'Unknown / not declared' },
+  { value: 'true', label: 'Supported' },
+  { value: 'false', label: 'Not supported' },
+]
+
 function ModelSetupDialog({
   open,
   onClose,
@@ -341,6 +412,11 @@ function ModelSetupDialog({
   const [inputCost, setInputCost] = useState('')
   const [outputCost, setOutputCost] = useState('')
   const [currency, setCurrency] = useState('USD')
+  const [contextWindow, setContextWindow] = useState('')
+  const [maxOutputTokens, setMaxOutputTokens] = useState('')
+  const [supportsTools, setSupportsTools] = useState<CapabilityChoice>('unknown')
+  const [supportsJson, setSupportsJson] = useState<CapabilityChoice>('unknown')
+  const [supportsStreaming, setSupportsStreaming] = useState<CapabilityChoice>('unknown')
 
   const allCredentials = useMemo(() => {
     if (!createdCredential || credentials.some((credential) => credential.id === createdCredential.id)) return credentials
@@ -354,6 +430,7 @@ function ModelSetupDialog({
   const availableModels = availableModelsQuery.data ?? []
   const catalogModel = shouldUseCatalog ? availableModels.find((model) => model.id === catalogModelId) || null : null
   const busy = createModel.isPending || updateModel.isPending
+  const capabilitySource = catalogModel ? 'Provider catalog' : selectedModel ? (capabilitiesOf(selectedModel).source === 'provider_catalog' ? 'Provider catalog / saved' : 'Manual') : 'Manual'
 
   useEffect(() => {
     if (!open) return
@@ -361,6 +438,7 @@ function ModelSetupDialog({
     setCatalogModelId('')
     if (selectedModel) {
       const pricing = pricingOf(selectedModel)
+      const capabilities = capabilitiesOf(selectedModel)
       setStep('model')
       setCredentialId(selectedModel.provider_credential_id)
       setManualMode(true)
@@ -370,6 +448,11 @@ function ModelSetupDialog({
       setInputCost(pricing.input === null ? '' : String(pricing.input))
       setOutputCost(pricing.output === null ? '' : String(pricing.output))
       setCurrency(pricing.currency)
+      setContextWindow(capabilities.contextWindow === null ? '' : String(capabilities.contextWindow))
+      setMaxOutputTokens(capabilities.maxOutputTokens === null ? '' : String(capabilities.maxOutputTokens))
+      setSupportsTools(capabilities.supportsTools)
+      setSupportsJson(capabilities.supportsJson)
+      setSupportsStreaming(capabilities.supportsStreaming)
       return
     }
 
@@ -382,6 +465,11 @@ function ModelSetupDialog({
     setInputCost('')
     setOutputCost('')
     setCurrency('USD')
+    setContextWindow('')
+    setMaxOutputTokens('')
+    setSupportsTools('unknown')
+    setSupportsJson('unknown')
+    setSupportsStreaming('unknown')
   }, [open, selectedModel])
 
   useEffect(() => {
@@ -393,6 +481,11 @@ function ModelSetupDialog({
     setInputCost('')
     setOutputCost('')
     setCurrency('USD')
+    setContextWindow('')
+    setMaxOutputTokens('')
+    setSupportsTools('unknown')
+    setSupportsJson('unknown')
+    setSupportsStreaming('unknown')
   }, [credential?.id])
 
   useEffect(() => {
@@ -401,6 +494,11 @@ function ModelSetupDialog({
     setDisplayName(catalogModel.label || catalogModel.id)
     setInputCost(catalogModel.input_cost_per_1m_tokens == null ? '' : String(catalogModel.input_cost_per_1m_tokens))
     setOutputCost(catalogModel.output_cost_per_1m_tokens == null ? '' : String(catalogModel.output_cost_per_1m_tokens))
+    setContextWindow(catalogModel.context_window == null ? '' : String(catalogModel.context_window))
+    setMaxOutputTokens(catalogModel.max_output_tokens == null ? '' : String(catalogModel.max_output_tokens))
+    setSupportsTools(capabilityChoice(catalogModel.supports_tools))
+    setSupportsJson(capabilityChoice(catalogModel.supports_json))
+    setSupportsStreaming(capabilityChoice(catalogModel.supports_streaming))
   }, [catalogModel?.id])
 
   const handleSubmit = async (event: FormEvent) => {
@@ -411,8 +509,22 @@ function ModelSetupDialog({
     if (!resolvedModel) return toast.error('Select or enter a model')
     if (inputCost.trim() && (!Number.isFinite(Number(inputCost)) || Number(inputCost) < 0)) return toast.error('Input pricing must be a non-negative number')
     if (outputCost.trim() && (!Number.isFinite(Number(outputCost)) || Number(outputCost) < 0)) return toast.error('Output pricing must be a non-negative number')
+    if (contextWindow.trim() && positiveIntegerOrNull(contextWindow) == null) return toast.error('Context Window must be a positive whole number')
+    if (maxOutputTokens.trim() && positiveIntegerOrNull(maxOutputTokens) == null) return toast.error('Maximum output must be a positive whole number')
+    if (contextWindow.trim() && maxOutputTokens.trim() && Number(maxOutputTokens) > Number(contextWindow)) return toast.error('Maximum output cannot exceed the model Context Window')
 
-    const metadata = buildModelMetadata(selectedModel, catalogModel, inputCost, outputCost, currency)
+    const metadata = buildModelMetadata(
+      selectedModel,
+      catalogModel,
+      inputCost,
+      outputCost,
+      currency,
+      contextWindow,
+      maxOutputTokens,
+      supportsTools,
+      supportsJson,
+      supportsStreaming,
+    )
     try {
       if (selectedModel) {
         await updateModel.mutateAsync({
@@ -523,6 +635,11 @@ function ModelSetupDialog({
                       setCatalogModelId('')
                       setModelId('')
                       setDisplayName('')
+                      setContextWindow('')
+                      setMaxOutputTokens('')
+                      setSupportsTools('unknown')
+                      setSupportsJson('unknown')
+                      setSupportsStreaming('unknown')
                     }}
                   />
                 ) : (
@@ -544,6 +661,44 @@ function ModelSetupDialog({
                     )}
                   </div>
                 )}
+              </section>
+            )}
+
+            {credential && modelId.trim() && (
+              <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-sm font-semibold text-white">Model capabilities</h3>
+                    <p className="mt-1 text-xs leading-5 text-muted">Used by Context budgeting and runtime compatibility checks. Unknown values remain unknown; Woobe does not infer them from the model name.</p>
+                  </div>
+                  <span className="shrink-0 rounded-full border border-border bg-background px-2 py-1 text-[10px] text-muted">{capabilitySource}</span>
+                </div>
+                <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-muted">Context Window</label>
+                    <Input value={contextWindow} onChange={(event) => setContextWindow(event.target.value)} inputMode="numeric" placeholder="e.g. 128000" />
+                    <p className="mt-1 text-[10px] leading-4 text-muted">Maximum total context capacity reported or configured for this model.</p>
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-muted">Maximum output</label>
+                    <Input value={maxOutputTokens} onChange={(event) => setMaxOutputTokens(event.target.value)} inputMode="numeric" placeholder="Optional" />
+                    <p className="mt-1 text-[10px] leading-4 text-muted">Provider/model output ceiling. This is not treated as Context Window.</p>
+                  </div>
+                </div>
+                <div className="mt-4 grid gap-4 sm:grid-cols-3">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-muted">Tool calling</label>
+                    <Select value={supportsTools} onChange={(event) => setSupportsTools(event.target.value as CapabilityChoice)} options={capabilityOptions} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-muted">Structured output</label>
+                    <Select value={supportsJson} onChange={(event) => setSupportsJson(event.target.value as CapabilityChoice)} options={capabilityOptions} />
+                  </div>
+                  <div>
+                    <label className="mb-1 block text-sm font-medium text-muted">Streaming</label>
+                    <Select value={supportsStreaming} onChange={(event) => setSupportsStreaming(event.target.value as CapabilityChoice)} options={capabilityOptions} />
+                  </div>
+                </div>
               </section>
             )}
 
@@ -787,7 +942,7 @@ export default function ModelsPage() {
       <section>
         <ResourceSectionHeader
           title="Generation models"
-          description="Open a Model to review its binding, pricing and lifecycle."
+          description="Open a Model to review its binding, capabilities, pricing and lifecycle."
           count={resultCount}
         />
 
