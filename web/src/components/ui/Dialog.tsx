@@ -90,8 +90,8 @@ export function Dialog({
       <div
         className={cn(
           'p-6',
-          contentScroll && `min-h-0 flex-1 overflow-y-auto overscroll-contain ${INTERNAL_SCROLLBAR}`,
           contentClassName,
+          contentScroll && `min-h-0 flex-1 overflow-y-auto overscroll-contain ${INTERNAL_SCROLLBAR}`,
         )}
       >
         {children}
