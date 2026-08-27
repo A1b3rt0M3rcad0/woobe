@@ -28,7 +28,14 @@ import type { TraceItem } from '@/features/playground/types'
 import { formatCurrency, formatLatency, formatTokens } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 
-import { delegationCount, invocationCount, sourceCount, toolCount, type NetworkAgentInvocation } from './networkChatExecution'
+import {
+  delegationCount,
+  invocationCount,
+  sourceCount,
+  toolCount,
+  uniqueAgentCount,
+  type NetworkAgentInvocation,
+} from './networkChatExecution'
 import { NetworkExecutionPath } from './NetworkExecutionPath'
 import { NetworkRunDiagnosticsPanel } from './NetworkRunDiagnosticsPanel'
 import { NetworkSessionComposition } from './NetworkSessionComposition'
@@ -42,7 +49,7 @@ import {
   summarizeInvocationTools,
 } from './networkRunInspector'
 
-type InspectorView = 'run' | 'agent' | 'evidence'
+type InspectorView = 'execution' | 'path' | 'agent' | 'evidence'
 type AgentDetailView = 'run' | 'evidence'
 
 function CollapsibleSection({ title, badge, children }: { title: string; badge?: string; children: ReactNode }) {
@@ -137,6 +144,13 @@ function invocationTraceItem(invocation: NetworkAgentInvocation, projectId: stri
   }
 }
 
+function sessionContinuityLabel(invocation: NetworkAgentInvocation) {
+  if (invocation.contextState === 'stateless') return 'Stateless invocation'
+  if (invocation.contextState === 'created') return 'Stateful session continuity created for this Agent Run'
+  if (invocation.previousInvocationCount <= 0) return 'Stateful session continuity reused'
+  return `Stateful session continuity reused after ${invocation.previousInvocationCount} invocation${invocation.previousInvocationCount === 1 ? '' : 's'}`
+}
+
 function AgentRunDetail({ invocation, root, projectId, onBack, onOpenAgent, onNetworkEvidence }: {
   invocation: NetworkAgentInvocation
   root: NetworkAgentInvocation
@@ -157,7 +171,7 @@ function AgentRunDetail({ invocation, root, projectId, onBack, onOpenAgent, onNe
 
   return (
     <div className="space-y-4">
-      <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-[9px] font-medium text-muted hover:text-white"><ArrowLeft className="h-3.5 w-3.5" />Network Run</button>
+      <button type="button" onClick={onBack} className="inline-flex items-center gap-1 text-[9px] font-medium text-muted hover:text-white"><ArrowLeft className="h-3.5 w-3.5" />Execution Path</button>
 
       <section className="rounded-xl border border-border/75 bg-background/30 p-3">
         <div className="flex items-start gap-3">
@@ -191,7 +205,7 @@ function AgentRunDetail({ invocation, root, projectId, onBack, onOpenAgent, onNe
 
             <section className="border-t border-border/70 pt-3">
               <div className="flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Session continuity</p><Info className="h-3 w-3 text-muted" aria-label="Session continuity used by this Agent Run" /></div>
-              <p className="mt-1 text-[10px] text-slate-300">{invocation.contextState === 'stateless' ? 'Stateless invocation' : invocation.contextState === 'created' ? 'Stateful session continuity created for this Agent Run' : `Stateful session continuity reused after ${invocation.previousInvocationCount} invocation${invocation.previousInvocationCount === 1 ? '' : 's'}`}</p>
+              <p className="mt-1 text-[10px] text-slate-300">{sessionContinuityLabel(invocation)}</p>
             </section>
 
             {invocation.failure ? (
@@ -243,9 +257,10 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
   onViewCanvas: (trace: NetworkTraceRecord) => void
   onOpenAgent: (nodeId: AgentNodeId) => void
 }) {
-  const [view, setView] = useState<InspectorView>('run')
+  const [view, setView] = useState<InspectorView>('execution')
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null)
-  const agents = invocationCount(trace.execution.root)
+  const agentRuns = invocationCount(trace.execution.root)
+  const agents = uniqueAgentCount(trace.execution.root)
   const tools = toolCount(trace.execution.root)
   const sources = sourceCount(trace.execution.root)
   const delegations = delegationCount(trace.execution.root)
@@ -266,7 +281,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
   }, [session.networkId, session.projectId, trace.networkSessionId, trace.traceId])
 
   useEffect(() => {
-    setView('run')
+    setView('execution')
     setSelectedSpanId(null)
   }, [trace.id])
 
@@ -286,8 +301,9 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
           </div>
           <button type="button" onClick={() => onViewCanvas(trace)} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-primary/25 bg-primary/10 px-2 py-1.5 text-[9px] text-primary-light hover:text-white"><Play className="h-3 w-3" />Canvas</button>
         </div>
-        <div className="mt-3 grid grid-cols-5 gap-2 border-t border-border/70 pt-3">
+        <div className="mt-3 grid grid-cols-6 gap-2 border-t border-border/70 pt-3">
           <MetaItem label="Duration" value={formatLatency(trace.durationMs)} />
+          <MetaItem label="Agent Runs" value={String(agentRuns)} />
           <MetaItem label="Agents" value={String(agents)} />
           <MetaItem label="Tools" value={String(tools)} />
           <MetaItem label="Tokens" value={totalTokens == null ? 'Unknown' : formatTokens(totalTokens)} />
@@ -295,23 +311,30 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
         </div>
       </header>
 
-      <nav className="grid grid-cols-2 border-b border-border/80 bg-background/20 p-1.5" aria-label="Run inspector views">
+      <nav className="grid grid-cols-3 border-b border-border/80 bg-background/20 p-1.5" aria-label="Network Run inspector views">
         {([
-          ['run', Activity, 'Run'],
+          ['execution', Activity, 'Execution'],
+          ['path', GitBranch, 'Path'],
           ['evidence', SquareTerminal, 'Evidence'],
-        ] as const).map(([target, Icon, label]) => <button key={target} type="button" onClick={() => setView(target)} className={cn('flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] font-medium', view === target || (view === 'agent' && target === 'run') ? 'bg-primary/10 text-primary-light' : 'text-muted hover:text-white')}><Icon className="h-3.5 w-3.5" />{label}</button>)}
+        ] as const).map(([target, Icon, label]) => {
+          const active = view === target || (view === 'agent' && target === 'path')
+          return <button key={target} type="button" onClick={() => setView(target)} className={cn('flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] font-medium', active ? 'bg-primary/10 text-primary-light' : 'text-muted hover:text-white')}><Icon className="h-3.5 w-3.5" />{label}</button>
+        })}
       </nav>
 
       <div className="space-y-4 p-4">
-        {view === 'run' ? (
+        {view === 'execution' ? (
           <>
             <NetworkRunDiagnosticsPanel executionId={trace.id} projectId={session.projectId} running={trace.status === 'running'} mode="execution" />
 
             {trace.execution.root.failure ? (
               <section className="rounded-xl border border-red-500/25 bg-red-500/5 p-3">
                 <p className="text-[10px] font-medium text-red-300">{trace.execution.root.failure.message}</p>
-                {trace.execution.root.failure.partialResultAvailable ? <p className="mt-1 text-[9px] text-muted">Completed Agent and Tool results remain available.</p> : null}
-                <button type="button" onClick={() => setView('evidence')} className="mt-2 text-[9px] font-medium text-red-200 hover:text-white">Review failure evidence</button>
+                {trace.execution.root.failure.partialResultAvailable || Boolean(trace.answer?.trim()) ? <p className="mt-1 text-[9px] text-muted">A partial result and completed Agent/Tool evidence remain available.</p> : null}
+                <div className="mt-2 flex gap-3">
+                  <button type="button" onClick={() => setView('path')} className="text-[9px] font-medium text-red-200 hover:text-white">Review execution path</button>
+                  <button type="button" onClick={() => setView('evidence')} className="text-[9px] font-medium text-red-200 hover:text-white">Review failure evidence</button>
+                </div>
               </section>
             ) : outcome === 'cancelled' ? (
               <section className="rounded-xl border border-slate-500/25 bg-slate-500/5 p-3">
@@ -319,7 +342,8 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
               </section>
             ) : outcome === 'completed_with_issues' ? (
               <section className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
-                <p className="text-[10px] font-medium text-amber-200">The Network completed, but at least one delegated Agent Run reported an issue.</p>
+                <p className="text-[10px] font-medium text-amber-200">The Network completed with a usable result, but at least one delegated Agent Run reported an issue.</p>
+                <button type="button" onClick={() => setView('path')} className="mt-2 text-[9px] font-medium text-amber-100 hover:text-white">Review execution path</button>
               </section>
             ) : null}
 
@@ -329,18 +353,13 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
             </section>
 
             <section className="rounded-xl border border-border/75 bg-background/30 p-3">
-              <div className="mb-2 flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Execution path</p><Info className="h-3 w-3 text-muted" aria-label="Select an Agent Run to inspect its Run or Evidence" /><span className="ml-auto text-[8px] text-muted">{agents} Agent Run{agents === 1 ? '' : 's'} · {delegations} delegation{delegations === 1 ? '' : 's'}</span></div>
-              <NetworkExecutionPath root={trace.execution.root} selectedSpanId={selectedSpanId} onSelect={openInvocation} />
-            </section>
-
-            <section className="rounded-xl border border-border/75 bg-background/30 p-3">
               <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Result</p>
               <div className="mt-2"><OutputPreview value={trace.answer} emptyLabel={outcome === 'running' ? 'The final response is still being generated.' : outcome === 'cancelled' ? 'The Run was cancelled before a final response was produced.' : 'The Run ended without a final response.'} /></div>
             </section>
 
             <section className="rounded-xl border border-border/75 bg-background/30 p-3">
               <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Activity</p>
-              <div className="mt-2 grid grid-cols-3 gap-3"><MetaItem label="Tools" value={`${tools} calls`} /><MetaItem label="Session states" value={String(trace.agentContexts.length)} /><MetaItem label="Events" value={String(trace.events.length)} /></div>
+              <div className="mt-2 grid grid-cols-4 gap-3"><MetaItem label="Agent Runs" value={String(agentRuns)} /><MetaItem label="Delegations" value={String(delegations)} /><MetaItem label="Tools" value={`${tools} calls`} /><MetaItem label="Events" value={String(trace.events.length)} /></div>
             </section>
 
             <section className="space-y-3 border-t border-border/70 pt-4">
@@ -352,21 +371,33 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
                 </div>
               </div>
               <NetworkRunDiagnosticsPanel executionId={trace.id} projectId={session.projectId} running={trace.status === 'running'} mode="context" />
-              <p className="rounded-lg border border-border/75 bg-background/25 px-3 py-2 text-[9px] leading-4 text-muted">Select an Agent Run from the Execution path to inspect that Agent's execution diagnostics, Model Invocations and Context Snapshots together.</p>
+              <p className="rounded-lg border border-border/75 bg-background/25 px-3 py-2 text-[9px] leading-4 text-muted">Open Path to inspect an individual Agent Run, then return directly to the Network execution path without losing this Run context.</p>
             </section>
           </>
         ) : null}
 
-        {view === 'agent' && selectedInvocation ? <AgentRunDetail invocation={selectedInvocation} root={trace.execution.root} projectId={session.projectId} onBack={() => setView('run')} onOpenAgent={onOpenAgent} onNetworkEvidence={() => setView('evidence')} /> : null}
+        {view === 'path' ? (
+          <>
+            <div>
+              <div className="flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Execution Path</p><Info className="h-3 w-3 text-muted" aria-label="Select an Agent Run to inspect it without leaving the Network Run" /></div>
+              <p className="mt-1 text-[9px] leading-4 text-muted">{agentRuns} Agent Run{agentRuns === 1 ? '' : 's'} across {agents} Agent{agents === 1 ? '' : 's'} · {delegations} delegation{delegations === 1 ? '' : 's'}. Select any invocation to drill into its Run and Evidence.</p>
+            </div>
+            <section className="rounded-xl border border-border/75 bg-background/30 p-3">
+              <NetworkExecutionPath root={trace.execution.root} selectedSpanId={selectedSpanId} onSelect={openInvocation} />
+            </section>
+          </>
+        ) : null}
+
+        {view === 'agent' && selectedInvocation ? <AgentRunDetail invocation={selectedInvocation} root={trace.execution.root} projectId={session.projectId} onBack={() => setView('path')} onOpenAgent={onOpenAgent} onNetworkEvidence={() => setView('evidence')} /> : null}
 
         {view === 'evidence' ? (
           <>
-            <div><div className="flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Evidence</p><Info className="h-3 w-3 text-muted" aria-label="Trace events, Session continuity and raw runtime data" /></div><p className="mt-1 text-[9px] leading-4 text-muted">Technical and causal evidence is preserved here and stays out of the operational Run view until needed.</p></div>
+            <div><div className="flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Evidence</p><Info className="h-3 w-3 text-muted" aria-label="Trace events, Session continuity and raw runtime data" /></div><p className="mt-1 text-[9px] leading-4 text-muted">Technical and causal evidence is preserved here and stays out of the operational Execution view until needed.</p></div>
 
             {trace.execution.root.failure ? <section className="rounded-xl border border-red-500/25 bg-red-500/5 p-3"><p className="text-[10px] font-medium text-red-300">{trace.execution.root.failure.message}</p><p className="mt-1 font-mono text-[9px] text-muted">{trace.execution.root.failure.code} · {trace.execution.root.failure.stage}{trace.execution.root.failure.phase ? ` · ${trace.execution.root.failure.phase}` : ''}</p></section> : null}
 
             <div className="rounded-xl border border-border/75 bg-background/30 px-3">
-              <CollapsibleSection title="Execution evidence" badge={`${agents} Agents`}><NetworkTraceInvocation invocation={trace.execution.root} trace={trace} depth={0} onOpenAgent={onOpenAgent} /></CollapsibleSection>
+              <CollapsibleSection title="Execution evidence" badge={`${agentRuns} Agent Runs`}><NetworkTraceInvocation invocation={trace.execution.root} trace={trace} depth={0} onOpenAgent={onOpenAgent} /></CollapsibleSection>
               <CollapsibleSection title="Routing" badge={String(routeEvents.length)}><div className="space-y-2">{routeEvents.length ? routeEvents.map((event) => <div key={event.id} className="rounded-lg bg-background/45 p-2.5"><div className="flex items-center gap-1.5"><GitBranch className="h-3.5 w-3.5 text-primary-light" /><code className="text-[9px] text-white">{event.type}</code></div><p className="mt-1 text-[9px] text-muted">{event.label}</p><JsonCodeBlock value={event.payload} maxHeight={128} className="mt-2" /></div>) : <p className="text-[9px] text-muted">No routing decisions were recorded.</p>}</div></CollapsibleSection>
               {trace.parsedOutput ? <CollapsibleSection title="Structured output"><JsonCodeBlock value={trace.parsedOutput} maxHeight={180} /></CollapsibleSection> : null}
               <CollapsibleSection title="Session composition" badge={`${trace.agentContexts.length} contexts`}><NetworkSessionComposition contexts={trace.agentContexts} /></CollapsibleSection>
