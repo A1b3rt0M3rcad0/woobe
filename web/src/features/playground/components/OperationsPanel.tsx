@@ -1,19 +1,18 @@
 import { useEffect, useState } from 'react'
-import { Activity, Brain, SquareTerminal, X } from 'lucide-react'
+import { Activity, SquareTerminal, X } from 'lucide-react'
 import type { LeftPanelTab } from './OperationsRail'
-import { DebugView } from './DebugView'
+import { AgentRunOperationalView } from './AgentRunOperationalView'
 import { TraceList } from './TraceList'
 import { TraceDetails } from './TraceDetails'
-import { TraceDiagnosticsPanel } from './TraceDiagnosticsPanel'
 import { SessionsPanel } from './SessionsPanel'
 import './trace-details-embedded.css'
 import { ScrollArea } from '@/components/ui/ScrollArea'
-import { ContextInspector } from '@/features/traces/components/ContextInspector'
 import { cn } from '@/lib/utils'
 import type { AskResponse, RawStreamEvent, SessionListItem, TraceItem } from '@/features/playground/types'
 
 interface OperationsPanelProps {
   activeTab: LeftPanelTab | null
+  // Kept temporarily for call-site compatibility while Current Run is removed from UX.
   lastResponse: AskResponse | null
   lastRequestPayload: Record<string, unknown> | null
   rawEvents: RawStreamEvent[]
@@ -40,14 +39,11 @@ interface OperationsPanelProps {
   onTracesRetry?: () => void
 }
 
-type RunDetailView = 'execution' | 'context' | 'evidence'
+type RunDetailView = 'run' | 'evidence'
 
 export function OperationsPanel(props: OperationsPanelProps) {
   const {
     activeTab,
-    lastResponse,
-    lastRequestPayload,
-    rawEvents,
     traces,
     selectedTraceId,
     sessions,
@@ -70,15 +66,17 @@ export function OperationsPanel(props: OperationsPanelProps) {
     tracesErrorMessage,
     onTracesRetry,
   } = props
-  const [runDetailView, setRunDetailView] = useState<RunDetailView>('execution')
+  const [runDetailView, setRunDetailView] = useState<RunDetailView>('run')
 
   useEffect(() => {
-    setRunDetailView('execution')
+    setRunDetailView('run')
   }, [selectedTraceId])
 
   if (!activeTab) return null
 
-  if (activeTab === 'traces') {
+  // `debug` is treated as Runs only for compatibility with pre-existing local state.
+  // The rail no longer exposes Current Run or Debug as separate destinations.
+  if (activeTab === 'traces' || activeTab === 'debug') {
     const selectedRun = selectedTraceId
       ? traces.find(run => run.id === selectedTraceId) ?? null
       : null
@@ -103,15 +101,14 @@ export function OperationsPanel(props: OperationsPanelProps) {
               <div className="flex items-center justify-between border-b border-border/90 bg-background/25 px-4 py-3">
                 <div>
                   <h3 className="text-sm font-medium text-white">Agent Run Detail</h3>
-                  <p className="mt-0.5 text-[10px] text-muted">Execution, Context, and technical evidence are separated</p>
+                  <p className="mt-0.5 text-[10px] text-muted">Execution and Context together; technical evidence stays separate</p>
                 </div>
                 <button type="button" onClick={() => onSelectTrace(null)} className="rounded-lg border border-transparent p-1 text-muted transition-colors hover:border-border/80 hover:bg-background/60 hover:text-white" aria-label="Close Agent Run details"><X className="h-4 w-4" /></button>
               </div>
 
-              <nav className="grid grid-cols-3 border-b border-border/90 bg-background/20 p-1.5" aria-label="Agent Run detail views">
+              <nav className="grid grid-cols-2 border-b border-border/90 bg-background/20 p-1.5" aria-label="Agent Run detail views">
                 {([
-                  ['execution', Activity, 'Execution'],
-                  ['context', Brain, 'Context'],
+                  ['run', Activity, 'Run'],
                   ['evidence', SquareTerminal, 'Evidence'],
                 ] as const).map(([target, Icon, label]) => (
                   <button
@@ -129,18 +126,12 @@ export function OperationsPanel(props: OperationsPanelProps) {
                 ))}
               </nav>
 
-              {runDetailView === 'execution' ? (
-                <TraceDiagnosticsPanel traceId={selectedRun.trace_id || selectedRun.id} />
-              ) : null}
-
-              {runDetailView === 'context' ? (
-                <div className="pt-3">
-                  <ContextInspector traceId={selectedRun.trace_id || selectedRun.id} />
-                </div>
+              {runDetailView === 'run' ? (
+                <AgentRunOperationalView traceId={selectedRun.trace_id || selectedRun.id} />
               ) : null}
 
               {runDetailView === 'evidence' ? (
-                <div className="trace-details-embedded"><TraceDetails trace={selectedRun} onBack={() => onSelectTrace(null)} /></div>
+                <div className="trace-details-embedded"><TraceDetails trace={selectedRun} onBack={() => setRunDetailView('run')} /></div>
               ) : null}
             </>
           ) : (
@@ -151,26 +142,26 @@ export function OperationsPanel(props: OperationsPanelProps) {
     )
   }
 
-  const content = activeTab === 'debug'
-    ? <DebugView lastResponse={lastResponse} lastRequestPayload={lastRequestPayload} rawEvents={rawEvents} />
-    : (
-      <SessionsPanel
-        sessions={sessions}
-        currentSessionId={sessionId}
-        sessionMode={sessionMode}
-        creationDisabledReason={sessionCreationDisabledReason}
-        onNewSession={onNewSession}
-        onSelectSession={onSelectSession}
-        onLoadMoreSessions={onLoadMoreSessions}
-        hasMoreSessions={hasMoreSessions}
-        isInitialLoading={sessionsLoading}
-        isLoadingMore={sessionsLoadingMore}
-        isCreatingSession={creatingSession}
-        isError={sessionsError}
-        errorMessage={sessionsErrorMessage}
-        onRetry={onSessionsRetry}
-      />
-    )
-
-  return <div className="w-[400px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border/90 bg-surface/70 shadow-sm shadow-black/5"><ScrollArea className="h-full min-h-0">{content}</ScrollArea></div>
+  return (
+    <div className="w-[400px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border/90 bg-surface/70 shadow-sm shadow-black/5">
+      <ScrollArea className="h-full min-h-0">
+        <SessionsPanel
+          sessions={sessions}
+          currentSessionId={sessionId}
+          sessionMode={sessionMode}
+          creationDisabledReason={sessionCreationDisabledReason}
+          onNewSession={onNewSession}
+          onSelectSession={onSelectSession}
+          onLoadMoreSessions={onLoadMoreSessions}
+          hasMoreSessions={hasMoreSessions}
+          isInitialLoading={sessionsLoading}
+          isLoadingMore={sessionsLoadingMore}
+          isCreatingSession={creatingSession}
+          isError={sessionsError}
+          errorMessage={sessionsErrorMessage}
+          onRetry={onSessionsRetry}
+        />
+      </ScrollArea>
+    </div>
+  )
 }
