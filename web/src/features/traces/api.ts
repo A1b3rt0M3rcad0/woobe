@@ -1,5 +1,5 @@
 import { get, post } from '@/lib/api/client'
-import type { ContextModelInvocation, Trace, TraceDetail } from './types'
+import type { AgentRunDetail, ContextModelInvocation, Trace, TraceDetail } from './types'
 
 export interface GetTracesParams {
   projectId?: string
@@ -21,6 +21,14 @@ export async function getTraces(params?: GetTracesParams): Promise<Trace[]> {
 
 export async function getTraceDetail(traceId: string): Promise<TraceDetail> {
   return get<TraceDetail>(`/observability/traces/${traceId}`)
+}
+
+export async function getAgentRunDetail(runId: string): Promise<AgentRunDetail> {
+  return get<AgentRunDetail>(`/runtime/runs/${runId}`)
+}
+
+export async function getAgentRunDetailByTrace(traceId: string): Promise<AgentRunDetail> {
+  return get<AgentRunDetail>(`/runtime/runs/by-trace/${traceId}`)
 }
 
 export async function getTraceModelInvocations(traceId: string): Promise<ContextModelInvocation[]> {
