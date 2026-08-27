@@ -169,3 +169,60 @@ export interface TraceDetailNormalized extends TraceSummary {
   toolCalls: TraceToolCall[]
   events: TraceEvent[]
 }
+
+export interface ContextContributionEvidence {
+  id: string
+  ordinal: number
+  source_type: string
+  source_ref?: string | null
+  parent_ref?: string | null
+  modality: string
+  priority: string
+  raw_units?: number | null
+  materialized_units?: number | null
+  selection_method?: string | null
+  relevance_score?: number | null
+  transformations: string[]
+  trust?: string | null
+  sensitivity?: string | null
+  integrity_hash?: string | null
+  metadata: Record<string, unknown>
+}
+
+export interface ContextSnapshotEvidence {
+  id: string
+  policy_schema_version: number
+  policy_hash: string
+  model_capacity_units?: number | null
+  reserved_output_units?: number | null
+  runtime_reserve_units: number
+  usable_input_budget?: number | null
+  estimated_input_units: number
+  reported_input_units?: number | null
+  utilization?: number | null
+  pressure_status: string
+  measurement_status: string
+  manifest: Record<string, unknown>
+  materialized_hash: string
+  retention_mode: string
+  reproduction_level: string
+  contributions: ContextContributionEvidence[]
+}
+
+export interface ContextModelInvocation {
+  id: string | null
+  call_index: number | null
+  phase: string | null
+  provider: string | null
+  model: string | null
+  status: string | null
+  latency_ms?: number | null
+  input_units?: number | null
+  output_units?: number | null
+  total_units?: number | null
+  cost_usd?: number | null
+  started_at?: string | null
+  ended_at?: string | null
+  context_snapshot?: ContextSnapshotEvidence | null
+  persistence?: string | null
+}
