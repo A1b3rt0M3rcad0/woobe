@@ -75,171 +75,177 @@ class ContextEvidenceStore:
             if await session.get(ModelInvocationModel, invocation_id) is not None:
                 continue
 
-            session.add(
-                ModelInvocationModel(
-                    id=invocation_id,
-                    project_id=project_id,
-                    agent_run_id=agent_run_id,
-                    agent_id=agent_id,
-                    trace_id=trace_id,
-                    network_execution_id=network_execution_id,
-                    network_invocation_id=network_invocation_id,
-                    call_index=int(call.get("call_index") or 0),
-                    phase=str(call.get("phase") or "model_invocation"),
-                    provider=str(call.get("provider") or ""),
-                    model=str(call.get("model") or ""),
-                    provider_model_id=_uuid(call.get("provider_model_id")),
-                    provider_credential_id=_uuid(call.get("provider_credential_id")),
-                    status=str(call.get("status") or "unknown"),
-                    started_at=_datetime(call.get("started_at")),
-                    ended_at=_datetime(call.get("ended_at")),
-                    latency_ms=_as_int(call.get("latency_ms")),
-                    input_units=_as_int(call.get("input_tokens")),
-                    output_units=_as_int(call.get("output_tokens")),
-                    total_units=_as_int(call.get("total_tokens")),
-                    cost_usd=_as_float(call.get("cost_usd")),
-                    usage_complete=(
-                        call.get("usage_complete")
-                        if isinstance(call.get("usage_complete"), bool)
-                        else None
-                    ),
-                    error=str(call.get("error")) if call.get("error") else None,
-                    data={
-                        key: call.get(key)
-                        for key in (
-                            "cost_status",
-                            "cost_reason",
-                            "pricing_id",
-                            "upstream_status",
-                            "upstream_error_code",
-                        )
-                        if call.get(key) is not None
-                    },
-                )
+            invocation_model = ModelInvocationModel(
+                id=invocation_id,
+                project_id=project_id,
+                agent_run_id=agent_run_id,
+                agent_id=agent_id,
+                trace_id=trace_id,
+                network_execution_id=network_execution_id,
+                network_invocation_id=network_invocation_id,
+                call_index=int(call.get("call_index") or 0),
+                phase=str(call.get("phase") or "model_invocation"),
+                provider=str(call.get("provider") or ""),
+                model=str(call.get("model") or ""),
+                provider_model_id=_uuid(call.get("provider_model_id")),
+                provider_credential_id=_uuid(call.get("provider_credential_id")),
+                status=str(call.get("status") or "unknown"),
+                started_at=_datetime(call.get("started_at")),
+                ended_at=_datetime(call.get("ended_at")),
+                latency_ms=_as_int(call.get("latency_ms")),
+                input_units=_as_int(call.get("input_tokens")),
+                output_units=_as_int(call.get("output_tokens")),
+                total_units=_as_int(call.get("total_tokens")),
+                cost_usd=_as_float(call.get("cost_usd")),
+                usage_complete=(
+                    call.get("usage_complete")
+                    if isinstance(call.get("usage_complete"), bool)
+                    else None
+                ),
+                error=str(call.get("error")) if call.get("error") else None,
+                data={
+                    key: call.get(key)
+                    for key in (
+                        "cost_status",
+                        "cost_reason",
+                        "pricing_id",
+                        "upstream_status",
+                        "upstream_error_code",
+                    )
+                    if call.get(key) is not None
+                },
             )
-            session.add(
-                ContextSnapshotModel(
-                    id=snapshot_id,
-                    project_id=project_id,
-                    model_invocation_id=invocation_id,
-                    agent_run_id=agent_run_id,
-                    policy_schema_version=int(
-                        snapshot.get("policy_schema_version") or 1
-                    ),
-                    policy_hash=str(snapshot.get("policy_hash") or ""),
-                    model_capacity_units=_as_int(
-                        snapshot.get("model_capacity_units")
-                    ),
-                    reserved_output_units=_as_int(
-                        snapshot.get("reserved_output_units")
-                    ),
-                    runtime_reserve_units=int(
-                        snapshot.get("runtime_reserve_units") or 0
-                    ),
-                    usable_input_budget=_as_int(
-                        snapshot.get("usable_input_budget")
-                    ),
-                    estimated_input_units=int(
-                        snapshot.get("estimated_input_units") or 0
-                    ),
-                    reported_input_units=_as_int(
-                        snapshot.get("reported_input_units")
-                    ),
-                    utilization=_as_float(snapshot.get("utilization")),
-                    pressure_status=str(
-                        snapshot.get("pressure_status") or "UNKNOWN"
-                    ),
-                    measurement_status=str(
-                        snapshot.get("measurement_status") or "unknown"
-                    ),
-                    manifest=(
-                        dict(snapshot.get("manifest"))
-                        if isinstance(snapshot.get("manifest"), dict)
-                        else {}
-                    ),
-                    materialized_hash=str(
-                        snapshot.get("materialized_hash") or ""
-                    ),
-                    retention_mode=str(
-                        snapshot.get("retention_mode") or "references_only"
-                    ),
-                    reproduction_level=str(
-                        snapshot.get("reproduction_level") or "manifest_only"
-                    ),
-                )
+            session.add(invocation_model)
+            # Context evidence models intentionally do not expose ORM relationships.
+            # Flush each FK parent explicitly while remaining inside the caller's
+            # single terminal transaction; this is ordering, not another UoW/commit.
+            await session.flush([invocation_model])
+
+            snapshot_model = ContextSnapshotModel(
+                id=snapshot_id,
+                project_id=project_id,
+                model_invocation_id=invocation_id,
+                agent_run_id=agent_run_id,
+                policy_schema_version=int(
+                    snapshot.get("policy_schema_version") or 1
+                ),
+                policy_hash=str(snapshot.get("policy_hash") or ""),
+                model_capacity_units=_as_int(
+                    snapshot.get("model_capacity_units")
+                ),
+                reserved_output_units=_as_int(
+                    snapshot.get("reserved_output_units")
+                ),
+                runtime_reserve_units=int(
+                    snapshot.get("runtime_reserve_units") or 0
+                ),
+                usable_input_budget=_as_int(
+                    snapshot.get("usable_input_budget")
+                ),
+                estimated_input_units=int(
+                    snapshot.get("estimated_input_units") or 0
+                ),
+                reported_input_units=_as_int(
+                    snapshot.get("reported_input_units")
+                ),
+                utilization=_as_float(snapshot.get("utilization")),
+                pressure_status=str(
+                    snapshot.get("pressure_status") or "UNKNOWN"
+                ),
+                measurement_status=str(
+                    snapshot.get("measurement_status") or "unknown"
+                ),
+                manifest=(
+                    dict(snapshot.get("manifest"))
+                    if isinstance(snapshot.get("manifest"), dict)
+                    else {}
+                ),
+                materialized_hash=str(
+                    snapshot.get("materialized_hash") or ""
+                ),
+                retention_mode=str(
+                    snapshot.get("retention_mode") or "references_only"
+                ),
+                reproduction_level=str(
+                    snapshot.get("reproduction_level") or "manifest_only"
+                ),
             )
+            session.add(snapshot_model)
+            await session.flush([snapshot_model])
 
             raw_contributions = snapshot.get("contributions")
             if not isinstance(raw_contributions, list):
                 continue
+            contribution_models: list[ContextContributionModel] = []
             for ordinal, item in enumerate(raw_contributions):
                 if not isinstance(item, dict):
                     continue
                 contribution_id = _uuid(item.get("id"))
                 if contribution_id is None:
                     continue
-                session.add(
-                    ContextContributionModel(
-                        id=contribution_id,
-                        snapshot_id=snapshot_id,
-                        ordinal=int(
-                            item.get("ordinal")
-                            if isinstance(item.get("ordinal"), int)
-                            else ordinal
-                        ),
-                        source_type=str(item.get("source_type") or "RUNTIME"),
-                        source_ref=(
-                            str(item.get("source_ref"))
-                            if item.get("source_ref") is not None
-                            else None
-                        ),
-                        parent_ref=(
-                            str(item.get("parent_ref"))
-                            if item.get("parent_ref") is not None
-                            else None
-                        ),
-                        modality=str(item.get("modality") or "text"),
-                        priority=str(item.get("priority") or "DYNAMIC"),
-                        raw_units=_as_int(item.get("raw_units")),
-                        materialized_units=_as_int(
-                            item.get("materialized_units")
-                        ),
-                        selection_method=(
-                            str(item.get("selection_method"))
-                            if item.get("selection_method")
-                            else None
-                        ),
-                        relevance_score=_as_float(
-                            item.get("relevance_score")
-                        ),
-                        transformations=(
-                            list(item.get("transformations"))
-                            if isinstance(item.get("transformations"), list)
-                            else []
-                        ),
-                        trust=(
-                            str(item.get("trust"))
-                            if item.get("trust")
-                            else None
-                        ),
-                        sensitivity=(
-                            str(item.get("sensitivity"))
-                            if item.get("sensitivity")
-                            else None
-                        ),
-                        integrity_hash=(
-                            str(item.get("integrity_hash"))
-                            if item.get("integrity_hash")
-                            else None
-                        ),
-                        data=(
-                            dict(item.get("metadata"))
-                            if isinstance(item.get("metadata"), dict)
-                            else {}
-                        ),
-                    )
+                contribution = ContextContributionModel(
+                    id=contribution_id,
+                    snapshot_id=snapshot_id,
+                    ordinal=int(
+                        item.get("ordinal")
+                        if isinstance(item.get("ordinal"), int)
+                        else ordinal
+                    ),
+                    source_type=str(item.get("source_type") or "RUNTIME"),
+                    source_ref=(
+                        str(item.get("source_ref"))
+                        if item.get("source_ref") is not None
+                        else None
+                    ),
+                    parent_ref=(
+                        str(item.get("parent_ref"))
+                        if item.get("parent_ref") is not None
+                        else None
+                    ),
+                    modality=str(item.get("modality") or "text"),
+                    priority=str(item.get("priority") or "DYNAMIC"),
+                    raw_units=_as_int(item.get("raw_units")),
+                    materialized_units=_as_int(
+                        item.get("materialized_units")
+                    ),
+                    selection_method=(
+                        str(item.get("selection_method"))
+                        if item.get("selection_method")
+                        else None
+                    ),
+                    relevance_score=_as_float(
+                        item.get("relevance_score")
+                    ),
+                    transformations=(
+                        list(item.get("transformations"))
+                        if isinstance(item.get("transformations"), list)
+                        else []
+                    ),
+                    trust=(
+                        str(item.get("trust"))
+                        if item.get("trust")
+                        else None
+                    ),
+                    sensitivity=(
+                        str(item.get("sensitivity"))
+                        if item.get("sensitivity")
+                        else None
+                    ),
+                    integrity_hash=(
+                        str(item.get("integrity_hash"))
+                        if item.get("integrity_hash")
+                        else None
+                    ),
+                    data=(
+                        dict(item.get("metadata"))
+                        if isinstance(item.get("metadata"), dict)
+                        else {}
+                    ),
                 )
-        await session.flush()
+                session.add(contribution)
+                contribution_models.append(contribution)
+            if contribution_models:
+                await session.flush(contribution_models)
 
     async def list_by_run(self, agent_run_id: UUID) -> list[dict[str, Any]]:
         session = self._session
