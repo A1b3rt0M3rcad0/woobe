@@ -75,6 +75,11 @@ class ContextEvidenceStore:
             if await session.get(ModelInvocationModel, invocation_id) is not None:
                 continue
 
+            # The Network bulk finalizer can stage the owning AgentRun immediately
+            # before Context evidence. Materialize any pending FK owners first,
+            # without committing or opening another transaction.
+            await session.flush()
+
             invocation_model = ModelInvocationModel(
                 id=invocation_id,
                 project_id=project_id,
