@@ -3,7 +3,7 @@ import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { formatTokens } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 import { useTraceModelInvocations } from '../hooks'
-import type { ContextModelInvocation } from '../types'
+import type { ContextModelInvocation, ContextSnapshotEvidence } from '../types'
 
 function pressureClass(status: string | undefined): string {
   switch ((status ?? '').toUpperCase()) {
@@ -20,6 +20,19 @@ function pressureClass(status: string | undefined): string {
   }
 }
 
+function healthClass(status: string | undefined): string {
+  switch ((status ?? '').toLowerCase()) {
+    case 'critical':
+      return 'text-red-400'
+    case 'warning':
+      return 'text-amber-400'
+    case 'healthy':
+      return 'text-emerald-400'
+    default:
+      return 'text-muted'
+  }
+}
+
 function formatPercent(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '—'
   return `${(value * 100).toFixed(value >= 0.1 ? 1 : 2)}%`
@@ -29,27 +42,108 @@ function formatUnits(value: number | null | undefined): string {
   return value == null ? '—' : formatTokens(value)
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null
+}
+
+function metric(snapshot: ContextSnapshotEvidence, key: string): number | null {
+  const metrics = asRecord(snapshot.manifest?.metrics)
+  const value = metrics?.[key]
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function health(snapshot: ContextSnapshotEvidence): { status: string; warnings: string[] } {
+  const value = asRecord(snapshot.manifest?.health)
+  const status = typeof value?.status === 'string' ? value.status : 'unknown'
+  const rawWarnings = value?.warnings
+  const warnings = Array.isArray(rawWarnings)
+    ? rawWarnings.filter((item): item is string => typeof item === 'string')
+    : []
+  return { status, warnings }
+}
+
+function median(values: number[]): number | null {
+  if (!values.length) return null
+  const sorted = [...values].sort((a, b) => a - b)
+  const middle = Math.floor(sorted.length / 2)
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle]
+}
+
+function RunContextSummary({ invocations }: { invocations: ContextModelInvocation[] }) {
+  const snapshots = invocations
+    .map((invocation) => invocation.context_snapshot)
+    .filter((snapshot): snapshot is ContextSnapshotEvidence => Boolean(snapshot))
+
+  const totalInput = snapshots.reduce(
+    (total, snapshot) => total + (snapshot.reported_input_units ?? snapshot.estimated_input_units ?? 0),
+    0,
+  )
+  const utilizations = snapshots
+    .map((snapshot) => snapshot.utilization)
+    .filter((value): value is number => typeof value === 'number' && Number.isFinite(value))
+  const selectedCount = snapshots.reduce(
+    (total, snapshot) => total + (metric(snapshot, 'selected_count') ?? 0),
+    0,
+  )
+  const truncationCount = snapshots.reduce(
+    (total, snapshot) => total + (metric(snapshot, 'truncation_count') ?? 0),
+    0,
+  )
+  const compactionSaving = snapshots.reduce(
+    (total, snapshot) => total + (metric(snapshot, 'compaction_saving_units') ?? 0),
+    0,
+  )
+  const truncationRate = selectedCount > 0 ? truncationCount / selectedCount : 0
+
+  return (
+    <div className="grid grid-cols-2 gap-1.5">
+      <div className="rounded border border-border bg-background px-2 py-1.5">
+        <p className="text-[9px] uppercase tracking-wider text-muted">Run context input</p>
+        <p className="text-[11px] font-mono text-white">{formatUnits(totalInput)}</p>
+      </div>
+      <div className="rounded border border-border bg-background px-2 py-1.5">
+        <p className="text-[9px] uppercase tracking-wider text-muted">Median utilization</p>
+        <p className="text-[11px] font-mono text-white">{formatPercent(median(utilizations))}</p>
+      </div>
+      <div className="rounded border border-border bg-background px-2 py-1.5">
+        <p className="text-[9px] uppercase tracking-wider text-muted">Compaction saving</p>
+        <p className="text-[11px] font-mono text-white">{formatUnits(compactionSaving)}</p>
+      </div>
+      <div className="rounded border border-border bg-background px-2 py-1.5">
+        <p className="text-[9px] uppercase tracking-wider text-muted">Truncation rate</p>
+        <p className="text-[11px] font-mono text-white">{formatPercent(truncationRate)}</p>
+      </div>
+    </div>
+  )
+}
+
 function SourceSummary({ invocation }: { invocation: ContextModelInvocation }) {
   const snapshot = invocation.context_snapshot
   if (!snapshot) return null
 
-  const sources = snapshot.manifest?.sources
-  if (!sources || typeof sources !== 'object' || Array.isArray(sources)) return null
+  const sources = asRecord(snapshot.manifest?.sources)
+  if (!sources) return null
 
   return (
     <div className="flex flex-wrap gap-1">
       {Object.entries(sources).map(([name, raw]) => {
-        const value = raw && typeof raw === 'object' && !Array.isArray(raw)
-          ? raw as Record<string, unknown>
-          : {}
+        const value = asRecord(raw) ?? {}
         const count = typeof value.count === 'number' ? value.count : null
         const units = typeof value.units === 'number' ? value.units : null
+        const share = typeof value.share === 'number' ? value.share : null
         return (
           <span
             key={name}
             className="rounded border border-border bg-background px-1.5 py-0.5 text-[10px] text-muted"
           >
-            {name}{count != null ? ` · ${count}` : ''}{units != null ? ` · ${formatTokens(units)}` : ''}
+            {name}
+            {count != null ? ` · ${count}` : ''}
+            {units != null ? ` · ${formatTokens(units)}` : ''}
+            {share != null ? ` · ${formatPercent(share)}` : ''}
           </span>
         )
       })}
@@ -63,6 +157,12 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
 
   const reported = snapshot.reported_input_units
   const measured = reported ?? snapshot.estimated_input_units
+  const snapshotHealth = health(snapshot)
+  const selectionRatio = metric(snapshot, 'selection_ratio')
+  const compactionSaving = metric(snapshot, 'compaction_saving_units')
+  const truncationRate = metric(snapshot, 'truncation_rate')
+  const modalities = asRecord(snapshot.manifest?.modalities)
+  const aggregateComparable = modalities?.aggregate_comparable !== false
 
   return (
     <div className="rounded-lg border border-border bg-background p-2.5 space-y-2">
@@ -75,12 +175,17 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
             {invocation.provider || '—'}/{invocation.model || '—'}
           </p>
         </div>
-        <span className={cn(
-          'shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium',
-          pressureClass(snapshot.pressure_status),
-        )}>
-          {snapshot.pressure_status || 'UNKNOWN'}
-        </span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          <span className={cn('text-[9px] font-medium uppercase', healthClass(snapshotHealth.status))}>
+            {snapshotHealth.status}
+          </span>
+          <span className={cn(
+            'rounded-full border px-1.5 py-0.5 text-[10px] font-medium',
+            pressureClass(snapshot.pressure_status),
+          )}>
+            {snapshot.pressure_status || 'UNKNOWN'}
+          </span>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-1.5">
@@ -99,11 +204,24 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
       <SourceSummary invocation={invocation} />
 
       <div className="text-[10px] text-muted flex flex-wrap gap-x-3 gap-y-0.5">
-        <span>Estimated {formatUnits(snapshot.estimated_input_units)}</span>
-        <span>Reported {formatUnits(snapshot.reported_input_units)}</span>
+        <span>Selected {formatPercent(selectionRatio)}</span>
+        <span>Compaction saved {formatUnits(compactionSaving)}</span>
+        <span>Truncation {formatPercent(truncationRate)}</span>
         <span>Capacity {formatUnits(snapshot.model_capacity_units)}</span>
         <span>Output reserve {formatUnits(snapshot.reserved_output_units)}</span>
       </div>
+
+      {!aggregateComparable && (
+        <p className="rounded border border-border bg-surface/30 px-2 py-1 text-[9px] text-muted">
+          Multimodal Context: source-level units are partial and are not treated as text-token equivalents.
+        </p>
+      )}
+
+      {snapshotHealth.warnings.length > 0 && (
+        <p className="text-[9px] text-muted">
+          {snapshotHealth.warnings.join(' · ')}
+        </p>
+      )}
 
       <details className="group">
         <summary className="flex cursor-pointer list-none items-center gap-1 text-[10px] text-muted hover:text-white">
@@ -165,6 +283,7 @@ export function ContextInspector({ traceId }: { traceId: string }) {
         <span className="text-xs font-medium text-white">Context</span>
         <span className="ml-auto text-[10px] text-muted">{data.length} model invocation{data.length === 1 ? '' : 's'}</span>
       </div>
+      <RunContextSummary invocations={data} />
       {data.map((invocation, index) => (
         <InvocationCard key={invocation.id ?? `${invocation.call_index ?? index}-${index}`} invocation={invocation} />
       ))}
