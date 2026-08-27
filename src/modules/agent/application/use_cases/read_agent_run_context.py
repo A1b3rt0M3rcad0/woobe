@@ -157,6 +157,14 @@ class ReadAgentRunContextUseCase:
         )
         return run
 
+    async def _detail(self, run: AgentRun) -> dict[str, Any]:
+        detail = _run_detail(run)
+        if not detail["answer"] and run.output_message_id is not None:
+            detail["answer"] = await self._runs.get_output_message_content(
+                run.output_message_id
+            )
+        return detail
+
     async def by_run(
         self,
         *,
@@ -194,7 +202,7 @@ class ReadAgentRunContextUseCase:
             user_id=user_id,
             not_found="Agent Run not found",
         )
-        return _run_detail(run)
+        return await self._detail(run)
 
     async def detail_by_trace(
         self,
@@ -207,4 +215,4 @@ class ReadAgentRunContextUseCase:
             user_id=user_id,
             not_found="Agent Run not found for Trace",
         )
-        return _run_detail(run)
+        return await self._detail(run)
