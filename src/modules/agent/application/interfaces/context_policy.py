@@ -140,11 +140,14 @@ class ContextPolicyV1(BaseModel):
     )
 
     @model_validator(mode="after")
-    def validate_mandatory_priorities(self) -> "ContextPolicyV1":
-        if self.source_priorities.get(ContextSourceType.SYSTEM) != ContextPriority.MANDATORY:
+    def complete_and_validate_priorities(self) -> "ContextPolicyV1":
+        merged = _default_source_priorities()
+        merged.update(self.source_priorities)
+        if merged[ContextSourceType.SYSTEM] != ContextPriority.MANDATORY:
             raise ValueError("SYSTEM context priority must remain MANDATORY")
-        if self.source_priorities.get(ContextSourceType.USER_INPUT) != ContextPriority.MANDATORY:
+        if merged[ContextSourceType.USER_INPUT] != ContextPriority.MANDATORY:
             raise ValueError("USER_INPUT context priority must remain MANDATORY")
+        self.source_priorities = merged
         return self
 
 
