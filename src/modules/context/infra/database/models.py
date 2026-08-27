@@ -34,9 +34,8 @@ class ModelInvocationModel(BaseModel):
     )
 
     project_id: Mapped[UUID]
-    agent_run_id: Mapped[UUID] = mapped_column(
-        ForeignKey("agent.agent_runs.id", ondelete="CASCADE")
-    )
+    # Cross-bounded-context causality is identifier-only. Context owns no Agent rows.
+    agent_run_id: Mapped[UUID]
     agent_id: Mapped[UUID]
     trace_id: Mapped[UUID | None] = mapped_column(nullable=True)
     network_execution_id: Mapped[UUID | None] = mapped_column(nullable=True)
@@ -73,9 +72,8 @@ class ContextSnapshotModel(BaseModel):
     model_invocation_id: Mapped[UUID] = mapped_column(
         ForeignKey("context.model_invocations.id", ondelete="CASCADE")
     )
-    agent_run_id: Mapped[UUID] = mapped_column(
-        ForeignKey("agent.agent_runs.id", ondelete="CASCADE")
-    )
+    # Identifier-only link to AgentRun; no cross-module FK.
+    agent_run_id: Mapped[UUID]
     policy_schema_version: Mapped[int] = mapped_column(Integer)
     policy_hash: Mapped[str] = mapped_column(String(64))
     model_capacity_units: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
