@@ -3,11 +3,12 @@ import { ApiError } from '@/lib/api/errors'
 import {
   getTraces,
   getTraceDetail,
+  getTraceModelInvocations,
   getAskJob,
   type AskJobResponse,
   type GetTracesParams,
 } from './api'
-import type { Trace, TraceDetail } from './types'
+import type { ContextModelInvocation, Trace, TraceDetail } from './types'
 
 const TRACE_REFRESH_INTERVAL_MS = 1_500
 const IDLE_TRACE_LIST_REFRESH_INTERVAL_MS = 10_000
@@ -59,6 +60,17 @@ export function useTraceDetail(id: string | undefined) {
       return isTerminalTrace(trace) ? false : TRACE_REFRESH_INTERVAL_MS
     },
     refetchIntervalInBackground: false,
+  })
+}
+
+export function useTraceModelInvocations(id: string | undefined) {
+  return useQuery<ContextModelInvocation[], Error>({
+    queryKey: ['trace-context', id],
+    queryFn: () => getTraceModelInvocations(id!),
+    enabled: Boolean(id),
+    retry: shouldRetryTrace,
+    retryDelay: (failureCount) => Math.min(250 * 2 ** failureCount, 1_500),
+    staleTime: 30_000,
   })
 }
 
