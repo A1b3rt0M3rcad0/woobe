@@ -1,7 +1,7 @@
 import { AlertTriangle, Copy, RefreshCw } from 'lucide-react'
 
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
-import { useAgentRunDetail } from '@/features/traces/hooks'
+import { useAgentRunDetail, useOptionalTraceDetail } from '@/features/traces/hooks'
 
 function IdRow({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null
@@ -19,6 +19,7 @@ export function AgentRunEvidencePanel({ runId, traceId }: { runId?: string | nul
     runId: runId ?? undefined,
     traceId: runId ? undefined : traceId ?? undefined,
   })
+  const optionalTrace = useOptionalTraceDetail(traceId ?? data?.trace_id ?? undefined)
 
   if (isLoading) {
     return (
@@ -103,6 +104,18 @@ export function AgentRunEvidencePanel({ runId, traceId }: { runId?: string | nul
           <p className="mb-2 text-[9px] font-semibold uppercase tracking-wide text-muted">Source evidence</p>
           <JsonCodeBlock value={data.sources} maxHeight={240} />
         </section>
+      ) : null}
+
+      {optionalTrace.data ? (
+        <section className="rounded-xl border border-border/75 bg-background/25 p-3">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Observability Trace</p>
+            <span className="text-[8px] text-muted">{optionalTrace.data.events?.length ?? 0} events</span>
+          </div>
+          <JsonCodeBlock value={optionalTrace.data.events ?? []} maxHeight={280} className="mt-2" />
+        </section>
+      ) : optionalTrace.isError ? (
+        <p className="px-1 text-[8px] text-muted">No separate Observability Trace was materialized for this Agent Run. Durable Run evidence above remains authoritative.</p>
       ) : null}
     </div>
   )
