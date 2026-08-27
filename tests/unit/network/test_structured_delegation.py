@@ -3,30 +3,42 @@ from uuid import uuid4
 
 import pytest
 
-from modules.network.application.runtime import AgentInvocationResult, NetworkExecutor
+from modules.network.application import runtime as runtime_module
+from modules.network.application.runtime import (
+    AgentInvocationResult,
+    NetworkBudgetExceeded,
+    NetworkExecutor,
+)
 
 
 class FakeStore:
     def __init__(self) -> None:
         self.events = []
+        self.started = []
+        self.completed = []
+        self.failed = []
 
     async def is_cancel_requested(self, execution_id):
         return False
 
-    async def resolve_agent_session_mode(self, **kwargs):
-        return kwargs.get("binding_session_mode") or "stateless"
-
     async def start_invocation(self, **kwargs):
-        return SimpleNamespace(id=uuid4(), agent_session_id=None)
+        invocation = SimpleNamespace(
+            id=uuid4(),
+            agent_session_id=None,
+            context_state="stateless",
+            previous_invocation_count=0,
+        )
+        self.started.append((invocation.id, kwargs))
+        return invocation
 
     async def complete_invocation(self, invocation_id, *, result, persist_context):
-        return None
+        self.completed.append((invocation_id, result, persist_context))
 
     async def fail_invocation(self, invocation_id, error, **kwargs):
-        raise AssertionError(error)
+        self.failed.append((invocation_id, error, kwargs))
 
     async def emit(self, execution_id, event_type, payload, *, invocation_id=None):
-        self.events.append((event_type, payload))
+        self.events.append((event_type, payload, invocation_id))
 
 
 class FakeInvoker:
@@ -64,80 +76,126 @@ class DuplicateDelegationInvoker:
             self.specialist_calls += 1
             return AgentInvocationResult(answer="specialist result")
         assert agent_id == self.root_agent_id
-        arguments = {
-            "task": "Inspect the same customer issue",
-            "context": {"customer_id": "42"},
-        }
-        self.first_result = await internal_tools[0].handler(arguments)
-        self.second_result = await internal_tools[0].handler(arguments)
+        self.first_result = await internal_tools[0].handler(
+            {
+                "task": "Inspect the customer issue",
+                "context": {"customer_id": "42"},
+            }
+        )
+        # Semantically the same target, but deliberately different wording. The
+        # successful child result is already available to this parent invocation.
+        self.second_result = await internal_tools[0].handler(
+            {
+                "task": "Review that same customer's issue again and summarize it",
+                "context": {"customer_id": "42"},
+            }
+        )
         return AgentInvocationResult(answer="root result")
 
 
+class LinearDelegationInvoker:
+    def __init__(self, ordered_agent_ids) -> None:
+        self.ordered_agent_ids = list(ordered_agent_ids)
+        self.calls = []
+
+    async def invoke(self, *, agent_id, internal_tools, **kwargs):
+        self.calls.append(agent_id)
+        index = self.ordered_agent_ids.index(agent_id)
+        if index == len(self.ordered_agent_ids) - 1:
+            return AgentInvocationResult(answer=f"layer-{index + 1}")
+        assert len(internal_tools) == 1
+        child = await internal_tools[0].handler(
+            {"task": f"Continue to layer {index + 2}"}
+        )
+        assert child["success"] is True
+        return AgentInvocationResult(
+            answer=f"layer-{index + 1} <- {child['result']}"
+        )
+
+
+class DeadlineAwareInvoker:
+    def __init__(self, root_agent_id, child_agent_id) -> None:
+        self.root_agent_id = root_agent_id
+        self.child_agent_id = child_agent_id
+        self.child_calls = 0
+        self.delegation_result = None
+
+    async def invoke(self, *, agent_id, internal_tools, **kwargs):
+        if agent_id == self.child_agent_id:
+            self.child_calls += 1
+            return AgentInvocationResult(answer="late child")
+        self.delegation_result = await internal_tools[0].handler(
+            {"task": "Start another expensive delegation"}
+        )
+        return AgentInvocationResult(answer="final answer from completed evidence")
+
+
 def _runtime_setup():
+    execution, version, agent_ids = _linear_runtime_setup(2)
+    return execution, version, agent_ids[0], agent_ids[1]
+
+
+def _linear_runtime_setup(
+    layers: int,
+    *,
+    max_depth: int = 7,
+    max_invocations: int = 16,
+    timeout_seconds: int = 30,
+):
+    assert layers >= 1
     network_id = uuid4()
     project_id = uuid4()
     session_id = uuid4()
     execution_id = uuid4()
-    root_node_id = uuid4()
-    specialist_node_id = uuid4()
-    root_agent_id = uuid4()
-    specialist_agent_id = uuid4()
-    root_release_id = uuid4()
-    specialist_release_id = uuid4()
+    node_ids = [uuid4() for _ in range(layers)]
+    agent_ids = [uuid4() for _ in range(layers)]
+    release_ids = [uuid4() for _ in range(layers)]
 
+    nodes = []
+    bindings = {}
+    for index, (node_id, agent_id, release_id) in enumerate(
+        zip(node_ids, agent_ids, release_ids, strict=True)
+    ):
+        nodes.append(
+            {
+                "id": str(node_id),
+                "agent_id": str(agent_id),
+                "label": f"Layer {index + 1}",
+                "capability_description": f"Handles layer {index + 1}.",
+                "position": {"x": index * 220, "y": 0},
+                "binding": {"source": "release", "release_id": str(release_id)},
+            }
+        )
+        bindings[str(node_id)] = {
+            "release_id": str(release_id),
+            "release_version": "v1.0.20260827.01",
+            "session_mode": "stateless",
+        }
+
+    edges = [
+        {
+            "id": str(uuid4()),
+            "source_node_id": str(node_ids[index]),
+            "target_node_id": str(node_ids[index + 1]),
+        }
+        for index in range(layers - 1)
+    ]
     definition = {
         "schema_version": 2,
-        "root_node_id": str(root_node_id),
-        "nodes": [
-            {
-                "id": str(root_node_id),
-                "agent_id": str(root_agent_id),
-                "label": "Entry",
-                "capability_description": "Coordinates the response.",
-                "position": {"x": 0, "y": 0},
-                "binding": {"source": "release", "release_id": str(root_release_id)},
-            },
-            {
-                "id": str(specialist_node_id),
-                "agent_id": str(specialist_agent_id),
-                "label": "Sentiment Specialist",
-                "capability_description": "Classifies sentiment.",
-                "position": {"x": 300, "y": 0},
-                "binding": {
-                    "source": "release",
-                    "release_id": str(specialist_release_id),
-                },
-            },
-        ],
-        "edges": [
-            {
-                "id": str(uuid4()),
-                "source_node_id": str(root_node_id),
-                "target_node_id": str(specialist_node_id),
-            }
-        ],
+        "root_node_id": str(node_ids[0]),
+        "nodes": nodes,
+        "edges": edges,
         "settings": {
             "session_mode": "stateless",
-            "max_depth": 4,
-            "max_invocations": 16,
-            "timeout_seconds": 30,
+            "max_depth": max_depth,
+            "max_invocations": max_invocations,
+            "timeout_seconds": timeout_seconds,
         },
     }
     version = SimpleNamespace(
         kind="release",
         definition=definition,
-        resolved_bindings={
-            str(root_node_id): {
-                "release_id": str(root_release_id),
-                "release_version": "v1.0.20260715.01",
-                "session_mode": "stateless",
-            },
-            str(specialist_node_id): {
-                "release_id": str(specialist_release_id),
-                "release_version": "v1.0.20260715.01",
-                "session_mode": "stateless",
-            },
-        },
+        resolved_bindings=bindings,
     )
     execution = SimpleNamespace(
         id=execution_id,
@@ -145,10 +203,10 @@ def _runtime_setup():
         project_id=project_id,
         network_session_id=session_id,
         network_version_id=uuid4(),
-        input_message="How does the customer feel?",
+        input_message="Execute the complete chain",
         draft_revision=None,
     )
-    return execution, version, root_agent_id, specialist_agent_id
+    return execution, version, agent_ids
 
 
 @pytest.mark.asyncio
@@ -169,7 +227,7 @@ async def test_specialist_parsed_output_is_returned_as_tool_result_object() -> N
 
 
 @pytest.mark.asyncio
-async def test_equivalent_delegation_is_skipped_without_second_agent_run() -> None:
+async def test_successful_target_is_not_reinvoked_by_same_parent_even_with_new_wording() -> None:
     execution, version, root_agent_id, specialist_agent_id = _runtime_setup()
     store = FakeStore()
     invoker = DuplicateDelegationInvoker(root_agent_id, specialist_agent_id)
@@ -187,7 +245,101 @@ async def test_equivalent_delegation_is_skipped_without_second_agent_run() -> No
         "result": "specialist result",
     }
     assert invoker.second_result["success"] is False
-    assert invoker.second_result["error_code"] == "duplicate_delegation"
-    skipped = [payload for event_type, payload in store.events if event_type == "delegation_skipped"]
+    assert invoker.second_result["error_code"] == "duplicate_successful_delegation"
+    skipped = [
+        payload for event_type, payload, _ in store.events
+        if event_type == "delegation_skipped"
+    ]
     assert len(skipped) == 1
-    assert skipped[0]["reason"] == "duplicate_delegation"
+    assert skipped[0]["reason"] == "already_completed_successfully"
+
+
+@pytest.mark.asyncio
+async def test_network_executes_seven_layers_in_order() -> None:
+    execution, version, agent_ids = _linear_runtime_setup(
+        7,
+        max_depth=7,
+        max_invocations=16,
+    )
+    store = FakeStore()
+    invoker = LinearDelegationInvoker(agent_ids)
+
+    result = await NetworkExecutor(invoker=invoker, store=store).execute(
+        execution,
+        version,
+    )
+
+    assert invoker.calls == agent_ids
+    assert len(store.started) == 7
+    assert len(store.completed) == 7
+    assert not store.failed
+    assert result.answer.startswith("layer-1 <- layer-2")
+    completed_delegations = [
+        payload for event_type, payload, _ in store.events
+        if event_type == "delegation_completed"
+    ]
+    assert len(completed_delegations) == 6
+
+
+@pytest.mark.asyncio
+async def test_network_rejects_layer_beyond_configured_depth() -> None:
+    execution, version, agent_ids = _linear_runtime_setup(
+        8,
+        max_depth=6,
+        max_invocations=16,
+    )
+    invoker = LinearDelegationInvoker(agent_ids)
+
+    with pytest.raises(NetworkBudgetExceeded) as captured:
+        await NetworkExecutor(invoker=invoker, store=FakeStore()).execute(
+            execution,
+            version,
+        )
+
+    assert captured.value.code == "network_max_depth_exceeded"
+
+
+@pytest.mark.asyncio
+async def test_network_reports_invocation_budget_separately_from_depth() -> None:
+    execution, version, agent_ids = _linear_runtime_setup(
+        2,
+        max_depth=7,
+        max_invocations=1,
+    )
+    invoker = LinearDelegationInvoker(agent_ids)
+
+    with pytest.raises(NetworkBudgetExceeded) as captured:
+        await NetworkExecutor(invoker=invoker, store=FakeStore()).execute(
+            execution,
+            version,
+        )
+
+    assert captured.value.code == "network_max_invocations_exceeded"
+
+
+@pytest.mark.asyncio
+async def test_deadline_reserve_blocks_new_delegation_and_preserves_parent_synthesis(
+    monkeypatch,
+) -> None:
+    execution, version, agent_ids = _linear_runtime_setup(
+        2,
+        timeout_seconds=30,
+    )
+    ticks = iter([0.0, 0.0, 29.0])
+    monkeypatch.setattr(runtime_module.time, "monotonic", lambda: next(ticks, 29.0))
+    store = FakeStore()
+    invoker = DeadlineAwareInvoker(agent_ids[0], agent_ids[1])
+
+    result = await NetworkExecutor(invoker=invoker, store=store).execute(
+        execution,
+        version,
+    )
+
+    assert result.answer == "final answer from completed evidence"
+    assert invoker.child_calls == 0
+    assert invoker.delegation_result["error_code"] == "network_deadline_near"
+    skipped = [
+        payload for event_type, payload, _ in store.events
+        if event_type == "delegation_skipped"
+    ]
+    assert skipped[-1]["reason"] == "network_deadline_near"
