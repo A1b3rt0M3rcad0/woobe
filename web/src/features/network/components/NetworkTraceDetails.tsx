@@ -22,6 +22,7 @@ import {
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { ToolCallsCollapsible } from '@/features/playground/components/ToolCallsCollapsible'
 import { TraceDiagnosticsPanel } from '@/features/playground/components/TraceDiagnosticsPanel'
+import { ContextInspector } from '@/features/traces/components/ContextInspector'
 import { formatCurrency, formatLatency, formatTokens } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 
@@ -133,9 +134,16 @@ function AgentRunDetail({ invocation, root, onBack, onOpenAgent, onDiagnostics }
         </div>
       </section>
 
-      {invocation.childTraceId ? <TraceDiagnosticsPanel traceId={invocation.childTraceId} /> : (
+      {invocation.childTraceId ? (
+        <div className="space-y-3">
+          <TraceDiagnosticsPanel traceId={invocation.childTraceId} />
+          <div className="rounded-xl border border-border/75 bg-background/20 pt-3">
+            <ContextInspector traceId={invocation.childTraceId} />
+          </div>
+        </div>
+      ) : (
         <section className="rounded-xl border border-dashed border-border/80 px-3 py-2.5 text-[9px] text-muted">
-          Execution diagnostics become available when this Agent Run has a trace.
+          Execution and Context diagnostics become available when this Agent Run has a trace.
         </section>
       )}
 
@@ -145,8 +153,8 @@ function AgentRunDetail({ invocation, root, onBack, onOpenAgent, onDiagnostics }
       </section>
 
       <section className="border-t border-border/70 pt-3">
-        <div className="flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Context</p><Info className="h-3 w-3 text-muted" aria-label="Agent Session context used by this Agent Run" /></div>
-        <p className="mt-1 text-[10px] text-slate-300">{invocation.contextState === 'stateless' ? 'Stateless invocation' : invocation.contextState === 'created' ? 'Stateful context created for this session' : `Stateful context reused after ${invocation.previousInvocationCount} invocation${invocation.previousInvocationCount === 1 ? '' : 's'}`}</p>
+        <div className="flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Session continuity</p><Info className="h-3 w-3 text-muted" aria-label="Session continuity used by this Agent Run" /></div>
+        <p className="mt-1 text-[10px] text-slate-300">{invocation.contextState === 'stateless' ? 'Stateless invocation' : invocation.contextState === 'created' ? 'Stateful session continuity created for this Agent Run' : `Stateful session continuity reused after ${invocation.previousInvocationCount} invocation${invocation.previousInvocationCount === 1 ? '' : 's'}`}</p>
       </section>
 
       {invocation.failure ? (
