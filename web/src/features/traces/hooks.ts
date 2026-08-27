@@ -81,6 +81,16 @@ export function useTraceDetail(id: string | undefined) {
   })
 }
 
+export function useOptionalTraceDetail(id: string | undefined) {
+  return useQuery<TraceDetail, Error>({
+    queryKey: ['optional-trace', id],
+    queryFn: () => getTraceDetail(id!),
+    enabled: Boolean(id),
+    retry: false,
+    staleTime: 30_000,
+  })
+}
+
 export function useAgentRunDetail({
   runId,
   traceId,
