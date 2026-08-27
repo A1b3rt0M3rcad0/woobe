@@ -113,7 +113,7 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
         calls = run.result.get("llm_calls")
         if not isinstance(calls, list) or not calls:
             return
-        await ContextEvidenceStore(self._uow).persist_from_calls(
+        await ContextEvidenceStore(self._uow.session).persist_from_calls(
             agent_run_id=run.id,
             project_id=run.project_id,
             agent_id=run.agent_id,
@@ -146,7 +146,7 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
         return _to_entity(model) if model is not None else None
 
     async def list_model_invocations(self, run_id: UUID) -> list[dict]:
-        durable = await ContextEvidenceStore(self._uow).list_by_run(run_id)
+        durable = await ContextEvidenceStore(self._uow.session).list_by_run(run_id)
         if durable:
             return durable
         run = await self.get_by_id(run_id)
