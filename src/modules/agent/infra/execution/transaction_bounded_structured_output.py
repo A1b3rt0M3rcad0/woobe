@@ -9,7 +9,6 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, Tool
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
 from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.application.runtime_tool_inventory import RUNTIME_TOOL_INVENTORY_NAME
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.tool_release_snapshots import (
     tool_from_release_snapshot,
@@ -24,7 +23,6 @@ from modules.agent.infra.execution.explicit_runtime_persistence import ExplicitR
 from modules.agent.infra.execution.runtime_preparation import prepare_rag_binding, prepare_tool_state
 from modules.agent.infra.execution.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
-    _RUNTIME_TOOL_INVENTORY_RUNTIME_RULES,
     _TOOL_GROUNDING_RUNTIME_RULES,
 )
 from modules.agent.infra.execution.transaction_bounded_rag import (
@@ -357,7 +355,6 @@ class TransactionBoundedStructuredOutputRuntime(
                 prepared = await super(StructuredOutputAskAgentUseCase, self)._prepare(input_dto)
             prepared = await self._apply_runtime_tool_selection(prepared)
             updated = list(prepared)
-            tool_name_to_id = dict(updated[8])
             context = current_execution.get()
 
             if context and context.internal_tool_definitions:
@@ -375,7 +372,6 @@ class TransactionBoundedStructuredOutputRuntime(
                 updated[7] = definitions
                 updated[8] = mapping
                 updated[9] = bool(definitions)
-                tool_name_to_id = mapping
 
             if updated[9]:
                 messages = list(updated[11])
@@ -383,14 +379,6 @@ class TransactionBoundedStructuredOutputRuntime(
                 messages.insert(
                     insert_at,
                     SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES),
-                )
-                updated[11] = messages
-            if RUNTIME_TOOL_INVENTORY_NAME in tool_name_to_id:
-                messages = list(updated[11])
-                insert_at = len(messages) - 1 if messages else 0
-                messages.insert(
-                    insert_at,
-                    SystemMessage(content=_RUNTIME_TOOL_INVENTORY_RUNTIME_RULES),
                 )
                 updated[11] = messages
             return tuple(updated)
