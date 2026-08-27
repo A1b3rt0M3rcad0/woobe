@@ -57,14 +57,7 @@ def _mapping(value: Any) -> dict[str, Any]:
 
 
 def _context_window_from_metadata(metadata: dict[str, Any]) -> int | None:
-    """Resolve only explicitly configured/discovered model capacity.
-
-    Provider model discovery persists catalog capability metadata under
-    ``metadata.catalog`` while manual/API configuration may keep the same values
-    at the metadata root. Some providers also retain their original payload in
-    ``provider_model_raw``. All of these are immutable ProviderModel evidence;
-    none of the fallbacks below invent a context window.
-    """
+    """Resolve only explicitly configured/discovered model capacity."""
 
     catalog = _mapping(metadata.get("catalog"))
     raw = _mapping(metadata.get("provider_model_raw"))
@@ -87,6 +80,27 @@ def _context_window_from_metadata(metadata: dict[str, Any]) -> int | None:
     )
 
 
+def _max_output_from_metadata(metadata: dict[str, Any]) -> int | None:
+    capabilities = _mapping(metadata.get("capabilities"))
+    catalog = _mapping(metadata.get("catalog"))
+    raw = _mapping(metadata.get("provider_model_raw"))
+    raw_top_provider = _mapping(raw.get("top_provider"))
+    return _first_positive_int(
+        metadata.get("max_output_tokens"),
+        capabilities.get("max_output_tokens"),
+        catalog.get("max_output_tokens"),
+        raw.get("max_output_tokens"),
+        raw.get("max_completion_tokens"),
+        raw_top_provider.get("max_completion_tokens"),
+    )
+
+
+def _capability_bool(metadata: dict[str, Any], key: str) -> bool | None:
+    capabilities = _mapping(metadata.get("capabilities"))
+    value = capabilities.get(key)
+    return value if isinstance(value, bool) else None
+
+
 def _stringify(value: Any) -> str | None:
     if value is None:
         return None
@@ -101,16 +115,11 @@ def provider_model_pricing_snapshot(
     model: str | None,
     metadata: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Build an immutable runtime model/cost snapshot from ProviderModel metadata.
+    """Build immutable runtime model capability/cost evidence from ProviderModel metadata.
 
-    Supported pricing metadata shapes:
-    - {"pricing": {"input_cost_per_1m_tokens": 0.14, "output_cost_per_1m_tokens": 0.28}}
-    - {"pricing": {"input": 0.14, "output": 0.28, "currency": "USD"}}
-    - {"input_cost_per_1m_tokens": 0.14, "output_cost_per_1m_tokens": 0.28}
-
-    Context capacity is copied only when ProviderModel metadata or its preserved
-    provider catalog payload contains a positive explicit capacity. Unknown model
-    capacity remains unknown; the runtime never invents a provider context window.
+    Context/output limits are copied only from explicit manual or provider-discovered
+    metadata. Unknown capabilities remain unknown; the runtime never infers them from
+    the model name.
     """
     source = metadata or {}
     pricing = source.get("pricing") if isinstance(source.get("pricing"), dict) else source
@@ -134,6 +143,7 @@ def provider_model_pricing_snapshot(
     currency = _first_text(pricing.get("currency"), source.get("currency")) or _DEFAULT_CURRENCY
     pricing_id = _first_text(pricing.get("pricing_id"), pricing.get("id"), source.get("pricing_id"))
     context_window = _context_window_from_metadata(source)
+    max_output_tokens = _max_output_from_metadata(source)
 
     return {
         "provider_model_id": _stringify(provider_model_id),
@@ -141,6 +151,11 @@ def provider_model_pricing_snapshot(
         "provider": provider.value if hasattr(provider, "value") else _stringify(provider),
         "model": model,
         "context_window": context_window,
+        "max_output_tokens": max_output_tokens,
+        "supports_tools": _capability_bool(source, "supports_tools"),
+        "supports_json": _capability_bool(source, "supports_json"),
+        "supports_streaming": _capability_bool(source, "supports_streaming"),
+        "capability_source": _first_text(source.get("capability_source"), source.get("source")),
         "pricing_id": pricing_id,
         "currency": currency.upper(),
         "billing_unit": _first_text(pricing.get("billing_unit"), source.get("billing_unit")) or "per_1m_tokens",
