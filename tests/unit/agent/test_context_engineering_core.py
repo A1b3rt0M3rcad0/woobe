@@ -18,6 +18,7 @@ from modules.agent.application.context_policy import (
 from modules.agent.domain.context import (
     ContextMeasurementStatus,
     ContextPressureStatus,
+    ContextPriority,
     ContextSourceType,
 )
 
@@ -66,6 +67,9 @@ def test_context_runtime_config_is_canonical_and_preserves_other_runtime_keys():
     assert runtime["context"]["schema_version"] == 1
     assert runtime["context"]["session"]["max_messages"] == 7
     assert runtime["context"]["retention"]["materialized_content"] == "references_only"
+    assert runtime["context"]["ordering"]["strategy"] == "preserve_input"
+    assert runtime["context"]["deduplication"]["strategy"] == "none"
+    assert runtime["context"]["source_priorities"]["SYSTEM"] == "MANDATORY"
 
     policy = ContextPolicyV1.model_validate(runtime["context"])
     assert context_policy_hash(policy) == context_policy_hash(runtime["context"])
@@ -91,6 +95,13 @@ def test_context_pressure_thresholds_must_be_strictly_increasing():
         )
 
 
+def test_system_and_current_input_priorities_cannot_be_downgraded():
+    with pytest.raises(ValidationError, match="SYSTEM context priority"):
+        ContextPolicyV1.model_validate(
+            {"source_priorities": {"SYSTEM": "OPTIONAL", "USER_INPUT": "MANDATORY"}}
+        )
+
+
 def test_context_assembly_keeps_mandatory_input_and_only_recent_session_messages():
     policy = ContextPolicyV1.model_validate(
         {"session": {"max_messages": 1}}
@@ -111,6 +122,7 @@ def test_context_assembly_keeps_mandatory_input_and_only_recent_session_messages
         "current user",
     ]
     assert result.snapshot.manifest["exclusions"][ContextSourceType.SESSION.value] == 1
+    assert result.snapshot.manifest["exclusion_reasons"]["session_window"]["SESSION"] == 1
     assert [item.source_type for item in result.snapshot.contributions] == [
         ContextSourceType.SYSTEM,
         ContextSourceType.SESSION,
@@ -165,6 +177,9 @@ def test_context_contribution_preserves_tool_compaction_transformation():
     assert tool.source_ref == "tool-call-1"
     assert tool.raw_units == 100
     assert tool.transformations == ("tool_output_compaction",)
+    metrics = result.snapshot.manifest["metrics"]
+    assert metrics["compaction_saving_units"] > 0
+    assert metrics["compaction_ratio"] < 1
 
 
 def test_knowledge_contribution_keeps_vector_and_chunk_provenance():
@@ -194,6 +209,147 @@ def test_knowledge_contribution_keeps_vector_and_chunk_provenance():
     assert knowledge.source_ref == "vector-v1"
     assert knowledge.metadata["rag"]["knowledge_version_id"] == "knowledge-v1"
     assert knowledge.metadata["sources"][0]["chunk_id"] == "chunk-1"
+
+
+def test_content_hash_dedup_keeps_latest_duplicate_and_records_selection_metrics():
+    policy = ContextPolicyV1.model_validate(
+        {
+            "session": {"max_messages": 20},
+            "deduplication": {"strategy": "content_hash", "sources": ["SESSION"]},
+        }
+    )
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="duplicate"),
+            AIMessage(content="same answer"),
+            HumanMessage(content="duplicate"),
+            AIMessage(content="same answer"),
+            HumanMessage(content="current"),
+        ],
+        policy=policy,
+    )
+
+    assert [message.content for message in result.messages] == [
+        "system",
+        "duplicate",
+        "same answer",
+        "current",
+    ]
+    manifest = result.snapshot.manifest
+    assert manifest["exclusion_reasons"]["deduplicated"]["SESSION"] == 2
+    assert manifest["metrics"]["raw_candidate_count"] == 6
+    assert manifest["metrics"]["selected_count"] == 4
+    assert 0 < manifest["metrics"]["selection_ratio"] < 1
+
+
+def test_source_priority_ordering_is_versioned_and_recorded_in_manifest():
+    policy = ContextPolicyV1.model_validate(
+        {
+            "ordering": {"strategy": "source_priority"},
+            "source_priorities": {
+                "SYSTEM": "MANDATORY",
+                "USER_INPUT": "MANDATORY",
+                "SESSION": "DYNAMIC",
+                "CHECKPOINT": "HIGH",
+                "MEMORY": "HIGH",
+                "KNOWLEDGE": "HIGH",
+                "TOOL": "DYNAMIC",
+                "ARTIFACT": "DYNAMIC",
+                "DELEGATION": "HIGH",
+                "RUNTIME": "DYNAMIC",
+            },
+        }
+    )
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="old user"),
+            AIMessage(content="old answer"),
+            SystemMessage(content="<context>knowledge</context>"),
+            HumanMessage(content="current"),
+        ],
+        policy=policy,
+    )
+
+    assert [message.content for message in result.messages] == [
+        "system",
+        "current",
+        "<context>knowledge</context>",
+        "old user",
+        "old answer",
+    ]
+    assert result.snapshot.manifest["ordering"]["strategy"] == "source_priority"
+    assert result.snapshot.manifest["ordering"]["source_sequence"] == [
+        "SYSTEM",
+        "USER_INPUT",
+        "KNOWLEDGE",
+        "SESSION",
+        "SESSION",
+    ]
+
+
+def test_source_budget_truncation_is_observable_in_context_health():
+    policy = ContextPolicyV1.model_validate(
+        {"knowledge": {"max_units": 128}}
+    )
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            SystemMessage(content=f"<context>{'k' * 900}</context>"),
+            HumanMessage(content="current"),
+        ],
+        policy=policy,
+    )
+
+    knowledge = next(
+        item
+        for item in result.snapshot.contributions
+        if item.source_type == ContextSourceType.KNOWLEDGE
+    )
+    assert "source_budget_truncate" in knowledge.transformations
+    assert result.snapshot.manifest["metrics"]["truncation_count"] == 1
+    assert result.snapshot.manifest["metrics"]["truncation_rate"] > 0
+    assert "context_truncation_applied" in result.snapshot.manifest["health"]["warnings"]
+
+
+def test_multimodal_input_is_not_reported_as_fully_comparable_text_context():
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(
+                content=[
+                    {"type": "text", "text": "describe this"},
+                    {"type": "image_url", "image_url": {"url": "https://example.test/a.png"}},
+                ]
+            ),
+        ]
+    )
+
+    current_input = next(
+        item
+        for item in result.snapshot.contributions
+        if item.source_type == ContextSourceType.USER_INPUT
+    )
+    assert current_input.modality == "multimodal"
+    assert result.snapshot.measurement_status == ContextMeasurementStatus.PARTIAL
+    assert result.snapshot.utilization is None
+    assert result.snapshot.manifest["modalities"]["aggregate_comparable"] is False
+    assert "multimodal_units_not_fully_comparable" in result.snapshot.manifest["health"]["warnings"]
+
+
+def test_source_share_is_recorded_from_materialized_context():
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="current user"),
+        ]
+    )
+
+    sources = result.snapshot.manifest["sources"]
+    total_share = sum(item["share"] for item in sources.values())
+    assert total_share == pytest.approx(1.0)
+    assert result.snapshot.manifest["metrics"]["source_share_measurement"] == "estimated"
 
 
 def test_context_assembly_fails_when_mandatory_material_exceeds_model_budget():
@@ -232,3 +388,5 @@ def test_reported_provider_usage_replaces_estimate_for_pressure_measurement():
     assert enriched.pressure_status == ContextPressureStatus.CRITICAL
     assert enriched.utilization == pytest.approx(850 / 900)
     assert enriched.manifest["reported_input_units"] == 850
+    assert enriched.manifest["metrics"]["reported_input_units"] == 850
+    assert enriched.manifest["health"]["status"] == "critical"
