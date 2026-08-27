@@ -85,6 +85,11 @@ def _classify_message(
     if name == "ToolMessage":
         return ContextSourceType.TOOL
     if name == "SystemMessage":
+        content = _message_text(message)
+        if "<context>" in content and "</context>" in content:
+            return ContextSourceType.KNOWLEDGE
+        if "<tool_results>" in content and "</tool_results>" in content:
+            return ContextSourceType.TOOL
         return ContextSourceType.SYSTEM
     if name == "HumanMessage":
         if latest_user_index == index:
@@ -100,9 +105,7 @@ def _classify_message(
 def _priority(source: ContextSourceType) -> ContextPriority:
     if source in {ContextSourceType.SYSTEM, ContextSourceType.USER_INPUT}:
         return ContextPriority.MANDATORY
-    if source == ContextSourceType.DELEGATION:
-        return ContextPriority.HIGH
-    if source == ContextSourceType.SESSION:
+    if source in {ContextSourceType.DELEGATION, ContextSourceType.SESSION}:
         return ContextPriority.HIGH
     if source in {ContextSourceType.KNOWLEDGE, ContextSourceType.TOOL, ContextSourceType.RUNTIME}:
         return ContextPriority.DYNAMIC
@@ -142,7 +145,6 @@ def _effective_budget(policy: ContextPolicyV1, runtime_context: Any) -> tuple[in
     raw_reserved = getattr(runtime_context, "reserved_output_units", None) if runtime_context else None
     reserved = raw_reserved if isinstance(raw_reserved, int) and raw_reserved >= 0 else None
     runtime_reserve = policy.budget.runtime_reserve_units
-
     model_usable = None
     if capacity is not None:
         model_usable = max(0, capacity - (reserved or 0) - runtime_reserve)
@@ -162,6 +164,23 @@ def _pressure(utilization: float | None, policy: ContextPolicyV1) -> ContextPres
     if utilization >= policy.pressure.high_at:
         return ContextPressureStatus.HIGH
     if utilization >= policy.pressure.moderate_at:
+        return ContextPressureStatus.MODERATE
+    return ContextPressureStatus.LOW
+
+
+def _pressure_from_manifest(utilization: float | None, manifest: dict[str, Any]) -> ContextPressureStatus:
+    if utilization is None:
+        return ContextPressureStatus.UNKNOWN
+    raw = manifest.get("pressure_thresholds")
+    thresholds = raw if isinstance(raw, dict) else {}
+    moderate = float(thresholds.get("moderate_at") or 0.40)
+    high = float(thresholds.get("high_at") or 0.75)
+    critical = float(thresholds.get("critical_at") or 0.90)
+    if utilization >= critical:
+        return ContextPressureStatus.CRITICAL
+    if utilization >= high:
+        return ContextPressureStatus.HIGH
+    if utilization >= moderate:
         return ContextPressureStatus.MODERATE
     return ContextPressureStatus.LOW
 
@@ -206,7 +225,14 @@ def _contribution(
     metadata = _context_metadata(message)
     source_ref = metadata.get("source_ref")
     parent_ref = metadata.get("parent_ref")
-    merged_metadata = {**_source_runtime_metadata(source, runtime_context), **metadata}
+    runtime_metadata = _source_runtime_metadata(source, runtime_context)
+    if source_ref is None and source == ContextSourceType.KNOWLEDGE:
+        rag = runtime_metadata.get("rag")
+        if isinstance(rag, dict):
+            source_ref = rag.get("vector_snapshot_id") or rag.get("knowledge_version_id")
+    if source_ref is None and source in {ContextSourceType.USER_INPUT, ContextSourceType.DELEGATION}:
+        source_ref = getattr(runtime_context, "input_message_id", None) or getattr(runtime_context, "run_id", None)
+    merged_metadata = {**runtime_metadata, **metadata}
     text = _message_text(message)
     return ContextContribution(
         snapshot_id=snapshot_id,
@@ -218,13 +244,9 @@ def _contribution(
         raw_units=metadata.get("raw_units") if isinstance(metadata.get("raw_units"), int) else units,
         materialized_units=units,
         selection_method=str(metadata.get("selection_method") or "runtime_materialization"),
-        relevance_score=(
-            float(metadata["relevance_score"])
-            if isinstance(metadata.get("relevance_score"), (int, float))
-            else None
-        ),
+        relevance_score=(float(metadata["relevance_score"]) if isinstance(metadata.get("relevance_score"), (int, float)) else None),
         transformations=transformations,
-        trust=str(metadata.get("trust") or "internal"),
+        trust=str(metadata.get("trust") or ("system-controlled" if source == ContextSourceType.SYSTEM else "internal")),
         sensitivity=str(metadata.get("sensitivity") or "internal"),
         integrity_hash=_hash_text(text),
         metadata=merged_metadata,
@@ -271,15 +293,9 @@ def assemble_context(
             break
 
     sources = [
-        _classify_message(
-            message,
-            index=index,
-            latest_user_index=latest_user_index,
-            delegated=delegated,
-        )
+        _classify_message(message, index=index, latest_user_index=latest_user_index, delegated=delegated)
         for index, message in enumerate(working)
     ]
-
     allowed = set(policy.allowed_sources)
     current_source = ContextSourceType.DELEGATION if delegated else ContextSourceType.USER_INPUT
     if ContextSourceType.SYSTEM not in allowed or current_source not in allowed:
@@ -321,16 +337,11 @@ def assemble_context(
     apply_source_cap(ContextSourceType.KNOWLEDGE, policy.knowledge.max_units)
     apply_source_cap(ContextSourceType.TOOL, policy.tools.max_result_units)
     apply_source_cap(ContextSourceType.DELEGATION, policy.delegation.max_units)
-
     capacity, reserved, runtime_reserve, usable = _effective_budget(policy, runtime_context)
 
     def total_units() -> int:
         tool_definitions = getattr(runtime_context, "active_tool_definitions", None) if runtime_context else None
-        total = sum(
-            estimate_input_units(_message_text(message))
-            for index, message in enumerate(working)
-            if keep[index]
-        )
+        total = sum(estimate_input_units(_message_text(message)) for index, message in enumerate(working) if keep[index])
         if isinstance(tool_definitions, list) and tool_definitions:
             total += estimate_input_units(tool_definitions)
         return total
@@ -363,9 +374,7 @@ def assemble_context(
                 if overflow <= 0:
                     break
         if total_units() > usable:
-            raise ContextBudgetExceeded(
-                f"Mandatory context exceeds usable input budget: {total_units()} > {usable}"
-            )
+            raise ContextBudgetExceeded(f"Mandatory context exceeds usable input budget: {total_units()} > {usable}")
 
     materialized_messages = [message for index, message in enumerate(working) if keep[index]]
     estimated = total_units()
@@ -431,7 +440,6 @@ def assemble_context(
     if isinstance(tool_definitions, list) and tool_definitions:
         materialized_payload.append({"tool_definitions": tool_definitions})
     materialized_hash = _hash_text(_json(materialized_payload))
-
     selection = getattr(runtime_context, "context_selection_metadata", None) if runtime_context else None
     rag_metadata = getattr(runtime_context, "rag_metadata", None) if runtime_context else None
     manifest = {
@@ -449,6 +457,7 @@ def assemble_context(
         "runtime_reserve_units": runtime_reserve,
         "usable_input_budget": usable,
         "utilization": utilization,
+        "pressure_thresholds": policy.pressure.model_dump(),
         "exclusions": exclusions,
         "session_selection": dict(selection) if isinstance(selection, dict) else None,
         "knowledge": dict(rag_metadata) if isinstance(rag_metadata, dict) else None,
@@ -492,11 +501,7 @@ def enrich_snapshot_with_reported_usage(snapshot: ContextSnapshot, reported_inpu
         snapshot,
         reported_input_units=reported_input_units,
         utilization=utilization,
-        pressure_status=(
-            ContextPressureStatus.UNKNOWN
-            if utilization is None
-            else snapshot.pressure_status
-        ),
+        pressure_status=_pressure_from_manifest(utilization, manifest),
         measurement_status=ContextMeasurementStatus.REPORTED,
         manifest=manifest,
     )

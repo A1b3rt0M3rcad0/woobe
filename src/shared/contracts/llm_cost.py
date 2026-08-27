@@ -39,6 +39,19 @@ def _first_text(*values: Any) -> str | None:
     return None
 
 
+def _first_positive_int(*values: Any) -> int | None:
+    for value in values:
+        if isinstance(value, bool) or value is None:
+            continue
+        if isinstance(value, int) and value > 0:
+            return value
+        if isinstance(value, str) and value.strip().isdigit():
+            parsed = int(value)
+            if parsed > 0:
+                return parsed
+    return None
+
+
 def _stringify(value: Any) -> str | None:
     if value is None:
         return None
@@ -53,15 +66,16 @@ def provider_model_pricing_snapshot(
     model: str | None,
     metadata: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Build an immutable runtime pricing snapshot from ProviderModel metadata.
+    """Build an immutable runtime model/cost snapshot from ProviderModel metadata.
 
-    Supported metadata shapes:
+    Supported pricing metadata shapes:
     - {"pricing": {"input_cost_per_1m_tokens": 0.14, "output_cost_per_1m_tokens": 0.28}}
     - {"pricing": {"input": 0.14, "output": 0.28, "currency": "USD"}}
     - {"input_cost_per_1m_tokens": 0.14, "output_cost_per_1m_tokens": 0.28}
 
-    Values are prices per 1M tokens. The returned snapshot also includes per-token
-    rates used by the runtime calculator.
+    Context capacity is copied only when ProviderModel metadata provides a positive
+    integer through context_window/context_length/max_context_tokens. Unknown model
+    capacity remains unknown; the runtime never invents a provider context window.
     """
     source = metadata or {}
     pricing = source.get("pricing") if isinstance(source.get("pricing"), dict) else source
@@ -84,12 +98,19 @@ def provider_model_pricing_snapshot(
     )
     currency = _first_text(pricing.get("currency"), source.get("currency")) or _DEFAULT_CURRENCY
     pricing_id = _first_text(pricing.get("pricing_id"), pricing.get("id"), source.get("pricing_id"))
+    context_window = _first_positive_int(
+        source.get("context_window"),
+        source.get("context_length"),
+        source.get("max_context_tokens"),
+        source.get("max_input_tokens"),
+    )
 
     return {
         "provider_model_id": _stringify(provider_model_id),
         "provider_credential_id": _stringify(provider_credential_id),
         "provider": provider.value if hasattr(provider, "value") else _stringify(provider),
         "model": model,
+        "context_window": context_window,
         "pricing_id": pricing_id,
         "currency": currency.upper(),
         "billing_unit": _first_text(pricing.get("billing_unit"), source.get("billing_unit")) or "per_1m_tokens",

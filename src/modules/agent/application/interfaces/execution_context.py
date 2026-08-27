@@ -54,6 +54,15 @@ class RequestExecutionContext:
         Callable[[dict], Awaitable[dict]],
     ] | None = None
 
+    # Context Engineering evidence. These values are configuration/provenance only;
+    # raw secrets and full materialized prompts must never be stored here.
+    context_policy: dict[str, Any] | None = None
+    model_capacity_units: int | None = None
+    reserved_output_units: int | None = None
+    active_tool_definitions: list[dict[str, Any]] | None = None
+    context_selection_metadata: dict[str, Any] | None = None
+    context_rag_sources: list[dict[str, Any]] | None = None
+
     # Ephemeral preparation material. Decrypted secrets may live here only in
     # process memory and must never be serialized to Redis or durable snapshots.
     prepared_fallback: dict[str, Any] | None = None

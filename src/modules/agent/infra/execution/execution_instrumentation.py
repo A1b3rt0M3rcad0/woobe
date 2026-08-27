@@ -3,8 +3,8 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
-from uuid import uuid4
 
+import uuid6
 from langchain_core.messages import ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import ToolCallInfo, UsageInfo
@@ -12,6 +12,7 @@ from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
 )
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.use_cases.tool_output_compaction import (
     compact_tool_output_for_llm,
 )
@@ -27,6 +28,13 @@ from modules.agent.infra.execution.tool_invocation_metrics import (
     ToolInvocationMetrics,
     current_tool_invocation_metrics,
 )
+from modules.context.application.assembly import (
+    assemble_context,
+    enrich_snapshot_with_reported_usage,
+    estimate_input_units,
+    snapshot_to_dict,
+)
+from modules.context.application.policy import ContextPolicyV1
 from shared.contracts.llm_cost import calculate_llm_cost
 from shared.contracts.llm_usage import normalize_llm_usage
 
@@ -49,6 +57,15 @@ def _cost_context(pricing_snapshot: dict[str, Any] | None) -> dict[str, Any]:
         "pricing_id": pricing_snapshot.get("pricing_id"),
         "pricing_snapshot": pricing_snapshot,
     }
+
+
+def _positive_int(value: Any) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        parsed = int(value)
+        return parsed if parsed > 0 else None
+    return None
 
 
 def _provider_failure_context(
@@ -79,6 +96,50 @@ def _provider_failure_context(
     }
 
 
+def _assemble_invocation_context(
+    *,
+    invocation_id,
+    messages: list,
+    provider: str,
+    model_name: str,
+    phase: str,
+    pricing_snapshot: dict[str, Any] | None,
+):
+    context = current_execution.get()
+    if (
+        context is None
+        or context.run_id is None
+        or context.project_id is None
+    ):
+        return messages, None
+
+    policy = ContextPolicyV1.model_validate(context.context_policy or {})
+    previous_capacity = context.model_capacity_units
+    previous_tools = context.active_tool_definitions
+    # Model capacity is invocation-specific. Fallback models must never inherit the
+    # primary model's capacity when their ProviderModel metadata does not define it.
+    context.model_capacity_units = _positive_int(
+        (pricing_snapshot or {}).get("context_window")
+    )
+    if phase in {"final_response_generation", "json_repair"}:
+        context.active_tool_definitions = []
+    try:
+        assembled = assemble_context(
+            messages=messages,
+            model_invocation_id=invocation_id,
+            agent_run_id=context.run_id,
+            project_id=context.project_id,
+            provider=provider,
+            model=model_name,
+            runtime_context=context,
+            policy=policy,
+        )
+        return assembled.messages, assembled.snapshot
+    finally:
+        context.model_capacity_units = previous_capacity
+        context.active_tool_definitions = previous_tools
+
+
 async def invoke_llm(
     *,
     model: Any,
@@ -89,14 +150,23 @@ async def invoke_llm(
     model_name: str,
     pricing_snapshot: dict[str, Any] | None = None,
 ) -> tuple[Any, dict[str, Any]]:
-    call_id = str(uuid4())
+    call_uuid = uuid6.uuid7()
+    call_id = str(call_uuid)
+    invocation_messages, context_snapshot = _assemble_invocation_context(
+        invocation_id=call_uuid,
+        messages=messages,
+        provider=provider,
+        model_name=model_name,
+        phase=phase,
+        pricing_snapshot=pricing_snapshot,
+    )
     started_at = utc_iso()
     started = time.monotonic()
     cost_context = _cost_context(pricing_snapshot)
     try:
         result = await invoke_model_with_optional_streaming(
             model=model,
-            messages=messages,
+            messages=invocation_messages,
             phase=phase,
             provider=provider,
             model_name=model_name,
@@ -129,6 +199,11 @@ async def invoke_llm(
             "usage_complete": False,
             "provider": provider,
             "model": model_name,
+            "context_snapshot": (
+                snapshot_to_dict(context_snapshot)
+                if context_snapshot is not None
+                else None
+            ),
             **failure_context,
             **cost_context,
         }
@@ -141,6 +216,11 @@ async def invoke_llm(
 
     ended_at = utc_iso()
     usage = normalize_llm_usage(result)
+    if context_snapshot is not None:
+        context_snapshot = enrich_snapshot_with_reported_usage(
+            context_snapshot,
+            usage.get("input_tokens"),
+        )
     complete = all(
         usage.get(field) is not None
         for field in ("input_tokens", "output_tokens", "total_tokens")
@@ -169,6 +249,11 @@ async def invoke_llm(
         "usage_complete": complete,
         "provider": provider,
         "model": model_name,
+        "context_snapshot": (
+            snapshot_to_dict(context_snapshot)
+            if context_snapshot is not None
+            else None
+        ),
         **cost_context,
     }
     return result, call
@@ -212,6 +297,9 @@ async def execute_tool_call(
         "result": output,
     }
     llm_content = compact_tool_output_for_llm(llm_value)
+    raw_units = estimate_input_units(llm_value)
+    materialized_units = estimate_input_units(llm_content)
+    compacted = materialized_units < raw_units
     info = ToolCallInfo(
         tool_call_id=tool_call["id"],
         tool_name=tool_name,
@@ -226,6 +314,18 @@ async def execute_tool_call(
     message = ToolMessage(
         content=llm_content,
         tool_call_id=tool_call["id"],
+        additional_kwargs={
+            "woobe_context": {
+                "source_type": "TOOL",
+                "source_ref": str(tool_call["id"]),
+                "raw_units": raw_units,
+                "selection_method": "tool_result_materialization",
+                "transformations": ["tool_output_compaction"] if compacted else [],
+                "trust": "authenticated_external",
+                "sensitivity": "internal",
+                "tool_name": tool_name,
+            }
+        },
     )
     payload = {
         "tool_call_id": tool_call["id"],
@@ -233,6 +333,9 @@ async def execute_tool_call(
         "input": tool_call.get("args"),
         "output": output,
         "llm_output_size_chars": len(llm_content),
+        "context_raw_units": raw_units,
+        "context_materialized_units": materialized_units,
+        "context_compacted": compacted,
         "duration_ms": duration_ms,
         "provider_latency_ms": metrics.provider_latency_ms,
         "success": normalized.success,

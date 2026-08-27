@@ -4,16 +4,55 @@ import json
 from typing import Any, Callable, Coroutine
 
 from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.entities import Agent
 from modules.agent.infra.execution.runtime_streaming import runtime_streaming_enabled
 from modules.agent.infra.execution.structured_json_repair import repair_json_if_needed
 from modules.agent.infra.execution.tool_execution_loop import run_tool_loop
+from modules.context.application.policy import resolve_context_policy
 
 
 def _primary_pricing_snapshot(agent: Agent) -> dict[str, Any] | None:
     settings = agent.settings or {}
     value = settings.get("model_pricing")
     return value if isinstance(value, dict) else None
+
+
+def _positive_int(value: Any) -> int | None:
+    if isinstance(value, int) and not isinstance(value, bool) and value > 0:
+        return value
+    if isinstance(value, str) and value.strip().isdigit():
+        parsed = int(value)
+        return parsed if parsed > 0 else None
+    return None
+
+
+def _bind_context_runtime(
+    *,
+    agent: Agent,
+    agent_tools: list[dict],
+    messages: list,
+    pricing_snapshot: dict[str, Any] | None,
+) -> None:
+    context = current_execution.get()
+    if context is None:
+        return
+    runtime_config = (agent.settings or {}).get("runtime_config")
+    policy = resolve_context_policy(runtime_config)
+    context.context_policy = policy.model_dump(mode="json")
+    context.reserved_output_units = agent.max_output_tokens or 1000
+    context.active_tool_definitions = list(agent_tools)
+    context.model_capacity_units = _positive_int(
+        (pricing_snapshot or {}).get("context_window")
+    )
+    # The assembler performs the actual selection per Model Invocation. This is
+    # only pre-selection evidence about the available message material.
+    context.context_selection_metadata = {
+        "available_message_count": len(messages),
+        "session_strategy": policy.session.strategy,
+        "session_max_messages": policy.session.max_messages,
+        "session_max_units": policy.session.max_units,
+    }
 
 
 async def run_instrumented_execution(
@@ -37,6 +76,12 @@ async def run_instrumented_execution(
         else str(agent.provider)
     )
     pricing_snapshot = _primary_pricing_snapshot(agent)
+    _bind_context_runtime(
+        agent=agent,
+        agent_tools=agent_tools,
+        messages=messages,
+        pricing_snapshot=pricing_snapshot,
+    )
     streaming_enabled = runtime_streaming_enabled()
     base_response_format = (
         {"type": "json_object"}

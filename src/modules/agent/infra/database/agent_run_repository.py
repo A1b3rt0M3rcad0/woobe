@@ -8,6 +8,7 @@ from modules.agent.application.interfaces.agent_run_repository import AgentRunRe
 from modules.agent.domain.run import AgentRun, AgentRunStatus
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.context.infra.database.repository import SQLAlchemyContextEvidenceRepository
 
 
 def _to_model(run: AgentRun) -> AgentRunModel:
@@ -68,20 +69,80 @@ def _to_entity(model: AgentRunModel) -> AgentRun:
     )
 
 
+def _embedded_invocations(run: AgentRun) -> list[dict]:
+    result = run.result if isinstance(run.result, dict) else {}
+    calls = result.get("llm_calls")
+    if not isinstance(calls, list):
+        return []
+    invocations: list[dict] = []
+    for call in calls:
+        if not isinstance(call, dict):
+            continue
+        snapshot = call.get("context_snapshot")
+        if not isinstance(snapshot, dict):
+            continue
+        invocations.append(
+            {
+                "id": call.get("call_id"),
+                "call_index": call.get("call_index"),
+                "phase": call.get("phase"),
+                "provider": call.get("provider"),
+                "model": call.get("model"),
+                "status": call.get("status"),
+                "latency_ms": call.get("latency_ms"),
+                "input_units": call.get("input_tokens"),
+                "output_units": call.get("output_tokens"),
+                "total_units": call.get("total_tokens"),
+                "cost_usd": call.get("cost_usd"),
+                "started_at": call.get("started_at"),
+                "ended_at": call.get("ended_at"),
+                "context_snapshot": snapshot,
+                "persistence": "agent_run_embedded",
+            }
+        )
+    return invocations
+
+
 class SQLAlchemyAgentRunRepository(AgentRunRepository):
     def __init__(self, uow: AgentUnitOfWork) -> None:
         self._uow = uow
+
+    async def _persist_context_evidence(self, run: AgentRun) -> None:
+        if run.status == AgentRunStatus.RUNNING or not isinstance(run.result, dict):
+            return
+        calls = run.result.get("llm_calls")
+        if not isinstance(calls, list) or not calls:
+            return
+        await SQLAlchemyContextEvidenceRepository(self._uow.session).persist_from_calls(
+            agent_run_id=run.id,
+            project_id=run.project_id,
+            agent_id=run.agent_id,
+            trace_id=run.trace_id,
+            network_execution_id=run.network_execution_id,
+            network_invocation_id=run.network_invocation_id,
+            calls=calls,
+        )
 
     async def create(self, run: AgentRun) -> AgentRun:
         model = _to_model(run)
         self._uow.session.add(model)
         await self._uow.session.flush()
+        await self._persist_context_evidence(run)
         await self._uow.session.refresh(model)
         return _to_entity(model)
 
     async def get_by_id(self, run_id: UUID) -> AgentRun | None:
         model = await self._uow.session.get(AgentRunModel, run_id)
         return _to_entity(model) if model is not None else None
+
+    async def list_model_invocations(self, run_id: UUID) -> list[dict]:
+        durable = await SQLAlchemyContextEvidenceRepository(
+            self._uow.session
+        ).list_by_run(run_id)
+        if durable:
+            return durable
+        run = await self.get_by_id(run_id)
+        return _embedded_invocations(run) if run is not None else []
 
     async def get_active_direct_by_session(
         self,
@@ -130,5 +191,6 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
         model.started_at = run.started_at
         model.completed_at = run.completed_at
         await self._uow.session.flush()
+        await self._persist_context_evidence(run)
         await self._uow.session.refresh(model)
         return _to_entity(model)

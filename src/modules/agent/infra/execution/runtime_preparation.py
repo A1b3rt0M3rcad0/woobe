@@ -10,6 +10,7 @@ from uuid import UUID
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ToolStatus
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
 from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
+from modules.context.application.policy import canonicalize_context_runtime_config
 from shared.contracts.errors import ValidationError
 
 _SECRET_PATTERN = re.compile(r"\{\{secret:([^}]+)\}\}")
@@ -216,6 +217,10 @@ def build_execution_snapshot(
     release_version: str | None,
     tool_to_snapshot: ToolToSnapshot,
 ) -> dict[str, Any]:
+    settings = deepcopy(agent.settings or {})
+    settings["runtime_config"] = canonicalize_context_runtime_config(
+        settings.get("runtime_config")
+    )
     snapshot: dict[str, Any] = {
         "agent": {
             "id": str(agent.id),
@@ -231,7 +236,7 @@ def build_execution_snapshot(
             "temperature": agent.temperature,
             "max_output_tokens": agent.max_output_tokens,
             "session_mode": str(_value(agent.session_mode)),
-            "settings": deepcopy(agent.settings or {}),
+            "settings": settings,
         },
         "release": {
             "id": str(release_id) if release_id else None,
