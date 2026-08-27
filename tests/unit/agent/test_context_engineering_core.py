@@ -118,6 +118,25 @@ def test_context_assembly_keeps_mandatory_input_and_only_recent_session_messages
     ]
 
 
+def test_current_user_contribution_uses_durable_message_id_when_available():
+    message_id = uuid4()
+    runtime = _runtime_context(input_message_id=message_id)
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="current user"),
+        ],
+        runtime_context=runtime,
+    )
+
+    current_input = next(
+        item
+        for item in result.snapshot.contributions
+        if item.source_type == ContextSourceType.USER_INPUT
+    )
+    assert current_input.source_ref == str(message_id)
+
+
 def test_context_contribution_preserves_tool_compaction_transformation():
     result = _assemble(
         [
