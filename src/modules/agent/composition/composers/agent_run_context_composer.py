@@ -13,11 +13,17 @@ from modules.agent.presentation.http.controllers.agent_run_context_controller im
 )
 
 
-def agent_run_context_composer() -> Callable:
+def _build_controller() -> AgentRunContextController:
     transactions = AgentRuntimeTransactionRunner(
         build_agent_uow,
         build_agent_read_uow,
     )
-    return AgentRunContextController(
-        AgentRunContextReadService(transactions)
-    ).list_model_invocations
+    return AgentRunContextController(AgentRunContextReadService(transactions))
+
+
+def agent_run_context_composer() -> Callable:
+    return _build_controller().list_model_invocations
+
+
+def agent_run_context_by_trace_composer() -> Callable:
+    return _build_controller().list_model_invocations_by_trace
