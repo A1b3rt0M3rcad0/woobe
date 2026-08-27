@@ -81,6 +81,7 @@ export interface TraceToolCall {
   status?: string | null
   latency_ms?: number | null
   error?: string | null
+  error_code?: string | null
 }
 
 export interface TraceUsage {
@@ -225,4 +226,40 @@ export interface ContextModelInvocation {
   ended_at?: string | null
   context_snapshot?: ContextSnapshotEvidence | null
   persistence?: string | null
+}
+
+export interface AgentRunDetail {
+  id: string
+  project_id: string
+  agent_id: string
+  session_id?: string | null
+  agent_release_id?: string | null
+  input_message_id?: string | null
+  output_message_id?: string | null
+  trace_id: string
+  network_execution_id?: string | null
+  network_invocation_id?: string | null
+  parent_run_id?: string | null
+  rerun_of_run_id?: string | null
+  environment: string
+  origin: string
+  status: string
+  input_message: string
+  answer?: string | null
+  provider?: string | null
+  model?: string | null
+  parsed_output?: unknown | null
+  output_parse_error?: string | null
+  usage?: Record<string, unknown> | null
+  diagnostics?: Record<string, unknown> | null
+  tool_calls: TraceToolCall[]
+  sources: TraceSource[]
+  llm_calls: Record<string, unknown>[]
+  failure?: Record<string, unknown> | null
+  failure_code?: string | null
+  failure_detail?: string | null
+  started_at?: string | null
+  completed_at?: string | null
+  created_at?: string | null
+  updated_at?: string | null
 }
