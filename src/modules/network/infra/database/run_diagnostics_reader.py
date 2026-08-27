@@ -35,6 +35,16 @@ def _rounded(value: float | None) -> int | float | None:
     return int(rounded) if rounded.is_integer() else rounded
 
 
+def _median(values: list[float]) -> float | None:
+    if not values:
+        return None
+    ordered = sorted(values)
+    middle = len(ordered) // 2
+    if len(ordered) % 2:
+        return ordered[middle]
+    return (ordered[middle - 1] + ordered[middle]) / 2
+
+
 def _elapsed_ms(started_at: datetime | None, ended_at: datetime | None) -> float | None:
     if started_at is None or ended_at is None:
         return None
@@ -52,6 +62,20 @@ def _run_usage(run: AgentRunModel) -> dict[str, Any]:
 def _run_diagnostics(run: AgentRunModel) -> dict[str, Any]:
     value = _run_result(run).get("diagnostics")
     return value if isinstance(value, dict) else {}
+
+
+def _run_context_snapshots(run: AgentRunModel) -> list[dict[str, Any]]:
+    raw_calls = _run_result(run).get("llm_calls")
+    if not isinstance(raw_calls, list):
+        return []
+    snapshots: list[dict[str, Any]] = []
+    for call in raw_calls:
+        if not isinstance(call, dict):
+            continue
+        snapshot = call.get("context_snapshot")
+        if isinstance(snapshot, dict):
+            snapshots.append(snapshot)
+    return snapshots
 
 
 def _is_delegation_tool(tool: dict[str, Any]) -> bool:
@@ -147,6 +171,169 @@ def _agent_work_latency_ms(
         total_work_ms += max(inclusive_ms - delegated_ms, 0.0)
 
     return total_work_ms, len(intervals_by_run)
+
+
+def _context_overview(
+    agent_runs: list[AgentRunModel],
+    *,
+    llm_call_count: int,
+) -> dict[str, Any]:
+    snapshot_count = 0
+    reported_count = 0
+    input_units_total = 0.0
+    input_units_known = False
+    utilizations: list[float] = []
+    source_units: Counter[str] = Counter()
+    compaction_saving_units = 0.0
+    truncation_count = 0
+    budget_unknown_count = 0
+    health_warning_count = 0
+    raw_candidate_units = 0.0
+    selected_raw_units = 0.0
+    agent_summaries: dict[str, dict[str, Any]] = {}
+
+    for run in agent_runs:
+        snapshots = _run_context_snapshots(run)
+        if not snapshots:
+            continue
+        agent_id = str(getattr(run, "agent_id", "") or "")
+        run_id = str(getattr(run, "id", "") or "")
+        summary = agent_summaries.setdefault(
+            agent_id,
+            {
+                "agent_id": agent_id,
+                "agent_run_count": 0,
+                "model_invocation_count": 0,
+                "input_units": 0.0,
+                "peak_utilization": None,
+                "delegation_units": 0.0,
+                "run_ids": [],
+            },
+        )
+        if run_id and run_id not in summary["run_ids"]:
+            summary["run_ids"].append(run_id)
+            summary["agent_run_count"] += 1
+
+        for snapshot in snapshots:
+            snapshot_count += 1
+            summary["model_invocation_count"] += 1
+            reported = _number(snapshot.get("reported_input_units"))
+            estimated = _number(snapshot.get("estimated_input_units"))
+            measured = reported if reported is not None else estimated
+            if reported is not None:
+                reported_count += 1
+            if measured is not None:
+                input_units_total += measured
+                input_units_known = True
+                summary["input_units"] += measured
+
+            utilization = _number(snapshot.get("utilization"))
+            if utilization is not None:
+                utilizations.append(utilization)
+                current_peak = _number(summary.get("peak_utilization"))
+                if current_peak is None or utilization > current_peak:
+                    summary["peak_utilization"] = utilization
+
+            if snapshot.get("usable_input_budget") is None:
+                budget_unknown_count += 1
+
+            manifest = snapshot.get("manifest")
+            if not isinstance(manifest, dict):
+                continue
+
+            health = manifest.get("health")
+            if isinstance(health, dict):
+                warnings = health.get("warnings")
+                if isinstance(warnings, list):
+                    health_warning_count += len(warnings)
+
+            metrics = manifest.get("metrics")
+            if isinstance(metrics, dict):
+                compaction_saving_units += _number(
+                    metrics.get("compaction_saving_units")
+                ) or 0.0
+                truncation_count += int(_number(metrics.get("truncation_count")) or 0)
+                raw_candidate_units += _number(metrics.get("raw_candidate_units")) or 0.0
+                selected_raw_units += _number(metrics.get("selected_raw_units")) or 0.0
+
+            sources = manifest.get("sources")
+            if not isinstance(sources, dict):
+                continue
+            for source_type, raw_source in sources.items():
+                if not isinstance(raw_source, dict):
+                    continue
+                units = _number(raw_source.get("units"))
+                if units is None:
+                    continue
+                source_units[str(source_type)] += units
+                if str(source_type).upper() == "DELEGATION":
+                    summary["delegation_units"] += units
+
+    if snapshot_count == 0:
+        telemetry_status = "unknown"
+    elif llm_call_count > 0 and snapshot_count >= llm_call_count:
+        telemetry_status = "complete"
+    else:
+        telemetry_status = "partial"
+
+    if snapshot_count == 0:
+        input_measurement = "unknown"
+    elif reported_count == snapshot_count:
+        input_measurement = "reported"
+    elif reported_count > 0:
+        input_measurement = "mixed"
+    else:
+        input_measurement = "estimated"
+
+    total_source_units = sum(source_units.values())
+    source_breakdown = {
+        source_type: {
+            "units": _rounded(units),
+            "share": (units / total_source_units) if total_source_units > 0 else None,
+        }
+        for source_type, units in sorted(source_units.items())
+    }
+    selection_ratio = (
+        selected_raw_units / raw_candidate_units
+        if raw_candidate_units > 0
+        else None
+    )
+
+    normalized_agent_summaries = []
+    for summary in agent_summaries.values():
+        input_units = float(summary["input_units"])
+        delegation_units = float(summary["delegation_units"])
+        normalized_agent_summaries.append(
+            {
+                **summary,
+                "input_units": _rounded(input_units),
+                "peak_utilization": _rounded(_number(summary["peak_utilization"])),
+                "delegation_units": _rounded(delegation_units),
+                "delegation_share": (
+                    delegation_units / input_units if input_units > 0 else None
+                ),
+            }
+        )
+    normalized_agent_summaries.sort(
+        key=lambda item: float(item.get("input_units") or 0),
+        reverse=True,
+    )
+
+    return {
+        "telemetry_status": telemetry_status,
+        "model_invocation_count": snapshot_count,
+        "input_units": _rounded(input_units_total) if input_units_known else None,
+        "input_measurement": input_measurement,
+        "peak_utilization": _rounded(max(utilizations)) if utilizations else None,
+        "median_utilization": _rounded(_median(utilizations)),
+        "budget_unknown_count": budget_unknown_count,
+        "health_warning_count": health_warning_count,
+        "compaction_saving_units": _rounded(compaction_saving_units),
+        "truncation_count": truncation_count,
+        "selection_ratio": selection_ratio,
+        "source_units": source_breakdown,
+        "agents": normalized_agent_summaries,
+    }
 
 
 def build_network_run_diagnostics(
@@ -306,6 +493,11 @@ def build_network_run_diagnostics(
     else:
         telemetry_status = "unknown"
 
+    context_overview = _context_overview(
+        agent_runs,
+        llm_call_count=llm_call_count,
+    )
+
     return {
         "schema_version": 1,
         "execution_id": str(execution.id),
@@ -350,6 +542,7 @@ def build_network_run_diagnostics(
         "fallback_count": fallback_count,
         "source_count": source_count,
         "telemetry_status": telemetry_status,
+        "context": context_overview,
     }
 
 
