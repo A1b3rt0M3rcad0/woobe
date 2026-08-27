@@ -2,7 +2,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 from pydantic import ValidationError
 
 from modules.agent.application.context_assembly import (
@@ -71,6 +71,13 @@ def test_context_runtime_config_is_canonical_and_preserves_other_runtime_keys():
     assert context_policy_hash(policy) == context_policy_hash(runtime["context"])
 
 
+def test_context_v1_rejects_retention_modes_not_implemented_by_runtime():
+    with pytest.raises(ValidationError, match="references_only"):
+        ContextPolicyV1.model_validate(
+            {"retention": {"materialized_content": "full"}}
+        )
+
+
 def test_context_pressure_thresholds_must_be_strictly_increasing():
     with pytest.raises(ValidationError):
         ContextPolicyV1.model_validate(
@@ -109,6 +116,65 @@ def test_context_assembly_keeps_mandatory_input_and_only_recent_session_messages
         ContextSourceType.SESSION,
         ContextSourceType.USER_INPUT,
     ]
+
+
+def test_context_contribution_preserves_tool_compaction_transformation():
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="current user"),
+            ToolMessage(
+                content='{"result":"compact"}',
+                tool_call_id="tool-call-1",
+                additional_kwargs={
+                    "woobe_context": {
+                        "source_type": "TOOL",
+                        "source_ref": "tool-call-1",
+                        "raw_units": 100,
+                        "transformations": ["tool_output_compaction"],
+                    }
+                },
+            ),
+        ]
+    )
+
+    tool = next(
+        item
+        for item in result.snapshot.contributions
+        if item.source_type == ContextSourceType.TOOL
+    )
+    assert tool.source_ref == "tool-call-1"
+    assert tool.raw_units == 100
+    assert tool.transformations == ("tool_output_compaction",)
+
+
+def test_knowledge_contribution_keeps_vector_and_chunk_provenance():
+    runtime = _runtime_context(
+        rag_metadata={
+            "knowledge_version_id": "knowledge-v1",
+            "vector_snapshot_id": "vector-v1",
+        },
+        context_rag_sources=[
+            {"document_id": "doc-1", "chunk_id": "chunk-1", "score": 0.91}
+        ],
+    )
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            SystemMessage(content="<context>retrieved fact</context>"),
+            HumanMessage(content="current user"),
+        ],
+        runtime_context=runtime,
+    )
+
+    knowledge = next(
+        item
+        for item in result.snapshot.contributions
+        if item.source_type == ContextSourceType.KNOWLEDGE
+    )
+    assert knowledge.source_ref == "vector-v1"
+    assert knowledge.metadata["rag"]["knowledge_version_id"] == "knowledge-v1"
+    assert knowledge.metadata["sources"][0]["chunk_id"] == "chunk-1"
 
 
 def test_context_assembly_fails_when_mandatory_material_exceeds_model_budget():
