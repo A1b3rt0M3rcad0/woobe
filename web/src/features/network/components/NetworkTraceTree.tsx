@@ -90,9 +90,11 @@ export function NetworkTraceInvocation({ invocation, trace, depth, onOpenAgent }
   const routingEvent = trace.events.find((event) => event.type === 'network.route.selected' && event.spanId === invocation.spanId)
   const statusIcon = invocation.status === 'error'
     ? <XCircle className="h-3.5 w-3.5 text-red-400" />
-    : invocation.status === 'running'
-      ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-blue-400" />
-      : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+    : invocation.status === 'cancelled'
+      ? <XCircle className="h-3.5 w-3.5 text-slate-400" />
+      : invocation.status === 'running'
+        ? <CircleDot className="h-3.5 w-3.5 animate-pulse text-blue-400" />
+        : <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
 
   return (
     <div className={cn(depth > 0 && 'border-l border-border/80 pl-2.5')}>

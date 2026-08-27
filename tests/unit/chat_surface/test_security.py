@@ -80,7 +80,12 @@ def test_session_token_round_trip_preserves_all_bindings() -> None:
     assert claims.surface_credential_id == credential_id
     assert claims.origin == "https://app.example.com"
     assert claims.token_epoch == 4
-    assert claims.permissions == {"chat:history", "chat:send", "chat:stream"}
+    assert claims.permissions == {
+        "chat:history",
+        "chat:send",
+        "chat:stream",
+        "chat:cancel",
+    }
 
 
 def test_session_token_rejects_tampering_and_expiration() -> None:

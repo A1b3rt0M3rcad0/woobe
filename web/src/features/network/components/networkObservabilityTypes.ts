@@ -13,6 +13,7 @@ export type NetworkTraceEventStatus =
   | 'running'
   | 'success'
   | 'error'
+  | 'cancelled'
   | 'skipped'
 
 export interface NetworkTraceEvent {

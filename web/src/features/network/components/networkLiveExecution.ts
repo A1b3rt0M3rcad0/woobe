@@ -3,7 +3,7 @@ import type { NetworkRuntimeEvent } from '@/features/network/types'
 
 import type { AgentNodeId } from './networkWorkspaceTypes'
 
-export type LiveNetworkAgentStatus = 'running' | 'success' | 'error'
+export type LiveNetworkAgentStatus = 'running' | 'success' | 'error' | 'cancelled'
 
 export interface LiveNetworkAgent {
   invocationId: string
@@ -200,9 +200,13 @@ export function applyNetworkRuntimeEvent(
     }
   }
 
-  if ((eventType === 'agent_invocation_completed' || eventType === 'agent_invocation_failed') && invocationId) {
+  if ((eventType === 'agent_invocation_completed' || eventType === 'agent_invocation_failed' || eventType === 'agent_invocation_cancelled') && invocationId) {
     const current = state.agents.find((agent) => agent.invocationId === invocationId)
-    const status: LiveNetworkAgentStatus = eventType === 'agent_invocation_completed' ? 'success' : 'error'
+    const status: LiveNetworkAgentStatus = eventType === 'agent_invocation_completed'
+      ? 'success'
+      : eventType === 'agent_invocation_cancelled'
+        ? 'cancelled'
+        : 'error'
     return {
       agents: updateAgent(state.agents, invocationId, {
         status,
@@ -269,7 +273,7 @@ export function applyNetworkRuntimeEvent(
     }
   }
 
-  if (eventType === 'execution_failed' || eventType === 'execution_cancelled') {
+  if (eventType === 'execution_failed') {
     return {
       ...state,
       agents: state.agents.map((agent) => (
@@ -278,6 +282,20 @@ export function applyNetworkRuntimeEvent(
       tools: state.tools.map((tool) => (
         tool.status === 'running'
           ? { ...tool, status: 'error', success: false, error_code: 'execution_stopped', error: 'Network execution stopped' }
+          : tool
+      )),
+    }
+  }
+
+  if (eventType === 'execution_cancelled') {
+    return {
+      ...state,
+      agents: state.agents.map((agent) => (
+        agent.status === 'running' ? { ...agent, status: 'cancelled' } : agent
+      )),
+      tools: state.tools.map((tool) => (
+        tool.status === 'running'
+          ? { ...tool, status: 'cancelled', success: false, error_code: null, error: null }
           : tool
       )),
     }

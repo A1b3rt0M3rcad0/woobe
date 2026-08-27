@@ -30,11 +30,13 @@ function runtimeTraceEvents(records: RuntimeEventRecord[]): NetworkTraceEvent[] 
     spanId: event.invocation_id,
     parentSpanId: event.parent_invocation_id,
     nodeId: event.node_id ?? undefined,
-    status: eventType.includes('failed') || eventType.includes('cancelled')
-      ? 'error'
-      : eventType.includes('started') || eventType.includes('accepted')
-        ? 'running'
-        : 'success',
+    status: eventType.includes('cancelled')
+      ? 'cancelled'
+      : eventType.includes('failed')
+        ? 'error'
+        : eventType.includes('started') || eventType.includes('accepted')
+          ? 'running'
+          : 'success',
     payload: event.data,
   }))
 }

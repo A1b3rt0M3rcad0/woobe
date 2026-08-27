@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
 
@@ -12,6 +11,7 @@ from modules.agent.infra.database.models import AgentOutboxEventModel
 from modules.agent.infra.database.runtime_transaction_runner import AgentRuntimeTransactionRunner
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.execution.ask_agent_stream_service import AskAgentStreamService
+from modules.agent.infra.execution.runtime_streaming import RuntimeStreamChannel
 from modules.observability.infra.database.models import TraceEventModel, TraceModel
 from modules.observability.infra.messaging.truthful_trace_projector import project_agent_event
 from shared.infra.config import Settings
@@ -41,13 +41,12 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
         session_id=session_id,
         message="cancel this request",
     )
-    channel = SimpleNamespace(
+    channel = RuntimeStreamChannel()
+    channel.bind_execution(
         trace_id=trace_id,
         session_id=session_id,
         project_id=project_id,
         agent_id=agent_id,
-        request_id=uuid4(),
-        run_id=None,
     )
 
     persisted = await service._persist_cancelled(

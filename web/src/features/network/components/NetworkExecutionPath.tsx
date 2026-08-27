@@ -17,6 +17,7 @@ import {
 
 function StatusIcon({ status }: { status: NetworkAgentInvocation['status'] }) {
   if (status === 'error') return <XCircle className="h-3.5 w-3.5 text-red-400" />
+  if (status === 'cancelled') return <XCircle className="h-3.5 w-3.5 text-slate-400" />
   if (status === 'running' || status === 'pending') return <CircleDot className="h-3.5 w-3.5 animate-pulse text-blue-400" />
   return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
 }

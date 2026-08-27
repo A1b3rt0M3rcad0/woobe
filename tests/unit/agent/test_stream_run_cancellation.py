@@ -7,10 +7,12 @@ from uuid import uuid4
 import pytest
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.run import AgentRun, AgentRunStatus
 from modules.agent.infra.execution.ask_agent_stream_service import AskAgentStreamService
-from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
+from modules.agent.infra.execution.runtime_streaming import (
+    RuntimeStreamChannel,
+    current_runtime_stream,
+)
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 
 
@@ -112,6 +114,18 @@ def _input(run: AgentRun) -> AskInput:
     )
 
 
+def _channel(run: AgentRun) -> RuntimeStreamChannel:
+    channel = RuntimeStreamChannel()
+    channel.bind_execution(
+        trace_id=run.trace_id,
+        session_id=None,
+        project_id=run.project_id,
+        agent_id=run.agent_id,
+    )
+    setattr(channel, "run_id", run.id)
+    return channel
+
+
 @pytest.mark.asyncio
 async def test_closing_stream_observer_does_not_cancel_agent_execution() -> None:
     run = _run()
@@ -140,14 +154,13 @@ async def test_explicit_cancellation_still_terminalizes_running_agent_run() -> N
         transactions,
         state_store=InMemoryExecutionStateStore(),
     )
-    channel = SimpleNamespace(
-        trace_id=run.trace_id,
-        project_id=run.project_id,
-        agent_id=run.agent_id,
-        session_id=None,
-        request_id=uuid4(),
-        run_id=run.id,
-    )
+    channel = _channel(run)
+    channel.public_output = "partial answer"
+    channel.latest_usage = {
+        "input_tokens": 11,
+        "output_tokens": 7,
+        "total_tokens": 18,
+    }
 
     persisted = await service._persist_cancelled(
         channel,
@@ -159,8 +172,14 @@ async def test_explicit_cancellation_still_terminalizes_running_agent_run() -> N
     assert transactions.write_calls == 1
     assert transactions.runs.save_calls == 1
     assert transactions.runs.run.status == AgentRunStatus.CANCELLED
-    assert transactions.runs.run.failure_code == "cancelled"
-    assert transactions.runs.run.failure_detail == "cancel_requested"
+    assert transactions.runs.run.failure_code is None
+    assert transactions.runs.run.failure_detail is None
+    assert transactions.runs.run.result is not None
+    assert transactions.runs.run.result["answer"] == "partial answer"
+    assert transactions.runs.run.result["partial"] is True
+    assert transactions.runs.run.result["cancelled"] is True
+    assert transactions.runs.run.result["reason"] == "cancel_requested"
+    assert transactions.runs.run.usage == channel.latest_usage
     assert transactions.runs.run.completed_at is not None
 
 
@@ -174,14 +193,7 @@ async def test_late_explicit_cancel_does_not_overwrite_completed_run() -> None:
         transactions,
         state_store=InMemoryExecutionStateStore(),
     )
-    channel = SimpleNamespace(
-        trace_id=run.trace_id,
-        project_id=run.project_id,
-        agent_id=run.agent_id,
-        session_id=None,
-        request_id=uuid4(),
-        run_id=run.id,
-    )
+    channel = _channel(run)
 
     persisted = await service._persist_cancelled(
         channel,

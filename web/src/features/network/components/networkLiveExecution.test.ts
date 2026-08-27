@@ -108,7 +108,7 @@ describe('networkLiveExecution', () => {
     }))
   })
 
-  it('marks active execution details as failed when the Run stops', () => {
+  it('marks active execution details as failed when the Run fails', () => {
     let state = applyNetworkRuntimeEvent(
       emptyLiveNetworkExecution(),
       'agent_invocation_started',
@@ -125,6 +125,27 @@ describe('networkLiveExecution', () => {
       status: 'error',
       success: false,
       error_code: 'execution_stopped',
+    }))
+  })
+
+  it('keeps active execution details cancelled instead of failed', () => {
+    let state = applyNetworkRuntimeEvent(
+      emptyLiveNetworkExecution(),
+      'agent_invocation_started',
+      event({ label: 'Specialist' }, { invocation_id: 'specialist', depth: 1 }),
+    )
+    state = applyNetworkRuntimeEvent(state, 'tool_call_started', event({
+      tool_call_id: 'tool-running',
+      tool_name: 'lookup',
+    }, { invocation_id: 'specialist' }))
+    state = applyNetworkRuntimeEvent(state, 'execution_cancelled', event({ reason: 'cancel_requested' }))
+
+    expect(state.agents[0].status).toBe('cancelled')
+    expect(state.tools[0]).toEqual(expect.objectContaining({
+      status: 'cancelled',
+      success: false,
+      error_code: null,
+      error: null,
     }))
   })
 })

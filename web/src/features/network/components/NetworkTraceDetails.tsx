@@ -91,12 +91,14 @@ function OutputPreview({ value, emptyLabel = 'No output was produced.' }: { valu
 function outcomeMeta(outcome: ReturnType<typeof networkRunOutcome>) {
   if (outcome === 'running') return { label: 'Running', icon: CircleDot, surface: 'border-blue-500/25 bg-blue-500/10', text: 'text-blue-300' }
   if (outcome === 'failed') return { label: 'Failed', icon: XCircle, surface: 'border-red-500/25 bg-red-500/10', text: 'text-red-300' }
+  if (outcome === 'cancelled') return { label: 'Cancelled', icon: XCircle, surface: 'border-slate-500/25 bg-slate-500/10', text: 'text-slate-300' }
   if (outcome === 'completed_with_issues') return { label: 'Completed with issues', icon: AlertTriangle, surface: 'border-amber-500/25 bg-amber-500/10', text: 'text-amber-300' }
   return { label: 'Completed', icon: CheckCircle2, surface: 'border-emerald-500/25 bg-emerald-500/10', text: 'text-emerald-300' }
 }
 
 function statusIcon(status: NetworkAgentInvocation['status']) {
   if (status === 'error') return <XCircle className="h-4 w-4 text-red-400" />
+  if (status === 'cancelled') return <XCircle className="h-4 w-4 text-slate-400" />
   if (status === 'running' || status === 'pending') return <CircleDot className="h-4 w-4 animate-pulse text-blue-400" />
   return <CheckCircle2 className="h-4 w-4 text-emerald-400" />
 }
@@ -252,6 +254,11 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
                 {trace.execution.root.failure.partialResultAvailable ? <p className="mt-1 text-[9px] text-muted">Completed Agent and Tool results remain available.</p> : null}
                 <button type="button" onClick={() => setView('diagnostics')} className="mt-2 text-[9px] font-medium text-red-200 hover:text-white">Review failure</button>
               </section>
+            ) : outcome === 'cancelled' ? (
+              <section className="rounded-xl border border-slate-500/25 bg-slate-500/5 p-3">
+                <p className="text-[10px] font-medium text-slate-200">The Network Run was cancelled. Partial output and completed execution evidence remain available.</p>
+                <button type="button" onClick={() => setView('path')} className="mt-2 text-[9px] font-medium text-slate-300 hover:text-white">Review execution path</button>
+              </section>
             ) : outcome === 'completed_with_issues' ? (
               <section className="rounded-xl border border-amber-500/25 bg-amber-500/5 p-3">
                 <p className="text-[10px] font-medium text-amber-200">The Network completed, but at least one delegated Agent Run reported an issue.</p>
@@ -271,7 +278,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
 
             <section className="rounded-xl border border-border/75 bg-background/30 p-3">
               <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Result</p>
-              <div className="mt-2"><OutputPreview value={trace.answer} emptyLabel={outcome === 'running' ? 'The final response is still being generated.' : 'The Run ended without a final response.'} /></div>
+              <div className="mt-2"><OutputPreview value={trace.answer} emptyLabel={outcome === 'running' ? 'The final response is still being generated.' : outcome === 'cancelled' ? 'The Run was cancelled before a final response was produced.' : 'The Run ended without a final response.'} /></div>
             </section>
 
             <section className="rounded-xl border border-border/75 bg-background/30 p-3">
