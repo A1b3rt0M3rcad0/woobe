@@ -21,6 +21,7 @@ from modules.agent.domain.context import (
     ContextPriority,
     ContextSourceType,
 )
+from shared.contracts.llm_cost import provider_model_pricing_snapshot
 
 
 def _runtime_context(**overrides):
@@ -100,6 +101,40 @@ def test_system_and_current_input_priorities_cannot_be_downgraded():
         ContextPolicyV1.model_validate(
             {"source_priorities": {"SYSTEM": "OPTIONAL", "USER_INPUT": "MANDATORY"}}
         )
+
+
+def test_provider_model_capacity_resolves_from_persisted_catalog_metadata():
+    snapshot = provider_model_pricing_snapshot(
+        provider_model_id=uuid4(),
+        provider_credential_id=uuid4(),
+        provider="custom",
+        model="deepseek-v4-flash",
+        metadata={
+            "catalog": {"context_window": 131072},
+            "pricing": {
+                "input_cost_per_1m_tokens": 0.1,
+                "output_cost_per_1m_tokens": 0.2,
+            },
+        },
+    )
+
+    assert snapshot["context_window"] == 131072
+
+
+def test_provider_model_capacity_resolves_from_preserved_provider_payload():
+    snapshot = provider_model_pricing_snapshot(
+        provider_model_id=uuid4(),
+        provider_credential_id=uuid4(),
+        provider="openrouter",
+        model="provider/model",
+        metadata={
+            "provider_model_raw": {
+                "top_provider": {"context_length": "65536"},
+            }
+        },
+    )
+
+    assert snapshot["context_window"] == 65536
 
 
 def test_context_assembly_keeps_mandatory_input_and_only_recent_session_messages():
