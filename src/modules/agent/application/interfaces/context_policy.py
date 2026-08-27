@@ -7,12 +7,24 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from modules.agent.domain.context import ContextRetentionMode, ContextSourceType
+from modules.agent.domain.context import (
+    ContextPriority,
+    ContextRetentionMode,
+    ContextSourceType,
+)
 
 
 class SessionContextPolicy(BaseModel):
     strategy: Literal["recent"] = "recent"
     max_messages: int = Field(default=20, ge=1, le=200)
+    max_units: int | None = Field(default=None, ge=128, le=1_000_000)
+
+
+class CheckpointContextPolicy(BaseModel):
+    max_units: int | None = Field(default=None, ge=128, le=1_000_000)
+
+
+class MemoryContextPolicy(BaseModel):
     max_units: int | None = Field(default=None, ge=128, le=1_000_000)
 
 
@@ -22,6 +34,11 @@ class KnowledgeContextPolicy(BaseModel):
 
 class ToolContextPolicy(BaseModel):
     max_result_units: int | None = Field(default=None, ge=64, le=1_000_000)
+
+
+class ArtifactContextPolicy(BaseModel):
+    strategy: Literal["reference_first", "materialize"] = "reference_first"
+    max_units: int | None = Field(default=None, ge=64, le=1_000_000)
 
 
 class DelegationContextPolicy(BaseModel):
@@ -57,6 +74,40 @@ class ContextPressurePolicy(BaseModel):
         return self
 
 
+class ContextOrderingPolicy(BaseModel):
+    strategy: Literal["preserve_input", "source_priority"] = "preserve_input"
+
+
+class ContextDeduplicationPolicy(BaseModel):
+    strategy: Literal["none", "content_hash"] = "none"
+    sources: list[ContextSourceType] = Field(
+        default_factory=lambda: [
+            ContextSourceType.SESSION,
+            ContextSourceType.CHECKPOINT,
+            ContextSourceType.MEMORY,
+            ContextSourceType.KNOWLEDGE,
+            ContextSourceType.TOOL,
+            ContextSourceType.ARTIFACT,
+            ContextSourceType.RUNTIME,
+        ]
+    )
+
+
+def _default_source_priorities() -> dict[ContextSourceType, ContextPriority]:
+    return {
+        ContextSourceType.SYSTEM: ContextPriority.MANDATORY,
+        ContextSourceType.USER_INPUT: ContextPriority.MANDATORY,
+        ContextSourceType.SESSION: ContextPriority.HIGH,
+        ContextSourceType.CHECKPOINT: ContextPriority.HIGH,
+        ContextSourceType.MEMORY: ContextPriority.HIGH,
+        ContextSourceType.KNOWLEDGE: ContextPriority.DYNAMIC,
+        ContextSourceType.TOOL: ContextPriority.DYNAMIC,
+        ContextSourceType.ARTIFACT: ContextPriority.DYNAMIC,
+        ContextSourceType.DELEGATION: ContextPriority.HIGH,
+        ContextSourceType.RUNTIME: ContextPriority.DYNAMIC,
+    }
+
+
 class ContextPolicyV1(BaseModel):
     schema_version: Literal[1] = 1
     allowed_sources: list[ContextSourceType] = Field(
@@ -70,13 +121,31 @@ class ContextPolicyV1(BaseModel):
             ContextSourceType.RUNTIME,
         ]
     )
+    source_priorities: dict[ContextSourceType, ContextPriority] = Field(
+        default_factory=_default_source_priorities
+    )
     session: SessionContextPolicy = Field(default_factory=SessionContextPolicy)
+    checkpoints: CheckpointContextPolicy = Field(default_factory=CheckpointContextPolicy)
+    memory: MemoryContextPolicy = Field(default_factory=MemoryContextPolicy)
     knowledge: KnowledgeContextPolicy = Field(default_factory=KnowledgeContextPolicy)
     tools: ToolContextPolicy = Field(default_factory=ToolContextPolicy)
+    artifacts: ArtifactContextPolicy = Field(default_factory=ArtifactContextPolicy)
     delegation: DelegationContextPolicy = Field(default_factory=DelegationContextPolicy)
     budget: ContextBudgetPolicy = Field(default_factory=ContextBudgetPolicy)
     retention: ContextRetentionPolicy = Field(default_factory=ContextRetentionPolicy)
     pressure: ContextPressurePolicy = Field(default_factory=ContextPressurePolicy)
+    ordering: ContextOrderingPolicy = Field(default_factory=ContextOrderingPolicy)
+    deduplication: ContextDeduplicationPolicy = Field(
+        default_factory=ContextDeduplicationPolicy
+    )
+
+    @model_validator(mode="after")
+    def validate_mandatory_priorities(self) -> "ContextPolicyV1":
+        if self.source_priorities.get(ContextSourceType.SYSTEM) != ContextPriority.MANDATORY:
+            raise ValueError("SYSTEM context priority must remain MANDATORY")
+        if self.source_priorities.get(ContextSourceType.USER_INPUT) != ContextPriority.MANDATORY:
+            raise ValueError("USER_INPUT context priority must remain MANDATORY")
+        return self
 
 
 def resolve_context_policy(runtime_config: object) -> ContextPolicyV1:
