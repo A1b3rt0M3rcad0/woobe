@@ -179,6 +179,26 @@ class StructuredOutputAskAgentUseCase(
             updated[11] = messages
         return tuple(updated)
 
+    async def _save_user_message(
+        self,
+        session_repo,
+        message_repo,
+        session,
+        content,
+        agent,
+    ):
+        created = await super()._save_user_message(
+            session_repo,
+            message_repo,
+            session,
+            content,
+            agent,
+        )
+        context = current_execution.get()
+        if context is not None:
+            context.input_message_id = created.id
+        return created
+
     async def _do_save_assistant_message(
         self,
         message_repo,
