@@ -18,6 +18,7 @@ export interface AvailableProviderModel {
   source: string
   owned_by?: string | null
   context_window?: number | null
+  max_output_tokens?: number | null
   input_cost_per_1m_tokens?: number | null
   output_cost_per_1m_tokens?: number | null
   supports_tools?: boolean | null
