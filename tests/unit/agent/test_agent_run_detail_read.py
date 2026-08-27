@@ -13,14 +13,20 @@ from shared.contracts.errors import NotFoundError
 
 
 class _Runs:
-    def __init__(self, run: AgentRun | None):
+    def __init__(self, run: AgentRun | None, output_message: str | None = None):
         self.run = run
+        self.output_message = output_message
 
     async def get_by_id(self, run_id):
         return self.run if self.run and self.run.id == run_id else None
 
     async def get_by_trace_id(self, trace_id):
         return self.run if self.run and self.run.trace_id == trace_id else None
+
+    async def get_output_message_content(self, message_id):
+        if self.run and self.run.output_message_id == message_id:
+            return self.output_message
+        return None
 
     async def list_model_invocations(self, run_id):
         return [{"id": "invocation-1"}] if self.run and self.run.id == run_id else []
@@ -69,6 +75,30 @@ def _run() -> AgentRun:
     )
 
 
+def _standalone_run() -> AgentRun:
+    run = _run()
+    run.origin = "runtime_api"
+    run.network_execution_id = None
+    run.network_invocation_id = None
+    run.parent_run_id = None
+    run.result = {
+        "provider": "custom",
+        "model": "standalone-v1",
+        "agent_runtime_latency_ms": 420,
+        "llm_work_latency_ms": 300,
+        "tool_wall_latency_ms": 80,
+        "tool_work_latency_ms": 70,
+        "llm_call_count": 2,
+        "tool_call_count": 1,
+        "usage_complete": True,
+        "cost_status": "known",
+        "tool_calls": [{"tool_name": "search", "success": True}],
+        "sources": [],
+        "llm_calls": [{"call_index": 0}, {"call_index": 1}],
+    }
+    return run
+
+
 @pytest.mark.asyncio
 async def test_agent_run_detail_reads_durable_network_run_without_observability_trace() -> None:
     run = _run()
@@ -84,6 +114,7 @@ async def test_agent_run_detail_reads_durable_network_run_without_observability_
     assert detail["network_invocation_id"] == str(run.network_invocation_id)
     assert detail["answer"].startswith("# Completed")
     assert detail["diagnostics"]["llm_call_count"] == 1
+    assert detail["diagnostics"]["successful_tool_calls"] == 1
     assert detail["tool_calls"][0]["tool_name"] == "lookup"
     assert detail["sources"][0]["document_id"] == "doc-1"
     assert detail["usage"]["input_tokens"] == 120
@@ -92,7 +123,27 @@ async def test_agent_run_detail_reads_durable_network_run_without_observability_
 
 
 @pytest.mark.asyncio
-async def test_agent_run_detail_can_resolve_standalone_run_by_trace() -> None:
+async def test_agent_run_detail_normalizes_standalone_diagnostics_and_recovers_message_output() -> None:
+    run = _standalone_run()
+    markdown = "# Standalone result\n\nRecovered from the persisted assistant Message."
+    access = _Access()
+    use_case = ReadAgentRunContextUseCase(_Runs(run, output_message=markdown), access)
+    user_id = uuid4()
+
+    detail = await use_case.detail_by_trace(trace_id=run.trace_id, user_id=user_id)
+
+    assert detail["origin"] == "runtime_api"
+    assert detail["answer"] == markdown
+    assert detail["diagnostics"]["agent_runtime_latency_ms"] == 420
+    assert detail["diagnostics"]["llm_call_count"] == 2
+    assert detail["diagnostics"]["tool_call_count"] == 1
+    assert detail["diagnostics"]["successful_tool_calls"] == 1
+    assert detail["diagnostics"]["failed_tool_calls"] == 0
+    assert access.calls == [(user_id, run.project_id)]
+
+
+@pytest.mark.asyncio
+async def test_agent_run_detail_can_resolve_network_run_by_trace() -> None:
     run = _run()
     access = _Access()
     use_case = ReadAgentRunContextUseCase(_Runs(run), access)
