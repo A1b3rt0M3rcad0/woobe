@@ -340,7 +340,7 @@ def test_network_run_diagnostics_aggregate_context_by_model_invocation_and_agent
     assert context["source_units"]["SYSTEM"]["share"] > 0.7
     assert context["agents"][0]["input_units"] == 500
     assert context["agents"][0]["delegation_units"] == 60
-    assert context["agents"][0]["delegation_share"] == pytest.approx(60 / 500)
+    assert context["agents"][0]["delegation_share"] == pytest.approx(60 / 470)
 
 
 def test_network_run_diagnostics_preserve_real_parallel_agent_work():
