@@ -34,6 +34,19 @@ def _role_value(message: Any) -> str:
     return str(getattr(role, "value", role) or "")
 
 
+def _session_context_metadata(message: Any) -> dict[str, Any]:
+    return {
+        "woobe_context": {
+            "source_type": "SESSION",
+            "source_ref": str(message.id),
+            "parent_ref": str(message.session_id),
+            "selection_method": "session_history",
+            "trust": "session_history",
+            "sensitivity": "internal",
+        }
+    }
+
+
 def _validate_reused_input_message(
     message: Any,
     *,
@@ -60,8 +73,14 @@ def _messages_to_history(messages: list[Any]) -> list[Any]:
     history: list[Any] = []
     for message in messages:
         role = _role_value(message)
+        message_metadata = _session_context_metadata(message)
         if role == "user":
-            history.append(HumanMessage(content=message.content))
+            history.append(
+                HumanMessage(
+                    content=message.content,
+                    additional_kwargs=message_metadata,
+                )
+            )
             continue
         if role != "assistant":
             continue
@@ -77,9 +96,16 @@ def _messages_to_history(messages: list[Any]) -> list[Any]:
             if tool_call.get("tool_call_id")
         ]
         history.append(
-            AIMessage(content=message.content, tool_calls=tool_calls)
+            AIMessage(
+                content=message.content,
+                tool_calls=tool_calls,
+                additional_kwargs=message_metadata,
+            )
             if tool_calls
-            else AIMessage(content=message.content)
+            else AIMessage(
+                content=message.content,
+                additional_kwargs=message_metadata,
+            )
         )
         for tool_call in raw_tool_calls:
             if tool_call.get("tool_call_id") and tool_call.get("output") is not None:
@@ -87,6 +113,16 @@ def _messages_to_history(messages: list[Any]) -> list[Any]:
                     ToolMessage(
                         content=json.dumps(tool_call["output"]),
                         tool_call_id=tool_call["tool_call_id"],
+                        additional_kwargs={
+                            "woobe_context": {
+                                "source_type": "TOOL",
+                                "source_ref": str(tool_call["tool_call_id"]),
+                                "parent_ref": str(message.id),
+                                "selection_method": "session_tool_history",
+                                "trust": "session_history",
+                                "sensitivity": "internal",
+                            }
+                        },
                     )
                 )
     return history
@@ -157,6 +193,9 @@ class FrozenSnapshotStructuredOutputRuntime(TransactionBoundedStructuredOutputRu
             agent=agent,
             content=content,
         )
+        context = current_execution.get()
+        if context is not None:
+            context.input_message_id = original.id
         return original
 
     async def _finalize(
