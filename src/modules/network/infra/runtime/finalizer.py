@@ -7,6 +7,7 @@ from uuid import UUID, NAMESPACE_URL, uuid5
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from modules.agent.infra.database.context_evidence_store import ContextEvidenceStore
 from modules.agent.infra.database.models import MessageModel, SessionModel
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.network.application.runtime import NetworkVersionSnapshot
@@ -149,6 +150,7 @@ class NetworkRuntimeFinalizer:
             environment = self._environment(version)
             bindings = self._bindings(version, execution)
             repository = NetworkRuntimeRepository(session)
+            context_evidence = ContextEvidenceStore(session)
             durable_invocation_events: list[
                 tuple[datetime, int, str, dict[str, Any], dict[str, Any]]
             ] = []
@@ -339,6 +341,16 @@ class NetworkRuntimeFinalizer:
                         completed_at=completed_at,
                     )
                     session.add(run)
+
+                await context_evidence.persist_from_calls(
+                    agent_run_id=invocation_id,
+                    project_id=execution.project_id,
+                    agent_id=agent_id,
+                    trace_id=run.trace_id,
+                    network_execution_id=execution.id,
+                    network_invocation_id=invocation_id,
+                    calls=llm_calls,
+                )
 
                 invocation = await session.get(NetworkInvocationModel, invocation_id)
                 if invocation is None:
