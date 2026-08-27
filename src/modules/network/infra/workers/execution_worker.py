@@ -88,9 +88,6 @@ class NetworkExecutionProcessor:
             agent_contexts=loaded.agent_contexts,
         )
 
-        # Cancellation may race with worker startup. PostgreSQL is checked once more
-        # after Redis initialization so an execution cancelled while it was queued
-        # cannot start external work from a stale detached ORM snapshot.
         durable = await self._loader.load(execution_id)
         if durable is None:
             return
@@ -161,7 +158,7 @@ class NetworkExecutionProcessor:
                 execution_id,
                 version,
                 status="failed",
-                code="budget_exceeded",
+                code=exc.code,
                 detail=str(exc),
                 message=str(exc),
                 uncertain=False,
@@ -277,7 +274,16 @@ class NetworkExecutionProcessor:
         partial_result_available: bool = False,
     ) -> None:
         output = await self._store.partial_output(execution_id)
-        terminal_has_partial = partial_result_available or bool(output)
+        invocations = await self._store.invocations(execution_id)
+        completed_child_count = sum(
+            1
+            for item in invocations
+            if str(item.get("status") or "") == "completed"
+            and int(item.get("depth") or 0) > 0
+            and bool(item.get("output_message") or item.get("parsed_output"))
+        )
+        root_partial_result_available = bool(output)
+        terminal_has_partial = partial_result_available or root_partial_result_available
         payload = {
             "failure_code": code,
             "failure_detail": detail,
@@ -285,15 +291,17 @@ class NetworkExecutionProcessor:
             "trace_id": str(trace_id) if trace_id else None,
             "uncertain": uncertain,
             "output": output,
-            "partial": bool(output),
+            "partial": root_partial_result_available,
             "partial_result_available": terminal_has_partial,
+            "root_partial_result_available": root_partial_result_available,
+            "completed_child_results_available": completed_child_count > 0,
+            "completed_child_result_count": completed_child_count,
         }
         await self._store.mark_terminal_pending(
             execution_id,
             status=status,
             result=payload,
         )
-        invocations = await self._store.invocations(execution_id)
         await self._finalizer.finalize(
             execution_id=execution_id,
             version=version,
@@ -449,16 +457,9 @@ class NetworkLeaseRecoveryWorker:
 
             state = await self._store.snapshot(execution_id)
             if not state:
-                # New Redis-backed executions intentionally remain `queued` in
-                # PostgreSQL while running. Absence of Redis state therefore does
-                # not prove that external work started; a broker-delayed request
-                # must never be converted to UNCERTAIN merely because it is old.
                 if durable_status == "queued":
                     continue
 
-                # Legacy `running` / `cancel_requested` durable states do prove
-                # that execution had crossed the old start boundary. Without hot
-                # state we cannot establish whether external side effects happened.
                 await self._finalizer.finalize(
                     execution_id=execution_id,
                     version=loaded.version,
