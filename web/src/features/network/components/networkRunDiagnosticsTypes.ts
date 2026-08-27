@@ -1,3 +1,35 @@
+export interface NetworkContextSourceSummary {
+  units: number | null
+  share: number | null
+}
+
+export interface NetworkContextAgentSummary {
+  agent_id: string
+  agent_run_count: number
+  model_invocation_count: number
+  input_units: number | null
+  peak_utilization: number | null
+  delegation_units: number | null
+  delegation_share: number | null
+  run_ids: string[]
+}
+
+export interface NetworkContextOverview {
+  telemetry_status: 'complete' | 'partial' | 'unknown'
+  model_invocation_count: number
+  input_units: number | null
+  input_measurement: 'reported' | 'mixed' | 'estimated' | 'unknown'
+  peak_utilization: number | null
+  median_utilization: number | null
+  budget_unknown_count: number
+  health_warning_count: number
+  compaction_saving_units: number | null
+  truncation_count: number
+  selection_ratio: number | null
+  source_units: Record<string, NetworkContextSourceSummary>
+  agents: NetworkContextAgentSummary[]
+}
+
 export interface NetworkRunDiagnostics {
   schema_version: 1
   execution_id: string
@@ -26,4 +58,5 @@ export interface NetworkRunDiagnostics {
   fallback_count: number
   source_count: number
   telemetry_status: 'complete' | 'partial' | 'unknown'
+  context: NetworkContextOverview
 }
