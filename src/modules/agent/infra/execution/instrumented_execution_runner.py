@@ -3,13 +3,13 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Coroutine
 
+from modules.agent.application.context_policy import resolve_context_policy
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.entities import Agent
 from modules.agent.infra.execution.runtime_streaming import runtime_streaming_enabled
 from modules.agent.infra.execution.structured_json_repair import repair_json_if_needed
 from modules.agent.infra.execution.tool_execution_loop import run_tool_loop
-from modules.context.application.policy import resolve_context_policy
 
 
 def _primary_pricing_snapshot(agent: Agent) -> dict[str, Any] | None:
@@ -45,8 +45,6 @@ def _bind_context_runtime(
     context.model_capacity_units = _positive_int(
         (pricing_snapshot or {}).get("context_window")
     )
-    # The assembler performs the actual selection per Model Invocation. This is
-    # only pre-selection evidence about the available message material.
     context.context_selection_metadata = {
         "available_message_count": len(messages),
         "session_strategy": policy.session.strategy,
@@ -101,9 +99,6 @@ async def run_instrumented_execution(
     if has_tools:
         model = model.bind_tools(agent_tools, tool_choice="auto")
 
-    # Text Agents with Tools use the same model invocation as both the Tool decision
-    # and the final response. A dedicated final model is only kept for structured
-    # output, where the provider may need a Tool-free JSON response phase.
     final_model = None
     if has_tools and json_enabled:
         final_model = llm_factory.create_chat_model(
