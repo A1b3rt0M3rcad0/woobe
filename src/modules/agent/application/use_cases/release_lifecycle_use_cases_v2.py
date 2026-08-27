@@ -4,6 +4,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from uuid import UUID
 
+from modules.agent.application.context_policy import canonicalize_context_runtime_config
 from modules.agent.application.dtos.ai_dtos import CreateReleaseInput, CreateReleaseOutput
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.interfaces.repositories import AgentReleaseRepository
@@ -11,7 +12,6 @@ from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.errors import ReleaseNotFoundError
 from modules.agent.domain.release_versioning import calculate_next_release_version
-from modules.context.application.policy import canonicalize_context_runtime_config
 from shared.contracts.errors import ConflictError
 
 
