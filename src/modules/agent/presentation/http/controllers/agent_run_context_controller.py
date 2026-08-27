@@ -2,37 +2,34 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import Request as FastAPIRequest
-
-from modules.agent.application.interfaces.agent_run_context import AgentRunContextOperations
+from modules.agent.application.interfaces.agent_run_context import AgentRunContextUseCase
+from shared.contracts.errors import AuthorizationError
+from shared.presentation.http.request import Request
+from shared.presentation.http.response import Response
+from shared.security.principal import AuthenticatedPrincipal
 
 
 class AgentRunContextController:
-    def __init__(self, operations: AgentRunContextOperations) -> None:
-        self._operations = operations
+    def __init__(self, use_case: AgentRunContextUseCase) -> None:
+        self._use_case = use_case
 
     @staticmethod
-    def _principal(request: FastAPIRequest) -> object | None:
-        return getattr(request.state, "principal", None)
+    def _user_id(request: Request) -> UUID:
+        principal = request.principal
+        if not isinstance(principal, AuthenticatedPrincipal):
+            raise AuthorizationError("Control-plane authentication required")
+        return principal.user_id
 
-    async def list_model_invocations(
-        self,
-        run_id: UUID,
-        request: FastAPIRequest,
-    ) -> dict:
-        data = await self._operations.list_model_invocations(
-            run_id=run_id,
-            principal=self._principal(request),
+    async def handle_by_run(self, request: Request) -> Response:
+        data = await self._use_case.by_run(
+            run_id=UUID(str(request.path_params["run_id"])),
+            user_id=self._user_id(request),
         )
-        return {"success": True, "data": data}
+        return Response(status_code=200, body={"success": True, "data": data})
 
-    async def list_model_invocations_by_trace(
-        self,
-        trace_id: UUID,
-        request: FastAPIRequest,
-    ) -> dict:
-        data = await self._operations.list_model_invocations_by_trace(
-            trace_id=trace_id,
-            principal=self._principal(request),
+    async def handle_by_trace(self, request: Request) -> Response:
+        data = await self._use_case.by_trace(
+            trace_id=UUID(str(request.path_params["trace_id"])),
+            user_id=self._user_id(request),
         )
-        return {"success": True, "data": data}
+        return Response(status_code=200, body={"success": True, "data": data})
