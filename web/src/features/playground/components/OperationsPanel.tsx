@@ -135,7 +135,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
 
               {runDetailView === 'context' ? (
                 <div className="pt-3">
-                  <ContextInspector runId={selectedRun.id} traceId={selectedRun.trace_id || undefined} />
+                  <ContextInspector traceId={selectedRun.trace_id || selectedRun.id} />
                 </div>
               ) : null}
 
