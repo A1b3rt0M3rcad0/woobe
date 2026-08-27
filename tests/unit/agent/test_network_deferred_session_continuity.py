@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
@@ -15,6 +15,7 @@ from modules.agent.application.interfaces.execution_context import (
 from modules.agent.infra.execution import transaction_bounded_structured_output as runtime_module
 from modules.agent.infra.execution.transaction_bounded_structured_output import (
     TransactionBoundedStructuredOutputRuntime,
+    _network_hot_session_history,
 )
 
 
@@ -122,12 +123,12 @@ async def _prepare_rag_binding(*_args, **_kwargs):
     return None
 
 
-def _input(*, project_id, agent_id, session_id):
+def _input(*, project_id, agent_id, session_id, message="second question"):
     return AskInput(
         project_id=project_id,
         agent_id=agent_id,
         session_id=session_id,
-        message="second question",
+        message=message,
         execution_context="playground",
         metadata={
             "source": "network_runtime",
@@ -278,3 +279,135 @@ async def test_missing_sql_session_requires_completed_hot_invocation_proof(
     assert transactions.write_calls == 0
     assert state_store.get_calls == [network_execution_id]
     assert state_store.created == []
+
+
+def test_hot_session_history_keeps_all_successful_rounds_and_ignores_failed_attempts() -> None:
+    session_id = uuid4()
+    first = UUID("00000000-0000-7000-8000-000000000001")
+    failed = UUID("00000000-0000-7000-8000-000000000002")
+    second = UUID("00000000-0000-7000-8000-000000000003")
+    third = UUID("00000000-0000-7000-8000-000000000004")
+
+    history = _network_hot_session_history(
+        {
+            f"invocation:{first}": {
+                "id": str(first),
+                "agent_session_id": str(session_id),
+                "status": "completed",
+                "input_message": "q1",
+                "output_message": "a1",
+            },
+            f"invocation:{failed}": {
+                "id": str(failed),
+                "agent_session_id": str(session_id),
+                "status": "failed",
+                "input_message": "q-failed",
+                "error": "provider rejected request",
+            },
+            f"invocation:{second}": {
+                "id": str(second),
+                "agent_session_id": str(session_id),
+                "status": "completed",
+                "input_message": "q2",
+                "output_message": "a2",
+            },
+            f"invocation:{third}": {
+                "id": str(third),
+                "agent_session_id": str(session_id),
+                "status": "completed",
+                "input_message": "q3",
+                "output_message": "a3",
+            },
+        },
+        session_id=session_id,
+    )
+
+    assert history is not None
+    assert [message.content for message in history] == [
+        "q1",
+        "a1",
+        "q2",
+        "a2",
+        "q3",
+        "a3",
+    ]
+    assert all("failed" not in str(message.content) for message in history)
+
+
+@pytest.mark.asyncio
+async def test_third_stateful_invocation_reuses_two_completed_hot_rounds(
+    monkeypatch,
+) -> None:
+    monkeypatch.setattr(runtime_module, "prepare_tool_state", _prepare_tool_state)
+    monkeypatch.setattr(runtime_module, "prepare_rag_binding", _prepare_rag_binding)
+
+    project_id = uuid4()
+    agent_id = uuid4()
+    network_execution_id = uuid4()
+    session_id = uuid4()
+    first = UUID("00000000-0000-7000-8000-000000000011")
+    second = UUID("00000000-0000-7000-8000-000000000012")
+    current = UUID("00000000-0000-7000-8000-000000000013")
+
+    transactions = _CountingTransactions()
+    state_store = _ExecutionStateStore(
+        transactions,
+        {
+            f"invocation:{first}": {
+                "id": str(first),
+                "agent_id": str(agent_id),
+                "agent_session_id": str(session_id),
+                "status": "completed",
+                "input_message": "first request",
+                "output_message": "first result",
+            },
+            f"invocation:{second}": {
+                "id": str(second),
+                "agent_id": str(agent_id),
+                "agent_session_id": str(session_id),
+                "status": "completed",
+                "input_message": "second request",
+                "output_message": "second result",
+            },
+            f"invocation:{current}": {
+                "id": str(current),
+                "agent_id": str(agent_id),
+                "agent_session_id": str(session_id),
+                "status": "running",
+                "input_message": "third request",
+            },
+        },
+    )
+    runtime = _Runtime(
+        transactions=transactions,
+        project_id=project_id,
+        agent_id=agent_id,
+    )
+    runtime.configure_execution_state_store(state_store)
+
+    context = new_execution_context()
+    context.network_execution_id = network_execution_id
+    context.network_invocation_id = current
+    token = current_execution.set(context)
+    try:
+        prepared = await runtime._prepare_deferred_network(
+            _input(
+                project_id=project_id,
+                agent_id=agent_id,
+                session_id=session_id,
+                message="third request",
+            )
+        )
+    finally:
+        current_execution.reset(token)
+
+    history = prepared[12]
+    messages = prepared[11]
+    assert [message.content for message in history] == [
+        "first request",
+        "first result",
+        "second request",
+        "second result",
+    ]
+    assert messages[-1].content == "third request"
+    assert transactions.write_calls == 0
