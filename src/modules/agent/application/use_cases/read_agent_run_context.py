@@ -9,8 +9,84 @@ from modules.agent.domain.run import AgentRun
 from shared.contracts.errors import NotFoundError
 
 
+_DIAGNOSTIC_KEYS = (
+    "schema_version",
+    "agent_runtime_latency_ms",
+    "total_latency_ms",
+    "prepare_latency_ms",
+    "llm_work_latency_ms",
+    "llm_runtime_latency_ms",
+    "tool_wall_latency_ms",
+    "tool_work_latency_ms",
+    "tool_call_duration_sum_ms",
+    "tool_parallelism_ratio",
+    "tool_provider_work_ms",
+    "tool_runtime_overhead_ms",
+    "finalization_work_latency_ms",
+    "persistence_latency_ms",
+    "other_latency_ms",
+    "unaccounted_latency_ms",
+    "orchestration_latency_ms",
+    "llm_call_count",
+    "tool_call_count",
+    "successful_tool_calls",
+    "failed_tool_calls",
+    "usage_complete",
+    "cost_status",
+    "cost_reason",
+    "cost_statuses",
+    "pricing_ids",
+    "provider_model_id",
+    "provider_credential_id",
+    "fallback_provider_model_id",
+    "fallback_credential_id",
+    "execution_context",
+    "agent_release_id",
+    "agent_release_version",
+    "fallback_used",
+    "tool_share_percent",
+)
+
+
 def _iso(value: Any) -> str | None:
     return value.isoformat() if value is not None and hasattr(value, "isoformat") else None
+
+
+def _normalized_diagnostics(
+    result: dict[str, Any],
+    tool_calls: list[Any],
+) -> dict[str, Any] | None:
+    raw = result.get("diagnostics")
+    diagnostics = dict(raw) if isinstance(raw, dict) else {
+        key: result[key]
+        for key in _DIAGNOSTIC_KEYS
+        if key in result
+    }
+    if not diagnostics:
+        return None
+
+    successful = sum(
+        1
+        for call in tool_calls
+        if isinstance(call, dict)
+        and (
+            call.get("success") is True
+            or str(call.get("status") or "").lower() in {"success", "completed"}
+        )
+    )
+    failed = sum(
+        1
+        for call in tool_calls
+        if isinstance(call, dict)
+        and (
+            call.get("success") is False
+            or str(call.get("status") or "").lower() in {"failed", "error"}
+        )
+    )
+    diagnostics.setdefault("successful_tool_calls", successful)
+    diagnostics.setdefault("failed_tool_calls", failed)
+    diagnostics.setdefault("tool_call_count", len(tool_calls))
+    return diagnostics
 
 
 def _run_detail(run: AgentRun) -> dict[str, Any]:
@@ -20,10 +96,11 @@ def _run_detail(run: AgentRun) -> dict[str, Any]:
     if not usage and isinstance(result_usage, dict):
         usage = dict(result_usage)
 
-    diagnostics = result.get("diagnostics")
-    tool_calls = result.get("tool_calls")
+    tool_calls_raw = result.get("tool_calls")
+    tool_calls = tool_calls_raw if isinstance(tool_calls_raw, list) else []
     sources = result.get("sources")
     llm_calls = result.get("llm_calls")
+    diagnostics = _normalized_diagnostics(result, tool_calls)
 
     return {
         "id": str(run.id),
@@ -42,14 +119,14 @@ def _run_detail(run: AgentRun) -> dict[str, Any]:
         "origin": run.origin,
         "status": run.status.value,
         "input_message": run.input_message,
-        "answer": result.get("answer"),
+        "answer": result.get("answer") or result.get("output"),
         "provider": result.get("provider"),
         "model": result.get("model"),
         "parsed_output": result.get("parsed_output"),
         "output_parse_error": result.get("output_parse_error"),
         "usage": usage or None,
-        "diagnostics": diagnostics if isinstance(diagnostics, dict) else None,
-        "tool_calls": tool_calls if isinstance(tool_calls, list) else [],
+        "diagnostics": diagnostics,
+        "tool_calls": tool_calls,
         "sources": sources if isinstance(sources, list) else [],
         "llm_calls": llm_calls if isinstance(llm_calls, list) else [],
         "failure": result.get("failure") if isinstance(result.get("failure"), dict) else None,
