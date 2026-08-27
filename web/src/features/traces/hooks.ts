@@ -12,6 +12,7 @@ import {
 import type { ContextModelInvocation, Trace, TraceDetail } from './types'
 
 const TRACE_REFRESH_INTERVAL_MS = 1_500
+const PLAYGROUND_IDLE_TRACE_LIST_REFRESH_INTERVAL_MS = 3_000
 const IDLE_TRACE_LIST_REFRESH_INTERVAL_MS = 10_000
 const TRACE_NOT_FOUND_RETRIES = 20
 const CONTEXT_EVIDENCE_NOT_FOUND_RETRIES = 6
@@ -111,12 +112,13 @@ export function usePlaygroundTraces(
         sessionId: sessionId ?? undefined,
       } as GetTracesParams),
     // Agent Runs exist independently of Sessions. Stateless Agents must still
-    // expose their Runs through the Agent filter.
+    // expose their Runs through the Agent filter. The list also owns the active
+    // Run UX, so it keeps a light idle refresh instead of waiting for completion.
     enabled: Boolean(projectId) && Boolean(agentId),
-    staleTime: 2_000,
+    staleTime: 1_000,
     refetchInterval: (query) => hasActiveTrace(query.state.data)
       ? TRACE_REFRESH_INTERVAL_MS
-      : false,
+      : PLAYGROUND_IDLE_TRACE_LIST_REFRESH_INTERVAL_MS,
     refetchIntervalInBackground: false,
   })
 }
