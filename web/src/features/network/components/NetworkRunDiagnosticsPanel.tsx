@@ -18,6 +18,8 @@ import { formatCurrency, formatLatency, formatTokens } from '@/lib/formatters/nu
 
 import type { NetworkContextOverview, NetworkRunDiagnostics } from './networkRunDiagnosticsTypes'
 
+type DiagnosticsMode = 'execution' | 'context' | 'all'
+
 function Metric({
   label,
   value,
@@ -79,16 +81,20 @@ function sourceLabel(source: string) {
   }
 }
 
-function NetworkContextOverviewPanel({ context }: { context: NetworkContextOverview }) {
+function NetworkContextOverviewPanel({ context, standalone = false }: { context: NetworkContextOverview; standalone?: boolean }) {
+  const surfaceClass = standalone
+    ? 'rounded-xl border border-border/75 bg-background/30 p-3'
+    : 'mt-3 border-t border-border/70 pt-3'
+
   if (context.telemetry_status === 'unknown' || context.model_invocation_count === 0) {
     return (
-      <div className="mt-3 border-t border-border/70 pt-3">
+      <section className={surfaceClass}>
         <div className="flex items-center gap-2">
           <Brain className="h-3.5 w-3.5 text-muted" />
           <p className="text-[10px] font-medium text-white">Context overview</p>
         </div>
         <p className="mt-1.5 text-[9px] text-muted">Context evidence is not available for the child Agent Runs yet.</p>
-      </div>
+      </section>
     )
   }
 
@@ -97,7 +103,7 @@ function NetworkContextOverviewPanel({ context }: { context: NetworkContextOverv
     .sort(([, left], [, right]) => (right.units ?? 0) - (left.units ?? 0))
 
   return (
-    <div className="mt-3 border-t border-border/70 pt-3">
+    <section className={surfaceClass}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
           <Brain className="h-3.5 w-3.5 text-primary-light" />
@@ -174,45 +180,11 @@ function NetworkContextOverviewPanel({ context }: { context: NetworkContextOverv
           </div>
         </details>
       ) : null}
-    </div>
+    </section>
   )
 }
 
-export function NetworkRunDiagnosticsPanel({
-  executionId,
-  projectId,
-  running,
-}: {
-  executionId: string
-  projectId: string
-  running: boolean
-}) {
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ['network-run-diagnostics', projectId, executionId],
-    queryFn: () => getNetworkRunDiagnostics(executionId, projectId),
-    refetchInterval: running ? 1_500 : false,
-    refetchIntervalInBackground: false,
-    staleTime: running ? 0 : 30_000,
-  })
-
-  if (isLoading) {
-    return (
-      <section className="rounded-xl border border-border/75 bg-background/30 p-3">
-        <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Execution diagnostics</p>
-        <p className="mt-2 text-[10px] text-muted">Loading Network Run metrics…</p>
-      </section>
-    )
-  }
-
-  if (isError || !data) {
-    return (
-      <section className="rounded-xl border border-border/75 bg-background/30 p-3">
-        <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Execution diagnostics</p>
-        <p className="mt-2 text-[10px] text-muted">Network Run metrics are unavailable.</p>
-      </section>
-    )
-  }
-
+function ExecutionDiagnostics({ data }: { data: NetworkRunDiagnostics }) {
   return (
     <section className="rounded-xl border border-border/75 bg-background/30 p-3">
       <div className="flex items-start justify-between gap-3">
@@ -251,8 +223,56 @@ export function NetworkRunDiagnosticsPanel({
         {data.fallback_count ? <span>{data.fallback_count} fallback{data.fallback_count === 1 ? '' : 's'}</span> : null}
         <span>{costLabel(data)}</span>
       </div>
+    </section>
+  )
+}
 
-      <NetworkContextOverviewPanel context={data.context} />
+export function NetworkRunDiagnosticsPanel({
+  executionId,
+  projectId,
+  running,
+  mode = 'all',
+}: {
+  executionId: string
+  projectId: string
+  running: boolean
+  mode?: DiagnosticsMode
+}) {
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ['network-run-diagnostics', projectId, executionId],
+    queryFn: () => getNetworkRunDiagnostics(executionId, projectId),
+    refetchInterval: running ? 1_500 : false,
+    refetchIntervalInBackground: false,
+    staleTime: running ? 0 : 30_000,
+  })
+
+  const label = mode === 'context' ? 'Context overview' : 'Execution diagnostics'
+
+  if (isLoading) {
+    return (
+      <section className="rounded-xl border border-border/75 bg-background/30 p-3">
+        <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">{label}</p>
+        <p className="mt-2 text-[10px] text-muted">Loading Network Run metrics…</p>
+      </section>
+    )
+  }
+
+  if (isError || !data) {
+    return (
+      <section className="rounded-xl border border-border/75 bg-background/30 p-3">
+        <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">{label}</p>
+        <p className="mt-2 text-[10px] text-muted">Network Run metrics are unavailable.</p>
+      </section>
+    )
+  }
+
+  if (mode === 'execution') return <ExecutionDiagnostics data={data} />
+  if (mode === 'context') return <NetworkContextOverviewPanel context={data.context} standalone />
+
+  return (
+    <section className="space-y-3">
+      <ExecutionDiagnostics data={data} />
+      <NetworkContextOverviewPanel context={data.context} standalone />
     </section>
   )
 }
