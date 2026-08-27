@@ -205,6 +205,7 @@ def _context_overview(
                 "agent_run_count": 0,
                 "model_invocation_count": 0,
                 "input_units": 0.0,
+                "composition_units": 0.0,
                 "peak_utilization": None,
                 "delegation_units": 0.0,
                 "run_ids": [],
@@ -266,6 +267,7 @@ def _context_overview(
                 if units is None:
                     continue
                 source_units[str(source_type)] += units
+                summary["composition_units"] += units
                 if str(source_type).upper() == "DELEGATION":
                     summary["delegation_units"] += units
 
@@ -302,16 +304,22 @@ def _context_overview(
     normalized_agent_summaries = []
     for summary in agent_summaries.values():
         input_units = float(summary["input_units"])
+        composition_units = float(summary["composition_units"])
         delegation_units = float(summary["delegation_units"])
         normalized_agent_summaries.append(
             {
-                **summary,
+                "agent_id": summary["agent_id"],
+                "agent_run_count": summary["agent_run_count"],
+                "model_invocation_count": summary["model_invocation_count"],
                 "input_units": _rounded(input_units),
                 "peak_utilization": _rounded(_number(summary["peak_utilization"])),
                 "delegation_units": _rounded(delegation_units),
                 "delegation_share": (
-                    delegation_units / input_units if input_units > 0 else None
+                    delegation_units / composition_units
+                    if composition_units > 0
+                    else None
                 ),
+                "run_ids": list(summary["run_ids"]),
             }
         )
     normalized_agent_summaries.sort(
