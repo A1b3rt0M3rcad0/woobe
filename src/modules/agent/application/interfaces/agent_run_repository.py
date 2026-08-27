@@ -17,6 +17,9 @@ class AgentRunRepository(ABC):
     async def get_by_trace_id(self, trace_id: UUID) -> AgentRun | None: ...
 
     @abstractmethod
+    async def get_output_message_content(self, message_id: UUID) -> str | None: ...
+
+    @abstractmethod
     async def list_model_invocations(self, run_id: UUID) -> list[dict]: ...
 
     @abstractmethod
