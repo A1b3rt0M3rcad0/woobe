@@ -4,17 +4,17 @@ from typing import Protocol
 from uuid import UUID
 
 
-class AgentRunContextOperations(Protocol):
-    async def list_model_invocations(
+class AgentRunContextUseCase(Protocol):
+    async def by_run(
         self,
         *,
         run_id: UUID,
-        principal: object | None,
+        user_id: UUID,
     ) -> list[dict]: ...
 
-    async def list_model_invocations_by_trace(
+    async def by_trace(
         self,
         *,
         trace_id: UUID,
-        principal: object | None,
+        user_id: UUID,
     ) -> list[dict]: ...
