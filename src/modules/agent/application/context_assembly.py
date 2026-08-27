@@ -271,6 +271,15 @@ def _contribution(
             "run_id",
             None,
         )
+    raw_metadata_transformations = metadata.get("transformations")
+    metadata_transformations = (
+        tuple(str(item) for item in raw_metadata_transformations)
+        if isinstance(raw_metadata_transformations, list)
+        else ()
+    )
+    merged_transformations = tuple(
+        dict.fromkeys((*metadata_transformations, *transformations))
+    )
     merged_metadata = {**runtime_metadata, **metadata}
     text = _message_text(message)
     return ContextContribution(
@@ -294,7 +303,7 @@ def _contribution(
             if isinstance(metadata.get("relevance_score"), (int, float))
             else None
         ),
-        transformations=transformations,
+        transformations=merged_transformations,
         trust=str(
             metadata.get("trust")
             or (
