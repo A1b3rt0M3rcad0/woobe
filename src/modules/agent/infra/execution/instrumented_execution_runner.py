@@ -86,7 +86,7 @@ async def run_instrumented_execution(
         if json_enabled and not has_tools
         else None
     )
-    model = llm_factory.create_chat_model(
+    base_model = llm_factory.create_chat_model(
         provider=provider,
         model=agent.model,
         api_key=api_key,
@@ -96,20 +96,26 @@ async def run_instrumented_execution(
         streaming=streaming_enabled,
         response_format=base_response_format,
     )
-    if has_tools:
-        model = model.bind_tools(agent_tools, tool_choice="auto")
+    model = base_model.bind_tools(agent_tools, tool_choice="auto") if has_tools else base_model
 
+    # Tool-capable executions always separate orchestration from the final response.
+    # This keeps planning text private and gives the runtime one Tool-disabled
+    # terminal synthesis after successful or failed Tool/delegation attempts.
     final_model = None
-    if has_tools and json_enabled:
-        final_model = llm_factory.create_chat_model(
-            provider=provider,
-            model=agent.model,
-            api_key=api_key,
-            base_url=base_url,
-            temperature=agent.temperature or 0.2,
-            max_tokens=agent.max_output_tokens or 1000,
-            streaming=streaming_enabled,
-            response_format={"type": "json_object"},
+    if has_tools:
+        final_model = (
+            llm_factory.create_chat_model(
+                provider=provider,
+                model=agent.model,
+                api_key=api_key,
+                base_url=base_url,
+                temperature=agent.temperature or 0.2,
+                max_tokens=agent.max_output_tokens or 1000,
+                streaming=streaming_enabled,
+                response_format={"type": "json_object"},
+            )
+            if json_enabled
+            else base_model
         )
 
     instruction = None
