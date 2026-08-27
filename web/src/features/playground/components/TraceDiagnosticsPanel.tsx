@@ -1,5 +1,5 @@
 import { Activity, CheckCircle, Cpu, Database, Gauge, Wrench, XCircle } from 'lucide-react'
-import { useTraceDetail } from '@/features/traces/hooks'
+import { useAgentRunDetail } from '@/features/traces/hooks'
 import { formatLatency, formatTokens } from '@/lib/formatters/number'
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -15,19 +15,6 @@ function numberOrNull(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null
   }
   return null
-}
-
-function findDiagnostics(raw: unknown): Record<string, unknown> {
-  const trace = asRecord(raw)
-  const data = asRecord(trace.data)
-  const persisted = asRecord(data.diagnostics)
-  if (Object.keys(persisted).length > 0) return persisted
-  const events = Array.isArray(trace.events) ? trace.events : []
-  for (const item of events) {
-    const payload = asRecord(asRecord(item).payload)
-    if (payload.event === 'observability.execution.summary.v1') return payload
-  }
-  return {}
 }
 
 function formatCost(value: number | null): string {
@@ -53,9 +40,12 @@ function Metric({ label, value, icon: Icon, hint }: {
   )
 }
 
-export function TraceDiagnosticsPanel({ traceId }: { traceId: string }) {
-  const { data } = useTraceDetail(traceId)
-  const d = findDiagnostics(data)
+export function TraceDiagnosticsPanel({ traceId, runId }: { traceId?: string | null; runId?: string | null }) {
+  const { data } = useAgentRunDetail({
+    runId: runId ?? undefined,
+    traceId: runId ? undefined : traceId ?? undefined,
+  })
+  const d = asRecord(data?.diagnostics)
   if (Object.keys(d).length === 0) return null
 
   const runtime = numberOrNull(d.agent_runtime_latency_ms ?? d.total_latency_ms)
@@ -74,10 +64,12 @@ export function TraceDiagnosticsPanel({ traceId }: { traceId: string }) {
   const successes = numberOrNull(d.successful_tool_calls) ?? 0
   const failures = numberOrNull(d.failed_tool_calls) ?? 0
   const inputTokens = numberOrNull(d.input_tokens)
+    ?? numberOrNull(data?.usage?.input_tokens)
   const outputTokens = numberOrNull(d.output_tokens)
+    ?? numberOrNull(data?.usage?.output_tokens)
   const usageComplete = d.usage_complete === true
   const costStatus = typeof d.cost_status === 'string' ? d.cost_status : 'unknown'
-  const costUsd = numberOrNull(d.cost_usd)
+  const costUsd = numberOrNull(d.cost_usd) ?? numberOrNull(data?.usage?.cost_usd)
 
   return (
     <div className="border-b border-border px-4 py-3 space-y-2">
@@ -95,24 +87,9 @@ export function TraceDiagnosticsPanel({ traceId }: { traceId: string }) {
 
       <div className="grid grid-cols-2 gap-1.5">
         <Metric label="Agent runtime" value={runtime == null ? '—' : formatLatency(runtime)} icon={Activity} />
-        <Metric
-          label="LLM work Σ"
-          value={llmWork == null ? '—' : formatLatency(llmWork)}
-          icon={Cpu}
-          hint="Sum of individual LLM call durations."
-        />
-        <Metric
-          label="Tool wall"
-          value={toolWall == null ? '—' : formatLatency(toolWall)}
-          icon={Wrench}
-          hint="Elapsed wall-clock spent waiting for Tool rounds."
-        />
-        <Metric
-          label="Tool work Σ"
-          value={toolWork == null ? '—' : formatLatency(toolWork)}
-          icon={Wrench}
-          hint="Sum of individual Tool durations. It can exceed Tool wall when Tools run in parallel."
-        />
+        <Metric label="LLM work Σ" value={llmWork == null ? '—' : formatLatency(llmWork)} icon={Cpu} hint="Sum of individual LLM call durations." />
+        <Metric label="Tool wall" value={toolWall == null ? '—' : formatLatency(toolWall)} icon={Wrench} hint="Elapsed wall-clock spent waiting for Tool rounds." />
+        <Metric label="Tool work Σ" value={toolWork == null ? '—' : formatLatency(toolWork)} icon={Wrench} hint="Sum of individual Tool durations. It can exceed Tool wall when Tools run in parallel." />
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted">
