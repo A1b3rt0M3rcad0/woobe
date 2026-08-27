@@ -31,6 +31,7 @@ function historyRecords(message: NetworkMessageResource, sessionId: string): Run
 function terminalStatus(status: string): NetworkExecution['status'] {
   if (status === 'completed') return 'success'
   if (status === 'running' || status === 'queued') return 'running'
+  if (status === 'cancelled') return 'cancelled'
   return 'error'
 }
 

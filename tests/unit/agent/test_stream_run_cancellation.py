@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -8,7 +9,11 @@ import pytest
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.domain.run import AgentRun, AgentRunStatus
 from modules.agent.infra.execution.ask_agent_stream_service import AskAgentStreamService
-from modules.agent.infra.execution.runtime_streaming import RuntimeStreamChannel
+from modules.agent.infra.execution.runtime_streaming import (
+    RuntimeStreamChannel,
+    current_runtime_stream,
+)
+from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 
 
 class _Outbox:
@@ -44,6 +49,49 @@ class _Transactions:
         self.write_calls += 1
         return await operation(self.repositories, self.outbox)
 
+    async def read(self, operation):
+        return await operation(self.repositories, self.outbox)
+
+
+class _DetachedUseCase:
+    def __init__(self, run: AgentRun, store: InMemoryExecutionStateStore) -> None:
+        self.run = run
+        self.store = store
+        self.completed = asyncio.Event()
+
+    async def execute(self, input_dto):
+        channel = current_runtime_stream.get()
+        assert channel is not None
+        channel.bind_execution(
+            trace_id=self.run.trace_id,
+            session_id=None,
+            project_id=self.run.project_id,
+            agent_id=self.run.agent_id,
+        )
+        setattr(channel, "run_id", self.run.id)
+        await self.store.create(
+            self.run.id,
+            {
+                "status": "running",
+                "project_id": str(self.run.project_id),
+                "agent_id": str(self.run.agent_id),
+            },
+            ttl_seconds=3600,
+        )
+        await self.store.append_event(
+            self.run.id,
+            "agent.run.accepted",
+            {"trace_id": str(self.run.trace_id)},
+        )
+        await asyncio.sleep(0.05)
+        self.completed.set()
+        return SimpleNamespace(
+            model_dump=lambda **_: {
+                "run_id": str(self.run.id),
+                "answer": "completed after observer left",
+            }
+        )
+
 
 def _run() -> AgentRun:
     return AgentRun(
@@ -52,8 +100,17 @@ def _run() -> AgentRun:
         trace_id=uuid4(),
         environment="draft",
         origin="runtime_api",
-        input_message="cancel me",
+        input_message="keep running",
         execution_snapshot={},
+    )
+
+
+def _input(run: AgentRun) -> AskInput:
+    return AskInput(
+        project_id=run.project_id,
+        agent_id=run.agent_id,
+        message=run.input_message,
+        execution_context="playground",
     )
 
 
@@ -69,51 +126,112 @@ def _channel(run: AgentRun) -> RuntimeStreamChannel:
     return channel
 
 
-def _input(run: AgentRun) -> AskInput:
-    return AskInput(
-        project_id=run.project_id,
-        agent_id=run.agent_id,
-        message=run.input_message,
-        execution_context="playground",
-    )
+@pytest.mark.asyncio
+async def test_closing_stream_observer_does_not_cancel_agent_execution() -> None:
+    run = _run()
+    store = InMemoryExecutionStateStore()
+    transactions = _Transactions(run)
+    use_case = _DetachedUseCase(run, store)
+    service = AskAgentStreamService(use_case, transactions, state_store=store)
+
+    stream = service.stream(_input(run))
+    first = await anext(stream)
+    assert "event: run.state" in first
+
+    await stream.aclose()
+    await asyncio.wait_for(use_case.completed.wait(), timeout=1)
+
+    assert transactions.write_calls == 0
+    assert transactions.runs.run.status == AgentRunStatus.RUNNING
 
 
 @pytest.mark.asyncio
-async def test_stream_disconnect_terminalizes_running_agent_run() -> None:
+async def test_explicit_cancellation_still_terminalizes_running_agent_run() -> None:
     run = _run()
     transactions = _Transactions(run)
-    service = AskAgentStreamService(SimpleNamespace(), transactions)
+    service = AskAgentStreamService(
+        SimpleNamespace(),
+        transactions,
+        state_store=InMemoryExecutionStateStore(),
+    )
+    channel = _channel(run)
+    channel.public_output = "partial answer"
+    channel.latest_usage = {
+        "input_tokens": 11,
+        "output_tokens": 7,
+        "total_tokens": 18,
+    }
 
     persisted = await service._persist_cancelled(
-        _channel(run),
+        channel,
         _input(run),
-        "client_disconnected",
+        "cancel_requested",
     )
 
     assert persisted is True
     assert transactions.write_calls == 1
     assert transactions.runs.save_calls == 1
     assert transactions.runs.run.status == AgentRunStatus.CANCELLED
-    assert transactions.runs.run.failure_code == "cancelled"
-    assert transactions.runs.run.failure_detail == "client_disconnected"
-    assert transactions.runs.run.completed_at is not None
+    assert transactions.runs.run.failure_code is None
+    assert transactions.runs.run.failure_detail is None
     assert transactions.runs.run.result is not None
-    assert transactions.runs.run.result["run_id"] == str(run.id)
-    assert len(transactions.outbox.events) == 1
-    assert transactions.outbox.events[0].event_type == "agent.execution.cancelled.v1"
+    assert transactions.runs.run.result["answer"] == "partial answer"
+    assert transactions.runs.run.result["partial"] is True
+    assert transactions.runs.run.result["cancelled"] is True
+    assert transactions.runs.run.result["reason"] == "cancel_requested"
+    assert transactions.runs.run.usage == channel.latest_usage
+    assert transactions.runs.run.completed_at is not None
 
 
 @pytest.mark.asyncio
-async def test_late_stream_disconnect_does_not_overwrite_completed_run() -> None:
+async def test_explicit_cancellation_before_first_token_is_not_a_failure() -> None:
+    run = _run()
+    transactions = _Transactions(run)
+    service = AskAgentStreamService(
+        SimpleNamespace(),
+        transactions,
+        state_store=InMemoryExecutionStateStore(),
+    )
+    channel = _channel(run)
+
+    assert channel.public_output == ""
+    assert channel.latest_usage is None
+
+    persisted = await service._persist_cancelled(
+        channel,
+        _input(run),
+        "cancel_requested",
+    )
+
+    assert persisted is True
+    assert transactions.runs.run.status == AgentRunStatus.CANCELLED
+    assert transactions.runs.run.failure_code is None
+    assert transactions.runs.run.failure_detail is None
+    assert transactions.runs.run.result is not None
+    assert transactions.runs.run.result["answer"] == ""
+    assert transactions.runs.run.result["partial"] is False
+    assert transactions.runs.run.result["cancelled"] is True
+    assert transactions.runs.run.result["reason"] == "cancel_requested"
+    assert transactions.runs.run.result["usage"] is None
+    assert transactions.runs.run.completed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_late_explicit_cancel_does_not_overwrite_completed_run() -> None:
     run = _run()
     run.status = AgentRunStatus.COMPLETED
     transactions = _Transactions(run)
-    service = AskAgentStreamService(SimpleNamespace(), transactions)
+    service = AskAgentStreamService(
+        SimpleNamespace(),
+        transactions,
+        state_store=InMemoryExecutionStateStore(),
+    )
+    channel = _channel(run)
 
     persisted = await service._persist_cancelled(
-        _channel(run),
+        channel,
         _input(run),
-        "client_disconnected",
+        "cancel_requested",
     )
 
     assert persisted is False

@@ -17,6 +17,7 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const PROTOCOL_VERSION = 1
 const FINAL_PHASES = new Set(['response_generation', 'final_response_generation'])
 const PROVIDER_CONTROL_TOKENS = ['<｜end▁of▁sentence｜>', '<|endoftext|>', '<|eot_id|>']
+const TERMINAL_RUN_STATUSES = new Set(['completed', 'failed', 'cancelled', 'timed_out', 'uncertain'])
 
 export interface TokenRetractInfo {
   phase?: string | null
@@ -30,7 +31,7 @@ export interface TokenRetractInfo {
 export interface StreamCallbacks {
   onToken: (token: StreamTokenInfo) => void
   onSources: (sources: SourceInfo[]) => void
-  onMeta: (meta: { session_id?: string | null; trace_id?: string | null; request_id?: string | null }) => void
+  onMeta: (meta: { session_id?: string | null; trace_id?: string | null; request_id?: string | null; run_id?: string | null }) => void
   onDone: (response: Partial<AskResponse>) => void
   onError: (error: Error) => void
   onFallback?: (info: FallbackEventInfo) => void
@@ -43,8 +44,15 @@ export interface StreamCallbacks {
   onUsage?: (usage: UsageInfo) => void
   onHeartbeat?: (event: Record<string, unknown>) => void
   onCancelled?: (event: Record<string, unknown>) => void
+  onRunState?: (state: Record<string, unknown>) => void
   onUnknownEvent?: (type: string, event: Record<string, unknown>) => void
   onProtocolError?: (message: string, frame?: SseFrame) => void
+}
+
+interface RuntimeClientState {
+  runId: string | null
+  output: string
+  sequence: number | null
 }
 
 function stringOrNull(value: unknown): string | null {
@@ -53,6 +61,44 @@ function stringOrNull(value: unknown): string | null {
 
 function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function logicalSequence(frame: SseFrame, item: Record<string, unknown>): number | null {
+  const payloadSequence = numberOrNull(item.sequence)
+  if (payloadSequence !== null && Number.isInteger(payloadSequence) && payloadSequence >= 0) {
+    return payloadSequence
+  }
+  if (frame.id && /^\d+$/.test(frame.id)) return Number(frame.id)
+  return null
+}
+
+function acceptSequence(
+  frame: SseFrame,
+  item: Record<string, unknown>,
+  type: string,
+  callbacks: StreamCallbacks,
+  state: RuntimeClientState,
+): boolean {
+  const sequence = logicalSequence(frame, item)
+  if (sequence === null) return true
+
+  if (type === 'run.state') {
+    if (state.sequence !== null && sequence < state.sequence) return false
+    state.sequence = sequence
+    return true
+  }
+
+  if (state.sequence !== null) {
+    if (sequence <= state.sequence) return false
+    const expected = state.sequence + 1
+    if (sequence !== expected) {
+      const message = `Runtime stream sequence gap: expected ${expected}, received ${sequence}`
+      callbacks.onProtocolError?.(message, frame)
+      throw new Error(message)
+    }
+  }
+  state.sequence = sequence
+  return true
 }
 
 function sanitizeAssistantContent(value: string): string {
@@ -175,7 +221,78 @@ function responseOf(item: Record<string, unknown>): AskResponse {
   }
 }
 
-function dispatch(frame: SseFrame, callbacks: StreamCallbacks): boolean {
+function reconcileRunState(
+  item: Record<string, unknown>,
+  callbacks: StreamCallbacks,
+  state: RuntimeClientState,
+): boolean {
+  const runId = stringOrNull(item.run_id)
+  if (runId) state.runId = runId
+  callbacks.onMeta({
+    run_id: runId,
+    session_id: stringOrNull(item.session_id),
+    trace_id: stringOrNull(item.trace_id),
+  })
+  callbacks.onRunState?.(item)
+
+  const output = typeof item.output === 'string' ? sanitizeAssistantContent(item.output) : ''
+  if (output !== state.output) {
+    if (output.startsWith(state.output)) {
+      const suffix = output.slice(state.output.length)
+      if (suffix) callbacks.onToken({
+        content: suffix,
+        visibility: 'assistant',
+        channel: 'final',
+        phase: 'final_response_generation',
+        provider: null,
+        model: null,
+        redacted: null,
+      })
+    } else {
+      if (state.output.length) callbacks.onTokenRetract?.({
+        content_length: state.output.length,
+        reason: 'reattach_state_replace',
+      })
+      if (output) callbacks.onToken({
+        content: output,
+        visibility: 'assistant',
+        channel: 'final',
+        phase: 'final_response_generation',
+        provider: null,
+        model: null,
+        redacted: null,
+      })
+    }
+    state.output = output
+  }
+
+  const status = stringOrNull(item.status) ?? ''
+  if (!TERMINAL_RUN_STATUSES.has(status)) return false
+  if (status === 'completed') {
+    const result = item.result && typeof item.result === 'object' && !Array.isArray(item.result)
+      ? item.result as Record<string, unknown>
+      : {}
+    callbacks.onDone(responseOf({
+      ...result,
+      answer: typeof result.answer === 'string' ? result.answer : output,
+      session_id: result.session_id ?? item.session_id,
+      trace_id: result.trace_id ?? item.trace_id,
+      usage: result.usage ?? item.usage,
+      parsed_output: result.parsed_output ?? item.parsed_output,
+      output_parse_error: result.output_parse_error ?? item.output_parse_error,
+    }))
+  } else if (status === 'cancelled') callbacks.onCancelled?.(item)
+  else callbacks.onError(new Error(
+    typeof item.message === 'string'
+      ? item.message
+      : typeof item.failure_detail === 'string'
+        ? item.failure_detail
+        : 'Run failed',
+  ))
+  return true
+}
+
+function dispatch(frame: SseFrame, callbacks: StreamCallbacks, state: RuntimeClientState): boolean {
   const item = parseSseJson(frame)
   if (!item) {
     callbacks.onProtocolError?.('Invalid JSON in SSE data field', frame)
@@ -186,19 +303,37 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks): boolean {
   }
 
   const type = typeof item.type === 'string' ? item.type : frame.event || 'unknown'
+  if (!acceptSequence(frame, item, type, callbacks, state)) return false
+  if (type === 'run.state') return reconcileRunState(item, callbacks, state)
+  if (type === 'run.progress') return false
+  if (type === 'run.realtime_unavailable') {
+    callbacks.onUnknownEvent?.(type, item)
+    return false
+  }
   if (type === 'token') {
     const text = streamTextOf(item)
-    if (isFinalStreamText(text)) callbacks.onToken(text)
-    else callbacks.onInternalToken?.({ ...text, visibility: 'internal', redacted: true })
+    if (isFinalStreamText(text)) {
+      state.output += text.content
+      callbacks.onToken(text)
+    } else callbacks.onInternalToken?.({ ...text, visibility: 'internal', redacted: true })
   } else if (type === 'internal_token') callbacks.onInternalToken?.(streamTextOf(item))
-  else if (type === 'token_retract') callbacks.onTokenRetract?.(retractOf(item))
+  else if (type === 'token_retract') {
+    const retract = retractOf(item)
+    if (retract.content_length > 0) state.output = state.output.slice(0, Math.max(0, state.output.length - retract.content_length))
+    callbacks.onTokenRetract?.(retract)
+  }
   else if (type === 'agent_activity') callbacks.onAgentActivity?.(activityOf(item))
   else if (type === 'sources') callbacks.onSources(Array.isArray(item.sources) ? item.sources as SourceInfo[] : [])
-  else if (type === 'meta') callbacks.onMeta({
-    session_id: stringOrNull(item.session_id),
-    trace_id: stringOrNull(item.trace_id),
-    request_id: stringOrNull(item.request_id),
-  })
+  else if (type === 'meta') {
+    const runId = stringOrNull(item.run_id)
+    if (runId) state.runId = runId
+    callbacks.onMeta({
+      run_id: runId,
+      session_id: stringOrNull(item.session_id),
+      trace_id: stringOrNull(item.trace_id),
+      request_id: stringOrNull(item.request_id),
+    })
+  }
   else if (type === 'usage') {
     const usage = usageOf(item.usage)
     if (usage) callbacks.onUsage?.(usage)
@@ -216,7 +351,9 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks): boolean {
     callbacks.onToolCall?.(tool)
   } else if (type === 'heartbeat') callbacks.onHeartbeat?.(item)
   else if (type === 'done') {
-    callbacks.onDone(responseOf(item))
+    const response = responseOf(item)
+    if (response.answer) state.output = response.answer
+    callbacks.onDone(response)
     return true
   } else if (type === 'error') {
     callbacks.onError(new Error(typeof item.message === 'string' ? item.message : 'Stream error'))
@@ -229,12 +366,44 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks): boolean {
   return false
 }
 
-async function runStream(
+async function consumeResponse(
+  response: Response,
+  callbacks: StreamCallbacks,
+  state: RuntimeClientState,
+  signal: AbortSignal | undefined,
+): Promise<boolean> {
+  if (!response.body) throw new Error('Streaming response body is unavailable')
+  const headerRunId = response.headers.get('X-Woobe-Run-ID')
+  if (headerRunId) state.runId = headerRunId
+
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  const parser = new SseFrameParser()
+  let terminal = false
+  const consume = (frames: SseFrame[]) => {
+    for (const frame of frames) if (dispatch(frame, callbacks, state)) terminal = true
+  }
+
+  try {
+    while (!terminal) {
+      const { done, value } = await reader.read()
+      if (done) break
+      consume(parser.push(decoder.decode(value, { stream: true })))
+    }
+    consume(parser.finish(decoder.decode()))
+    return terminal
+  } finally {
+    if (terminal || signal?.aborted) await reader.cancel().catch(() => undefined)
+  }
+}
+
+async function requestNewRun(
   data: AskRequest,
   callbacks: StreamCallbacks,
+  state: RuntimeClientState,
   signal: AbortSignal | undefined,
   hasRetriedAuth: boolean,
-): Promise<void> {
+): Promise<boolean> {
   await ensureCsrfToken()
   const response = await fetch(`${BASE_URL}/runtime/ask/stream`, {
     method: 'POST',
@@ -247,30 +416,52 @@ async function runStream(
     body: JSON.stringify(data),
     signal,
   })
-
   if (response.status === 401 && !hasRetriedAuth) {
     await refreshAuthSession()
-    return runStream(data, callbacks, signal, true)
+    return requestNewRun(data, callbacks, state, signal, true)
   }
   if (!response.ok) throw new Error(`Stream request failed (${response.status})`)
-  if (!response.body) throw new Error('Streaming response body is unavailable')
+  return consumeResponse(response, callbacks, state, signal)
+}
 
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder()
-  const parser = new SseFrameParser()
-  let terminal = false
-  const consume = (frames: SseFrame[]) => {
-    for (const frame of frames) if (dispatch(frame, callbacks)) terminal = true
+async function requestReattach(
+  runId: string,
+  callbacks: StreamCallbacks,
+  state: RuntimeClientState,
+  signal: AbortSignal | undefined,
+  hasRetriedAuth: boolean,
+): Promise<boolean> {
+  const response = await fetch(`${BASE_URL}/runtime/runs/${runId}/stream`, {
+    method: 'GET',
+    headers: { Accept: 'text/event-stream' },
+    credentials: 'include',
+    signal,
+  })
+  if (response.status === 401 && !hasRetriedAuth) {
+    await refreshAuthSession()
+    return requestReattach(runId, callbacks, state, signal, true)
   }
+  if (!response.ok) throw new Error(`Run reattach failed (${response.status})`)
+  return consumeResponse(response, callbacks, state, signal)
+}
 
-  while (!terminal) {
-    const { done, value } = await reader.read()
-    if (done) break
-    consume(parser.push(decoder.decode(value, { stream: true })))
+export async function reattachAgentRunV1(
+  runId: string,
+  callbacks: StreamCallbacks,
+  signal?: AbortSignal,
+): Promise<void> {
+  const state: RuntimeClientState = { runId, output: '', sequence: null }
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (signal?.aborted) throw new DOMException('Agent stream aborted', 'AbortError')
+    try {
+      const terminal = await requestReattach(runId, callbacks, state, signal, false)
+      if (terminal) return
+    } catch (error) {
+      if (signal?.aborted || attempt === 3) throw error
+    }
+    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
   }
-
-  consume(parser.finish(decoder.decode()))
-  if (!terminal && !signal?.aborted) throw new Error('Stream ended without a terminal event')
+  throw new Error('Run reattach ended without a terminal event')
 }
 
 export async function askStreamV1(
@@ -278,5 +469,22 @@ export async function askStreamV1(
   callbacks: StreamCallbacks,
   signal?: AbortSignal,
 ): Promise<void> {
-  return runStream(data, callbacks, signal, false)
+  const state: RuntimeClientState = { runId: null, output: '', sequence: null }
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (signal?.aborted) throw new DOMException('Agent stream aborted', 'AbortError')
+    try {
+      const terminal = state.runId
+        ? await requestReattach(state.runId, callbacks, state, signal, false)
+        : await requestNewRun(data, callbacks, state, signal, false)
+      if (terminal) return
+      if (!state.runId) throw new Error('Stream ended before the canonical Run id was observed')
+    } catch (error) {
+      if (signal?.aborted || attempt === 3) throw error
+      // Once a Run id exists, all retries are GET observers. Never POST another
+      // logical execution to recover a transport failure.
+      if (!state.runId) throw error
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
+  }
+  throw new Error('Stream ended without a terminal event')
 }

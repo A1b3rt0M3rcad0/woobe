@@ -3,6 +3,7 @@ import type { ToolCallInfo } from '@/features/playground/types'
 import {
   operationalTools,
   type NetworkAgentInvocation,
+  type NetworkExecution,
 } from './networkChatExecution'
 
 export interface NetworkInvocationPathItem {
@@ -63,10 +64,11 @@ export function invocationHasFailure(root: NetworkAgentInvocation): boolean {
 }
 
 export function networkRunOutcome(
-  status: 'running' | 'success' | 'error',
+  status: NetworkExecution['status'],
   root: NetworkAgentInvocation,
-): 'running' | 'completed' | 'completed_with_issues' | 'failed' {
+): 'running' | 'completed' | 'completed_with_issues' | 'failed' | 'cancelled' {
   if (status === 'running') return 'running'
   if (status === 'error') return 'failed'
+  if (status === 'cancelled') return 'cancelled'
   return invocationHasFailure(root) ? 'completed_with_issues' : 'completed'
 }

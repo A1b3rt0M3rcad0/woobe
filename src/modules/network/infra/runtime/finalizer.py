@@ -15,6 +15,7 @@ from modules.network.infra.database.models import (
     NetworkExecutionEventModel,
     NetworkExecutionModel,
     NetworkInvocationModel,
+    NetworkMessageModel,
 )
 from modules.network.infra.database.repositories import NetworkRuntimeRepository
 
@@ -39,6 +40,51 @@ def _datetime(value: Any, *, fallback: datetime) -> datetime:
 
 def _message_id(invocation_id: UUID, role: str) -> UUID:
     return uuid5(NAMESPACE_URL, f"woobe:network-invocation:{invocation_id}:{role}")
+
+
+def _invocation_failure(
+    item: dict[str, Any],
+    *,
+    terminal_failure_code: str | None,
+    terminal_failure_detail: str | None,
+) -> dict[str, Any]:
+    raw = item.get("failure")
+    if isinstance(raw, dict):
+        failure = dict(raw)
+    else:
+        detail = (
+            str(item.get("error") or "").strip()
+            or str(terminal_failure_detail or "").strip()
+            or "Agent invocation failed"
+        )
+        code = terminal_failure_code or "network_agent_failure"
+        failure = {
+            "code": code,
+            "stage": "network_runtime",
+            "message": (
+                str(terminal_failure_detail or "").strip()
+                or detail
+            ),
+            "retryable": False,
+            "internal_detail": detail,
+        }
+
+    failure.setdefault("code", terminal_failure_code or "network_agent_failure")
+    failure.setdefault("stage", "network_runtime")
+    failure.setdefault(
+        "message",
+        str(terminal_failure_detail or "").strip()
+        or str(item.get("error") or "").strip()
+        or "Agent invocation failed",
+    )
+    failure.setdefault("retryable", False)
+    failure.setdefault(
+        "internal_detail",
+        str(item.get("error") or "").strip()
+        or str(failure.get("message") or "").strip()
+        or "Agent invocation failed",
+    )
+    return failure
 
 
 class NetworkRuntimeFinalizer:
@@ -116,7 +162,24 @@ class NetworkRuntimeFinalizer:
                 parent_id = _uuid(item.get("parent_invocation_id"))
                 session_id = _uuid(item.get("agent_session_id"))
                 invocation_trace_id = _uuid(item.get("trace_id"))
-                status = str(item.get("status") or "failed")
+                hot_status = str(item.get("status") or "failed")
+                if hot_status == "completed":
+                    status = "completed"
+                elif hot_status == "cancelled" or (
+                    terminal_status == "cancelled" and hot_status == "running"
+                ):
+                    status = "cancelled"
+                else:
+                    status = "failed"
+                failure = (
+                    _invocation_failure(
+                        item,
+                        terminal_failure_code=failure_code,
+                        terminal_failure_detail=failure_detail,
+                    )
+                    if status == "failed"
+                    else None
+                )
                 binding = bindings.get(str(node_id))
                 binding = binding if isinstance(binding, dict) else {}
                 release_id = _uuid(binding.get("release_id"))
@@ -159,6 +222,9 @@ class NetworkRuntimeFinalizer:
                     "fallback_used": bool((diagnostics or {}).get("fallback_used")),
                     "cost_status": (diagnostics or {}).get("cost_status"),
                     "cost_usd": (usage or {}).get("cost_usd"),
+                    "cancelled": status == "cancelled",
+                    "partial": status == "cancelled" and bool(item.get("output_message")),
+                    "failure": failure,
                 }
 
                 if session_id is not None:
@@ -226,6 +292,8 @@ class NetworkRuntimeFinalizer:
                                         "sources": item.get("sources") or [],
                                         "parsed_output": item.get("parsed_output"),
                                         "output_parse_error": item.get("output_parse_error"),
+                                        "cancelled": status == "cancelled",
+                                        "partial": status == "cancelled",
                                     },
                                 )
                             )
@@ -245,15 +313,25 @@ class NetworkRuntimeFinalizer:
                         ),
                         environment=environment,
                         origin="network_runtime",
-                        status=("completed" if status == "completed" else "failed"),
+                        status=status,
                         input_message=str(item.get("input_message") or ""),
                         execution_snapshot=execution_snapshot,
                         usage=usage,
                         result=result_payload,
                         failure_code=(
-                            None if status == "completed" else "network_agent_failure"
+                            None
+                            if failure is None
+                            else str(failure.get("code") or "network_agent_failure")
                         ),
-                        failure_detail=item.get("error"),
+                        failure_detail=(
+                            None
+                            if failure is None
+                            else str(
+                                failure.get("internal_detail")
+                                or failure.get("message")
+                                or "Agent invocation failed"
+                            )
+                        ),
                         network_execution_id=execution.id,
                         network_invocation_id=invocation_id,
                         parent_run_id=parent_id,
@@ -277,7 +355,15 @@ class NetworkRuntimeFinalizer:
                         status=status,
                         input_message=str(item.get("input_message") or ""),
                         output_message=item.get("output_message"),
-                        error=item.get("error"),
+                        error=(
+                            None
+                            if failure is None
+                            else str(
+                                failure.get("internal_detail")
+                                or failure.get("message")
+                                or "Agent invocation failed"
+                            )
+                        ),
                     )
                     if hasattr(invocation, "parsed_output"):
                         setattr(invocation, "parsed_output", item.get("parsed_output"))
@@ -320,13 +406,15 @@ class NetworkRuntimeFinalizer:
                         },
                     )
                 )
-                terminal_event_type = (
-                    "agent_invocation_completed"
-                    if status == "completed"
-                    else "agent_invocation_failed"
-                )
-                terminal_payload = (
-                    {
+                if status == "completed":
+                    terminal_event_type = "agent_invocation_completed"
+                elif status == "cancelled":
+                    terminal_event_type = "agent_invocation_cancelled"
+                else:
+                    terminal_event_type = "agent_invocation_failed"
+
+                if status in {"completed", "cancelled"}:
+                    terminal_payload = {
                         "trace_id": (
                             str(invocation_trace_id) if invocation_trace_id else None
                         ),
@@ -340,24 +428,47 @@ class NetworkRuntimeFinalizer:
                         "parsed_output": item.get("parsed_output"),
                         "output_parse_error": item.get("output_parse_error"),
                         "output": item.get("output_message"),
+                        "cancelled": status == "cancelled",
+                        "partial": status == "cancelled" and bool(item.get("output_message")),
                         "started_at": started_at.isoformat(),
                         "completed_at": completed_at.isoformat(),
                     }
-                    if status == "completed"
-                    else {
-                        "code": "network_agent_failure",
-                        "message": item.get("error") or "Agent invocation failed",
-                        "retryable": False,
-                        "trace_id": (
-                            str(invocation_trace_id) if invocation_trace_id else None
+                else:
+                    terminal_payload = {
+                        "code": str(failure.get("code") or "network_agent_failure"),
+                        "stage": str(failure.get("stage") or "network_runtime"),
+                        "message": str(
+                            failure.get("message") or "Agent invocation failed"
                         ),
-                        "cause_invocation_id": str(invocation_id),
-                        "cause_node_id": str(node_id),
-                        "cause_agent_id": str(agent_id),
+                        "retryable": failure.get("retryable") is True,
+                        "phase": failure.get("phase"),
+                        "call_index": failure.get("call_index"),
+                        "upstream_status": failure.get("upstream_status"),
+                        "upstream_error_code": failure.get("upstream_error_code"),
+                        "partial_result_available": (
+                            failure.get("partial_result_available") is True
+                        ),
+                        "trace_id": (
+                            failure.get("trace_id")
+                            or (
+                                str(invocation_trace_id)
+                                if invocation_trace_id
+                                else None
+                            )
+                        ),
+                        "cause_invocation_id": (
+                            failure.get("cause_invocation_id")
+                            or str(invocation_id)
+                        ),
+                        "cause_node_id": (
+                            failure.get("cause_node_id") or str(node_id)
+                        ),
+                        "cause_agent_id": (
+                            failure.get("cause_agent_id") or str(agent_id)
+                        ),
                         "started_at": started_at.isoformat(),
                         "completed_at": completed_at.isoformat(),
                     }
-                )
                 durable_invocation_events.append(
                     (
                         completed_at,
@@ -439,10 +550,39 @@ class NetworkRuntimeFinalizer:
                 )
             elif terminal_status == "cancelled":
                 execution.status = "cancelled"
+                execution.output_message = output or ""
+                execution.failure_code = None
+                execution.failure_detail = None
+                if trace_id is not None:
+                    execution.root_trace_id = trace_id
                 execution.completed_at = now
                 execution.lease_owner = None
                 execution.lease_expires_at = None
-                await repository.append_event(execution, "execution_cancelled", {})
+                if output:
+                    session.add(
+                        NetworkMessageModel(
+                            network_session_id=execution.network_session_id,
+                            network_execution_id=execution.id,
+                            project_id=execution.project_id,
+                            role="assistant",
+                            content=output,
+                            data={
+                                "trace_id": str(trace_id) if trace_id else None,
+                                "cancelled": True,
+                                "partial": True,
+                            },
+                        )
+                    )
+                await repository.append_event(
+                    execution,
+                    "execution_cancelled",
+                    {
+                        "output": output or "",
+                        "trace_id": str(trace_id) if trace_id else None,
+                        "partial": bool(output),
+                        "cancelled": True,
+                    },
+                )
             else:
                 await repository.mark_failed(
                     execution,

@@ -1,9 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 from uuid import UUID, uuid4
 
+from sqlalchemy import select
+
 from modules.agent.infra.database.models import SessionModel
-from modules.chat_surface.infra.database.models import ChatSurfaceModel
+from modules.agent.infra.database.run_models import AgentRunModel
+from modules.chat_surface.infra.database.models import (
+    ChatSurfaceMessageRequestModel,
+    ChatSurfaceModel,
+    ChatSurfaceSessionBindingModel,
+)
 from modules.chat_surface.presentation.schemas import CreateSurfaceSessionRequest
 from modules.chat_surface.security import normalize_origin
 from modules.chat_surface.service import (
@@ -12,7 +20,10 @@ from modules.chat_surface.service import (
     SurfaceCredential,
 )
 from modules.core.infra.database.models import ApiKeyModel
-from modules.network.infra.database.models import NetworkSessionModel
+from modules.network.infra.database.models import (
+    NetworkExecutionModel,
+    NetworkSessionModel,
+)
 from shared.infra.errors import (
     AuthenticationError,
     AuthorizationError,
@@ -23,10 +34,15 @@ from shared.runtime_environment import assert_runtime_environment_enabled
 
 
 CONTROL_PLANE_TEST_SOURCE = "control_plane_test"
+_AGENT_TERMINAL = {"completed", "failed", "cancelled", "uncertain"}
+_NETWORK_TERMINAL = {"completed", "failed", "cancelled", "timed_out", "uncertain"}
+_AGENT_ACTIVE = {"running"}
+_NETWORK_ACTIVE = {"queued", "running", "cancel_requested"}
+_MESSAGE_ACTIVE = {"accepted", "streaming"}
 
 
 class ControlPlaneChatSurfaceService(ChatSurfaceService):
-    """Adds authenticated Control Plane testing without exposing Surface Access Keys."""
+    """Adds authenticated Control Plane testing and truthful Run observation."""
 
     async def create_test_session(
         self,
@@ -184,6 +200,296 @@ class ControlPlaneChatSurfaceService(ChatSurfaceService):
                 binding=binding,
                 claims=claims,
             )
+
+    async def _active_run_for_binding(
+        self,
+        binding: ChatSurfaceSessionBindingModel,
+    ) -> tuple[UUID | None, str | None]:
+        async with self._session_factory() as session:
+            if binding.target_type == "agent":
+                run = await session.scalar(
+                    select(AgentRunModel)
+                    .where(
+                        AgentRunModel.session_id == binding.session_id,
+                        AgentRunModel.agent_id == binding.target_id,
+                        AgentRunModel.project_id == binding.project_id,
+                        AgentRunModel.agent_release_id == binding.target_release_id,
+                        AgentRunModel.network_execution_id.is_(None),
+                        AgentRunModel.status.in_(_AGENT_ACTIVE),
+                    )
+                    .order_by(
+                        AgentRunModel.created_at.desc(),
+                        AgentRunModel.id.desc(),
+                    )
+                    .limit(1)
+                )
+                return (run.id, str(run.status)) if run is not None else (None, None)
+
+            execution = await session.scalar(
+                select(NetworkExecutionModel)
+                .where(
+                    NetworkExecutionModel.network_session_id == binding.session_id,
+                    NetworkExecutionModel.network_id == binding.target_id,
+                    NetworkExecutionModel.project_id == binding.project_id,
+                    NetworkExecutionModel.network_version_id == binding.target_release_id,
+                    NetworkExecutionModel.status.in_(_NETWORK_ACTIVE),
+                )
+                .order_by(
+                    NetworkExecutionModel.created_at.desc(),
+                    NetworkExecutionModel.id.desc(),
+                )
+                .limit(1)
+            )
+            return (
+                (execution.id, str(execution.status))
+                if execution is not None
+                else (None, None)
+            )
+
+    async def _resolve_request_run(
+        self,
+        request: ChatSurfaceMessageRequestModel,
+        binding: ChatSurfaceSessionBindingModel,
+    ) -> tuple[UUID | None, str | None]:
+        async with self._session_factory() as session:
+            if binding.target_type == "agent":
+                if request.target_run_id is not None:
+                    run = await session.get(AgentRunModel, request.target_run_id)
+                else:
+                    run = await session.scalar(
+                        select(AgentRunModel)
+                        .where(
+                            AgentRunModel.session_id == binding.session_id,
+                            AgentRunModel.agent_id == binding.target_id,
+                            AgentRunModel.project_id == binding.project_id,
+                            AgentRunModel.agent_release_id == binding.target_release_id,
+                            AgentRunModel.network_execution_id.is_(None),
+                            AgentRunModel.created_at >= request.created_at,
+                        )
+                        .order_by(
+                            AgentRunModel.created_at.desc(),
+                            AgentRunModel.id.desc(),
+                        )
+                        .limit(1)
+                    )
+                if run is None:
+                    return request.target_run_id, None
+                if (
+                    run.session_id != binding.session_id
+                    or run.agent_id != binding.target_id
+                    or run.project_id != binding.project_id
+                    or run.agent_release_id != binding.target_release_id
+                    or run.network_execution_id is not None
+                ):
+                    return None, None
+                return run.id, str(run.status)
+
+            if request.target_run_id is not None:
+                execution = await session.get(
+                    NetworkExecutionModel,
+                    request.target_run_id,
+                )
+            else:
+                execution = await session.scalar(
+                    select(NetworkExecutionModel)
+                    .where(
+                        NetworkExecutionModel.network_session_id == binding.session_id,
+                        NetworkExecutionModel.network_id == binding.target_id,
+                        NetworkExecutionModel.project_id == binding.project_id,
+                        NetworkExecutionModel.network_version_id
+                        == binding.target_release_id,
+                        NetworkExecutionModel.created_at >= request.created_at,
+                    )
+                    .order_by(
+                        NetworkExecutionModel.created_at.desc(),
+                        NetworkExecutionModel.id.desc(),
+                    )
+                    .limit(1)
+                )
+            if execution is None:
+                return request.target_run_id, None
+            if (
+                execution.network_session_id != binding.session_id
+                or execution.network_id != binding.target_id
+                or execution.project_id != binding.project_id
+                or execution.network_version_id != binding.target_release_id
+            ):
+                return None, None
+            return execution.id, str(execution.status)
+
+    async def begin_message(
+        self,
+        authorized: AuthorizedChatSession,
+        idempotency_key: str,
+        *,
+        metadata: dict | None = None,
+    ) -> tuple[ChatSurfaceMessageRequestModel, bool]:
+        normalized_key = idempotency_key.strip()
+        async with self._session_factory() as session:
+            existing = await session.scalar(
+                select(ChatSurfaceMessageRequestModel).where(
+                    ChatSurfaceMessageRequestModel.session_binding_id
+                    == authorized.binding.id,
+                    ChatSurfaceMessageRequestModel.idempotency_key == normalized_key,
+                )
+            )
+        if existing is not None:
+            return await super().begin_message(
+                authorized,
+                idempotency_key,
+                metadata=metadata,
+            )
+
+        run_id, run_status = await self._active_run_for_binding(authorized.binding)
+        if run_id is not None and run_status in (_AGENT_ACTIVE | _NETWORK_ACTIVE):
+            raise ConflictError("ChatSurface Session already has an active Run")
+
+        return await super().begin_message(
+            authorized,
+            idempotency_key,
+            metadata=metadata,
+        )
+
+    async def active_message_request(
+        self,
+        authorized: AuthorizedChatSession,
+    ) -> ChatSurfaceMessageRequestModel | None:
+        async with self._session_factory() as session:
+            request = await session.scalar(
+                select(ChatSurfaceMessageRequestModel)
+                .where(
+                    ChatSurfaceMessageRequestModel.session_binding_id
+                    == authorized.binding.id,
+                    ChatSurfaceMessageRequestModel.status.in_(_MESSAGE_ACTIVE),
+                )
+                .order_by(
+                    ChatSurfaceMessageRequestModel.created_at.desc(),
+                    ChatSurfaceMessageRequestModel.id.desc(),
+                )
+                .limit(1)
+            )
+        if request is None:
+            return None
+
+        run_id, run_status = await self._resolve_request_run(request, authorized.binding)
+        if run_id is not None and request.target_run_id != run_id:
+            await super().mark_message(
+                request.id,
+                status="streaming",
+                target_run_id=run_id,
+            )
+            request.target_run_id = run_id
+            request.status = "streaming"
+
+        terminal_statuses = (
+            _AGENT_TERMINAL
+            if authorized.binding.target_type == "agent"
+            else _NETWORK_TERMINAL
+        )
+        if run_status in terminal_statuses:
+            status = (
+                "completed"
+                if run_status == "completed"
+                else "cancelled"
+                if run_status == "cancelled"
+                else "failed"
+            )
+            await super().mark_message(
+                request.id,
+                status=status,
+                target_run_id=run_id,
+                error_code=(
+                    None if status in {"completed", "cancelled"} else "runtime_failed"
+                ),
+            )
+            return None
+        return request
+
+    async def mark_message(
+        self,
+        request_id: UUID,
+        *,
+        status: str,
+        target_run_id: UUID | None = None,
+        error_code: str | None = None,
+    ) -> None:
+        """Keep message lifecycle tied to the Run, never to one SSE observer."""
+        async with self._session_factory() as session:
+            request = await session.get(ChatSurfaceMessageRequestModel, request_id)
+            binding = (
+                await session.get(
+                    ChatSurfaceSessionBindingModel,
+                    request.session_binding_id,
+                )
+                if request is not None
+                else None
+            )
+        if request is None or binding is None:
+            return
+
+        original_status = str(request.status)
+        if target_run_id is not None:
+            request.target_run_id = target_run_id
+        run_id, run_status = await self._resolve_request_run(request, binding)
+
+        requested_terminal = status in {"completed", "failed", "cancelled"}
+        if requested_terminal and run_status is None and original_status in _MESSAGE_ACTIVE:
+            # Acceptance and ChatSurface bookkeeping use separate transactions. Give
+            # the canonical Run a short grace period to become queryable before an
+            # observer ending is allowed to release the active-message gate.
+            for _ in range(20):
+                await asyncio.sleep(0.05)
+                run_id, run_status = await self._resolve_request_run(request, binding)
+                if run_status is not None:
+                    break
+
+        if requested_terminal and run_status is not None:
+            terminal_statuses = (
+                _AGENT_TERMINAL if binding.target_type == "agent" else _NETWORK_TERMINAL
+            )
+            if run_status not in terminal_statuses:
+                await super().mark_message(
+                    request_id,
+                    status="streaming",
+                    target_run_id=run_id,
+                    error_code=None,
+                )
+                return
+            status = (
+                "completed"
+                if run_status == "completed"
+                else "cancelled"
+                if run_status == "cancelled"
+                else "failed"
+            )
+            error_code = (
+                None
+                if status in {"completed", "cancelled"}
+                else error_code or "runtime_failed"
+            )
+
+        # A successful observer iterator with no canonical Run is not proof that the
+        # execution completed. Preserve the gate; reattach or stale-run recovery can
+        # resolve it without allowing a duplicate message to start concurrently.
+        if (
+            status == "completed"
+            and run_status is None
+            and original_status in _MESSAGE_ACTIVE
+        ):
+            await super().mark_message(
+                request_id,
+                status="streaming",
+                target_run_id=run_id or target_run_id,
+                error_code=None,
+            )
+            return
+
+        await super().mark_message(
+            request_id,
+            status=status,
+            target_run_id=run_id or target_run_id,
+            error_code=error_code,
+        )
 
 
 __all__ = ["CONTROL_PLANE_TEST_SOURCE", "ControlPlaneChatSurfaceService"]

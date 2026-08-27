@@ -139,6 +139,8 @@ class RuntimeStreamChannel:
     agent_id: UUID | None = None
     ttft_ms: int | None = None
     terminal_emitted: bool = False
+    public_output: str = ""
+    latest_usage: dict[str, Any] | None = None
 
     def bind_execution(
         self,
@@ -153,9 +155,45 @@ class RuntimeStreamChannel:
         self.project_id = project_id
         self.agent_id = agent_id
 
+    def _capture_public_state(self, event_type: str, payload: dict[str, Any]) -> None:
+        if event_type == "token":
+            if (
+                payload.get("visibility", "assistant") == "assistant"
+                and payload.get("channel", "final") == "final"
+            ):
+                content = payload.get("content")
+                if isinstance(content, str):
+                    self.public_output += content
+            return
+
+        if event_type == "token_retract":
+            size = payload.get("content_length")
+            if isinstance(size, int) and not isinstance(size, bool) and size > 0:
+                self.public_output = (
+                    self.public_output[:-size]
+                    if size < len(self.public_output)
+                    else ""
+                )
+            return
+
+        if event_type == "usage":
+            usage = payload.get("usage")
+            candidate = usage if isinstance(usage, dict) else payload
+            self.latest_usage = dict(candidate)
+            return
+
+        if event_type == "done":
+            answer = payload.get("answer")
+            if isinstance(answer, str):
+                self.public_output = answer
+            usage = payload.get("usage")
+            if isinstance(usage, dict):
+                self.latest_usage = dict(usage)
+
     async def emit(self, event_type: str, **payload: Any) -> None:
         if self.terminal_emitted:
             return
+        self._capture_public_state(event_type, payload)
         if event_type in {"done", "error", "cancelled"}:
             self.terminal_emitted = True
         await self.queue.put(

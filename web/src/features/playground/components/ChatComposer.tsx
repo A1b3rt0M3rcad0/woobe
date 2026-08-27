@@ -1,15 +1,15 @@
 import { useState, useRef, useCallback } from 'react'
 import { Send, Paperclip, Square, Wrench } from 'lucide-react'
-import { cancelActiveAskStream } from '@/features/playground/hooks'
 
 interface ChatComposerProps {
   isSending: boolean
   onSend: (content: string) => void
+  onStop: () => void
   runtimeBlocked?: boolean
   runtimeBlockReason?: string
 }
 
-export function ChatComposer({ isSending, onSend, runtimeBlocked = false, runtimeBlockReason }: ChatComposerProps) {
+export function ChatComposer({ isSending, onSend, onStop, runtimeBlocked = false, runtimeBlockReason }: ChatComposerProps) {
   const [input, setInput] = useState('')
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const blocked = isSending || runtimeBlocked
@@ -66,7 +66,7 @@ export function ChatComposer({ isSending, onSend, runtimeBlocked = false, runtim
               {runtimeBlocked ? runtimeBlockReason : isSending ? 'Generating...' : 'Enter to send · Shift+Enter for new line'}
             </span>
             {isSending ? (
-              <button type="button" onClick={cancelActiveAskStream} aria-label="Stop generation" className="flex items-center justify-center w-8 h-8 rounded-lg border border-red-500/35 bg-red-500/15 text-red-100 hover:bg-red-500/25 transition-colors">
+              <button type="button" onClick={onStop} aria-label="Stop generation" className="flex items-center justify-center w-8 h-8 rounded-lg border border-red-500/35 bg-red-500/15 text-red-100 hover:bg-red-500/25 transition-colors">
                 <Square className="h-3.5 w-3.5 fill-current" />
               </button>
             ) : (

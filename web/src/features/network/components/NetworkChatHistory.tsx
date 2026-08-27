@@ -1,4 +1,4 @@
-import type { Ref, UIEventHandler } from 'react'
+import { memo, type Ref, type UIEventHandler } from 'react'
 import { Workflow } from 'lucide-react'
 
 import { ScrollArea } from '@/components/ui/ScrollArea'
@@ -29,10 +29,36 @@ interface NetworkChatHistoryProps {
   onOpenTrace: (execution: NetworkExecution) => void
 }
 
+interface PersistedNetworkTurnsProps {
+  networkName: string
+  turns: NetworkTurn[]
+  onSelectAgent: (nodeId: AgentNodeId) => void
+  onOpenTrace: (execution: NetworkExecution) => void
+}
+
 const onboardingSuggestions = [
   'Test a request that should be answered by the entry Agent.',
   'Test a request that should require delegation to a specialist.',
 ]
+
+const PersistedNetworkTurns = memo(function PersistedNetworkTurns({
+  networkName,
+  turns,
+  onSelectAgent,
+  onOpenTrace,
+}: PersistedNetworkTurnsProps) {
+  return turns.map((turn) => (
+    <div key={turn.id} className="space-y-4">
+      <ChatMessage message={{ role: 'user', content: turn.user }} variant="network" />
+      <NetworkAnswer
+        networkName={networkName}
+        turn={turn}
+        onOpenTrace={onOpenTrace}
+        onSelectAgent={onSelectAgent}
+      />
+    </div>
+  ))
+})
 
 export function NetworkChatHistory({
   scrollRef,
@@ -77,12 +103,12 @@ export function NetworkChatHistory({
           </div>
         ) : null}
 
-        {turns.map((turn) => (
-          <div key={turn.id} className="space-y-4">
-            <ChatMessage message={{ role: 'user', content: turn.user }} variant="network" />
-            <NetworkAnswer networkName={exactNetworkName} turn={turn} onOpenTrace={onOpenTrace} onSelectAgent={onSelectAgent} />
-          </div>
-        ))}
+        <PersistedNetworkTurns
+          networkName={exactNetworkName}
+          turns={turns}
+          onSelectAgent={onSelectAgent}
+          onOpenTrace={onOpenTrace}
+        />
 
         {running && pendingMessage ? (
           <div className="space-y-4">

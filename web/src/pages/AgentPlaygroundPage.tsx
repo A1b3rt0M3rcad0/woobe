@@ -4,6 +4,7 @@ import { useAgent, useAgentRuntimeEnvironments, useReleases } from '@/features/a
 import type { RuntimeEnvironment } from '@/features/agents/types'
 import { usePlaygroundTraces } from '@/features/traces/hooks'
 import { useAskStream, useAgentSessions, useCreateSession, useSessionMessages } from '@/features/playground/hooks'
+import { cancelAgentRun, getActiveAgentRun } from '@/features/playground/reattach-api'
 import { ErrorState } from '@/components/common/ErrorState'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { workspaceProjectPath } from '@/lib/constants/routes'
@@ -14,7 +15,13 @@ import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
 import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import { ApiModal } from '@/features/playground/components/ApiModal'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
-import { setPlaygroundSessionId } from '@/features/playground/lib/playground-session-store'
+import {
+  getStoredPlaygroundRunId,
+  getStoredPlaygroundSessionId,
+  setPlaygroundSessionId,
+  setStoredPlaygroundRunId,
+  setStoredPlaygroundSessionId,
+} from '@/features/playground/lib/playground-session-store'
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { AskRequest, AskResponse, ChatMessage, TraceItem, RawStreamEvent, ToolCallInfo, SessionListItem, SessionListPage } from '@/features/playground/types'
@@ -130,7 +137,7 @@ function PlaygroundContent() {
   const { data: releases = [] } = useReleases(agentId)
   const runtimeStatesQuery = useAgentRuntimeEnvironments(agentId, projectId)
   const { state, toSnapshot, isDirty } = useAgentEditor()
-  const { stream, cancel: cancelStream } = useAskStream()
+  const { stream, reattach, cancel: cancelStream } = useAskStream()
   const queryClient = useQueryClient()
   const { mutateAsync: createRuntimeSession, isPending: creatingSession } = useCreateSession()
   const [environment, setEnvironment] = useState<RuntimeEnvironment>('draft')
@@ -172,7 +179,11 @@ function PlaygroundContent() {
   }, [environment, releaseVersionById, sessionPages])
 
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [activeSessionIdByEnvironment, setActiveSessionIdByEnvironment] = useState<Record<RuntimeEnvironment, string | null>>({ draft: null, staging: null, production: null })
+  const [activeSessionIdByEnvironment, setActiveSessionIdByEnvironment] = useState<Record<RuntimeEnvironment, string | null>>(() => ({
+    draft: projectId && agentId ? getStoredPlaygroundSessionId(projectId, agentId, 'draft') : null,
+    staging: projectId && agentId ? getStoredPlaygroundSessionId(projectId, agentId, 'staging') : null,
+    production: projectId && agentId ? getStoredPlaygroundSessionId(projectId, agentId, 'production') : null,
+  }))
   const [isSending, setIsSending] = useState(false)
   const [lastResponse, setLastResponse] = useState<AskResponse | null>(null)
   const [lastRequestPayload, setLastRequestPayload] = useState<Record<string, unknown> | null>(null)
@@ -187,6 +198,9 @@ function PlaygroundContent() {
   const accumulatedRef = useRef('')
   const metadataRef = useRef<Partial<AskResponse>>({})
   const syncedSessionRef = useRef<string | null>(null)
+  const currentRunIdRef = useRef<string | null>(null)
+  const reattachingRunRef = useRef<string | null>(null)
+  const mountedRef = useRef(true)
 
   const sessionIdState = activeSessionIdByEnvironment[environment]
   const environmentRelease = environment === 'draft' ? null : currentEnvironmentRelease
@@ -212,8 +226,15 @@ function PlaygroundContent() {
 
   const setCurrentSessionId = useCallback((sessionId: string | null) => {
     setActiveSessionIdByEnvironment((current) => ({ ...current, [environment]: sessionId }))
-  }, [environment])
+    if (projectId && agentId) setStoredPlaygroundSessionId(projectId, agentId, environment, sessionId)
+  }, [agentId, environment, projectId])
 
+  const rememberRunId = useCallback((runId: string | null) => {
+    currentRunIdRef.current = runId
+    if (projectId && agentId) setStoredPlaygroundRunId(projectId, agentId, environment, runId)
+  }, [agentId, environment, projectId])
+
+  useEffect(() => () => { mountedRef.current = false }, [])
   useEffect(() => { setPlaygroundSessionId(selectedSessionId) }, [selectedSessionId])
 
   useEffect(() => {
@@ -333,6 +354,137 @@ function PlaygroundContent() {
     })
   }, [])
 
+  useEffect(() => {
+    if (!projectId || !agentId || isSending || isFetching) return
+    if (!isStateless && (!selectedSessionId || syncedSessionRef.current !== selectedSessionId)) return
+
+    let disposed = false
+    void (async () => {
+      let runId = getStoredPlaygroundRunId(projectId, agentId, environment)
+      if (!runId && selectedSessionId) {
+        try {
+          runId = (await getActiveAgentRun(selectedSessionId))?.run_id ?? null
+        } catch {
+          return
+        }
+      }
+      if (!runId || disposed || reattachingRunRef.current === runId) return
+
+      reattachingRunRef.current = runId
+      rememberRunId(runId)
+      accumulatedRef.current = ''
+      metadataRef.current = {}
+      rawEventsRef.current = []
+      setMessages((current) => {
+        const last = current[current.length - 1]
+        if (last?.role === 'assistant') return current
+        return [...current, { role: 'assistant', content: '', activity: { status: 'working', message: 'Reattaching to active Run...' } }]
+      })
+      setIsSending(true)
+      let terminalObserved = false
+
+      try {
+        await reattach(runId, {
+          onMeta: (meta) => {
+            rawEventsRef.current.push({ type: 'meta', timestamp: new Date().toISOString(), payload: meta })
+            if (meta.run_id) rememberRunId(meta.run_id)
+            if (!isStateless && meta.session_id) setCurrentSessionId(meta.session_id)
+            if (meta.trace_id) metadataRef.current.trace_id = meta.trace_id
+          },
+          onAgentActivity: (activity) => {
+            rawEventsRef.current.push({ type: 'agent_activity', timestamp: new Date().toISOString(), payload: activity })
+            updateLastAssistantMessage((last) => ({ ...last, activity }))
+          },
+          onToken: (token) => {
+            rawEventsRef.current.push({ type: 'token', timestamp: new Date().toISOString(), payload: token })
+            if (token.visibility !== 'assistant' || token.channel !== 'final') return
+            accumulatedRef.current += token.content
+            updateLastAssistantMessage((last) => ({ ...last, content: accumulatedRef.current, activity: null }))
+          },
+          onTokenRetract: (info) => {
+            rawEventsRef.current.push({ type: 'token_retract', timestamp: new Date().toISOString(), payload: info })
+            if (info.content_length > 0) accumulatedRef.current = accumulatedRef.current.slice(0, Math.max(0, accumulatedRef.current.length - info.content_length))
+            updateLastAssistantMessage((last) => ({ ...last, content: accumulatedRef.current }))
+          },
+          onInternalToken: (token) => rawEventsRef.current.push({ type: 'internal_token', timestamp: new Date().toISOString(), payload: token }),
+          onSources: (sources) => {
+            metadataRef.current.sources = sources
+            rawEventsRef.current.push({ type: 'sources', timestamp: new Date().toISOString(), payload: { sources } })
+          },
+          onToolCallStarted: (info) => {
+            const runningInfo: ToolCallInfo = { ...info, status: info.status ?? 'running' }
+            updateLastAssistantMessage((last) => ({ ...last, tool_calls: upsertToolCall(last.tool_calls, runningInfo) }))
+          },
+          onToolCallCompleted: (info) => {
+            updateLastAssistantMessage((last) => ({ ...last, tool_calls: upsertToolCall(last.tool_calls, info) }))
+          },
+          onDone: (response) => {
+            const finalContent = response.answer || accumulatedRef.current || ''
+            updateLastAssistantMessage((last) => ({
+              ...last,
+              content: finalContent,
+              activity: null,
+              usage: response.usage ?? null,
+              sources: (response.sources ?? metadataRef.current.sources) as ChatMessage['sources'],
+              tool_calls: (response.tool_calls ?? last.tool_calls ?? null) as ChatMessage['tool_calls'],
+              model: response.model ?? null,
+              provider: response.provider ?? null,
+              latency_ms: response.latency_ms ?? null,
+              trace_id: response.trace_id ?? metadataRef.current.trace_id ?? null,
+              parsed_output: response.parsed_output ?? null,
+              output_parse_error: response.output_parse_error ?? null,
+            }))
+            setRawEvents([...rawEventsRef.current])
+            setLastResponse(response as AskResponse)
+            rememberRunId(null)
+            if (!isStateless) void refetchSessions()
+            void refetchTraces()
+            if (selectedSessionId) void queryClient.invalidateQueries({ queryKey: ['session-messages', selectedSessionId] })
+          },
+          onError: (error) => {
+            rememberRunId(null)
+            setRawEvents([...rawEventsRef.current])
+            updateLastAssistantMessage((last) => ({ ...last, activity: null, output_parse_error: error.message }))
+            toast.error(error.message)
+            void refetchTraces()
+          },
+          onCancelled: () => {
+            rememberRunId(null)
+            updateLastAssistantMessage((last) => ({ ...last, activity: null }))
+            toast.info('Agent Run cancelled')
+            if (selectedSessionId) void queryClient.invalidateQueries({ queryKey: ['session-messages', selectedSessionId] })
+          },
+          onFallback: (info) => {
+            accumulatedRef.current = ''
+            updateLastAssistantMessage((last) => ({ ...last, content: '', activity: { status: 'working', message: `Trying ${info.fallback_provider}/${info.fallback_model}...` } }))
+          },
+        })
+        terminalObserved = true
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          // Keep the Run id after transport failure. A later reload/reattach can recover it.
+          toast.warning(error instanceof Error ? error.message : 'Active Run reattach failed')
+        }
+      } finally {
+        if (terminalObserved && reattachingRunRef.current === runId) {
+          reattachingRunRef.current = null
+        }
+        if (mountedRef.current) setIsSending(false)
+      }
+    })()
+
+    return () => { disposed = true }
+  }, [agentId, environment, isFetching, isSending, isStateless, projectId, queryClient, reattach, refetchSessions, refetchTraces, rememberRunId, selectedSessionId, setCurrentSessionId, updateLastAssistantMessage])
+
+  const handleStop = useCallback(() => {
+    const runId = currentRunIdRef.current
+    cancelStream()
+    if (!runId) return
+    void cancelAgentRun(runId)
+      .then(() => toast.info('Agent Run cancellation requested'))
+      .catch((error) => toast.warning(error instanceof Error ? error.message : 'Run cancellation could not be confirmed'))
+  }, [cancelStream])
+
   const handleSend = async (content: string) => {
     if (isSending || !agent) return
     if (!environmentReady) {
@@ -368,6 +520,7 @@ function PlaygroundContent() {
       await stream(requestPayload, {
         onMeta: (meta) => {
           rawEventsRef.current.push({ type: 'meta', timestamp: new Date().toISOString(), payload: meta })
+          if (meta.run_id) rememberRunId(meta.run_id)
           if (!isStateless && meta.session_id) setCurrentSessionId(meta.session_id)
           if (meta.trace_id) metadataRef.current.trace_id = meta.trace_id
         },
@@ -414,6 +567,7 @@ function PlaygroundContent() {
             return updated
           })
           setLastResponse(meta as AskResponse)
+          rememberRunId(null)
           if (!isStateless) refetchSessions()
           refetchTraces()
           if (!isStateless && meta.session_id) {
@@ -425,9 +579,15 @@ function PlaygroundContent() {
         onError: (error) => {
           rawEventsRef.current.push({ type: 'error', timestamp: new Date().toISOString(), payload: { message: error.message } })
           setRawEvents([...rawEventsRef.current])
+          rememberRunId(null)
           toast.error(error.message)
           updateLastAssistantMessage((last) => ({ ...last, activity: null, content: last.content || `Error: ${error.message}`, output_parse_error: error.message, trace_id: metadataRef.current.trace_id ?? null }))
           refetchTraces()
+        },
+        onCancelled: () => {
+          rememberRunId(null)
+          updateLastAssistantMessage((last) => ({ ...last, activity: null }))
+          toast.info('Agent Run cancelled')
         },
         onFallback: (info) => {
           rawEventsRef.current.push({ type: 'fallback', timestamp: new Date().toISOString(), payload: info })
@@ -555,7 +715,7 @@ function PlaygroundContent() {
               onTracesRetry={refetchTraces}
             />
           )}
-          <div className="flex-1 min-w-0 flex flex-col"><ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} agentName={agent.name} runtimeBlocked={!runtimeEnabled || !environmentReady} runtimeBlockReason={runtimeBlockReason} /></div>
+          <div className="flex-1 min-w-0 flex flex-col"><ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} onStop={handleStop} agentName={agent.name} runtimeBlocked={!runtimeEnabled || !environmentReady} runtimeBlockReason={runtimeBlockReason} /></div>
           {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={false} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
         </div>
       </div>

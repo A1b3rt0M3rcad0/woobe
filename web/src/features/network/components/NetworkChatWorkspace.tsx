@@ -4,10 +4,12 @@ import { toast } from 'sonner'
 
 import { cancelNetworkExecution, resetNetworkSessionContext } from '@/features/network/api'
 import { useNetworkRuntimeEnvironments } from '@/features/network/hooks'
+import { getActiveNetworkExecution } from '@/features/network/runtime-reattach-api'
 import { streamNetworkExecution } from '@/features/network/stream'
 import type { NetworkRuntimeEvent } from '@/features/network/types'
 import type { AgentNodeId, Environment, NetworkBinding } from './networkWorkspaceTypes'
 import { buildTurnFromRuntimeEvents, type NetworkExecution, type NetworkTurn, type RuntimeEventRecord } from './networkChatExecution'
+import { createNetworkLiveAnswerScheduler } from './networkLiveAnswerScheduler'
 import { createNetworkTraceRecord } from './networkObservabilityFactory'
 import type { NetworkTraceRecord } from './networkObservabilityTypes'
 import type { NetworkSession } from './networkSessionTypes'
@@ -39,6 +41,18 @@ interface NetworkChatWorkspaceProps {
 }
 
 const BOTTOM_THRESHOLD_PX = 56
+const LIVE_EXECUTION_EVENT_TYPES = new Set([
+  'agent_invocation_started',
+  'agent_invocation_completed',
+  'agent_invocation_failed',
+  'agent_invocation_cancelled',
+  'tool_call_started',
+  'tool_call_completed',
+  'sources',
+  'delegation_started',
+  'execution_failed',
+  'execution_cancelled',
+])
 
 function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
   if (eventType === 'execution_accepted') return `Execution accepted in ${String(event.data.environment ?? 'runtime')}`
@@ -47,6 +61,7 @@ function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
   if (eventType === 'agent_invocation_started') return `Agent started: ${String(event.data.label ?? event.agent_id ?? 'unknown')}`
   if (eventType === 'agent_invocation_completed') return `Agent completed at depth ${event.depth ?? 0}`
   if (eventType === 'agent_invocation_failed') return `Agent failed: ${String(event.data.message ?? event.data.code ?? 'runtime error')}`
+  if (eventType === 'agent_invocation_cancelled') return `Agent cancelled at depth ${event.depth ?? 0}`
   if (eventType === 'tool_call_started') return `Calling tool: ${String(event.data.tool_name ?? 'tool')}`
   if (eventType === 'tool_call_completed') return `Tool completed: ${String(event.data.tool_name ?? 'tool')}`
   if (eventType === 'delegation_started') return `Delegating to ${String(event.data.target ?? event.data.target_node_id ?? 'Agent')}`
@@ -65,6 +80,14 @@ function isPublicFinalToken(event: NetworkRuntimeEvent) {
   return event.data.visibility === 'assistant' && event.data.channel === 'final'
 }
 
+function updatesLiveExecution(eventType: string) {
+  return LIVE_EXECUTION_EVENT_TYPES.has(eventType)
+}
+
+function shouldRecordRuntimeEvent(eventType: string) {
+  return eventType !== 'token' && eventType !== 'token_retract' && eventType !== 'run.state'
+}
+
 function parsedOutputFromEvent(event: NetworkRuntimeEvent): Record<string, unknown> | null {
   const value = event.data.parsed_output
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
@@ -78,6 +101,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   const [localTurns, setLocalTurns] = useState<NetworkTurn[]>([])
   const [creatingSession, setCreatingSession] = useState(false)
   const [running, setRunning] = useState(false)
+  const [stopping, setStopping] = useState(false)
   const [pendingMessage, setPendingMessage] = useState<string | null>(null)
   const [liveAnswer, setLiveAnswer] = useState('')
   const [liveActivity, setLiveActivity] = useState<string[]>([])
@@ -90,13 +114,31 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   const shouldStickToBottomRef = useRef(true)
   const abortRef = useRef<AbortController | null>(null)
   const executionIdRef = useRef<string | null>(null)
+  const stopIntentRef = useRef(false)
+  const reattachExecutionRef = useRef<string | null>(null)
   const previousSessionIdRef = useRef<string | null>(activeSession?.id ?? null)
+  const mountedRef = useRef(true)
+  const liveAnswerSchedulerRef = useRef<ReturnType<typeof createNetworkLiveAnswerScheduler> | null>(null)
+  if (liveAnswerSchedulerRef.current === null) {
+    liveAnswerSchedulerRef.current = createNetworkLiveAnswerScheduler(setLiveAnswer)
+  }
   const changed = Boolean(activeSession && environment !== 'draft' && activeSession.networkVersion !== currentVersionId)
   const turns = useMemo(() => reconcileNetworkTurns(historyTurns, localTurns), [historyTurns, localTurns])
   const counts = Object.values(bindings).reduce<Record<NetworkBinding['source'], number>>((result, binding) => ({ ...result, [binding.source]: result[binding.source] + 1 }), { draft: 0, staging: 0, release: 0 })
 
+  const scheduleLiveAnswer = (answer: string) => {
+    liveAnswerSchedulerRef.current?.schedule(answer)
+  }
+
+  const flushLiveAnswer = (answer: string) => {
+    liveAnswerSchedulerRef.current?.flush(answer)
+  }
+
   const clearLiveState = () => {
+    liveAnswerSchedulerRef.current?.clear()
+    stopIntentRef.current = false
     setRunning(false)
+    setStopping(false)
     setPendingMessage(null)
     setLiveAnswer('')
     setLiveActivity([])
@@ -106,7 +148,12 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
     setLiveOutputParseError(null)
   }
 
-  useLayoutEffect(() => () => abortRef.current?.abort(), [])
+  useLayoutEffect(() => () => {
+    mountedRef.current = false
+    liveAnswerSchedulerRef.current?.clear()
+    abortRef.current?.abort()
+    abortRef.current = null
+  }, [])
   useLayoutEffect(() => {
     const nextSessionId = activeSession?.id ?? null
     if (previousSessionIdRef.current === nextSessionId) return
@@ -135,21 +182,138 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
     ])
   }
 
-  const stop = () => {
-    const wasRunning = running
-    const executionId = executionIdRef.current
-    abortRef.current?.abort()
-    abortRef.current = null
-    executionIdRef.current = null
-    clearLiveState()
-    if (wasRunning && executionId) {
-      void cancelNetworkExecution(executionId, projectId)
-        .then(async () => {
-          toast.info('Network execution cancellation requested')
-          if (activeSession) await refreshPersistedSession(activeSession.id)
+  const requestCancellation = (executionId: string) => {
+    stopIntentRef.current = false
+    setStopping(true)
+    setLiveActivity((items) => [...items.slice(-5), 'Cancellation requested. Waiting for runtime finalization...'])
+    void cancelNetworkExecution(executionId, projectId)
+      .then(() => toast.info('Network execution cancellation requested'))
+      .catch((error) => {
+        setStopping(false)
+        toast.warning(error instanceof Error ? error.message : 'Run cancellation could not be confirmed')
+      })
+  }
+
+  useLayoutEffect(() => {
+    if (!networkId || !projectId || !runtimeEnabled || running || creatingSession) return
+    let disposed = false
+
+    void (async () => {
+      let active
+      try {
+        active = await getActiveNetworkExecution({
+          networkSessionId: activeSession?.id,
+          networkId,
+          environment,
         })
-        .catch(() => toast.warning('Connection closed, but cancellation could not be confirmed'))
-    } else if (wasRunning) toast.info('Network execution connection stopped')
+      } catch {
+        return
+      }
+      if (!active || disposed || reattachExecutionRef.current === active.execution_id) return
+
+      if (!activeSession || activeSession.id !== active.network_session_id) {
+        onSelectSession(active.network_session_id)
+        return
+      }
+
+      reattachExecutionRef.current = active.execution_id
+      executionIdRef.current = active.execution_id
+      liveAnswerSchedulerRef.current?.clear()
+      setRunning(true)
+      setStopping(active.status === 'cancel_requested')
+      setPendingMessage(active.input_message)
+      setLiveAnswer('')
+      setLiveActivity([active.status === 'cancel_requested' ? 'Stopping active Network Run...' : 'Resuming active Network Run...'])
+      setLiveExecution(emptyLiveNetworkExecution())
+      setLiveResponseCommitted(false)
+      setLiveParsedOutput(null)
+      setLiveOutputParseError(null)
+      setLastHeartbeatAt(null)
+      shouldStickToBottomRef.current = true
+
+      const controller = new AbortController()
+      abortRef.current = controller
+      let answer = ''
+      let terminalObserved = false
+      try {
+        await streamNetworkExecution({
+          networkId,
+          projectId,
+          networkSessionId: active.network_session_id,
+          executionId: active.execution_id,
+          message: active.input_message,
+        }, {
+          onExecutionId: (id) => { executionIdRef.current = id },
+          onEvent: (eventType, event) => {
+            if (updatesLiveExecution(eventType)) {
+              setLiveExecution((current) => applyNetworkRuntimeEvent(current, eventType, event))
+            }
+            if (eventType !== 'token' && eventType !== 'token_retract' && eventType !== 'run.state') {
+              setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
+            }
+            if (eventType === 'token' && isPublicFinalToken(event)) {
+              const chunk = event.data.content
+              if (typeof chunk === 'string') {
+                answer += chunk
+                scheduleLiveAnswer(answer)
+              }
+            }
+            if (eventType === 'token_retract') {
+              const length = event.data.content_length
+              if (typeof length === 'number' && length > 0) {
+                answer = answer.slice(0, Math.max(0, answer.length - length))
+                scheduleLiveAnswer(answer)
+              }
+            }
+            if (eventType === 'agent_invocation_completed' && !event.parent_invocation_id) {
+              flushLiveAnswer(answer)
+              setLiveParsedOutput(parsedOutputFromEvent(event))
+              setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
+              setLiveResponseCommitted(true)
+            }
+            if (eventType === 'execution_completed') {
+              flushLiveAnswer(answer)
+              setLiveParsedOutput(parsedOutputFromEvent(event))
+              setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
+              setLiveResponseCommitted(true)
+            }
+            if (eventType === 'execution_failed' || eventType === 'execution_cancelled') {
+              flushLiveAnswer(answer)
+              setStopping(false)
+            }
+          },
+          onHeartbeat: () => setLastHeartbeatAt(Date.now()),
+        }, controller.signal)
+        terminalObserved = true
+        await refreshPersistedSession(active.network_session_id)
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          toast.warning(error instanceof Error ? error.message : 'Network Run resume failed')
+        }
+      } finally {
+        const ownsObserver = abortRef.current === controller
+        if (ownsObserver) abortRef.current = null
+        if (executionIdRef.current === active.execution_id) executionIdRef.current = null
+        if (terminalObserved && reattachExecutionRef.current === active.execution_id) {
+          reattachExecutionRef.current = null
+        }
+        if (ownsObserver && mountedRef.current) clearLiveState()
+      }
+    })()
+
+    return () => { disposed = true }
+  }, [activeSession?.id, creatingSession, environment, networkId, onSelectSession, projectId, running, runtimeEnabled])
+
+  const stop = () => {
+    if (!running || stopping) return
+    const executionId = executionIdRef.current
+    setStopping(true)
+    if (!executionId) {
+      stopIntentRef.current = true
+      setLiveActivity((items) => [...items.slice(-5), 'Waiting for Network Run identity before stopping...'])
+      return
+    }
+    requestCancellation(executionId)
   }
 
   const startNew = () => {
@@ -198,8 +362,11 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
       if (environment === 'draft') preparedDraftRevision = session.draftRevision ?? undefined
     }
 
+    liveAnswerSchedulerRef.current?.clear()
+    stopIntentRef.current = false
     setText('')
     setRunning(true)
+    setStopping(false)
     setPendingMessage(content)
     setLiveAnswer('')
     setLiveActivity([])
@@ -221,21 +388,34 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
       const expectedDraftRevision = environment === 'draft' ? preparedDraftRevision ?? await onBeforeDraftRun() : undefined
       const executionBindings = environment === 'draft' ? Object.fromEntries(Object.entries(bindings).map(([nodeId, binding]) => [nodeId, { ...binding, version: `r${expectedDraftRevision}`, dirty: false }])) as Record<AgentNodeId, NetworkBinding> : bindings
       await streamNetworkExecution({ networkId, projectId, networkSessionId: session.id, message: content, expectedDraftRevision }, {
-        onExecutionId: (id) => { executionId = id; executionIdRef.current = id },
+        onExecutionId: (id) => {
+          executionId = id
+          executionIdRef.current = id
+          reattachExecutionRef.current = id
+          if (stopIntentRef.current) requestCancellation(id)
+        },
         onEvent: (eventType, event) => {
-          if (!executionId && event.execution_id) { executionId = event.execution_id; executionIdRef.current = event.execution_id }
-          records.push({ eventType, event })
-          setLiveExecution((current) => applyNetworkRuntimeEvent(current, eventType, event))
-          if (eventType !== 'token' && eventType !== 'token_retract') setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
+          if (!executionId && event.execution_id) {
+            executionId = event.execution_id
+            executionIdRef.current = event.execution_id
+            reattachExecutionRef.current = event.execution_id
+            if (stopIntentRef.current) requestCancellation(event.execution_id)
+          }
+          if (shouldRecordRuntimeEvent(eventType)) records.push({ eventType, event })
+          if (updatesLiveExecution(eventType)) {
+            setLiveExecution((current) => applyNetworkRuntimeEvent(current, eventType, event))
+          }
+          if (eventType !== 'token' && eventType !== 'token_retract' && eventType !== 'run.state') setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
           if (eventType === 'token' && isPublicFinalToken(event)) {
             const chunk = event.data.content
-            if (typeof chunk === 'string') { answer += chunk; setLiveAnswer(answer) }
+            if (typeof chunk === 'string') { answer += chunk; scheduleLiveAnswer(answer) }
           }
           if (eventType === 'token_retract') {
             const length = event.data.content_length
-            if (typeof length === 'number' && length > 0) { answer = answer.slice(0, Math.max(0, answer.length - length)); setLiveAnswer(answer) }
+            if (typeof length === 'number' && length > 0) { answer = answer.slice(0, Math.max(0, answer.length - length)); scheduleLiveAnswer(answer) }
           }
           if (eventType === 'agent_invocation_completed' && !event.parent_invocation_id) {
+            flushLiveAnswer(answer)
             setLiveParsedOutput(parsedOutputFromEvent(event))
             setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
             setLiveResponseCommitted(true)
@@ -243,8 +423,24 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
           if (eventType === 'execution_completed') {
             const id = event.data.trace_id
             if (typeof id === 'string') traceId = id
+            flushLiveAnswer(answer)
+            setLiveParsedOutput(parsedOutputFromEvent(event))
+            setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
+            setLiveResponseCommitted(true)
+            setStopping(false)
           }
-          if (eventType === 'execution_failed' || eventType === 'execution_cancelled') status = 'error'
+          if (eventType === 'execution_failed') {
+            flushLiveAnswer(answer)
+            status = 'error'
+            setStopping(false)
+          }
+          if (eventType === 'execution_cancelled') {
+            const output = event.data.output
+            if (typeof output === 'string') answer = output
+            flushLiveAnswer(answer)
+            status = 'cancelled'
+            setStopping(false)
+          }
         },
         onHeartbeat: () => setLastHeartbeatAt(Date.now()),
       }, controller.signal)
@@ -276,8 +472,8 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
       {historyLoading ? <div className="border-b border-border/60 px-4 py-2 text-[9px] text-muted">Loading persisted Network history…</div> : null}
       {!runtimeEnabled ? <div className="border-b border-red-500/20 bg-red-500/5 px-4 py-2 text-[9px] font-medium text-red-300">{disabledReason}</div> : null}
       <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} pendingMessage={pendingMessage} liveAnswer={liveAnswer} liveActivity={liveActivity} liveExecution={liveExecution} liveResponseCommitted={liveResponseCommitted} liveParsedOutput={liveParsedOutput} liveOutputParseError={liveOutputParseError} onScroll={(event) => { shouldStickToBottomRef.current = isNearBottom(event.currentTarget) }} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
-      {running ? <div className="mx-4 mb-2 text-right text-[9px] text-muted">{lastHeartbeatAt ? 'Runtime heartbeat received' : 'Runtime connection open'}</div> : null}
-      <NetworkChatComposer value={text} running={running} preparing={creatingSession} disabled={!runtimeEnabled} disabledReason={disabledReason} onChange={setText} onSend={() => { void send() }} onStop={stop} />
+      {running ? <div className="mx-4 mb-2 text-right text-[9px] text-muted">{stopping ? 'Stopping… waiting for finalization' : lastHeartbeatAt ? 'Runtime heartbeat received' : 'Runtime connection open'}</div> : null}
+      <NetworkChatComposer value={text} running={running} stopping={stopping} preparing={creatingSession} disabled={!runtimeEnabled} disabledReason={disabledReason} onChange={setText} onSend={() => { void send() }} onStop={stop} />
     </div>
   )
 }

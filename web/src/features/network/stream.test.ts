@@ -36,6 +36,89 @@ function terminalResponse(): Response {
   )
 }
 
+function nonTerminalResponse(): Response {
+  return new Response(
+    `id: 1\nevent: token\ndata: ${JSON.stringify({
+      ...TERMINAL_EVENT,
+      data: { content: 'partial', visibility: 'assistant', channel: 'final' },
+    })}\n\n`,
+    {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'X-Network-Execution-ID': 'execution-1',
+      },
+    },
+  )
+}
+
+function completedStateResponse(sequence = 7): Response {
+  return new Response(
+    `id: ${sequence}\nevent: run.state\ndata: ${JSON.stringify({
+      protocol_version: 1,
+      execution_id: 'execution-1',
+      sequence,
+      data: {
+        run_id: 'execution-1',
+        kind: 'NETWORK',
+        sequence,
+        status: 'completed',
+        output: 'partial answer',
+        trace_id: 'trace-1',
+      },
+    })}\n\n`,
+    {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'X-Network-Execution-ID': 'execution-1',
+      },
+    },
+  )
+}
+
+function gapResponse(): Response {
+  const state = {
+    protocol_version: 1,
+    execution_id: 'execution-1',
+    sequence: 3,
+    data: {
+      run_id: 'execution-1',
+      kind: 'NETWORK',
+      sequence: 3,
+      status: 'running',
+      output: 'partial',
+    },
+  }
+  const skipped = {
+    ...TERMINAL_EVENT,
+    sequence: 5,
+    data: { content: 'must-not-apply', visibility: 'assistant', channel: 'final' },
+  }
+  return new Response(
+    `id: 3\nevent: run.state\ndata: ${JSON.stringify(state)}\n\nid: 5\nevent: token\ndata: ${JSON.stringify(skipped)}\n\n`,
+    {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'X-Network-Execution-ID': 'execution-1',
+      },
+    },
+  )
+}
+
+function eventEnvelope(sequence: number, data: Record<string, unknown>) {
+  return {
+    ...TERMINAL_EVENT,
+    sequence,
+    data,
+  }
+}
+
+function sseEvent(sequence: number, eventType: string, data: Record<string, unknown>) {
+  return `id: ${sequence}\nevent: ${eventType}\ndata: ${JSON.stringify(eventEnvelope(sequence, data))}\n\n`
+}
+
 function bodyFrom(fetchMock: ReturnType<typeof vi.fn>, index: number): Record<string, unknown> {
   const init = fetchMock.mock.calls[index]?.[1] as RequestInit | undefined
   return JSON.parse(String(init?.body)) as Record<string, unknown>
@@ -85,7 +168,108 @@ describe('isTerminalNetworkEvent', () => {
   })
 })
 
-describe('streamNetworkExecution idempotency', () => {
+describe('streamNetworkExecution token delivery', () => {
+  it('preserves granular token events in sequence order', async () => {
+    const body = [
+      sseEvent(1, 'token', { content: 'A', visibility: 'assistant', channel: 'final' }),
+      sseEvent(2, 'token', { content: 'B', visibility: 'assistant', channel: 'final' }),
+      sseEvent(3, 'token', { content: 'C', visibility: 'assistant', channel: 'final' }),
+      sseEvent(4, 'execution_completed', { trace_id: 'trace-1' }),
+    ].join('')
+    const fetchMock = vi.fn().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'X-Network-Execution-ID': 'execution-1',
+      },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    const chunks: string[] = []
+
+    await streamNetworkExecution(streamInput('stable-key'), {
+      onEvent: (eventType, event) => {
+        if (eventType === 'token' && typeof event.data.content === 'string') {
+          chunks.push(event.data.content)
+        }
+      },
+    })
+
+    expect(chunks).toEqual(['A', 'B', 'C'])
+  })
+
+  it('preserves token retract ordering', async () => {
+    const body = [
+      sseEvent(1, 'token', { content: 'Hello', visibility: 'assistant', channel: 'final' }),
+      sseEvent(2, 'token', { content: ' world', visibility: 'assistant', channel: 'final' }),
+      sseEvent(3, 'token_retract', { content_length: 6, reason: 'tool_call_selected' }),
+      sseEvent(4, 'token', { content: 'Woobe', visibility: 'assistant', channel: 'final' }),
+      sseEvent(5, 'execution_completed', { trace_id: 'trace-1' }),
+    ].join('')
+    const fetchMock = vi.fn().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'X-Network-Execution-ID': 'execution-1',
+      },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    let output = ''
+
+    await streamNetworkExecution(streamInput('stable-key'), {
+      onEvent: (eventType, event) => {
+        if (eventType === 'token' && typeof event.data.content === 'string') {
+          output += event.data.content
+        }
+        if (eventType === 'token_retract' && typeof event.data.content_length === 'number') {
+          output = output.slice(0, Math.max(0, output.length - event.data.content_length))
+        }
+      },
+    })
+
+    expect(output).toBe('HelloWoobe')
+  })
+
+  it('reconciles current state before continuing the live tail', async () => {
+    const state = {
+      protocol_version: 1,
+      execution_id: 'execution-1',
+      sequence: 3,
+      data: {
+        run_id: 'execution-1',
+        kind: 'NETWORK',
+        sequence: 3,
+        status: 'running',
+        output: 'Hello wor',
+      },
+    }
+    const body = [
+      `id: 3\nevent: run.state\ndata: ${JSON.stringify(state)}\n\n`,
+      sseEvent(4, 'token', { content: 'ld', visibility: 'assistant', channel: 'final' }),
+      sseEvent(5, 'execution_completed', { trace_id: 'trace-1' }),
+    ].join('')
+    const fetchMock = vi.fn().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'X-Network-Execution-ID': 'execution-1',
+      },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+    let output = ''
+
+    await streamNetworkExecution(streamInput('stable-key'), {
+      onEvent: (eventType, event) => {
+        if (eventType === 'token' && typeof event.data.content === 'string') {
+          output += event.data.content
+        }
+      },
+    })
+
+    expect(output).toBe('Hello world')
+  })
+})
+
+describe('streamNetworkExecution idempotency and reattach', () => {
   it('sends a browser-safe UUID when randomUUID is unavailable', async () => {
     vi.stubGlobal('crypto', {
       getRandomValues: (bytes: Uint8Array) => {
@@ -116,7 +300,7 @@ describe('streamNetworkExecution idempotency', () => {
     expect(bodyFrom(fetchMock, 0).idempotency_key).toBe('network-send-123')
   })
 
-  it('reuses one generated key across transport retries', async () => {
+  it('reuses one generated key across transport retries before the execution id is known', async () => {
     vi.useFakeTimers()
     const randomUUID = vi.fn(() => '11111111-1111-4111-8111-111111111111')
     vi.stubGlobal('crypto', { randomUUID })
@@ -150,5 +334,48 @@ describe('streamNetworkExecution idempotency', () => {
     expect(vi.mocked(refreshAuthSession)).toHaveBeenCalledTimes(1)
     expect(bodyFrom(fetchMock, 0).idempotency_key).toBe('22222222-2222-4222-8222-222222222222')
     expect(bodyFrom(fetchMock, 1).idempotency_key).toBe('22222222-2222-4222-8222-222222222222')
+  })
+
+  it('switches to GET reattach after the canonical Network Run id is known', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(nonTerminalResponse())
+      .mockResolvedValueOnce(completedStateResponse())
+    vi.stubGlobal('fetch', fetchMock)
+    const onEvent = vi.fn()
+
+    const execution = streamNetworkExecution(streamInput('stable-key'), { onEvent })
+    await vi.runAllTimersAsync()
+    await execution
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe('http://api.test/network/network-1/executions/stream')
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).method).toBe('POST')
+    expect(String(fetchMock.mock.calls[1]?.[0])).toBe('http://api.test/network/executions/execution-1/stream')
+    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).method).toBe('GET')
+    expect(onEvent).toHaveBeenCalledWith('run.state', expect.any(Object))
+    expect(onEvent).toHaveBeenCalledWith('execution_completed', expect.any(Object))
+  })
+
+  it('rejects a live sequence gap and recovers through current-state reattach', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(gapResponse())
+      .mockResolvedValueOnce(completedStateResponse(8))
+    vi.stubGlobal('fetch', fetchMock)
+    const onEvent = vi.fn()
+
+    const execution = streamNetworkExecution(streamInput('stable-key'), { onEvent })
+    await vi.runAllTimersAsync()
+    await execution
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit).method).toBe('POST')
+    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).method).toBe('GET')
+    expect(onEvent).not.toHaveBeenCalledWith(
+      'token',
+      expect.objectContaining({ data: expect.objectContaining({ content: 'must-not-apply' }) }),
+    )
+    expect(onEvent).toHaveBeenCalledWith('execution_completed', expect.any(Object))
   })
 })

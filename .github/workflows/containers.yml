@@ -2,7 +2,7 @@ name: Container quality
 
 on:
   pull_request:
-    branches: [development]
+    branches: [development, master]
     types: [opened, reopened, synchronize, ready_for_review]
   workflow_dispatch:
 
@@ -23,16 +23,18 @@ jobs:
       - name: Validate the supported Community Compose contract
         run: docker compose config --quiet
       - name: Build API image
-        run: docker build --tag woobe-api:ci .
+        run: docker build --pull --no-cache --tag woobe-api:ci .
       - name: Build Web image
         run: >-
           docker build
+          --pull
+          --no-cache
           --build-arg VITE_API_URL=http://127.0.0.1:8000
           --build-arg VITE_CHAT_EMBED_URL=http://127.0.0.1:8081
           --build-arg VITE_WOOBE_EDITION=community
           --tag woobe-web:ci web
       - name: Build ChatSurface image
-        run: docker build --tag woobe-chat-embed:ci embed
+        run: docker build --pull --no-cache --tag woobe-chat-embed:ci embed
       - name: Require non-root runtime users
         run: |
           set -euo pipefail

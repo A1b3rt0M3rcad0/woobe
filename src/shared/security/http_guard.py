@@ -58,11 +58,33 @@ def _as_utc(value: datetime) -> datetime:
     return value.astimezone(UTC)
 
 
+def _is_public_run_cancel(method: str, path: str) -> bool:
+    return (
+        method.upper() == "POST"
+        and path.startswith("/v1/runs/")
+        and path.endswith("/cancel")
+    )
+
+
 def public_runtime_interface(method: str, path: str) -> str | None:
     normalized_method = method.upper()
     if normalized_method == "POST" and path == "/v1/run":
         return "http"
     if normalized_method == "POST" and path == "/v1/run/stream":
+        return "stream"
+    if (
+        normalized_method == "GET"
+        and path.startswith("/v1/runs/")
+        and path.endswith("/stream")
+    ):
+        return "stream"
+    if _is_public_run_cancel(normalized_method, path):
+        return "http"
+    if (
+        normalized_method == "GET"
+        and path.startswith("/v1/sessions/")
+        and path.endswith("/active-run")
+    ):
         return "stream"
     if normalized_method == "POST" and path == "/v1/jobs":
         return "jobs"
@@ -79,6 +101,14 @@ def is_runtime_path(path: str) -> bool:
         or path == "/v1/run/stream"
         or path == "/v1/jobs"
         or path.startswith("/v1/jobs/")
+        or (
+            path.startswith("/v1/runs/")
+            and (path.endswith("/stream") or path.endswith("/cancel"))
+        )
+        or (
+            path.startswith("/v1/sessions/")
+            and path.endswith("/active-run")
+        )
     )
 
 
@@ -89,7 +119,11 @@ def is_chat_surface_public_path(path: str) -> bool:
 def is_runtime_execution_request(method: str, path: str) -> bool:
     if path.startswith("/runtime/") or path.startswith("/agent/runtime/"):
         return True
+    if _is_public_run_cancel(method, path):
+        return False
     interface = public_runtime_interface(method, path)
+    if method.upper() == "GET" and interface == "stream":
+        return False
     return interface in {"http", "stream"} or (
         interface == "jobs" and method.upper() == "POST"
     )

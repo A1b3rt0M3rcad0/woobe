@@ -23,8 +23,6 @@ from modules.network.application.runtime_failures import (
 from shared.infra.config import Settings
 
 AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
-_PUBLIC_TOKEN_PHASES = {"response_generation", "final_response_generation"}
-_TOKEN_BATCH_SECONDS = 0.05
 
 
 def _caused_by_empty_model_output(exception: Exception) -> bool:
@@ -39,18 +37,15 @@ def _caused_by_empty_model_output(exception: Exception) -> bool:
 
 
 def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
+    phase = payload.get("phase")
+    public_phase = (
+        phase in {"response_generation", "final_response_generation"}
+        or (isinstance(phase, str) and phase.startswith("tool_followup_"))
+    )
     return (
         payload.get("visibility") == "assistant"
         and payload.get("channel") == "final"
-        and payload.get("phase") in _PUBLIC_TOKEN_PHASES
-    )
-
-
-def _token_signature(payload: dict[str, Any]) -> tuple[object, object, object]:
-    return (
-        payload.get("visibility"),
-        payload.get("channel"),
-        payload.get("phase"),
+        and public_phase
     )
 
 
@@ -128,19 +123,6 @@ class ProjectRAIAgentInvoker:
         stream_token = None
         streamed_output = False
         execution_task: asyncio.Task[Any] | None = None
-        pending_token: dict[str, Any] | None = None
-        pending_signature: tuple[object, object, object] | None = None
-
-        async def flush_token() -> None:
-            nonlocal pending_token, pending_signature
-            if pending_token is None or stream_handler is None:
-                pending_token = None
-                pending_signature = None
-                return
-            payload = pending_token
-            pending_token = None
-            pending_signature = None
-            await stream_handler("token", payload)
 
         try:
             try:
@@ -153,11 +135,9 @@ class ProjectRAIAgentInvoker:
                     while True:
                         if execution_task.done() and channel.queue.empty():
                             break
-                        timeout = _TOKEN_BATCH_SECONDS if pending_token is not None else 0.1
                         try:
-                            event = await asyncio.wait_for(channel.queue.get(), timeout=timeout)
+                            event = await asyncio.wait_for(channel.queue.get(), timeout=0.1)
                         except asyncio.TimeoutError:
-                            await flush_token()
                             continue
 
                         payload = dict(event.payload)
@@ -165,25 +145,14 @@ class ProjectRAIAgentInvoker:
                             if not _is_public_runtime_token(payload):
                                 continue
                             streamed_output = True
-                            signature = _token_signature(payload)
-                            content = str(payload.get("content") or "")
-                            if pending_token is not None and signature == pending_signature:
-                                pending_token["content"] = (
-                                    str(pending_token.get("content") or "") + content
-                                )
-                            else:
-                                await flush_token()
-                                pending_token = payload
-                                pending_signature = signature
+                            # Preserve the Agent Runtime token granularity. The Network
+                            # transport owns ordering and reattach, not presentation batching.
+                            await stream_handler("token", payload)
                             continue
 
-                        # Preserve causal ordering: buffered public tokens must reach
-                        # Redis/SSE before any following non-token event.
-                        await flush_token()
                         if event.event_type not in {"done", "error", "cancelled"}:
                             await stream_handler(event.event_type, payload)
 
-                    await flush_token()
                     output = await execution_task
             except Exception as exc:
                 if _caused_by_empty_model_output(exc):

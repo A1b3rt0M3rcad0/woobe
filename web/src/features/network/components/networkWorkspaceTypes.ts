@@ -33,7 +33,7 @@ export type NetworkRun = {
   id: string
   title: string
   environment: Environment
-  status: 'success' | 'error' | 'running'
+  status: 'success' | 'error' | 'running' | 'cancelled'
   duration: string
   cost: string
   path: NodeId[]

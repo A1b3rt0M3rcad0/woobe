@@ -32,6 +32,9 @@ long_lived_functions = [
   "public_run_composer",
   "public_stream_composer",
   "rerun_agent_run_composer",
+  "active_agent_run_composer",
+  "attach_agent_run_composer",
+  "cancel_agent_run_composer",
 ]
 forbidden_parameter_types = ["AsyncSession", "AsyncEngine", "async_sessionmaker"]
 forbidden_parameter_names = ["session", "session_factory", "async_engine", "engine"]

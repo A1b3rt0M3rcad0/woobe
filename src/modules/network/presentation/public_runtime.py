@@ -16,7 +16,8 @@ from modules.network.infra.database.models import (
     NetworkExecutionModel,
     NetworkSessionModel,
 )
-from modules.network.presentation.routes import TERMINAL_STATUSES, _execution_stream
+from modules.network.presentation.reattach_routes import reattach_network_execution
+from modules.network.presentation.routes import TERMINAL_STATUSES
 from shared.infra.errors import (
     AuthorizationError,
     NotFoundError,
@@ -230,19 +231,9 @@ async def run_network_http(request: Request):
 
 
 async def stream_network_http(request: Request) -> StreamingResponse:
-    principal, _, execution = await _submit(request)
-    last_event_id = request.headers.get("Last-Event-ID", "")
-    start_sequence = int(last_event_id) if last_event_id.isdigit() else 0
-    return StreamingResponse(
-        _execution_stream(request, execution.id, principal.project_id, start_sequence),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-            "X-Network-Execution-ID": str(execution.id),
-        },
-    )
+    _, _, execution = await _submit(request)
+    # Create-and-observe and reattach intentionally share the same canonical stream.
+    return await reattach_network_execution(execution.id, request)
 
 
 async def create_network_job(request: Request):

@@ -19,6 +19,7 @@ from modules.agent.infra.execution.frozen_snapshot_runtime import (
 )
 from modules.agent.presentation.controllers.ask_agent_controller import AskAgentController
 from shared.composition_resources import EXECUTION_STATE_STORE
+from shared.infra.best_effort_execution_state import BestEffortExecutionStateStore
 from shared.infra.config import Settings
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
@@ -57,7 +58,11 @@ def _build_agent_runtime(
     runtime.configure_vector_search_reader(
         AgentRuntimeVectorSearchReader(transactions).search
     )
-    runtime.configure_execution_state_store(EXECUTION_STATE_STORE)
+    # Standalone Agent execution must remain valid when realtime infrastructure
+    # degrades. Redis is an observability/reattach path here, not the durable Run.
+    runtime.configure_execution_state_store(
+        BestEffortExecutionStateStore(EXECUTION_STATE_STORE)
+    )
     return runtime, transactions
 
 

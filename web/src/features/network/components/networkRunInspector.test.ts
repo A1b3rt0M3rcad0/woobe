@@ -50,6 +50,11 @@ describe('networkRunInspector', () => {
     expect(networkRunOutcome('running', root)).toBe('running')
   })
 
+  it('keeps cancellation distinct from failure', () => {
+    const root = invocation('root', { status: 'cancelled' })
+    expect(networkRunOutcome('cancelled', root)).toBe('cancelled')
+  })
+
   it('marks a final response with a failed Tool Call as completed with issues', () => {
     const root = invocation('root', { tools: [{ tool_name: 'http_lookup', success: false, status: 'error', error: 'HTTP request failed' }] })
     expect(networkRunOutcome('success', root)).toBe('completed_with_issues')

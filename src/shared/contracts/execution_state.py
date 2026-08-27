@@ -11,6 +11,21 @@ class ExecutionLease:
     generation: int
 
 
+@dataclass(frozen=True)
+class ExecutionEvent:
+    """Ordered runtime event retained by the hot execution store.
+
+    `sequence` is the logical per-Run ordering used by Woobe. `cursor` is an
+    infrastructure cursor used only to continue reading the underlying stream.
+    """
+
+    sequence: int
+    cursor: str
+    event_type: str
+    payload: dict[str, Any]
+    occurred_at: str
+
+
 class ExecutionStateStore(Protocol):
     """Fast, recoverable state for in-flight Runs.
 
@@ -42,6 +57,26 @@ class ExecutionStateStore(Protocol):
         *,
         maxlen: int = 2000,
     ) -> str | None: ...
+
+    async def list_events_after(
+        self,
+        run_id: UUID,
+        sequence: int,
+        *,
+        through_sequence: int | None = None,
+        limit: int = 2000,
+    ) -> list[ExecutionEvent]: ...
+
+    async def read_events_after_cursor(
+        self,
+        run_id: UUID,
+        cursor: str,
+        *,
+        block_ms: int = 1000,
+        limit: int = 100,
+    ) -> list[ExecutionEvent]: ...
+
+    async def first_event_sequence(self, run_id: UUID) -> int | None: ...
 
     async def request_cancel(self, run_id: UUID) -> None: ...
 
