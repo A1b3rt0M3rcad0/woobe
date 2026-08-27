@@ -178,18 +178,33 @@ function buildModelMetadata(
   supportsTools: CapabilityChoice,
   supportsJson: CapabilityChoice,
   supportsStreaming: CapabilityChoice,
+  capabilitiesChanged: boolean,
 ) {
   const base = metadataOf(selectedModel)
   const input = inputCost.trim() ? Number(inputCost) : null
   const output = outputCost.trim() ? Number(outputCost) : null
   const context = contextWindow.trim() ? Number(contextWindow) : null
   const maxOutput = maxOutputTokens.trim() ? Number(maxOutputTokens) : null
+  const catalog = recordOf(base.catalog)
+  const preservedCapabilitySource = typeof base.capability_source === 'string'
+    ? base.capability_source
+    : catalog.context_window != null ? 'provider_catalog' : 'manual'
+  const capabilitySource = catalogModel
+    ? 'provider_catalog'
+    : selectedModel && !capabilitiesChanged
+      ? preservedCapabilitySource
+      : 'manual'
+  const source = catalogModel
+    ? 'remote'
+    : selectedModel && typeof base.source === 'string'
+      ? base.source
+      : 'manual'
 
   return {
     ...base,
     capability: 'generation',
-    source: catalogModel ? 'remote' : 'manual',
-    capability_source: catalogModel ? 'provider_catalog' : 'manual',
+    source,
+    capability_source: capabilitySource,
     context_window: context,
     max_output_tokens: maxOutput,
     catalog: catalogModel ? {
@@ -513,6 +528,17 @@ function ModelSetupDialog({
     if (maxOutputTokens.trim() && positiveIntegerOrNull(maxOutputTokens) == null) return toast.error('Maximum output must be a positive whole number')
     if (contextWindow.trim() && maxOutputTokens.trim() && Number(maxOutputTokens) > Number(contextWindow)) return toast.error('Maximum output cannot exceed the model Context Window')
 
+    const originalCapabilities = selectedModel ? capabilitiesOf(selectedModel) : null
+    const nextContextWindow = contextWindow.trim() ? Number(contextWindow) : null
+    const nextMaxOutputTokens = maxOutputTokens.trim() ? Number(maxOutputTokens) : null
+    const capabilitiesChanged = Boolean(originalCapabilities && (
+      originalCapabilities.contextWindow !== nextContextWindow
+      || originalCapabilities.maxOutputTokens !== nextMaxOutputTokens
+      || originalCapabilities.supportsTools !== supportsTools
+      || originalCapabilities.supportsJson !== supportsJson
+      || originalCapabilities.supportsStreaming !== supportsStreaming
+    ))
+
     const metadata = buildModelMetadata(
       selectedModel,
       catalogModel,
@@ -524,6 +550,7 @@ function ModelSetupDialog({
       supportsTools,
       supportsJson,
       supportsStreaming,
+      capabilitiesChanged,
     )
     try {
       if (selectedModel) {
@@ -556,23 +583,32 @@ function ModelSetupDialog({
   }
 
   return (
-    <Dialog open={open} onClose={busy ? () => undefined : onClose} title={selectedModel ? 'Edit model' : step === 'credential' ? 'Connect provider' : 'New model'} className="max-h-[calc(100svh-2rem)] max-w-4xl overflow-hidden">
+    <Dialog
+      open={open}
+      onClose={busy ? () => undefined : onClose}
+      title={selectedModel ? 'Edit model' : step === 'credential' ? 'Connect provider' : 'New model'}
+      className="max-h-[calc(100svh-2rem)] max-w-2xl overflow-hidden"
+      contentClassName="overflow-hidden p-0"
+      scrollMode="content"
+    >
       {step === 'credential' && !selectedModel ? (
-        <ProviderCredentialCreateForm
-          projectId={projectId}
-          existingCredentials={allCredentials}
-          onCreated={(created) => {
-            setCreatedCredential(created)
-            setCredentialId(created.id)
-            setStep('model')
-            toast.success('Provider connected')
-          }}
-          onCancel={onClose}
-          submitLabel="Connect and continue"
-        />
+        <div className="p-6">
+          <ProviderCredentialCreateForm
+            projectId={projectId}
+            existingCredentials={allCredentials}
+            onCreated={(created) => {
+              setCreatedCredential(created)
+              setCredentialId(created.id)
+              setStep('model')
+              toast.success('Provider connected')
+            }}
+            onCancel={onClose}
+            submitLabel="Connect and continue"
+          />
+        </div>
       ) : (
-        <form onSubmit={handleSubmit}>
-          <div className="scrollbar-thin max-h-[calc(100svh-8rem)] space-y-5 overflow-y-auto pr-1">
+        <form onSubmit={handleSubmit} className="flex min-h-0 max-h-[calc(100svh-7rem)] flex-col">
+          <div className="scrollbar-thin min-h-0 flex-1 space-y-5 overflow-y-auto px-6 py-5">
             <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
               <div className="mb-5">
                 <h3 className="text-sm font-semibold text-white">Provider connection</h3>
@@ -685,20 +721,26 @@ function ModelSetupDialog({
                     <p className="mt-1 text-[10px] leading-4 text-muted">Provider/model output ceiling. This is not treated as Context Window.</p>
                   </div>
                 </div>
-                <div className="mt-4 grid gap-4 sm:grid-cols-3">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-muted">Tool calling</label>
-                    <Select value={supportsTools} onChange={(event) => setSupportsTools(event.target.value as CapabilityChoice)} options={capabilityOptions} />
+                <details className="mt-4 rounded-lg border border-border/80 bg-background/45">
+                  <summary className="cursor-pointer px-3 py-2.5 text-sm font-medium text-muted transition-colors hover:text-white">
+                    Advanced capabilities
+                    <span className="ml-2 text-[10px] font-normal text-muted/70">Tool calling, structured output, streaming</span>
+                  </summary>
+                  <div className="space-y-4 border-t border-border/70 p-3">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-muted">Tool calling</label>
+                      <Select value={supportsTools} onChange={(event) => setSupportsTools(event.target.value as CapabilityChoice)} options={capabilityOptions} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-muted">Structured output</label>
+                      <Select value={supportsJson} onChange={(event) => setSupportsJson(event.target.value as CapabilityChoice)} options={capabilityOptions} />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-sm font-medium text-muted">Streaming</label>
+                      <Select value={supportsStreaming} onChange={(event) => setSupportsStreaming(event.target.value as CapabilityChoice)} options={capabilityOptions} />
+                    </div>
                   </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-muted">Structured output</label>
-                    <Select value={supportsJson} onChange={(event) => setSupportsJson(event.target.value as CapabilityChoice)} options={capabilityOptions} />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-muted">Streaming</label>
-                    <Select value={supportsStreaming} onChange={(event) => setSupportsStreaming(event.target.value as CapabilityChoice)} options={capabilityOptions} />
-                  </div>
-                </div>
+                </details>
               </section>
             )}
 
@@ -708,7 +750,7 @@ function ModelSetupDialog({
                   <h3 className="text-sm font-semibold text-white">Pricing metadata</h3>
                   <p className="mt-1 text-xs leading-5 text-muted">Optional costs used for estimation and trace analysis.</p>
                 </div>
-                <div className="grid gap-4 sm:grid-cols-3">
+                <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className="mb-1 block text-sm font-medium text-muted">Input / 1M</label>
                     <Input value={inputCost} onChange={(event) => setInputCost(event.target.value)} inputMode="decimal" placeholder="Optional" />
@@ -717,7 +759,7 @@ function ModelSetupDialog({
                     <label className="mb-1 block text-sm font-medium text-muted">Output / 1M</label>
                     <Input value={outputCost} onChange={(event) => setOutputCost(event.target.value)} inputMode="decimal" placeholder="Optional" />
                   </div>
-                  <div>
+                  <div className="sm:col-span-2">
                     <label className="mb-1 block text-sm font-medium text-muted">Currency</label>
                     <Input value={currency} onChange={(event) => setCurrency(event.target.value)} placeholder="USD" />
                   </div>
@@ -743,7 +785,7 @@ function ModelSetupDialog({
             )}
           </div>
 
-          <div className="mt-5 flex justify-end gap-2 border-t border-border pt-4">
+          <div className="flex shrink-0 justify-end gap-2 border-t border-border bg-surface/95 px-6 py-4">
             <Button type="button" variant="outline" onClick={onClose} disabled={busy}>Cancel</Button>
             <Button type="submit" loading={busy} disabled={!credential || !modelId.trim()}>{selectedModel ? 'Save changes' : 'Create model'}</Button>
           </div>
