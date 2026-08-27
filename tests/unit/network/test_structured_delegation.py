@@ -51,8 +51,29 @@ class FakeInvoker:
         )
 
 
-@pytest.mark.asyncio
-async def test_specialist_parsed_output_is_returned_as_tool_result_object() -> None:
+class DuplicateDelegationInvoker:
+    def __init__(self, root_agent_id, specialist_agent_id) -> None:
+        self.root_agent_id = root_agent_id
+        self.specialist_agent_id = specialist_agent_id
+        self.specialist_calls = 0
+        self.first_result = None
+        self.second_result = None
+
+    async def invoke(self, *, agent_id, internal_tools, **kwargs):
+        if agent_id == self.specialist_agent_id:
+            self.specialist_calls += 1
+            return AgentInvocationResult(answer="specialist result")
+        assert agent_id == self.root_agent_id
+        arguments = {
+            "task": "Inspect the same customer issue",
+            "context": {"customer_id": "42"},
+        }
+        self.first_result = await internal_tools[0].handler(arguments)
+        self.second_result = await internal_tools[0].handler(arguments)
+        return AgentInvocationResult(answer="root result")
+
+
+def _runtime_setup():
     network_id = uuid4()
     project_id = uuid4()
     session_id = uuid4()
@@ -127,6 +148,12 @@ async def test_specialist_parsed_output_is_returned_as_tool_result_object() -> N
         input_message="How does the customer feel?",
         draft_revision=None,
     )
+    return execution, version, root_agent_id, specialist_agent_id
+
+
+@pytest.mark.asyncio
+async def test_specialist_parsed_output_is_returned_as_tool_result_object() -> None:
+    execution, version, root_agent_id, specialist_agent_id = _runtime_setup()
     invoker = FakeInvoker(root_agent_id, specialist_agent_id)
     result = await NetworkExecutor(invoker=invoker, store=FakeStore()).execute(
         execution,
@@ -139,3 +166,28 @@ async def test_specialist_parsed_output_is_returned_as_tool_result_object() -> N
         "result_type": "structured",
         "result": {"sentiment": "negative", "confidence": 0.91},
     }
+
+
+@pytest.mark.asyncio
+async def test_equivalent_delegation_is_skipped_without_second_agent_run() -> None:
+    execution, version, root_agent_id, specialist_agent_id = _runtime_setup()
+    store = FakeStore()
+    invoker = DuplicateDelegationInvoker(root_agent_id, specialist_agent_id)
+
+    result = await NetworkExecutor(invoker=invoker, store=store).execute(
+        execution,
+        version,
+    )
+
+    assert result.answer == "root result"
+    assert invoker.specialist_calls == 1
+    assert invoker.first_result == {
+        "success": True,
+        "result_type": "text",
+        "result": "specialist result",
+    }
+    assert invoker.second_result["success"] is False
+    assert invoker.second_result["error_code"] == "duplicate_delegation"
+    skipped = [payload for event_type, payload in store.events if event_type == "delegation_skipped"]
+    assert len(skipped) == 1
+    assert skipped[0]["reason"] == "duplicate_delegation"
