@@ -159,6 +159,20 @@ def classify_runtime_exception(
         for item in chain
     ).lower()
 
+    if (
+        "pinned agent session was not found" in normalized
+        or "pinned agent session does not belong to this agent" in normalized
+    ):
+        return NetworkRuntimeFailure(
+            code="agent_context_error",
+            stage="agent_context_preparation",
+            safe_message=(
+                "The Agent session continuity could not be restored for this Network Run."
+            ),
+            internal_detail=detail,
+            retryable=False,
+            **fields,
+        )
     if "credential" in normalized or "decrypt" in normalized or "secret" in normalized:
         return NetworkRuntimeFailure(
             code="credential_error",
