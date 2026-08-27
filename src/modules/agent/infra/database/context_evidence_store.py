@@ -5,13 +5,13 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from modules.agent.infra.database.context_models import (
     ContextContributionModel,
     ContextSnapshotModel,
     ModelInvocationModel,
 )
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
 def _uuid(value: Any) -> UUID | None:
@@ -45,10 +45,10 @@ def _as_float(value: Any) -> float | None:
 
 
 class ContextEvidenceStore:
-    """Persist Context evidence inside the Agent UnitOfWork terminal transaction."""
+    """Persist Context evidence inside the caller's current SQL transaction."""
 
-    def __init__(self, uow: AgentUnitOfWork) -> None:
-        self._uow = uow
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
 
     async def persist_from_calls(
         self,
@@ -61,7 +61,7 @@ class ContextEvidenceStore:
         network_invocation_id: UUID | None,
         calls: list[dict[str, Any]],
     ) -> None:
-        session = self._uow.session
+        session = self._session
         for call in calls:
             if not isinstance(call, dict):
                 continue
@@ -242,7 +242,7 @@ class ContextEvidenceStore:
         await session.flush()
 
     async def list_by_run(self, agent_run_id: UUID) -> list[dict[str, Any]]:
-        session = self._uow.session
+        session = self._session
         invocations = list(
             (
                 await session.execute(
