@@ -7,6 +7,7 @@ from sqlalchemy import select
 from modules.agent.application.interfaces.agent_run_repository import AgentRunRepository
 from modules.agent.domain.run import AgentRun, AgentRunStatus
 from modules.agent.infra.database.context_evidence_store import ContextEvidenceStore
+from modules.agent.infra.database.models import MessageModel
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
@@ -144,6 +145,10 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
         )
         model = result.scalar_one_or_none()
         return _to_entity(model) if model is not None else None
+
+    async def get_output_message_content(self, message_id: UUID) -> str | None:
+        message = await self._uow.session.get(MessageModel, message_id)
+        return str(message.content) if message is not None else None
 
     async def list_model_invocations(self, run_id: UUID) -> list[dict]:
         durable = await ContextEvidenceStore(self._uow.session).list_by_run(run_id)
