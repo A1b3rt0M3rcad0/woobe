@@ -7,6 +7,13 @@ from typing import Any, Awaitable, Callable
 import uuid6
 from langchain_core.messages import ToolMessage
 
+from modules.agent.application.context_assembly import (
+    assemble_context,
+    enrich_snapshot_with_reported_usage,
+    estimate_input_units,
+    snapshot_to_dict,
+)
+from modules.agent.application.context_policy import ContextPolicyV1
 from modules.agent.application.dtos.runtime_dtos import ToolCallInfo, UsageInfo
 from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
@@ -28,13 +35,6 @@ from modules.agent.infra.execution.tool_invocation_metrics import (
     ToolInvocationMetrics,
     current_tool_invocation_metrics,
 )
-from modules.context.application.assembly import (
-    assemble_context,
-    enrich_snapshot_with_reported_usage,
-    estimate_input_units,
-    snapshot_to_dict,
-)
-from modules.context.application.policy import ContextPolicyV1
 from shared.contracts.llm_cost import calculate_llm_cost
 from shared.contracts.llm_usage import normalize_llm_usage
 
@@ -106,18 +106,14 @@ def _assemble_invocation_context(
     pricing_snapshot: dict[str, Any] | None,
 ):
     context = current_execution.get()
-    if (
-        context is None
-        or context.run_id is None
-        or context.project_id is None
-    ):
+    if context is None or context.run_id is None or context.project_id is None:
         return messages, None
 
     policy = ContextPolicyV1.model_validate(context.context_policy or {})
     previous_capacity = context.model_capacity_units
     previous_tools = context.active_tool_definitions
-    # Model capacity is invocation-specific. Fallback models must never inherit the
-    # primary model's capacity when their ProviderModel metadata does not define it.
+    # Capacity is invocation-specific. A fallback must not inherit the primary
+    # model context window when its ProviderModel metadata does not define one.
     context.model_capacity_units = _positive_int(
         (pricing_snapshot or {}).get("context_window")
     )
