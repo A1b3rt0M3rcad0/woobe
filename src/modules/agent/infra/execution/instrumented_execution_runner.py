@@ -98,11 +98,12 @@ async def run_instrumented_execution(
     )
     model = base_model.bind_tools(agent_tools, tool_choice="auto") if has_tools else base_model
 
-    # Tool-capable executions always separate orchestration from the final response.
-    # This keeps planning text private and gives the runtime one Tool-disabled
-    # terminal synthesis after successful or failed Tool/delegation attempts.
+    context = current_execution.get()
+    network_execution = bool(context and context.network_execution_id)
+    # Network Tool/delegation execution separates orchestration from the public
+    # response. JSON Tool flows already require the same two-phase contract.
     final_model = None
-    if has_tools:
+    if has_tools and (network_execution or json_enabled):
         final_model = (
             llm_factory.create_chat_model(
                 provider=provider,
