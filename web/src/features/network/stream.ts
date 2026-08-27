@@ -73,11 +73,90 @@ function eventData(event: NetworkRuntimeEvent): Record<string, unknown> {
   return event.data && typeof event.data === 'object' ? event.data : {}
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function asNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
 function syntheticEvent(
   source: NetworkRuntimeEvent,
   data: Record<string, unknown>,
 ): NetworkRuntimeEvent {
   return { ...source, data }
+}
+
+function snapshotInvocationEvent(
+  source: NetworkRuntimeEvent,
+  rawInvocation: unknown,
+  *,
+  completed: boolean,
+): NetworkRuntimeEvent | null {
+  const invocation = asRecord(rawInvocation)
+  const invocationId = asString(invocation.id)
+  if (!invocationId) return null
+  const data: Record<string, unknown> = {
+    label: invocation.label ?? invocation.agent_id ?? 'Agent',
+    provider: invocation.provider ?? null,
+    model: invocation.model ?? null,
+    source: invocation.source ?? null,
+    version: invocation.version ?? null,
+    context_state: invocation.context_state ?? null,
+    previous_invocation_count: invocation.previous_invocation_count ?? 0,
+    agent_session_id: invocation.agent_session_id ?? null,
+  }
+  if (completed) {
+    data.trace_id = invocation.trace_id ?? null
+    data.usage = invocation.usage ?? null
+    const failure = asRecord(invocation.failure)
+    Object.assign(data, failure)
+  } else {
+    data.started_at = invocation.started_at ?? source.created_at ?? null
+  }
+  return {
+    ...source,
+    invocation_id: invocationId,
+    parent_invocation_id: asString(invocation.parent_invocation_id),
+    node_id: asString(invocation.node_id),
+    agent_id: asString(invocation.agent_id),
+    depth: asNumber(invocation.depth) ?? 0,
+    created_at: asString(completed ? invocation.completed_at : invocation.started_at) ?? source.created_at,
+    data,
+  }
+}
+
+function hydrateInvocationSnapshot(
+  source: NetworkRuntimeEvent,
+  data: Record<string, unknown>,
+  callbacks: NetworkStreamCallbacks,
+) {
+  const rawInvocations = Array.isArray(data.invocations) ? data.invocations : []
+  for (const rawInvocation of rawInvocations) {
+    const invocation = asRecord(rawInvocation)
+    const started = snapshotInvocationEvent(source, invocation, { completed: false })
+    if (!started) continue
+    callbacks.onEvent('agent_invocation_started', started)
+
+    const status = asString(invocation.status)
+    if (!status || status === 'running' || status === 'queued') continue
+    const terminal = snapshotInvocationEvent(source, invocation, { completed: true })
+    if (!terminal) continue
+    if (status === 'completed' || status === 'success') {
+      callbacks.onEvent('agent_invocation_completed', terminal)
+    } else if (status === 'cancelled') {
+      callbacks.onEvent('agent_invocation_cancelled', terminal)
+    } else {
+      callbacks.onEvent('agent_invocation_failed', terminal)
+    }
+  }
 }
 
 function eventSequence(parsed: ParsedSseEvent, event: NetworkRuntimeEvent): number | null {
@@ -156,6 +235,10 @@ function applyRunState(
     streamState.output = output
   }
 
+  // The current projection is authoritative for structural state observed before
+  // this browser attached. Rehydrate those Agent invocations locally, then consume
+  // only the live tail after the projection high-watermark.
+  hydrateInvocationSnapshot(event, data, callbacks)
   callbacks.onEvent('run.state', event)
   const status = typeof data.status === 'string' ? data.status : ''
   if (!TERMINAL_RUN_STATUSES.has(status)) return false
@@ -176,10 +259,13 @@ function applyRunState(
     }))
   } else {
     callbacks.onEvent('execution_failed', syntheticEvent(event, {
-      code: data.failure_code ?? 'runtime_error',
-      message: data.failure_detail ?? 'Network execution failed',
+      code: data.failure_code ?? asRecord(data.error).code ?? 'runtime_error',
+      message: data.failure_detail ?? asRecord(data.error).message ?? 'Network execution failed',
       uncertain: status === 'uncertain',
       trace_id: data.trace_id ?? null,
+      root_partial_result_available: asRecord(data.error).root_partial_result_available ?? false,
+      completed_child_results_available: asRecord(data.error).completed_child_results_available ?? false,
+      completed_child_result_count: asRecord(data.error).completed_child_result_count ?? 0,
     }))
   }
   return true
