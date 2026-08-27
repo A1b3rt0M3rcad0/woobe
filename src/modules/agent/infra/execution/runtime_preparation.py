@@ -7,7 +7,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
-from modules.agent.application.context_policy import canonicalize_context_runtime_config
+from modules.agent.application.interfaces.context_policy import canonicalize_context_runtime_config
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ToolStatus
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
 from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
