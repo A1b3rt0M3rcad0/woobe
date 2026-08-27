@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request as FastAPIRequest
 from fastapi.responses import StreamingResponse
 
 from modules.agent.composition.composers.agent_run_context_composer import (
+    agent_run_context_by_trace_composer,
     agent_run_context_composer,
 )
 from modules.agent.composition.composers.agent_run_reattach_composer import (
@@ -29,6 +30,15 @@ async def active_agent_run(
 ):
     handler = active_agent_run_composer()
     return await handler(request, session_id)
+
+
+@router.get("/by-trace/{trace_id}/model-invocations")
+async def list_agent_run_model_invocations_by_trace(
+    trace_id: UUID,
+    request: FastAPIRequest,
+):
+    handler = agent_run_context_by_trace_composer()
+    return await handler(trace_id, request)
 
 
 @router.get("/{run_id}/model-invocations")
