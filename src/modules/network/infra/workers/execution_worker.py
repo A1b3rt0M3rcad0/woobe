@@ -163,6 +163,7 @@ class NetworkExecutionProcessor:
                 status="failed",
                 code="budget_exceeded",
                 detail=str(exc),
+                message=str(exc),
                 uncertain=False,
             )
         except NetworkRuntimeFailure as exc:
@@ -173,8 +174,10 @@ class NetworkExecutionProcessor:
                 status="failed",
                 code=exc.code,
                 detail=exc.internal_detail,
+                message=exc.safe_message,
                 uncertain=False,
                 trace_id=exc.trace_id,
+                partial_result_available=exc.partial_result_available,
             )
         except Exception as exc:
             logger.exception("Network execution failed execution_id=%s", execution_id)
@@ -184,6 +187,7 @@ class NetworkExecutionProcessor:
                 status="failed",
                 code="runtime_error",
                 detail=str(exc),
+                message="The Network Run failed before producing a complete result.",
                 uncertain=False,
             )
         finally:
@@ -267,14 +271,22 @@ class NetworkExecutionProcessor:
         status: str,
         code: str,
         detail: str,
+        message: str,
         uncertain: bool,
         trace_id: UUID | None = None,
+        partial_result_available: bool = False,
     ) -> None:
+        output = await self._store.partial_output(execution_id)
+        terminal_has_partial = partial_result_available or bool(output)
         payload = {
             "failure_code": code,
             "failure_detail": detail,
+            "failure_message": message,
             "trace_id": str(trace_id) if trace_id else None,
             "uncertain": uncertain,
+            "output": output,
+            "partial": bool(output),
+            "partial_result_available": terminal_has_partial,
         }
         await self._store.mark_terminal_pending(
             execution_id,
@@ -287,10 +299,12 @@ class NetworkExecutionProcessor:
             version=version,
             invocation_states=invocations,
             terminal_status=status,
-            output=None,
+            output=output,
             trace_id=trace_id,
             failure_code=code,
             failure_detail=detail,
+            failure_message=message,
+            partial_result_available=terminal_has_partial,
             uncertain=uncertain,
         )
         await self._store.mark_persisted(
@@ -316,6 +330,7 @@ class NetworkExecutionProcessor:
             trace_id=None,
             failure_code=code,
             failure_detail=detail,
+            failure_message="The Network Run could not be prepared for execution.",
             uncertain=uncertain,
         )
 
@@ -339,6 +354,8 @@ class NetworkExecutionProcessor:
             trace_id=trace_id,
             failure_code=result.get("failure_code"),
             failure_detail=result.get("failure_detail"),
+            failure_message=result.get("failure_message"),
+            partial_result_available=bool(result.get("partial_result_available")),
             uncertain=bool(result.get("uncertain")),
             streamed_output=bool(result.get("streamed_output")),
         )
@@ -454,6 +471,9 @@ class NetworkLeaseRecoveryWorker:
                         "Execution state disappeared after execution had started; "
                         "automatic replay was blocked."
                     ),
+                    failure_message=(
+                        "The Network execution state was lost after execution started."
+                    ),
                     uncertain=True,
                 )
                 continue
@@ -478,6 +498,8 @@ class NetworkLeaseRecoveryWorker:
                     trace_id=trace_id,
                     failure_code=result.get("failure_code"),
                     failure_detail=result.get("failure_detail"),
+                    failure_message=result.get("failure_message"),
+                    partial_result_available=bool(result.get("partial_result_available")),
                     uncertain=bool(result.get("uncertain")),
                     streamed_output=bool(result.get("streamed_output")),
                 )
@@ -511,6 +533,9 @@ class NetworkLeaseRecoveryWorker:
                 failure_detail=(
                     "Worker lease expired after execution started; automatic replay "
                     "was blocked to avoid duplicate external side effects."
+                ),
+                failure_message=(
+                    "The Network worker lease expired before the Run could be finalized."
                 ),
                 uncertain=uncertain,
             )
