@@ -36,6 +36,14 @@ class ContextBudgetPolicy(BaseModel):
 class ContextRetentionPolicy(BaseModel):
     materialized_content: ContextRetentionMode = ContextRetentionMode.REFERENCES_ONLY
 
+    @model_validator(mode="after")
+    def validate_v1_retention(self) -> "ContextRetentionPolicy":
+        if self.materialized_content != ContextRetentionMode.REFERENCES_ONLY:
+            raise ValueError(
+                "Context Policy v1 supports only references_only retention"
+            )
+        return self
+
 
 class ContextPressurePolicy(BaseModel):
     moderate_at: float = Field(default=0.40, gt=0, lt=1)
