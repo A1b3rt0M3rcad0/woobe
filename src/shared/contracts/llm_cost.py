@@ -52,6 +52,42 @@ def _first_positive_int(*values: Any) -> int | None:
     return None
 
 
+def _mapping(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
+
+
+def _context_window_from_metadata(metadata: dict[str, Any]) -> int | None:
+    """Resolve only explicitly configured/discovered model capacity.
+
+    Provider model discovery persists catalog capability metadata under
+    ``metadata.catalog`` while manual/API configuration may keep the same values
+    at the metadata root. Some providers also retain their original payload in
+    ``provider_model_raw``. All of these are immutable ProviderModel evidence;
+    none of the fallbacks below invent a context window.
+    """
+
+    catalog = _mapping(metadata.get("catalog"))
+    raw = _mapping(metadata.get("provider_model_raw"))
+    raw_top_provider = _mapping(raw.get("top_provider"))
+
+    return _first_positive_int(
+        metadata.get("context_window"),
+        metadata.get("context_length"),
+        metadata.get("max_context_tokens"),
+        metadata.get("max_input_tokens"),
+        catalog.get("context_window"),
+        catalog.get("context_length"),
+        catalog.get("max_context_tokens"),
+        catalog.get("max_input_tokens"),
+        raw.get("context_window"),
+        raw.get("context_length"),
+        raw.get("max_context_tokens"),
+        raw.get("max_input_tokens"),
+        raw_top_provider.get("context_length"),
+        raw_top_provider.get("max_completion_tokens"),
+    )
+
+
 def _stringify(value: Any) -> str | None:
     if value is None:
         return None
@@ -73,8 +109,8 @@ def provider_model_pricing_snapshot(
     - {"pricing": {"input": 0.14, "output": 0.28, "currency": "USD"}}
     - {"input_cost_per_1m_tokens": 0.14, "output_cost_per_1m_tokens": 0.28}
 
-    Context capacity is copied only when ProviderModel metadata provides a positive
-    integer through context_window/context_length/max_context_tokens. Unknown model
+    Context capacity is copied only when ProviderModel metadata or its preserved
+    provider catalog payload contains a positive explicit capacity. Unknown model
     capacity remains unknown; the runtime never invents a provider context window.
     """
     source = metadata or {}
@@ -98,12 +134,7 @@ def provider_model_pricing_snapshot(
     )
     currency = _first_text(pricing.get("currency"), source.get("currency")) or _DEFAULT_CURRENCY
     pricing_id = _first_text(pricing.get("pricing_id"), pricing.get("id"), source.get("pricing_id"))
-    context_window = _first_positive_int(
-        source.get("context_window"),
-        source.get("context_length"),
-        source.get("max_context_tokens"),
-        source.get("max_input_tokens"),
-    )
+    context_window = _context_window_from_metadata(source)
 
     return {
         "provider_model_id": _stringify(provider_model_id),
