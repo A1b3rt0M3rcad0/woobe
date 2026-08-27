@@ -27,6 +27,10 @@ export async function getTraceModelInvocations(traceId: string): Promise<Context
   return get<ContextModelInvocation[]>(`/runtime/runs/by-trace/${traceId}/model-invocations`)
 }
 
+export async function getRunModelInvocations(runId: string): Promise<ContextModelInvocation[]> {
+  return get<ContextModelInvocation[]>(`/runtime/runs/${runId}/model-invocations`)
+}
+
 export interface CreateAskJobParams {
   project_id: string
   agent_id: string
