@@ -25,6 +25,8 @@ _STRUCTURAL_EVENTS = {
     "agent_invocation_cancelled",
     "delegation_started",
     "delegation_completed",
+    "delegation_failed",
+    "delegation_skipped",
     "tool_call_started",
     "tool_call_completed",
     "usage",
@@ -71,6 +73,43 @@ def _as_list(value: Any) -> list[str]:
     return [str(item) for item in value]
 
 
+def _as_record_list(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [deepcopy(item) for item in value if isinstance(item, dict)]
+
+
+def _upsert_by_key(
+    values: list[dict[str, Any]],
+    *,
+    key: str,
+    key_value: str,
+    update: dict[str, Any],
+) -> list[dict[str, Any]]:
+    found = False
+    result: list[dict[str, Any]] = []
+    for value in values:
+        if str(value.get(key) or "") == key_value:
+            result.append({**value, **deepcopy(update)})
+            found = True
+        else:
+            result.append(value)
+    if not found:
+        result.append(deepcopy(update))
+    return result
+
+
+def _delegation_key(payload: dict[str, Any]) -> str | None:
+    fingerprint = payload.get("task_fingerprint")
+    if fingerprint:
+        return str(fingerprint)
+    parent = payload.get("invocation_id")
+    target = payload.get("target_node_id") or payload.get("target")
+    if parent and target:
+        return f"{parent}:{target}"
+    return None
+
+
 def initial_projection(
     run_id: UUID,
     run_kind: str,
@@ -111,6 +150,8 @@ def initial_projection(
         "active_agents": [],
         "completed_agents": [],
         "cancelled_agents": [],
+        "invocations": [],
+        "delegations": [],
         "current_route": None,
         "usage": state.get("usage") if isinstance(state.get("usage"), dict) else {},
         "result": root_result or terminal_result or None,
@@ -199,6 +240,39 @@ def reduce_projection(
             active = set(_as_list(state.get("active_agents")))
             active.add(str(agent_id))
             state["active_agents"] = sorted(active)
+        invocation_id = payload.get("invocation_id")
+        if invocation_id:
+            invocations = _as_record_list(state.get("invocations"))
+            invocation = {
+                "id": str(invocation_id),
+                "parent_invocation_id": (
+                    str(payload["parent_invocation_id"])
+                    if payload.get("parent_invocation_id")
+                    else None
+                ),
+                "node_id": str(payload["node_id"]) if payload.get("node_id") else None,
+                "agent_id": str(payload["agent_id"]) if payload.get("agent_id") else None,
+                "label": payload.get("label") or payload.get("agent_id") or "Agent",
+                "depth": int(payload.get("depth") or 0),
+                "status": "running",
+                "started_at": payload.get("started_at") or occurred_at,
+                "provider": payload.get("provider"),
+                "model": payload.get("model"),
+                "source": payload.get("source"),
+                "version": payload.get("version"),
+                "session_mode": payload.get("session_mode"),
+                "agent_session_id": payload.get("agent_session_id"),
+                "context_state": payload.get("context_state"),
+                "previous_invocation_count": int(
+                    payload.get("previous_invocation_count") or 0
+                ),
+            }
+            state["invocations"] = _upsert_by_key(
+                invocations,
+                key="id",
+                key_value=str(invocation_id),
+                update=invocation,
+            )
     elif event_type in {
         "agent_invocation_completed",
         "agent_invocation_failed",
@@ -217,6 +291,78 @@ def reduce_projection(
                 cancelled = set(_as_list(state.get("cancelled_agents")))
                 cancelled.add(str(agent_id))
                 state["cancelled_agents"] = sorted(cancelled)
+        invocation_id = payload.get("invocation_id")
+        if invocation_id:
+            status = (
+                "completed"
+                if event_type == "agent_invocation_completed"
+                else "cancelled"
+                if event_type == "agent_invocation_cancelled"
+                else "failed"
+            )
+            update = {
+                "id": str(invocation_id),
+                "status": status,
+                "completed_at": payload.get("completed_at") or occurred_at,
+                "trace_id": payload.get("trace_id"),
+                "agent_session_id": payload.get("agent_session_id"),
+            }
+            if event_type == "agent_invocation_completed":
+                update["usage"] = deepcopy(payload.get("usage"))
+                update["provider"] = payload.get("provider")
+                update["model"] = payload.get("model")
+            else:
+                update["failure"] = {
+                    key: payload.get(key)
+                    for key in ("code", "stage", "message", "retryable")
+                    if payload.get(key) is not None
+                }
+            state["invocations"] = _upsert_by_key(
+                _as_record_list(state.get("invocations")),
+                key="id",
+                key_value=str(invocation_id),
+                update=update,
+            )
+    elif event_type in {
+        "delegation_started",
+        "delegation_completed",
+        "delegation_failed",
+        "delegation_skipped",
+    }:
+        delegation_key = _delegation_key(payload)
+        if delegation_key:
+            delegation_status = {
+                "delegation_started": "running",
+                "delegation_completed": "completed",
+                "delegation_failed": "failed",
+                "delegation_skipped": "skipped",
+            }[event_type]
+            delegation = {
+                "id": delegation_key,
+                "parent_invocation_id": (
+                    str(payload["invocation_id"])
+                    if payload.get("invocation_id")
+                    else None
+                ),
+                "target_node_id": (
+                    str(payload["target_node_id"])
+                    if payload.get("target_node_id")
+                    else None
+                ),
+                "target": payload.get("target"),
+                "status": delegation_status,
+                "reason": payload.get("reason"),
+                "started_at": occurred_at if event_type == "delegation_started" else None,
+                "completed_at": (
+                    occurred_at if event_type != "delegation_started" else None
+                ),
+            }
+            state["delegations"] = _upsert_by_key(
+                _as_record_list(state.get("delegations")),
+                key="id",
+                key_value=delegation_key,
+                update=delegation,
+            )
     elif event_type in {"network.route.selected", "route.selected"}:
         state["current_route"] = payload.get("route") or payload.get("target")
     elif event_type == "usage":
@@ -240,7 +386,15 @@ def reduce_projection(
         state["status"] = "uncertain" if payload.get("uncertain") else "failed"
         state["error"] = {
             key: payload.get(key)
-            for key in ("code", "message", "failure_code", "trace_id")
+            for key in (
+                "code",
+                "message",
+                "failure_code",
+                "trace_id",
+                "root_partial_result_available",
+                "completed_child_results_available",
+                "completed_child_result_count",
+            )
             if payload.get(key) is not None
         }
         state["activity"] = None
@@ -412,9 +566,6 @@ class RuntimeStreamReader:
             state.update(deepcopy(durable))
             state["run_id"] = str(run_id)
             state["kind"] = run_kind.upper()
-            # A durable-only snapshot has no Redis event watermark. Sequence zero
-            # would be a fabricated hot-stream cursor and can make a reconnecting
-            # client reject the authoritative terminal state as stale.
             state["sequence"] = None
             state["realtime_available"] = False
             logger.info(
