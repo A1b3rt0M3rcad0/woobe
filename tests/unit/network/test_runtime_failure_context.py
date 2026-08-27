@@ -53,3 +53,24 @@ def test_generic_instrumented_error_is_agent_orchestration_failure() -> None:
     assert failure.code == "agent_orchestration_error"
     assert failure.stage == "agent_orchestration"
     assert "provider" not in failure.safe_message.lower()
+
+
+def test_missing_deferred_session_is_classified_as_agent_context_failure() -> None:
+    failure = classify_runtime_exception(ValueError("Pinned Agent Session was not found"))
+
+    assert failure.code == "agent_context_error"
+    assert failure.stage == "agent_context_preparation"
+    assert failure.retryable is False
+    assert failure.safe_message == (
+        "The Agent session continuity could not be restored for this Network Run."
+    )
+    assert "Pinned Agent Session was not found" in failure.internal_detail
+
+
+def test_cross_agent_deferred_session_is_classified_as_agent_context_failure() -> None:
+    failure = classify_runtime_exception(
+        ValueError("Pinned Agent Session does not belong to this Agent")
+    )
+
+    assert failure.code == "agent_context_error"
+    assert failure.stage == "agent_context_preparation"
