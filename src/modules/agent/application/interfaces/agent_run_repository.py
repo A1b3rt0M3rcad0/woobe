@@ -14,6 +14,12 @@ class AgentRunRepository(ABC):
     async def get_by_id(self, run_id: UUID) -> AgentRun | None: ...
 
     @abstractmethod
+    async def get_by_trace_id(self, trace_id: UUID) -> AgentRun | None: ...
+
+    @abstractmethod
+    async def list_model_invocations(self, run_id: UUID) -> list[dict]: ...
+
+    @abstractmethod
     async def get_active_direct_by_session(
         self,
         session_id: UUID,
