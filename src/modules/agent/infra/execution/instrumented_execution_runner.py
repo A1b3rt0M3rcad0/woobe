@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Coroutine
 
-from modules.agent.application.context_policy import resolve_context_policy
+from modules.agent.application.interfaces.context_policy import resolve_context_policy
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.entities import Agent
