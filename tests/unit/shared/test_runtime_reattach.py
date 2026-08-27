@@ -22,6 +22,25 @@ async def _completed_fallback(run_id):
     }
 
 
+async def _cancelled_fallback(run_id):
+    return {
+        "run_id": str(run_id),
+        "status": "cancelled",
+        "output": "durable partial",
+        "result": {
+            "answer": "durable partial",
+            "partial": True,
+            "cancelled": True,
+            "reason": "cancel_requested",
+        },
+        "usage": {
+            "input_tokens": 9,
+            "output_tokens": 4,
+            "total_tokens": 13,
+        },
+    }
+
+
 @pytest.mark.asyncio
 async def test_reattach_folds_125_to_131_into_initial_state_then_tails_132() -> None:
     store = InMemoryExecutionStateStore()
@@ -266,6 +285,40 @@ async def test_terminal_run_falls_back_to_durable_state_after_hot_state_expires(
     assert state.event_type == "run.state"
     assert state.data["status"] == "completed"
     assert state.data["output"] == "durable answer"
+    assert state.data["realtime_available"] is False
+
+    with pytest.raises(StopAsyncIteration):
+        await anext(stream)
+
+
+@pytest.mark.asyncio
+async def test_cancelled_durable_fallback_has_no_fabricated_hot_sequence() -> None:
+    store = InMemoryExecutionStateStore()
+    run_id = uuid4()
+    reader = RuntimeStreamReader(store)
+    stream = reader.stream(
+        run_id,
+        "agent",
+        durable_fallback=lambda: _cancelled_fallback(run_id),
+    )
+
+    state = await anext(stream)
+    assert state.event_type == "run.state"
+    assert state.sequence is None
+    assert state.data["sequence"] is None
+    assert state.data["status"] == "cancelled"
+    assert state.data["output"] == "durable partial"
+    assert state.data["result"] == {
+        "answer": "durable partial",
+        "partial": True,
+        "cancelled": True,
+        "reason": "cancel_requested",
+    }
+    assert state.data["usage"] == {
+        "input_tokens": 9,
+        "output_tokens": 4,
+        "total_tokens": 13,
+    }
     assert state.data["realtime_available"] is False
 
     with pytest.raises(StopAsyncIteration):

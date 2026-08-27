@@ -15,6 +15,7 @@ function callbacks() {
     onMeta: vi.fn(),
     onDone: vi.fn(),
     onError: vi.fn(),
+    onCancelled: vi.fn(),
     onTokenRetract: vi.fn(),
     onProtocolError: vi.fn(),
   }
@@ -48,6 +49,28 @@ function completedState(sequence: number, output: string): string {
     status: 'completed',
     output,
     result: { answer: output },
+  })}\n\n`
+}
+
+function durableCancelledState(output: string): string {
+  return `event: run.state\ndata: ${JSON.stringify({
+    type: 'run.state',
+    run_id: 'run-1',
+    sequence: null,
+    status: 'cancelled',
+    output,
+    realtime_available: false,
+    result: {
+      answer: output,
+      partial: true,
+      cancelled: true,
+      reason: 'cancel_requested',
+    },
+    usage: {
+      input_tokens: 8,
+      output_tokens: 3,
+      total_tokens: 11,
+    },
   })}\n\n`
 }
 
@@ -117,5 +140,34 @@ describe('Agent runtime stream reattach', () => {
     expect(handlers.onDone).toHaveBeenCalledWith(
       expect.objectContaining({ answer: 'reconciled answer' }),
     )
+  })
+
+  it('accepts an authoritative durable cancelled snapshot without a hot sequence cursor', async () => {
+    vi.useFakeTimers()
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(streamResponse(runningState(5, 'partial')))
+      .mockResolvedValueOnce(streamResponse(durableCancelledState('partial answer')))
+    vi.stubGlobal('fetch', fetchMock)
+    const handlers = callbacks()
+
+    const execution = askStreamV1({
+      project_id: 'project-1',
+      agent_id: 'agent-1',
+      message: 'hello',
+    }, handlers)
+    await vi.runAllTimersAsync()
+    await execution
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect((fetchMock.mock.calls[1]?.[1] as RequestInit).method).toBe('GET')
+    expect(handlers.onProtocolError).not.toHaveBeenCalled()
+    expect(handlers.onError).not.toHaveBeenCalled()
+    expect(handlers.onCancelled).toHaveBeenCalledWith(expect.objectContaining({
+      run_id: 'run-1',
+      status: 'cancelled',
+      sequence: null,
+      output: 'partial answer',
+      realtime_available: false,
+    }))
   })
 })

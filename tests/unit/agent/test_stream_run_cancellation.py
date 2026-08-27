@@ -184,6 +184,39 @@ async def test_explicit_cancellation_still_terminalizes_running_agent_run() -> N
 
 
 @pytest.mark.asyncio
+async def test_explicit_cancellation_before_first_token_is_not_a_failure() -> None:
+    run = _run()
+    transactions = _Transactions(run)
+    service = AskAgentStreamService(
+        SimpleNamespace(),
+        transactions,
+        state_store=InMemoryExecutionStateStore(),
+    )
+    channel = _channel(run)
+
+    assert channel.public_output == ""
+    assert channel.latest_usage is None
+
+    persisted = await service._persist_cancelled(
+        channel,
+        _input(run),
+        "cancel_requested",
+    )
+
+    assert persisted is True
+    assert transactions.runs.run.status == AgentRunStatus.CANCELLED
+    assert transactions.runs.run.failure_code is None
+    assert transactions.runs.run.failure_detail is None
+    assert transactions.runs.run.result is not None
+    assert transactions.runs.run.result["answer"] == ""
+    assert transactions.runs.run.result["partial"] is False
+    assert transactions.runs.run.result["cancelled"] is True
+    assert transactions.runs.run.result["reason"] == "cancel_requested"
+    assert transactions.runs.run.result["usage"] is None
+    assert transactions.runs.run.completed_at is not None
+
+
+@pytest.mark.asyncio
 async def test_late_explicit_cancel_does_not_overwrite_completed_run() -> None:
     run = _run()
     run.status = AgentRunStatus.COMPLETED

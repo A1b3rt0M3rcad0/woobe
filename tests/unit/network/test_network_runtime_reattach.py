@@ -125,3 +125,53 @@ async def test_network_hot_events_keep_invocation_causal_metadata() -> None:
     assert activity.payload["node_id"] == str(node_id)
     assert activity.payload["agent_id"] == str(agent_id)
     assert activity.payload["depth"] == 2
+
+
+@pytest.mark.asyncio
+async def test_network_observer_disconnect_does_not_cancel_and_reattach_recovers_same_run() -> None:
+    state = InMemoryExecutionStateStore()
+    store = RedisNetworkExecutionStore(state)
+    execution_id = uuid4()
+    execution = _execution(execution_id)
+    await store.initialize(execution, ttl_seconds=3600)
+
+    reader = RuntimeStreamReader(state, block_ms=20)
+    observer = reader.stream(
+        execution_id,
+        "network",
+        durable_fallback=lambda: None,
+    )
+    initial = await anext(observer)
+    assert initial.event_type == "run.state"
+    assert initial.data["run_id"] == str(execution_id)
+    assert initial.data["status"] == "running"
+
+    await observer.aclose()
+    assert await store.is_cancel_requested(execution_id) is False
+
+    await store.emit(
+        execution_id,
+        "token",
+        {
+            "content": "still running",
+            "visibility": "assistant",
+            "channel": "final",
+            "depth": 0,
+        },
+    )
+
+    reattached = reader.stream(
+        execution_id,
+        "network",
+        durable_fallback=lambda: None,
+    )
+    current = await anext(reattached)
+    assert current.event_type == "run.state"
+    assert current.data["run_id"] == str(execution_id)
+    assert current.data["status"] == "running"
+    assert current.data["output"] == "still running"
+    assert current.sequence is not None
+    assert initial.sequence is not None
+    assert current.sequence > initial.sequence
+    assert await store.is_cancel_requested(execution_id) is False
+    await reattached.aclose()
