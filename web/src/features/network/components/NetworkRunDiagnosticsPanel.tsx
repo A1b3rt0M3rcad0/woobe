@@ -1,8 +1,11 @@
 import { useQuery } from '@tanstack/react-query'
 import {
   Activity,
+  AlertTriangle,
   Bot,
+  Brain,
   CheckCircle,
+  ChevronRight,
   Cpu,
   Database,
   GitBranch,
@@ -13,7 +16,7 @@ import {
 import { getNetworkRunDiagnostics } from '@/features/network/api'
 import { formatCurrency, formatLatency, formatTokens } from '@/lib/formatters/number'
 
-import type { NetworkRunDiagnostics } from './networkRunDiagnosticsTypes'
+import type { NetworkContextOverview, NetworkRunDiagnostics } from './networkRunDiagnosticsTypes'
 
 function Metric({
   label,
@@ -41,12 +44,138 @@ function telemetryLabel(status: NetworkRunDiagnostics['telemetry_status']) {
   return 'Telemetry unavailable'
 }
 
+function contextTelemetryLabel(status: NetworkContextOverview['telemetry_status']) {
+  if (status === 'complete') return 'Complete'
+  if (status === 'partial') return 'Partial'
+  return 'Unavailable'
+}
+
 function costLabel(diagnostics: NetworkRunDiagnostics) {
   if (diagnostics.cost_status === 'unknown' || diagnostics.cost_usd == null) {
     return 'Cost unknown'
   }
   const value = formatCurrency(diagnostics.cost_usd)
   return diagnostics.cost_status === 'partial' ? `Cost ${value}+ (partial)` : `Cost ${value}`
+}
+
+function formatPercent(value: number | null | undefined) {
+  if (value == null || !Number.isFinite(value)) return '—'
+  return `${(value * 100).toFixed(value >= 0.1 ? 1 : 2)}%`
+}
+
+function sourceLabel(source: string) {
+  switch (source) {
+    case 'SYSTEM': return 'System'
+    case 'SESSION': return 'Conversation'
+    case 'USER_INPUT': return 'Current input'
+    case 'KNOWLEDGE': return 'Knowledge'
+    case 'TOOL': return 'Tool results'
+    case 'DELEGATION': return 'Delegation'
+    case 'RUNTIME': return 'Runtime'
+    case 'ARTIFACT': return 'Artifacts'
+    case 'MEMORY': return 'Memory'
+    case 'CHECKPOINT': return 'Checkpoint'
+    default: return source
+  }
+}
+
+function NetworkContextOverviewPanel({ context }: { context: NetworkContextOverview }) {
+  if (context.telemetry_status === 'unknown' || context.model_invocation_count === 0) {
+    return (
+      <div className="mt-3 border-t border-border/70 pt-3">
+        <div className="flex items-center gap-2">
+          <Brain className="h-3.5 w-3.5 text-muted" />
+          <p className="text-[10px] font-medium text-white">Context overview</p>
+        </div>
+        <p className="mt-1.5 text-[9px] text-muted">Context evidence is not available for the child Agent Runs yet.</p>
+      </div>
+    )
+  }
+
+  const sources = Object.entries(context.source_units)
+    .filter(([, value]) => (value.units ?? 0) > 0)
+    .sort(([, left], [, right]) => (right.units ?? 0) - (left.units ?? 0))
+
+  return (
+    <div className="mt-3 border-t border-border/70 pt-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Brain className="h-3.5 w-3.5 text-primary-light" />
+          <div>
+            <p className="text-[10px] font-medium text-white">Context overview</p>
+            <p className="text-[9px] text-muted">Aggregated from child Model Invocations, not a Network Context Snapshot</p>
+          </div>
+        </div>
+        <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[8px] text-muted">
+          {contextTelemetryLabel(context.telemetry_status)}
+        </span>
+      </div>
+
+      <div className="mt-2.5 grid grid-cols-2 gap-1.5">
+        <div className="rounded-lg border border-border bg-background px-2.5 py-2">
+          <p className="text-[8px] uppercase tracking-wide text-muted">Model input</p>
+          <p className="mt-0.5 font-mono text-[12px] text-white">{context.input_units == null ? '—' : formatTokens(context.input_units)}</p>
+          <p className="text-[8px] text-muted">{context.input_measurement}</p>
+        </div>
+        <div className="rounded-lg border border-border bg-background px-2.5 py-2">
+          <p className="text-[8px] uppercase tracking-wide text-muted">Model invocations</p>
+          <p className="mt-0.5 font-mono text-[12px] text-white">{context.model_invocation_count}</p>
+          <p className="text-[8px] text-muted">across {context.agents.length} Agent{context.agents.length === 1 ? '' : 's'}</p>
+        </div>
+      </div>
+
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-muted">
+        {context.median_utilization != null ? <span>Median utilization {formatPercent(context.median_utilization)}</span> : null}
+        {context.peak_utilization != null ? <span>Peak {formatPercent(context.peak_utilization)}</span> : null}
+        {context.budget_unknown_count > 0 ? (
+          <span className="inline-flex items-center gap-1 text-amber-300">
+            <AlertTriangle className="h-3 w-3" />
+            Budget unavailable on {context.budget_unknown_count} invocation{context.budget_unknown_count === 1 ? '' : 's'}
+          </span>
+        ) : null}
+        {(context.compaction_saving_units ?? 0) > 0 ? <span>Compaction saved {formatTokens(context.compaction_saving_units ?? 0)}</span> : null}
+        {context.truncation_count > 0 ? <span className="text-amber-300">{context.truncation_count} truncated</span> : null}
+        {context.selection_ratio != null && context.selection_ratio < 0.999 ? <span>Selected {formatPercent(context.selection_ratio)}</span> : null}
+      </div>
+
+      {sources.length > 0 ? (
+        <div className="mt-2.5 space-y-1">
+          <p className="text-[8px] uppercase tracking-wide text-muted">Composition</p>
+          {sources.map(([source, value]) => (
+            <div key={source} className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 text-[9px]">
+              <span className="truncate text-slate-300">{sourceLabel(source)}</span>
+              <span className="font-mono text-slate-200">{value.units == null ? '—' : formatTokens(value.units)}</span>
+              <span className="w-11 text-right text-muted">{formatPercent(value.share)}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {context.agents.length > 1 ? (
+        <details className="group mt-2.5 border-t border-border/60 pt-2">
+          <summary className="flex cursor-pointer list-none items-center gap-1 text-[9px] text-muted hover:text-white">
+            <ChevronRight className="h-3 w-3 transition-transform group-open:rotate-90" />
+            Context by Agent
+          </summary>
+          <div className="mt-2 space-y-1.5">
+            {context.agents.map((agent) => (
+              <div key={agent.agent_id} className="rounded-lg border border-border/70 bg-background/45 px-2.5 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <code className="truncate text-[9px] text-slate-300">Agent {agent.agent_id.slice(0, 8)}</code>
+                  <span className="text-[8px] text-muted">{agent.model_invocation_count} invocation{agent.model_invocation_count === 1 ? '' : 's'}</span>
+                </div>
+                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[8px] text-muted">
+                  <span>Input {agent.input_units == null ? '—' : formatTokens(agent.input_units)}</span>
+                  {agent.peak_utilization != null ? <span>Peak {formatPercent(agent.peak_utilization)}</span> : null}
+                  {(agent.delegation_units ?? 0) > 0 ? <span>Delegation {formatTokens(agent.delegation_units ?? 0)} · {formatPercent(agent.delegation_share)}</span> : null}
+                </div>
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
+    </div>
+  )
 }
 
 export function NetworkRunDiagnosticsPanel({
@@ -122,6 +251,8 @@ export function NetworkRunDiagnosticsPanel({
         {data.fallback_count ? <span>{data.fallback_count} fallback{data.fallback_count === 1 ? '' : 's'}</span> : null}
         <span>{costLabel(data)}</span>
       </div>
+
+      <NetworkContextOverviewPanel context={data.context} />
     </section>
   )
 }
