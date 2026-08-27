@@ -38,6 +38,7 @@ class ContextRetentionMode(StrEnum):
 class ContextMeasurementStatus(StrEnum):
     ESTIMATED = "estimated"
     REPORTED = "reported"
+    PARTIAL = "partial"
     UNKNOWN = "unknown"
 
 
