@@ -6,9 +6,9 @@ from sqlalchemy import select
 
 from modules.agent.application.interfaces.agent_run_repository import AgentRunRepository
 from modules.agent.domain.run import AgentRun, AgentRunStatus
+from modules.agent.infra.database.context_evidence_store import ContextEvidenceStore
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
-from modules.context.infra.database.repository import SQLAlchemyContextEvidenceRepository
 
 
 def _to_model(run: AgentRun) -> AgentRunModel:
@@ -113,7 +113,7 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
         calls = run.result.get("llm_calls")
         if not isinstance(calls, list) or not calls:
             return
-        await SQLAlchemyContextEvidenceRepository(self._uow.session).persist_from_calls(
+        await ContextEvidenceStore(self._uow).persist_from_calls(
             agent_run_id=run.id,
             project_id=run.project_id,
             agent_id=run.agent_id,
@@ -135,10 +135,18 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
         model = await self._uow.session.get(AgentRunModel, run_id)
         return _to_entity(model) if model is not None else None
 
+    async def get_by_trace_id(self, trace_id: UUID) -> AgentRun | None:
+        result = await self._uow.session.execute(
+            select(AgentRunModel)
+            .where(AgentRunModel.trace_id == trace_id)
+            .order_by(AgentRunModel.created_at.desc())
+            .limit(1)
+        )
+        model = result.scalar_one_or_none()
+        return _to_entity(model) if model is not None else None
+
     async def list_model_invocations(self, run_id: UUID) -> list[dict]:
-        durable = await SQLAlchemyContextEvidenceRepository(
-            self._uow.session
-        ).list_by_run(run_id)
+        durable = await ContextEvidenceStore(self._uow).list_by_run(run_id)
         if durable:
             return durable
         run = await self.get_by_id(run_id)
