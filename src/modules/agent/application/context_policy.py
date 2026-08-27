@@ -1,10 +1,15 @@
 from modules.agent.application.interfaces.context_policy import (
+    ArtifactContextPolicy,
+    CheckpointContextPolicy,
     ContextBudgetPolicy,
+    ContextDeduplicationPolicy,
+    ContextOrderingPolicy,
     ContextPolicyV1,
     ContextPressurePolicy,
     ContextRetentionPolicy,
     DelegationContextPolicy,
     KnowledgeContextPolicy,
+    MemoryContextPolicy,
     SessionContextPolicy,
     ToolContextPolicy,
     canonicalize_context_runtime_config,
@@ -13,12 +18,17 @@ from modules.agent.application.interfaces.context_policy import (
 )
 
 __all__ = [
+    "ArtifactContextPolicy",
+    "CheckpointContextPolicy",
     "ContextBudgetPolicy",
+    "ContextDeduplicationPolicy",
+    "ContextOrderingPolicy",
     "ContextPolicyV1",
     "ContextPressurePolicy",
     "ContextRetentionPolicy",
     "DelegationContextPolicy",
     "KnowledgeContextPolicy",
+    "MemoryContextPolicy",
     "SessionContextPolicy",
     "ToolContextPolicy",
     "canonicalize_context_runtime_config",
