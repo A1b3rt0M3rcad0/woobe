@@ -76,6 +76,19 @@ def _number_or_none(value: Any) -> float | None:
     return parsed
 
 
+def _positive_int_or_none(*values: Any) -> int | None:
+    for value in values:
+        if isinstance(value, bool) or value is None:
+            continue
+        try:
+            parsed = int(value)
+        except (TypeError, ValueError):
+            continue
+        if parsed > 0:
+            return parsed
+    return None
+
+
 def _per_token_to_per_1m(value: Any) -> float | None:
     parsed = _number_or_none(value)
     if parsed is None:
@@ -121,6 +134,19 @@ class ModelDiscoveryService:
                     label=model_id,
                     provider=provider,
                     owned_by=str(raw.get("owned_by")) if raw.get("owned_by") else None,
+                    context_window=_positive_int_or_none(
+                        raw.get("context_window"),
+                        raw.get("context_length"),
+                        raw.get("max_context_tokens"),
+                        raw.get("max_input_tokens"),
+                    ),
+                    max_output_tokens=_positive_int_or_none(
+                        raw.get("max_output_tokens"),
+                        raw.get("max_completion_tokens"),
+                    ),
+                    supports_tools=_supports_parameter(raw, {"tools", "tool_choice"}),
+                    supports_json=_supports_parameter(raw, {"response_format"}),
+                    supports_streaming=True if raw.get("supports_streaming") is True else None,
                     raw=raw,
                 )
             )
@@ -138,12 +164,17 @@ class ModelDiscoveryService:
             if not model_id:
                 continue
             pricing = raw.get("pricing") if isinstance(raw.get("pricing"), dict) else {}
+            top_provider = raw.get("top_provider") if isinstance(raw.get("top_provider"), dict) else {}
             models.append(
                 AvailableProviderModelOutput(
                     id=model_id,
                     label=str(raw.get("name") or model_id),
                     provider="openrouter",
-                    context_window=int(raw["context_length"]) if isinstance(raw.get("context_length"), int) else None,
+                    context_window=_positive_int_or_none(raw.get("context_length")),
+                    max_output_tokens=_positive_int_or_none(
+                        top_provider.get("max_completion_tokens"),
+                        raw.get("max_output_tokens"),
+                    ),
                     input_cost_per_1m_tokens=_per_token_to_per_1m(pricing.get("prompt")),
                     output_cost_per_1m_tokens=_per_token_to_per_1m(pricing.get("completion")),
                     supports_tools=_supports_parameter(raw, {"tools", "tool_choice"}),
