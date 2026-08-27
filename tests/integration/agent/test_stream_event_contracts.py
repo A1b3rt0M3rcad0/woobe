@@ -1,7 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, AIMessageChunk
 
 from modules.agent.infra.execution.execution_instrumentation import (
     execute_tool_call,
@@ -16,14 +16,25 @@ from modules.agent.infra.execution.runtime_streaming import (
 
 
 class _FallbackModel:
-    async def ainvoke(self, _messages):
-        result = AIMessage(content="fallback answer")
-        result.usage_metadata = {
+    @staticmethod
+    def _usage() -> dict[str, int]:
+        return {
             "input_tokens": 3,
             "output_tokens": 2,
             "total_tokens": 5,
         }
-        return result
+
+    async def ainvoke(self, _messages):
+        return AIMessage(
+            content="fallback answer",
+            usage_metadata=self._usage(),
+        )
+
+    async def astream(self, _messages):
+        yield AIMessageChunk(
+            content="fallback answer",
+            usage_metadata=self._usage(),
+        )
 
 
 class _FallbackFactory:
@@ -71,11 +82,15 @@ async def test_fallback_event_precedes_fallback_execution() -> None:
     finally:
         current_runtime_stream.reset(token)
 
-    event = channel.queue.get_nowait()
-    assert event.event_type == "fallback"
-    assert event.payload["primary_model"] == "primary-model"
-    assert event.payload["fallback_model"] == "fallback-model"
-    assert event.payload["error"] == "primary unavailable"
+    events = []
+    while not channel.queue.empty():
+        events.append(channel.queue.get_nowait())
+
+    assert events[0].event_type == "fallback"
+    assert events[0].payload["primary_model"] == "primary-model"
+    assert events[0].payload["fallback_model"] == "fallback-model"
+    assert events[0].payload["error"] == "primary unavailable"
+    assert any(event.event_type == "agent_activity" for event in events[1:])
     assert result.content == "fallback answer"
     assert provider == "compatible-provider"
     assert latency >= 0
