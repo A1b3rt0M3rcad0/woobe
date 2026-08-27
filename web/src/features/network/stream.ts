@@ -97,7 +97,6 @@ function syntheticEvent(
 function snapshotInvocationEvent(
   source: NetworkRuntimeEvent,
   rawInvocation: unknown,
-  *,
   completed: boolean,
 ): NetworkRuntimeEvent | null {
   const invocation = asRecord(rawInvocation)
@@ -141,13 +140,13 @@ function hydrateInvocationSnapshot(
   const rawInvocations = Array.isArray(data.invocations) ? data.invocations : []
   for (const rawInvocation of rawInvocations) {
     const invocation = asRecord(rawInvocation)
-    const started = snapshotInvocationEvent(source, invocation, { completed: false })
+    const started = snapshotInvocationEvent(source, invocation, false)
     if (!started) continue
     callbacks.onEvent('agent_invocation_started', started)
 
     const status = asString(invocation.status)
     if (!status || status === 'running' || status === 'queued') continue
-    const terminal = snapshotInvocationEvent(source, invocation, { completed: true })
+    const terminal = snapshotInvocationEvent(source, invocation, true)
     if (!terminal) continue
     if (status === 'completed' || status === 'success') {
       callbacks.onEvent('agent_invocation_completed', terminal)
@@ -173,8 +172,6 @@ function acceptSequence(
   streamState: NetworkStreamState,
 ): boolean {
   const data = eventData(event)
-  // Durable-only run.state is authoritative and is not part of Redis ordering.
-  // Never reject it because an earlier observer saw a larger hot-stream sequence.
   if (parsed.event === 'run.state' && data.realtime_available === false) return true
 
   const sequence = eventSequence(parsed, event)
@@ -235,9 +232,6 @@ function applyRunState(
     streamState.output = output
   }
 
-  // The current projection is authoritative for structural state observed before
-  // this browser attached. Rehydrate those Agent invocations locally, then consume
-  // only the live tail after the projection high-watermark.
   hydrateInvocationSnapshot(event, data, callbacks)
   callbacks.onEvent('run.state', event)
   const status = typeof data.status === 'string' ? data.status : ''
@@ -258,14 +252,15 @@ function applyRunState(
       cancelled: true,
     }))
   } else {
+    const error = asRecord(data.error)
     callbacks.onEvent('execution_failed', syntheticEvent(event, {
-      code: data.failure_code ?? asRecord(data.error).code ?? 'runtime_error',
-      message: data.failure_detail ?? asRecord(data.error).message ?? 'Network execution failed',
+      code: data.failure_code ?? error.code ?? 'runtime_error',
+      message: data.failure_detail ?? error.message ?? 'Network execution failed',
       uncertain: status === 'uncertain',
       trace_id: data.trace_id ?? null,
-      root_partial_result_available: asRecord(data.error).root_partial_result_available ?? false,
-      completed_child_results_available: asRecord(data.error).completed_child_results_available ?? false,
-      completed_child_result_count: asRecord(data.error).completed_child_result_count ?? 0,
+      root_partial_result_available: error.root_partial_result_available ?? false,
+      completed_child_results_available: error.completed_child_results_available ?? false,
+      completed_child_result_count: error.completed_child_result_count ?? 0,
     }))
   }
   return true
@@ -417,8 +412,6 @@ export async function streamNetworkExecution(
       if (completed) return
     } catch (error) {
       if (signal?.aborted || attempt === 3) throw error
-      // Never create a second execution after the canonical execution id is known.
-      // All retries become observer reattach operations.
       if (!stableInput.executionId && attempt > 0) throw error
     }
     await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
