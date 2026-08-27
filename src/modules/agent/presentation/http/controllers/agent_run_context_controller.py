@@ -33,3 +33,17 @@ class AgentRunContextController:
             user_id=self._user_id(request),
         )
         return Response(status_code=200, body={"success": True, "data": data})
+
+    async def handle_detail_by_run(self, request: Request) -> Response:
+        data = await self._use_case.detail_by_run(
+            run_id=UUID(str(request.path_params["run_id"])),
+            user_id=self._user_id(request),
+        )
+        return Response(status_code=200, body={"success": True, "data": data})
+
+    async def handle_detail_by_trace(self, request: Request) -> Response:
+        data = await self._use_case.detail_by_trace(
+            trace_id=UUID(str(request.path_params["trace_id"])),
+            user_id=self._user_id(request),
+        )
+        return Response(status_code=200, body={"success": True, "data": data})
