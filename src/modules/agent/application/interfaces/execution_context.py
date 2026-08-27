@@ -26,6 +26,7 @@ class RequestExecutionContext:
     project_id: UUID | None = None
     agent_id: UUID | None = None
     session_id: UUID | None = None
+    input_message_id: UUID | None = None
     trace_id: UUID | None = None
     prepare_started_at: str | None = None
     prepare_ended_at: str | None = None
