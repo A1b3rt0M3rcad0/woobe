@@ -6,17 +6,32 @@ import pytest
 
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.dtos.runtime_dtos import AskInput
+from modules.agent.application.interfaces.context_policy import (
+    canonicalize_context_runtime_config,
+)
+from modules.agent.application.interfaces.execution_context import (
+    current_execution,
+    new_execution_context,
+)
 from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot
 from modules.agent.application.use_cases.ai_release_cases import DeleteReleaseUseCase
-from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
-from modules.agent.application.use_cases.auto_compatible_release_lifecycle import AutoCompatibleReleaseLifecycleUseCase, _execution_snapshot_equal
-from modules.agent.application.interfaces.execution_context import current_execution, new_execution_context
-from modules.agent.application.use_cases.knowledge_release_validator import SafeDeleteDocumentUseCase
-from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
-from modules.agent.infra.execution.session_continuity_runtime_resolver import SessionContinuityReleaseRuntimeResolver
-from modules.agent.infra.execution.structured_output_ask_use_case import StructuredOutputAskAgentUseCase
+from modules.agent.application.use_cases.auto_compatible_release_lifecycle import (
+    AutoCompatibleReleaseLifecycleUseCase,
+    _execution_snapshot_equal,
+)
+from modules.agent.application.use_cases.knowledge_release_validator import (
+    SafeDeleteDocumentUseCase,
+)
 from modules.agent.domain.entities import Agent, AgentRelease, Tool
 from modules.agent.domain.enums import ReleaseStatus, RiskLevel, ToolStatus, ToolType
+from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
+from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
+from modules.agent.infra.execution.session_continuity_runtime_resolver import (
+    SessionContinuityReleaseRuntimeResolver,
+)
+from modules.agent.infra.execution.structured_output_ask_use_case import (
+    StructuredOutputAskAgentUseCase,
+)
 from shared.infra.errors import ConflictError
 
 
@@ -43,7 +58,12 @@ class MemoryReleaseRepository:
 
     async def list_by_status(self, agent_id, status):
         value = status.value if hasattr(status, "value") else status
-        return [item for item in self.items.values() if item.agent_id == agent_id and getattr(item.status, "value", item.status) == value]
+        return [
+            item
+            for item in self.items.values()
+            if item.agent_id == agent_id
+            and getattr(item.status, "value", item.status) == value
+        ]
 
     async def list_by_agent(self, agent_id):
         return [item for item in self.items.values() if item.agent_id == agent_id]
@@ -52,7 +72,14 @@ class MemoryReleaseRepository:
         self.items.pop(item_id, None)
 
 
-def _release(*, status=ReleaseStatus.draft, version="draft", provider_model_id=None, runtime_config=None, knowledge_version_id=None):
+def _release(
+    *,
+    status=ReleaseStatus.draft,
+    version="draft",
+    provider_model_id=None,
+    runtime_config=None,
+    knowledge_version_id=None,
+):
     return AgentRelease(
         project_id=uuid4(),
         agent_id=uuid4(),
@@ -67,14 +94,19 @@ def _release(*, status=ReleaseStatus.draft, version="draft", provider_model_id=N
 
 
 def _runtime(*, top_k=5, tool_ids=None, snapshots=None):
-    rag = RAGRuntimeConfig(top_k=top_k, max_context_chunks=min(5, top_k)).model_dump()
-    return {
-        "rag": rag,
-        "tools": {
-            "tool_ids": tool_ids or [],
-            "snapshots": snapshots or [],
-        },
-    }
+    rag = RAGRuntimeConfig(
+        top_k=top_k,
+        max_context_chunks=min(5, top_k),
+    ).model_dump()
+    return canonicalize_context_runtime_config(
+        {
+            "rag": rag,
+            "tools": {
+                "tool_ids": tool_ids or [],
+                "snapshots": snapshots or [],
+            },
+        }
+    )
 
 
 def _tool():
@@ -129,7 +161,11 @@ async def test_draft_staging_production_and_rollback_preserve_knowledge_tools_an
     repo = MemoryReleaseRepository(draft)
     lifecycle = AutoCompatibleReleaseLifecycleUseCase(repo)
 
-    staging_v1 = await lifecycle.execute(draft.agent_id, draft.id, target_status="staging")
+    staging_v1 = await lifecycle.execute(
+        draft.agent_id,
+        draft.id,
+        target_status="staging",
+    )
     assert staging_v1.runtime_config == runtime_v1
 
     knowledge_v2 = uuid4()
@@ -142,11 +178,19 @@ async def test_draft_staging_production_and_rollback_preserve_knowledge_tools_an
     assert stored_staging_v1.runtime_config == runtime_v1
     assert stored_staging_v1.knowledge_version_id == knowledge_v1
 
-    staging_v2 = await lifecycle.execute(draft.agent_id, draft.id, target_status="staging")
+    staging_v2 = await lifecycle.execute(
+        draft.agent_id,
+        draft.id,
+        target_status="staging",
+    )
     assert staging_v2.runtime_config == runtime_v2
     assert staging_v2.knowledge_version_id == knowledge_v2
 
-    production_v1 = await lifecycle.execute(staging_v2.agent_id, staging_v2.id, target_status="production")
+    production_v1 = await lifecycle.execute(
+        staging_v2.agent_id,
+        staging_v2.id,
+        target_status="production",
+    )
     assert production_v1.runtime_config == runtime_v2
     assert production_v1.knowledge_version_id == knowledge_v2
 
@@ -154,12 +198,24 @@ async def test_draft_staging_production_and_rollback_preserve_knowledge_tools_an
     draft.runtime_config = runtime_v3
     draft.knowledge_version_id = uuid4()
     await repo.save(draft)
-    staging_v3 = await lifecycle.execute(draft.agent_id, draft.id, target_status="staging")
-    production_v2 = await lifecycle.execute(staging_v3.agent_id, staging_v3.id, target_status="production")
+    staging_v3 = await lifecycle.execute(
+        draft.agent_id,
+        draft.id,
+        target_status="staging",
+    )
+    production_v2 = await lifecycle.execute(
+        staging_v3.agent_id,
+        staging_v3.id,
+        target_status="production",
+    )
     assert production_v2.id != production_v1.id
     assert production_v2.runtime_config == runtime_v3
 
-    restored = await lifecycle.execute(production_v1.agent_id, production_v1.id, target_status="production")
+    restored = await lifecycle.execute(
+        production_v1.agent_id,
+        production_v1.id,
+        target_status="production",
+    )
     assert restored.id == production_v1.id
     assert restored.knowledge_version_id == knowledge_v2
     assert restored.runtime_config == runtime_v2
@@ -177,7 +233,9 @@ def test_release_identity_is_bound_to_execution_context():
     release = _release(status=ReleaseStatus.staging, version="staging")
     token = current_execution.set(new_execution_context())
     try:
-        ReleaseRuntimeResolver.__new__(ReleaseRuntimeResolver)._bind_release_context(release)
+        ReleaseRuntimeResolver.__new__(ReleaseRuntimeResolver)._bind_release_context(
+            release
+        )
         context = current_execution.get()
         assert context.agent_release_id == release.id
         assert context.agent_release_version == "staging"
@@ -221,7 +279,9 @@ async def test_staging_session_follows_current_staging_release_after_staging_mov
         loaded_release_id=opened.id,
     )
 
-    loaded = await SessionContinuityReleaseRuntimeResolver.__new__(SessionContinuityReleaseRuntimeResolver)._load_agent(uow, input_dto)
+    loaded = await SessionContinuityReleaseRuntimeResolver.__new__(
+        SessionContinuityReleaseRuntimeResolver
+    )._load_agent(uow, input_dto)
 
     assert loaded.model == "model-v2"
     assert input_dto.loaded_release_id == current.id
@@ -239,7 +299,9 @@ async def test_session_cannot_cross_runtime_environments():
         opened_release_id=None,
         data=None,
     )
-    uow = SimpleNamespace(sessions=SimpleNamespace(get_by_id=AsyncMock(return_value=session)))
+    uow = SimpleNamespace(
+        sessions=SimpleNamespace(get_by_id=AsyncMock(return_value=session))
+    )
     input_dto = AskInput(
         project_id=project_id,
         agent_id=agent_id,
@@ -249,7 +311,9 @@ async def test_session_cannot_cross_runtime_environments():
     )
 
     with pytest.raises(ConflictError, match="belongs to draft"):
-        await SessionContinuityReleaseRuntimeResolver.__new__(SessionContinuityReleaseRuntimeResolver)._session_runtime_binding(uow, input_dto)
+        await SessionContinuityReleaseRuntimeResolver.__new__(
+            SessionContinuityReleaseRuntimeResolver
+        )._session_runtime_binding(uow, input_dto)
 
 
 @pytest.mark.asyncio
@@ -283,7 +347,9 @@ async def test_runtime_session_persists_environment_and_opening_release_provenan
     context.agent_release_version = "staging-v1"
     token = current_execution.set(context)
     try:
-        session = await SessionContinuityReleaseRuntimeResolver.__new__(SessionContinuityReleaseRuntimeResolver)._resolve_session(
+        session = await SessionContinuityReleaseRuntimeResolver.__new__(
+            SessionContinuityReleaseRuntimeResolver
+        )._resolve_session(
             session_repo,
             input_dto,
             agent,
@@ -299,7 +365,12 @@ async def test_runtime_session_persists_environment_and_opening_release_provenan
 
 @pytest.mark.asyncio
 async def test_document_delete_is_blocked_while_vector_build_is_active():
-    document = SimpleNamespace(id=uuid4(), project_id=uuid4(), collection_id=uuid4(), status="READY")
+    document = SimpleNamespace(
+        id=uuid4(),
+        project_id=uuid4(),
+        collection_id=uuid4(),
+        status="READY",
+    )
     doc_repo = SimpleNamespace(
         get_by_id=AsyncMock(return_value=document),
         has_active_vector_build=AsyncMock(return_value=True),
@@ -323,17 +394,33 @@ def test_provider_model_references_are_registered_in_orm_metadata():
 async def test_sources_are_persisted_with_assistant_message():
     from modules.agent.application.dtos.runtime_dtos import SourceInfo
 
-    message_repo = SimpleNamespace(create=AsyncMock(return_value=SimpleNamespace(id=uuid4())))
+    message_repo = SimpleNamespace(
+        create=AsyncMock(return_value=SimpleNamespace(id=uuid4()))
+    )
     session_repo = SimpleNamespace(update=AsyncMock())
     outbox = SimpleNamespace(write=AsyncMock())
-    session = SimpleNamespace(id=uuid4(), project_id=uuid4(), agent_id=uuid4(), last_message_at=None)
+    session = SimpleNamespace(
+        id=uuid4(),
+        project_id=uuid4(),
+        agent_id=uuid4(),
+        last_message_at=None,
+    )
     usage = SimpleNamespace(input_tokens=1, output_tokens=2, cost_usd=0)
     context = new_execution_context()
     context.persisted_sources = [SourceInfo(document_id="doc-1", score=0.9)]
     token = current_execution.set(context)
     try:
         use_case = StructuredOutputAskAgentUseCase.__new__(StructuredOutputAskAgentUseCase)
-        await use_case._do_save_assistant_message(message_repo, session_repo, outbox, session, "answer", usage, SimpleNamespace(id=session.agent_id), [])
+        await use_case._do_save_assistant_message(
+            message_repo,
+            session_repo,
+            outbox,
+            session,
+            "answer",
+            usage,
+            SimpleNamespace(id=session.agent_id),
+            [],
+        )
     finally:
         current_execution.reset(token)
     saved_message = message_repo.create.await_args.args[0]
@@ -348,7 +435,12 @@ async def test_streaming_executes_release_tool_snapshot(monkeypatch):
     context.tool_snapshots = {str(tool.id): snapshot}
     token = current_execution.set(context)
 
-    result = SimpleNamespace(success=True, output={"ok": True}, duration_ms=3, error=None)
+    result = SimpleNamespace(
+        success=True,
+        output={"ok": True},
+        duration_ms=3,
+        error=None,
+    )
     registry = SimpleNamespace(execute=AsyncMock(return_value=result))
     transactions = SimpleNamespace(
         run=AsyncMock(
