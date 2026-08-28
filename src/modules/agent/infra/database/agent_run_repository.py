@@ -212,28 +212,34 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
             select(AgentRunModel)
             .where(AgentRunModel.id == run_id)
             .with_for_update()
+            .execution_options(populate_existing=True)
         )
         model = result.scalar_one_or_none()
         return _to_entity(model) if model is not None else None
 
     async def save(self, run: AgentRun) -> AgentRun:
-        model = await self._uow.session.get(AgentRunModel, run.id)
+        result = await self._uow.session.execute(
+            select(AgentRunModel)
+            .where(AgentRunModel.id == run.id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        )
+        model = result.scalar_one_or_none()
         if model is None:
             return await self.create(run)
 
-        # Terminal Agent Runs are immutable lifecycle facts. A late provider response,
-        # retry callback or racing finalizer must never rewrite CANCELLED/FAILED into
-        # COMPLETED (or any other terminal state) after another terminal won first.
-        incoming_status = run.status.value
-        if model.status in _TERMINAL_RUN_STATUSES and model.status != incoming_status:
-            await self._uow.session.refresh(model)
+        # Every terminal writer is serialized on the Run row. populate_existing is
+        # required because the same UoW may already have a stale RUNNING instance in
+        # its identity map while a cancellation transaction commits concurrently.
+        # Once a terminal state exists, no later provider/finalizer may mutate it.
+        if model.status in _TERMINAL_RUN_STATUSES:
             return _to_entity(model)
 
         model.session_id = run.session_id
         model.agent_release_id = run.agent_release_id
         model.input_message_id = run.input_message_id
         model.output_message_id = run.output_message_id
-        model.status = incoming_status
+        model.status = run.status.value
         model.execution_snapshot = run.execution_snapshot
         model.usage = run.usage
         model.result = run.result
