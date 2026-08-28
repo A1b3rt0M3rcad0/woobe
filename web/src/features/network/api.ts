@@ -18,6 +18,8 @@ import type {
   PromotionPreview,
 } from './types'
 
+const activeNetworkCancellationRequests = new Map<string, Promise<{ execution_id: string }>>()
+
 export function listNetworks(projectId: string): Promise<NetworkResource[]> {
   return get<NetworkResource[]>(`/network/projects/${projectId}/networks`)
 }
@@ -202,7 +204,18 @@ export function cancelNetworkExecution(
   executionId: string,
   projectId: string,
 ): Promise<{ execution_id: string }> {
-  return post<{ execution_id: string }>(
+  const requestKey = `${projectId}:${executionId}`
+  const existing = activeNetworkCancellationRequests.get(requestKey)
+  if (existing) return existing
+
+  const request = post<{ execution_id: string }>(
     `/network/executions/${executionId}/cancel?project_id=${encodeURIComponent(projectId)}`,
-  )
+  ).finally(() => {
+    if (activeNetworkCancellationRequests.get(requestKey) === request) {
+      activeNetworkCancellationRequests.delete(requestKey)
+    }
+  })
+
+  activeNetworkCancellationRequests.set(requestKey, request)
+  return request
 }
