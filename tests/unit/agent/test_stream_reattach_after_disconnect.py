@@ -147,7 +147,7 @@ async def test_transport_disconnect_then_reattach_continues_same_agent_run() -> 
 
     initial = service.stream(_input(run))
     assert str(run.id) in await _next_frame(initial, "meta")
-    assert '"content": "partial"' in await _next_frame(initial, "token")
+    assert '\"content\": \"partial\"' in await _next_frame(initial, "token")
     await asyncio.wait_for(use_case.started.wait(), timeout=1)
     await _wait_for_hot_token(store, run.id)
 
@@ -155,13 +155,13 @@ async def test_transport_disconnect_then_reattach_continues_same_agent_run() -> 
 
     reattached = service.attach(run.id)
     state = await _next_frame(reattached, "run.state")
-    assert '"run_id": "' + str(run.id) + '"' in state
-    assert '"output": "partial"' in state
+    assert '\"run_id\": \"' + str(run.id) + '\"' in state
+    assert '\"output\": \"partial\"' in state
     assert use_case.execute_calls == 1
 
     use_case.release.set()
     terminal = await _next_frame(reattached, "done")
-    assert '"answer": "partial complete"' in terminal
+    assert '\"answer\": \"partial complete\"' in terminal
     assert use_case.execute_calls == 1
 
     await reattached.aclose()
@@ -181,15 +181,51 @@ async def test_two_observers_share_one_active_agent_run_and_both_receive_termina
 
     reattached = service.attach(run.id)
     state = await _next_frame(reattached, "run.state")
-    assert '"output": "partial"' in state
+    assert '\"output\": \"partial\"' in state
     assert use_case.execute_calls == 1
 
     use_case.release.set()
 
     initial_terminal = await _next_frame(initial, "done")
     reattached_terminal = await _next_frame(reattached, "done")
-    assert '"answer": "partial complete"' in initial_terminal
-    assert '"answer": "partial complete"' in reattached_terminal
+    assert '\"answer\": \"partial complete\"' in initial_terminal
+    assert '\"answer\": \"partial complete\"' in reattached_terminal
+    assert use_case.execute_calls == 1
+
+    await initial.aclose()
+    await reattached.aclose()
+
+
+@pytest.mark.asyncio
+async def test_second_observer_can_cancel_same_run_and_both_receive_cancelled_terminal() -> None:
+    run = _run()
+    store = InMemoryExecutionStateStore()
+    use_case = _ControlledUseCase(run, store)
+    transactions = _Transactions(run)
+    service = AskAgentStreamService(use_case, transactions, state_store=store)
+
+    initial = service.stream(_input(run))
+    await _next_frame(initial, "meta")
+    await _next_frame(initial, "token")
+    await _wait_for_hot_token(store, run.id)
+
+    reattached = service.attach(run.id)
+    state = await _next_frame(reattached, "run.state")
+    assert '\"output\": \"partial\"' in state
+    assert use_case.execute_calls == 1
+
+    # Models a second client issuing POST /runs/{id}/cancel while the first client
+    # remains attached to the original POST stream. Cancellation belongs to the Run,
+    # so both observers must converge on the same durable terminal fact.
+    await store.request_cancel(run.id)
+
+    initial_terminal = await _next_frame(initial, "cancelled")
+    reattached_terminal = await _next_frame(reattached, "cancelled")
+
+    assert '\"persisted\": true' in initial_terminal
+    assert '\"output\": \"partial\"' in initial_terminal
+    assert '\"output\": \"partial\"' in reattached_terminal
+    assert transactions.repositories.runs.run.status == AgentRunStatus.CANCELLED
     assert use_case.execute_calls == 1
 
     await initial.aclose()
@@ -216,9 +252,9 @@ async def test_terminal_cancelled_run_reattaches_from_durable_state_when_hot_sta
     reattached = service.attach(run.id)
     state = await _next_frame(reattached, "run.state")
 
-    assert '"status": "cancelled"' in state
-    assert '"output": "durable partial"' in state
-    assert '"realtime_available": false' in state
+    assert '\"status\": \"cancelled\"' in state
+    assert '\"output\": \"durable partial\"' in state
+    assert '\"realtime_available\": false' in state
 
     with pytest.raises(StopAsyncIteration):
         await asyncio.wait_for(anext(reattached), timeout=1)
