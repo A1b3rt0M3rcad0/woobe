@@ -50,6 +50,9 @@ const LIVE_EXECUTION_EVENT_TYPES = new Set([
   'tool_call_completed',
   'sources',
   'delegation_started',
+  'delegation_completed',
+  'delegation_failed',
+  'delegation_skipped',
   'execution_failed',
   'execution_cancelled',
 ])
@@ -66,6 +69,8 @@ function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
   if (eventType === 'tool_call_completed') return `Tool completed: ${String(event.data.tool_name ?? 'tool')}`
   if (eventType === 'delegation_started') return `Delegating to ${String(event.data.target ?? event.data.target_node_id ?? 'Agent')}`
   if (eventType === 'delegation_completed') return `Delegation completed: ${String(event.data.target ?? 'Agent')}`
+  if (eventType === 'delegation_failed') return `Delegation failed: ${String(event.data.target ?? 'Agent')}`
+  if (eventType === 'delegation_skipped') return `Delegation skipped: ${String(event.data.target ?? 'Agent')}`
   if (eventType === 'execution_completed') return 'Network execution completed'
   if (eventType === 'execution_failed') return `Execution failed: ${String(event.data.message ?? event.data.code ?? 'runtime error')}`
   if (eventType === 'execution_cancelled') return 'Network execution cancelled'
@@ -173,7 +178,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   useLayoutEffect(() => {
     const element = scrollRef.current
     if (element && shouldStickToBottomRef.current) element.scrollTop = element.scrollHeight
-  }, [turns.length, running, liveAnswer, liveActivity.length, liveExecution.agents.length, liveExecution.tools.length, liveExecution.sources.length])
+  }, [turns.length, running, liveAnswer, liveActivity.length, liveExecution.agents.length, liveExecution.delegations.length, liveExecution.tools.length, liveExecution.sources.length])
 
   const refreshPersistedSession = async (sessionId: string) => {
     await Promise.all([
