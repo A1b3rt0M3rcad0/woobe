@@ -13,6 +13,7 @@ import type { ChatMessage as ChatMessageType } from '@/features/playground/types
 interface ChatCanvasProps {
   messages: ChatMessageType[]
   isSending: boolean
+  isStopping?: boolean
   isSessionLoading?: boolean
   onSend: (content: string) => void
   onStop: () => void
@@ -58,7 +59,7 @@ function SessionMessagesLoading() {
   )
 }
 
-export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSend, onStop, agentName, runtimeBlocked = false, runtimeBlockReason }: ChatCanvasProps) {
+export function ChatCanvas({ messages, isSending, isStopping = false, isSessionLoading = false, onSend, onStop, agentName, runtimeBlocked = false, runtimeBlockReason }: ChatCanvasProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesContentRef = useRef<HTMLDivElement>(null)
   const shouldStickToBottomRef = useRef(true)
@@ -203,7 +204,7 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
         )}
       </ScrollArea>
 
-      <ChatComposer isSending={isSending} onSend={handleSend} onStop={onStop} runtimeBlocked={runtimeBlocked} runtimeBlockReason={runtimeBlockReason} />
+      <ChatComposer isSending={isSending} isStopping={isStopping} onSend={handleSend} onStop={onStop} runtimeBlocked={runtimeBlocked} runtimeBlockReason={runtimeBlockReason} />
     </section>
   )
 }
