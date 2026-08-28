@@ -50,6 +50,26 @@ async def test_network_cancellation_interrupts_blocked_active_execution() -> Non
     assert store.cancel_running_calls == 1
 
 
+@pytest.mark.asyncio
+async def test_network_completion_wins_when_execution_is_already_done_at_cancel_poll_boundary() -> None:
+    execution_id = uuid4()
+    store = _CancellationStore()
+    processor = object.__new__(NetworkExecutionProcessor)
+    processor._store = store
+    expected = object()
+
+    async def completed_execution():
+        return expected
+
+    result = await processor._execute_with_cancellation(
+        execution_id,
+        completed_execution(),
+    )
+
+    assert result is expected
+    assert store.cancel_running_calls == 0
+
+
 class _TerminalStore:
     def __init__(self, trace_id) -> None:
         self.trace_id = trace_id
