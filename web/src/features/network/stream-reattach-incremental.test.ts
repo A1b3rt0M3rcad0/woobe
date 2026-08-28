@@ -29,10 +29,12 @@ afterEach(() => {
 
 describe('Network reattach incremental output', () => {
   it('hydrates current output and continues the Root token tail before terminal completion', async () => {
-    let streamController: ReadableStreamDefaultController<Uint8Array> | null = null
+    const streamController = {
+      current: null as ReadableStreamDefaultController<Uint8Array> | null,
+    }
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
-        streamController = controller
+        streamController.current = controller
         controller.enqueue(frame(12, 'run.state', {
           run_id: 'execution-1',
           kind: 'NETWORK',
@@ -75,7 +77,7 @@ describe('Network reattach incremental output', () => {
       expect.anything(),
     )
 
-    streamController?.enqueue(frame(13, 'token', {
+    streamController.current?.enqueue(frame(13, 'token', {
       content: ' world',
       visibility: 'assistant',
       channel: 'final',
@@ -94,11 +96,11 @@ describe('Network reattach incremental output', () => {
       expect.anything(),
     )
 
-    streamController?.enqueue(frame(14, 'execution_completed', {
+    streamController.current?.enqueue(frame(14, 'execution_completed', {
       trace_id: 'trace-1',
       output: 'Hello world',
     }))
-    streamController?.close()
+    streamController.current?.close()
 
     await streaming
 
