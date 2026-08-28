@@ -141,6 +141,10 @@ class RuntimeStreamChannel:
     terminal_emitted: bool = False
     public_output: str = ""
     latest_usage: dict[str, Any] | None = None
+    _observer_queues: set[asyncio.Queue[RuntimeStreamEvent]] = field(
+        default_factory=set,
+        repr=False,
+    )
 
     def bind_execution(
         self,
@@ -154,6 +158,14 @@ class RuntimeStreamChannel:
         self.session_id = session_id
         self.project_id = project_id
         self.agent_id = agent_id
+
+    def subscribe(self) -> asyncio.Queue[RuntimeStreamEvent]:
+        queue: asyncio.Queue[RuntimeStreamEvent] = asyncio.Queue()
+        self._observer_queues.add(queue)
+        return queue
+
+    def unsubscribe(self, queue: asyncio.Queue[RuntimeStreamEvent]) -> None:
+        self._observer_queues.discard(queue)
 
     def _capture_public_state(self, event_type: str, payload: dict[str, Any]) -> None:
         if event_type == "token":
@@ -196,17 +208,18 @@ class RuntimeStreamChannel:
         self._capture_public_state(event_type, payload)
         if event_type in {"done", "error", "cancelled"}:
             self.terminal_emitted = True
-        await self.queue.put(
-            RuntimeStreamEvent(
-                event_type=event_type,
-                payload={
-                    "protocol_version": RUNTIME_STREAM_PROTOCOL_VERSION,
-                    "request_id": str(self.request_id),
-                    "occurred_at": _stream_utc_iso(),
-                    **payload,
-                },
-            )
+        event = RuntimeStreamEvent(
+            event_type=event_type,
+            payload={
+                "protocol_version": RUNTIME_STREAM_PROTOCOL_VERSION,
+                "request_id": str(self.request_id),
+                "occurred_at": _stream_utc_iso(),
+                **payload,
+            },
         )
+        await self.queue.put(event)
+        for observer_queue in tuple(self._observer_queues):
+            observer_queue.put_nowait(event)
 
     def mark_first_token(self, *, provider: str, model: str) -> None:
         if self.ttft_ms is not None:
