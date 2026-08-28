@@ -120,6 +120,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   const abortRef = useRef<AbortController | null>(null)
   const executionIdRef = useRef<string | null>(null)
   const stopIntentRef = useRef(false)
+  const stopRequestRef = useRef(false)
   const reattachExecutionRef = useRef<string | null>(null)
   const previousSessionIdRef = useRef<string | null>(activeSession?.id ?? null)
   const mountedRef = useRef(true)
@@ -142,6 +143,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   const clearLiveState = () => {
     liveAnswerSchedulerRef.current?.clear()
     stopIntentRef.current = false
+    stopRequestRef.current = false
     setRunning(false)
     setStopping(false)
     setPendingMessage(null)
@@ -194,6 +196,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
     void cancelNetworkExecution(executionId, projectId)
       .then(() => toast.info('Network execution cancellation requested'))
       .catch((error) => {
+        stopRequestRef.current = false
         setStopping(false)
         toast.warning(error instanceof Error ? error.message : 'Run cancellation could not be confirmed')
       })
@@ -225,6 +228,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
       executionIdRef.current = active.execution_id
       liveAnswerSchedulerRef.current?.clear()
       setRunning(true)
+      stopRequestRef.current = active.status === 'cancel_requested'
       setStopping(active.status === 'cancel_requested')
       setPendingMessage(active.input_message)
       setLiveAnswer('')
@@ -310,7 +314,8 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   }, [activeSession?.id, creatingSession, environment, networkId, onSelectSession, projectId, running, runtimeEnabled])
 
   const stop = () => {
-    if (!running || stopping) return
+    if (!running || stopping || stopRequestRef.current) return
+    stopRequestRef.current = true
     const executionId = executionIdRef.current
     setStopping(true)
     if (!executionId) {
@@ -369,6 +374,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
 
     liveAnswerSchedulerRef.current?.clear()
     stopIntentRef.current = false
+    stopRequestRef.current = false
     setText('')
     setRunning(true)
     setStopping(false)
