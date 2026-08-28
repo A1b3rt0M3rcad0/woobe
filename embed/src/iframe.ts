@@ -123,6 +123,21 @@ function ensureUi(nextAppearance = appearance): ChatUi {
   return ui;
 }
 
+function setStoppingState(next: boolean) {
+  if (stopping === next) return;
+  stopping = next;
+  ensureUi().setStopping(next);
+}
+
+function restoreActiveRunState(active: ActiveRun) {
+  const cancellationPending = active.status === "cancel_requested";
+  stopping = cancellationPending;
+  ensureUi().setStopping(cancellationPending);
+  if (cancellationPending) {
+    emit("run.stopping", { resumed: true, runId: active.run_id });
+  }
+}
+
 async function api(path: string, init: RequestInit = {}) {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
@@ -234,6 +249,11 @@ function applyRuntimeFrame(
   const { eventType, data, payload } = parsed;
   if (eventType === "run.state") {
     replaceAnswer(observer, typeof payload.output === "string" ? payload.output : "");
+    if (payload.status === "cancel_requested") {
+      const wasStopping = stopping;
+      setStoppingState(true);
+      if (!wasStopping) emit("run.stopping", { resumed: true });
+    }
   } else if (eventType === "agent_activity" || data.type === "agent_activity") {
     const activity = publicActivity(data);
     if (activity) {
@@ -411,16 +431,14 @@ async function observeRuntimeRun(
 async function requestCancel() {
   if (!submitting || stopping || !sessionId) return;
   const chatUi = ensureUi();
-  stopping = true;
-  chatUi.setStopping(true);
+  setStoppingState(true);
   emit("run.stopping");
   try {
     await api(`/v1/chat/sessions/${sessionId}/active-run/cancel`, {
       method: "POST",
     });
   } catch (error) {
-    stopping = false;
-    chatUi.setStopping(false);
+    setStoppingState(false);
     appendError(error);
   }
 }
@@ -432,8 +450,7 @@ async function resumeActiveRun() {
 
   const chatUi = ensureUi();
   submitting = true;
-  stopping = false;
-  chatUi.setStopping(false);
+  restoreActiveRunState(active);
   chatUi.setSubmitting(true);
   emit("run.started", { resumed: true, runId: active.run_id });
   try {
@@ -498,6 +515,7 @@ async function sendMessage(message: string) {
       // transport failed. Recover by Session/Run identity; never submit it again.
       const active = await loadActiveRun();
       if (!active) throw error;
+      restoreActiveRunState(active);
       response = await api(`/v1/chat/sessions/${sessionId}/active-run/stream`);
     }
     await observeRuntimeRun(response, { resumed: false });
