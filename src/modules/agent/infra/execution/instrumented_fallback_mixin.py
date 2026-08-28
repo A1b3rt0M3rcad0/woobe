@@ -12,7 +12,10 @@ from modules.agent.infra.execution.execution_instrumentation import (
     aggregate_usage,
     invoke_llm,
 )
-from modules.agent.infra.execution.runtime_streaming import emit_runtime_event
+from modules.agent.infra.execution.runtime_streaming import (
+    emit_runtime_event,
+    runtime_streaming_enabled,
+)
 
 
 def _fallback_pricing_snapshot(agent) -> dict | None:
@@ -58,6 +61,7 @@ class InstrumentedFallbackMixin:
             base_url=(prepared or {}).get("base_url"),
             temperature=agent.temperature or 0.2,
             max_tokens=agent.max_output_tokens or 1000,
+            streaming=runtime_streaming_enabled(),
             response_format={"type": "json_object"} if json_enabled else None,
         )
 
@@ -65,7 +69,10 @@ class InstrumentedFallbackMixin:
             result, call = await invoke_llm(
                 model=fallback_chat_model,
                 messages=messages,
-                phase="fallback_response",
+                # Fallback is a terminal response generation attempt. Reusing the
+                # public final phase keeps standalone and Network streaming semantics
+                # identical while the fallback event preserves provider provenance.
+                phase="final_response_generation",
                 call_index=call_index,
                 provider=fallback_provider,
                 model_name=agent.fallback_model,
