@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -32,6 +33,7 @@ from shared.contracts.execution_state import ExecutionStateStore
 from shared.contracts.time import utc_now
 from shared.runtime_reattach import (
     RuntimeEventPublisher,
+    RuntimeStreamFrame,
     RuntimeStreamReader,
     format_sse_frame,
 )
@@ -44,6 +46,8 @@ logger = logging.getLogger(__name__)
 # cancel the execution it was watching.
 _DETACHED_AGENT_EXECUTIONS: set[asyncio.Task[Any]] = set()
 _DETACHED_AGENT_EVENT_PUMPS: set[asyncio.Task[Any]] = set()
+_INITIAL_OBSERVER_POLL_SECONDS = 0.25
+_TERMINAL_STREAM_EVENTS = {"done", "error", "cancelled"}
 
 
 def _track(task: asyncio.Task[Any], registry: set[asyncio.Task[Any]]) -> None:
@@ -242,13 +246,40 @@ class AskAgentStreamService:
                 pass
         return persisted
 
+    @staticmethod
+    def _event_for_run(
+        event: RuntimeStreamEvent,
+        run_id: UUID | None,
+    ) -> RuntimeStreamEvent:
+        if run_id is None or event.payload.get("run_id") is not None:
+            return event
+        return RuntimeStreamEvent(
+            event_type=event.event_type,
+            payload={**event.payload, "run_id": str(run_id)},
+        )
+
+    @staticmethod
+    def _forward_initial_observer(
+        observer_queue: asyncio.Queue[RuntimeStreamEvent] | None,
+        observer_closed: asyncio.Event | None,
+        event: RuntimeStreamEvent,
+    ) -> None:
+        if observer_queue is None:
+            return
+        if observer_closed is not None and observer_closed.is_set():
+            return
+        observer_queue.put_nowait(event)
+
     async def _pump_events(
         self,
         input_dto: AskInput,
         channel: RuntimeStreamChannel,
         execution_task: asyncio.Task[AskOutput],
+        initial_observer_queue: asyncio.Queue[RuntimeStreamEvent] | None = None,
+        initial_observer_closed: asyncio.Event | None = None,
     ) -> None:
-        buffered: list[RuntimeStreamEvent] = []
+        del input_dto
+        buffered: list[tuple[RuntimeStreamEvent, bool]] = []
         terminal_seen = False
         while not terminal_seen:
             run_id = getattr(channel, "run_id", None)
@@ -264,7 +295,8 @@ class AskAgentStreamService:
 
             try:
                 event = await asyncio.wait_for(channel.queue.get(), timeout=0.25)
-                buffered.append(event)
+                run_id = getattr(channel, "run_id", None)
+                buffered.append((self._event_for_run(event, run_id), False))
             except asyncio.TimeoutError:
                 event = None
 
@@ -277,21 +309,50 @@ class AskAgentStreamService:
 
             if run_id is not None and runtime_ready and buffered:
                 pending, buffered = buffered, []
-                for queued in pending:
-                    payload = dict(queued.payload)
-                    if queued.event_type == "meta" and payload.get("run_id") is None:
-                        payload["run_id"] = str(run_id)
+                for queued, observed in pending:
+                    queued = self._event_for_run(queued, run_id)
                     await self._publisher.publish(
                         run_id,
                         "agent",
                         queued.event_type,
-                        payload,
+                        dict(queued.payload),
                     )
-                    if queued.event_type in {"done", "error", "cancelled"}:
+                    if not observed:
+                        self._forward_initial_observer(
+                            initial_observer_queue,
+                            initial_observer_closed,
+                            queued,
+                        )
+                    if queued.event_type in _TERMINAL_STREAM_EVENTS:
                         terminal_seen = True
+            elif buffered:
+                # Standalone execution remains observable even when hot-state transport
+                # is degraded or still initializing. Redis is required for reattach, not
+                # for delivery to the observer that started this logical Run.
+                for index, (queued, observed) in enumerate(buffered):
+                    if observed:
+                        continue
+                    queued = self._event_for_run(queued, run_id)
+                    self._forward_initial_observer(
+                        initial_observer_queue,
+                        initial_observer_closed,
+                        queued,
+                    )
+                    buffered[index] = (queued, True)
 
             if execution_task.done() and not buffered and terminal_seen:
                 return
+
+            if execution_task.done() and buffered and not runtime_ready:
+                if any(
+                    queued.event_type in _TERMINAL_STREAM_EVENTS
+                    for queued, _observed in buffered
+                ):
+                    logger.warning(
+                        "Standalone hot event persistence unavailable after terminal Run; "
+                        "durable Agent Run remains authoritative"
+                    )
+                    return
 
             if execution_task.done() and not terminal_seen and event is None:
                 # _run_execution always attempts to enqueue a terminal event. Give
@@ -376,33 +437,73 @@ class AskAgentStreamService:
         disconnect_check: DisconnectCheck | None = None,
     ) -> AsyncGenerator[str, None]:
         channel = RuntimeStreamChannel()
+        initial_observer_queue: asyncio.Queue[RuntimeStreamEvent] = asyncio.Queue()
+        initial_observer_closed = asyncio.Event()
         execution_task = asyncio.create_task(self._run_execution(input_dto, channel))
         _track(execution_task, _DETACHED_AGENT_EXECUTIONS)
         pump_task = asyncio.create_task(
-            self._pump_events(input_dto, channel, execution_task)
+            self._pump_events(
+                input_dto,
+                channel,
+                execution_task,
+                initial_observer_queue,
+                initial_observer_closed,
+            )
         )
         _track(pump_task, _DETACHED_AGENT_EVENT_PUMPS)
 
-        # Acceptance creates the canonical Run before external execution. Wait only
-        # for that identity, then observe through the shared hot stream. The request
-        # no longer owns execution after this point.
-        while getattr(channel, "run_id", None) is None:
-            if disconnect_check is not None and await disconnect_check():
-                return
-            if execution_task.done():
+        # The observer that created the Run receives the runtime event fan-out directly.
+        # Redis receives the same events in parallel and remains the canonical reattach
+        # transport after a disconnect. This avoids XREAD/tail batching on the initial
+        # user-facing stream while preserving detached execution and recovery semantics.
+        last_heartbeat = time.monotonic()
+        try:
+            while True:
+                if disconnect_check is not None and await disconnect_check():
+                    return
                 try:
-                    await execution_task
-                except asyncio.CancelledError:
-                    return
-                except Exception as exc:
-                    yield self._format_early_error(exc)
-                    return
-            await asyncio.sleep(0.01)
+                    event = await asyncio.wait_for(
+                        initial_observer_queue.get(),
+                        timeout=_INITIAL_OBSERVER_POLL_SECONDS,
+                    )
+                except asyncio.TimeoutError:
+                    now = time.monotonic()
+                    if now - last_heartbeat >= RUNTIME_STREAM_HEARTBEAT_SECONDS:
+                        last_heartbeat = now
+                        yield format_sse_frame(
+                            RuntimeStreamFrame(
+                                "heartbeat",
+                                {
+                                    "request_id": str(channel.request_id),
+                                    "run_id": (
+                                        str(getattr(channel, "run_id"))
+                                        if getattr(channel, "run_id", None) is not None
+                                        else None
+                                    ),
+                                    "ts": _now_iso(),
+                                },
+                            )
+                        )
+                    if execution_task.done() and pump_task.done() and initial_observer_queue.empty():
+                        if execution_task.cancelled():
+                            return
+                        error = execution_task.exception()
+                        if error is not None:
+                            yield self._format_early_error(error)
+                        return
+                    continue
 
-        run_id = getattr(channel, "run_id")
-        await self._wait_for_hot_state(run_id, execution_task)
-        async for chunk in self.attach(run_id, disconnect_check):
-            yield chunk
+                last_heartbeat = time.monotonic()
+                yield format_sse_frame(
+                    RuntimeStreamFrame(
+                        event.event_type,
+                        dict(event.payload),
+                    )
+                )
+                if event.event_type in _TERMINAL_STREAM_EVENTS:
+                    return
+        finally:
+            initial_observer_closed.set()
 
     @staticmethod
     def _format_early_error(exc: Exception) -> str:
