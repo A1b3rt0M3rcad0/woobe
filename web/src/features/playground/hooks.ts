@@ -189,6 +189,7 @@ export function useAskStream() {
         void queryClient.invalidateQueries({ queryKey: ['session-messages', observedSessionId] })
       }
       void queryClient.invalidateQueries({ queryKey: ['agent-sessions'] })
+      void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
       void queryClient.invalidateQueries({ queryKey: ['traces'] })
       void queryClient.invalidateQueries({
         queryKey: ['project-overview'],
