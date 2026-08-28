@@ -32,17 +32,19 @@ describe('Agent stream cancellation coordinator', () => {
     expect(requestCancellation).toHaveBeenCalledWith('run-2')
   })
 
-  it('dispatches at most one cancellation request for the same active observer', async () => {
-    const requestCancellation = vi.fn(async (_runId: string) => undefined)
+  it('dispatches at most one cancellation request while the request is pending', async () => {
+    let resolveCancellation!: () => void
+    const requestCancellation = vi.fn(() => new Promise<void>((resolve) => { resolveCancellation = resolve }))
     const coordinator = createAgentStreamCancellationCoordinator(requestCancellation)
 
     coordinator.begin('run-3')
     expect(coordinator.requestStop()).toBe(true)
     expect(coordinator.requestStop()).toBe(false)
     coordinator.observeRun('run-3')
-    await Promise.resolve()
 
     expect(requestCancellation).toHaveBeenCalledTimes(1)
+    resolveCancellation()
+    await Promise.resolve()
   })
 
   it('does not leak a pending Stop intent into a later stream', async () => {
@@ -86,36 +88,68 @@ describe('Agent stream cancellation coordinator', () => {
     expect(onConfirmed).toHaveBeenCalledWith('run-confirmed')
   })
 
-  it('reports cancellation request failures without finishing the active observer', async () => {
+  it('reports cancellation request failures and allows a retry on the same observer', async () => {
     const failure = new Error('cancel request failed')
-    const requestCancellation = vi.fn(async (_runId: string) => { throw failure })
+    const requestCancellation = vi.fn()
+      .mockRejectedValueOnce(failure)
+      .mockResolvedValueOnce(undefined)
     const onError = vi.fn()
-    const coordinator = createAgentStreamCancellationCoordinator(requestCancellation, { onError })
+    const onConfirmed = vi.fn()
+    const coordinator = createAgentStreamCancellationCoordinator(requestCancellation, { onError, onConfirmed })
 
     coordinator.begin('run-failed')
     expect(coordinator.requestStop()).toBe(true)
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(onError).toHaveBeenCalledTimes(1)
     expect(onError).toHaveBeenCalledWith('run-failed', failure)
-    expect(coordinator.requestStop()).toBe(false)
+    expect(coordinator.requestStop()).toBe(true)
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(requestCancellation).toHaveBeenCalledTimes(2)
+    expect(onConfirmed).toHaveBeenCalledWith('run-failed')
   })
 
-  it('reports a deferred cancellation failure after the Run identity arrives', async () => {
-    const requestCancellation = vi.fn(async (_runId: string) => { throw new Error('late failure') })
+  it('reports a deferred cancellation failure after the Run identity arrives and permits retry', async () => {
+    const requestCancellation = vi.fn()
+      .mockRejectedValueOnce(new Error('late failure'))
+      .mockResolvedValueOnce(undefined)
     const onError = vi.fn()
     const coordinator = createAgentStreamCancellationCoordinator(requestCancellation, { onError })
 
     coordinator.begin()
-    coordinator.requestStop()
+    expect(coordinator.requestStop()).toBe(true)
     coordinator.observeRun('run-late')
     await Promise.resolve()
     await Promise.resolve()
 
-    expect(requestCancellation).toHaveBeenCalledWith('run-late')
+    expect(requestCancellation).toHaveBeenNthCalledWith(1, 'run-late')
     expect(onError).toHaveBeenCalledTimes(1)
-    expect(onError.mock.calls[0]?.[0]).toBe('run-late')
-    expect(onError.mock.calls[0]?.[1]).toBeInstanceOf(Error)
+    expect(coordinator.requestStop()).toBe(true)
+    await Promise.resolve()
+    await Promise.resolve()
+    expect(requestCancellation).toHaveBeenNthCalledWith(2, 'run-late')
+  })
+
+  it('does not let an old failed request reset Stop state for a later stream generation', async () => {
+    let rejectOld!: (error: Error) => void
+    const requestCancellation = vi.fn()
+      .mockImplementationOnce(() => new Promise<void>((_resolve, reject) => { rejectOld = reject }))
+      .mockResolvedValueOnce(undefined)
+    const coordinator = createAgentStreamCancellationCoordinator(requestCancellation)
+
+    coordinator.begin('old-run')
+    expect(coordinator.requestStop()).toBe(true)
+    coordinator.finish()
+    coordinator.begin('new-run')
+    expect(coordinator.requestStop()).toBe(true)
+
+    rejectOld(new Error('old request failed'))
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(coordinator.requestStop()).toBe(false)
+    expect(requestCancellation).toHaveBeenCalledTimes(2)
   })
 })
