@@ -580,10 +580,13 @@ export function buildTurnFromRuntimeEvents({
     fallbackTraceId,
     terminalStatus,
   })
+  const visibleAnswer = terminalStatus === 'cancelled'
+    ? answer
+    : answer || built.execution.root.failure?.message || ''
   return {
     id: executionId,
     user,
-    answer: answer || built.execution.root.failure?.message || '',
+    answer: visibleAnswer,
     parsedOutput: built.execution.root.parsedOutput,
     outputParseError: built.execution.root.outputParseError,
     provider: built.provider,
