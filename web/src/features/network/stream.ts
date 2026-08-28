@@ -158,6 +158,91 @@ function hydrateInvocationSnapshot(
   }
 }
 
+function hydrateDelegationSnapshot(
+  source: NetworkRuntimeEvent,
+  data: Record<string, unknown>,
+  callbacks: NetworkStreamCallbacks,
+) {
+  const rawDelegations = Array.isArray(data.delegations) ? data.delegations : []
+  for (const rawDelegation of rawDelegations) {
+    const delegation = asRecord(rawDelegation)
+    const target = asString(delegation.target) ?? asString(delegation.target_node_id)
+    if (!target) continue
+    const sharedData: Record<string, unknown> = {
+      target,
+      target_node_id: delegation.target_node_id ?? null,
+      task_fingerprint: delegation.id ?? null,
+      reason: delegation.reason ?? null,
+    }
+    const startedAt = asString(delegation.started_at) ?? source.created_at
+    callbacks.onEvent('delegation_started', {
+      ...source,
+      invocation_id: asString(delegation.parent_invocation_id),
+      created_at: startedAt,
+      data: sharedData,
+    })
+
+    const status = asString(delegation.status)
+    if (!status || status === 'running' || status === 'queued') continue
+    const eventType = status === 'completed' || status === 'success'
+      ? 'delegation_completed'
+      : status === 'skipped'
+        ? 'delegation_skipped'
+        : 'delegation_failed'
+    callbacks.onEvent(eventType, {
+      ...source,
+      invocation_id: asString(delegation.parent_invocation_id),
+      created_at: asString(delegation.completed_at) ?? source.created_at,
+      data: sharedData,
+    })
+  }
+}
+
+function hydrateToolSnapshot(
+  source: NetworkRuntimeEvent,
+  data: Record<string, unknown>,
+  callbacks: NetworkStreamCallbacks,
+) {
+  const rawTools = Array.isArray(data.tools) ? data.tools : []
+  for (const rawTool of rawTools) {
+    const tool = asRecord(rawTool)
+    const toolName = asString(tool.tool_name)
+    if (!toolName || toolName.startsWith('delegate_to_')) continue
+    const toolCallId = asString(tool.tool_call_id) ?? asString(tool.id)
+    const invocationId = asString(tool.invocation_id)
+    const sharedData: Record<string, unknown> = {
+      tool_call_id: toolCallId,
+      tool_name: toolName,
+    }
+    callbacks.onEvent('tool_call_started', {
+      ...source,
+      invocation_id: invocationId,
+      created_at: asString(tool.started_at) ?? source.created_at,
+      data: {
+        ...sharedData,
+        status: 'running',
+        started_at: tool.started_at ?? source.created_at ?? null,
+      },
+    })
+
+    const status = asString(tool.status)
+    if (!status || status === 'running' || status === 'queued') continue
+    callbacks.onEvent('tool_call_completed', {
+      ...source,
+      invocation_id: invocationId,
+      created_at: asString(tool.completed_at) ?? source.created_at,
+      data: {
+        ...sharedData,
+        duration_ms: tool.duration_ms ?? null,
+        success: tool.success ?? status === 'success' || status === 'completed',
+        status,
+        error_code: tool.error_code ?? null,
+        error: tool.error ?? null,
+      },
+    })
+  }
+}
+
 function eventSequence(parsed: ParsedSseEvent, event: NetworkRuntimeEvent): number | null {
   if (typeof event.sequence === 'number' && Number.isInteger(event.sequence) && event.sequence >= 0) {
     return event.sequence
@@ -210,7 +295,7 @@ function applyRunState(
           content: suffix,
           visibility: 'assistant',
           channel: 'final',
-          phase: 'final_response_generation',
+          phase: 'capability_response_generation',
         }))
       }
     } else {
@@ -225,7 +310,7 @@ function applyRunState(
           content: output,
           visibility: 'assistant',
           channel: 'final',
-          phase: 'final_response_generation',
+          phase: 'capability_response_generation',
         }))
       }
     }
@@ -233,6 +318,8 @@ function applyRunState(
   }
 
   hydrateInvocationSnapshot(event, data, callbacks)
+  hydrateDelegationSnapshot(event, data, callbacks)
+  hydrateToolSnapshot(event, data, callbacks)
   callbacks.onEvent('run.state', event)
   const status = typeof data.status === 'string' ? data.status : ''
   if (!TERMINAL_RUN_STATUSES.has(status)) return false
