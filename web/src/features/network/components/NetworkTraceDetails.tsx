@@ -51,6 +51,16 @@ import {
 type InspectorView = 'execution' | 'path' | 'agent' | 'evidence'
 type AgentDetailView = 'run' | 'evidence'
 
+interface DelegationEvidence {
+  id: string
+  parent: string
+  child: string
+  childRunId: string
+  status: NetworkAgentInvocation['status']
+  source: string
+  version: string
+}
+
 function CollapsibleSection({ title, badge, children }: { title: string; badge?: string; children: ReactNode }) {
   const [open, setOpen] = useState(false)
   return (
@@ -98,6 +108,33 @@ function statusIcon(status: NetworkAgentInvocation['status']) {
   if (status === 'cancelled') return <XCircle className="h-4 w-4 text-slate-400" />
   if (status === 'running' || status === 'pending') return <CircleDot className="h-4 w-4 animate-pulse text-blue-400" />
   return <CheckCircle2 className="h-4 w-4 text-emerald-400" />
+}
+
+function compactStatusIcon(status: NetworkAgentInvocation['status']) {
+  if (status === 'error') return <XCircle className="h-3.5 w-3.5 shrink-0 text-red-400" />
+  if (status === 'cancelled') return <XCircle className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+  if (status === 'running' || status === 'pending') return <CircleDot className="h-3.5 w-3.5 shrink-0 animate-pulse text-blue-400" />
+  return <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+}
+
+function delegationEvidence(root: NetworkAgentInvocation): DelegationEvidence[] {
+  const rows: DelegationEvidence[] = []
+  const visit = (parent: NetworkAgentInvocation) => {
+    parent.children.forEach((child) => {
+      rows.push({
+        id: `${parent.spanId}:${child.spanId}`,
+        parent: parent.agentName,
+        child: child.agentName,
+        childRunId: child.spanId,
+        status: child.status,
+        source: child.source,
+        version: child.version,
+      })
+      visit(child)
+    })
+  }
+  visit(root)
+  return rows
 }
 
 function sessionContinuityLabel(invocation: NetworkAgentInvocation) {
@@ -207,6 +244,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
   const tools = toolCount(trace.execution.root)
   const sources = sourceCount(trace.execution.root)
   const delegations = delegationCount(trace.execution.root)
+  const delegationRows = useMemo(() => delegationEvidence(trace.execution.root), [trace.execution.root])
   const routeEvents = trace.events.filter((event) => event.type.startsWith('network.route.'))
   const outcome = networkRunOutcome(trace.status, trace.execution.root)
   const meta = outcomeMeta(outcome)
@@ -315,7 +353,20 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
 
             <div className="rounded-xl border border-border/75 bg-background/30 px-3">
               <CollapsibleSection title="Execution evidence" badge={`${agentRuns} Agent Runs`}><NetworkTraceInvocation invocation={trace.execution.root} trace={trace} depth={0} onOpenAgent={onOpenAgent} /></CollapsibleSection>
-              <CollapsibleSection title="Routing" badge={String(routeEvents.length)}><div className="space-y-2">{routeEvents.length ? routeEvents.map((event) => <div key={event.id} className="rounded-lg bg-background/45 p-2.5"><div className="flex items-center gap-1.5"><GitBranch className="h-3.5 w-3.5 text-primary-light" /><code className="text-[9px] text-white">{event.type}</code></div><p className="mt-1 text-[9px] text-muted">{event.label}</p><JsonCodeBlock value={event.payload} maxHeight={128} className="mt-2" /></div>) : <p className="text-[9px] text-muted">No routing decisions were recorded.</p>}</div></CollapsibleSection>
+              <CollapsibleSection title="Delegations" badge={String(delegationRows.length)}>
+                <div className="space-y-1.5">
+                  {delegationRows.length ? delegationRows.map((delegation) => (
+                    <button key={delegation.id} type="button" onClick={() => { setSelectedSpanId(delegation.childRunId); setView('agent') }} className="flex w-full items-center gap-2 rounded-lg bg-background/45 px-2.5 py-2 text-left hover:bg-background/70">
+                      {compactStatusIcon(delegation.status)}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[9px] text-slate-200"><span className="text-muted">{delegation.parent}</span> → {delegation.child}</p>
+                        <p className="mt-0.5 truncate text-[8px] text-muted">{delegation.source} · {delegation.version}</p>
+                      </div>
+                    </button>
+                  )) : <p className="text-[9px] text-muted">No Agent delegations were executed.</p>}
+                </div>
+              </CollapsibleSection>
+              {routeEvents.length ? <CollapsibleSection title="Routing decisions" badge={String(routeEvents.length)}><div className="space-y-2">{routeEvents.map((event) => <div key={event.id} className="rounded-lg bg-background/45 p-2.5"><div className="flex items-center gap-1.5"><GitBranch className="h-3.5 w-3.5 text-primary-light" /><code className="text-[9px] text-white">{event.type}</code></div><p className="mt-1 text-[9px] text-muted">{event.label}</p><JsonCodeBlock value={event.payload} maxHeight={128} className="mt-2" /></div>)}</div></CollapsibleSection> : null}
               {trace.parsedOutput ? <CollapsibleSection title="Structured output"><JsonCodeBlock value={trace.parsedOutput} maxHeight={180} /></CollapsibleSection> : null}
               <CollapsibleSection title="Session composition" badge={`${trace.agentContexts.length} contexts`}><NetworkSessionComposition contexts={trace.agentContexts} /></CollapsibleSection>
               <CollapsibleSection title="Composition snapshot"><JsonCodeBlock value={{ environment: trace.environment, network_version: trace.networkVersion, composition_hash: trace.compositionHash, agents: trace.agentContexts.map((context) => ({ node_id: context.nodeId, agent_id: context.agentId, source: context.source, version: context.version, session_mode: context.sessionMode })) }} maxHeight={220} /></CollapsibleSection>
@@ -324,7 +375,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
               <CollapsibleSection title="Technical identifiers" badge={`${technicalIds.length} IDs`}><div className="divide-y divide-border/60">{technicalIds.map(([label, value]) => <CopyableIdRow key={label} label={label} value={value} />)}</div><button type="button" onClick={() => void navigator.clipboard.writeText(technicalIds.map(([label, value]) => `${label}: ${value}`).join('\n'))} className="mt-2 inline-flex items-center gap-1.5 text-[9px] font-medium text-muted hover:text-white"><Copy className="h-3 w-3" />Copy all identifiers</button></CollapsibleSection>
             </div>
 
-            <div className="flex items-center justify-between text-[9px] text-muted"><span className="inline-flex items-center gap-1"><Wrench className="h-3 w-3" />{tools} Tool Calls</span><span className="inline-flex items-center gap-1"><Database className="h-3 w-3" />{sources} Sources</span><span className="inline-flex items-center gap-1"><Activity className="h-3 w-3" />{trace.events.length} Events</span></div>
+            <div className="grid grid-cols-4 gap-2 text-[9px] text-muted"><span className="inline-flex items-center gap-1"><GitBranch className="h-3 w-3" />{delegations} Delegations</span><span className="inline-flex items-center gap-1"><Wrench className="h-3 w-3" />{tools} Tool Calls</span><span className="inline-flex items-center gap-1"><Database className="h-3 w-3" />{sources} Sources</span><span className="inline-flex items-center gap-1"><Activity className="h-3 w-3" />{trace.events.length} Events</span></div>
           </>
         ) : null}
       </div>
