@@ -6,9 +6,9 @@ import type { ChatMessage as PlaygroundChatMessage, SourceInfo, ToolCallInfo } f
 import { formatCurrency } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 
-import type { LiveNetworkAgent } from './networkLiveExecution'
+import type { LiveNetworkAgent, LiveNetworkDelegation } from './networkLiveExecution'
 import type { AgentNodeId } from './networkWorkspaceTypes'
-import { invocationCount, operationalTools, type NetworkAgentInvocation, type NetworkExecution, type NetworkTurn } from './networkChatExecution'
+import { delegationCount, invocationCount, operationalTools, type NetworkAgentInvocation, type NetworkExecution, type NetworkTurn } from './networkChatExecution'
 
 function flattenTools(invocation: NetworkAgentInvocation): ToolCallInfo[] {
   return [
@@ -52,6 +52,13 @@ function AgentStatusIcon({ status }: { status: NetworkAgentInvocation['status'] 
   return <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400" />
 }
 
+function DelegationStatusIcon({ status }: { status: LiveNetworkDelegation['status'] }) {
+  if (status === 'running') return <Loader2 className="h-3 w-3 shrink-0 animate-spin text-primary-light" />
+  if (status === 'error') return <XCircle className="h-3 w-3 shrink-0 text-red-400" />
+  if (status === 'cancelled' || status === 'skipped') return <XCircle className="h-3 w-3 shrink-0 text-slate-400" />
+  return <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-400" />
+}
+
 function agentSummary(agents: Array<{ name: string; status: NetworkAgentInvocation['status'] | LiveNetworkAgent['status'] }>) {
   const running = agents.filter((agent) => agent.status === 'running' || agent.status === 'pending').length
   const failed = agents.filter((agent) => agent.status === 'error').length
@@ -61,6 +68,19 @@ function agentSummary(agents: Array<{ name: string; status: NetworkAgentInvocati
   if (running) parts.push(`${running} running`)
   if (completed) parts.push(`${completed} completed`)
   if (failed) parts.push(`${failed} failed`)
+  return parts.join(' · ')
+}
+
+function delegationSummary(delegations: LiveNetworkDelegation[]) {
+  const running = delegations.filter((item) => item.status === 'running').length
+  const completed = delegations.filter((item) => item.status === 'success').length
+  const failed = delegations.filter((item) => item.status === 'error').length
+  const skipped = delegations.filter((item) => item.status === 'skipped' || item.status === 'cancelled').length
+  const parts = [`Delegations (${delegations.length})`]
+  if (running) parts.push(`${running} running`)
+  if (completed) parts.push(`${completed} completed`)
+  if (failed) parts.push(`${failed} failed`)
+  if (skipped) parts.push(`${skipped} skipped`)
   return parts.join(' · ')
 }
 
@@ -127,6 +147,30 @@ export function NetworkLiveAgents({ agents, onSelectAgent }: {
   )
 }
 
+export function NetworkLiveDelegations({ delegations }: { delegations: LiveNetworkDelegation[] }) {
+  const [open, setOpen] = useState(false)
+  if (!delegations.length) return null
+
+  return (
+    <div className="pl-8">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-1 text-[9px] text-primary-light transition-colors hover:text-white">
+        {open ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
+        <span className="truncate">{delegationSummary(delegations)}</span>
+      </button>
+      {open ? (
+        <div className="mt-1.5 space-y-1 border-l border-border/70 pl-2">
+          {delegations.map((delegation) => (
+            <div key={delegation.id} className="flex max-w-full items-center gap-1.5 text-[9px] text-muted">
+              <DelegationStatusIcon status={delegation.status} />
+              <span className="truncate">{delegation.target}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 export function NetworkAnswer({ networkName, turn, onOpenTrace, onSelectAgent }: {
   networkName: string
   turn: NetworkTurn
@@ -152,6 +196,7 @@ export function NetworkAnswer({ networkName, turn, onOpenTrace, onSelectAgent }:
     output_parse_error: turn.outputParseError ?? null,
   }
   const agents = invocationCount(turn.execution.root)
+  const delegations = delegationCount(turn.execution.root)
   const cost = turn.execution.costUsd == null ? 'cost unknown' : formatCurrency(turn.execution.costUsd)
 
   return (
@@ -161,10 +206,16 @@ export function NetworkAnswer({ networkName, turn, onOpenTrace, onSelectAgent }:
         agentName={networkName}
         variant="network"
         assistantIcon="network"
-        details={<AgentsCalled root={turn.execution.root} onSelectAgent={onSelectAgent} />}
+        details={(
+          <div className="space-y-1">
+            {delegations > 0 ? <div className="pl-8 text-[9px] text-primary-light">Delegations ({delegations}) · completed in this Run</div> : null}
+            <AgentsCalled root={turn.execution.root} onSelectAgent={onSelectAgent} />
+          </div>
+        )}
         footerMeta={(
           <>
-            <span>{agents} Agent{agents === 1 ? '' : 's'}</span>
+            <span>{agents} Agent Run{agents === 1 ? '' : 's'}</span>
+            <span>{delegations} delegation{delegations === 1 ? '' : 's'}</span>
             <span>{cost}</span>
           </>
         )}
