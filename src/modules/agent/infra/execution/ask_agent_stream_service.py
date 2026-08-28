@@ -108,6 +108,17 @@ class AskAgentStreamService:
                 input_dto,
                 "cancel_requested",
             )
+            if not persisted:
+                emitted_durable_terminal = await self._emit_durable_terminal_after_cancel_race(
+                    channel
+                )
+                if not emitted_durable_terminal:
+                    await channel.emit(
+                        "error",
+                        message="Run cancellation could not be durably confirmed",
+                    )
+                raise
+
             result = {
                 "answer": channel.public_output,
                 "partial": bool(channel.public_output),
@@ -122,7 +133,7 @@ class AskAgentStreamService:
                 result=result,
                 usage=channel.latest_usage,
                 partial=bool(channel.public_output),
-                persisted=persisted,
+                persisted=True,
             )
             raise
         except Exception as exc:
@@ -132,6 +143,65 @@ class AskAgentStreamService:
             raise
         finally:
             current_runtime_stream.reset(token)
+
+    async def _emit_durable_terminal_after_cancel_race(
+        self,
+        channel: RuntimeStreamChannel,
+    ) -> bool:
+        run_id = getattr(channel, "run_id", None)
+        if run_id is None:
+            return False
+
+        durable = await self._durable_fallback(run_id)
+        if durable is None:
+            return False
+
+        status = str(durable.get("status") or "")
+        result = durable.get("result")
+        result_payload = dict(result) if isinstance(result, dict) else {}
+        output = durable.get("output")
+        output_text = output if isinstance(output, str) else ""
+        usage = durable.get("usage")
+        usage_payload = usage if isinstance(usage, dict) else None
+
+        if status == "completed":
+            result_payload.setdefault("answer", output_text)
+            if usage_payload is not None:
+                result_payload.setdefault("usage", usage_payload)
+            await channel.emit("done", **result_payload)
+            return True
+
+        if status == "cancelled":
+            result_payload.setdefault("answer", output_text)
+            result_payload.setdefault("partial", bool(output_text))
+            result_payload.setdefault("cancelled", True)
+            result_payload.setdefault("reason", "cancel_requested")
+            if usage_payload is not None:
+                result_payload.setdefault("usage", usage_payload)
+            await channel.emit(
+                "cancelled",
+                reason=result_payload.get("reason", "cancel_requested"),
+                output=output_text,
+                result=result_payload,
+                usage=usage_payload,
+                partial=bool(result_payload.get("partial", bool(output_text))),
+                persisted=True,
+            )
+            return True
+
+        if status in {"failed", "timed_out", "uncertain"}:
+            message = durable.get("failure_detail")
+            await channel.emit(
+                "error",
+                message=(
+                    redact_text(message)
+                    if isinstance(message, str) and message
+                    else f"Run already reached terminal status: {status}"
+                ),
+            )
+            return True
+
+        return False
 
     async def _persist_cancelled(
         self,
@@ -336,6 +406,7 @@ class AskAgentStreamService:
                 "output": output or "",
                 "result": result,
                 "usage": run.usage if isinstance(run.usage, dict) else {},
+                "failure_detail": run.failure_detail,
                 "trace_id": str(run.trace_id) if run.trace_id else None,
                 "project_id": str(run.project_id),
                 "agent_id": str(run.agent_id),
