@@ -34,6 +34,14 @@ class _UnavailableStore:
         raise RuntimeError("redis unavailable")
 
 
+class _MustNotTouchStore:
+    async def get(self, _run_id):
+        raise AssertionError("terminal cancel retry must not require hot state")
+
+    async def request_cancel(self, _run_id):
+        raise AssertionError("terminal cancel retry must not enqueue another request")
+
+
 def _run() -> AgentRun:
     return AgentRun(
         project_id=uuid4(),
@@ -75,6 +83,29 @@ async def test_direct_agent_cancel_rejects_missing_hot_state_for_non_terminal_ru
 
 
 @pytest.mark.asyncio
+async def test_terminal_cancel_retry_is_idempotent_without_touching_hot_state() -> None:
+    run = _run()
+    run.status = AgentRunStatus.CANCELLED
+    run.result = {
+        "answer": "partial",
+        "partial": True,
+        "cancelled": True,
+    }
+    service = AgentRunReattachService(
+        transactions=_Transactions(run),
+        state_store=_MustNotTouchStore(),
+    )
+    principal = _principal(run)
+
+    first = await service.cancel(run_id=run.id, principal=principal)
+    repeated = await service.cancel(run_id=run.id, principal=principal)
+
+    expected = {"run_id": str(run.id), "status": "cancelled"}
+    assert first == expected
+    assert repeated == expected
+
+
+@pytest.mark.asyncio
 async def test_agent_reattach_degrades_to_durable_terminal_when_hot_store_is_unavailable() -> None:
     run = _run()
     run.status = AgentRunStatus.CANCELLED
@@ -92,9 +123,9 @@ async def test_agent_reattach_degrades_to_durable_terminal_when_hot_store_is_una
     frame = await anext(stream)
 
     assert "event: run.state" in frame
-    assert '"status": "cancelled"' in frame
-    assert '"output": "durable partial"' in frame
-    assert '"realtime_available": false' in frame
+    assert '\"status\": \"cancelled\"' in frame
+    assert '\"output\": \"durable partial\"' in frame
+    assert '\"realtime_available\": false' in frame
 
     with pytest.raises(StopAsyncIteration):
         await anext(stream)
