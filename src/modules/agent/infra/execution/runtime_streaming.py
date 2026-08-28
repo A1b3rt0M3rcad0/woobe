@@ -330,22 +330,22 @@ def _is_final_response_phase(phase: str) -> bool:
 
 
 def _can_stream_phase_live(phase: str) -> bool:
-    # Tool-capable phases can emit assistant text before selecting a tool call.
-    # Stream only phases that are committed to final user-facing output.
+    # Capability-aware invocations are buffered until the provider response proves that
+    # no Tool/Delegation call was selected. This avoids speculative user-facing text.
     return _is_final_response_phase(phase)
 
 
 def _can_emit_phase_as_final(phase: str) -> bool:
     return (
         _is_final_response_phase(phase)
-        or phase == "tool_planning"
+        or phase == "capability_response_generation"
         or phase.startswith("tool_followup_")
     )
 
 
 def _activity_for_phase(phase: str) -> tuple[str, str]:
-    if phase == "tool_planning":
-        return "planning_tools", "Checking whether tools are needed..."
+    if phase == "capability_response_generation":
+        return "generating_answer", "Generating response..."
     if phase.startswith("tool_followup_"):
         return "generating_answer", "Generating response..."
     if _is_final_response_phase(phase):
@@ -371,7 +371,7 @@ async def _emit_visible_token(
         channel="final",
         phase=phase,
         provider=provider,
-        model=model_name,
+        model_name=model_name,
     )
 
 
