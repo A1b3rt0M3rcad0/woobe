@@ -112,6 +112,31 @@ class _NoInitialTailReadStore(InMemoryExecutionStateStore):
         raise AssertionError("initial POST observer must not consume the Redis/hot tail")
 
 
+class _BlockingTokenPersistenceStore(InMemoryExecutionStateStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.token_persist_started = asyncio.Event()
+        self.release_token_persist = asyncio.Event()
+
+    async def append_event(
+        self,
+        run_id,
+        event_type,
+        payload,
+        *,
+        maxlen=2000,
+    ):
+        if event_type == "token":
+            self.token_persist_started.set()
+            await self.release_token_persist.wait()
+        return await super().append_event(
+            run_id,
+            event_type,
+            payload,
+            maxlen=maxlen,
+        )
+
+
 def _run() -> AgentRun:
     return AgentRun(
         project_id=uuid4(),
@@ -183,6 +208,31 @@ async def test_initial_post_observer_receives_live_token_without_hot_tail_read()
     assert use_case.completed.is_set() is False
 
     await stream.aclose()
+    await asyncio.wait_for(use_case.completed.wait(), timeout=1)
+
+
+@pytest.mark.asyncio
+async def test_initial_post_token_is_visible_before_hot_persistence_completes() -> None:
+    run = _run()
+    store = _BlockingTokenPersistenceStore()
+    transactions = _Transactions(run)
+    use_case = _DetachedUseCase(run, store)
+    service = AskAgentStreamService(use_case, transactions, state_store=store)
+
+    stream = service.stream(_input(run))
+    try:
+        first = await asyncio.wait_for(anext(stream), timeout=1)
+        second = await asyncio.wait_for(anext(stream), timeout=1)
+
+        assert "event: meta" in first
+        assert "event: token" in second
+        assert '"content": "partial"' in second
+        await asyncio.wait_for(store.token_persist_started.wait(), timeout=1)
+        assert store.release_token_persist.is_set() is False
+    finally:
+        store.release_token_persist.set()
+        await stream.aclose()
+
     await asyncio.wait_for(use_case.completed.wait(), timeout=1)
 
 
