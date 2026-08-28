@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createSession,
@@ -112,6 +112,7 @@ export function useSessionMessages(sessionId: string | undefined) {
 export function useAskStream() {
   const queryClient = useQueryClient()
   const activeSessionIdRef = useRef<string | null>(null)
+  const ownedStreamControllerRef = useRef<AbortController | null>(null)
   const stopCallbacksRef = useRef<AgentStreamStopCallbacks>({})
   const cancellationRef = useRef<ReturnType<typeof createAgentStreamCancellationCoordinator> | null>(null)
   if (cancellationRef.current === null) {
@@ -128,6 +129,11 @@ export function useAskStream() {
     })
   }
   const cancellation = cancellationRef.current
+
+  useEffect(() => () => {
+    const controller = ownedStreamControllerRef.current
+    if (controller && !controller.signal.aborted) controller.abort()
+  }, [])
 
   const reconcileCallbacks = useCallback((callbacks: StreamCallbacks): StreamCallbacks => ({
     ...callbacks,
@@ -163,17 +169,24 @@ export function useAskStream() {
     activeStreamController?.abort()
     const controller = new AbortController()
     activeStreamController = controller
+    ownedStreamControllerRef.current = controller
+    const observedSessionId = activeSessionIdRef.current
     try {
       await operation(controller.signal)
     } finally {
-      const sessionId = activeSessionIdRef.current
-      if (activeStreamController === controller) activeStreamController = null
-      cancellation.finish()
-      stopCallbacksRef.current = {}
-      activeSessionIdRef.current = null
-      resetAgentStreamStopState()
-      if (sessionId) {
-        void queryClient.invalidateQueries({ queryKey: ['session-messages', sessionId] })
+      const ownsCurrentStream = activeStreamController === controller
+      if (ownsCurrentStream) {
+        activeStreamController = null
+        cancellation.finish()
+        stopCallbacksRef.current = {}
+        activeSessionIdRef.current = null
+        resetAgentStreamStopState()
+      }
+      if (ownedStreamControllerRef.current === controller) {
+        ownedStreamControllerRef.current = null
+      }
+      if (observedSessionId) {
+        void queryClient.invalidateQueries({ queryKey: ['session-messages', observedSessionId] })
       }
       void queryClient.invalidateQueries({ queryKey: ['agent-sessions'] })
       void queryClient.invalidateQueries({ queryKey: ['traces'] })
@@ -224,9 +237,11 @@ export function useAskStream() {
     return accepted
   }, [cancellation])
 
-  // Kept separate for navigation/unmount style transport disposal. Disconnecting an
-  // observer must never be interpreted as cancelling the underlying Agent Run.
-  const disconnect = useCallback(() => cancelActiveAskStream(), [])
+  // Navigation/unmount only disposes this hook's observer. The Run remains owned by
+  // the runtime and can be recovered through the active-run/reattach contract.
+  const disconnect = useCallback(() => {
+    ownedStreamControllerRef.current?.abort()
+  }, [])
 
   return { stream, reattach, cancel, disconnect }
 }
