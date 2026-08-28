@@ -50,12 +50,14 @@ _DETACHED_AGENT_CANCEL_WATCHERS: set[asyncio.Task[Any]] = set()
 _INITIAL_OBSERVER_POLL_SECONDS = 0.25
 _CANCEL_POLL_SECONDS = 0.05
 _TERMINAL_STREAM_EVENTS = {"done", "error", "cancelled"}
-_AUTHORITATIVE_NON_SUCCESS_TERMINALS = {
+_AUTHORITATIVE_TERMINALS = {
+    "completed",
     "cancelled",
     "failed",
     "timed_out",
     "uncertain",
 }
+_AUTHORITATIVE_NON_SUCCESS_TERMINALS = _AUTHORITATIVE_TERMINALS - {"completed"}
 
 
 def _track(task: asyncio.Task[Any], registry: set[asyncio.Task[Any]]) -> None:
@@ -161,12 +163,49 @@ class AskAgentStreamService:
             )
             raise
         except Exception as exc:
-            # The use case owns durable failure finalization. This terminal runtime
-            # event is emitted only after execute() has returned with the failure.
+            # Finalizers may deliberately abort their UoW when another terminal writer
+            # won first. More generally, a provider failure may already have been
+            # persisted before it propagates here. Durable state is authoritative over
+            # the exception object and over any stale hot terminal_pending projection.
+            run_id = getattr(channel, "run_id", None)
+            if run_id is not None:
+                durable = await self._durable_fallback(run_id)
+                durable_status = (
+                    str(durable.get("status") or "")
+                    if durable is not None
+                    else ""
+                )
+                if durable_status in _AUTHORITATIVE_TERMINALS:
+                    await self._emit_durable_terminal_after_race(channel)
+                    raise
+
             await channel.emit("error", message=redact_text(str(exc)))
             raise
         finally:
             current_runtime_stream.reset(token)
+
+    async def _restore_hot_terminal(
+        self,
+        run_id: UUID,
+        *,
+        status: str,
+        result: dict[str, Any],
+        usage: dict[str, Any] | None,
+    ) -> None:
+        try:
+            payload: dict[str, Any] = {
+                "status": status,
+                "phase": "persisted",
+                "terminal_result": result,
+            }
+            if usage is not None:
+                payload["usage"] = usage
+            await self._state_store.update(run_id, payload)
+            await self._state_store.expire(run_id, ttl_seconds=900)
+        except Exception as exc:
+            # PostgreSQL remains the source of truth. Hot-state restoration is best
+            # effort so a stale terminal_pending projection cannot become authoritative.
+            logger.debug("Could not restore authoritative Agent Run hot terminal: %s", exc)
 
     async def _emit_durable_terminal_after_race(
         self,
@@ -192,6 +231,12 @@ class AskAgentStreamService:
             result_payload.setdefault("answer", output_text)
             if usage_payload is not None:
                 result_payload.setdefault("usage", usage_payload)
+            await self._restore_hot_terminal(
+                run_id,
+                status=status,
+                result=result_payload,
+                usage=usage_payload,
+            )
             await channel.emit("done", **result_payload)
             return True
 
@@ -202,6 +247,12 @@ class AskAgentStreamService:
             result_payload.setdefault("reason", "cancel_requested")
             if usage_payload is not None:
                 result_payload.setdefault("usage", usage_payload)
+            await self._restore_hot_terminal(
+                run_id,
+                status=status,
+                result=result_payload,
+                usage=usage_payload,
+            )
             await channel.emit(
                 "cancelled",
                 reason=result_payload.get("reason", "cancel_requested"),
@@ -218,6 +269,12 @@ class AskAgentStreamService:
             if not isinstance(message, str) or not message:
                 candidate = result_payload.get("error") or result_payload.get("message")
                 message = candidate if isinstance(candidate, str) else None
+            await self._restore_hot_terminal(
+                run_id,
+                status=status,
+                result=result_payload,
+                usage=usage_payload,
+            )
             await channel.emit(
                 "error",
                 message=(
