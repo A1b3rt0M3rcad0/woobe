@@ -22,8 +22,16 @@ class _Runs:
         self.runs = runs
         self.calls = []
 
-    async def list_direct(self, *, project_id, agent_id, session_id=None, limit=100):
-        self.calls.append((project_id, agent_id, session_id, limit))
+    async def list_direct(
+        self,
+        *,
+        project_id,
+        agent_id,
+        session_id=None,
+        environment=None,
+        limit=100,
+    ):
+        self.calls.append((project_id, agent_id, session_id, environment, limit))
         return self.runs
 
 
@@ -62,11 +70,14 @@ async def test_list_agent_runs_returns_durable_status_and_runtime_identity() -> 
         project_id=run.project_id,
         agent_id=run.agent_id,
         session_id=run.session_id,
+        environment="draft",
         limit=25,
     )
 
     assert access.calls == [(user_id, run.project_id)]
-    assert runs.calls == [(run.project_id, run.agent_id, run.session_id, 25)]
+    assert runs.calls == [
+        (run.project_id, run.agent_id, run.session_id, "draft", 25)
+    ]
     assert result == [
         {
             "id": str(run.id),
