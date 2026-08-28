@@ -37,13 +37,20 @@ def _caused_by_empty_model_output(exception: Exception) -> bool:
 
 
 def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
-    # Network Tool/delegation planning is never a committed user-facing answer.
-    # Only the normal no-Tool response or the dedicated terminal synthesis streams.
+    # Capability-aware model invocations are buffered by the Agent runtime until
+    # they are known to be terminal. Once emitted, they are committed user output.
     phase = payload.get("phase")
     return (
         payload.get("visibility") == "assistant"
         and payload.get("channel") == "final"
-        and phase in {"response_generation", "final_response_generation"}
+        and (
+            phase in {
+                "response_generation",
+                "capability_response_generation",
+                "final_response_generation",
+            }
+            or (isinstance(phase, str) and phase.startswith("tool_followup_"))
+        )
     )
 
 
@@ -143,8 +150,8 @@ class ProjectRAIAgentInvoker:
                             if not _is_public_runtime_token(payload):
                                 continue
                             streamed_output = True
-                            # Preserve the Agent Runtime token granularity. The Network
-                            # transport owns ordering and reattach, not presentation batching.
+                            # Preserve Agent Runtime token granularity. Network transport
+                            # owns ordering and reattach, not presentation batching.
                             await stream_handler("token", payload)
                             continue
 
