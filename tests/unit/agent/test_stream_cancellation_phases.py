@@ -10,6 +10,7 @@ from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.domain.run import AgentRun, AgentRunStatus
 from modules.agent.infra.execution.ask_agent_stream_service import AskAgentStreamService
 from modules.agent.infra.execution.runtime_streaming import (
+    RuntimeStreamChannel,
     current_runtime_stream,
     invoke_model_with_optional_streaming,
 )
@@ -284,19 +285,6 @@ async def test_cancel_failure_race_keeps_durable_failure_as_authoritative_winner
         transactions,
         state_store=InMemoryExecutionStateStore(),
     )
-    channel = SimpleNamespace(
-        trace_id=run.trace_id,
-        project_id=run.project_id,
-        agent_id=run.agent_id,
-        session_id=None,
-        run_id=run.id,
-        public_output="",
-        latest_usage=None,
-        emit=None,
-    )
-
-    # Use a real runtime channel so the authoritative durable terminal is observable.
-    from modules.agent.infra.execution.runtime_streaming import RuntimeStreamChannel
 
     runtime_channel = RuntimeStreamChannel()
     runtime_channel.bind_execution(
