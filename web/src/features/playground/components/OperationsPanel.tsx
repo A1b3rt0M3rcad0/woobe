@@ -7,6 +7,7 @@ import { TraceList } from './TraceList'
 import { SessionsPanel } from './SessionsPanel'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { cn } from '@/lib/utils'
+import { useAgentStreamStopState } from '@/features/playground/stream-stop-state'
 import type { AskResponse, RawStreamEvent, SessionListItem, TraceItem } from '@/features/playground/types'
 
 interface OperationsPanelProps {
@@ -65,6 +66,8 @@ export function OperationsPanel(props: OperationsPanelProps) {
     onTracesRetry,
   } = props
   const [runDetailView, setRunDetailView] = useState<RunDetailView>('run')
+  const streamState = useAgentStreamStopState()
+  const sessionInteractionBlocked = streamState !== 'idle'
 
   useEffect(() => setRunDetailView('run'), [selectedTraceId])
 
@@ -115,8 +118,15 @@ export function OperationsPanel(props: OperationsPanelProps) {
   }
 
   return (
-    <div className="w-[400px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border/90 bg-surface/70 shadow-sm shadow-black/5">
-      <ScrollArea className="h-full min-h-0">
+    <div className="w-[400px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border/90 bg-surface/70 shadow-sm shadow-black/5 flex flex-col">
+      {sessionInteractionBlocked ? (
+        <div className="shrink-0 border-b border-border/90 bg-background/35 px-4 py-2 text-[10px] text-muted">
+          {streamState === 'stopping'
+            ? 'Stopping the active Agent Run. Session changes unlock after terminal finalization.'
+            : 'An Agent Run is active. Session changes unlock after the Run reaches a terminal state.'}
+        </div>
+      ) : null}
+      <ScrollArea className={cn('flex-1 min-h-0', sessionInteractionBlocked && 'pointer-events-none opacity-60')}>
         <SessionsPanel sessions={sessions} currentSessionId={sessionId} sessionMode={sessionMode} creationDisabledReason={sessionCreationDisabledReason} onNewSession={onNewSession} onSelectSession={onSelectSession} onLoadMoreSessions={onLoadMoreSessions} hasMoreSessions={hasMoreSessions} isInitialLoading={sessionsLoading} isLoadingMore={sessionsLoadingMore} isCreatingSession={creatingSession} isError={sessionsError} errorMessage={sessionsErrorMessage} onRetry={onSessionsRetry} />
       </ScrollArea>
     </div>
