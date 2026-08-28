@@ -22,6 +22,8 @@ const FINAL_PHASES = new Set([
 ])
 const PROVIDER_CONTROL_TOKENS = ['<｜end▁of▁sentence｜>', '<|endoftext|>', '<|eot_id|>']
 const TERMINAL_RUN_STATUSES = new Set(['completed', 'failed', 'cancelled', 'timed_out', 'uncertain'])
+const TERMINAL_STREAM_EVENTS = new Set(['done', 'error', 'cancelled'])
+const MAX_VISUAL_FRAMES_PER_PAINT = 6
 
 export interface TokenRetractInfo {
   phase?: string | null
@@ -231,11 +233,65 @@ function isVisualStreamFrame(frame: SseFrame): boolean {
   return type === 'token' || type === 'token_retract' || type === 'run.state'
 }
 
-function waitForBrowserPaint(): Promise<void> {
-  if (typeof requestAnimationFrame === 'function') {
-    return new Promise((resolve) => requestAnimationFrame(() => resolve()))
-  }
-  return new Promise((resolve) => setTimeout(resolve, 0))
+function streamAbortError(): DOMException {
+  return new DOMException('Agent stream aborted', 'AbortError')
+}
+
+function waitForBrowserPaint(signal: AbortSignal | undefined): Promise<void> {
+  if (signal?.aborted) return Promise.reject(streamAbortError())
+
+  const documentRef = typeof document === 'undefined' ? null : document
+  if (documentRef?.visibilityState === 'hidden') return Promise.resolve()
+
+  return new Promise((resolve, reject) => {
+    let settled = false
+    let frameId: number | null = null
+    let timerId: ReturnType<typeof setTimeout> | null = null
+
+    const cleanup = () => {
+      signal?.removeEventListener('abort', onAbort)
+      documentRef?.removeEventListener('visibilitychange', onVisibilityChange)
+      if (frameId !== null && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(frameId)
+      }
+      if (timerId !== null) clearTimeout(timerId)
+    }
+
+    const finish = () => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve()
+    }
+
+    const onAbort = () => {
+      if (settled) return
+      settled = true
+      cleanup()
+      reject(streamAbortError())
+    }
+
+    const onVisibilityChange = () => {
+      if (documentRef?.visibilityState === 'hidden') finish()
+    }
+
+    signal?.addEventListener('abort', onAbort, { once: true })
+    documentRef?.addEventListener('visibilitychange', onVisibilityChange)
+
+    if (signal?.aborted) {
+      onAbort()
+      return
+    }
+    if (documentRef?.visibilityState === 'hidden') {
+      finish()
+      return
+    }
+    if (typeof requestAnimationFrame === 'function') {
+      frameId = requestAnimationFrame(() => finish())
+      return
+    }
+    timerId = setTimeout(() => finish(), 0)
+  })
 }
 
 function reconcileRunState(
@@ -397,10 +453,27 @@ async function consumeResponse(
   const decoder = new TextDecoder()
   const parser = new SseFrameParser()
   let terminal = false
+  let visualFramesSincePaint = 0
+
   const consume = async (frames: SseFrame[]) => {
     for (const frame of frames) {
-      if (dispatch(frame, callbacks, state)) terminal = true
-      if (!terminal && isVisualStreamFrame(frame)) await waitForBrowserPaint()
+      const type = frameType(frame)
+      if (TERMINAL_STREAM_EVENTS.has(type) && visualFramesSincePaint > 0) {
+        visualFramesSincePaint = 0
+        await waitForBrowserPaint(signal)
+      }
+
+      if (dispatch(frame, callbacks, state)) {
+        terminal = true
+        return
+      }
+      if (!isVisualStreamFrame(frame)) continue
+
+      visualFramesSincePaint += 1
+      if (type === 'run.state' || visualFramesSincePaint >= MAX_VISUAL_FRAMES_PER_PAINT) {
+        visualFramesSincePaint = 0
+        await waitForBrowserPaint(signal)
+      }
     }
   }
 
