@@ -145,14 +145,16 @@ export function usePlaygroundTraces(
   projectId?: string,
   agentId?: string,
   sessionId?: string | null,
+  environment?: string | null,
 ) {
   return useQuery<Trace[]>({
-    queryKey: ['agent-runs', { projectId, agentId, sessionId }],
+    queryKey: ['agent-runs', { projectId, agentId, sessionId, environment }],
     queryFn: async () => {
       const runs = await getAgentRuns({
         projectId: projectId!,
         agentId: agentId!,
         sessionId,
+        environment,
       })
       return runs.map((run): Trace => ({
         id: run.trace_id,
