@@ -340,7 +340,7 @@ async def reattach_network_execution(
         generate(),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
             "X-Network-Execution-ID": str(execution_id),
