@@ -63,25 +63,32 @@ def _bind_context_runtime(
     }
 
 
-def _messages_with_bound_capability_authority(messages: list, *, has_tools: bool) -> list:
+def _messages_with_leading_system_instruction(messages: list, instruction: str) -> list:
     result = list(messages)
-    if not has_tools:
-        return result
     if result and isinstance(result[0], SystemMessage):
         first = result[0]
         content = first.content
         if isinstance(content, str):
-            merged_content = f"{content}\n\n{_BOUND_CAPABILITIES_INSTRUCTION}"
+            merged_content = f"{content}\n\n{instruction}"
         elif isinstance(content, list):
             merged_content = [
                 *content,
-                {"type": "text", "text": _BOUND_CAPABILITIES_INSTRUCTION},
+                {"type": "text", "text": instruction},
             ]
         else:
-            merged_content = _BOUND_CAPABILITIES_INSTRUCTION
+            merged_content = instruction
         result[0] = first.model_copy(update={"content": merged_content})
         return result
-    return [SystemMessage(content=_BOUND_CAPABILITIES_INSTRUCTION), *result]
+    return [SystemMessage(content=instruction), *result]
+
+
+def _messages_with_bound_capability_authority(messages: list, *, has_tools: bool) -> list:
+    if not has_tools:
+        return list(messages)
+    return _messages_with_leading_system_instruction(
+        messages,
+        _BOUND_CAPABILITIES_INSTRUCTION,
+    )
 
 
 async def run_instrumented_execution(
@@ -112,6 +119,16 @@ async def run_instrumented_execution(
         pricing_snapshot=pricing_snapshot,
     )
     streaming_enabled = runtime_streaming_enabled()
+    instruction = None
+    if json_enabled and has_tools:
+        schema_json = json.dumps(response_format.get("schema", {}), indent=2)
+        instruction = (
+            "When capability calls are complete, return only valid JSON matching this "
+            "schema. You may call another bound capability first when still required. "
+            "Do not include markdown or explanatory text.\n"
+            f"<schema>\n{schema_json}\n</schema>"
+        )
+
     base_response_format = (
         {"type": "json_object"}
         if json_enabled and not has_tools
@@ -131,12 +148,14 @@ async def run_instrumented_execution(
 
     context = current_execution.get()
     network_execution = bool(context and context.network_execution_id)
-    # A second unbound model is recovery-only. Normal capability execution ends on the
-    # first capability-free response, so no dedicated planning/finalization call exists.
-    final_model = None
-    if has_tools and (network_execution or json_enabled):
-        final_model = (
-            llm_factory.create_chat_model(
+    # Terminal recovery is exceptional. Delay constructing its structured model until
+    # the capability loop actually reaches a terminal/circuit-breaker path.
+    final_model = base_model if has_tools and network_execution and not json_enabled else None
+    final_model_factory: Callable[[], Any] | None = None
+    if has_tools and json_enabled:
+
+        def create_structured_recovery_model() -> Any:
+            return llm_factory.create_chat_model(
                 provider=provider,
                 model=agent.model,
                 api_key=api_key,
@@ -146,25 +165,25 @@ async def run_instrumented_execution(
                 streaming=streaming_enabled,
                 response_format={"type": "json_object"},
             )
-            if json_enabled
-            else base_model
-        )
 
-    instruction = None
-    if json_enabled and has_tools:
-        schema_json = json.dumps(response_format.get("schema", {}), indent=2)
-        instruction = (
-            "When capability calls are complete, return only valid JSON matching this "
-            "schema. You may call another bound capability first when still required. "
-            "Do not include markdown or explanatory text.\n"
-            f"<schema>\n{schema_json}\n</schema>"
+        final_model_factory = create_structured_recovery_model
+
+    execution_messages = _messages_with_bound_capability_authority(
+        messages,
+        has_tools=has_tools,
+    )
+    if instruction is not None:
+        execution_messages = _messages_with_leading_system_instruction(
+            execution_messages,
+            instruction,
         )
 
     execution, call_index = await run_tool_loop(
         model=model,
         final_model=final_model,
+        final_model_factory=final_model_factory,
         execute_single_tool=execute_single_tool,
-        messages=_messages_with_bound_capability_authority(messages, has_tools=has_tools),
+        messages=execution_messages,
         tool_name_to_id=tool_name_to_id,
         provider=provider,
         model_name=agent.model,

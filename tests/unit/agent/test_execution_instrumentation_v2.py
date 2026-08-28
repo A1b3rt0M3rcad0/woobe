@@ -1,10 +1,14 @@
 import asyncio
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from langchain_core.messages import SystemMessage
 
 from modules.agent.infra.execution.execution_instrumentation import aggregate_usage
-from modules.agent.infra.execution.instrumented_execution_runner import run_instrumented_execution
+from modules.agent.infra.execution.instrumented_execution_runner import (
+    run_instrumented_execution,
+)
 
 
 class Result:
@@ -15,42 +19,56 @@ class Result:
         self.response_metadata = {}
 
 
+def _agent():
+    return SimpleNamespace(
+        provider=SimpleNamespace(value="custom"),
+        model="model",
+        temperature=0.2,
+        max_output_tokens=100,
+        settings={},
+    )
+
+
+async def _execute_sum(_call, _tool_id):
+    return {"success": True, "duration_ms": 10, "output": {"result": 1}}
+
+
 @pytest.mark.asyncio
 async def test_parallel_tools_and_no_redundant_json_repair():
-    planning = Result("", [
-        {"id": "a", "name": "sum", "args": {"a": 8, "b": 8}},
-        {"id": "b", "name": "sum", "args": {"a": 9, "b": 8}},
-    ], {"input_tokens": 10, "output_tokens": 2, "total_tokens": 12})
-    decision = Result("", usage={
-        "input_tokens": 5, "output_tokens": 1, "total_tokens": 6,
-    })
-    final = Result('{"message":"ok"}', usage={
-        "input_tokens": 20, "output_tokens": 4, "total_tokens": 24,
-    })
+    tool_request = Result(
+        "",
+        [
+            {"id": "a", "name": "sum", "args": {"a": 8, "b": 8}},
+            {"id": "b", "name": "sum", "args": {"a": 9, "b": 8}},
+        ],
+        {"input_tokens": 10, "output_tokens": 2, "total_tokens": 12},
+    )
+    structured_followup = Result(
+        '{"message":"ok"}',
+        usage={"input_tokens": 20, "output_tokens": 4, "total_tokens": 24},
+    )
     tool_model = MagicMock()
     tool_model.bind_tools.return_value = tool_model
-    tool_model.ainvoke = AsyncMock(side_effect=[planning, decision])
-    final_model = MagicMock()
-    final_model.ainvoke = AsyncMock(return_value=final)
+    tool_model.ainvoke = AsyncMock(side_effect=[tool_request, structured_followup])
     factory = MagicMock()
-    factory.create_chat_model.side_effect = [tool_model, final_model]
+    factory.create_chat_model.side_effect = [tool_model]
 
     active = 0
     peak = 0
 
-    async def execute(call, _tool_id):
+    async def execute(call, tool_id):
         nonlocal active, peak
         active += 1
         peak = max(peak, active)
         await asyncio.sleep(0.01)
         active -= 1
-        return {"success": True, "duration_ms": 10, "output": {"result": 1}}
+        return await _execute_sum(call, tool_id)
 
     execution = await run_instrumented_execution(
         llm_factory=factory,
         execute_single_tool=execute,
         clean_json_answer=lambda value: value,
-        agent=MagicMock(provider=MagicMock(value="custom"), model="model", temperature=0.2, max_output_tokens=100),
+        agent=_agent(),
         api_key="key",
         base_url=None,
         response_format={"schema": {"type": "object"}},
@@ -62,10 +80,64 @@ async def test_parallel_tools_and_no_redundant_json_repair():
     )
 
     assert peak == 2
-    assert len(execution.llm_calls) == 3
-    assert all(call["phase"] != "json_repair" for call in execution.llm_calls)
+    assert factory.create_chat_model.call_count == 1
+    assert [call["phase"] for call in execution.llm_calls] == [
+        "capability_response_generation",
+        "tool_followup_1",
+    ]
+    initial_messages = tool_model.ainvoke.await_args_list[0].args[0]
+    assert isinstance(initial_messages[0], SystemMessage)
+    assert "complete and authoritative" in initial_messages[0].content
+    assert "return only valid JSON" in initial_messages[0].content
     usage, complete, cost_status = aggregate_usage(execution.llm_calls)
-    assert (usage.input_tokens, usage.output_tokens, usage.total_tokens) == (35, 7, 42)
+    assert (usage.input_tokens, usage.output_tokens, usage.total_tokens) == (30, 6, 36)
     assert complete is True
     assert usage.cost_usd is None
     assert cost_status == "unknown_pricing"
+
+
+@pytest.mark.asyncio
+async def test_invalid_tool_followup_uses_one_json_repair_model():
+    tool_request = Result(
+        "",
+        [{"id": "a", "name": "sum", "args": {"a": 8, "b": 8}}],
+        {"input_tokens": 10, "output_tokens": 2, "total_tokens": 12},
+    )
+    invalid_followup = Result(
+        "The result is 16.",
+        usage={"input_tokens": 5, "output_tokens": 1, "total_tokens": 6},
+    )
+    repaired = Result(
+        '{"message":"16"}',
+        usage={"input_tokens": 20, "output_tokens": 4, "total_tokens": 24},
+    )
+    tool_model = MagicMock()
+    tool_model.bind_tools.return_value = tool_model
+    tool_model.ainvoke = AsyncMock(side_effect=[tool_request, invalid_followup])
+    repair_model = MagicMock()
+    repair_model.ainvoke = AsyncMock(return_value=repaired)
+    factory = MagicMock()
+    factory.create_chat_model.side_effect = [tool_model, repair_model]
+
+    execution = await run_instrumented_execution(
+        llm_factory=factory,
+        execute_single_tool=_execute_sum,
+        clean_json_answer=lambda value: value,
+        agent=_agent(),
+        api_key="key",
+        base_url=None,
+        response_format={"schema": {"type": "object"}},
+        json_enabled=True,
+        has_tools=True,
+        agent_tools=[{"type": "function"}],
+        tool_name_to_id={"sum": "id"},
+        messages=[],
+    )
+
+    assert execution.result is repaired
+    assert factory.create_chat_model.call_count == 2
+    assert [call["phase"] for call in execution.llm_calls] == [
+        "capability_response_generation",
+        "tool_followup_1",
+        "json_repair",
+    ]

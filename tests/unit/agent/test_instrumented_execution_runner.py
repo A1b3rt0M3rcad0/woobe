@@ -127,7 +127,7 @@ async def test_text_tool_execution_only_invokes_again_after_tool_call() -> None:
     assert factory.create_count == 1
     assert model.invocation_count == 2
     assert [call["phase"] for call in execution.llm_calls] == [
-        "response_generation",
+        "capability_response_generation",
         "tool_followup_1",
     ]
     assert execution.result.content == "16"
@@ -160,6 +160,8 @@ async def test_text_agent_with_tools_finishes_in_first_model_call_without_tool_c
 
     assert factory.create_count == 1
     assert model.invocation_count == 1
-    assert [call["phase"] for call in execution.llm_calls] == ["response_generation"]
+    assert [call["phase"] for call in execution.llm_calls] == [
+        "capability_response_generation"
+    ]
     assert execution.result.content == "Hello from the first response"
     assert execution.tool_calls == []

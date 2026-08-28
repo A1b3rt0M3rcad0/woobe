@@ -15,7 +15,7 @@ from modules.agent.presentation.http.controllers.agent_run_context_controller im
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def _controller() -> tuple[AgentUnitOfWork, AgentRunContextController]:
+def agent_run_context_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     run_repository = SQLAlchemyAgentRunRepository(uow)
     project_access_repository = SQLAlchemyProjectAccessRepository(uow)
@@ -23,24 +23,41 @@ def _controller() -> tuple[AgentUnitOfWork, AgentRunContextController]:
         run_repository,
         project_access_repository,
     )
-    return uow, AgentRunContextController(use_case)
-
-
-def agent_run_context_composer() -> TransactionalHandler:
-    uow, controller = _controller()
+    controller = AgentRunContextController(use_case)
     return TransactionalHandler(uow, controller.handle_by_run)
 
 
 def agent_run_context_by_trace_composer() -> TransactionalHandler:
-    uow, controller = _controller()
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    run_repository = SQLAlchemyAgentRunRepository(uow)
+    project_access_repository = SQLAlchemyProjectAccessRepository(uow)
+    use_case = ReadAgentRunContextUseCase(
+        run_repository,
+        project_access_repository,
+    )
+    controller = AgentRunContextController(use_case)
     return TransactionalHandler(uow, controller.handle_by_trace)
 
 
 def agent_run_detail_composer() -> TransactionalHandler:
-    uow, controller = _controller()
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    run_repository = SQLAlchemyAgentRunRepository(uow)
+    project_access_repository = SQLAlchemyProjectAccessRepository(uow)
+    use_case = ReadAgentRunContextUseCase(
+        run_repository,
+        project_access_repository,
+    )
+    controller = AgentRunContextController(use_case)
     return TransactionalHandler(uow, controller.handle_detail_by_run)
 
 
 def agent_run_detail_by_trace_composer() -> TransactionalHandler:
-    uow, controller = _controller()
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    run_repository = SQLAlchemyAgentRunRepository(uow)
+    project_access_repository = SQLAlchemyProjectAccessRepository(uow)
+    use_case = ReadAgentRunContextUseCase(
+        run_repository,
+        project_access_repository,
+    )
+    controller = AgentRunContextController(use_case)
     return TransactionalHandler(uow, controller.handle_detail_by_trace)

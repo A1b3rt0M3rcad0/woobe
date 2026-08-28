@@ -221,13 +221,14 @@ async def run_tool_loop(
     initial_phase: str,
     final_json_instruction: str | None,
     final_model: Any | None = None,
+    final_model_factory: Callable[[], Any] | None = None,
     pricing_snapshot: dict[str, Any] | None = None,
 ) -> tuple[InstrumentedExecution, int]:
-    """Execute one real response invocation and continue only when capabilities are called.
+    """Execute one real response invocation and continue only for capability calls.
 
-    ``final_model`` is a recovery-only terminal model. It is not invoked after a normal
-    capability-free response, so Agents with bound capabilities still complete in one
-    Model Invocation when no Tool or Delegation is needed.
+    The terminal model is recovery-only and is constructed lazily when a supplied
+    ``final_model_factory`` is needed. A capability-free response never creates or
+    invokes that model.
     """
 
     execution = InstrumentedExecution(result=None)
@@ -247,7 +248,6 @@ async def run_tool_loop(
     execution.timeline.append({"kind": "llm", "occurred_at": call["occurred_at"], "payload": call})
 
     round_index = 0
-    instruction_added = False
     consecutive_failure_rounds = 0
     stopped_reason: str | None = None
 
@@ -285,10 +285,6 @@ async def run_tool_loop(
             stopped_reason = "capability round limit reached"
             break
 
-        if final_json_instruction and not instruction_added:
-            tool_loop_messages.append(SystemMessage(content=final_json_instruction))
-            instruction_added = True
-
         call_index += 1
         try:
             result, call = await invoke_llm(
@@ -314,7 +310,10 @@ async def run_tool_loop(
 
     requires_terminal_recovery = bool(stopped_reason) and _has_tool_calls(result)
     if requires_terminal_recovery:
-        if final_model is None:
+        terminal_model = final_model
+        if terminal_model is None and final_model_factory is not None:
+            terminal_model = final_model_factory()
+        if terminal_model is None:
             raise InstrumentedExecutionError(
                 stopped_reason or "Capability execution could not complete",
                 llm_calls=execution.llm_calls,
@@ -331,7 +330,7 @@ async def run_tool_loop(
         call_index += 1
         try:
             result, call = await invoke_llm(
-                model=final_model,
+                model=terminal_model,
                 messages=_terminal_response_messages(
                     base_messages,
                     final_json_instruction,
