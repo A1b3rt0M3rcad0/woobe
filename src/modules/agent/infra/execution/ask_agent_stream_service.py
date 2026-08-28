@@ -258,25 +258,11 @@ class AskAgentStreamService:
             payload={**event.payload, "run_id": str(run_id)},
         )
 
-    @staticmethod
-    def _forward_initial_observer(
-        observer_queue: asyncio.Queue[RuntimeStreamEvent] | None,
-        observer_closed: asyncio.Event | None,
-        event: RuntimeStreamEvent,
-    ) -> None:
-        if observer_queue is None:
-            return
-        if observer_closed is not None and observer_closed.is_set():
-            return
-        observer_queue.put_nowait(event)
-
     async def _pump_events(
         self,
         input_dto: AskInput,
         channel: RuntimeStreamChannel,
         execution_task: asyncio.Task[AskOutput],
-        initial_observer_queue: asyncio.Queue[RuntimeStreamEvent] | None = None,
-        initial_observer_closed: asyncio.Event | None = None,
     ) -> None:
         del input_dto
         buffered: list[RuntimeStreamEvent] = []
@@ -285,16 +271,7 @@ class AskAgentStreamService:
             try:
                 event = await asyncio.wait_for(channel.queue.get(), timeout=0.25)
                 run_id = getattr(channel, "run_id", None)
-                event = self._event_for_run(event, run_id)
-                # Do not put Redis reads/writes between provider token production and the
-                # observer that started this Run. Hot persistence follows immediately,
-                # but cannot batch or gate the user-facing initial stream.
-                self._forward_initial_observer(
-                    initial_observer_queue,
-                    initial_observer_closed,
-                    event,
-                )
-                buffered.append(event)
+                buffered.append(self._event_for_run(event, run_id))
             except asyncio.TimeoutError:
                 event = None
 
@@ -392,24 +369,17 @@ class AskAgentStreamService:
         disconnect_check: DisconnectCheck | None = None,
     ) -> AsyncGenerator[str, None]:
         channel = RuntimeStreamChannel()
-        initial_observer_queue: asyncio.Queue[RuntimeStreamEvent] = asyncio.Queue()
-        initial_observer_closed = asyncio.Event()
+        initial_observer_queue = channel.subscribe()
         execution_task = asyncio.create_task(self._run_execution(input_dto, channel))
         _track(execution_task, _DETACHED_AGENT_EXECUTIONS)
         pump_task = asyncio.create_task(
-            self._pump_events(
-                input_dto,
-                channel,
-                execution_task,
-                initial_observer_queue,
-                initial_observer_closed,
-            )
+            self._pump_events(input_dto, channel, execution_task)
         )
         _track(pump_task, _DETACHED_AGENT_EVENT_PUMPS)
 
-        # The POST observer consumes a direct event fan-out from the active Run.
-        # Redis persists the same events for GET reattach, but no Redis read/write is
-        # allowed to gate delivery of an already-produced token to this observer.
+        # POST observes the active channel directly. The persistence pump consumes its
+        # own queue and writes the same events to hot state for GET reattach. A slow or
+        # batching Redis path therefore cannot delay already-produced tokens.
         last_heartbeat = time.monotonic()
         try:
             while True:
@@ -447,6 +417,10 @@ class AskAgentStreamService:
                         return
                     continue
 
+                event = self._event_for_run(
+                    event,
+                    getattr(channel, "run_id", None),
+                )
                 last_heartbeat = time.monotonic()
                 yield format_sse_frame(
                     RuntimeStreamFrame(
@@ -457,7 +431,7 @@ class AskAgentStreamService:
                 if event.event_type in _TERMINAL_STREAM_EVENTS:
                     return
         finally:
-            initial_observer_closed.set()
+            channel.unsubscribe(initial_observer_queue)
 
     @staticmethod
     def _format_early_error(exc: Exception) -> str:
