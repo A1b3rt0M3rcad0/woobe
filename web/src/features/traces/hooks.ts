@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { ApiError } from '@/lib/api/errors'
 import {
+  getAgentRuns,
   getTraces,
   getTraceDetail,
   getTraceModelInvocations,
@@ -146,15 +147,41 @@ export function usePlaygroundTraces(
   sessionId?: string | null,
 ) {
   return useQuery<Trace[]>({
-    queryKey: ['traces', { projectId, agentId, sessionId }],
-    queryFn: () =>
-      getTraces({
-        projectId,
-        agentId: sessionId ? undefined : agentId,
-        sessionId: sessionId ?? undefined,
-      } as GetTracesParams),
+    queryKey: ['agent-runs', { projectId, agentId, sessionId }],
+    queryFn: async () => {
+      const runs = await getAgentRuns({
+        projectId: projectId!,
+        agentId: agentId!,
+        sessionId,
+      })
+      return runs.map((run): Trace => ({
+        id: run.trace_id,
+        project_id: run.project_id,
+        agent_id: run.agent_id,
+        session_id: run.session_id ?? undefined,
+        status: run.status,
+        provider: run.provider ?? undefined,
+        model: run.model ?? undefined,
+        total_latency_ms: run.latency_ms ?? undefined,
+        total_cost_usd: run.usage?.cost_usd ?? null,
+        error: run.failure_detail ?? run.failure_code ?? undefined,
+        data: {
+          execution_context: run.environment,
+          agent_run_id: run.id,
+          input_message: run.input_message,
+          origin: run.origin,
+          input_tokens: run.usage?.input_tokens ?? null,
+          output_tokens: run.usage?.output_tokens ?? null,
+          total_tokens: run.usage?.total_tokens ?? null,
+          cost_usd: run.usage?.cost_usd ?? null,
+        },
+        started_at: run.started_at,
+        ended_at: run.completed_at,
+        created_at: run.created_at ?? run.started_at ?? undefined,
+      }))
+    },
     enabled: Boolean(projectId) && Boolean(agentId),
-    staleTime: 1_000,
+    staleTime: 500,
     refetchInterval: (query) => hasActiveTrace(query.state.data)
       ? TRACE_REFRESH_INTERVAL_MS
       : PLAYGROUND_IDLE_TRACE_LIST_REFRESH_INTERVAL_MS,
