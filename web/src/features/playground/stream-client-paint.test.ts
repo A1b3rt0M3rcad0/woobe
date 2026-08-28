@@ -28,6 +28,24 @@ function request(): AskRequest {
   }
 }
 
+function token(content: string) {
+  return frame('token', {
+    content,
+    visibility: 'assistant',
+    channel: 'final',
+    phase: 'capability_response_generation',
+  })
+}
+
+function installPaintGate() {
+  const pendingPaints: FrameRequestCallback[] = []
+  vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
+    pendingPaints.push(callback)
+    return pendingPaints.length
+  }))
+  return pendingPaints
+}
+
 afterEach(() => {
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
@@ -39,12 +57,7 @@ describe('standalone SSE paint pacing', () => {
       start(controller) {
         controller.enqueue(encoder.encode([
           frame('meta', { run_id: 'run-1', trace_id: 'trace-1' }),
-          ...['A', 'B', 'C', 'D', 'E', 'F', 'G'].map((content) => frame('token', {
-            content,
-            visibility: 'assistant',
-            channel: 'final',
-            phase: 'capability_response_generation',
-          })),
+          ...['A', 'B', 'C', 'D', 'E', 'F', 'G'].map(token),
           frame('done', { run_id: 'run-1', answer: 'ABCDEFG' }),
         ].join('')))
         controller.close()
@@ -55,12 +68,7 @@ describe('standalone SSE paint pacing', () => {
       headers: { 'Content-Type': 'text/event-stream' },
     })))
 
-    const pendingPaints: FrameRequestCallback[] = []
-    vi.stubGlobal('requestAnimationFrame', vi.fn((callback: FrameRequestCallback) => {
-      pendingPaints.push(callback)
-      return pendingPaints.length
-    }))
-
+    const pendingPaints = installPaintGate()
     const onToken = vi.fn()
     const onDone = vi.fn()
     const streaming = askStreamV1(request(), {
@@ -74,15 +82,67 @@ describe('standalone SSE paint pacing', () => {
     await vi.waitFor(() => {
       expect(onToken).toHaveBeenCalledTimes(6)
     })
-
     expect(onDone).not.toHaveBeenCalled()
     expect(pendingPaints).toHaveLength(1)
 
     pendingPaints.shift()?.(0)
+    await vi.waitFor(() => {
+      expect(onToken).toHaveBeenCalledTimes(7)
+      expect(pendingPaints).toHaveLength(1)
+    })
+    expect(onDone).not.toHaveBeenCalled()
+
+    pendingPaints.shift()?.(16)
     await streaming
 
-    expect(onToken).toHaveBeenCalledTimes(7)
-    expect(onToken.mock.calls.map(([token]) => token.content).join('')).toBe('ABCDEFG')
+    expect(onToken.mock.calls.map(([item]) => item.content).join('')).toBe('ABCDEFG')
+    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ answer: 'ABCDEFG' }))
+  })
+
+  it('keeps the paint budget across separate reader chunks that resolve without a browser paint', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(frame('meta', { run_id: 'run-2' })))
+        for (const content of ['A', 'B', 'C', 'D', 'E', 'F', 'G']) {
+          controller.enqueue(encoder.encode(token(content)))
+        }
+        controller.enqueue(encoder.encode(frame('done', { run_id: 'run-2', answer: 'ABCDEFG' })))
+        controller.close()
+      },
+    })
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    })))
+
+    const pendingPaints = installPaintGate()
+    const onToken = vi.fn()
+    const onDone = vi.fn()
+    const streaming = askStreamV1(request(), {
+      onToken,
+      onSources: vi.fn(),
+      onMeta: vi.fn(),
+      onDone,
+      onError: vi.fn(),
+    })
+
+    await vi.waitFor(() => {
+      expect(onToken).toHaveBeenCalledTimes(6)
+      expect(pendingPaints).toHaveLength(1)
+    })
+    expect(onDone).not.toHaveBeenCalled()
+
+    pendingPaints.shift()?.(0)
+    await vi.waitFor(() => {
+      expect(onToken).toHaveBeenCalledTimes(7)
+      expect(pendingPaints).toHaveLength(1)
+    })
+    expect(onDone).not.toHaveBeenCalled()
+
+    pendingPaints.shift()?.(16)
+    await streaming
+
+    expect(onToken.mock.calls.map(([item]) => item.content).join('')).toBe('ABCDEFG')
     expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ answer: 'ABCDEFG' }))
   })
 })
