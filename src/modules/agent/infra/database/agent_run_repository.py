@@ -157,6 +157,28 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
         run = await self.get_by_id(run_id)
         return _embedded_invocations(run) if run is not None else []
 
+    async def list_direct(
+        self,
+        *,
+        project_id: UUID,
+        agent_id: UUID,
+        session_id: UUID | None = None,
+        limit: int = 100,
+    ) -> list[AgentRun]:
+        statement = select(AgentRunModel).where(
+            AgentRunModel.project_id == project_id,
+            AgentRunModel.agent_id == agent_id,
+            AgentRunModel.network_execution_id.is_(None),
+        )
+        if session_id is not None:
+            statement = statement.where(AgentRunModel.session_id == session_id)
+        result = await self._uow.session.execute(
+            statement
+            .order_by(AgentRunModel.created_at.desc(), AgentRunModel.id.desc())
+            .limit(max(1, min(int(limit), 200)))
+        )
+        return [_to_entity(model) for model in result.scalars().all()]
+
     async def get_active_direct_by_session(
         self,
         session_id: UUID,
