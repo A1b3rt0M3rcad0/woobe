@@ -22,6 +22,7 @@ const FINAL_PHASES = new Set([
 ])
 const PROVIDER_CONTROL_TOKENS = ['<｜end▁of▁sentence｜>', '<|endoftext|>', '<|eot_id|>']
 const TERMINAL_RUN_STATUSES = new Set(['completed', 'failed', 'cancelled', 'timed_out', 'uncertain'])
+const MAX_VISUAL_FRAMES_PER_PAINT = 6
 
 export interface TokenRetractInfo {
   phase?: string | null
@@ -220,6 +221,23 @@ function responseOf(item: Record<string, unknown>): AskResponse {
   }
 }
 
+function frameType(frame: SseFrame): string {
+  const item = parseSseJson(frame)
+  return typeof item?.type === 'string' ? item.type : frame.event || 'unknown'
+}
+
+function isVisualStreamFrame(frame: SseFrame): boolean {
+  const type = frameType(frame)
+  return type === 'token' || type === 'token_retract' || type === 'run.state'
+}
+
+function waitForBrowserPaint(): Promise<void> {
+  if (typeof requestAnimationFrame === 'function') {
+    return new Promise((resolve) => requestAnimationFrame(() => resolve()))
+  }
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 function reconcileRunState(
   item: Record<string, unknown>,
   callbacks: StreamCallbacks,
@@ -379,17 +397,37 @@ async function consumeResponse(
   const decoder = new TextDecoder()
   const parser = new SseFrameParser()
   let terminal = false
-  const consume = (frames: SseFrame[]) => {
-    for (const frame of frames) if (dispatch(frame, callbacks, state)) terminal = true
+
+  const consume = async (frames: SseFrame[]) => {
+    let visualFramesSincePaint = 0
+    for (let index = 0; index < frames.length; index += 1) {
+      const frame = frames[index]
+      if (dispatch(frame, callbacks, state)) {
+        terminal = true
+        return
+      }
+      if (!isVisualStreamFrame(frame)) continue
+
+      visualFramesSincePaint += 1
+      const hasMoreFrames = index < frames.length - 1
+      const forcePaint = frameType(frame) === 'run.state'
+      if (
+        hasMoreFrames
+        && (forcePaint || visualFramesSincePaint >= MAX_VISUAL_FRAMES_PER_PAINT)
+      ) {
+        visualFramesSincePaint = 0
+        await waitForBrowserPaint()
+      }
+    }
   }
 
   try {
     while (!terminal) {
       const { done, value } = await reader.read()
       if (done) break
-      consume(parser.push(decoder.decode(value, { stream: true })))
+      await consume(parser.push(decoder.decode(value, { stream: true })))
     }
-    consume(parser.finish(decoder.decode()))
+    await consume(parser.finish(decoder.decode()))
     return terminal
   } finally {
     if (terminal || signal?.aborted) await reader.cancel().catch(() => undefined)
