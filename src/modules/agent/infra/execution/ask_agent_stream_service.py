@@ -250,6 +250,7 @@ class AskAgentStreamService:
             repositories: AgentRuntimeRepositories,
             outbox: OutboxEventWriter,
         ) -> bool:
+            run = None
             if run_id is not None:
                 lock_reader = getattr(
                     repositories.runs,
@@ -266,7 +267,6 @@ class AskAgentStreamService:
                 if usage:
                     run.usage = usage
                 run.completed_at = completed_at
-                await repositories.runs.save(run)
 
             if session_id is not None and partial_output:
                 session = await repositories.sessions.get_by_id(session_id)
@@ -287,6 +287,8 @@ class AskAgentStreamService:
                     },
                 )
                 created = await repositories.messages.create(message)
+                if run is not None:
+                    run.output_message_id = created.id
                 session.last_message_at = utc_now()
                 await repositories.sessions.update(session)
                 await outbox.write(
@@ -298,6 +300,9 @@ class AskAgentStreamService:
                         role="assistant",
                     )
                 )
+
+            if run is not None:
+                await repositories.runs.save(run)
 
             await outbox.write(event)
             return True
