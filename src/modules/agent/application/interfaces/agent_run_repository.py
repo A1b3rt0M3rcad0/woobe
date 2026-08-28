@@ -29,6 +29,7 @@ class AgentRunRepository(ABC):
         project_id: UUID,
         agent_id: UUID,
         session_id: UUID | None = None,
+        environment: str | None = None,
         limit: int = 100,
     ) -> list[AgentRun]: ...
 
