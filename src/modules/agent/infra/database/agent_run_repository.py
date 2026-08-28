@@ -12,6 +12,14 @@ from modules.agent.infra.database.run_models import AgentRunModel
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 
 
+_TERMINAL_RUN_STATUSES = {
+    AgentRunStatus.COMPLETED.value,
+    AgentRunStatus.FAILED.value,
+    AgentRunStatus.CANCELLED.value,
+    AgentRunStatus.UNCERTAIN.value,
+}
+
+
 def _to_model(run: AgentRun) -> AgentRunModel:
     return AgentRunModel(
         id=run.id,
@@ -212,11 +220,20 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
         model = await self._uow.session.get(AgentRunModel, run.id)
         if model is None:
             return await self.create(run)
+
+        # Terminal Agent Runs are immutable lifecycle facts. A late provider response,
+        # retry callback or racing finalizer must never rewrite CANCELLED/FAILED into
+        # COMPLETED (or any other terminal state) after another terminal won first.
+        incoming_status = run.status.value
+        if model.status in _TERMINAL_RUN_STATUSES and model.status != incoming_status:
+            await self._uow.session.refresh(model)
+            return _to_entity(model)
+
         model.session_id = run.session_id
         model.agent_release_id = run.agent_release_id
         model.input_message_id = run.input_message_id
         model.output_message_id = run.output_message_id
-        model.status = run.status.value
+        model.status = incoming_status
         model.execution_snapshot = run.execution_snapshot
         model.usage = run.usage
         model.result = run.result
