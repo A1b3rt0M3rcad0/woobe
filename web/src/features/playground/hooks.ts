@@ -9,6 +9,7 @@ import { cancelAgentRun } from './reattach-api'
 import { getAgentSessionsByEnvironment } from './session-api'
 import { askStreamV1, reattachAgentRunV1, type StreamCallbacks } from './stream-client'
 import { createAgentStreamCancellationCoordinator } from './stream-cancellation'
+import { resetAgentStreamStopState, setAgentStreamStopState } from './stream-stop-state'
 import type { RuntimeEnvironment } from '@/features/agents/types'
 import type { CreateSessionRequest, AskRequest } from './types'
 
@@ -16,6 +17,7 @@ let activeStreamController: AbortController | null = null
 
 const AGENT_SESSIONS_PAGE_SIZE = 20
 const DEFAULT_OUTPUT_CONTRACT = { message: 'string', confidence: 'float' }
+const TERMINAL_AGENT_RUN_STATUSES = new Set(['completed', 'failed', 'cancelled', 'timed_out', 'uncertain'])
 
 function recordValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -114,9 +116,15 @@ export function useAskStream() {
   const cancellationRef = useRef<ReturnType<typeof createAgentStreamCancellationCoordinator> | null>(null)
   if (cancellationRef.current === null) {
     cancellationRef.current = createAgentStreamCancellationCoordinator(cancelAgentRun, {
-      onDispatch: (runId) => stopCallbacksRef.current.onDispatched?.(runId),
+      onDispatch: (runId) => {
+        setAgentStreamStopState('stopping')
+        stopCallbacksRef.current.onDispatched?.(runId)
+      },
       onConfirmed: (runId) => stopCallbacksRef.current.onConfirmed?.(runId),
-      onError: (runId, error) => stopCallbacksRef.current.onError?.(runId, error),
+      onError: (runId, error) => {
+        resetAgentStreamStopState()
+        stopCallbacksRef.current.onError?.(runId, error)
+      },
     })
   }
   const cancellation = cancellationRef.current
@@ -127,6 +135,24 @@ export function useAskStream() {
       if (meta.run_id) cancellation.observeRun(meta.run_id)
       if (meta.session_id) activeSessionIdRef.current = meta.session_id
       callbacks.onMeta(meta)
+    },
+    onRunState: (state) => {
+      const status = typeof state.status === 'string' ? state.status : ''
+      if (status === 'cancel_requested') setAgentStreamStopState('stopping')
+      else if (TERMINAL_AGENT_RUN_STATUSES.has(status)) resetAgentStreamStopState()
+      callbacks.onRunState?.(state)
+    },
+    onDone: (response) => {
+      resetAgentStreamStopState()
+      callbacks.onDone(response)
+    },
+    onError: (error) => {
+      resetAgentStreamStopState()
+      callbacks.onError(error)
+    },
+    onCancelled: (event) => {
+      resetAgentStreamStopState()
+      callbacks.onCancelled?.(event)
     },
   }), [cancellation])
 
@@ -144,6 +170,7 @@ export function useAskStream() {
       cancellation.finish()
       stopCallbacksRef.current = {}
       activeSessionIdRef.current = null
+      resetAgentStreamStopState()
       if (sessionId) {
         void queryClient.invalidateQueries({ queryKey: ['session-messages', sessionId] })
       }
@@ -162,6 +189,7 @@ export function useAskStream() {
   ) => {
     activeSessionIdRef.current = data.session_id ?? null
     stopCallbacksRef.current = {}
+    resetAgentStreamStopState()
     cancellation.begin()
     return withController(
       (signal) => askStreamV1(
@@ -178,6 +206,7 @@ export function useAskStream() {
   ) => {
     activeSessionIdRef.current = null
     stopCallbacksRef.current = {}
+    resetAgentStreamStopState()
     cancellation.begin(runId)
     return withController(
       (signal) => reattachAgentRunV1(runId, reconcileCallbacks(callbacks), signal),
@@ -189,7 +218,8 @@ export function useAskStream() {
   const cancel = useCallback((callbacks: AgentStreamStopCallbacks = {}) => {
     stopCallbacksRef.current = callbacks
     const accepted = cancellation.requestStop()
-    if (!accepted) stopCallbacksRef.current = {}
+    if (accepted) setAgentStreamStopState('stopping')
+    else stopCallbacksRef.current = {}
     return accepted
   }, [cancellation])
 
