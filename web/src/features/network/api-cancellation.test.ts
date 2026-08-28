@@ -18,7 +18,7 @@ describe('Network cancellation API', () => {
   })
 
   it('deduplicates concurrent Stop requests for the same Network execution', async () => {
-    let resolveRequest: ((value: { execution_id: string }) => void) | null = null
+    let resolveRequest!: (value: { execution_id: string }) => void
     const pending = new Promise<{ execution_id: string }>((resolve) => {
       resolveRequest = resolve
     })
@@ -30,7 +30,7 @@ describe('Network cancellation API', () => {
     expect(repeated).toBe(first)
     expect(client.post).toHaveBeenCalledTimes(1)
 
-    resolveRequest?.({ execution_id: 'execution-1' })
+    resolveRequest({ execution_id: 'execution-1' })
     await first
   })
 
