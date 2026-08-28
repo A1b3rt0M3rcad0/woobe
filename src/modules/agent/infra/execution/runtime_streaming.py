@@ -351,10 +351,10 @@ def _can_emit_phase_as_final(phase: str) -> bool:
 
 
 def _can_stream_phase_live(phase: str) -> bool:
-    # Capability-aware output is optimistic public output. If the completed provider
-    # response selects a Tool/Delegation, token_retract removes exactly what this
-    # invocation streamed before capability execution continues.
-    return _can_emit_phase_as_final(phase)
+    # The first capability-aware invocation is semantically provisional until the
+    # provider finishes and we know whether it selected a Tool/Delegation. Buffer it
+    # instead of briefly publishing text that would immediately need retraction.
+    return _can_emit_phase_as_final(phase) and phase != "capability_response_generation"
 
 
 def _activity_for_phase(phase: str) -> tuple[str, str]:
