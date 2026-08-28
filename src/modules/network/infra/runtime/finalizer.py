@@ -269,7 +269,7 @@ class NetworkRuntimeFinalizer:
                                 },
                             )
                         )
-                    if item.get("output_message") is not None:
+                    if item.get("output_message"):
                         assistant_message_id = _message_id(invocation_id, "assistant")
                         if await session.get(MessageModel, assistant_message_id) is None:
                             session.add(
