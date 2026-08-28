@@ -304,6 +304,36 @@ async def test_initial_post_token_is_visible_before_hot_persistence_completes() 
 
 
 @pytest.mark.asyncio
+async def test_cancel_watcher_is_not_blocked_by_hot_event_persistence() -> None:
+    run = _run()
+    store = _BlockingTokenPersistenceStore()
+    transactions = _Transactions(run)
+    use_case = _BlockingCancelableUseCase(run, store)
+    service = AskAgentStreamService(use_case, transactions, state_store=store)
+
+    stream = service.stream(_input(run))
+    try:
+        first = await asyncio.wait_for(anext(stream), timeout=1)
+        second = await asyncio.wait_for(anext(stream), timeout=1)
+        assert "event: meta" in first
+        assert "event: token" in second
+        await asyncio.wait_for(store.token_persist_started.wait(), timeout=1)
+        assert store.release_token_persist.is_set() is False
+
+        await store.request_cancel(run.id)
+
+        terminal = await asyncio.wait_for(anext(stream), timeout=1)
+        assert "event: cancelled" in terminal
+        assert '"persisted": true' in terminal
+        assert store.release_token_persist.is_set() is False
+        await asyncio.wait_for(use_case.cancelled.wait(), timeout=1)
+        assert transactions.runs.run.status == AgentRunStatus.CANCELLED
+    finally:
+        store.release_token_persist.set()
+        await stream.aclose()
+
+
+@pytest.mark.asyncio
 async def test_cancel_request_drives_task_cancellation_persistence_and_terminal_event() -> None:
     run = _run()
     store = InMemoryExecutionStateStore()
