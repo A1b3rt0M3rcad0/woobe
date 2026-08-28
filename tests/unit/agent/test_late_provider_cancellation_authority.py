@@ -118,7 +118,7 @@ class _LateSuccessUseCase:
         setattr(channel, "run_id", self.run.id)
         await self.store.create(
             self.run.id,
-            {"status": "cancelled"},
+            {"status": self.run.status.value},
             ttl_seconds=3600,
         )
         return SimpleNamespace(
@@ -209,3 +209,38 @@ async def test_late_success_is_projected_as_existing_durable_cancelled_terminal(
     assert terminal.event_type == "cancelled"
     assert terminal.payload["persisted"] is True
     assert transactions.runs.run.status == AgentRunStatus.CANCELLED
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("status", "expected_uncertain"),
+    [
+        (AgentRunStatus.FAILED, False),
+        (AgentRunStatus.UNCERTAIN, True),
+    ],
+)
+async def test_late_success_projects_existing_durable_failure_terminal(
+    status: AgentRunStatus,
+    expected_uncertain: bool,
+) -> None:
+    run = _run(status=status)
+    run.failure_detail = f"{status.value} terminal won first"
+    state = InMemoryExecutionStateStore()
+    transactions = _Transactions(run)
+    service = AskAgentStreamService(
+        _LateSuccessUseCase(run, state),
+        transactions,
+        state_store=state,
+    )
+    channel = RuntimeStreamChannel()
+
+    result = await service._run_execution(_input(run), channel)
+
+    assert result.model_dump()["answer"] == "late success that must not win"
+    terminal = await asyncio.wait_for(channel.queue.get(), timeout=1)
+    assert terminal.event_type == "error"
+    assert terminal.payload["status"] == status.value
+    assert terminal.payload["uncertain"] is expected_uncertain
+    assert "terminal won first" in str(terminal.payload["message"])
+    assert transactions.runs.run.status == status
+    assert channel.queue.empty()
