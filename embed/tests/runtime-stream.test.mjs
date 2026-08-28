@@ -107,11 +107,23 @@ test("terminal state and terminal events are classified explicitly", () => {
   const failed = runtime.parseRuntimeFrame(
     'event: execution_failed\ndata: {"sequence":4,"message":"failed"}',
   );
-  const uncertain = runtime.parseRuntimeFrame(
-    'event: execution_failed\ndata: {"sequence":4,"uncertain":true}',
+  const cancelled = runtime.parseRuntimeFrame(
+    'event: execution_cancelled\ndata: {"sequence":5,"output":"partial","cancelled":true}',
   );
-  assert.ok(completed && failed && uncertain);
+  const agentCancelled = runtime.parseRuntimeFrame(
+    'event: cancelled\ndata: {"sequence":6,"output":"partial","cancelled":true}',
+  );
+  const timedOut = runtime.parseRuntimeFrame(
+    'event: execution_timed_out\ndata: {"sequence":7,"message":"timeout"}',
+  );
+  const uncertain = runtime.parseRuntimeFrame(
+    'event: execution_failed\ndata: {"sequence":8,"uncertain":true}',
+  );
+  assert.ok(completed && failed && cancelled && agentCancelled && timedOut && uncertain);
   assert.equal(runtime.runtimeTerminalStatus(completed), "completed");
   assert.equal(runtime.runtimeTerminalStatus(failed), "failed");
+  assert.equal(runtime.runtimeTerminalStatus(cancelled), "cancelled");
+  assert.equal(runtime.runtimeTerminalStatus(agentCancelled), "cancelled");
+  assert.equal(runtime.runtimeTerminalStatus(timedOut), "timed_out");
   assert.equal(runtime.runtimeTerminalStatus(uncertain), "uncertain");
 });
