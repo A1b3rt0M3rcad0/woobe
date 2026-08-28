@@ -406,20 +406,21 @@ def build_network_run_diagnostics(
         orchestration_values.append(_number(diagnostics.get("orchestration_latency_ms")))
 
         tools = _external_tools(run)
-        explicit_tool_work = _number(diagnostics.get("tool_work_latency_ms"))
-        if explicit_tool_work is None:
-            explicit_tool_work = _sum_known(
-                [
-                    _number(
-                        tool.get("duration_ms")
-                        if tool.get("duration_ms") is not None
-                        else tool.get("latency_ms")
-                    )
-                    for tool in tools
-                ],
-                empty=0.0,
-            )
-        tool_work_values.append(explicit_tool_work)
+        # Agent telemetry intentionally measures every provider function call, including
+        # internal delegation functions. Network operational Tool Work must not reuse
+        # that aggregate or it double-counts child Agent execution as Tool latency.
+        operational_tool_work = _sum_known(
+            [
+                _number(
+                    tool.get("duration_ms")
+                    if tool.get("duration_ms") is not None
+                    else tool.get("latency_ms")
+                )
+                for tool in tools
+            ],
+            empty=0.0,
+        )
+        tool_work_values.append(operational_tool_work)
 
         input_values.append(
             _number(usage.get("input_tokens"))
