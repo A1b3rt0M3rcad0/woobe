@@ -55,6 +55,12 @@ export function cancelActiveAskStream() {
   activeStreamController?.abort()
 }
 
+export interface AgentStreamStopCallbacks {
+  onDispatched?: (runId: string) => void
+  onConfirmed?: (runId: string) => void
+  onError?: (runId: string, error: Error) => void
+}
+
 export function useCreateSession() {
   return useMutation({ mutationFn: (data: CreateSessionRequest) => createSession(data) })
 }
@@ -104,9 +110,14 @@ export function useSessionMessages(sessionId: string | undefined) {
 export function useAskStream() {
   const queryClient = useQueryClient()
   const activeSessionIdRef = useRef<string | null>(null)
+  const stopCallbacksRef = useRef<AgentStreamStopCallbacks>({})
   const cancellationRef = useRef<ReturnType<typeof createAgentStreamCancellationCoordinator> | null>(null)
   if (cancellationRef.current === null) {
-    cancellationRef.current = createAgentStreamCancellationCoordinator(cancelAgentRun)
+    cancellationRef.current = createAgentStreamCancellationCoordinator(cancelAgentRun, {
+      onDispatch: (runId) => stopCallbacksRef.current.onDispatched?.(runId),
+      onConfirmed: (runId) => stopCallbacksRef.current.onConfirmed?.(runId),
+      onError: (runId, error) => stopCallbacksRef.current.onError?.(runId, error),
+    })
   }
   const cancellation = cancellationRef.current
 
@@ -131,6 +142,7 @@ export function useAskStream() {
       const sessionId = activeSessionIdRef.current
       if (activeStreamController === controller) activeStreamController = null
       cancellation.finish()
+      stopCallbacksRef.current = {}
       activeSessionIdRef.current = null
       if (sessionId) {
         void queryClient.invalidateQueries({ queryKey: ['session-messages', sessionId] })
@@ -149,6 +161,7 @@ export function useAskStream() {
     callbacks: StreamCallbacks,
   ) => {
     activeSessionIdRef.current = data.session_id ?? null
+    stopCallbacksRef.current = {}
     cancellation.begin()
     return withController(
       (signal) => askStreamV1(
@@ -164,6 +177,7 @@ export function useAskStream() {
     callbacks: StreamCallbacks,
   ) => {
     activeSessionIdRef.current = null
+    stopCallbacksRef.current = {}
     cancellation.begin(runId)
     return withController(
       (signal) => reattachAgentRunV1(runId, reconcileCallbacks(callbacks), signal),
@@ -172,8 +186,11 @@ export function useAskStream() {
 
   // Stop is a Run command, not a transport disconnect. The active observer remains
   // attached until the runtime emits its durable terminal cancellation event.
-  const cancel = useCallback(() => {
-    cancellation.requestStop()
+  const cancel = useCallback((callbacks: AgentStreamStopCallbacks = {}) => {
+    stopCallbacksRef.current = callbacks
+    const accepted = cancellation.requestStop()
+    if (!accepted) stopCallbacksRef.current = {}
+    return accepted
   }, [cancellation])
 
   // Kept separate for navigation/unmount style transport disposal. Disconnecting an
