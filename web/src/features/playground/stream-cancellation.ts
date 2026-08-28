@@ -1,5 +1,11 @@
 export type AgentRunCancellationRequest = (runId: string) => Promise<unknown> | unknown
 
+export interface AgentStreamCancellationCallbacks {
+  onDispatch?: (runId: string) => void
+  onConfirmed?: (runId: string) => void
+  onError?: (runId: string, error: Error) => void
+}
+
 export interface AgentStreamCancellationCoordinator {
   begin: (knownRunId?: string | null) => void
   observeRun: (runId: string | null | undefined) => void
@@ -7,8 +13,13 @@ export interface AgentStreamCancellationCoordinator {
   finish: () => void
 }
 
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error('Run cancellation could not be confirmed')
+}
+
 export function createAgentStreamCancellationCoordinator(
   requestCancellation: AgentRunCancellationRequest,
+  callbacks: AgentStreamCancellationCallbacks = {},
 ): AgentStreamCancellationCoordinator {
   let active = false
   let runId: string | null = null
@@ -17,8 +28,12 @@ export function createAgentStreamCancellationCoordinator(
 
   const dispatchCancellation = () => {
     if (!active || !stopRequested || !runId || cancellationDispatched) return
+    const targetRunId = runId
     cancellationDispatched = true
-    void Promise.resolve(requestCancellation(runId)).catch(() => undefined)
+    callbacks.onDispatch?.(targetRunId)
+    void Promise.resolve(requestCancellation(targetRunId))
+      .then(() => callbacks.onConfirmed?.(targetRunId))
+      .catch((error) => callbacks.onError?.(targetRunId, toError(error)))
   }
 
   return {
@@ -36,7 +51,7 @@ export function createAgentStreamCancellationCoordinator(
     },
 
     requestStop() {
-      if (!active) return false
+      if (!active || stopRequested) return false
       stopRequested = true
       dispatchCancellation()
       return true
