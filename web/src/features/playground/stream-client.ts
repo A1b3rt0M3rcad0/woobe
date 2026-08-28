@@ -15,7 +15,11 @@ import type {
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const PROTOCOL_VERSION = 1
-const FINAL_PHASES = new Set(['response_generation', 'final_response_generation'])
+const FINAL_PHASES = new Set([
+  'response_generation',
+  'capability_response_generation',
+  'final_response_generation',
+])
 const PROVIDER_CONTROL_TOKENS = ['<｜end▁of▁sentence｜>', '<|endoftext|>', '<|eot_id|>']
 const TERMINAL_RUN_STATUSES = new Set(['completed', 'failed', 'cancelled', 'timed_out', 'uncertain'])
 
@@ -132,11 +136,7 @@ function streamTextOf(item: Record<string, unknown>): StreamTokenInfo {
 }
 
 function isFinalPhase(phase: string): boolean {
-  return (
-    FINAL_PHASES.has(phase)
-    || phase === 'tool_planning'
-    || phase.startsWith('tool_followup_')
-  )
+  return FINAL_PHASES.has(phase) || phase.startsWith('tool_followup_')
 }
 
 function isFinalStreamText(item: StreamTokenInfo): boolean {
@@ -205,7 +205,6 @@ function responseOf(item: Record<string, unknown>): AskResponse {
     tool_calls: Array.isArray(item.tool_calls) ? item.tool_calls as ToolCallInfo[] : [],
     trace_id: stringOrNull(item.trace_id),
     model: stringOrNull(item.model),
-    provider: stringOrNull(item.provider),
     provider_model_id: stringOrNull(item.provider_model_id),
     provider_credential_id: stringOrNull(item.provider_credential_id),
     fallback_provider_model_id: stringOrNull(item.fallback_provider_model_id),
