@@ -50,6 +50,7 @@ export async function getAgentRuns(params: {
   projectId: string
   agentId: string
   sessionId?: string | null
+  environment?: string | null
   limit?: number
 }): Promise<AgentRunSummary[]> {
   return get<AgentRunSummary[]>('/runtime/runs', {
@@ -57,6 +58,7 @@ export async function getAgentRuns(params: {
       project_id: params.projectId,
       agent_id: params.agentId,
       session_id: params.sessionId ?? undefined,
+      environment: params.environment ?? undefined,
       limit: params.limit ?? 100,
     },
   })
