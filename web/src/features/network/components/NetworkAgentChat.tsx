@@ -581,7 +581,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
             {isSending ? (
               <button
                 type="button"
-                onClick={cancel}
+                onClick={() => { cancel() }}
                 className="flex h-7 w-7 items-center justify-center rounded-md border border-red-500/30 bg-red-500/10 text-red-200"
                 aria-label="Stop"
               >
