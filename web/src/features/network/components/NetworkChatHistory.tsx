@@ -9,7 +9,7 @@ import type { ChatMessage as PlaygroundChatMessage } from '@/features/playground
 import type { LiveNetworkExecutionState } from './networkLiveExecution'
 import type { AgentNodeId } from './networkWorkspaceTypes'
 import type { NetworkExecution, NetworkTurn } from './networkChatExecution'
-import { NetworkAnswer, NetworkLiveAgents } from './NetworkExecutionTree'
+import { NetworkAnswer, NetworkLiveAgents, NetworkLiveDelegations } from './NetworkExecutionTree'
 
 interface NetworkChatHistoryProps {
   scrollRef: Ref<HTMLDivElement>
@@ -118,7 +118,12 @@ export function NetworkChatHistory({
               agentName={exactNetworkName}
               variant="network"
               assistantIcon="network"
-              details={<NetworkLiveAgents agents={liveExecution.agents} onSelectAgent={onSelectAgent} />}
+              details={(
+                <div className="space-y-1">
+                  <NetworkLiveDelegations delegations={liveExecution.delegations} />
+                  <NetworkLiveAgents agents={liveExecution.agents} onSelectAgent={onSelectAgent} />
+                </div>
+              )}
               isStreaming={!liveResponseCommitted}
             />
           </div>
