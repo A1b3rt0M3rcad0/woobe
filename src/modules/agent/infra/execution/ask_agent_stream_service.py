@@ -46,7 +46,9 @@ logger = logging.getLogger(__name__)
 # cancel the execution it was watching.
 _DETACHED_AGENT_EXECUTIONS: set[asyncio.Task[Any]] = set()
 _DETACHED_AGENT_EVENT_PUMPS: set[asyncio.Task[Any]] = set()
+_DETACHED_AGENT_CANCEL_WATCHERS: set[asyncio.Task[Any]] = set()
 _INITIAL_OBSERVER_POLL_SECONDS = 0.25
+_CANCEL_POLL_SECONDS = 0.05
 _TERMINAL_STREAM_EVENTS = {"done", "error", "cancelled"}
 
 
@@ -65,10 +67,10 @@ def _track(task: asyncio.Task[Any], registry: set[asyncio.Task[Any]]) -> None:
             logger.exception("Detached Agent runtime task completion could not be inspected")
             return
         # Agent execution errors are already durably finalized and projected into the
-        # Run stream. Pump failures are infrastructure defects and must remain visible.
-        if error is not None and registry is _DETACHED_AGENT_EVENT_PUMPS:
+        # Run stream. Background infrastructure failures must remain visible.
+        if error is not None and registry is not _DETACHED_AGENT_EXECUTIONS:
             logger.error(
-                "Detached Agent runtime event pump failed",
+                "Detached Agent runtime background task failed",
                 exc_info=(type(error), error, error.__traceback__),
             )
 
@@ -328,6 +330,28 @@ class AskAgentStreamService:
             payload={**event.payload, "run_id": str(run_id)},
         )
 
+    async def _watch_cancellation(
+        self,
+        channel: RuntimeStreamChannel,
+        execution_task: asyncio.Task[AskOutput],
+    ) -> None:
+        while not execution_task.done():
+            run_id = getattr(channel, "run_id", None)
+            if run_id is None:
+                await asyncio.sleep(_CANCEL_POLL_SECONDS)
+                continue
+            try:
+                if await self._state_store.is_cancel_requested(run_id):
+                    if not execution_task.done():
+                        execution_task.cancel()
+                    return
+            except Exception as exc:
+                logger.debug(
+                    "Standalone cancellation watcher could not read hot state: %s",
+                    exc,
+                )
+            await asyncio.sleep(_CANCEL_POLL_SECONDS)
+
     async def _pump_events(
         self,
         input_dto: AskInput,
@@ -350,9 +374,6 @@ class AskAgentStreamService:
             if run_id is not None:
                 try:
                     runtime_ready = await self._state_store.get(run_id) is not None
-                    if runtime_ready and await self._state_store.is_cancel_requested(run_id):
-                        if not execution_task.done():
-                            execution_task.cancel()
                 except Exception:
                     runtime_ready = False
 
@@ -447,10 +468,14 @@ class AskAgentStreamService:
             self._pump_events(input_dto, channel, execution_task)
         )
         _track(pump_task, _DETACHED_AGENT_EVENT_PUMPS)
+        cancellation_task = asyncio.create_task(
+            self._watch_cancellation(channel, execution_task)
+        )
+        _track(cancellation_task, _DETACHED_AGENT_CANCEL_WATCHERS)
 
         # POST observes the active channel directly. The persistence pump consumes its
         # own queue and writes the same events to hot state for GET reattach. A slow or
-        # batching Redis path therefore cannot delay already-produced tokens.
+        # batching Redis path therefore cannot delay already-produced tokens or Stop.
         last_heartbeat = time.monotonic()
         try:
             while True:
