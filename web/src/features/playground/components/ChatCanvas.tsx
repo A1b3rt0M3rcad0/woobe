@@ -8,6 +8,7 @@ import {
   isFirstRunSearch,
   removeFirstRunFromLocation,
 } from '@/features/playground/lib/first-run'
+import { useAgentStreamStopState } from '@/features/playground/stream-stop-state'
 import type { ChatMessage as ChatMessageType } from '@/features/playground/types'
 
 interface ChatCanvasProps {
@@ -59,7 +60,7 @@ function SessionMessagesLoading() {
   )
 }
 
-export function ChatCanvas({ messages, isSending, isStopping = false, isSessionLoading = false, onSend, onStop, agentName, runtimeBlocked = false, runtimeBlockReason }: ChatCanvasProps) {
+export function ChatCanvas({ messages, isSending, isStopping, isSessionLoading = false, onSend, onStop, agentName, runtimeBlocked = false, runtimeBlockReason }: ChatCanvasProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesContentRef = useRef<HTMLDivElement>(null)
   const shouldStickToBottomRef = useRef(true)
@@ -68,6 +69,8 @@ export function ChatCanvas({ messages, isSending, isStopping = false, isSessionL
     typeof window !== 'undefined' && isFirstRunSearch(window.location.search),
   )
   const [showFirstRunSuccess, setShowFirstRunSuccess] = useState(false)
+  const stopState = useAgentStreamStopState()
+  const stopping = isStopping ?? stopState === 'stopping'
   const lastMessageContent = messages[messages.length - 1]?.content ?? ''
   const currentFirstRun = typeof window !== 'undefined'
     && isFirstRunSearch(window.location.search)
@@ -204,7 +207,7 @@ export function ChatCanvas({ messages, isSending, isStopping = false, isSessionL
         )}
       </ScrollArea>
 
-      <ChatComposer isSending={isSending} isStopping={isStopping} onSend={handleSend} onStop={onStop} runtimeBlocked={runtimeBlocked} runtimeBlockReason={runtimeBlockReason} />
+      <ChatComposer isSending={isSending} isStopping={stopping} onSend={handleSend} onStop={onStop} runtimeBlocked={runtimeBlocked} runtimeBlockReason={runtimeBlockReason} />
     </section>
   )
 }
