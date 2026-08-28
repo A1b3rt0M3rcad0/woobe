@@ -102,6 +102,17 @@ class AskAgentStreamService:
         token = current_runtime_stream.set(channel)
         try:
             result = await self._use_case.execute(input_dto)
+
+            # A provider may return after it was asked to cancel. Durable Run state
+            # wins over that late response; never project a false COMPLETED terminal
+            # after cancellation already committed.
+            run_id = getattr(channel, "run_id", None)
+            if run_id is not None:
+                durable = await self._durable_fallback(run_id)
+                if durable is not None and str(durable.get("status") or "") == "cancelled":
+                    await self._emit_durable_terminal_after_cancel_race(channel)
+                    return result
+
             await channel.emit("done", **result.model_dump(mode="json"))
             return result
         except asyncio.CancelledError:
@@ -337,25 +348,48 @@ class AskAgentStreamService:
 
     async def _watch_cancellation(
         self,
+        input_dto: AskInput,
         channel: RuntimeStreamChannel,
         execution_task: asyncio.Task[AskOutput],
     ) -> None:
+        cancellation_persisted = False
         while not execution_task.done():
             run_id = getattr(channel, "run_id", None)
             if run_id is None:
                 await asyncio.sleep(_CANCEL_POLL_SECONDS)
                 continue
             try:
-                if await self._state_store.is_cancel_requested(run_id):
-                    if not execution_task.done():
-                        execution_task.cancel()
-                    return
+                if not await self._state_store.is_cancel_requested(run_id):
+                    await asyncio.sleep(_CANCEL_POLL_SECONDS)
+                    continue
+
+                # Do not interrupt before the canonical durable identity is complete.
+                # Once the request is visible, cancellation persistence wins first;
+                # provider interruption is a consequence, not the source of truth.
+                if channel.trace_id is None:
+                    await asyncio.sleep(0)
+                    continue
+
+                if not cancellation_persisted:
+                    cancellation_persisted = await self._persist_cancelled(
+                        channel,
+                        input_dto,
+                        "cancel_requested",
+                    )
+
+                if not execution_task.done():
+                    execution_task.cancel()
+                    # Re-schedule immediately instead of waiting for the normal poll.
+                    # A provider that swallows one CancelledError must not get a 50ms
+                    # window to finalize a late success over a cancelled Run.
+                    await asyncio.sleep(0)
+                continue
             except Exception as exc:
                 logger.debug(
                     "Standalone cancellation watcher could not read hot state: %s",
                     exc,
                 )
-            await asyncio.sleep(_CANCEL_POLL_SECONDS)
+                await asyncio.sleep(_CANCEL_POLL_SECONDS)
 
     async def _pump_events(
         self,
@@ -474,7 +508,7 @@ class AskAgentStreamService:
         )
         _track(pump_task, _DETACHED_AGENT_EVENT_PUMPS)
         cancellation_task = asyncio.create_task(
-            self._watch_cancellation(channel, execution_task)
+            self._watch_cancellation(input_dto, channel, execution_task)
         )
         _track(cancellation_task, _DETACHED_AGENT_CANCEL_WATCHERS)
 
