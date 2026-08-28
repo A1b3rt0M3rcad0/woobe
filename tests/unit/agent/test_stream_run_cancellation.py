@@ -83,6 +83,20 @@ class _DetachedUseCase:
             "agent.run.accepted",
             {"trace_id": str(self.run.trace_id)},
         )
+        await channel.emit(
+            "meta",
+            run_id=str(self.run.id),
+            trace_id=str(self.run.trace_id),
+            project_id=str(self.run.project_id),
+            agent_id=str(self.run.agent_id),
+        )
+        await channel.emit(
+            "token",
+            content="partial",
+            visibility="assistant",
+            channel="final",
+            phase="response_generation",
+        )
         await asyncio.sleep(0.05)
         self.completed.set()
         return SimpleNamespace(
@@ -91,6 +105,11 @@ class _DetachedUseCase:
                 "answer": "completed after observer left",
             }
         )
+
+
+class _NoInitialTailReadStore(InMemoryExecutionStateStore):
+    async def read_events_after_cursor(self, *args, **kwargs):
+        raise AssertionError("initial POST observer must not consume the Redis/hot tail")
 
 
 def _run() -> AgentRun:
@@ -136,13 +155,35 @@ async def test_closing_stream_observer_does_not_cancel_agent_execution() -> None
 
     stream = service.stream(_input(run))
     first = await anext(stream)
-    assert "event: run.state" in first
+    assert "event: meta" in first
+    assert str(run.id) in first
 
     await stream.aclose()
     await asyncio.wait_for(use_case.completed.wait(), timeout=1)
 
     assert transactions.write_calls == 0
     assert transactions.runs.run.status == AgentRunStatus.RUNNING
+
+
+@pytest.mark.asyncio
+async def test_initial_post_observer_receives_live_token_without_hot_tail_read() -> None:
+    run = _run()
+    store = _NoInitialTailReadStore()
+    transactions = _Transactions(run)
+    use_case = _DetachedUseCase(run, store)
+    service = AskAgentStreamService(use_case, transactions, state_store=store)
+
+    stream = service.stream(_input(run))
+    first = await asyncio.wait_for(anext(stream), timeout=1)
+    second = await asyncio.wait_for(anext(stream), timeout=1)
+
+    assert "event: meta" in first
+    assert "event: token" in second
+    assert '"content": "partial"' in second
+    assert use_case.completed.is_set() is False
+
+    await stream.aclose()
+    await asyncio.wait_for(use_case.completed.wait(), timeout=1)
 
 
 @pytest.mark.asyncio
