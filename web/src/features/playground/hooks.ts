@@ -1,12 +1,14 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   createSession,
   ask,
   getSessionMessages,
 } from './api'
+import { cancelAgentRun } from './reattach-api'
 import { getAgentSessionsByEnvironment } from './session-api'
 import { askStreamV1, reattachAgentRunV1, type StreamCallbacks } from './stream-client'
+import { createAgentStreamCancellationCoordinator } from './stream-cancellation'
 import type { RuntimeEnvironment } from '@/features/agents/types'
 import type { CreateSessionRequest, AskRequest } from './types'
 
@@ -101,6 +103,21 @@ export function useSessionMessages(sessionId: string | undefined) {
 
 export function useAskStream() {
   const queryClient = useQueryClient()
+  const activeSessionIdRef = useRef<string | null>(null)
+  const cancellationRef = useRef<ReturnType<typeof createAgentStreamCancellationCoordinator> | null>(null)
+  if (cancellationRef.current === null) {
+    cancellationRef.current = createAgentStreamCancellationCoordinator(cancelAgentRun)
+  }
+  const cancellation = cancellationRef.current
+
+  const reconcileCallbacks = useCallback((callbacks: StreamCallbacks): StreamCallbacks => ({
+    ...callbacks,
+    onMeta: (meta) => {
+      if (meta.run_id) cancellation.observeRun(meta.run_id)
+      if (meta.session_id) activeSessionIdRef.current = meta.session_id
+      callbacks.onMeta(meta)
+    },
+  }), [cancellation])
 
   const withController = useCallback(async (
     operation: (signal: AbortSignal) => Promise<void>,
@@ -111,28 +128,57 @@ export function useAskStream() {
     try {
       await operation(controller.signal)
     } finally {
+      const sessionId = activeSessionIdRef.current
       if (activeStreamController === controller) activeStreamController = null
+      cancellation.finish()
+      activeSessionIdRef.current = null
+      if (sessionId) {
+        void queryClient.invalidateQueries({ queryKey: ['session-messages', sessionId] })
+      }
+      void queryClient.invalidateQueries({ queryKey: ['agent-sessions'] })
+      void queryClient.invalidateQueries({ queryKey: ['traces'] })
       void queryClient.invalidateQueries({
         queryKey: ['project-overview'],
         refetchType: 'none',
       })
     }
-  }, [queryClient])
+  }, [cancellation, queryClient])
 
   const stream = useCallback(async (
     data: AskRequest,
     callbacks: StreamCallbacks,
-  ) => withController(
-    (signal) => askStreamV1(withStrictOutputContract(data), callbacks, signal),
-  ), [withController])
+  ) => {
+    activeSessionIdRef.current = data.session_id ?? null
+    cancellation.begin()
+    return withController(
+      (signal) => askStreamV1(
+        withStrictOutputContract(data),
+        reconcileCallbacks(callbacks),
+        signal,
+      ),
+    )
+  }, [cancellation, reconcileCallbacks, withController])
 
   const reattach = useCallback(async (
     runId: string,
     callbacks: StreamCallbacks,
-  ) => withController(
-    (signal) => reattachAgentRunV1(runId, callbacks, signal),
-  ), [withController])
+  ) => {
+    activeSessionIdRef.current = null
+    cancellation.begin(runId)
+    return withController(
+      (signal) => reattachAgentRunV1(runId, reconcileCallbacks(callbacks), signal),
+    )
+  }, [cancellation, reconcileCallbacks, withController])
 
-  const cancel = useCallback(() => cancelActiveAskStream(), [])
-  return { stream, reattach, cancel }
+  // Stop is a Run command, not a transport disconnect. The active observer remains
+  // attached until the runtime emits its durable terminal cancellation event.
+  const cancel = useCallback(() => {
+    cancellation.requestStop()
+  }, [cancellation])
+
+  // Kept separate for navigation/unmount style transport disposal. Disconnecting an
+  // observer must never be interpreted as cancelling the underlying Agent Run.
+  const disconnect = useCallback(() => cancelActiveAskStream(), [])
+
+  return { stream, reattach, cancel, disconnect }
 }

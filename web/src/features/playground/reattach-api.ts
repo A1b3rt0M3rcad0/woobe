@@ -9,12 +9,26 @@ export interface ActiveAgentRun {
   created_at?: string | null
 }
 
+const activeCancellationRequests = new Map<string, Promise<void>>()
+
 export async function getActiveAgentRun(sessionId: string): Promise<ActiveAgentRun | null> {
   return get<ActiveAgentRun | null>('/runtime/runs/active', {
     params: { session_id: sessionId },
   })
 }
 
-export async function cancelAgentRun(runId: string): Promise<void> {
-  await post(`/runtime/runs/${runId}/cancel`, {})
+export function cancelAgentRun(runId: string): Promise<void> {
+  const existing = activeCancellationRequests.get(runId)
+  if (existing) return existing
+
+  const request = post(`/runtime/runs/${runId}/cancel`, {})
+    .then(() => undefined)
+    .finally(() => {
+      if (activeCancellationRequests.get(runId) === request) {
+        activeCancellationRequests.delete(runId)
+      }
+    })
+
+  activeCancellationRequests.set(runId, request)
+  return request
 }
