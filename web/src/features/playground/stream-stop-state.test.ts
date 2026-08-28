@@ -8,15 +8,26 @@ import {
 } from './stream-stop-state'
 
 describe('Agent stream stop state', () => {
-  it('tracks running cancellation as a distinct stopping state', () => {
+  it('tracks idle -> running -> stopping -> idle explicitly', () => {
     resetAgentStreamStopState()
     expect(getAgentStreamStopState()).toBe('idle')
+
+    setAgentStreamStopState('running')
+    expect(getAgentStreamStopState()).toBe('running')
 
     setAgentStreamStopState('stopping')
     expect(getAgentStreamStopState()).toBe('stopping')
 
-    setAgentStreamStopState('idle')
+    resetAgentStreamStopState()
     expect(getAgentStreamStopState()).toBe('idle')
+  })
+
+  it('returns to running rather than idle when a Stop request itself fails', () => {
+    setAgentStreamStopState('running')
+    setAgentStreamStopState('stopping')
+    setAgentStreamStopState('running')
+
+    expect(getAgentStreamStopState()).toBe('running')
   })
 
   it('notifies observers only when the state actually changes', () => {
@@ -25,15 +36,17 @@ describe('Agent stream stop state', () => {
     const unsubscribe = subscribeAgentStreamStopState(listener)
 
     setAgentStreamStopState('idle')
+    setAgentStreamStopState('running')
+    setAgentStreamStopState('running')
     setAgentStreamStopState('stopping')
     setAgentStreamStopState('stopping')
     setAgentStreamStopState('idle')
 
-    expect(listener).toHaveBeenCalledTimes(2)
+    expect(listener).toHaveBeenCalledTimes(3)
     unsubscribe()
   })
 
-  it('can be reset after a request failure or terminal stream', () => {
+  it('can be reset after a terminal stream', () => {
     setAgentStreamStopState('stopping')
     resetAgentStreamStopState()
 
