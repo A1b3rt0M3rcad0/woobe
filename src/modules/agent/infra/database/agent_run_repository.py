@@ -20,6 +20,19 @@ _TERMINAL_RUN_STATUSES = {
 }
 
 
+class AgentRunTerminalConflict(RuntimeError):
+    """Raised when a terminal writer loses the serialized Agent Run race."""
+
+    def __init__(self, run_id: UUID, persisted_status: str, incoming_status: str) -> None:
+        super().__init__(
+            f"Agent Run {run_id} is already terminal as {persisted_status}; "
+            f"cannot persist {incoming_status}"
+        )
+        self.run_id = run_id
+        self.persisted_status = persisted_status
+        self.incoming_status = incoming_status
+
+
 def _to_model(run: AgentRun) -> AgentRunModel:
     return AgentRunModel(
         id=run.id,
@@ -228,18 +241,25 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
         if model is None:
             return await self.create(run)
 
-        # Every terminal writer is serialized on the Run row. populate_existing is
-        # required because the same UoW may already have a stale RUNNING instance in
-        # its identity map while a cancellation transaction commits concurrently.
-        # Once a terminal state exists, no later provider/finalizer may mutate it.
+        # Every terminal writer is serialized on the Run row. If a different
+        # terminal state already won, raising here rolls back the whole UoW rather
+        # than merely protecting the AgentRun row while leaving contradictory
+        # Assistant messages/outbox events committed by the losing finalizer.
+        incoming_status = run.status.value
         if model.status in _TERMINAL_RUN_STATUSES:
+            if model.status != incoming_status:
+                raise AgentRunTerminalConflict(
+                    run.id,
+                    persisted_status=model.status,
+                    incoming_status=incoming_status,
+                )
             return _to_entity(model)
 
         model.session_id = run.session_id
         model.agent_release_id = run.agent_release_id
         model.input_message_id = run.input_message_id
         model.output_message_id = run.output_message_id
-        model.status = run.status.value
+        model.status = incoming_status
         model.execution_snapshot = run.execution_snapshot
         model.usage = run.usage
         model.result = run.result
