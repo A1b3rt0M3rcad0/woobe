@@ -279,9 +279,25 @@ class AskAgentStreamService:
         initial_observer_closed: asyncio.Event | None = None,
     ) -> None:
         del input_dto
-        buffered: list[tuple[RuntimeStreamEvent, bool]] = []
+        buffered: list[RuntimeStreamEvent] = []
         terminal_seen = False
         while not terminal_seen:
+            try:
+                event = await asyncio.wait_for(channel.queue.get(), timeout=0.25)
+                run_id = getattr(channel, "run_id", None)
+                event = self._event_for_run(event, run_id)
+                # Do not put Redis reads/writes between provider token production and the
+                # observer that started this Run. Hot persistence follows immediately,
+                # but cannot batch or gate the user-facing initial stream.
+                self._forward_initial_observer(
+                    initial_observer_queue,
+                    initial_observer_closed,
+                    event,
+                )
+                buffered.append(event)
+            except asyncio.TimeoutError:
+                event = None
+
             run_id = getattr(channel, "run_id", None)
             runtime_ready = False
             if run_id is not None:
@@ -293,23 +309,9 @@ class AskAgentStreamService:
                 except Exception:
                     runtime_ready = False
 
-            try:
-                event = await asyncio.wait_for(channel.queue.get(), timeout=0.25)
-                run_id = getattr(channel, "run_id", None)
-                buffered.append((self._event_for_run(event, run_id), False))
-            except asyncio.TimeoutError:
-                event = None
-
-            run_id = getattr(channel, "run_id", None)
-            if run_id is not None and not runtime_ready:
-                try:
-                    runtime_ready = await self._state_store.get(run_id) is not None
-                except Exception:
-                    runtime_ready = False
-
             if run_id is not None and runtime_ready and buffered:
                 pending, buffered = buffered, []
-                for queued, observed in pending:
+                for queued in pending:
                     queued = self._event_for_run(queued, run_id)
                     await self._publisher.publish(
                         run_id,
@@ -317,28 +319,8 @@ class AskAgentStreamService:
                         queued.event_type,
                         dict(queued.payload),
                     )
-                    if not observed:
-                        self._forward_initial_observer(
-                            initial_observer_queue,
-                            initial_observer_closed,
-                            queued,
-                        )
                     if queued.event_type in _TERMINAL_STREAM_EVENTS:
                         terminal_seen = True
-            elif buffered:
-                # Standalone execution remains observable even when hot-state transport
-                # is degraded or still initializing. Redis is required for reattach, not
-                # for delivery to the observer that started this logical Run.
-                for index, (queued, observed) in enumerate(buffered):
-                    if observed:
-                        continue
-                    queued = self._event_for_run(queued, run_id)
-                    self._forward_initial_observer(
-                        initial_observer_queue,
-                        initial_observer_closed,
-                        queued,
-                    )
-                    buffered[index] = (queued, True)
 
             if execution_task.done() and not buffered and terminal_seen:
                 return
@@ -346,7 +328,7 @@ class AskAgentStreamService:
             if execution_task.done() and buffered and not runtime_ready:
                 if any(
                     queued.event_type in _TERMINAL_STREAM_EVENTS
-                    for queued, _observed in buffered
+                    for queued in buffered
                 ):
                     logger.warning(
                         "Standalone hot event persistence unavailable after terminal Run; "
@@ -390,33 +372,6 @@ class AskAgentStreamService:
 
         return await self._transactions.read(read_run)
 
-    async def _wait_for_hot_state(
-        self,
-        run_id: UUID,
-        execution_task: asyncio.Task[AskOutput],
-        *,
-        timeout_seconds: float = 1.0,
-    ) -> None:
-        """Bridge the small Acceptance -> hot-state initialization window.
-
-        The canonical Run id becomes available immediately after the durable
-        Acceptance commit, while Redis initialization intentionally happens after
-        credential preparation. Attaching in that interval would incorrectly look
-        like a completed durable-only fallback and close the observer. Wait briefly
-        for the hot state; on Redis degradation the timeout preserves execution and
-        the caller still falls back to the durable Run rather than creating another.
-        """
-        deadline = asyncio.get_running_loop().time() + timeout_seconds
-        while asyncio.get_running_loop().time() < deadline:
-            try:
-                if await self._state_store.get(run_id) is not None:
-                    return
-            except Exception:
-                return
-            if execution_task.done():
-                return
-            await asyncio.sleep(0.01)
-
     async def attach(
         self,
         run_id: UUID,
@@ -452,10 +407,9 @@ class AskAgentStreamService:
         )
         _track(pump_task, _DETACHED_AGENT_EVENT_PUMPS)
 
-        # The observer that created the Run receives the runtime event fan-out directly.
-        # Redis receives the same events in parallel and remains the canonical reattach
-        # transport after a disconnect. This avoids XREAD/tail batching on the initial
-        # user-facing stream while preserving detached execution and recovery semantics.
+        # The POST observer consumes a direct event fan-out from the active Run.
+        # Redis persists the same events for GET reattach, but no Redis read/write is
+        # allowed to gate delivery of an already-produced token to this observer.
         last_heartbeat = time.monotonic()
         try:
             while True:
