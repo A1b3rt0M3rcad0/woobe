@@ -28,10 +28,12 @@ afterEach(() => {
 
 describe('standalone Agent Run reattach streaming', () => {
   it('hydrates current output immediately and keeps capability-aware tail incremental', async () => {
-    let streamController: ReadableStreamDefaultController<Uint8Array> | null = null
+    const streamController = {
+      current: null as ReadableStreamDefaultController<Uint8Array> | null,
+    }
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
-        streamController = controller
+        streamController.current = controller
         controller.enqueue(sse(12, 'run.state', {
           run_id: 'run-1',
           status: 'running',
@@ -61,7 +63,7 @@ describe('standalone Agent Run reattach streaming', () => {
 
     expect(onDone).not.toHaveBeenCalled()
 
-    streamController?.enqueue(sse(13, 'token', {
+    streamController.current?.enqueue(sse(13, 'token', {
       content: ' world',
       visibility: 'assistant',
       channel: 'final',
@@ -79,11 +81,11 @@ describe('standalone Agent Run reattach streaming', () => {
 
     expect(onDone).not.toHaveBeenCalled()
 
-    streamController?.enqueue(sse(14, 'done', {
+    streamController.current?.enqueue(sse(14, 'done', {
       answer: 'Hello world',
       run_id: 'run-1',
     }))
-    streamController?.close()
+    streamController.current?.close()
 
     await reattach
 
