@@ -185,6 +185,7 @@ async def test_cancelled_stateful_run_preserves_user_and_partial_assistant_in_po
                 ("user", "write a long answer"),
                 ("assistant", "partial answer already streamed"),
             ]
+            assert run.output_message_id == messages[1].id
             assert messages[1].data is not None
             assert messages[1].data["cancelled"] is True
             assert messages[1].data["partial"] is True
@@ -342,6 +343,7 @@ async def test_cancel_before_first_token_keeps_user_without_empty_assistant_mess
             assert run.result is not None
             assert run.result["answer"] == ""
             assert run.result["partial"] is False
+            assert run.output_message_id is None
 
             messages = list(
                 (
