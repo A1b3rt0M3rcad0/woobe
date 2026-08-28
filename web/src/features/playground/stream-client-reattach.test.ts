@@ -94,4 +94,72 @@ describe('standalone Agent Run reattach streaming', () => {
     expect((fetchMock.mock.calls[0]?.[1] as RequestInit).method).toBe('GET')
     expect(onDone).toHaveBeenCalledWith(expect.objectContaining({ answer: 'Hello world' }))
   })
+
+  it('keeps observing the same Run after reload while cancellation is pending', async () => {
+    const streamController = {
+      current: null as ReadableStreamDefaultController<Uint8Array> | null,
+    }
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        streamController.current = controller
+        controller.enqueue(sse(21, 'run.state', {
+          run_id: 'run-stopping',
+          status: 'cancel_requested',
+          output: 'partial answer',
+        }))
+      },
+    })
+    const fetchMock = vi.fn().mockResolvedValue(new Response(body, {
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+    }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const onRunState = vi.fn()
+    const onToken = vi.fn()
+    const onCancelled = vi.fn()
+    const onDone = vi.fn()
+    const onError = vi.fn()
+    const reattach = reattachAgentRunV1('run-stopping', {
+      onToken,
+      onSources: vi.fn(),
+      onMeta: vi.fn(),
+      onDone,
+      onError,
+      onCancelled,
+      onRunState,
+    })
+
+    await vi.waitFor(() => {
+      expect(onRunState).toHaveBeenCalledWith(expect.objectContaining({
+        run_id: 'run-stopping',
+        status: 'cancel_requested',
+      }))
+      expect(onToken).toHaveBeenCalledWith(expect.objectContaining({ content: 'partial answer' }))
+    })
+
+    expect(onDone).not.toHaveBeenCalled()
+    expect(onCancelled).not.toHaveBeenCalled()
+    expect(onError).not.toHaveBeenCalled()
+
+    streamController.current?.enqueue(sse(22, 'cancelled', {
+      run_id: 'run-stopping',
+      status: 'cancelled',
+      output: 'partial answer',
+      partial: true,
+      persisted: true,
+    }))
+    streamController.current?.close()
+
+    await reattach
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(onCancelled).toHaveBeenCalledWith(expect.objectContaining({
+      run_id: 'run-stopping',
+      output: 'partial answer',
+      persisted: true,
+    }))
+    expect(onDone).not.toHaveBeenCalled()
+    expect(onError).not.toHaveBeenCalled()
+  })
 })
