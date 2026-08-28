@@ -234,7 +234,7 @@ function hydrateToolSnapshot(
       data: {
         ...sharedData,
         duration_ms: tool.duration_ms ?? null,
-        success: tool.success ?? status === 'success' || status === 'completed',
+        success: tool.success ?? (status === 'success' || status === 'completed'),
         status,
         error_code: tool.error_code ?? null,
         error: tool.error ?? null,
