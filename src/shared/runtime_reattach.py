@@ -110,6 +110,27 @@ def _delegation_key(payload: dict[str, Any]) -> str | None:
     return None
 
 
+def _tool_name(payload: dict[str, Any]) -> str | None:
+    value = payload.get("tool_name") or payload.get("name")
+    return str(value) if value else None
+
+
+def _is_delegation_tool(payload: dict[str, Any]) -> bool:
+    name = _tool_name(payload)
+    return bool(name and name.startswith("delegate_to_"))
+
+
+def _tool_key(payload: dict[str, Any]) -> str | None:
+    tool_call_id = payload.get("tool_call_id") or payload.get("id")
+    if tool_call_id:
+        return str(tool_call_id)
+    invocation_id = payload.get("invocation_id")
+    name = _tool_name(payload)
+    if invocation_id and name:
+        return f"{invocation_id}:{name}"
+    return None
+
+
 def initial_projection(
     run_id: UUID,
     run_kind: str,
@@ -147,6 +168,7 @@ def initial_projection(
         "output": str(output or ""),
         "activity": None,
         "active_tools": [],
+        "tools": [],
         "active_agents": [],
         "completed_agents": [],
         "cancelled_agents": [],
@@ -175,6 +197,11 @@ def _public_event(event: ExecutionEvent) -> tuple[str, dict[str, Any]]:
         ):
             return "run.progress", {}
         return event.event_type, payload
+
+    if event.event_type in {"tool_call_started", "tool_call_completed"} and _is_delegation_tool(payload):
+        # Delegation functions are a provider mechanism. Public Network state owns them
+        # exclusively through delegation_* events so they never become operational Tools.
+        return "run.progress", {}
 
     if event.event_type == "tool_call_started":
         for key in ("input", "arguments", "headers", "authorization"):
@@ -223,17 +250,60 @@ def reduce_projection(
             if payload.get(key) is not None
         }
     elif event_type == "tool_call_started":
-        tool_name = payload.get("tool_name") or payload.get("name")
-        if tool_name:
-            tools = set(_as_list(state.get("active_tools")))
-            tools.add(str(tool_name))
-            state["active_tools"] = sorted(tools)
+        tool_name = _tool_name(payload)
+        tool_key = _tool_key(payload)
+        if tool_name and tool_key:
+            active = set(_as_list(state.get("active_tools")))
+            active.add(tool_key)
+            state["active_tools"] = sorted(active)
+            state["tools"] = _upsert_by_key(
+                _as_record_list(state.get("tools")),
+                key="id",
+                key_value=tool_key,
+                update={
+                    "id": tool_key,
+                    "tool_call_id": str(payload.get("tool_call_id") or tool_key),
+                    "invocation_id": (
+                        str(payload["invocation_id"])
+                        if payload.get("invocation_id")
+                        else None
+                    ),
+                    "tool_name": tool_name,
+                    "status": "running",
+                    "success": None,
+                    "started_at": payload.get("started_at") or occurred_at,
+                },
+            )
     elif event_type == "tool_call_completed":
-        tool_name = payload.get("tool_name") or payload.get("name")
-        if tool_name:
-            tools = set(_as_list(state.get("active_tools")))
-            tools.discard(str(tool_name))
-            state["active_tools"] = sorted(tools)
+        tool_name = _tool_name(payload)
+        tool_key = _tool_key(payload)
+        if tool_name and tool_key:
+            active = set(_as_list(state.get("active_tools")))
+            active.discard(tool_key)
+            state["active_tools"] = sorted(active)
+            state["tools"] = _upsert_by_key(
+                _as_record_list(state.get("tools")),
+                key="id",
+                key_value=tool_key,
+                update={
+                    "id": tool_key,
+                    "tool_call_id": str(payload.get("tool_call_id") or tool_key),
+                    "invocation_id": (
+                        str(payload["invocation_id"])
+                        if payload.get("invocation_id")
+                        else None
+                    ),
+                    "tool_name": tool_name,
+                    "status": payload.get("status") or (
+                        "success" if payload.get("success") is True else "error"
+                    ),
+                    "success": payload.get("success"),
+                    "duration_ms": payload.get("duration_ms"),
+                    "error_code": payload.get("error_code"),
+                    "error": payload.get("error"),
+                    "completed_at": payload.get("ended_at") or occurred_at,
+                },
+            )
     elif event_type == "agent_invocation_started":
         agent_id = payload.get("agent_id") or payload.get("label")
         if agent_id:
@@ -337,24 +407,38 @@ def reduce_projection(
                 "delegation_failed": "failed",
                 "delegation_skipped": "skipped",
             }[event_type]
+            existing = next(
+                (
+                    item
+                    for item in _as_record_list(state.get("delegations"))
+                    if str(item.get("id") or "") == delegation_key
+                ),
+                {},
+            )
             delegation = {
                 "id": delegation_key,
                 "parent_invocation_id": (
                     str(payload["invocation_id"])
                     if payload.get("invocation_id")
-                    else None
+                    else existing.get("parent_invocation_id")
                 ),
                 "target_node_id": (
                     str(payload["target_node_id"])
                     if payload.get("target_node_id")
-                    else None
+                    else existing.get("target_node_id")
                 ),
-                "target": payload.get("target"),
+                "target": payload.get("target") or existing.get("target"),
                 "status": delegation_status,
-                "reason": payload.get("reason"),
-                "started_at": occurred_at if event_type == "delegation_started" else None,
+                "reason": payload.get("reason") or existing.get("reason"),
+                "started_at": (
+                    occurred_at
+                    if event_type == "delegation_started"
+                    else existing.get("started_at")
+                ),
                 "completed_at": (
-                    occurred_at if event_type != "delegation_started" else None
+                    occurred_at
+                    if event_type != "delegation_started"
+                    else existing.get("completed_at")
                 ),
             }
             state["delegations"] = _upsert_by_key(
