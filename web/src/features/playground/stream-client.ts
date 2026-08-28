@@ -22,8 +22,6 @@ const FINAL_PHASES = new Set([
 ])
 const PROVIDER_CONTROL_TOKENS = ['<｜end▁of▁sentence｜>', '<|endoftext|>', '<|eot_id|>']
 const TERMINAL_RUN_STATUSES = new Set(['completed', 'failed', 'cancelled', 'timed_out', 'uncertain'])
-const MAX_VISUAL_FRAMES_PER_PAINT = 6
-const TERMINAL_STREAM_EVENTS = new Set(['done', 'error', 'cancelled'])
 
 export interface TokenRetractInfo {
   phase?: string | null
@@ -207,6 +205,7 @@ function responseOf(item: Record<string, unknown>): AskResponse {
     tool_calls: Array.isArray(item.tool_calls) ? item.tool_calls as ToolCallInfo[] : [],
     trace_id: stringOrNull(item.trace_id),
     model: stringOrNull(item.model),
+    provider: stringOrNull(item.provider),
     provider_model_id: stringOrNull(item.provider_model_id),
     provider_credential_id: stringOrNull(item.provider_credential_id),
     fallback_provider_model_id: stringOrNull(item.fallback_provider_model_id),
@@ -398,27 +397,10 @@ async function consumeResponse(
   const decoder = new TextDecoder()
   const parser = new SseFrameParser()
   let terminal = false
-  let visualFramesSincePaint = 0
-
   const consume = async (frames: SseFrame[]) => {
     for (const frame of frames) {
-      const type = frameType(frame)
-      if (TERMINAL_STREAM_EVENTS.has(type) && visualFramesSincePaint > 0) {
-        visualFramesSincePaint = 0
-        await waitForBrowserPaint()
-      }
-
-      if (dispatch(frame, callbacks, state)) {
-        terminal = true
-        return
-      }
-      if (!isVisualStreamFrame(frame)) continue
-
-      visualFramesSincePaint += 1
-      if (type === 'run.state' || visualFramesSincePaint >= MAX_VISUAL_FRAMES_PER_PAINT) {
-        visualFramesSincePaint = 0
-        await waitForBrowserPaint()
-      }
+      if (dispatch(frame, callbacks, state)) terminal = true
+      if (!terminal && isVisualStreamFrame(frame)) await waitForBrowserPaint()
     }
   }
 
