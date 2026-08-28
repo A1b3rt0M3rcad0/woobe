@@ -34,9 +34,10 @@ async def list_agent_runs(
     project_id: UUID,
     agent_id: UUID,
     session_id: UUID | None = None,
+    environment: str | None = None,
     limit: int = 100,
 ):
-    del project_id, agent_id, session_id, limit
+    del project_id, agent_id, session_id, environment, limit
     response = await request_adapter(request, list_agent_runs_composer())
     return response_adapter(response)
 
