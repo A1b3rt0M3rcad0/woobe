@@ -83,6 +83,23 @@ test("stale replacement state is ignored without rewinding sequence", () => {
   assert.equal(state.sequence, 20);
 });
 
+test("malformed SSE data is ignored instead of crashing the observer", () => {
+  const malformed = runtime.parseRuntimeFrame(
+    'id: 21\nevent: token\ndata: {"protocol_version":1,"sequence":21,"content":',
+  );
+
+  assert.equal(malformed, null);
+});
+
+test("unsupported declared protocol version is rejected explicitly", () => {
+  assert.throws(
+    () => runtime.parseRuntimeFrame(
+      'id: 1\nevent: token\ndata: {"protocol_version":99,"sequence":1,"content":"x"}',
+    ),
+    (error) => error?.name === "RuntimeStreamProtocolError",
+  );
+});
+
 test("terminal state and terminal events are classified explicitly", () => {
   const completed = runtime.parseRuntimeFrame(
     'event: run.state\ndata: {"type":"run.state","sequence":3,"status":"completed","output":"done"}',
