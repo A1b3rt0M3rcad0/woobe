@@ -329,18 +329,19 @@ def _is_final_response_phase(phase: str) -> bool:
     return phase in _FINAL_RESPONSE_PHASES
 
 
-def _can_stream_phase_live(phase: str) -> bool:
-    # Capability-aware invocations are buffered until the provider response proves that
-    # no Tool/Delegation call was selected. This avoids speculative user-facing text.
-    return _is_final_response_phase(phase)
-
-
 def _can_emit_phase_as_final(phase: str) -> bool:
     return (
         _is_final_response_phase(phase)
         or phase == "capability_response_generation"
         or phase.startswith("tool_followup_")
     )
+
+
+def _can_stream_phase_live(phase: str) -> bool:
+    # Capability-aware output is optimistic public output. If the completed provider
+    # response selects a Tool/Delegation, token_retract removes exactly what this
+    # invocation streamed before capability execution continues.
+    return _can_emit_phase_as_final(phase)
 
 
 def _activity_for_phase(phase: str) -> tuple[str, str]:
