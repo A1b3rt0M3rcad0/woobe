@@ -98,6 +98,16 @@ class _StateStore:
         self.requested.append(run_id)
 
 
+class _FailingGetStateStore(_StateStore):
+    async def get(self, _run_id):
+        raise RuntimeError("redis unavailable")
+
+
+class _FailingCancelStateStore(_StateStore):
+    async def request_cancel(self, _run_id) -> None:
+        raise RuntimeError("redis write unavailable")
+
+
 class _NetworkService:
     def __init__(self) -> None:
         self.requested = []
@@ -227,6 +237,78 @@ async def test_chat_agent_cancel_rejects_missing_hot_state_when_run_is_still_act
         await reattach_routes.cancel_chat_active_run(session_id, request)
 
     assert store.requested == []
+
+
+@pytest.mark.asyncio
+async def test_chat_agent_cancel_rejects_hot_state_lookup_failure(monkeypatch) -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    release_id = uuid4()
+    session_id = uuid4()
+    run_id = uuid4()
+    authorized = _authorized_agent_binding(
+        project_id=project_id,
+        agent_id=agent_id,
+        session_id=session_id,
+        release_id=release_id,
+    )
+    run = SimpleNamespace(
+        id=run_id,
+        project_id=project_id,
+        agent_id=agent_id,
+        session_id=session_id,
+        agent_release_id=release_id,
+        network_execution_id=None,
+        status="running",
+    )
+
+    async def authorize(*_args, **_kwargs):
+        return authorized, SimpleNamespace(id=uuid4()), run_id, "running"
+
+    store = _FailingGetStateStore()
+    monkeypatch.setattr(reattach_routes, "_authorized_active_request", authorize)
+    monkeypatch.setattr(reattach_routes, "EXECUTION_STATE_STORE", store)
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(session_factory=_SessionFactory(run))))
+
+    with pytest.raises(ConflictError, match="temporarily unavailable"):
+        await reattach_routes.cancel_chat_active_run(session_id, request)
+
+    assert store.requested == []
+
+
+@pytest.mark.asyncio
+async def test_chat_agent_cancel_rejects_hot_state_write_failure(monkeypatch) -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    release_id = uuid4()
+    session_id = uuid4()
+    run_id = uuid4()
+    authorized = _authorized_agent_binding(
+        project_id=project_id,
+        agent_id=agent_id,
+        session_id=session_id,
+        release_id=release_id,
+    )
+    run = SimpleNamespace(
+        id=run_id,
+        project_id=project_id,
+        agent_id=agent_id,
+        session_id=session_id,
+        agent_release_id=release_id,
+        network_execution_id=None,
+        status="running",
+    )
+
+    async def authorize(*_args, **_kwargs):
+        return authorized, SimpleNamespace(id=uuid4()), run_id, "running"
+
+    store = _FailingCancelStateStore()
+    monkeypatch.setattr(reattach_routes, "_authorized_active_request", authorize)
+    monkeypatch.setattr(reattach_routes, "EXECUTION_STATE_STORE", store)
+    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(session_factory=_SessionFactory(run))))
+
+    with pytest.raises(ConflictError, match="could not be recorded safely"):
+        await reattach_routes.cancel_chat_active_run(session_id, request)
 
 
 @pytest.mark.asyncio
