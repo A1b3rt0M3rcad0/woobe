@@ -233,6 +233,8 @@ class NetworkRuntimeFinalizer:
                     "failure": failure,
                 }
 
+                user_message_id = None
+                assistant_message_id = None
                 if session_id is not None:
                     agent_session = await session.get(SessionModel, session_id)
                     if agent_session is None:
@@ -312,6 +314,8 @@ class NetworkRuntimeFinalizer:
                         agent_id=agent_id,
                         session_id=session_id,
                         agent_release_id=release_id,
+                        input_message_id=user_message_id,
+                        output_message_id=assistant_message_id,
                         trace_id=invocation_trace_id
                         or uuid5(
                             NAMESPACE_URL,
