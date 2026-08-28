@@ -172,6 +172,7 @@ async def test_cancel_after_partial_output_keeps_user_turn_and_persists_partial_
     assert assistant_messages[0].data["partial"] is True
     assert assistant_messages[0].data["run_id"] == str(run.id)
     assert assistant_messages[0].data["trace_id"] == str(run.trace_id)
+    assert transactions.runs.run.output_message_id == assistant_messages[0].id
     assert transactions.sessions.update_calls == 1
     assert transactions.sessions.session.last_message_at is not None
 
@@ -206,5 +207,6 @@ async def test_cancel_before_first_token_keeps_user_turn_without_empty_assistant
     assert transactions.runs.run.status == AgentRunStatus.CANCELLED
     assert transactions.runs.run.result["answer"] == ""
     assert transactions.runs.run.result["partial"] is False
+    assert transactions.runs.run.output_message_id is None
     assert [message.role for message in transactions.messages.messages] == [MessageRole.USER]
     assert transactions.sessions.update_calls == 0
