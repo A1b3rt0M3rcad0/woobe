@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import UTC, datetime
 from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 
 from modules.agent.domain.run import AgentRun, AgentRunStatus
+from modules.agent.infra.execution.agent_run_reattach_service import AgentRunReattachService
 from modules.agent.infra.execution.ask_agent_stream_service import AskAgentStreamService
 from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
 from modules.agent.presentation.http.controllers.ask_agent_stream_controller import handle_ask_stream
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
+from shared.security.principal import ProjectApiPrincipal
 
 
 class _Outbox:
@@ -134,6 +137,22 @@ def _body(run: AgentRun) -> dict:
     }
 
 
+def _runtime_principal(run: AgentRun) -> ProjectApiPrincipal:
+    return ProjectApiPrincipal(
+        api_key_id=uuid4(),
+        project_id=run.project_id,
+        key_prefix="rai_test",
+        scopes=frozenset({"runtime:execute"}),
+        kind="runtime",
+        agent_id=run.agent_id,
+        target_type="agent",
+        target_id=run.agent_id,
+        environment=run.environment,
+        interfaces=frozenset({"http", "stream"}),
+        authenticated_at=datetime.now(UTC),
+    )
+
+
 async def _allow_environment(*_args) -> None:
     return None
 
@@ -153,6 +172,7 @@ async def test_http_stream_stays_attached_until_durable_cancelled_terminal() -> 
     transactions = _Transactions(run)
     use_case = _BlockingUseCase(run, store)
     service = AskAgentStreamService(use_case, transactions, state_store=store)
+    control = AgentRunReattachService(transactions=transactions, state_store=store)
     request = _Request(_body(run))
 
     response = await handle_ask_stream(request, service, _allow_environment)
@@ -166,8 +186,10 @@ async def test_http_stream_stays_attached_until_durable_cancelled_terminal() -> 
     assert str(run.id) in meta
     await asyncio.wait_for(use_case.started.wait(), timeout=1)
 
-    # Simulates an independent control request while client A keeps observing SSE.
-    await store.request_cancel(run.id)
+    # Client B issues the same control operation used by POST /runtime/runs/{id}/cancel
+    # while client A keeps observing the original StreamingResponse.
+    result = await control.cancel(run_id=run.id, principal=_runtime_principal(run))
+    assert result == {"run_id": str(run.id), "status": "cancel_requested"}
 
     terminal = await _next_body_frame(iterator, "cancelled")
     assert '"persisted": true' in terminal
