@@ -8,6 +8,33 @@ export interface GetTracesParams {
   networkId?: string
 }
 
+export interface AgentRunSummary {
+  id: string
+  trace_id: string
+  project_id: string
+  agent_id: string
+  session_id: string | null
+  environment: string
+  origin: string
+  status: string
+  input_message: string
+  provider: string | null
+  model: string | null
+  usage: {
+    input_tokens?: number | null
+    output_tokens?: number | null
+    total_tokens?: number | null
+    cost_usd?: number | null
+  } | null
+  failure_code: string | null
+  failure_detail: string | null
+  latency_ms: number | null
+  started_at: string | null
+  completed_at: string | null
+  created_at: string | null
+  updated_at: string | null
+}
+
 export async function getTraces(params?: GetTracesParams): Promise<Trace[]> {
   return get<Trace[]>('/observability/traces', {
     params: {
@@ -15,6 +42,22 @@ export async function getTraces(params?: GetTracesParams): Promise<Trace[]> {
       agent_id: params?.agentId,
       session_id: params?.sessionId,
       network_id: params?.networkId,
+    },
+  })
+}
+
+export async function getAgentRuns(params: {
+  projectId: string
+  agentId: string
+  sessionId?: string | null
+  limit?: number
+}): Promise<AgentRunSummary[]> {
+  return get<AgentRunSummary[]>('/runtime/runs', {
+    params: {
+      project_id: params.projectId,
+      agent_id: params.agentId,
+      session_id: params.sessionId ?? undefined,
+      limit: params.limit ?? 100,
     },
   })
 }
