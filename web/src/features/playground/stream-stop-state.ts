@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react'
 
-export type AgentStreamStopState = 'idle' | 'stopping'
+export type AgentStreamStopState = 'idle' | 'running' | 'stopping'
 
 let currentState: AgentStreamStopState = 'idle'
 const listeners = new Set<() => void>()
