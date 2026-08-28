@@ -50,6 +50,12 @@ _DETACHED_AGENT_CANCEL_WATCHERS: set[asyncio.Task[Any]] = set()
 _INITIAL_OBSERVER_POLL_SECONDS = 0.25
 _CANCEL_POLL_SECONDS = 0.05
 _TERMINAL_STREAM_EVENTS = {"done", "error", "cancelled"}
+_AUTHORITATIVE_NON_SUCCESS_TERMINALS = {
+    "cancelled",
+    "failed",
+    "timed_out",
+    "uncertain",
+}
 
 
 def _track(task: asyncio.Task[Any], registry: set[asyncio.Task[Any]]) -> None:
@@ -103,14 +109,19 @@ class AskAgentStreamService:
         try:
             result = await self._use_case.execute(input_dto)
 
-            # A provider may return after it was asked to cancel. Durable Run state
-            # wins over that late response; never project a false COMPLETED terminal
-            # after cancellation already committed.
+            # The provider result is not allowed to overwrite a terminal lifecycle
+            # fact that another racing finalizer already committed. Repository-level
+            # immutability protects PostgreSQL; this projection guard protects SSE.
             run_id = getattr(channel, "run_id", None)
             if run_id is not None:
                 durable = await self._durable_fallback(run_id)
-                if durable is not None and str(durable.get("status") or "") == "cancelled":
-                    await self._emit_durable_terminal_after_cancel_race(channel)
+                durable_status = (
+                    str(durable.get("status") or "")
+                    if durable is not None
+                    else ""
+                )
+                if durable_status in _AUTHORITATIVE_NON_SUCCESS_TERMINALS:
+                    await self._emit_durable_terminal_after_race(channel)
                     return result
 
             await channel.emit("done", **result.model_dump(mode="json"))
@@ -122,7 +133,7 @@ class AskAgentStreamService:
                 "cancel_requested",
             )
             if not persisted:
-                emitted_durable_terminal = await self._emit_durable_terminal_after_cancel_race(
+                emitted_durable_terminal = await self._emit_durable_terminal_after_race(
                     channel
                 )
                 if not emitted_durable_terminal:
@@ -157,7 +168,7 @@ class AskAgentStreamService:
         finally:
             current_runtime_stream.reset(token)
 
-    async def _emit_durable_terminal_after_cancel_race(
+    async def _emit_durable_terminal_after_race(
         self,
         channel: RuntimeStreamChannel,
     ) -> bool:
@@ -204,6 +215,9 @@ class AskAgentStreamService:
 
         if status in {"failed", "timed_out", "uncertain"}:
             message = durable.get("failure_detail")
+            if not isinstance(message, str) or not message:
+                candidate = result_payload.get("error") or result_payload.get("message")
+                message = candidate if isinstance(candidate, str) else None
             await channel.emit(
                 "error",
                 message=(
@@ -211,6 +225,8 @@ class AskAgentStreamService:
                     if isinstance(message, str) and message
                     else f"Run already reached terminal status: {status}"
                 ),
+                status=status,
+                uncertain=status == "uncertain",
             )
             return True
 
