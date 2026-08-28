@@ -64,9 +64,24 @@ def _bind_context_runtime(
 
 
 def _messages_with_bound_capability_authority(messages: list, *, has_tools: bool) -> list:
+    result = list(messages)
     if not has_tools:
-        return list(messages)
-    return [*messages, SystemMessage(content=_BOUND_CAPABILITIES_INSTRUCTION)]
+        return result
+    if result and isinstance(result[0], SystemMessage):
+        first = result[0]
+        content = first.content
+        if isinstance(content, str):
+            merged_content = f"{content}\n\n{_BOUND_CAPABILITIES_INSTRUCTION}"
+        elif isinstance(content, list):
+            merged_content = [
+                *content,
+                {"type": "text", "text": _BOUND_CAPABILITIES_INSTRUCTION},
+            ]
+        else:
+            merged_content = _BOUND_CAPABILITIES_INSTRUCTION
+        result[0] = first.model_copy(update={"content": merged_content})
+        return result
+    return [SystemMessage(content=_BOUND_CAPABILITIES_INSTRUCTION), *result]
 
 
 async def run_instrumented_execution(
