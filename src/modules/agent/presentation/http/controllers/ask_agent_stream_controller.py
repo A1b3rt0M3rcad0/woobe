@@ -107,7 +107,7 @@ async def handle_ask_stream(
         commit_safe_stream(service, input_dto, fastapi_request),
         media_type="text/event-stream",
         headers={
-            "Cache-Control": "no-cache",
+            "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
             "X-Accel-Buffering": "no",
         },
