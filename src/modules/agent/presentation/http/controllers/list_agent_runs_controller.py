@@ -25,6 +25,7 @@ class ListAgentRunsController:
         project_id = UUID(str(query["project_id"]))
         agent_id = UUID(str(query["agent_id"]))
         raw_session_id = query.get("session_id")
+        raw_environment = query.get("environment")
         raw_limit = query.get("limit", 100)
         try:
             limit = max(1, min(int(raw_limit), 200))
@@ -36,6 +37,7 @@ class ListAgentRunsController:
             project_id=project_id,
             agent_id=agent_id,
             session_id=UUID(str(raw_session_id)) if raw_session_id else None,
+            environment=str(raw_environment) if raw_environment else None,
             limit=limit,
         )
         return Response(status_code=200, body={"success": True, "data": data})
