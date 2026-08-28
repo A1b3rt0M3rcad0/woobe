@@ -16,6 +16,9 @@ from modules.agent.composition.composers.agent_run_reattach_composer import (
     attach_agent_run_composer,
     cancel_agent_run_composer,
 )
+from modules.agent.composition.composers.list_agent_runs_composer import (
+    list_agent_runs_composer,
+)
 from modules.agent.composition.composers.rerun_agent_run_composer import (
     rerun_agent_run_composer,
 )
@@ -23,6 +26,19 @@ from shared.presentation.http.adapter import request_adapter, response_adapter
 
 
 router = APIRouter(prefix="/runtime/runs", tags=["runtime", "agent-runs"])
+
+
+@router.get("")
+async def list_agent_runs(
+    request: FastAPIRequest,
+    project_id: UUID,
+    agent_id: UUID,
+    session_id: UUID | None = None,
+    limit: int = 100,
+):
+    del project_id, agent_id, session_id, limit
+    response = await request_adapter(request, list_agent_runs_composer())
+    return response_adapter(response)
 
 
 @router.get("/active")
