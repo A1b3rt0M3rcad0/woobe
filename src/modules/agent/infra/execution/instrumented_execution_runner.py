@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from typing import Any, Callable, Coroutine
 
+from langchain_core.messages import SystemMessage
+
 from modules.agent.application.interfaces.context_policy import resolve_context_policy
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
@@ -10,6 +12,14 @@ from modules.agent.domain.entities import Agent
 from modules.agent.infra.execution.runtime_streaming import runtime_streaming_enabled
 from modules.agent.infra.execution.structured_json_repair import repair_json_if_needed
 from modules.agent.infra.execution.tool_execution_loop import run_tool_loop
+
+_BOUND_CAPABILITIES_INSTRUCTION = (
+    "The capabilities bound to this Model Invocation are the complete and authoritative "
+    "set currently available to this Agent. Do not search for, list, discover, or invent "
+    "additional capabilities. Do not infer capability availability from previous Session "
+    "messages or prior executions. Use only the capabilities currently bound by the runtime "
+    "when they are needed; otherwise answer directly."
+)
 
 
 def _primary_pricing_snapshot(agent: Agent) -> dict[str, Any] | None:
@@ -51,6 +61,12 @@ def _bind_context_runtime(
         "session_max_messages": policy.session.max_messages,
         "session_max_units": policy.session.max_units,
     }
+
+
+def _messages_with_bound_capability_authority(messages: list, *, has_tools: bool) -> list:
+    if not has_tools:
+        return list(messages)
+    return [*messages, SystemMessage(content=_BOUND_CAPABILITIES_INSTRUCTION)]
 
 
 async def run_instrumented_execution(
@@ -100,8 +116,8 @@ async def run_instrumented_execution(
 
     context = current_execution.get()
     network_execution = bool(context and context.network_execution_id)
-    # Network Tool/delegation execution separates orchestration from the public
-    # response. JSON Tool flows already require the same two-phase contract.
+    # A second unbound model is recovery-only. Normal capability execution ends on the
+    # first capability-free response, so no dedicated planning/finalization call exists.
     final_model = None
     if has_tools and (network_execution or json_enabled):
         final_model = (
@@ -123,9 +139,9 @@ async def run_instrumented_execution(
     if json_enabled and has_tools:
         schema_json = json.dumps(response_format.get("schema", {}), indent=2)
         instruction = (
-            "After all required tool calls are complete, return only valid JSON "
-            "matching this schema. You may call another tool first when still "
-            "required. Do not include markdown or explanatory text.\n"
+            "When capability calls are complete, return only valid JSON matching this "
+            "schema. You may call another bound capability first when still required. "
+            "Do not include markdown or explanatory text.\n"
             f"<schema>\n{schema_json}\n</schema>"
         )
 
@@ -133,13 +149,13 @@ async def run_instrumented_execution(
         model=model,
         final_model=final_model,
         execute_single_tool=execute_single_tool,
-        messages=messages,
+        messages=_messages_with_bound_capability_authority(messages, has_tools=has_tools),
         tool_name_to_id=tool_name_to_id,
         provider=provider,
         model_name=agent.model,
         initial_phase=(
-            "tool_planning"
-            if final_model is not None
+            "capability_response_generation"
+            if has_tools
             else "response_generation"
         ),
         final_json_instruction=instruction,
