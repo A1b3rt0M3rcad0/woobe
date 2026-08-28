@@ -122,7 +122,7 @@ export function useAskStream() {
       },
       onConfirmed: (runId) => stopCallbacksRef.current.onConfirmed?.(runId),
       onError: (runId, error) => {
-        resetAgentStreamStopState()
+        setAgentStreamStopState('running')
         stopCallbacksRef.current.onError?.(runId, error)
       },
     })
@@ -140,6 +140,7 @@ export function useAskStream() {
       const status = typeof state.status === 'string' ? state.status : ''
       if (status === 'cancel_requested') setAgentStreamStopState('stopping')
       else if (TERMINAL_AGENT_RUN_STATUSES.has(status)) resetAgentStreamStopState()
+      else if (status === 'running') setAgentStreamStopState('running')
       callbacks.onRunState?.(state)
     },
     onDone: (response) => {
@@ -189,7 +190,7 @@ export function useAskStream() {
   ) => {
     activeSessionIdRef.current = data.session_id ?? null
     stopCallbacksRef.current = {}
-    resetAgentStreamStopState()
+    setAgentStreamStopState('running')
     cancellation.begin()
     return withController(
       (signal) => askStreamV1(
@@ -206,7 +207,7 @@ export function useAskStream() {
   ) => {
     activeSessionIdRef.current = null
     stopCallbacksRef.current = {}
-    resetAgentStreamStopState()
+    setAgentStreamStopState('running')
     cancellation.begin(runId)
     return withController(
       (signal) => reattachAgentRunV1(runId, reconcileCallbacks(callbacks), signal),
