@@ -64,6 +64,7 @@ class ListAgentRunsUseCase:
         project_id: UUID,
         agent_id: UUID,
         session_id: UUID | None = None,
+        environment: str | None = None,
         limit: int = 100,
     ) -> list[dict[str, Any]]:
         await self._project_access.require_user_access(
@@ -74,6 +75,7 @@ class ListAgentRunsUseCase:
             project_id=project_id,
             agent_id=agent_id,
             session_id=session_id,
+            environment=environment,
             limit=limit,
         )
         return [_summary(run) for run in runs]
