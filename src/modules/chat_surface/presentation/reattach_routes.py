@@ -302,7 +302,13 @@ async def cancel_chat_active_run(
             run = await session.get(AgentRunModel, run_id)
         if not _valid_agent_run(run, authorized):
             raise NotFoundError("Agent Run not found")
-        state = await EXECUTION_STATE_STORE.get(run_id)
+        try:
+            state = await EXECUTION_STATE_STORE.get(run_id)
+        except Exception as exc:
+            raise ConflictError(
+                "Agent Run runtime control state is temporarily unavailable; "
+                "cancellation was not requested"
+            ) from exc
         if state is None:
             if str(run.status) in _AGENT_TERMINAL:
                 status = str(run.status)
@@ -311,7 +317,12 @@ async def cancel_chat_active_run(
                     "Agent Run has no active runtime state; cancellation cannot be confirmed safely"
                 )
         else:
-            await EXECUTION_STATE_STORE.request_cancel(run_id)
+            try:
+                await EXECUTION_STATE_STORE.request_cancel(run_id)
+            except Exception as exc:
+                raise ConflictError(
+                    "Agent Run cancellation request could not be recorded safely"
+                ) from exc
             status = "cancel_requested"
     else:
         async with request.app.state.session_factory() as session:
