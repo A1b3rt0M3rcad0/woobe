@@ -10,6 +10,7 @@ from modules.agent.infra.database.context_evidence_store import ContextEvidenceS
 from modules.agent.infra.database.models import MessageModel
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from shared.contracts.errors import ConflictError
 
 
 _TERMINAL_RUN_STATUSES = {
@@ -20,7 +21,7 @@ _TERMINAL_RUN_STATUSES = {
 }
 
 
-class AgentRunTerminalConflict(RuntimeError):
+class AgentRunTerminalConflict(ConflictError):
     """Raised when a terminal writer loses the serialized Agent Run race."""
 
     def __init__(self, run_id: UUID, persisted_status: str, incoming_status: str) -> None:
