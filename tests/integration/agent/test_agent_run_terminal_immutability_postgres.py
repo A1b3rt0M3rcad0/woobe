@@ -4,11 +4,12 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, select
 
+from modules.agent.domain.events import AgentExecutionCompletedV1
 from modules.agent.domain.run import AgentRunStatus
 from modules.agent.infra.database.agent_run_repository import AgentRunTerminalConflict
-from modules.agent.infra.database.models import AgentModel
+from modules.agent.infra.database.models import AgentModel, AgentOutboxEventModel
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.agent.infra.database.runtime_transaction_runner import AgentRuntimeTransactionRunner
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
@@ -86,7 +87,21 @@ async def test_late_completed_save_cannot_overwrite_cancelled_agent_run() -> Non
 
         transactions = AgentRuntimeTransactionRunner(lambda: AgentUnitOfWork(engine))
 
-        async def late_completion(repositories, _outbox):
+        async def late_completion(repositories, outbox):
+            # Mirrors the real completion finalizer: side effects can be staged before
+            # the Run save. If CANCELLED already won, the terminal conflict must abort
+            # the entire UoW so none of those contradictory completion facts commit.
+            await outbox.write(
+                AgentExecutionCompletedV1.create(
+                    agent_id=agent_id,
+                    session_id=None,
+                    payload={
+                        "run_id": str(run_id),
+                        "trace_id": str(trace_id),
+                        "answer": "late provider answer",
+                    },
+                )
+            )
             run = await repositories.runs.get_by_id(run_id)
             assert run is not None
             run.status = AgentRunStatus.COMPLETED
@@ -107,9 +122,26 @@ async def test_late_completed_save_cannot_overwrite_cancelled_agent_run() -> Non
             assert persisted.result["answer"] == "partial"
             assert persisted.result["cancelled"] is True
             assert persisted.result["partial"] is True
+
+            losing_completion_events = list(
+                (
+                    await session.scalars(
+                        select(AgentOutboxEventModel).where(
+                            AgentOutboxEventModel.payload["run_id"].astext == str(run_id),
+                            AgentOutboxEventModel.event_type == "agent.execution.completed.v1",
+                        )
+                    )
+                ).all()
+            )
+            assert losing_completion_events == []
     finally:
         async with session_factory() as session:
             async with session.begin():
+                await session.execute(
+                    delete(AgentOutboxEventModel).where(
+                        AgentOutboxEventModel.payload["run_id"].astext == str(run_id)
+                    )
+                )
                 await session.execute(delete(AgentRunModel).where(AgentRunModel.id == run_id))
                 await session.execute(delete(AgentModel).where(AgentModel.id == agent_id))
         await engine.dispose()
