@@ -687,22 +687,10 @@ class NetworkExecutor:
                     },
                     stream_handler=stream_agent_event,
                 )
-            except NetworkExecutionCancelled as exc:
-                await self._store.fail_invocation(invocation.id, str(exc))
-                await self._store.emit(
-                    execution.id,
-                    "agent_invocation_failed",
-                    {
-                        "code": "execution_cancelled",
-                        "stage": "network_control",
-                        "message": "The Network Run was cancelled.",
-                        "retryable": False,
-                        "cause_invocation_id": str(invocation.id),
-                        "cause_node_id": str(node.id),
-                        "cause_agent_id": str(node.agent_id),
-                    },
-                    invocation_id=invocation.id,
-                )
+            except NetworkExecutionCancelled:
+                # Cancellation is control flow, not an Agent failure. Keep the
+                # in-flight invocation non-terminal here so the execution owner can
+                # atomically convert all still-running invocations to CANCELLED.
                 raise
             except NetworkBudgetExceeded as exc:
                 await self._store.fail_invocation(invocation.id, str(exc))
