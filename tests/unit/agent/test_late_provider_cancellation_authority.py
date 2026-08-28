@@ -9,7 +9,10 @@ import pytest
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.domain.run import AgentRun, AgentRunStatus
 from modules.agent.infra.execution.ask_agent_stream_service import AskAgentStreamService
-from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
+from modules.agent.infra.execution.runtime_streaming import (
+    RuntimeStreamChannel,
+    current_runtime_stream,
+)
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 
 
@@ -197,11 +200,7 @@ async def test_late_success_is_projected_as_existing_durable_cancelled_terminal(
         transactions,
         state_store=state,
     )
-
-    channel = __import__(
-        "modules.agent.infra.execution.runtime_streaming",
-        fromlist=["RuntimeStreamChannel"],
-    ).RuntimeStreamChannel()
+    channel = RuntimeStreamChannel()
 
     result = await service._run_execution(_input(run), channel)
 
