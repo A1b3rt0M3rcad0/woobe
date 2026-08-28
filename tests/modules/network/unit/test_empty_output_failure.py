@@ -36,7 +36,7 @@ def test_public_network_failure_message_is_explicit() -> None:
     )
 
 
-def test_network_stream_rejects_tool_planning_tokens() -> None:
+def test_network_stream_rejects_legacy_tool_planning_tokens() -> None:
     assert _is_public_runtime_token(
         {
             "visibility": "assistant",
@@ -44,6 +44,16 @@ def test_network_stream_rejects_tool_planning_tokens() -> None:
             "phase": "tool_planning",
         }
     ) is False
+
+
+def test_network_stream_accepts_committed_capability_response_tokens() -> None:
+    assert _is_public_runtime_token(
+        {
+            "visibility": "assistant",
+            "channel": "final",
+            "phase": "capability_response_generation",
+        }
+    ) is True
 
 
 def test_network_stream_accepts_final_response_tokens() -> None:
