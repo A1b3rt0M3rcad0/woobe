@@ -8,7 +8,7 @@ import pytest
 
 from modules.agent.domain.run import AgentRun
 from modules.agent.infra.execution.agent_run_reattach_service import AgentRunReattachService
-from shared.contracts.errors import AuthorizationError, NotFoundError
+from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 from shared.security.principal import ProjectApiPrincipal
 
@@ -27,6 +27,16 @@ class _Transactions:
 
     async def read(self, operation):
         return await operation(self.repositories, None)
+
+
+class _FailingGetStore(InMemoryExecutionStateStore):
+    async def get(self, _run_id):
+        raise RuntimeError("redis unavailable")
+
+
+class _FailingCancelStore(InMemoryExecutionStateStore):
+    async def request_cancel(self, _run_id):
+        raise RuntimeError("redis write unavailable")
 
 
 def _run() -> AgentRun:
@@ -63,10 +73,13 @@ def _principal(
     )
 
 
-def _service(run: AgentRun) -> AgentRunReattachService:
+def _service(
+    run: AgentRun,
+    state_store=None,
+) -> AgentRunReattachService:
     return AgentRunReattachService(
         transactions=_Transactions(run),
-        state_store=InMemoryExecutionStateStore(),
+        state_store=state_store or InMemoryExecutionStateStore(),
     )
 
 
@@ -111,3 +124,31 @@ async def test_matching_runtime_key_can_control_concrete_run() -> None:
         run_id=run.id,
         principal=_principal(run),
     )
+
+
+@pytest.mark.asyncio
+async def test_cancel_rejects_hot_state_lookup_failure_without_false_acknowledgement() -> None:
+    run = _run()
+    service = _service(run, _FailingGetStore())
+
+    with pytest.raises(ConflictError, match="temporarily unavailable"):
+        await service.cancel(run_id=run.id, principal=_principal(run))
+
+
+@pytest.mark.asyncio
+async def test_cancel_rejects_hot_state_write_failure_without_false_acknowledgement() -> None:
+    run = _run()
+    state = _FailingCancelStore()
+    await state.create(
+        run.id,
+        {
+            "status": "running",
+            "project_id": str(run.project_id),
+            "agent_id": str(run.agent_id),
+        },
+        ttl_seconds=3600,
+    )
+    service = _service(run, state)
+
+    with pytest.raises(ConflictError, match="could not be recorded safely"):
+        await service.cancel(run_id=run.id, principal=_principal(run))
