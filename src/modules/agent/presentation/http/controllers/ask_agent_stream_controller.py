@@ -11,7 +11,11 @@ from modules.agent.application.interfaces.runtime_environment import RuntimeEnvi
 from modules.agent.application.interfaces.use_case import UseCase
 
 
-_PUBLIC_TOKEN_PHASES = {"response_generation", "final_response_generation"}
+_PUBLIC_TOKEN_PHASES = {
+    "response_generation",
+    "capability_response_generation",
+    "final_response_generation",
+}
 
 
 def _sse_payload(chunk: str) -> dict[str, Any] | None:
@@ -36,6 +40,13 @@ def _sse_type(chunk: str) -> str | None:
     return event_type if isinstance(event_type, str) else None
 
 
+def _is_public_token_phase(phase: Any) -> bool:
+    return (
+        phase in _PUBLIC_TOKEN_PHASES
+        or (isinstance(phase, str) and phase.startswith("tool_followup_"))
+    )
+
+
 def _is_public_stream_chunk(chunk: str) -> bool:
     if _sse_type(chunk) != "token":
         return True
@@ -45,7 +56,7 @@ def _is_public_stream_chunk(chunk: str) -> bool:
     return (
         payload.get("visibility", "assistant") == "assistant"
         and payload.get("channel", "final") == "final"
-        and payload.get("phase") in _PUBLIC_TOKEN_PHASES
+        and _is_public_token_phase(payload.get("phase"))
     )
 
 
