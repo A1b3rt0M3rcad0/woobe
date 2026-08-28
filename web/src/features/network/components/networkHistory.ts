@@ -94,7 +94,8 @@ export function hydrateNetworkHistory({ messages, environment, bindings, session
     if (!source?.execution) continue
     const records = historyRecords(source, session.id)
     const user = group.user?.content ?? ''
-    const answer = group.assistant?.content ?? source.execution.failure?.message ?? ''
+    const answer = group.assistant?.content
+      ?? (source.execution.status === 'cancelled' ? '' : source.execution.failure?.message ?? '')
     const turn = buildTurnFromRuntimeEvents({ records, environment, bindings, executionId, user, answer, fallbackTraceId: source.execution.root_trace_id ?? undefined, terminalStatus: terminalStatus(source.execution.status) })
     const contexts = session.agentContexts.length ? session.agentContexts : invocationContexts(turn.execution.root, session)
     turns.push(turn)
