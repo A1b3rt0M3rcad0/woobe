@@ -186,6 +186,8 @@ async def test_network_cancellation_materializes_running_root_agent_as_cancelled
             ("user", "root request"),
             ("assistant", "partial root answer"),
         ]
+        assert run.input_message_id == messages[0].id
+        assert run.output_message_id == messages[1].id
         assert messages[1].data["cancelled"] is True
         assert messages[1].data["partial"] is True
     finally:
