@@ -4,7 +4,7 @@ import { useAgent, useAgentRuntimeEnvironments, useReleases } from '@/features/a
 import type { RuntimeEnvironment } from '@/features/agents/types'
 import { usePlaygroundTraces } from '@/features/traces/hooks'
 import { useAskStream, useAgentSessions, useCreateSession, useSessionMessages } from '@/features/playground/hooks'
-import { cancelAgentRun, getActiveAgentRun } from '@/features/playground/reattach-api'
+import { getActiveAgentRun } from '@/features/playground/reattach-api'
 import { ErrorState } from '@/components/common/ErrorState'
 import { ErrorBoundary } from '@/components/common/ErrorBoundary'
 import { workspaceProjectPath } from '@/lib/constants/routes'
@@ -137,7 +137,7 @@ function PlaygroundContent() {
   const { data: releases = [] } = useReleases(agentId)
   const runtimeStatesQuery = useAgentRuntimeEnvironments(agentId, projectId)
   const { state, toSnapshot, isDirty } = useAgentEditor()
-  const { stream, reattach, cancel: cancelStream } = useAskStream()
+  const { stream, reattach, cancel: cancelStream, disconnect: disconnectStream } = useAskStream()
   const queryClient = useQueryClient()
   const { mutateAsync: createRuntimeSession, isPending: creatingSession } = useCreateSession()
   const [environment, setEnvironment] = useState<RuntimeEnvironment>('draft')
@@ -266,17 +266,17 @@ function PlaygroundContent() {
 
   const handleEnvironmentChange = useCallback((next: RuntimeEnvironment) => {
     if (next === environment || isSending) return
-    cancelStream()
+    disconnectStream()
     resetConversationView()
     setEnvironment(next)
-  }, [cancelStream, environment, isSending, resetConversationView])
+  }, [disconnectStream, environment, isSending, resetConversationView])
 
   const handleSessionSelect = useCallback((sessionIdValue: string) => {
-    cancelStream()
+    disconnectStream()
     resetConversationView()
     setCurrentSessionId(sessionIdValue)
     queryClient.invalidateQueries({ queryKey: ['session-messages', sessionIdValue] })
-  }, [cancelStream, queryClient, resetConversationView, setCurrentSessionId])
+  }, [disconnectStream, queryClient, resetConversationView, setCurrentSessionId])
 
   const handleNewSession = useCallback(async () => {
     if (!projectId || !agentId || creatingSession) return
@@ -292,7 +292,7 @@ function PlaygroundContent() {
       toast.info('The Agent runtime is stateless and does not create persistent Sessions')
       return
     }
-    cancelStream()
+    disconnectStream()
     const sessionData: Record<string, unknown> = {
       source: 'playground',
       client_created_at: new Date().toISOString(),
@@ -343,13 +343,28 @@ function PlaygroundContent() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not create Session')
     }
-  }, [agentId, cancelStream, createRuntimeSession, creatingSession, environment, environmentReady, isStateless, projectId, queryClient, releaseVersionById, runtimeEnabled, setCurrentSessionId])
+  }, [agentId, createRuntimeSession, creatingSession, disconnectStream, environment, environmentReady, isStateless, projectId, queryClient, releaseVersionById, runtimeEnabled, setCurrentSessionId])
 
   const updateLastAssistantMessage = useCallback((updater: (message: ChatMessage) => ChatMessage) => {
     setMessages((prev) => {
       const updated = [...prev]
       const last = updated[updated.length - 1]
       if (last?.role === 'assistant') updated[updated.length - 1] = updater(last)
+      return updated
+    })
+  }, [])
+
+  const reconcileCancelledAssistant = useCallback((event: Record<string, unknown>) => {
+    const output = typeof event.output === 'string' ? event.output : accumulatedRef.current
+    setMessages((prev) => {
+      const last = prev[prev.length - 1]
+      if (last?.role !== 'assistant') return prev
+      const finalContent = output || last.content || ''
+      if (!finalContent.trim() && !last.tool_calls?.length && !last.sources?.length) {
+        return prev.slice(0, -1)
+      }
+      const updated = [...prev]
+      updated[updated.length - 1] = { ...last, content: finalContent, activity: null }
       return updated
     })
   }, [])
@@ -448,10 +463,14 @@ function PlaygroundContent() {
             toast.error(error.message)
             void refetchTraces()
           },
-          onCancelled: () => {
+          onCancelled: (event) => {
+            rawEventsRef.current.push({ type: 'cancelled', timestamp: new Date().toISOString(), payload: event })
+            setRawEvents([...rawEventsRef.current])
+            reconcileCancelledAssistant(event)
             rememberRunId(null)
-            updateLastAssistantMessage((last) => ({ ...last, activity: null }))
             toast.info('Agent Run cancelled')
+            void refetchTraces()
+            if (!isStateless) void refetchSessions()
             if (selectedSessionId) void queryClient.invalidateQueries({ queryKey: ['session-messages', selectedSessionId] })
           },
           onFallback: (info) => {
@@ -474,15 +493,13 @@ function PlaygroundContent() {
     })()
 
     return () => { disposed = true }
-  }, [agentId, environment, isFetching, isSending, isStateless, projectId, queryClient, reattach, refetchSessions, refetchTraces, rememberRunId, selectedSessionId, setCurrentSessionId, updateLastAssistantMessage])
+  }, [agentId, environment, isFetching, isSending, isStateless, projectId, queryClient, reattach, reconcileCancelledAssistant, refetchSessions, refetchTraces, rememberRunId, selectedSessionId, setCurrentSessionId, updateLastAssistantMessage])
 
   const handleStop = useCallback(() => {
-    const runId = currentRunIdRef.current
-    cancelStream()
-    if (!runId) return
-    void cancelAgentRun(runId)
-      .then(() => toast.info('Agent Run cancellation requested'))
-      .catch((error) => toast.warning(error instanceof Error ? error.message : 'Run cancellation could not be confirmed'))
+    cancelStream({
+      onDispatched: () => toast.info('Agent Run cancellation requested'),
+      onError: (_runId, error) => toast.warning(error.message),
+    })
   }, [cancelStream])
 
   const handleSend = async (content: string) => {
@@ -584,10 +601,16 @@ function PlaygroundContent() {
           updateLastAssistantMessage((last) => ({ ...last, activity: null, content: last.content || `Error: ${error.message}`, output_parse_error: error.message, trace_id: metadataRef.current.trace_id ?? null }))
           refetchTraces()
         },
-        onCancelled: () => {
+        onCancelled: (event) => {
+          rawEventsRef.current.push({ type: 'cancelled', timestamp: new Date().toISOString(), payload: event })
+          setRawEvents([...rawEventsRef.current])
+          reconcileCancelledAssistant(event)
           rememberRunId(null)
-          updateLastAssistantMessage((last) => ({ ...last, activity: null }))
           toast.info('Agent Run cancelled')
+          if (!isStateless) refetchSessions()
+          refetchTraces()
+          if (!isStateless && selectedSessionId) queryClient.invalidateQueries({ queryKey: ['session-messages', selectedSessionId] })
+          if (metadataRef.current.trace_id) setTimeout(() => setSelectedTraceId(metadataRef.current.trace_id!), 100)
         },
         onFallback: (info) => {
           rawEventsRef.current.push({ type: 'fallback', timestamp: new Date().toISOString(), payload: info })
@@ -627,7 +650,7 @@ function PlaygroundContent() {
           if (s === 'cancelled' || s === 'canceled') return 'cancelled'
           return 'warning'
         }
-        return { id: t.id, title: t.status === 'failed' ? `Failed (${t.error?.slice(0, 40) || 'error'})` : `Trace ${t.status}`, timestamp: t.created_at ?? new Date().toISOString(), status: mapStatus(t.status), latency_ms: t.total_latency_ms ?? null, model: t.model ?? null, provider: t.provider ?? null, input_tokens: (traceData.input_tokens as number) ?? null, output_tokens: (traceData.output_tokens as number) ?? null, total_tokens: (traceData.total_tokens as number) ?? null, cost_usd: (traceData.cost_usd as number) ?? t.total_cost_usd ?? null, trace_id: t.id, response: null, project_id: t.project_id, agent_id: t.agent_id }
+        return { id: t.id, title: t.status === 'failed' ? `Failed (${t.error?.slice(0, 40) || 'error'})` : `Agent Run ${t.status}`, timestamp: t.created_at ?? new Date().toISOString(), status: mapStatus(t.status), latency_ms: t.total_latency_ms ?? null, model: t.model ?? null, provider: t.provider ?? null, input_tokens: (traceData.input_tokens as number) ?? null, output_tokens: (traceData.output_tokens as number) ?? null, total_tokens: (traceData.total_tokens as number) ?? null, cost_usd: (traceData.cost_usd as number) ?? t.total_cost_usd ?? null, trace_id: t.id, response: null, project_id: t.project_id, agent_id: t.agent_id }
       })
     mapped.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     return mapped
