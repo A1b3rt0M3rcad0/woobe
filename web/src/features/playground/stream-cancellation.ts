@@ -25,19 +25,28 @@ export function createAgentStreamCancellationCoordinator(
   let runId: string | null = null
   let stopRequested = false
   let cancellationDispatched = false
+  let generation = 0
 
   const dispatchCancellation = () => {
     if (!active || !stopRequested || !runId || cancellationDispatched) return
     const targetRunId = runId
+    const targetGeneration = generation
     cancellationDispatched = true
     callbacks.onDispatch?.(targetRunId)
     void Promise.resolve(requestCancellation(targetRunId))
       .then(() => callbacks.onConfirmed?.(targetRunId))
-      .catch((error) => callbacks.onError?.(targetRunId, toError(error)))
+      .catch((error) => {
+        if (active && generation === targetGeneration && runId === targetRunId) {
+          stopRequested = false
+          cancellationDispatched = false
+        }
+        callbacks.onError?.(targetRunId, toError(error))
+      })
   }
 
   return {
     begin(knownRunId = null) {
+      generation += 1
       active = true
       runId = knownRunId
       stopRequested = false
@@ -58,6 +67,7 @@ export function createAgentStreamCancellationCoordinator(
     },
 
     finish() {
+      generation += 1
       active = false
       runId = null
       stopRequested = false
