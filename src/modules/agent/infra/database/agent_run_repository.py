@@ -163,6 +163,7 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
         project_id: UUID,
         agent_id: UUID,
         session_id: UUID | None = None,
+        environment: str | None = None,
         limit: int = 100,
     ) -> list[AgentRun]:
         statement = select(AgentRunModel).where(
@@ -172,6 +173,8 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
         )
         if session_id is not None:
             statement = statement.where(AgentRunModel.session_id == session_id)
+        if environment is not None:
+            statement = statement.where(AgentRunModel.environment == environment)
         result = await self._uow.session.execute(
             statement
             .order_by(AgentRunModel.created_at.desc(), AgentRunModel.id.desc())
