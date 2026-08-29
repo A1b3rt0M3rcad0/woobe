@@ -138,30 +138,40 @@ export function useAskStream() {
   const reconcileCallbacks = useCallback((callbacks: StreamCallbacks): StreamCallbacks => ({
     ...callbacks,
     onMeta: (meta) => {
-      if (meta.run_id) cancellation.observeRun(meta.run_id)
+      if (meta.run_id) {
+        cancellation.observeRun(meta.run_id)
+        // Acceptance already committed the AgentRun. Refresh the operational list as
+        // soon as canonical identity arrives instead of waiting for the idle poll.
+        void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
+      }
       if (meta.session_id) activeSessionIdRef.current = meta.session_id
       callbacks.onMeta(meta)
     },
     onRunState: (state) => {
       const status = typeof state.status === 'string' ? state.status : ''
       if (status === 'cancel_requested') setAgentStreamStopState('stopping')
-      else if (TERMINAL_AGENT_RUN_STATUSES.has(status)) resetAgentStreamStopState()
-      else if (status === 'running') setAgentStreamStopState('running')
+      else if (TERMINAL_AGENT_RUN_STATUSES.has(status)) {
+        resetAgentStreamStopState()
+        void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
+      } else if (status === 'running') setAgentStreamStopState('running')
       callbacks.onRunState?.(state)
     },
     onDone: (response) => {
       resetAgentStreamStopState()
+      void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
       callbacks.onDone(response)
     },
     onError: (error) => {
       resetAgentStreamStopState()
+      void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
       callbacks.onError(error)
     },
     onCancelled: (event) => {
       resetAgentStreamStopState()
+      void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
       callbacks.onCancelled?.(event)
     },
-  }), [cancellation])
+  }), [cancellation, queryClient])
 
   const withController = useCallback(async (
     operation: (signal: AbortSignal) => Promise<void>,
