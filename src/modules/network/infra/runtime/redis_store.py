@@ -9,6 +9,7 @@ import uuid6
 
 from modules.network.application.runtime import (
     AgentInvocationResult,
+    NetworkExecutionCancelled,
     NetworkExecutionSnapshot,
     NetworkInvocationState,
 )
@@ -36,6 +37,10 @@ class RedisNetworkExecutionStore:
         # writes remain batched, but cancellation can still finalize the last emitted
         # assistant delta instead of losing up to one checkpoint interval.
         self._partial_output: dict[UUID, str] = {}
+        # A provider/library may swallow task cancellation. Once a Network Run has
+        # accepted cancellation, stale provider work must not mutate the canonical
+        # hot execution state while the worker finalizes the durable CANCELLED fact.
+        self._execution_write_fences: set[UUID] = set()
 
     async def initialize(
         self,
@@ -102,6 +107,15 @@ class RedisNetworkExecutionStore:
     async def request_cancel(self, execution_id: UUID) -> None:
         await self._state.request_cancel(execution_id)
 
+    def fence_execution(self, execution_id: UUID) -> None:
+        self._execution_write_fences.add(execution_id)
+
+    def release_execution_fence(self, execution_id: UUID) -> None:
+        self._execution_write_fences.discard(execution_id)
+
+    def _writes_fenced(self, execution_id: UUID) -> bool:
+        return execution_id in self._execution_write_fences
+
     def _remember_invocation_event_context(
         self,
         invocation: NetworkInvocationState,
@@ -157,6 +171,8 @@ class RedisNetworkExecutionStore:
         parent_invocation_id: UUID | None,
         persist_context: bool,
     ) -> NetworkInvocationState:
+        if self._writes_fenced(execution.id):
+            raise NetworkExecutionCancelled("Network execution was cancelled")
         state = await self._state.get(execution.id) or {}
         raw_session_id = (
             state.get(f"{self.CONTEXT_PREFIX}{node_id}") if persist_context else None
@@ -255,7 +271,7 @@ class RedisNetworkExecutionStore:
         persist_context: bool,
     ) -> None:
         execution_id = self._invocation_to_execution.get(invocation_id)
-        if execution_id is None:
+        if execution_id is None or self._writes_fenced(execution_id):
             return
         invocation = await self._invocation(execution_id, invocation_id)
         if invocation is None:
@@ -309,7 +325,7 @@ class RedisNetworkExecutionStore:
         persist_context: bool = False,
     ) -> None:
         execution_id = self._invocation_to_execution.get(invocation_id)
-        if execution_id is None:
+        if execution_id is None or self._writes_fenced(execution_id):
             return
         invocation = await self._invocation(execution_id, invocation_id)
         if invocation is None:
@@ -387,6 +403,8 @@ class RedisNetworkExecutionStore:
         execution_id: UUID,
         result: AgentInvocationResult,
     ) -> None:
+        if self._writes_fenced(execution_id):
+            return
         self._partial_output[execution_id] = result.answer
         await self._state.update(
             execution_id,
@@ -435,6 +453,9 @@ class RedisNetworkExecutionStore:
         *,
         invocation_id: UUID | None = None,
     ) -> None:
+        if self._writes_fenced(execution_id) and event_type != "agent_invocation_cancelled":
+            return
+
         event_payload = dict(payload)
         invocation: dict[str, Any] | None = None
         if invocation_id is not None:
