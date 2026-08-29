@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from uuid import uuid4
 
 import pytest
 
@@ -41,11 +42,11 @@ class _BlockingMcpExecutor:
 @pytest.mark.asyncio
 async def test_network_cancel_interrupts_streamable_http_mcp_tool_in_flight() -> None:
     execution = NetworkExecutionSnapshot(
-        id=__import__("uuid").uuid4(),
-        network_id=__import__("uuid").uuid4(),
-        network_version_id=__import__("uuid").uuid4(),
-        network_session_id=__import__("uuid").uuid4(),
-        project_id=__import__("uuid").uuid4(),
+        id=uuid4(),
+        network_id=uuid4(),
+        network_version_id=uuid4(),
+        network_session_id=uuid4(),
+        project_id=uuid4(),
         input_message="call MCP capability",
         draft_revision=None,
         definition_snapshot=None,
