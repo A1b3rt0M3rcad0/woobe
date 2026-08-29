@@ -9,7 +9,10 @@ vi.mock('@/lib/api/client', () => ({
 
 import { streamNetworkExecution } from './stream'
 
-function stateResponse(status: 'running' | 'completed' = 'completed') {
+type StateStatus = 'running' | 'cancel_requested' | 'completed' | 'cancelled'
+
+function stateResponse(status: StateStatus = 'completed', output?: string) {
+  const terminalOutput = output ?? (status === 'completed' ? 'network answer' : status === 'cancelled' ? 'partial answer' : '')
   const envelope = {
     protocol_version: 1,
     execution_id: 'execution-1',
@@ -19,7 +22,7 @@ function stateResponse(status: 'running' | 'completed' = 'completed') {
       kind: 'NETWORK',
       sequence: 12,
       status,
-      output: status === 'completed' ? 'network answer' : '',
+      output: terminalOutput,
       invocations: [
         {
           id: 'invocation-root',
@@ -28,9 +31,9 @@ function stateResponse(status: 'running' | 'completed' = 'completed') {
           agent_id: 'agent-root',
           label: 'Root Agent',
           depth: 0,
-          status: status === 'completed' ? 'completed' : 'running',
+          status: status === 'completed' ? 'completed' : status === 'cancelled' ? 'cancelled' : 'running',
           started_at: '2026-08-27T22:00:00Z',
-          completed_at: status === 'completed' ? '2026-08-27T22:00:10Z' : null,
+          completed_at: status === 'completed' || status === 'cancelled' ? '2026-08-27T22:00:10Z' : null,
           provider: 'custom',
           model: 'deepseek-v4-flash',
           source: 'draft',
@@ -147,5 +150,36 @@ describe('Network structural reattach', () => {
     expect(fetchMock.mock.calls.every((call) =>
       (call[1] as RequestInit).method === 'GET'
     )).toBe(true)
+  })
+
+  it('keeps reattaching the same Network Run while cancellation is pending and preserves partial output', async () => {
+    const pending = stateResponse('cancel_requested', 'partial answer')
+    const cancelled = stateResponse('cancelled', 'partial answer')
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(pending)
+      .mockResolvedValueOnce(cancelled)
+    vi.stubGlobal('fetch', fetchMock)
+    const observed: Array<{ type: string; data: Record<string, unknown> }> = []
+
+    await streamNetworkExecution({
+      networkId: 'network-1',
+      projectId: 'project-1',
+      networkSessionId: 'session-1',
+      executionId: 'execution-1',
+      message: 'stop me',
+      idempotencyKey: 'stable-key',
+    }, {
+      onEvent: (type, event) => observed.push({ type, data: event.data }),
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls.every((call) =>
+      String(call[0]) === 'http://api.test/network/executions/execution-1/stream'
+    )).toBe(true)
+    expect(fetchMock.mock.calls.every((call) => (call[1] as RequestInit).method === 'GET')).toBe(true)
+    expect(observed).toEqual(expect.arrayContaining([
+      expect.objectContaining({ type: 'run.state', data: expect.objectContaining({ status: 'cancel_requested' }) }),
+      expect.objectContaining({ type: 'execution_cancelled', data: expect.objectContaining({ output: 'partial answer', cancelled: true }) }),
+    ]))
   })
 })
