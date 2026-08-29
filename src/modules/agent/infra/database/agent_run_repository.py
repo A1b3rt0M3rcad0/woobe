@@ -242,19 +242,17 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
         if model is None:
             return await self.create(run)
 
-        # Every terminal writer is serialized on the Run row. If a different
-        # terminal state already won, raising here rolls back the whole UoW rather
-        # than merely protecting the AgentRun row while leaving contradictory
-        # Assistant messages/outbox events committed by the losing finalizer.
+        # Every terminal writer is serialized on the Run row. A persisted terminal
+        # means this write lost ownership even when it proposes the same status:
+        # accepting it would allow duplicate Assistant messages/outbox events staged
+        # earlier in the same UoW. Raising rolls the entire UoW back atomically.
         incoming_status = run.status.value
         if model.status in _TERMINAL_RUN_STATUSES:
-            if model.status != incoming_status:
-                raise AgentRunTerminalConflict(
-                    run.id,
-                    persisted_status=model.status,
-                    incoming_status=incoming_status,
-                )
-            return _to_entity(model)
+            raise AgentRunTerminalConflict(
+                run.id,
+                persisted_status=model.status,
+                incoming_status=incoming_status,
+            )
 
         model.session_id = run.session_id
         model.agent_release_id = run.agent_release_id
