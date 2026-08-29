@@ -53,7 +53,7 @@ async def _next_event(channel: RuntimeStreamChannel, event_type: str):
 
 
 @pytest.mark.asyncio
-async def test_tool_followup_streams_before_provider_completion() -> None:
+async def test_direct_final_response_streams_before_provider_completion() -> None:
     channel = RuntimeStreamChannel()
     model = _ControlledModel(first="Hello", second=_Chunk(" world"))
     context_token = current_runtime_stream.set(channel)
@@ -63,7 +63,7 @@ async def test_tool_followup_streams_before_provider_completion() -> None:
             invoke_model_with_optional_streaming(
                 model=model,
                 messages=[],
-                phase="tool_followup_1",
+                phase="final_response_generation",
                 provider="test-provider",
                 model_name="test-model",
             )
@@ -73,14 +73,13 @@ async def test_tool_followup_streams_before_provider_completion() -> None:
         event = await _next_event(channel, "token")
 
         assert event.payload["content"] == "Hello"
-        assert event.payload["phase"] == "tool_followup_1"
+        assert event.payload["phase"] == "final_response_generation"
         assert task.done() is False
         assert channel.public_output == "Hello"
 
         model.release.set()
         result = await asyncio.wait_for(task, timeout=1)
         assert result.content == "Hello world"
-
         trailing = await _next_event(channel, "token")
         assert trailing.payload["content"] == " world"
         assert channel.public_output == "Hello world"
@@ -90,7 +89,10 @@ async def test_tool_followup_streams_before_provider_completion() -> None:
 
 
 @pytest.mark.asyncio
-async def test_capability_response_is_buffered_until_provider_decides_no_tool_call() -> None:
+@pytest.mark.parametrize("phase", ["capability_response_generation", "tool_followup_1", "tool_followup_7"])
+async def test_capability_bearing_phase_is_buffered_until_provider_decides_no_tool_call(
+    phase: str,
+) -> None:
     channel = RuntimeStreamChannel()
     model = _ControlledModel(first="Hello", second=_Chunk(" world"))
     context_token = current_runtime_stream.set(channel)
@@ -100,7 +102,7 @@ async def test_capability_response_is_buffered_until_provider_decides_no_tool_ca
             invoke_model_with_optional_streaming(
                 model=model,
                 messages=[],
-                phase="capability_response_generation",
+                phase=phase,
                 provider="test-provider",
                 model_name="test-model",
             )
@@ -122,6 +124,8 @@ async def test_capability_response_is_buffered_until_provider_decides_no_tool_ca
         second = await _next_event(channel, "token")
         assert first.payload["content"] == "Hello"
         assert second.payload["content"] == " world"
+        assert first.payload["phase"] == phase
+        assert second.payload["phase"] == phase
         assert channel.public_output == "Hello world"
     finally:
         model.release.set()
@@ -129,7 +133,10 @@ async def test_capability_response_is_buffered_until_provider_decides_no_tool_ca
 
 
 @pytest.mark.asyncio
-async def test_capability_text_is_never_published_when_tool_call_is_selected() -> None:
+@pytest.mark.parametrize("phase", ["capability_response_generation", "tool_followup_1", "tool_followup_4"])
+async def test_capability_bearing_text_is_never_published_when_another_tool_is_selected(
+    phase: str,
+) -> None:
     channel = RuntimeStreamChannel()
     model = _ControlledModel(
         first="I will check that.",
@@ -145,7 +152,7 @@ async def test_capability_text_is_never_published_when_tool_call_is_selected() -
             invoke_model_with_optional_streaming(
                 model=model,
                 messages=[],
-                phase="capability_response_generation",
+                phase=phase,
                 provider="test-provider",
                 model_name="test-model",
             )
