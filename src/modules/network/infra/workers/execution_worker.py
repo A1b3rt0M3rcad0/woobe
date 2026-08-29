@@ -34,6 +34,63 @@ _TERMINAL_EXECUTION_STATUSES = {
     "timed_out",
     "uncertain",
 }
+_NETWORK_CANCEL_DRAIN_SECONDS = 0.25
+_DETACHED_NETWORK_EXECUTIONS: set[asyncio.Task[Any]] = set()
+
+
+async def _cancel_task_with_grace(task: asyncio.Task[Any]) -> bool:
+    """Return once cooperative cancellation drains or the bounded grace expires."""
+    if task.done():
+        return True
+    task.cancel()
+    try:
+        await asyncio.wait_for(
+            asyncio.shield(task),
+            timeout=_NETWORK_CANCEL_DRAIN_SECONDS,
+        )
+    except asyncio.CancelledError:
+        return True
+    except asyncio.TimeoutError:
+        return False
+    except Exception:
+        # The Run cancellation command remains authoritative even when provider work
+        # exits through a provider/runtime exception after interruption.
+        return True
+    return True
+
+
+def _track_detached_network_execution(
+    task: asyncio.Task[Any],
+    *,
+    execution_id: UUID,
+    store: RedisNetworkExecutionStore,
+) -> None:
+    """Keep non-cooperative provider work alive but fenced from canonical Run state."""
+    _DETACHED_NETWORK_EXECUTIONS.add(task)
+
+    def completed(done: asyncio.Task[Any]) -> None:
+        _DETACHED_NETWORK_EXECUTIONS.discard(done)
+        store.release_execution_fence(execution_id)
+        if done.cancelled():
+            return
+        try:
+            error = done.exception()
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            logger.exception(
+                "Detached Network runtime task completion could not be inspected"
+            )
+            return
+        if error is not None and not isinstance(error, NetworkExecutionCancelled):
+            logger.warning(
+                "Detached Network provider work ended after Run cancellation "
+                "execution_id=%s error=%s",
+                execution_id,
+                error,
+            )
+
+    task.add_done_callback(completed)
 
 
 class NetworkExecutionProcessor:
@@ -192,24 +249,45 @@ class NetworkExecutionProcessor:
             await heartbeat_task
 
     async def _execute_with_cancellation(self, execution_id: UUID, execution_coro):
-        """Interrupt the active Agent/provider task when Run cancellation is requested."""
+        """Interrupt active work without letting a non-cooperative provider block Stop."""
         execution_task = asyncio.create_task(execution_coro)
+        detached = False
         try:
             while True:
                 done, _ = await asyncio.wait({execution_task}, timeout=0.2)
                 if execution_task in done:
                     return await execution_task
-                if await self._store.is_cancel_requested(execution_id):
-                    execution_task.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await execution_task
+                if not await self._store.is_cancel_requested(execution_id):
+                    continue
+
+                # Fence canonical state before interruption. A provider/library that
+                # swallows CancelledError may continue running in the background, but
+                # it can no longer append tokens, complete invocations or delegate.
+                self._store.fence_execution(execution_id)
+                drained = await _cancel_task_with_grace(execution_task)
+                try:
                     await self._store.cancel_running_invocations(execution_id)
-                    raise NetworkExecutionCancelled("Network execution was cancelled")
+                finally:
+                    if drained:
+                        self._store.release_execution_fence(execution_id)
+                    else:
+                        detached = True
+                        _track_detached_network_execution(
+                            execution_task,
+                            execution_id=execution_id,
+                            store=self._store,
+                        )
+                raise NetworkExecutionCancelled("Network execution was cancelled")
         finally:
-            if not execution_task.done():
-                execution_task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await execution_task
+            if not execution_task.done() and not detached:
+                drained = await _cancel_task_with_grace(execution_task)
+                if not drained:
+                    self._store.fence_execution(execution_id)
+                    _track_detached_network_execution(
+                        execution_task,
+                        execution_id=execution_id,
+                        store=self._store,
+                    )
 
     async def _heartbeat(
         self,
