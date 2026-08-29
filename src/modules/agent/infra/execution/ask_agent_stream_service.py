@@ -426,6 +426,7 @@ class AskAgentStreamService:
         execution_task: asyncio.Task[AskOutput],
     ) -> None:
         cancellation_persisted = False
+        terminal_projected = False
         while not execution_task.done():
             run_id = getattr(channel, "run_id", None)
             if run_id is None:
@@ -440,7 +441,7 @@ class AskAgentStreamService:
                 # Once the request is visible, cancellation persistence wins first;
                 # provider interruption is a consequence, not the source of truth.
                 if channel.trace_id is None:
-                    await asyncio.sleep(0)
+                    await asyncio.sleep(_CANCEL_POLL_SECONDS)
                     continue
 
                 if not cancellation_persisted:
@@ -450,12 +451,22 @@ class AskAgentStreamService:
                         "cancel_requested",
                     )
 
+                # Once PostgreSQL has accepted CANCELLED, the public Run lifecycle is
+                # terminal independently of whether a provider cooperates with task
+                # cancellation. Project that durable fact immediately; late provider
+                # tokens are ignored by the terminal channel and late finalizers lose
+                # against repository terminal immutability.
+                if cancellation_persisted and not terminal_projected:
+                    terminal_projected = await self._emit_durable_terminal_after_race(
+                        channel
+                    )
+
                 if not execution_task.done():
                     execution_task.cancel()
-                    # Re-schedule immediately instead of waiting for the normal poll.
-                    # A provider that swallows one CancelledError must not get a 50ms
-                    # window to finalize a late success over a cancelled Run.
-                    await asyncio.sleep(0)
+                    # Keep applying cooperative cancellation without a hot spin. A
+                    # misbehaving provider may swallow CancelledError, but it no longer
+                    # controls the observer lifecycle after durable cancellation.
+                    await asyncio.sleep(_CANCEL_POLL_SECONDS)
                 continue
             except Exception as exc:
                 logger.debug(
