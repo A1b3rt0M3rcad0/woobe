@@ -54,12 +54,20 @@ class _Transactions:
         return await operation(self.repositories, self.outbox)
 
 
-class _SwallowsFirstCancellationUseCase:
-    def __init__(self, run: AgentRun, store: InMemoryExecutionStateStore) -> None:
+class _SwallowsCancellationUseCase:
+    def __init__(
+        self,
+        run: AgentRun,
+        store: InMemoryExecutionStateStore,
+        *,
+        swallow_count: int,
+    ) -> None:
         self.run = run
         self.store = store
+        self.swallow_count = swallow_count
         self.started = asyncio.Event()
         self.cancelled_count = 0
+        self.stopped = asyncio.Event()
 
     async def execute(self, _input_dto):
         channel = current_runtime_stream.get()
@@ -89,16 +97,17 @@ class _SwallowsFirstCancellationUseCase:
         )
         self.started.set()
 
-        while True:
-            try:
-                await asyncio.Event().wait()
-            except asyncio.CancelledError:
-                self.cancelled_count += 1
-                if self.cancelled_count == 1:
-                    # Simulates an upstream provider/library swallowing the first
-                    # cancellation and attempting to continue the same invocation.
-                    continue
-                raise
+        try:
+            while True:
+                try:
+                    await asyncio.Event().wait()
+                except asyncio.CancelledError:
+                    self.cancelled_count += 1
+                    if self.cancelled_count <= self.swallow_count:
+                        continue
+                    raise
+        finally:
+            self.stopped.set()
 
 
 class _LateSuccessUseCase:
@@ -165,12 +174,20 @@ async def _next_frame(stream, event_type: str) -> str:
             return frame
 
 
+async def _wait_for_cancel_count(use_case: _SwallowsCancellationUseCase, count: int) -> None:
+    for _ in range(200):
+        if use_case.cancelled_count >= count:
+            return
+        await asyncio.sleep(0.01)
+    raise AssertionError(f"expected at least {count} cancellation attempts, got {use_case.cancelled_count}")
+
+
 @pytest.mark.asyncio
-async def test_cancellation_supervisor_reinterrupts_provider_that_swallows_first_cancel() -> None:
+async def test_cancellation_supervisor_reinterrupts_provider_that_swallows_multiple_cancels() -> None:
     run = _run()
     state = InMemoryExecutionStateStore()
     transactions = _Transactions(run)
-    use_case = _SwallowsFirstCancellationUseCase(run, state)
+    use_case = _SwallowsCancellationUseCase(run, state, swallow_count=3)
     service = AskAgentStreamService(use_case, transactions, state_store=state)
 
     stream = service.stream(_input(run))
@@ -181,11 +198,17 @@ async def test_cancellation_supervisor_reinterrupts_provider_that_swallows_first
 
         terminal = await _next_frame(stream, "cancelled")
 
+        # The observer is released by the durable Run terminal, not by provider
+        # cooperation. The provider may still be consuming repeated cancellation
+        # attempts in the detached execution task at this point.
         assert '"persisted": true' in terminal
         assert transactions.runs.run.status == AgentRunStatus.CANCELLED
-        assert use_case.cancelled_count >= 2
         assert transactions.runs.run.result is not None
         assert transactions.runs.run.result["cancelled"] is True
+
+        await _wait_for_cancel_count(use_case, 4)
+        await asyncio.wait_for(use_case.stopped.wait(), timeout=1)
+        assert use_case.cancelled_count >= 4
     finally:
         await stream.aclose()
 
