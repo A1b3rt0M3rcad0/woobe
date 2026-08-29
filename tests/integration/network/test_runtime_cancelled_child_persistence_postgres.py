@@ -9,6 +9,7 @@ from sqlalchemy import select
 from modules.agent.infra.database.models import AgentModel, MessageModel
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.network.infra.database.models import (
+    NetworkExecutionEventModel,
     NetworkExecutionModel,
     NetworkInvocationModel,
     NetworkModel,
@@ -164,6 +165,15 @@ async def test_network_cancellation_materializes_running_root_agent_as_cancelled
                     )
                 ).all()
             )
+            events = list(
+                (
+                    await session.scalars(
+                        select(NetworkExecutionEventModel)
+                        .where(NetworkExecutionEventModel.network_execution_id == execution_id)
+                        .order_by(NetworkExecutionEventModel.sequence.asc())
+                    )
+                ).all()
+            )
 
         assert execution is not None
         assert execution.status == "cancelled"
@@ -190,5 +200,17 @@ async def test_network_cancellation_materializes_running_root_agent_as_cancelled
         assert run.output_message_id == messages[1].id
         assert messages[1].data["cancelled"] is True
         assert messages[1].data["partial"] is True
+
+        # Finalization is one PostgreSQL transaction: child Run evidence is ordered
+        # before the Network terminal event, so a durable reader never sees an
+        # execution_cancelled event without the cancelled AgentRun it summarizes.
+        assert [event.event_type for event in events] == [
+            "agent_invocation_started",
+            "agent_invocation_cancelled",
+            "execution_cancelled",
+        ]
+        assert [event.sequence for event in events] == [1, 2, 3]
+        assert events[1].invocation_id == invocation_id
+        assert events[2].invocation_id is None
     finally:
         await engine.dispose()
