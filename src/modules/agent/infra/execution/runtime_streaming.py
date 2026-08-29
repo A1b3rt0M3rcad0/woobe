@@ -351,10 +351,12 @@ def _can_emit_phase_as_final(phase: str) -> bool:
 
 
 def _can_stream_phase_live(phase: str) -> bool:
-    # The first capability-aware invocation is semantically provisional until the
-    # provider finishes and we know whether it selected a Tool/Delegation. Buffer it
-    # instead of briefly publishing text that would immediately need retraction.
-    return _can_emit_phase_as_final(phase) and phase != "capability_response_generation"
+    # Any invocation that still has authority to select another capability is
+    # semantically provisional until the provider closes that invocation. Publishing
+    # those tokens early creates visible text that must be retracted when another
+    # Tool/Delegation is selected. Buffer capability_response_generation and every
+    # tool_followup_* round; only terminal/direct response phases stream live.
+    return _is_final_response_phase(phase)
 
 
 def _activity_for_phase(phase: str) -> tuple[str, str]:
