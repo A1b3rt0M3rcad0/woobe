@@ -17,9 +17,6 @@ jobs:
   backend-acceptance:
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 40
-    concurrency:
-      group: woobe-docker-validation-${{ github.event.pull_request.number || github.ref }}
-      cancel-in-progress: false
     env:
       PYTHONPATH: src:.
       WOOBE_SECRET_KEY: acceptance-secret-key-at-least-32-characters
@@ -165,9 +162,6 @@ jobs:
   community-smoke:
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 40
-    concurrency:
-      group: woobe-docker-validation-${{ github.event.pull_request.number || github.ref }}
-      cancel-in-progress: false
     env:
       COMPOSE_PROJECT_NAME: woobe-community-${{ github.run_id }}
     steps:
