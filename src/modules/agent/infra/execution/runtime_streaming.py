@@ -469,15 +469,10 @@ async def invoke_model_with_optional_streaming(
                 else:
                     pending_visible_tokens.append(visible_content)
     except asyncio.CancelledError:
-        if _is_capability_selection_phase(phase):
-            await _retract_streamed_tokens(
-                channel,
-                streamed_visible_tokens=streamed_visible_tokens,
-                phase=phase,
-                reason="capability_decision_cancelled",
-                provider=provider,
-                model_name=model_name,
-            )
+        # Once assistant text was made public, user cancellation must preserve the
+        # visible partial answer. Cancellation is terminal; there is no later capability
+        # decision that can invalidate already-observed output. Tool selection remains
+        # the only normal path that retracts optimistic capability text.
         raise
     except Exception:
         if _is_capability_selection_phase(phase):
