@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 
 import pytest
+from redis.asyncio import Redis
 from sqlalchemy import delete
 
 from modules.network.application.runtime import NetworkExecutionSnapshot
@@ -18,9 +20,9 @@ from modules.network.infra.runtime.finalizer import NetworkRuntimeFinalizer
 from modules.network.infra.runtime.loader import NetworkRuntimeLoader
 from modules.network.infra.runtime.redis_store import RedisNetworkExecutionStore
 from modules.network.infra.workers.execution_worker import NetworkLeaseRecoveryWorker
-from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
+from shared.infra.redis_execution_state import RedisExecutionStateStore
 
 
 @pytest.mark.asyncio
@@ -28,11 +30,17 @@ async def test_recovery_worker_persists_terminal_redis_state_after_owner_loss() 
     settings = Settings()
     engine = create_engine(settings)
     session_factory = create_session_factory(engine)
+    redis_url = os.environ.get("WOOBE_REDIS_URL")
+    assert redis_url, "integration runtime must provide WOOBE_REDIS_URL"
+    redis_client = Redis.from_url(redis_url, decode_responses=True)
 
     project_id = uuid4()
     network_id = uuid4()
     session_id = uuid4()
     execution_id = uuid4()
+    prefix = f"woobe:test:network-recovery:{execution_id}"
+    state_store = RedisExecutionStateStore(redis_client, key_prefix=prefix)
+    store = RedisNetworkExecutionStore(state_store)
     old = datetime.now(timezone.utc) - timedelta(minutes=2)
     definition = {
         "schema_version": 2,
@@ -108,7 +116,6 @@ async def test_recovery_worker_persists_terminal_redis_state_after_owner_loss() 
             )
         )
 
-    store = RedisNetworkExecutionStore(EXECUTION_STATE_STORE)
     snapshot = NetworkExecutionSnapshot(
         id=execution_id,
         network_id=network_id,
@@ -140,7 +147,11 @@ async def test_recovery_worker_persists_terminal_redis_state_after_owner_loss() 
         lease_ttl_seconds=1,
     )
 
+    state_key = f"{prefix}:run:{execution_id}"
+    events_key = f"{state_key}:events"
+    lease_key = f"{state_key}:lease"
     try:
+        assert await redis_client.ping() is True
         await worker.run()
 
         async with session_factory() as session:
@@ -155,7 +166,8 @@ async def test_recovery_worker_persists_terminal_redis_state_after_owner_loss() 
         assert hot["status"] == "cancelled"
         assert hot["terminal_status"] == "cancelled"
     finally:
-        await EXECUTION_STATE_STORE.delete(execution_id)
+        await redis_client.delete(state_key, events_key, lease_key)
+        await redis_client.aclose()
         async with session_factory() as session, session.begin():
             await session.execute(
                 delete(NetworkExecutionEventModel).where(
