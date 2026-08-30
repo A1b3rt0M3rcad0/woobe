@@ -90,7 +90,7 @@ async def test_direct_final_response_streams_before_provider_completion() -> Non
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("phase", ["capability_response_generation", "tool_followup_1", "tool_followup_7"])
-async def test_capability_bearing_phase_is_buffered_until_provider_decides_no_tool_call(
+async def test_capability_bearing_phase_streams_before_provider_completion_when_no_tool_call(
     phase: str,
 ) -> None:
     channel = RuntimeStreamChannel()
@@ -109,22 +109,19 @@ async def test_capability_bearing_phase_is_buffered_until_provider_decides_no_to
         )
 
         await asyncio.wait_for(model.waiting.wait(), timeout=1)
-        activity = await asyncio.wait_for(channel.queue.get(), timeout=1)
-        assert activity.event_type == "agent_activity"
+        first = await _next_event(channel, "token")
+
+        assert first.payload["content"] == "Hello"
+        assert first.payload["phase"] == phase
         assert task.done() is False
-        assert channel.public_output == ""
-        with pytest.raises(asyncio.TimeoutError):
-            await asyncio.wait_for(channel.queue.get(), timeout=0.05)
+        assert channel.public_output == "Hello"
 
         model.release.set()
         result = await asyncio.wait_for(task, timeout=1)
         assert result.content == "Hello world"
 
-        first = await _next_event(channel, "token")
         second = await _next_event(channel, "token")
-        assert first.payload["content"] == "Hello"
         assert second.payload["content"] == " world"
-        assert first.payload["phase"] == phase
         assert second.payload["phase"] == phase
         assert channel.public_output == "Hello world"
     finally:
@@ -134,7 +131,7 @@ async def test_capability_bearing_phase_is_buffered_until_provider_decides_no_to
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("phase", ["capability_response_generation", "tool_followup_1", "tool_followup_4"])
-async def test_capability_bearing_text_is_never_published_when_another_tool_is_selected(
+async def test_capability_bearing_text_is_retracted_when_another_tool_is_selected(
     phase: str,
 ) -> None:
     channel = RuntimeStreamChannel()
@@ -159,20 +156,61 @@ async def test_capability_bearing_text_is_never_published_when_another_tool_is_s
         )
 
         await asyncio.wait_for(model.waiting.wait(), timeout=1)
-        activity = await asyncio.wait_for(channel.queue.get(), timeout=1)
-        assert activity.event_type == "agent_activity"
-        assert channel.public_output == ""
+        first = await _next_event(channel, "token")
+        assert first.payload["content"] == "I will check that."
+        assert first.payload["phase"] == phase
+        assert channel.public_output == "I will check that."
+        assert task.done() is False
 
         model.release.set()
         result = await asyncio.wait_for(task, timeout=1)
         assert result.tool_calls
-        assert channel.public_output == ""
 
-        remaining = []
-        while not channel.queue.empty():
-            remaining.append(channel.queue.get_nowait().event_type)
-        assert "token" not in remaining
-        assert "token_retract" not in remaining
+        retract = await _next_event(channel, "token_retract")
+        assert retract.payload["phase"] == phase
+        assert retract.payload["reason"] == "tool_call_selected"
+        assert retract.payload["content_length"] == len("I will check that.")
+        assert retract.payload["token_count"] == 1
+        assert channel.public_output == ""
+    finally:
+        model.release.set()
+        current_runtime_stream.reset(context_token)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("phase", ["capability_response_generation", "tool_followup_1"])
+async def test_cancelled_capability_bearing_phase_retracts_uncommitted_streamed_text(
+    phase: str,
+) -> None:
+    channel = RuntimeStreamChannel()
+    model = _ControlledModel(first="Candidate answer", second=_Chunk(" never emitted"))
+    context_token = current_runtime_stream.set(channel)
+
+    try:
+        task = asyncio.create_task(
+            invoke_model_with_optional_streaming(
+                model=model,
+                messages=[],
+                phase=phase,
+                provider="test-provider",
+                model_name="test-model",
+            )
+        )
+
+        await asyncio.wait_for(model.waiting.wait(), timeout=1)
+        first = await _next_event(channel, "token")
+        assert first.payload["content"] == "Candidate answer"
+        assert channel.public_output == "Candidate answer"
+
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+
+        retract = await _next_event(channel, "token_retract")
+        assert retract.payload["phase"] == phase
+        assert retract.payload["reason"] == "capability_decision_cancelled"
+        assert retract.payload["content_length"] == len("Candidate answer")
+        assert channel.public_output == ""
     finally:
         model.release.set()
         current_runtime_stream.reset(context_token)
