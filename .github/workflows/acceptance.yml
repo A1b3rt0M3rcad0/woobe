@@ -11,49 +11,87 @@ permissions:
 
 jobs:
   backend-acceptance:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 40
-    services:
-      postgres:
-        image: pgvector/pgvector:pg17
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: woobe
-        ports: [5432:5432]
-        options: >-
-          --health-cmd "pg_isready -U postgres -d woobe"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 12
-      rabbitmq:
-        image: rabbitmq:4-management
-        env:
-          RABBITMQ_DEFAULT_USER: woobe
-          RABBITMQ_DEFAULT_PASS: woobe
-        ports: [5672:5672]
-        options: >-
-          --health-cmd "rabbitmq-diagnostics -q ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 12
     env:
       PYTHONPATH: src:.
-      WOOBE_POSTGRES_URL: postgresql://postgres:postgres@localhost:5432/woobe
-      WOOBE_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/woobe
       WOOBE_SECRET_KEY: acceptance-secret-key-at-least-32-characters
       WOOBE_ENCRYPTION_KEY: acceptance-encryption-key-at-least-32-characters
       WOOBE_CHAT_TOKEN_SIGNING_KEY: acceptance-chat-key-at-least-32-characters
-      WOOBE_RABBITMQ_URL: amqp://woobe:woobe@localhost:5672/
       WOOBE_ENVIRONMENT: test
       WOOBE_DEBUG: "false"
       PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare Docker access
+        run: bash scripts/ci/prepare_docker_access.sh
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
       - uses: astral-sh/setup-uv@v6
+      - name: Allocate isolated acceptance dependencies
+        run: |
+          python - <<'PY' >> "$GITHUB_ENV"
+          import os
+          import socket
+
+          sockets = []
+          ports = []
+          for _ in range(2):
+              sock = socket.socket()
+              sock.bind(("127.0.0.1", 0))
+              sockets.append(sock)
+              ports.append(sock.getsockname()[1])
+
+          postgres_port, rabbitmq_port = ports
+          run_id = os.environ.get("GITHUB_RUN_ID", "local")
+          attempt = os.environ.get("GITHUB_RUN_ATTEMPT", "1")
+          suffix = f"{run_id}-{attempt}"
+
+          print(f"WOOBE_POSTGRES_PORT={postgres_port}")
+          print(f"WOOBE_RABBITMQ_PORT={rabbitmq_port}")
+          print(f"WOOBE_POSTGRES_URL=postgresql://postgres:postgres@localhost:{postgres_port}/woobe")
+          print(f"WOOBE_DATABASE_URL=postgresql://postgres:postgres@localhost:{postgres_port}/woobe")
+          print(f"WOOBE_RESTORE_URL=postgresql://postgres:postgres@localhost:{postgres_port}/woobe_restore")
+          print(f"WOOBE_RABBITMQ_URL=amqp://woobe:woobe@localhost:{rabbitmq_port}/")
+          print(f"WOOBE_ACCEPTANCE_POSTGRES_CONTAINER=woobe-acceptance-postgres-{suffix}")
+          print(f"WOOBE_ACCEPTANCE_RABBITMQ_CONTAINER=woobe-acceptance-rabbitmq-{suffix}")
+
+          for sock in sockets:
+              sock.close()
+          PY
+      - name: Start isolated acceptance dependencies
+        run: |
+          set -euo pipefail
+          docker rm -f "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" "$WOOBE_ACCEPTANCE_RABBITMQ_CONTAINER" >/dev/null 2>&1 || true
+          docker run -d \
+            --name "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -e POSTGRES_DB=woobe \
+            -p "127.0.0.1:${WOOBE_POSTGRES_PORT}:5432" \
+            pgvector/pgvector:pg17 >/dev/null
+          docker run -d \
+            --name "$WOOBE_ACCEPTANCE_RABBITMQ_CONTAINER" \
+            -e RABBITMQ_DEFAULT_USER=woobe \
+            -e RABBITMQ_DEFAULT_PASS=woobe \
+            -p "127.0.0.1:${WOOBE_RABBITMQ_PORT}:5672" \
+            rabbitmq:4-management >/dev/null
+
+          ready=false
+          for _ in $(seq 1 60); do
+            if docker exec "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" pg_isready -U postgres -d woobe >/dev/null 2>&1 \
+              && docker exec "$WOOBE_ACCEPTANCE_RABBITMQ_CONTAINER" rabbitmq-diagnostics -q ping >/dev/null 2>&1; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$ready" != "true" ]]; then
+            docker logs "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" || true
+            docker logs "$WOOBE_ACCEPTANCE_RABBITMQ_CONTAINER" || true
+            exit 1
+          fi
       - name: Install dependencies and prepare PostgreSQL 17 client
         run: |
           set -euo pipefail
@@ -88,17 +126,17 @@ jobs:
       - name: Backup and restore isolated database
         run: |
           set -euo pipefail
-          psql -h localhost -U postgres -d woobe -v ON_ERROR_STOP=1 <<'SQL'
+          psql -h localhost -p "$WOOBE_POSTGRES_PORT" -U postgres -d woobe -v ON_ERROR_STOP=1 <<'SQL'
           CREATE TABLE IF NOT EXISTS public.release_restore_probe (id integer PRIMARY KEY, value text NOT NULL);
           INSERT INTO public.release_restore_probe (id, value) VALUES (1, 'woobe')
           ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;
           SQL
           mkdir -p "$RUNNER_TEMP/backups"
-          backup="$(WOOBE_POSTGRES_URL=postgresql://postgres:postgres@localhost:5432/woobe BACKUP_DIR="$RUNNER_TEMP/backups" sh scripts/backup_postgres.sh)"
-          dropdb --if-exists -h localhost -U postgres woobe_restore
-          createdb -h localhost -U postgres --template=template0 woobe_restore
-          RESTORE_FILE="$backup" RESTORE_CONFIRM=restore-woobe RESTORE_CLEAN=false WOOBE_POSTGRES_URL=postgresql://postgres:postgres@localhost:5432/woobe_restore sh scripts/restore_postgres.sh
-          test "$(psql -h localhost -U postgres -d woobe_restore -Atc "SELECT value FROM public.release_restore_probe WHERE id = 1")" = "woobe"
+          backup="$(WOOBE_POSTGRES_URL="$WOOBE_POSTGRES_URL" BACKUP_DIR="$RUNNER_TEMP/backups" sh scripts/backup_postgres.sh)"
+          dropdb --if-exists -h localhost -p "$WOOBE_POSTGRES_PORT" -U postgres woobe_restore
+          createdb -h localhost -p "$WOOBE_POSTGRES_PORT" -U postgres --template=template0 woobe_restore
+          RESTORE_FILE="$backup" RESTORE_CONFIRM=restore-woobe RESTORE_CLEAN=false WOOBE_POSTGRES_URL="$WOOBE_RESTORE_URL" sh scripts/restore_postgres.sh
+          test "$(psql -h localhost -p "$WOOBE_POSTGRES_PORT" -U postgres -d woobe_restore -Atc "SELECT value FROM public.release_restore_probe WHERE id = 1")" = "woobe"
       - name: Security and integration matrix
         run: uv run pytest -q tests/fakes tests/security tests/performance tests/integration/security tests/integration/agent --junitxml=acceptance-backend.xml
       - name: Upload backend evidence
@@ -110,14 +148,22 @@ jobs:
           path: acceptance-backend.xml
           if-no-files-found: warn
           retention-days: 1
+      - name: Stop acceptance dependencies
+        if: always()
+        run: docker rm -f "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" "$WOOBE_ACCEPTANCE_RABBITMQ_CONTAINER" || true
+      - name: Cleanup Docker access
+        if: always()
+        run: bash scripts/ci/cleanup_docker_access.sh
 
   community-smoke:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 40
     env:
       COMPOSE_PROJECT_NAME: woobe-community-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare Docker access
+        run: bash scripts/ci/prepare_docker_access.sh
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
@@ -217,6 +263,9 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose down -v --remove-orphans
+      - name: Cleanup Docker access
+        if: always()
+        run: bash scripts/ci/cleanup_docker_access.sh
       - name: Upload smoke evidence
         if: always()
         continue-on-error: true
