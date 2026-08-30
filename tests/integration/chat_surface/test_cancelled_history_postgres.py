@@ -32,11 +32,6 @@ from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 
 
-async def _flush(session) -> None:
-    """Persist one FK dependency layer before constructing the next one."""
-    await session.flush()
-
-
 @pytest.mark.asyncio
 async def test_cancelled_agent_chat_surface_history_keeps_request_run_and_partial_message_coherent() -> None:
     settings = Settings.model_validate({})
@@ -67,7 +62,7 @@ async def test_cancelled_agent_chat_surface_history_keeps_request_run_and_partia
                     data={},
                 )
             )
-            await _flush(session)
+            await session.flush()
 
             session.add(
                 AgentModel(
@@ -90,7 +85,7 @@ async def test_cancelled_agent_chat_surface_history_keeps_request_run_and_partia
                     settings={},
                 )
             )
-            await _flush(session)
+            await session.flush()
 
             session.add(
                 AgentReleaseModel(
@@ -129,7 +124,7 @@ async def test_cancelled_agent_chat_surface_history_keeps_request_run_and_partia
                     promoted_at=now,
                 )
             )
-            await _flush(session)
+            await session.flush()
 
             session.add(
                 ChatSurfaceModel(
@@ -156,7 +151,7 @@ async def test_cancelled_agent_chat_surface_history_keeps_request_run_and_partia
                     archived_at=None,
                 )
             )
-            await _flush(session)
+            await session.flush()
 
             session.add(
                 SessionModel(
@@ -176,7 +171,7 @@ async def test_cancelled_agent_chat_surface_history_keeps_request_run_and_partia
                     last_message_at=now,
                 )
             )
-            await _flush(session)
+            await session.flush()
 
             session.add(
                 ChatSurfaceSessionBindingModel(
@@ -194,7 +189,7 @@ async def test_cancelled_agent_chat_surface_history_keeps_request_run_and_partia
                     status="active",
                 )
             )
-            await _flush(session)
+            await session.flush()
 
             session.add_all(
                 [
@@ -224,7 +219,7 @@ async def test_cancelled_agent_chat_surface_history_keeps_request_run_and_partia
                     ),
                 ]
             )
-            await _flush(session)
+            await session.flush()
 
             session.add(
                 AgentRunModel(
@@ -257,7 +252,7 @@ async def test_cancelled_agent_chat_surface_history_keeps_request_run_and_partia
                     completed_at=now,
                 )
             )
-            await _flush(session)
+            await session.flush()
 
             session.add(
                 ChatSurfaceMessageRequestModel(
@@ -348,7 +343,7 @@ async def test_cancelled_network_chat_surface_history_keeps_request_execution_an
                     data={},
                 )
             )
-            await _flush(session)
+            await session.flush()
 
             session.add(
                 NetworkModel(
@@ -362,7 +357,7 @@ async def test_cancelled_network_chat_surface_history_keeps_request_execution_an
                     production_version_id=version_id,
                 )
             )
-            await _flush(session)
+            await session.flush()
 
             session.add(
                 NetworkVersionModel(
@@ -381,7 +376,7 @@ async def test_cancelled_network_chat_surface_history_keeps_request_execution_an
                     change_description="chat cancellation test",
                 )
             )
-            await _flush(session)
+            await session.flush()
 
             session.add(
                 ChatSurfaceModel(
@@ -408,7 +403,7 @@ async def test_cancelled_network_chat_surface_history_keeps_request_execution_an
                     archived_at=None,
                 )
             )
-            await _flush(session)
+            await session.flush()
 
             session.add(
                 NetworkSessionModel(
@@ -427,7 +422,7 @@ async def test_cancelled_network_chat_surface_history_keeps_request_execution_an
                     last_message_at=now,
                 )
             )
-            await _flush(session)
+            await session.flush()
 
             session.add(
                 ChatSurfaceSessionBindingModel(
@@ -445,7 +440,7 @@ async def test_cancelled_network_chat_surface_history_keeps_request_execution_an
                     status="active",
                 )
             )
-            await _flush(session)
+            await session.flush()
 
             session.add(
                 NetworkExecutionModel(
@@ -475,7 +470,7 @@ async def test_cancelled_network_chat_surface_history_keeps_request_execution_an
                     completed_at=now,
                 )
             )
-            await _flush(session)
+            await session.flush()
 
             session.add_all(
                 [
@@ -499,7 +494,7 @@ async def test_cancelled_network_chat_surface_history_keeps_request_execution_an
                     ),
                 ]
             )
-            await _flush(session)
+            await session.flush()
 
             session.add(
                 ChatSurfaceMessageRequestModel(
