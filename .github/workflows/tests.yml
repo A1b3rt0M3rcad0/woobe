@@ -17,6 +17,9 @@ jobs:
   tests:
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 45
+    concurrency:
+      group: woobe-docker-validation-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
         with:
@@ -54,7 +57,7 @@ jobs:
         run: bash scripts/ci/cleanup_docker_access.sh
 
       - name: Upload backend test evidence
-        if: always()
+        if: ${{ always() && github.event_name == 'workflow_dispatch' }}
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
