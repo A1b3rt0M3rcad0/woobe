@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { NetworkMessageResource } from '@/features/network/types'
+import type { NetworkExecutionHistoryResource, NetworkMessageResource } from '@/features/network/types'
 import { hydrateNetworkHistory } from './networkHistory'
 import type { NetworkSession } from './networkSessionTypes'
 import type { NetworkBinding } from './networkWorkspaceTypes'
@@ -38,7 +38,7 @@ const session: NetworkSession = {
   agentContexts: [],
 }
 
-function cancelledExecution() {
+function cancelledExecution(): NetworkExecutionHistoryResource {
   return {
     id: 'execution-1',
     status: 'cancelled',
