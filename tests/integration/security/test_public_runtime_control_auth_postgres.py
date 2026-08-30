@@ -44,6 +44,7 @@ async def _persist_runtime_key(session_factory, *, target_type: str):
                 data={},
             )
         )
+        await session.flush()
         session.add(
             ApiKeyModel(
                 id=api_key_id,

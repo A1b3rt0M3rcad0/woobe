@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from modules.agent.application.use_cases.list_agent_runs import ListAgentRunsUseCase
+from modules.agent.application.interfaces.agent_run_listing import AgentRunListingUseCase
 from shared.contracts.errors import AuthorizationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
@@ -10,7 +10,7 @@ from shared.security.principal import AuthenticatedPrincipal
 
 
 class ListAgentRunsController:
-    def __init__(self, use_case: ListAgentRunsUseCase) -> None:
+    def __init__(self, use_case: AgentRunListingUseCase) -> None:
         self._use_case = use_case
 
     @staticmethod

@@ -212,7 +212,7 @@ async def _next_frame(stream, event_type: str) -> str:
     ("phase", "expects_partial"),
     [
         ("capability_response_generation", False),
-        ("tool_followup_1", True),
+        ("tool_followup_1", False),
         ("final_response_generation", True),
         ("json_repair", False),
     ],

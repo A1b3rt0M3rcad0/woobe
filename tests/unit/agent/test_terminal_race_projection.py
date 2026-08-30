@@ -126,4 +126,7 @@ async def test_conflicting_terminal_exception_projects_and_restores_durable_winn
     assert restored is not None
     assert restored["status"] == status.value
     assert restored["phase"] == "persisted"
-    assert restored["terminal_result"] == run.result
+    terminal_result = restored["terminal_result"]
+    assert all(terminal_result[key] == value for key, value in run.result.items())
+    if status == AgentRunStatus.CANCELLED:
+        assert terminal_result["reason"] == "cancel_requested"

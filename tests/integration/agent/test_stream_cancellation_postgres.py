@@ -27,7 +27,6 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
 
     project_id = uuid4()
     agent_id = uuid4()
-    session_id = uuid4()
     trace_id = uuid4()
     transactions = AgentRuntimeTransactionRunner(lambda: AgentUnitOfWork(engine))
     service = AskAgentStreamService(
@@ -38,13 +37,13 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
     input_dto = AskInput(
         project_id=project_id,
         agent_id=agent_id,
-        session_id=session_id,
+        session_id=None,
         message="cancel this request",
     )
     channel = RuntimeStreamChannel()
     channel.bind_execution(
         trace_id=trace_id,
-        session_id=session_id,
+        session_id=None,
         project_id=project_id,
         agent_id=agent_id,
     )

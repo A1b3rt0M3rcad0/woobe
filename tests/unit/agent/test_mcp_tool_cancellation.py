@@ -157,6 +157,6 @@ async def test_agent_stop_interrupts_streamable_http_mcp_tool_without_failure_te
         assert transactions.repositories.runs.run.status == AgentRunStatus.CANCELLED
         assert transactions.repositories.runs.run.failure_code is None
         assert transactions.repositories.runs.run.failure_detail is None
-        assert executor.tool_interrupted.is_set()
+        await asyncio.wait_for(executor.tool_interrupted.wait(), timeout=1)
     finally:
         await stream.aclose()
