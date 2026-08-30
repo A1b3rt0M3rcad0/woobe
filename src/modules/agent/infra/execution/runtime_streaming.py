@@ -342,21 +342,20 @@ def _is_final_response_phase(phase: str) -> bool:
     return phase in _FINAL_RESPONSE_PHASES
 
 
+def _is_capability_selection_phase(phase: str) -> bool:
+    return phase == "capability_response_generation" or phase.startswith("tool_followup_")
+
+
 def _can_emit_phase_as_final(phase: str) -> bool:
-    return (
-        _is_final_response_phase(phase)
-        or phase == "capability_response_generation"
-        or phase.startswith("tool_followup_")
-    )
+    return _is_final_response_phase(phase) or _is_capability_selection_phase(phase)
 
 
 def _can_stream_phase_live(phase: str) -> bool:
-    # Any invocation that still has authority to select another capability is
-    # semantically provisional until the provider closes that invocation. Publishing
-    # those tokens early creates visible text that must be retracted when another
-    # Tool/Delegation is selected. Buffer capability_response_generation and every
-    # tool_followup_* round; only terminal/direct response phases stream live.
-    return _is_final_response_phase(phase)
+    # Capability-aware invocations are streamed optimistically so direct responses
+    # preserve provider TTFT instead of waiting for the entire invocation. If the
+    # provider later selects another Tool/Delegation, the already-published candidate
+    # text is retracted atomically through the runtime stream protocol.
+    return _can_emit_phase_as_final(phase)
 
 
 def _activity_for_phase(phase: str) -> tuple[str, str]:
@@ -386,6 +385,28 @@ async def _emit_visible_token(
         visibility="assistant",
         channel="final",
         phase=phase,
+        provider=provider,
+        model_name=model_name,
+    )
+
+
+async def _retract_streamed_tokens(
+    channel: RuntimeStreamChannel,
+    *,
+    streamed_visible_tokens: list[str],
+    phase: str,
+    reason: str,
+    provider: str,
+    model_name: str,
+) -> None:
+    if not streamed_visible_tokens:
+        return
+    await channel.emit(
+        "token_retract",
+        phase=phase,
+        reason=reason,
+        content_length=sum(len(content) for content in streamed_visible_tokens),
+        token_count=len(streamed_visible_tokens),
         provider=provider,
         model_name=model_name,
     )
@@ -448,8 +469,26 @@ async def invoke_model_with_optional_streaming(
                 else:
                     pending_visible_tokens.append(visible_content)
     except asyncio.CancelledError:
+        if _is_capability_selection_phase(phase):
+            await _retract_streamed_tokens(
+                channel,
+                streamed_visible_tokens=streamed_visible_tokens,
+                phase=phase,
+                reason="capability_decision_cancelled",
+                provider=provider,
+                model_name=model_name,
+            )
         raise
     except Exception:
+        if _is_capability_selection_phase(phase):
+            await _retract_streamed_tokens(
+                channel,
+                streamed_visible_tokens=streamed_visible_tokens,
+                phase=phase,
+                reason="capability_decision_failed",
+                provider=provider,
+                model_name=model_name,
+            )
         runtime_metrics.increment_provider_failure(
             provider=provider,
             model=model_name,
@@ -479,14 +518,13 @@ async def invoke_model_with_optional_streaming(
 
     accumulated = normalize_llm_result_content(accumulated)
     if _result_has_tool_calls(accumulated) and streamed_visible_tokens:
-        await channel.emit(
-            "token_retract",
+        await _retract_streamed_tokens(
+            channel,
+            streamed_visible_tokens=streamed_visible_tokens,
             phase=phase,
             reason="tool_call_selected",
-            content_length=sum(len(content) for content in streamed_visible_tokens),
-            token_count=len(streamed_visible_tokens),
             provider=provider,
-            model=model_name,
+            model_name=model_name,
         )
     elif (
         pending_visible_tokens
