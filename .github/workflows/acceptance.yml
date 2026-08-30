@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   backend-acceptance:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     timeout-minutes: 40
     services:
       postgres:
@@ -109,9 +109,10 @@ jobs:
           name: acceptance-backend-evidence
           path: acceptance-backend.xml
           if-no-files-found: warn
+          retention-days: 1
 
   community-smoke:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
       COMPOSE_PROJECT_NAME: woobe-community-${{ github.run_id }}
@@ -226,3 +227,4 @@ jobs:
             community-compose-ps.txt
             community-compose.log
           if-no-files-found: warn
+          retention-days: 1
