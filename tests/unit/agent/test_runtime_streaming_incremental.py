@@ -179,7 +179,7 @@ async def test_capability_bearing_text_is_retracted_when_another_tool_is_selecte
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("phase", ["capability_response_generation", "tool_followup_1"])
-async def test_cancelled_capability_bearing_phase_retracts_uncommitted_streamed_text(
+async def test_cancelled_capability_bearing_phase_preserves_streamed_partial_output(
     phase: str,
 ) -> None:
     channel = RuntimeStreamChannel()
@@ -206,11 +206,11 @@ async def test_cancelled_capability_bearing_phase_retracts_uncommitted_streamed_
         with pytest.raises(asyncio.CancelledError):
             await task
 
-        retract = await _next_event(channel, "token_retract")
-        assert retract.payload["phase"] == phase
-        assert retract.payload["reason"] == "capability_decision_cancelled"
-        assert retract.payload["content_length"] == len("Candidate answer")
-        assert channel.public_output == ""
+        assert channel.public_output == "Candidate answer"
+        remaining_event_types = []
+        while not channel.queue.empty():
+            remaining_event_types.append(channel.queue.get_nowait().event_type)
+        assert "token_retract" not in remaining_event_types
     finally:
         model.release.set()
         current_runtime_stream.reset(context_token)
