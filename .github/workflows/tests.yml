@@ -18,6 +18,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Prepare Docker access
+        run: bash scripts/ci/prepare_docker_access.sh
+
       - name: Reset stale validation stack
         run: docker compose -f compose.test.yaml down -v --remove-orphans || true
 
@@ -42,6 +45,10 @@ jobs:
         if: always()
         run: docker compose -f compose.test.yaml down -v --remove-orphans
 
+      - name: Cleanup Docker access
+        if: always()
+        run: bash scripts/ci/cleanup_docker_access.sh
+
       - name: Upload backend test evidence
         if: always()
         continue-on-error: true
@@ -51,3 +58,4 @@ jobs:
           path: .test-artifacts
           if-no-files-found: warn
           include-hidden-files: true
+          retention-days: 1
