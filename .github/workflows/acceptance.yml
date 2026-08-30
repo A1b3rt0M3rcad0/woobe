@@ -74,6 +74,7 @@ jobs:
             -e POSTGRES_PASSWORD=postgres \
             -e POSTGRES_DB=woobe \
             -p "127.0.0.1:${WOOBE_POSTGRES_PORT}:5432" \
+            -v "${RUNNER_TEMP}:${RUNNER_TEMP}" \
             pgvector/pgvector:pg17 >/dev/null
           docker run -d \
             --name "$WOOBE_ACCEPTANCE_RABBITMQ_CONTAINER" \
@@ -106,20 +107,21 @@ jobs:
           cat > "$pg_client_bin/pg-client" <<'SH'
           #!/bin/sh
           set -eu
+          : "${WOOBE_ACCEPTANCE_POSTGRES_CONTAINER:?WOOBE_ACCEPTANCE_POSTGRES_CONTAINER is required}"
           tool="$(basename "$0")"
-          exec docker run --rm -i --network host \
+          exec docker exec \
             -e PGPASSWORD \
-            -v "${RUNNER_TEMP}:${RUNNER_TEMP}" \
-            --entrypoint "$tool" \
-            pgvector/pgvector:pg17 "$@"
+            "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+            "$tool" "$@"
           SH
           chmod +x "$pg_client_bin/pg-client"
-          for tool in pg_dump pg_restore psql dropdb createdb; do
+          for tool in pg_dump pg_restore; do
             ln -sf pg-client "$pg_client_bin/$tool"
           done
           echo "$pg_client_bin" >> "$GITHUB_PATH"
           export PATH="$pg_client_bin:$PATH"
-          pg_dump --version | grep -Eq ' 17\.'
+          docker exec "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+            sh -c "pg_dump --version | grep -Eq ' 17\\.'"
       - name: Migration rollback and re-upgrade
         run: |
           set -euo pipefail
@@ -130,17 +132,29 @@ jobs:
       - name: Backup and restore isolated database
         run: |
           set -euo pipefail
-          psql -h localhost -p "$WOOBE_POSTGRES_PORT" -U postgres -d woobe -v ON_ERROR_STOP=1 <<'SQL'
-          CREATE TABLE IF NOT EXISTS public.release_restore_probe (id integer PRIMARY KEY, value text NOT NULL);
-          INSERT INTO public.release_restore_probe (id, value) VALUES (1, 'woobe')
-          ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;
-          SQL
+          docker exec -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+            psql -U postgres -d woobe -v ON_ERROR_STOP=1 \
+            -c "CREATE TABLE IF NOT EXISTS public.release_restore_probe (id integer PRIMARY KEY, value text NOT NULL);" \
+            -c "INSERT INTO public.release_restore_probe (id, value) VALUES (1, 'woobe') ON CONFLICT (id) DO UPDATE SET value = EXCLUDED.value;"
+
           mkdir -p "$RUNNER_TEMP/backups"
-          backup="$(WOOBE_POSTGRES_URL="$WOOBE_POSTGRES_URL" BACKUP_DIR="$RUNNER_TEMP/backups" sh scripts/backup_postgres.sh)"
-          dropdb --if-exists -h localhost -p "$WOOBE_POSTGRES_PORT" -U postgres woobe_restore
-          createdb -h localhost -p "$WOOBE_POSTGRES_PORT" -U postgres --template=template0 woobe_restore
-          RESTORE_FILE="$backup" RESTORE_CONFIRM=restore-woobe RESTORE_CLEAN=false WOOBE_POSTGRES_URL="$WOOBE_RESTORE_URL" sh scripts/restore_postgres.sh
-          test "$(psql -h localhost -p "$WOOBE_POSTGRES_PORT" -U postgres -d woobe_restore -Atc "SELECT value FROM public.release_restore_probe WHERE id = 1")" = "woobe"
+          backup="$(WOOBE_POSTGRES_URL=postgresql://postgres:postgres@localhost:5432/woobe BACKUP_DIR="$RUNNER_TEMP/backups" sh scripts/backup_postgres.sh)"
+
+          docker exec -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+            dropdb --if-exists -U postgres woobe_restore
+          docker exec -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+            createdb -U postgres --template=template0 woobe_restore
+
+          RESTORE_FILE="$backup" \
+            RESTORE_CONFIRM=restore-woobe \
+            RESTORE_CLEAN=false \
+            WOOBE_POSTGRES_URL=postgresql://postgres:postgres@localhost:5432/woobe_restore \
+            sh scripts/restore_postgres.sh
+
+          docker exec -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+            psql -U postgres -d woobe_restore -v ON_ERROR_STOP=1 \
+            -c "DO \\$\\$ BEGIN IF NOT EXISTS (SELECT 1 FROM public.release_restore_probe WHERE id = 1 AND value = 'woobe') THEN RAISE EXCEPTION 'restore probe missing'; END IF; END \\$\\$;" \
+            >/dev/null
       - name: Security and integration matrix
         run: uv run pytest -q tests/fakes tests/security tests/performance tests/integration/security tests/integration/agent --junitxml=acceptance-backend.xml
       - name: Upload backend evidence
