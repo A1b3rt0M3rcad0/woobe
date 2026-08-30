@@ -25,6 +25,10 @@ from modules.agent.presentation.http.controllers.ask_agent_stream_controller imp
 )
 
 
+def _disable_signal_handlers() -> None:
+    return None
+
+
 @asynccontextmanager
 async def _serve_app(app: FastAPI) -> AsyncIterator[str]:
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -42,7 +46,7 @@ async def _serve_app(app: FastAPI) -> AsyncIterator[str]:
         lifespan="off",
     )
     server = uvicorn.Server(config)
-    server.install_signal_handlers = lambda: None
+    server.install_signal_handlers = _disable_signal_handlers
     task = asyncio.create_task(server.serve(sockets=[sock]))
 
     try:
@@ -177,6 +181,7 @@ class _ControlledHttpStreamService:
         self.completed = asyncio.Event()
 
     async def stream(self, input_dto, _is_disconnected=None):
+        del input_dto
         run_id = "run-tcp-boundary"
         yield _sse("meta", run_id=run_id)
         yield _sse(
@@ -235,44 +240,47 @@ async def test_real_uvicorn_tcp_stream_delivers_first_sse_before_service_complet
     async def stream(request: Request) -> StreamingResponse:
         return await handle_ask_stream(request, service, _allow_environment)
 
-    async with _serve_app(app) as base_url:
-        timeout = httpx.Timeout(5.0, connect=2.0, read=5.0, write=2.0, pool=2.0)
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            async with client.stream(
-                "POST",
-                f"{base_url}/stream",
-                json={
-                    "project_id": "00000000-0000-0000-0000-000000000001",
-                    "agent_id": "00000000-0000-0000-0000-000000000002",
-                    "message": "Me conte uma história grande",
-                    "execution_context": "playground",
-                },
-            ) as response:
-                assert response.status_code == 200
-                assert response.headers["content-type"].startswith("text/event-stream")
-                assert response.headers["cache-control"] == "no-cache, no-transform"
-                assert response.headers["x-accel-buffering"] == "no"
+    try:
+        async with _serve_app(app) as base_url:
+            timeout = httpx.Timeout(5.0, connect=2.0, read=5.0, write=2.0, pool=2.0)
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                async with client.stream(
+                    "POST",
+                    f"{base_url}/stream",
+                    json={
+                        "project_id": "00000000-0000-0000-0000-000000000001",
+                        "agent_id": "00000000-0000-0000-0000-000000000002",
+                        "message": "Me conte uma história grande",
+                        "execution_context": "playground",
+                    },
+                ) as response:
+                    assert response.status_code == 200
+                    assert response.headers["content-type"].startswith("text/event-stream")
+                    assert response.headers["cache-control"] == "no-cache, no-transform"
+                    assert response.headers["x-accel-buffering"] == "no"
 
-                await asyncio.wait_for(service.first_token_emitted.wait(), timeout=2)
-                lines = response.aiter_lines()
-                first_token = await asyncio.wait_for(
-                    _read_sse_event(lines, "token"),
-                    timeout=2,
-                )
+                    await asyncio.wait_for(service.first_token_emitted.wait(), timeout=2)
+                    lines = response.aiter_lines()
+                    first_token = await asyncio.wait_for(
+                        _read_sse_event(lines, "token"),
+                        timeout=2,
+                    )
 
-                assert first_token["content"] == "Era"
-                assert service.completed.is_set() is False
+                    assert first_token["content"] == "Era"
+                    assert service.completed.is_set() is False
 
-                service.release.set()
-                second_token = await asyncio.wait_for(
-                    _read_sse_event(lines, "token"),
-                    timeout=2,
-                )
-                terminal = await asyncio.wait_for(
-                    _read_sse_event(lines, "done"),
-                    timeout=2,
-                )
+                    service.release.set()
+                    second_token = await asyncio.wait_for(
+                        _read_sse_event(lines, "token"),
+                        timeout=2,
+                    )
+                    terminal = await asyncio.wait_for(
+                        _read_sse_event(lines, "done"),
+                        timeout=2,
+                    )
 
-                assert second_token["content"] == " uma vez"
-                assert terminal["answer"] == "Era uma vez"
-                assert service.completed.is_set() is True
+                    assert second_token["content"] == " uma vez"
+                    assert terminal["answer"] == "Era uma vez"
+                    assert service.completed.is_set() is True
+    finally:
+        service.release.set()
