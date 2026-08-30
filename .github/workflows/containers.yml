@@ -17,6 +17,9 @@ jobs:
   containers:
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 45
+    concurrency:
+      group: woobe-docker-validation-${{ github.event.pull_request.number || github.ref }}
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
       - name: Prepare Docker access
@@ -118,6 +121,7 @@ jobs:
           output.write_text('\n'.join(lines), encoding='utf-8')
           PY
       - name: Upload third-party dependency inventory
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
