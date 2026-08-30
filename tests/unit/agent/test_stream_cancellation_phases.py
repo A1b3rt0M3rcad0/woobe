@@ -211,8 +211,8 @@ async def _next_frame(stream, event_type: str) -> str:
 @pytest.mark.parametrize(
     ("phase", "expects_partial"),
     [
-        ("capability_response_generation", False),
-        ("tool_followup_1", False),
+        ("capability_response_generation", True),
+        ("tool_followup_1", True),
         ("final_response_generation", True),
         ("json_repair", False),
     ],
