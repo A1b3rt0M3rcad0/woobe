@@ -62,6 +62,7 @@ async def test_cancelled_agent_chat_surface_history_keeps_request_run_and_partia
                     data={},
                 )
             )
+            await session.flush()
             session.add(
                 AgentModel(
                     id=agent_id,
@@ -331,6 +332,7 @@ async def test_cancelled_network_chat_surface_history_keeps_request_execution_an
                     data={},
                 )
             )
+            await session.flush()
             session.add(
                 NetworkModel(
                     id=network_id,
