@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -76,6 +77,49 @@ async def test_public_cancel_route_dispatches_over_real_asgi_boundary(
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target_type", ["agent", "network"])
+async def test_public_cancel_route_allows_idempotent_retry_over_asgi_boundary(
+    monkeypatch,
+    target_type: str,
+) -> None:
+    run_id = uuid4()
+    dispatches = 0
+
+    async def cancel(actual_run_id, _request):
+        nonlocal dispatches
+        assert actual_run_id == run_id
+        dispatches += 1
+        return {
+            "success": True,
+            "data": {
+                "run_id": str(actual_run_id),
+                "status": "cancel_requested",
+            },
+        }
+
+    if target_type == "agent":
+        monkeypatch.setattr(public_runtime_routes, "cancel_agent_run", cancel)
+    else:
+        monkeypatch.setattr(public_runtime_routes, "cancel_network_run", cancel)
+
+    transport = ASGITransport(app=_app())
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        first = await client.post(
+            f"/v1/runs/{run_id}/cancel",
+            headers={"x-runtime-target": target_type},
+        )
+        retry = await client.post(
+            f"/v1/runs/{run_id}/cancel",
+            headers={"x-runtime-target": target_type},
+        )
+
+    assert first.status_code == 202
+    assert retry.status_code == 202
+    assert first.json() == retry.json()
+    assert dispatches == 2
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target_type", ["agent", "network"])
 async def test_public_reattach_route_keeps_target_specific_sse_contract(
     monkeypatch,
     target_type: str,
@@ -123,3 +167,75 @@ async def test_public_reattach_route_keeps_target_specific_sse_contract(
     assert response.headers["x-accel-buffering"] == "no"
     assert '"status":"cancelled"' in response.text
     assert calls == [(target_type, run_id)]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target_type", ["agent", "network"])
+async def test_public_observer_remains_attached_while_second_client_cancels(
+    monkeypatch,
+    target_type: str,
+) -> None:
+    run_id = uuid4()
+    observer_started = asyncio.Event()
+    cancel_requested = asyncio.Event()
+
+    async def attach(actual_run_id, _request):
+        assert actual_run_id == run_id
+
+        async def generate():
+            observer_started.set()
+            yield 'event: run.state\ndata: {"status":"running","output":"partial"}\n\n'
+            await cancel_requested.wait()
+            yield 'event: cancelled\ndata: {"status":"cancelled","output":"partial"}\n\n'
+
+        return StreamingResponse(
+            generate(),
+            media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+        )
+
+    async def cancel(actual_run_id, _request):
+        assert actual_run_id == run_id
+        cancel_requested.set()
+        return {
+            "success": True,
+            "data": {
+                "run_id": str(actual_run_id),
+                "status": "cancel_requested",
+            },
+        }
+
+    if target_type == "agent":
+        monkeypatch.setattr(public_runtime_routes, "attach_agent_run", attach)
+        monkeypatch.setattr(public_runtime_routes, "cancel_agent_run", cancel)
+    else:
+        monkeypatch.setattr(public_runtime_routes, "reattach_network_execution", attach)
+        monkeypatch.setattr(public_runtime_routes, "cancel_network_run", cancel)
+
+    app = _app()
+    observer_transport = ASGITransport(app=app)
+    control_transport = ASGITransport(app=app)
+    async with (
+        AsyncClient(transport=observer_transport, base_url="http://observer") as observer,
+        AsyncClient(transport=control_transport, base_url="http://control") as control,
+    ):
+        observer_task = asyncio.create_task(
+            observer.get(
+                f"/v1/runs/{run_id}/stream",
+                headers={"x-runtime-target": target_type},
+            )
+        )
+        await asyncio.wait_for(observer_started.wait(), timeout=1)
+        assert not observer_task.done()
+
+        cancel_response = await control.post(
+            f"/v1/runs/{run_id}/cancel",
+            headers={"x-runtime-target": target_type},
+        )
+        observer_response = await asyncio.wait_for(observer_task, timeout=1)
+
+    assert cancel_response.status_code == 202
+    assert observer_response.status_code == 200
+    assert '"status":"running"' in observer_response.text
+    assert 'event: cancelled' in observer_response.text
+    assert '"status":"cancelled"' in observer_response.text
