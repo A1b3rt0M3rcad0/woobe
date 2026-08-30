@@ -1,6 +1,69 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+runner_temp="${RUNNER_TEMP:-/tmp}"
+workspace="${GITHUB_WORKSPACE:-$(pwd)}"
+run_id="${GITHUB_RUN_ID:-local}"
+attempt="${GITHUB_RUN_ATTEMPT:-1}"
+job_name="${GITHUB_JOB:-job}"
+
+lock_file="/tmp/woobe-docker-validation.lock"
+lock_acquired_file="$runner_temp/woobe-docker-lock-${run_id}-${attempt}-${job_name}.acquired"
+lock_release_file="$runner_temp/woobe-docker-lock-${run_id}-${attempt}-${job_name}.release"
+lock_pid_file="$runner_temp/woobe-docker-lock-${run_id}-${attempt}-${job_name}.pid"
+lock_log="$runner_temp/woobe-docker-lock-${run_id}-${attempt}-${job_name}.log"
+
+rm -f "$lock_acquired_file" "$lock_release_file" "$lock_pid_file" "$lock_log"
+
+# All self-hosted runners currently share the same physical Docker host. Serialize
+# Docker-heavy validation on the host itself instead of using GitHub concurrency
+# groups, which keep only one pending job and can cancel unrelated required checks.
+nohup bash -c '
+  set -eu
+  lock_file="$1"
+  acquired="$2"
+  release="$3"
+  exec 9>"$lock_file"
+  flock -x 9
+  : > "$acquired"
+  elapsed=0
+  while [ ! -e "$release" ] && [ "$elapsed" -lt 3600 ]; do
+    sleep 1
+    elapsed=$((elapsed + 1))
+  done
+' _ "$lock_file" "$lock_acquired_file" "$lock_release_file" >"$lock_log" 2>&1 &
+echo $! > "$lock_pid_file"
+
+for _ in $(seq 1 2400); do
+  if [[ -f "$lock_acquired_file" ]]; then
+    break
+  fi
+  lock_pid="$(cat "$lock_pid_file" 2>/dev/null || true)"
+  if [[ -n "$lock_pid" ]] && ! kill -0 "$lock_pid" 2>/dev/null; then
+    echo "::error::Docker validation lock process exited before acquiring the host lock."
+    cat "$lock_log" 2>/dev/null || true
+    exit 1
+  fi
+  sleep 1
+done
+
+if [[ ! -f "$lock_acquired_file" ]]; then
+  echo "::error::Timed out waiting for the shared Docker validation lock."
+  cat "$lock_log" 2>/dev/null || true
+  exit 1
+fi
+
+if [[ -n "${GITHUB_ENV:-}" ]]; then
+  {
+    echo "WOOBE_DOCKER_LOCK_ACQUIRED_FILE=$lock_acquired_file"
+    echo "WOOBE_DOCKER_LOCK_RELEASE_FILE=$lock_release_file"
+    echo "WOOBE_DOCKER_LOCK_PID_FILE=$lock_pid_file"
+    echo "WOOBE_DOCKER_LOCK_LOG=$lock_log"
+  } >> "$GITHUB_ENV"
+fi
+
+echo "Acquired shared Docker validation lock on runner ${RUNNER_NAME:-unknown}."
+
 if docker info >/dev/null 2>&1; then
   echo "Docker daemon is directly accessible on runner ${RUNNER_NAME:-unknown}."
   exit 0
@@ -18,13 +81,9 @@ if ! id -nG "$user" | tr ' ' '\n' | grep -Fxq docker; then
   exit 1
 fi
 
-runner_temp="${RUNNER_TEMP:-/tmp}"
-workspace="${GITHUB_WORKSPACE:-$(pwd)}"
-run_id="${GITHUB_RUN_ID:-local}"
-attempt="${GITHUB_RUN_ATTEMPT:-1}"
-proxy_socket="$runner_temp/woobe-docker-${run_id}-${attempt}.sock"
-proxy_pid_file="$runner_temp/woobe-docker-${run_id}-${attempt}.pid"
-proxy_log="$runner_temp/woobe-docker-${run_id}-${attempt}.log"
+proxy_socket="$runner_temp/woobe-docker-${run_id}-${attempt}-${job_name}.sock"
+proxy_pid_file="$runner_temp/woobe-docker-${run_id}-${attempt}-${job_name}.pid"
+proxy_log="$runner_temp/woobe-docker-${run_id}-${attempt}-${job_name}.log"
 
 rm -f "$proxy_socket" "$proxy_pid_file" "$proxy_log"
 
