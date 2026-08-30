@@ -151,10 +151,12 @@ jobs:
             WOOBE_POSTGRES_URL=postgresql://postgres:postgres@localhost:5432/woobe_restore \
             sh scripts/restore_postgres.sh
 
-          docker exec -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
-            psql -U postgres -d woobe_restore -v ON_ERROR_STOP=1 \
-            -c "DO \\$\\$ BEGIN IF NOT EXISTS (SELECT 1 FROM public.release_restore_probe WHERE id = 1 AND value = 'woobe') THEN RAISE EXCEPTION 'restore probe missing'; END IF; END \\$\\$;" \
-            >/dev/null
+          restored_value="$(
+            docker exec -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+              psql -U postgres -d woobe_restore -Atv ON_ERROR_STOP=1 \
+              -c "SELECT value FROM public.release_restore_probe WHERE id = 1;"
+          )"
+          test "$restored_value" = "woobe"
       - name: Security and integration matrix
         run: uv run pytest -q tests/fakes tests/security tests/performance tests/integration/security tests/integration/agent --junitxml=acceptance-backend.xml
       - name: Upload backend evidence
