@@ -5,22 +5,23 @@ import test from "node:test";
 import ts from "typescript";
 
 function stripImports(source) {
-  const lines = source.split("\n");
-  const kept = [];
-  let skipping = false;
-  for (const line of lines) {
-    const trimmed = line.trimStart();
-    if (!skipping && trimmed.startsWith("import ")) {
-      skipping = !trimmed.endsWith(";");
-      continue;
-    }
-    if (skipping) {
-      if (trimmed.endsWith(";")) skipping = false;
-      continue;
-    }
-    kept.push(line);
+  const sourceFile = ts.createSourceFile(
+    "iframe.ts",
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
+  const imports = sourceFile.statements.filter((statement) =>
+    ts.isImportDeclaration(statement),
+  );
+  let cursor = 0;
+  let stripped = "";
+  for (const declaration of imports) {
+    stripped += source.slice(cursor, declaration.getFullStart());
+    cursor = declaration.end;
   }
-  return kept.join("\n");
+  return stripped + source.slice(cursor);
 }
 
 function sseDone(answer = "recovered") {
@@ -35,16 +36,21 @@ function sseDone(answer = "recovered") {
 
 async function loadIframeHarness(fetchImpl) {
   const raw = await readFile(new URL("../src/iframe.ts", import.meta.url), "utf8");
-  const stripped = stripImports(raw);
-  const sendMessageDeclaration = "async function sendMessage(message: string) {";
+  const sourceFile = ts.createSourceFile(
+    "iframe.ts",
+    raw,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS,
+  );
   assert.ok(
-    stripped.includes(sendMessageDeclaration),
-    "iframe source must expose the sendMessage declaration expected by the recovery harness",
+    sourceFile.statements.some(
+      (statement) =>
+        ts.isFunctionDeclaration(statement) && statement.name?.text === "sendMessage",
+    ),
+    "iframe source must expose the sendMessage function expected by the recovery harness",
   );
-  const source = stripped.replace(
-    sendMessageDeclaration,
-    "globalThis.__woobeIframeSendMessage = async function sendMessage(message: string) {",
-  );
+  const source = stripImports(raw);
   const prelude = `
 const normalizeAppearance = (value) => value;
 const DEFAULT_APPEARANCE = { welcome_message: "" };
@@ -64,6 +70,7 @@ const createChatUi = () => globalThis.__ui;
 `;
   const hooks = `
 globalThis.__woobeIframeTest = {
+  sendMessage,
   configure() {
     parentOrigin = "https://host.example.com";
     hostOrigin = "https://host.example.com";
@@ -145,12 +152,12 @@ globalThis.__woobeIframeTest = {
   vm.runInContext(output, context, { filename: "iframe-under-test.js" });
   context.__woobeIframeTest.configure();
   assert.equal(
-    typeof context.__woobeIframeSendMessage,
+    typeof context.__woobeIframeTest.sendMessage,
     "function",
-    "the iframe recovery harness must bind sendMessage explicitly into the vm context",
+    "the iframe recovery harness must expose sendMessage from the evaluated source",
   );
   return {
-    sendMessage: context.__woobeIframeSendMessage,
+    sendMessage: context.__woobeIframeTest.sendMessage,
     errors,
     messages,
   };
