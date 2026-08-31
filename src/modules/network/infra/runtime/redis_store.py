@@ -19,6 +19,84 @@ from shared.runtime_reattach import RuntimeEventPublisher
 logger = logging.getLogger(__name__)
 
 
+def _iso_latency_ms(started_at: Any, ended_at: datetime) -> int:
+    if not isinstance(started_at, str) or not started_at:
+        return 0
+    try:
+        started = datetime.fromisoformat(started_at)
+    except ValueError:
+        return 0
+    if started.tzinfo is None:
+        started = started.replace(tzinfo=timezone.utc)
+    return max(round((ended_at - started).total_seconds() * 1000), 0)
+
+
+def _cancelled_call(active: dict[str, Any], completed_at: datetime) -> dict[str, Any]:
+    return {
+        **active,
+        "status": "cancelled",
+        "error": None,
+        "ended_at": completed_at.isoformat(),
+        "occurred_at": completed_at.isoformat(),
+        "latency_ms": _iso_latency_ms(active.get("started_at"), completed_at),
+        "input_tokens": active.get("input_tokens"),
+        "output_tokens": active.get("output_tokens"),
+        "total_tokens": active.get("total_tokens"),
+        "cost_usd": active.get("cost_usd"),
+        "cost_status": active.get("cost_status") or "unknown_tokens",
+        "cost_reason": active.get("cost_reason")
+        or "Model invocation was cancelled before final provider usage",
+        "usage_complete": False,
+    }
+
+
+def _partial_invocation_diagnostics(
+    invocation: dict[str, Any],
+    *,
+    completed_at: datetime,
+) -> dict[str, Any]:
+    existing = invocation.get("diagnostics")
+    diagnostics = dict(existing) if isinstance(existing, dict) else {}
+    llm_calls = invocation.get("llm_calls")
+    calls = list(llm_calls) if isinstance(llm_calls, list) else []
+    tool_calls = invocation.get("tool_calls")
+    tools = list(tool_calls) if isinstance(tool_calls, list) else []
+    total_ms = _iso_latency_ms(invocation.get("started_at"), completed_at)
+    llm_work_ms = sum(int(call.get("latency_ms") or 0) for call in calls)
+    tool_work_ms = sum(
+        round(float(call.get("duration_ms") or 0))
+        for call in tools
+        if isinstance(call, dict)
+    )
+    tool_wall_ms = int(diagnostics.get("tool_wall_latency_ms") or 0)
+    other_ms = max(total_ms - llm_work_ms - tool_wall_ms, 0)
+    diagnostics.update(
+        {
+            "schema_version": 5,
+            "agent_runtime_latency_ms": total_ms,
+            "total_latency_ms": total_ms,
+            "prepare_latency_ms": int(diagnostics.get("prepare_latency_ms") or 0),
+            "llm_work_latency_ms": llm_work_ms,
+            "llm_runtime_latency_ms": llm_work_ms,
+            "tool_wall_latency_ms": tool_wall_ms,
+            "tool_work_latency_ms": tool_work_ms,
+            "tool_call_duration_sum_ms": tool_work_ms,
+            "finalization_work_latency_ms": int(
+                diagnostics.get("finalization_work_latency_ms") or 0
+            ),
+            "persistence_latency_ms": int(diagnostics.get("persistence_latency_ms") or 0),
+            "other_latency_ms": other_ms,
+            "unaccounted_latency_ms": other_ms,
+            "orchestration_latency_ms": diagnostics.get("orchestration_latency_ms"),
+            "llm_call_count": len(calls),
+            "tool_call_count": len(tools),
+            "usage_complete": False,
+            "cost_status": diagnostics.get("cost_status") or "unknown_tokens",
+        }
+    )
+    return diagnostics
+
+
 class RedisNetworkExecutionStore:
     """Operational Network state. PostgreSQL is intentionally absent here."""
 
@@ -305,6 +383,7 @@ class RedisNetworkExecutionStore:
                 ),
             }
         )
+        invocation.pop("active_llm_call", None)
         updates: dict[str, Any] = {
             f"{self.INVOCATION_PREFIX}{invocation_id}": invocation
         }
@@ -347,6 +426,7 @@ class RedisNetworkExecutionStore:
                 "completed_at": datetime.now(timezone.utc).isoformat(),
             }
         )
+        invocation.pop("active_llm_call", None)
         await self._state.update(
             execution_id,
             {f"{self.INVOCATION_PREFIX}{invocation_id}": invocation},
@@ -365,9 +445,42 @@ class RedisNetworkExecutionStore:
             if not raw_id:
                 continue
             invocation_id = UUID(str(raw_id))
+            completed_at = datetime.now(timezone.utc)
+            active_llm = item.pop("active_llm_call", None)
+            calls = item.get("llm_calls")
+            llm_calls = list(calls) if isinstance(calls, list) else []
+            if isinstance(active_llm, dict):
+                active_call_id = active_llm.get("call_id")
+                if not active_call_id or not any(
+                    call.get("call_id") == active_call_id
+                    for call in llm_calls
+                    if isinstance(call, dict)
+                ):
+                    llm_calls.append(_cancelled_call(active_llm, completed_at))
+            item["llm_calls"] = llm_calls
             item["status"] = "cancelled"
             item["error"] = None
-            item["completed_at"] = datetime.now(timezone.utc).isoformat()
+            item["completed_at"] = completed_at.isoformat()
+            item["diagnostics"] = _partial_invocation_diagnostics(
+                item,
+                completed_at=completed_at,
+            )
+            if llm_calls:
+                last_call = llm_calls[-1]
+                if isinstance(last_call, dict):
+                    item["provider"] = item.get("provider") or last_call.get("provider")
+                    item["model"] = item.get("model") or last_call.get("model")
+            item.setdefault(
+                "usage",
+                {
+                    "input_tokens": None,
+                    "output_tokens": None,
+                    "total_tokens": None,
+                    "cost_usd": None,
+                },
+            )
+            item.setdefault("tool_calls", [])
+            item.setdefault("sources", [])
             if int(item.get("depth") or 0) == 0:
                 partial = await self.partial_output(execution_id)
                 if partial:
@@ -445,6 +558,83 @@ class RedisNetworkExecutionStore:
                     current[:-size] if size < len(current) else ""
                 )
 
+    async def _checkpoint_agent_activity(
+        self,
+        execution_id: UUID,
+        invocation_id: UUID,
+        event_payload: dict[str, Any],
+    ) -> None:
+        invocation = await self._invocation(execution_id, invocation_id)
+        if invocation is None or invocation.get("status") != "running":
+            return
+        status = str(event_payload.get("status") or "")
+        active = invocation.get("active_llm_call")
+        if status in {"generating_answer", "formatting_response", "thinking"}:
+            phase = event_payload.get("phase")
+            if not isinstance(phase, str) or not phase:
+                return
+            if isinstance(active, dict) and active.get("phase") == phase:
+                return
+            now = event_payload.get("occurred_at")
+            started_at = now if isinstance(now, str) and now else datetime.now(timezone.utc).isoformat()
+            invocation["active_llm_call"] = {
+                "call_id": str(uuid6.uuid7()),
+                "call_index": len(invocation.get("llm_calls") or []) + 1,
+                "phase": phase,
+                "status": "running",
+                "error": None,
+                "started_at": started_at,
+                "ended_at": None,
+                "occurred_at": started_at,
+                "latency_ms": 0,
+                "input_tokens": None,
+                "output_tokens": None,
+                "total_tokens": None,
+                "cost_usd": None,
+                "cost_status": "unknown_tokens",
+                "cost_reason": "Model invocation is still in progress",
+                "usage_complete": False,
+                "provider": event_payload.get("provider"),
+                "model": event_payload.get("model") or event_payload.get("model_name"),
+                "context_snapshot": None,
+                "provider_model_id": None,
+                "provider_credential_id": None,
+                "pricing_id": None,
+                "pricing_snapshot": None,
+            }
+            invocation["provider"] = invocation.get("provider") or event_payload.get("provider")
+            invocation["model"] = (
+                invocation.get("model")
+                or event_payload.get("model")
+                or event_payload.get("model_name")
+            )
+            await self._state.update(
+                execution_id,
+                {f"{self.INVOCATION_PREFIX}{invocation_id}": invocation},
+            )
+            return
+
+        if status in {"calling_tool", "processing_tool_result"} and isinstance(active, dict):
+            ended_at = datetime.now(timezone.utc)
+            completed = {
+                **active,
+                "status": "success",
+                "ended_at": ended_at.isoformat(),
+                "occurred_at": ended_at.isoformat(),
+                "latency_ms": _iso_latency_ms(active.get("started_at"), ended_at),
+                "usage_complete": False,
+                "cost_reason": "Provider usage was not available before capability execution",
+            }
+            calls = invocation.get("llm_calls")
+            llm_calls = list(calls) if isinstance(calls, list) else []
+            llm_calls.append(completed)
+            invocation["llm_calls"] = llm_calls
+            invocation.pop("active_llm_call", None)
+            await self._state.update(
+                execution_id,
+                {f"{self.INVOCATION_PREFIX}{invocation_id}": invocation},
+            )
+
     async def emit(
         self,
         execution_id: UUID,
@@ -467,6 +657,13 @@ class RedisNetworkExecutionStore:
                         event_payload[key] = context[key]
 
         self._capture_partial_output(execution_id, event_type, event_payload)
+
+        if event_type == "agent_activity" and invocation_id is not None:
+            await self._checkpoint_agent_activity(
+                execution_id,
+                invocation_id,
+                event_payload,
+            )
 
         # The structured failure emitted by NetworkExecutor is the canonical
         # classification. Capture it in hot state so the bulk finalizer does not
