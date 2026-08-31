@@ -303,3 +303,43 @@ test("legacy 409 without Run identity performs at most one active-run fallback l
   );
   assert.deepEqual(harness.errors, []);
 });
+
+test("terminal frame drains the HTTP stream instead of cancelling server finalization", async () => {
+  let pulls = 0;
+  let cancelled = false;
+  const encoder = new TextEncoder();
+  const terminalBody = new ReadableStream({
+    pull(controller) {
+      pulls += 1;
+      if (pulls === 1) {
+        controller.enqueue(
+          encoder.encode(
+            `event: done\ndata: ${JSON.stringify({ type: "done", answer: "ok" })}\n\n`,
+          ),
+        );
+        return;
+      }
+      controller.close();
+    },
+    cancel() {
+      cancelled = true;
+    },
+  });
+
+  const harness = await loadIframeHarness(async (url) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith("/messages:stream")) {
+      return new Response(terminalBody, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  });
+
+  await harness.sendMessage("hello");
+
+  assert.equal(cancelled, false, "terminal SSE must not abort the server-side response body");
+  assert.ok(pulls >= 2, "the observer must read through server EOF after the terminal frame");
+  assert.deepEqual(harness.errors, []);
+});
