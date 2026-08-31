@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -7,6 +8,8 @@ import pytest
 
 from modules.chat_surface.control_plane_service import ControlPlaneChatSurfaceService
 from modules.chat_surface.presentation import reattach_routes
+from shared.infra.errors import ConflictError
+from shared.presentation.errors import conflict_handler
 
 
 class _Session:
@@ -40,12 +43,34 @@ class _SessionFactory:
         return _Session(run=self.run, message_request=self.message_request)
 
 
+class _AdmissionSession:
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def scalar(self, _statement):
+        return None
+
+
+class _AdmissionSessionFactory:
+    def __call__(self):
+        return _AdmissionSession()
+
+
 class _MessageLifecycleService:
-    def __init__(self) -> None:
+    def __init__(self, *, run=None) -> None:
+        self.run = run
         self.marked: list[tuple[object, dict]] = []
 
     async def mark_message(self, message_id, **kwargs) -> None:
         self.marked.append((message_id, kwargs))
+
+    async def _active_run_for_binding(self, _binding):
+        if self.run is None:
+            return None, None
+        return self.run.id, str(self.run.status)
 
 
 def _binding(*, target_type: str):
@@ -171,3 +196,106 @@ async def test_active_run_endpoint_recovers_run_even_if_previous_observer_marked
             },
         )
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target_type", ["agent", "network"])
+async def test_active_run_endpoint_uses_canonical_run_when_message_request_is_missing(
+    monkeypatch,
+    target_type: str,
+) -> None:
+    """A canonical active Run must remain observable without MessageRequest correlation."""
+    binding = _binding(target_type=target_type)
+    run = _agent_run(binding) if target_type == "agent" else _network_run(binding)
+    factory = _SessionFactory(run=run)
+    authorized = SimpleNamespace(
+        binding=binding,
+        claims=SimpleNamespace(permissions=frozenset({"chat:history", "chat:stream"})),
+    )
+
+    async def authorize(*_args, **_kwargs):
+        return authorized
+
+    async def no_message_request(*_args, **_kwargs):
+        return None
+
+    lifecycle = _MessageLifecycleService(run=run)
+    monkeypatch.setattr(reattach_routes, "_authorized_session", authorize)
+    monkeypatch.setattr(reattach_routes, "_latest_message_request", no_message_request)
+    monkeypatch.setattr(reattach_routes, "_service", lambda _request: lifecycle)
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(session_factory=factory))
+    )
+
+    response = await reattach_routes.get_chat_active_run(
+        binding.session_id,
+        request,
+        host_origin="https://app.example.com",
+    )
+
+    assert response == {
+        "success": True,
+        "data": {
+            "message_request_id": None,
+            "run_id": str(run.id),
+            "status": "running",
+            "target_type": target_type,
+        },
+    }
+    assert lifecycle.marked == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target_type", ["agent", "network"])
+async def test_begin_message_active_run_conflict_carries_canonical_run_identity(
+    target_type: str,
+) -> None:
+    """Admission already knows the blocking Run, so the conflict must not discard it."""
+    binding = _binding(target_type=target_type)
+    run = _agent_run(binding) if target_type == "agent" else _network_run(binding)
+    service = ControlPlaneChatSurfaceService(_AdmissionSessionFactory(), SimpleNamespace())
+    authorized = SimpleNamespace(binding=binding)
+
+    async def active_run(_binding):
+        return run.id, "running"
+
+    service._active_run_for_binding = active_run
+
+    with pytest.raises(ConflictError) as raised:
+        await service.begin_message(
+            authorized,
+            "new-message-idempotency-key",
+        )
+
+    error = raised.value
+    assert str(error) == "ChatSurface Session already has an active Run"
+    assert getattr(error, "code", None) == "active_run_conflict"
+    assert getattr(error, "run_id", None) == run.id
+    assert getattr(error, "status", None) == "running"
+    assert getattr(error, "target_type", None) == target_type
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target_type", ["agent", "network"])
+async def test_conflict_handler_serializes_active_run_identity(target_type: str) -> None:
+    """The iframe must receive the Run identity directly from the 409 response."""
+    run_id = uuid4()
+    error = ConflictError("ChatSurface Session already has an active Run")
+    error.code = "active_run_conflict"
+    error.run_id = run_id
+    error.status = "running"
+    error.target_type = target_type
+
+    response = await conflict_handler(SimpleNamespace(), error)
+
+    assert response.status_code == 409
+    assert json.loads(response.body) == {
+        "success": False,
+        "message": "ChatSurface Session already has an active Run",
+        "data": {
+            "code": "active_run_conflict",
+            "run_id": str(run_id),
+            "status": "running",
+            "target_type": target_type,
+        },
+    }
