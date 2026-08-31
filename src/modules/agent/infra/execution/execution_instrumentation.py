@@ -108,8 +108,25 @@ def _record_live_llm_call(call: dict[str, Any]) -> None:
     if execution is None:
         return
     call_id = call.get("call_id")
-    if call_id and any(item.get("call_id") == call_id for item in execution.llm_calls):
-        return
+    if call_id:
+        for existing in execution.llm_calls:
+            if existing.get("call_id") == call_id:
+                existing.clear()
+                existing.update(call)
+                for item in execution.timeline:
+                    payload = item.get("payload")
+                    if (
+                        item.get("kind") == "llm"
+                        and isinstance(payload, dict)
+                        and payload.get("call_id") == call_id
+                    ):
+                        item["occurred_at"] = call["occurred_at"]
+                        item["payload"] = existing
+                        return
+                execution.timeline.append(
+                    {"kind": "llm", "occurred_at": call["occurred_at"], "payload": existing}
+                )
+                return
     execution.llm_calls.append(call)
     execution.timeline.append(
         {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
@@ -196,6 +213,33 @@ async def invoke_llm(
     started_at = utc_iso()
     started = time.monotonic()
     cost_context = _cost_context(pricing_snapshot)
+    running_call = {
+        "call_id": call_id,
+        "call_index": call_index,
+        "phase": phase,
+        "status": "running",
+        "error": None,
+        "started_at": started_at,
+        "ended_at": None,
+        "occurred_at": started_at,
+        "latency_ms": 0,
+        "input_tokens": None,
+        "output_tokens": None,
+        "total_tokens": None,
+        "cost_usd": None,
+        "cost_status": "unknown_tokens",
+        "cost_reason": "Model invocation is still in progress",
+        "usage_complete": False,
+        "provider": provider,
+        "model": model_name,
+        "context_snapshot": (
+            snapshot_to_dict(context_snapshot)
+            if context_snapshot is not None
+            else None
+        ),
+        **cost_context,
+    }
+    _record_live_llm_call(running_call)
     try:
         result = await invoke_model_with_optional_streaming(
             model=model,
@@ -207,30 +251,12 @@ async def invoke_llm(
     except asyncio.CancelledError:
         ended_at = utc_iso()
         call = {
-            "call_id": call_id,
-            "call_index": call_index,
-            "phase": phase,
+            **running_call,
             "status": "cancelled",
-            "error": None,
-            "started_at": started_at,
             "ended_at": ended_at,
             "occurred_at": ended_at,
             "latency_ms": round((time.monotonic() - started) * 1000),
-            "input_tokens": None,
-            "output_tokens": None,
-            "total_tokens": None,
-            "cost_usd": None,
-            "cost_status": "unknown_tokens",
             "cost_reason": "Model invocation was cancelled before final provider usage",
-            "usage_complete": False,
-            "provider": provider,
-            "model": model_name,
-            "context_snapshot": (
-                snapshot_to_dict(context_snapshot)
-                if context_snapshot is not None
-                else None
-            ),
-            **cost_context,
         }
         _record_live_llm_call(call)
         raise
@@ -244,31 +270,14 @@ async def invoke_llm(
             model_name=model_name,
         )
         call = {
-            "call_id": call_id,
-            "call_index": call_index,
-            "phase": phase,
+            **running_call,
             "status": "error",
             "error": str(exc),
-            "started_at": started_at,
             "ended_at": ended_at,
             "occurred_at": ended_at,
             "latency_ms": round((time.monotonic() - started) * 1000),
-            "input_tokens": None,
-            "output_tokens": None,
-            "total_tokens": None,
-            "cost_usd": None,
-            "cost_status": "unknown_tokens",
             "cost_reason": "LLM call failed before usage could be measured",
-            "usage_complete": False,
-            "provider": provider,
-            "model": model_name,
-            "context_snapshot": (
-                snapshot_to_dict(context_snapshot)
-                if context_snapshot is not None
-                else None
-            ),
             **failure_context,
-            **cost_context,
         }
         _record_live_llm_call(call)
         raise InstrumentedExecutionError(
@@ -295,12 +304,8 @@ async def invoke_llm(
         pricing_snapshot=pricing_snapshot,
     )
     call = {
-        "call_id": call_id,
-        "call_index": call_index,
-        "phase": phase,
+        **running_call,
         "status": "success",
-        "error": None,
-        "started_at": started_at,
         "ended_at": ended_at,
         "occurred_at": ended_at,
         "latency_ms": round((time.monotonic() - started) * 1000),
@@ -311,14 +316,11 @@ async def invoke_llm(
         "cost_status": cost["cost_status"],
         "cost_reason": cost["cost_reason"],
         "usage_complete": complete,
-        "provider": provider,
-        "model": model_name,
         "context_snapshot": (
             snapshot_to_dict(context_snapshot)
             if context_snapshot is not None
             else None
         ),
-        **cost_context,
     }
     _record_live_llm_call(call)
     return result, call
