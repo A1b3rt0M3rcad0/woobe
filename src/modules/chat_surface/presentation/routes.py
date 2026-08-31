@@ -462,41 +462,43 @@ async def _agent_stream(
     payload: StreamChatMessageRequest,
 ) -> AsyncIterator[str]:
     service = _service(request)
-    terminal_status = "completed"
-    await service.mark_message(message_request_id, status="streaming")
-    session_source = str(
-        (authorized.binding.metadata_ or {}).get("source") or "chat_surface"
-    )
-    input_dto = AskInput(
-        project_id=authorized.surface.project_id,
-        agent_id=authorized.surface.target_id,
-        message=payload.message,
-        session_id=authorized.binding.session_id,
-        tenant_id=str(authorized.surface.id),
-        metadata={
-            **(payload.metadata or {}),
-            "source": (
-                "chat_surface_test"
-                if session_source == CONTROL_PLANE_TEST_SOURCE
-                else "chat_surface"
-            ),
-            "chat_surface_session_source": session_source,
-            "chat_surface_id": str(authorized.surface.id),
-            "chat_surface_target_release_id": str(
-                authorized.binding.target_release_id
-            ),
-            "embed_protocol_version": 1,
-            "server_received_at": datetime.now(timezone.utc).isoformat(),
-        },
-        execution_context="production",
-        loaded_release_id=authorized.binding.target_release_id,
-    )
-    agent_service = build_agent_stream_service()
+    terminal_status = "failed"
     try:
+        await service.mark_message(message_request_id, status="streaming")
+        session_source = str(
+            (authorized.binding.metadata_ or {}).get("source") or "chat_surface"
+        )
+        input_dto = AskInput(
+            project_id=authorized.surface.project_id,
+            agent_id=authorized.surface.target_id,
+            message=payload.message,
+            session_id=authorized.binding.session_id,
+            tenant_id=str(authorized.surface.id),
+            metadata={
+                **(payload.metadata or {}),
+                "source": (
+                    "chat_surface_test"
+                    if session_source == CONTROL_PLANE_TEST_SOURCE
+                    else "chat_surface"
+                ),
+                "chat_surface_session_source": session_source,
+                "chat_surface_id": str(authorized.surface.id),
+                "chat_surface_target_release_id": str(
+                    authorized.binding.target_release_id
+                ),
+                "embed_protocol_version": 1,
+                "server_received_at": datetime.now(timezone.utc).isoformat(),
+            },
+            execution_context="production",
+            loaded_release_id=authorized.binding.target_release_id,
+        )
+        agent_service = build_agent_stream_service()
+        stream_failed = False
         async for chunk in commit_safe_stream(agent_service, input_dto, request):
             if "event: error" in chunk or "event: cancelled" in chunk:
-                terminal_status = "failed"
+                stream_failed = True
             yield chunk
+        terminal_status = "failed" if stream_failed else "completed"
     except Exception:
         terminal_status = "failed"
         raise
