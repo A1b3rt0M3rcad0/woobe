@@ -564,15 +564,21 @@ class RedisNetworkExecutionStore:
         invocation_id: UUID,
         event_payload: dict[str, Any],
     ) -> None:
+        status = str(event_payload.get("status") or "")
+        phase = event_payload.get("phase")
+        # A generic activity notification without an invocation phase cannot create
+        # model-invocation evidence. Reject it before touching Redis so event-context
+        # recovery remains a single read on a cold cache.
+        if status in {"generating_answer", "formatting_response", "thinking"} and (
+            not isinstance(phase, str) or not phase
+        ):
+            return
+
         invocation = await self._invocation(execution_id, invocation_id)
         if invocation is None or invocation.get("status") != "running":
             return
-        status = str(event_payload.get("status") or "")
         active = invocation.get("active_llm_call")
         if status in {"generating_answer", "formatting_response", "thinking"}:
-            phase = event_payload.get("phase")
-            if not isinstance(phase, str) or not phase:
-                return
             if isinstance(active, dict) and active.get("phase") == phase:
                 return
             now = event_payload.get("occurred_at")
