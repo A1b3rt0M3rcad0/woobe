@@ -35,7 +35,16 @@ function sseDone(answer = "recovered") {
 
 async function loadIframeHarness(fetchImpl) {
   const raw = await readFile(new URL("../src/iframe.ts", import.meta.url), "utf8");
-  const source = stripImports(raw);
+  const stripped = stripImports(raw);
+  const sendMessageDeclaration = "async function sendMessage(message: string) {";
+  assert.ok(
+    stripped.includes(sendMessageDeclaration),
+    "iframe source must expose the sendMessage declaration expected by the recovery harness",
+  );
+  const source = stripped.replace(
+    sendMessageDeclaration,
+    "globalThis.__woobeIframeSendMessage = async function sendMessage(message: string) {",
+  );
   const prelude = `
 const normalizeAppearance = (value) => value;
 const DEFAULT_APPEARANCE = { welcome_message: "" };
@@ -55,7 +64,6 @@ const createChatUi = () => globalThis.__ui;
 `;
   const hooks = `
 globalThis.__woobeIframeTest = {
-  sendMessage,
   configure() {
     parentOrigin = "https://host.example.com";
     hostOrigin = "https://host.example.com";
@@ -136,8 +144,13 @@ globalThis.__woobeIframeTest = {
   });
   vm.runInContext(output, context, { filename: "iframe-under-test.js" });
   context.__woobeIframeTest.configure();
+  assert.equal(
+    typeof context.__woobeIframeSendMessage,
+    "function",
+    "the iframe recovery harness must bind sendMessage explicitly into the vm context",
+  );
   return {
-    sendMessage: context.__woobeIframeTest.sendMessage,
+    sendMessage: context.__woobeIframeSendMessage,
     errors,
     messages,
   };
