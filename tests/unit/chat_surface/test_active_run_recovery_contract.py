@@ -26,7 +26,9 @@ class _Session:
         return None
 
     async def scalar(self, _statement):
-        return self.message_request
+        # The admission tests only query a Run; reattach tests first query the
+        # MessageRequest and then resolve the Run by its durable target_run_id.
+        return self.message_request if self.message_request is not None else self.run
 
 
 class _SessionFactory:
@@ -36,6 +38,14 @@ class _SessionFactory:
 
     def __call__(self):
         return _Session(run=self.run, message_request=self.message_request)
+
+
+class _MessageLifecycleService:
+    def __init__(self) -> None:
+        self.marked: list[tuple[object, dict]] = []
+
+    async def mark_message(self, message_id, **kwargs) -> None:
+        self.marked.append((message_id, kwargs))
 
 
 def _binding(*, target_type: str):
@@ -129,7 +139,9 @@ async def test_active_run_endpoint_recovers_run_even_if_previous_observer_marked
     async def authorize(*_args, **_kwargs):
         return authorized
 
+    lifecycle = _MessageLifecycleService()
     monkeypatch.setattr(reattach_routes, "_authorized_session", authorize)
+    monkeypatch.setattr(reattach_routes, "_service", lambda _request: lifecycle)
     request = SimpleNamespace(
         app=SimpleNamespace(state=SimpleNamespace(session_factory=factory))
     )
@@ -149,3 +161,13 @@ async def test_active_run_endpoint_recovers_run_even_if_previous_observer_marked
             "target_type": target_type,
         },
     }
+    assert lifecycle.marked == [
+        (
+            message_request.id,
+            {
+                "status": "streaming",
+                "target_run_id": run.id,
+                "error_code": None,
+            },
+        )
+    ]
