@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import time
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
@@ -96,6 +97,42 @@ def _provider_failure_context(
     }
 
 
+def _live_execution() -> InstrumentedExecution | None:
+    context = current_execution.get()
+    execution = context.execution if context is not None else None
+    return execution if isinstance(execution, InstrumentedExecution) else None
+
+
+def _record_live_llm_call(call: dict[str, Any]) -> None:
+    execution = _live_execution()
+    if execution is None:
+        return
+    call_id = call.get("call_id")
+    if call_id and any(item.get("call_id") == call_id for item in execution.llm_calls):
+        return
+    execution.llm_calls.append(call)
+    execution.timeline.append(
+        {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
+    )
+
+
+def _record_live_tool_call(
+    info: ToolCallInfo,
+    payload: dict[str, Any],
+) -> None:
+    execution = _live_execution()
+    if execution is None:
+        return
+    call_id = info.tool_call_id
+    if call_id and any(item.tool_call_id == call_id for item in execution.tool_calls):
+        return
+    execution.tool_calls.append(info)
+    execution.tool_call_duration_sum_ms += int(info.duration_ms or 0)
+    execution.timeline.append(
+        {"kind": "tool", "occurred_at": payload["occurred_at"], "payload": payload}
+    )
+
+
 def _assemble_invocation_context(
     *,
     invocation_id,
@@ -167,6 +204,36 @@ async def invoke_llm(
             provider=provider,
             model_name=model_name,
         )
+    except asyncio.CancelledError:
+        ended_at = utc_iso()
+        call = {
+            "call_id": call_id,
+            "call_index": call_index,
+            "phase": phase,
+            "status": "cancelled",
+            "error": None,
+            "started_at": started_at,
+            "ended_at": ended_at,
+            "occurred_at": ended_at,
+            "latency_ms": round((time.monotonic() - started) * 1000),
+            "input_tokens": None,
+            "output_tokens": None,
+            "total_tokens": None,
+            "cost_usd": None,
+            "cost_status": "unknown_tokens",
+            "cost_reason": "Model invocation was cancelled before final provider usage",
+            "usage_complete": False,
+            "provider": provider,
+            "model": model_name,
+            "context_snapshot": (
+                snapshot_to_dict(context_snapshot)
+                if context_snapshot is not None
+                else None
+            ),
+            **cost_context,
+        }
+        _record_live_llm_call(call)
+        raise
     except Exception as exc:
         ended_at = utc_iso()
         failure_context = _provider_failure_context(
@@ -203,6 +270,7 @@ async def invoke_llm(
             **failure_context,
             **cost_context,
         }
+        _record_live_llm_call(call)
         raise InstrumentedExecutionError(
             str(exc),
             llm_calls=[call],
@@ -252,6 +320,7 @@ async def invoke_llm(
         ),
         **cost_context,
     }
+    _record_live_llm_call(call)
     return result, call
 
 
@@ -342,6 +411,7 @@ async def execute_tool_call(
         "ended_at": ended_at,
         "occurred_at": ended_at,
     }
+    _record_live_tool_call(info, payload)
     await emit_runtime_event("tool_call_completed", **payload)
     await emit_agent_activity(
         "processing_tool_result",
