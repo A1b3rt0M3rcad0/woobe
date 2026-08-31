@@ -192,6 +192,7 @@ async def _authorized_active_request(
     if require_stream and "chat:stream" not in authorized.claims.permissions:
         raise AuthorizationError("ChatSurface Session token scope is insufficient")
 
+    lifecycle = _service(request)
     message_request = await _latest_message_request(request, authorized.binding.id)
     run_id, run_status = await _resolve_run_identity(
         request,
@@ -199,9 +200,15 @@ async def _authorized_active_request(
         message_request,
     )
 
-    # Agent Acceptance and ChatSurface admission are separate durable boundaries.
-    # A disconnect can also close the old observer before ChatSurface persisted the
-    # canonical Run id. Recover identity from the underlying Run bound to this Session.
+    # Admission and recovery must agree on the canonical Run even when the
+    # MessageRequest bookkeeping row is missing or temporarily uncorrelated.
+    canonical_resolver = getattr(lifecycle, "_active_run_for_binding", None)
+    if run_id is None and callable(canonical_resolver):
+        run_id, run_status = await canonical_resolver(authorized.binding)
+
+    # Agent Acceptance and ChatSurface bookkeeping use separate transactions.
+    # Keep the bounded server-side grace period for a MessageRequest whose Run has
+    # not become queryable yet; the browser should perform only one recovery request.
     if message_request is not None and run_id is None:
         for _ in range(20):
             await asyncio.sleep(0.05)
@@ -228,7 +235,7 @@ async def _authorized_active_request(
     ):
         # Restore the operational gate if the previous observer disconnected after
         # the Run had already been accepted. The Run, not that observer, owns life.
-        await _service(request).mark_message(
+        await lifecycle.mark_message(
             message_request.id,
             status="streaming",
             target_run_id=run_id,
@@ -253,14 +260,18 @@ async def get_chat_active_run(
         session_id,
         host_origin,
     )
-    if message_request is None or run_id is None:
+    if run_id is None:
         return {"success": True, "data": None}
     return {
         "success": True,
         "data": {
-            "message_request_id": str(message_request.id),
+            "message_request_id": (
+                str(message_request.id) if message_request is not None else None
+            ),
             "run_id": str(run_id),
-            "status": run_status or message_request.status,
+            "status": run_status or (
+                message_request.status if message_request is not None else None
+            ),
             "target_type": authorized.binding.target_type,
         },
     }
@@ -272,14 +283,14 @@ async def cancel_chat_active_run(
     request: Request,
     host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
 ):
-    authorized, message_request, run_id, run_status = await _authorized_active_request(
+    authorized, _message_request, run_id, run_status = await _authorized_active_request(
         request,
         session_id,
         host_origin,
         permission="chat:cancel",
         require_stream=False,
     )
-    if message_request is None or run_id is None:
+    if run_id is None:
         raise NotFoundError("ChatSurface Session has no active Run")
 
     terminal_statuses = (
@@ -360,10 +371,8 @@ async def stream_chat_active_run(
         session_id,
         host_origin,
     )
-    if message_request is None:
-        raise NotFoundError("ChatSurface Session has no active Run")
     if run_id is None:
-        raise ConflictError("ChatSurface Run was accepted but its identity is not ready")
+        raise NotFoundError("ChatSurface Session has no active Run")
 
     reader = RuntimeStreamReader(
         EXECUTION_STATE_STORE,
@@ -436,7 +445,7 @@ async def stream_chat_active_run(
         finally:
             # Observer loss leaves the message request active. Only durable terminal
             # state may close it, preserving reload/reattach semantics.
-            if terminal_status is not None:
+            if terminal_status is not None and message_request is not None:
                 message_status = (
                     "completed"
                     if terminal_status == "completed"
@@ -455,14 +464,17 @@ async def stream_chat_active_run(
                     ),
                 )
 
+    headers = {
+        "Cache-Control": "no-cache, no-transform",
+        "Connection": "keep-alive",
+        "X-Accel-Buffering": "no",
+        "X-Woobe-Run-ID": str(run_id),
+    }
+    if message_request is not None:
+        headers["X-Woobe-Message-Request-ID"] = str(message_request.id)
+
     return StreamingResponse(
         generate(),
         media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache, no-transform",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-            "X-Woobe-Message-Request-ID": str(message_request.id),
-            "X-Woobe-Run-ID": str(run_id),
-        },
+        headers=headers,
     )
