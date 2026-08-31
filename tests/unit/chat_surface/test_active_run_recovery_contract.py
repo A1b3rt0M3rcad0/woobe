@@ -6,8 +6,10 @@ from uuid import uuid4
 
 import pytest
 
+from modules.chat_surface import control_plane_service as control_plane_service_module
 from modules.chat_surface.control_plane_service import ControlPlaneChatSurfaceService
 from modules.chat_surface.presentation import reattach_routes
+from modules.chat_surface.service import ChatSurfaceService
 from shared.infra.errors import ConflictError
 from shared.presentation.errors import conflict_handler
 
@@ -57,6 +59,37 @@ class _AdmissionSession:
 class _AdmissionSessionFactory:
     def __call__(self):
         return _AdmissionSession()
+
+
+class _MessageBindingSession:
+    def __init__(self, *, message_request, binding) -> None:
+        self.message_request = message_request
+        self.binding = binding
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def get(self, _model, identifier):
+        if identifier == self.message_request.id:
+            return self.message_request
+        if identifier == self.binding.id:
+            return self.binding
+        return None
+
+
+class _MessageBindingSessionFactory:
+    def __init__(self, *, message_request, binding) -> None:
+        self.message_request = message_request
+        self.binding = binding
+
+    def __call__(self):
+        return _MessageBindingSession(
+            message_request=self.message_request,
+            binding=self.binding,
+        )
 
 
 class _MessageLifecycleService:
@@ -273,6 +306,189 @@ async def test_begin_message_active_run_conflict_carries_canonical_run_identity(
     assert getattr(error, "run_id", None) == run.id
     assert getattr(error, "status", None) == "running"
     assert getattr(error, "target_type", None) == target_type
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target_type", ["agent", "network"])
+@pytest.mark.parametrize(
+    ("run_status", "expected_status", "expected_error_code"),
+    [
+        ("completed", "completed", None),
+        ("cancelled", "cancelled", None),
+        ("failed", "failed", "runtime_failed"),
+    ],
+)
+async def test_active_message_request_reconciles_terminal_run_and_releases_gate(
+    monkeypatch,
+    target_type: str,
+    run_status: str,
+    expected_status: str,
+    expected_error_code: str | None,
+) -> None:
+    binding = _binding(target_type=target_type)
+    run = _agent_run(binding) if target_type == "agent" else _network_run(binding)
+    run.status = run_status
+    message_request = SimpleNamespace(
+        id=uuid4(),
+        status="streaming",
+        target_run_id=run.id,
+    )
+    service = ControlPlaneChatSurfaceService(
+        _SessionFactory(run=run, message_request=message_request),
+        SimpleNamespace(),
+    )
+    authorized = SimpleNamespace(binding=binding)
+    marked: list[tuple[object, dict]] = []
+
+    async def resolve_request_run(_request, _binding):
+        return run.id, run_status
+
+    async def base_mark_message(_self, request_id, **kwargs):
+        marked.append((request_id, kwargs))
+
+    service._resolve_request_run = resolve_request_run
+    monkeypatch.setattr(ChatSurfaceService, "mark_message", base_mark_message)
+
+    active = await service.active_message_request(authorized)
+
+    assert active is None
+    assert marked == [
+        (
+            message_request.id,
+            {
+                "status": expected_status,
+                "target_run_id": run.id,
+                "error_code": expected_error_code,
+            },
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_begin_message_reconciles_active_message_request_before_creating_next_message(
+    monkeypatch,
+) -> None:
+    binding = _binding(target_type="agent")
+    service = ControlPlaneChatSurfaceService(_AdmissionSessionFactory(), SimpleNamespace())
+    authorized = SimpleNamespace(binding=binding)
+    created = SimpleNamespace(id=uuid4())
+    events: list[str] = []
+
+    async def no_active_run(_binding):
+        return None, None
+
+    async def reconcile(_authorized):
+        events.append("reconcile")
+        return None
+
+    async def base_begin_message(_self, _authorized, _idempotency_key, *, metadata=None):
+        events.append("create")
+        return created, True
+
+    service._active_run_for_binding = no_active_run
+    service.active_message_request = reconcile
+    monkeypatch.setattr(ChatSurfaceService, "begin_message", base_begin_message)
+
+    result = await service.begin_message(authorized, "next-message")
+
+    assert result == (created, True)
+    assert events == ["reconcile", "create"]
+
+
+@pytest.mark.asyncio
+async def test_begin_message_retries_once_after_legacy_active_message_integrity_conflict(
+    monkeypatch,
+) -> None:
+    binding = _binding(target_type="agent")
+    service = ControlPlaneChatSurfaceService(_AdmissionSessionFactory(), SimpleNamespace())
+    authorized = SimpleNamespace(binding=binding)
+    created = SimpleNamespace(id=uuid4())
+    begin_calls = 0
+    reconcile_calls = 0
+
+    async def no_active_run(_binding):
+        return None, None
+
+    async def reconcile(_authorized):
+        nonlocal reconcile_calls
+        reconcile_calls += 1
+        return None
+
+    async def base_begin_message(_self, _authorized, _idempotency_key, *, metadata=None):
+        nonlocal begin_calls
+        begin_calls += 1
+        if begin_calls == 1:
+            raise ConflictError("ChatSurface Session already has an active Run")
+        return created, True
+
+    service._active_run_for_binding = no_active_run
+    service.active_message_request = reconcile
+    monkeypatch.setattr(ChatSurfaceService, "begin_message", base_begin_message)
+
+    result = await service.begin_message(authorized, "next-message")
+
+    assert result == (created, True)
+    assert begin_calls == 2
+    assert reconcile_calls == 2
+
+
+@pytest.mark.asyncio
+async def test_mark_message_waits_for_canonical_terminal_before_releasing_gate(
+    monkeypatch,
+) -> None:
+    binding = _binding(target_type="agent")
+    run_id = uuid4()
+    message_request = SimpleNamespace(
+        id=uuid4(),
+        session_binding_id=binding.id,
+        status="streaming",
+        target_run_id=run_id,
+    )
+    service = ControlPlaneChatSurfaceService(
+        _MessageBindingSessionFactory(
+            message_request=message_request,
+            binding=binding,
+        ),
+        SimpleNamespace(),
+    )
+    states = iter(
+        [
+            (run_id, "running"),
+            (run_id, "running"),
+            (run_id, "completed"),
+        ]
+    )
+    resolve_calls = 0
+    marked: list[tuple[object, dict]] = []
+
+    async def resolve_request_run(_request, _binding):
+        nonlocal resolve_calls
+        resolve_calls += 1
+        return next(states)
+
+    async def no_wait(_seconds):
+        return None
+
+    async def base_mark_message(_self, request_id, **kwargs):
+        marked.append((request_id, kwargs))
+
+    service._resolve_request_run = resolve_request_run
+    monkeypatch.setattr(control_plane_service_module.asyncio, "sleep", no_wait)
+    monkeypatch.setattr(ChatSurfaceService, "mark_message", base_mark_message)
+
+    await service.mark_message(message_request.id, status="completed")
+
+    assert resolve_calls == 3
+    assert marked == [
+        (
+            message_request.id,
+            {
+                "status": "completed",
+                "target_run_id": run_id,
+                "error_code": None,
+            },
+        )
+    ]
 
 
 @pytest.mark.asyncio
