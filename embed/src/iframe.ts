@@ -373,9 +373,15 @@ async function consumeRuntimeStream(
   };
 
   try {
-    while (observer.terminalStatus === null) {
+    while (true) {
       const { value, done } = await reader.read();
       if (done) break;
+      if (observer.terminalStatus !== null) {
+        // A terminal frame is authoritative, but the HTTP body still needs to be
+        // drained until EOF. Cancelling the Fetch reader here aborts the server-side
+        // StreamingResponse while ChatSurface finalization may still be committing.
+        continue;
+      }
       buffer += decoder.decode(value, { stream: true });
       const frames = buffer.split(/\r?\n\r?\n/);
       buffer = frames.pop() ?? "";
@@ -384,16 +390,14 @@ async function consumeRuntimeStream(
         if (observer.terminalStatus !== null) break;
       }
     }
-    buffer += decoder.decode();
-    if (observer.terminalStatus === null && buffer.trim()) consumeFrame(buffer);
+    if (observer.terminalStatus === null) {
+      buffer += decoder.decode();
+      if (buffer.trim()) consumeFrame(buffer);
+    }
     return observer.terminalStatus;
   } catch (error) {
     await reader.cancel().catch(() => undefined);
     throw error;
-  } finally {
-    if (observer.terminalStatus !== null) {
-      await reader.cancel().catch(() => undefined);
-    }
   }
 }
 
