@@ -81,6 +81,9 @@ let initialized = false;
 let bootstrapping = false;
 let ui: ChatUi | null = null;
 
+const ACTIVE_RUN_RECOVERY_ATTEMPTS = 20;
+const ACTIVE_RUN_RECOVERY_DELAY_MS = 50;
+
 function emit(type: FrameEventType, payload?: unknown) {
   if (!parentOrigin) return;
   window.parent.postMessage(
@@ -197,6 +200,21 @@ async function loadActiveRun(): Promise<ActiveRun | null> {
   const payload = await response.json();
   const active = payload.data as ActiveRun | null | undefined;
   return active?.run_id ? active : null;
+}
+
+function activeRunRecoveryDelay(): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ACTIVE_RUN_RECOVERY_DELAY_MS));
+}
+
+async function recoverAcceptedActiveRun(): Promise<ActiveRun | null> {
+  for (let attempt = 0; attempt < ACTIVE_RUN_RECOVERY_ATTEMPTS; attempt += 1) {
+    const active = await loadActiveRun();
+    if (active) return active;
+    if (attempt + 1 < ACTIVE_RUN_RECOVERY_ATTEMPTS) {
+      await activeRunRecoveryDelay();
+    }
+  }
+  return null;
 }
 
 function appendError(error: unknown) {
@@ -513,7 +531,9 @@ async function sendMessage(message: string) {
       if (error instanceof SessionExpiredError) throw error;
       // The POST may have crossed the durable Acceptance boundary before the
       // transport failed. Recover by Session/Run identity; never submit it again.
-      const active = await loadActiveRun();
+      // Acceptance and the canonical Run can become visible in separate commits,
+      // so a single null active-run read is not evidence that no Run exists.
+      const active = await recoverAcceptedActiveRun();
       if (!active) throw error;
       restoreActiveRunState(active);
       response = await api(`/v1/chat/sessions/${sessionId}/active-run/stream`);
