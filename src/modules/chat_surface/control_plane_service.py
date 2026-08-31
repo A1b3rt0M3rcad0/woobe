@@ -342,7 +342,12 @@ class ControlPlaneChatSurfaceService(ChatSurfaceService):
 
         run_id, run_status = await self._active_run_for_binding(authorized.binding)
         if run_id is not None and run_status in (_AGENT_ACTIVE | _NETWORK_ACTIVE):
-            raise ConflictError("ChatSurface Session already has an active Run")
+            error = ConflictError("ChatSurface Session already has an active Run")
+            error.code = "active_run_conflict"
+            error.run_id = run_id
+            error.status = run_status
+            error.target_type = authorized.binding.target_type
+            raise error
 
         return await super().begin_message(
             authorized,
