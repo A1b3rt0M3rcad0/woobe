@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
@@ -39,6 +40,7 @@ _NETWORK_TERMINAL = {"completed", "failed", "cancelled", "timed_out", "uncertain
 _AGENT_ACTIVE = {"running"}
 _NETWORK_ACTIVE = {"queued", "running", "cancel_requested"}
 _MESSAGE_ACTIVE = {"accepted", "streaming"}
+_RUN_ACCEPTANCE_GRACE = timedelta(seconds=5)
 
 
 class ControlPlaneChatSurfaceService(ChatSurfaceService):
@@ -317,6 +319,94 @@ class ControlPlaneChatSurfaceService(ChatSurfaceService):
                 return None, None
             return execution.id, str(execution.status)
 
+    async def _reconcile_surface_active_messages(self, surface_id: UUID) -> None:
+        """Release stale ChatSurface admission leases across all Sessions."""
+        async with self._session_factory() as session:
+            result = await session.execute(
+                select(
+                    ChatSurfaceMessageRequestModel,
+                    ChatSurfaceSessionBindingModel,
+                )
+                .join(
+                    ChatSurfaceSessionBindingModel,
+                    ChatSurfaceSessionBindingModel.id
+                    == ChatSurfaceMessageRequestModel.session_binding_id,
+                )
+                .where(
+                    ChatSurfaceSessionBindingModel.chat_surface_id == surface_id,
+                    ChatSurfaceMessageRequestModel.status.in_(_MESSAGE_ACTIVE),
+                )
+                .order_by(
+                    ChatSurfaceMessageRequestModel.created_at.asc(),
+                    ChatSurfaceMessageRequestModel.id.asc(),
+                )
+            )
+            candidates = list(result.all())
+
+        now = datetime.now(timezone.utc)
+        for request, binding in candidates:
+            run_id, run_status = await self._resolve_request_run(request, binding)
+            terminal_statuses = (
+                _AGENT_TERMINAL
+                if binding.target_type == "agent"
+                else _NETWORK_TERMINAL
+            )
+            active_statuses = (
+                _AGENT_ACTIVE if binding.target_type == "agent" else _NETWORK_ACTIVE
+            )
+
+            if run_status in terminal_statuses:
+                status = (
+                    "completed"
+                    if run_status == "completed"
+                    else "cancelled"
+                    if run_status == "cancelled"
+                    else "failed"
+                )
+                await super().mark_message(
+                    request.id,
+                    status=status,
+                    target_run_id=run_id,
+                    error_code=(
+                        None
+                        if status in {"completed", "cancelled"}
+                        else "runtime_failed"
+                    ),
+                )
+                continue
+
+            if run_status in active_statuses:
+                if run_id is not None and request.target_run_id != run_id:
+                    await super().mark_message(
+                        request.id,
+                        status="streaming",
+                        target_run_id=run_id,
+                        error_code=None,
+                    )
+                continue
+
+            if run_status is not None:
+                continue
+
+            observed_at = getattr(request, "updated_at", None) or getattr(
+                request,
+                "created_at",
+                None,
+            )
+            if observed_at is None:
+                continue
+            if observed_at.tzinfo is None:
+                observed_at = observed_at.replace(tzinfo=timezone.utc)
+            if now - observed_at < _RUN_ACCEPTANCE_GRACE:
+                continue
+
+            await super().mark_message(
+                request.id,
+                status="failed",
+                target_run_id=run_id or request.target_run_id,
+                error_code="run_acceptance_missing",
+            )
+
     async def begin_message(
         self,
         authorized: AuthorizedChatSession,
@@ -339,6 +429,11 @@ class ControlPlaneChatSurfaceService(ChatSurfaceService):
                 idempotency_key,
                 metadata=metadata,
             )
+
+        # max_concurrent_runs is Surface-wide, so its admission leases must be
+        # reconciled Surface-wide as well. Otherwise an orphan from an old Session
+        # permanently consumes capacity and every new Session receives HTTP 429.
+        await self._reconcile_surface_active_messages(authorized.surface.id)
 
         run_id, run_status = await self._active_run_for_binding(authorized.binding)
         if run_id is not None and run_status in (_AGENT_ACTIVE | _NETWORK_ACTIVE):
