@@ -89,7 +89,13 @@ async def conflict_handler(request: Request, exc: ConflictError) -> JSONResponse
     data = None
     if isinstance(code, str):
         data = {"code": code}
-        for field_name in ("target_type", "target_id", "environment"):
+        for field_name in (
+            "target_type",
+            "target_id",
+            "environment",
+            "run_id",
+            "status",
+        ):
             value = getattr(exc, field_name, None)
             if value is not None:
                 data[field_name] = str(value)
