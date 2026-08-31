@@ -31,7 +31,7 @@ interface SurfaceConfiguration {
 }
 
 interface ActiveRun {
-  message_request_id: string;
+  message_request_id: string | null;
   run_id: string | null;
   status: string;
   target_type: "agent" | "network";
@@ -49,6 +49,17 @@ class SessionExpiredError extends Error {
   constructor() {
     super("Session expired");
     this.name = "SessionExpiredError";
+  }
+}
+
+class ChatApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly data: unknown,
+  ) {
+    super(message);
+    this.name = "ChatApiError";
   }
 }
 
@@ -80,9 +91,6 @@ let stopping = false;
 let initialized = false;
 let bootstrapping = false;
 let ui: ChatUi | null = null;
-
-const ACTIVE_RUN_RECOVERY_ATTEMPTS = 20;
-const ACTIVE_RUN_RECOVERY_DELAY_MS = 50;
 
 function emit(type: FrameEventType, payload?: unknown) {
   if (!parentOrigin) return;
@@ -156,7 +164,21 @@ async function api(path: string, init: RequestInit = {}) {
     emit("session.expired");
     throw new SessionExpiredError();
   }
-  if (!response.ok) throw new Error(`Woobe Chat request failed (${response.status})`);
+  if (!response.ok) {
+    let payload: unknown = null;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
+    }
+    const body = payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : null;
+    const message = typeof body?.message === "string"
+      ? body.message
+      : `Woobe Chat request failed (${response.status})`;
+    throw new ChatApiError(message, response.status, body?.data ?? null);
+  }
   return response;
 }
 
@@ -202,19 +224,30 @@ async function loadActiveRun(): Promise<ActiveRun | null> {
   return active?.run_id ? active : null;
 }
 
-function activeRunRecoveryDelay(): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, ACTIVE_RUN_RECOVERY_DELAY_MS));
+async function recoverAcceptedActiveRun(): Promise<ActiveRun | null> {
+  return loadActiveRun();
 }
 
-async function recoverAcceptedActiveRun(): Promise<ActiveRun | null> {
-  for (let attempt = 0; attempt < ACTIVE_RUN_RECOVERY_ATTEMPTS; attempt += 1) {
-    const active = await loadActiveRun();
-    if (active) return active;
-    if (attempt + 1 < ACTIVE_RUN_RECOVERY_ATTEMPTS) {
-      await activeRunRecoveryDelay();
-    }
+function activeRunFromConflict(error: unknown): ActiveRun | null {
+  if (!(error instanceof ChatApiError) || error.status !== 409) return null;
+  if (!error.data || typeof error.data !== "object" || Array.isArray(error.data)) {
+    return null;
   }
-  return null;
+  const data = error.data as Record<string, unknown>;
+  if (
+    data.code !== "active_run_conflict"
+    || typeof data.run_id !== "string"
+    || typeof data.status !== "string"
+    || (data.target_type !== "agent" && data.target_type !== "network")
+  ) {
+    return null;
+  }
+  return {
+    message_request_id: null,
+    run_id: data.run_id,
+    status: data.status,
+    target_type: data.target_type,
+  };
 }
 
 function appendError(error: unknown) {
@@ -529,11 +562,10 @@ async function sendMessage(message: string) {
       });
     } catch (error) {
       if (error instanceof SessionExpiredError) throw error;
-      // The POST may have crossed the durable Acceptance boundary before the
-      // transport failed. Recover by Session/Run identity; never submit it again.
-      // Acceptance and the canonical Run can become visible in separate commits,
-      // so a single null active-run read is not evidence that no Run exists.
-      const active = await recoverAcceptedActiveRun();
+      // A structured admission conflict already carries the canonical Run identity.
+      // Other ambiguous failures get one server-side reconciliation request; the
+      // iframe never polls active-run or resubmits the user's message.
+      const active = activeRunFromConflict(error) ?? await recoverAcceptedActiveRun();
       if (!active) throw error;
       restoreActiveRunState(active);
       response = await api(`/v1/chat/sessions/${sessionId}/active-run/stream`);
