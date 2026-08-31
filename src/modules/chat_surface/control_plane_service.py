@@ -349,8 +349,9 @@ class ControlPlaneChatSurfaceService(ChatSurfaceService):
             error.target_type = authorized.binding.target_type
             raise error
 
-        # MessageRequest is bookkeeping; the canonical Run owns lifecycle. Reconcile
-        # a stale accepted/streaming row before attempting the partial-unique insert.
+        # MessageRequest is bookkeeping; the canonical Run owns lifecycle. Give a
+        # just-accepted Run a bounded grace period to materialize, then release an
+        # orphaned gate instead of poisoning the Session indefinitely.
         active_request = await self.active_message_request(authorized)
         if active_request is not None:
             error = ConflictError("ChatSurface Session already has an active message request")
@@ -426,6 +427,29 @@ class ControlPlaneChatSurfaceService(ChatSurfaceService):
             return None
 
         run_id, run_status = await self._resolve_request_run(request, authorized.binding)
+        if run_status is None:
+            # Message admission and Agent/Network Acceptance are separate durable
+            # boundaries. A fresh request may legitimately precede its Run briefly,
+            # but a request that never acquires canonical Run state must not keep the
+            # partial-unique active-message gate forever.
+            for _ in range(20):
+                await asyncio.sleep(0.05)
+                run_id, run_status = await self._resolve_request_run(
+                    request,
+                    authorized.binding,
+                )
+                if run_status is not None:
+                    break
+
+        if run_status is None:
+            await super().mark_message(
+                request.id,
+                status="failed",
+                target_run_id=run_id or request.target_run_id,
+                error_code="run_acceptance_missing",
+            )
+            return None
+
         if run_id is not None and request.target_run_id != run_id:
             await super().mark_message(
                 request.id,
