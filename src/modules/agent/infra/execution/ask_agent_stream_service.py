@@ -298,12 +298,97 @@ class AskAgentStreamService:
         if channel.trace_id is None:
             return False
 
+        from modules.agent.application.interfaces.execution import InstrumentedExecution
+        from modules.agent.application.interfaces.execution_context import current_execution
+        from modules.agent.infra.execution.agent_run_metrics import build_agent_run_metrics
+
         project_id = channel.project_id or input_dto.project_id
         agent_id = channel.agent_id or input_dto.agent_id
         session_id = channel.session_id or input_dto.session_id
         run_id = getattr(channel, "run_id", None)
         partial_output = channel.public_output
+        completed_at = datetime.now(timezone.utc)
+        execution_context = getattr(channel, "execution_context", None)
+        if execution_context is None:
+            execution_context = current_execution.get()
+        execution = getattr(execution_context, "execution", None)
+
         usage = dict(channel.latest_usage or {})
+        diagnostics: dict[str, Any] | None = None
+        llm_calls: list[dict[str, Any]] = []
+        tool_calls: list[dict[str, Any]] = []
+        if execution_context is not None and isinstance(execution, InstrumentedExecution):
+            snapshot_calls: list[dict[str, Any]] = []
+            for raw_call in execution.llm_calls:
+                call = dict(raw_call)
+                if call.get("status") == "running":
+                    started_text = call.get("started_at")
+                    latency_ms = int(call.get("latency_ms") or 0)
+                    if isinstance(started_text, str):
+                        try:
+                            started_at = datetime.fromisoformat(started_text)
+                            latency_ms = max(
+                                latency_ms,
+                                round((completed_at - started_at).total_seconds() * 1000),
+                            )
+                        except (TypeError, ValueError):
+                            pass
+                    call.update(
+                        {
+                            "status": "cancelled",
+                            "error": None,
+                            "ended_at": completed_at.isoformat(),
+                            "occurred_at": completed_at.isoformat(),
+                            "latency_ms": max(latency_ms, 0),
+                            "input_tokens": call.get("input_tokens"),
+                            "output_tokens": call.get("output_tokens"),
+                            "total_tokens": call.get("total_tokens"),
+                            "cost_usd": call.get("cost_usd"),
+                            "cost_status": call.get("cost_status") or "unknown_tokens",
+                            "cost_reason": call.get("cost_reason")
+                            or "Model invocation was cancelled before final provider usage",
+                            "usage_complete": False,
+                        }
+                    )
+                snapshot_calls.append(call)
+
+            snapshot_execution = InstrumentedExecution(
+                result=None,
+                tool_calls=list(execution.tool_calls),
+                llm_calls=snapshot_calls,
+                timeline=list(execution.timeline),
+                tool_wall_latency_ms=execution.tool_wall_latency_ms,
+                tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
+                failure_context=execution.failure_context,
+            )
+            try:
+                metrics = build_agent_run_metrics(
+                    context=execution_context,
+                    execution=snapshot_execution,
+                    binding=object(),
+                    fallback_used=False,
+                    finalization_work_ms=0,
+                    completed_at=completed_at.isoformat(),
+                )
+                metric_usage = metrics.usage.model_dump(mode="json")
+                for key, value in usage.items():
+                    if metric_usage.get(key) is None and value is not None:
+                        metric_usage[key] = value
+                usage = metric_usage
+                diagnostics = metrics.diagnostics
+                llm_calls = metrics.llm_calls
+                tool_calls = [
+                    item.model_dump(mode="json")
+                    if hasattr(item, "model_dump")
+                    else dict(item)
+                    if isinstance(item, dict)
+                    else {"value": str(item)}
+                    for item in snapshot_execution.tool_calls
+                ]
+            except Exception as exc:
+                # Cancellation must remain durable even if telemetry enrichment degrades.
+                logger.warning("Could not build cancelled Agent telemetry snapshot: %s", exc)
+
         result = {
             "answer": partial_output,
             "partial": bool(partial_output),
@@ -313,6 +398,10 @@ class AskAgentStreamService:
             "trace_id": str(channel.trace_id),
             "session_id": str(session_id) if session_id is not None else None,
         }
+        if diagnostics is not None:
+            result["diagnostics"] = diagnostics
+            result["llm_calls"] = llm_calls
+            result["tool_calls"] = tool_calls
         payload = {
             "run_id": str(run_id) if run_id is not None else None,
             "trace_id": str(channel.trace_id),
@@ -328,7 +417,6 @@ class AskAgentStreamService:
             session_id=session_id,
             payload=payload,
         )
-        completed_at = datetime.now(timezone.utc)
 
         async def persist(
             repositories: AgentRuntimeRepositories,
