@@ -9,7 +9,10 @@ from modules.agent.application.interfaces.context_policy import resolve_context_
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.entities import Agent
-from modules.agent.infra.execution.runtime_streaming import runtime_streaming_enabled
+from modules.agent.infra.execution.runtime_streaming import (
+    current_runtime_stream,
+    runtime_streaming_enabled,
+)
 from modules.agent.infra.execution.structured_json_repair import repair_json_if_needed
 from modules.agent.infra.execution.tool_execution_loop import run_tool_loop
 
@@ -118,6 +121,16 @@ async def run_instrumented_execution(
         messages=messages,
         pricing_snapshot=pricing_snapshot,
     )
+    context = current_execution.get()
+    if context is not None:
+        # Keep an execution accumulator reachable while provider/tool work is still
+        # in flight. Cancellation is a terminal result too, so observability cannot
+        # depend on run_tool_loop returning successfully before evidence becomes visible.
+        context.execution = InstrumentedExecution(result=None)
+        stream = current_runtime_stream.get()
+        if stream is not None:
+            setattr(stream, "execution_context", context)
+
     streaming_enabled = runtime_streaming_enabled()
     instruction = None
     if json_enabled and has_tools:
@@ -146,7 +159,6 @@ async def run_instrumented_execution(
     )
     model = base_model.bind_tools(agent_tools, tool_choice="auto") if has_tools else base_model
 
-    context = current_execution.get()
     network_execution = bool(context and context.network_execution_id)
     # Terminal recovery is exceptional. Delay constructing its structured model until
     # the capability loop actually reaches a terminal/circuit-breaker path.
