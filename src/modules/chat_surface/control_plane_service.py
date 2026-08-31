@@ -349,11 +349,60 @@ class ControlPlaneChatSurfaceService(ChatSurfaceService):
             error.target_type = authorized.binding.target_type
             raise error
 
-        return await super().begin_message(
-            authorized,
-            idempotency_key,
-            metadata=metadata,
-        )
+        # MessageRequest is bookkeeping; the canonical Run owns lifecycle. Reconcile
+        # a stale accepted/streaming row before attempting the partial-unique insert.
+        active_request = await self.active_message_request(authorized)
+        if active_request is not None:
+            error = ConflictError("ChatSurface Session already has an active message request")
+            error.code = "active_message_request_conflict"
+            error.target_type = authorized.binding.target_type
+            raise error
+
+        try:
+            return await super().begin_message(
+                authorized,
+                idempotency_key,
+                metadata=metadata,
+            )
+        except ConflictError as exc:
+            if str(exc) != "ChatSurface Session already has an active Run":
+                raise
+
+            # The active-message partial index can race with terminal persistence.
+            # Reconcile once from canonical Run state, then retry the insert once.
+            run_id, run_status = await self._active_run_for_binding(authorized.binding)
+            if run_id is not None and run_status in (_AGENT_ACTIVE | _NETWORK_ACTIVE):
+                error = ConflictError("ChatSurface Session already has an active Run")
+                error.code = "active_run_conflict"
+                error.run_id = run_id
+                error.status = run_status
+                error.target_type = authorized.binding.target_type
+                raise error from exc
+
+            active_request = await self.active_message_request(authorized)
+            if active_request is not None:
+                error = ConflictError(
+                    "ChatSurface Session already has an active message request"
+                )
+                error.code = "active_message_request_conflict"
+                error.target_type = authorized.binding.target_type
+                raise error from exc
+
+            try:
+                return await super().begin_message(
+                    authorized,
+                    idempotency_key,
+                    metadata=metadata,
+                )
+            except ConflictError as retry_exc:
+                if str(retry_exc) != "ChatSurface Session already has an active Run":
+                    raise
+                error = ConflictError(
+                    "ChatSurface Session already has an active message request"
+                )
+                error.code = "active_message_request_conflict"
+                error.target_type = authorized.binding.target_type
+                raise error from retry_exc
 
     async def active_message_request(
         self,
@@ -438,20 +487,24 @@ class ControlPlaneChatSurfaceService(ChatSurfaceService):
         run_id, run_status = await self._resolve_request_run(request, binding)
 
         requested_terminal = status in {"completed", "failed", "cancelled"}
-        if requested_terminal and run_status is None and original_status in _MESSAGE_ACTIVE:
-            # Acceptance and ChatSurface bookkeeping use separate transactions. Give
-            # the canonical Run a short grace period to become queryable before an
-            # observer ending is allowed to release the active-message gate.
+        terminal_statuses = (
+            _AGENT_TERMINAL if binding.target_type == "agent" else _NETWORK_TERMINAL
+        )
+        if (
+            requested_terminal
+            and original_status in _MESSAGE_ACTIVE
+            and run_status not in terminal_statuses
+        ):
+            # Provider/Run persistence may lag the terminal SSE frame. Wait for the
+            # canonical Run to become terminal instead of freezing the MessageRequest
+            # in streaming merely because the first read still observed RUNNING.
             for _ in range(20):
                 await asyncio.sleep(0.05)
                 run_id, run_status = await self._resolve_request_run(request, binding)
-                if run_status is not None:
+                if run_status in terminal_statuses:
                     break
 
         if requested_terminal and run_status is not None:
-            terminal_statuses = (
-                _AGENT_TERMINAL if binding.target_type == "agent" else _NETWORK_TERMINAL
-            )
             if run_status not in terminal_statuses:
                 await super().mark_message(
                     request_id,
