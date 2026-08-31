@@ -163,7 +163,7 @@ globalThis.__woobeIframeTest = {
   };
 }
 
-test("submit failure waits for delayed active Run identity and reattaches instead of orphaning the Run", async () => {
+test("ambiguous submit failure performs one canonical active Run lookup instead of polling the endpoint", async () => {
   const calls = [];
   let activeLookups = 0;
   const harness = await loadIframeHarness(async (url, init = {}) => {
@@ -178,18 +178,10 @@ test("submit failure waits for delayed active Run identity and reattaches instea
     }
     if (path.endsWith("/active-run")) {
       activeLookups += 1;
-      const data = activeLookups < 2
-        ? null
-        : {
-            message_request_id: "message-request-1",
-            run_id: "run-1",
-            status: "running",
-            target_type: "agent",
-          };
-      return Response.json({ success: true, data });
+      return Response.json({ success: true, data: null });
     }
     if (path.endsWith("/active-run/stream")) {
-      return sseDone();
+      throw new Error("no Run identity was recovered, so reattach must not start");
     }
     throw new Error(`Unexpected request: ${path}`);
   });
@@ -201,19 +193,68 @@ test("submit failure waits for delayed active Run identity and reattaches instea
     1,
     "recovery must never resubmit the user message",
   );
-  assert.ok(
-    activeLookups >= 2,
-    "active Run identity must be retried when Acceptance won but identity is not visible yet",
+  assert.equal(
+    activeLookups,
+    1,
+    "the browser must delegate canonical identity reconciliation to one active-run request instead of creating a polling storm",
+  );
+  assert.equal(
+    calls.filter((call) => call.path.endsWith("/active-run/stream")).length,
+    0,
+  );
+  assert.equal(harness.errors.length, 1);
+});
+
+test("structured 409 active Run conflict reattaches directly without polling active-run", async () => {
+  const calls = [];
+  const harness = await loadIframeHarness(async (url, init = {}) => {
+    const path = new URL(String(url)).pathname;
+    calls.push({ path, method: init.method ?? "GET" });
+
+    if (path.endsWith("/messages:stream")) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "ChatSurface Session already has an active Run",
+          data: {
+            code: "active_run_conflict",
+            run_id: "run-1",
+            status: "running",
+            target_type: "agent",
+          },
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (path.endsWith("/active-run")) {
+      throw new Error("a structured active-run conflict must not trigger active-run polling");
+    }
+    if (path.endsWith("/active-run/stream")) {
+      return sseDone();
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  });
+
+  await harness.sendMessage("second attempt");
+
+  assert.equal(
+    calls.filter((call) => call.path.endsWith("/messages:stream")).length,
+    1,
+  );
+  assert.equal(
+    calls.filter((call) => call.path.endsWith("/active-run")).length,
+    0,
+    "the 409 already carries the canonical Run identity",
   );
   assert.equal(
     calls.filter((call) => call.path.endsWith("/active-run/stream")).length,
     1,
-    "the already accepted Run must be observed through reattach",
+    "the existing canonical Run must be observed directly",
   );
   assert.deepEqual(harness.errors, []);
 });
 
-test("409 active Run conflict is recovered by reattaching and never creates a second message", async () => {
+test("legacy 409 without Run identity performs at most one active-run fallback lookup", async () => {
   const calls = [];
   const harness = await loadIframeHarness(async (url, init = {}) => {
     const path = new URL(String(url)).pathname;
@@ -246,7 +287,7 @@ test("409 active Run conflict is recovered by reattaching and never creates a se
     throw new Error(`Unexpected request: ${path}`);
   });
 
-  await harness.sendMessage("second attempt");
+  await harness.sendMessage("legacy conflict");
 
   assert.equal(
     calls.filter((call) => call.path.endsWith("/messages:stream")).length,
