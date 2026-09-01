@@ -5,19 +5,19 @@
 
 entries:
   # --- historical migrations ---
-  - file_path: packages/woobe-db/migrations/versions/*
+  - file_path: packages/woobe-core/migrations/versions/*
     line_pattern: 'schema="ai"'
     schema: ai
     reason: "Historical migration creating/altering legacy ai schema objects"
     removal_spec: "016"
 
-  - file_path: packages/woobe-db/migrations/versions/*
+  - file_path: packages/woobe-core/migrations/versions/*
     line_pattern: 'schema="knowledge"'
     schema: knowledge
     reason: "Historical migration creating/altering legacy knowledge schema objects"
     removal_spec: "016"
 
-  - file_path: packages/woobe-db/migrations/versions/*
+  - file_path: packages/woobe-core/migrations/versions/*
     line_pattern: 'schema="runtime"'
     schema: runtime
     reason: "Historical migration creating/altering legacy runtime schema objects"
