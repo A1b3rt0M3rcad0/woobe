@@ -18,7 +18,7 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 40
     env:
-      PYTHONPATH: src:.
+      PYTHONPATH: packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src:.
       WOOBE_SECRET_KEY: acceptance-secret-key-at-least-32-characters
       WOOBE_ENCRYPTION_KEY: acceptance-encryption-key-at-least-32-characters
       WOOBE_CHAT_TOKEN_SIGNING_KEY: acceptance-chat-key-at-least-32-characters
@@ -125,10 +125,10 @@ jobs:
       - name: Migration rollback and re-upgrade
         run: |
           set -euo pipefail
-          uv run alembic upgrade head
-          uv run alembic downgrade -1
-          uv run alembic upgrade head
-          uv run alembic check
+          uv run alembic -c packages/woobe-db/alembic.ini upgrade head
+          uv run alembic -c packages/woobe-db/alembic.ini downgrade -1
+          uv run alembic -c packages/woobe-db/alembic.ini upgrade head
+          uv run alembic -c packages/woobe-db/alembic.ini check
       - name: Backup and restore isolated database
         run: |
           set -euo pipefail
