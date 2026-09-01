@@ -6,32 +6,30 @@ from pydantic import ValidationError
 from shared.infra.config import Settings
 
 
-def test_community_distribution_rejects_cloud_edition() -> None:
-    with pytest.raises(ValidationError, match="WOOBE_EDITION must be 'community'"):
+def test_core_distribution_rejects_enterprise_edition() -> None:
+    with pytest.raises(ValidationError, match="WOOBE_EDITION must be 'core'"):
         Settings(
-            edition="cloud",
+            edition="enterprise",
             secret_key="s" * 32,
             encryption_key="e" * 16,
         )
 
 
-def test_community_distribution_accepts_community_edition() -> None:
+def test_core_distribution_accepts_core_edition() -> None:
     settings = Settings(
-        edition="community",
+        edition="core",
         secret_key="s" * 32,
         encryption_key="e" * 16,
     )
 
-    assert settings.edition == "community"
-    assert settings.is_cloud is False
-    assert settings.managed_billing_enabled is False
+    assert settings.edition == "core"
 
 
 def test_chat_surface_insecure_origins_are_opt_in(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     default_settings = Settings(
-        edition="community",
+        edition="core",
         secret_key="s" * 32,
         encryption_key="e" * 16,
     )
@@ -39,7 +37,7 @@ def test_chat_surface_insecure_origins_are_opt_in(
 
     monkeypatch.setenv("WOOBE_CHAT_SURFACE_ALLOW_INSECURE_ORIGINS", "true")
     enabled_settings = Settings(
-        edition="community",
+        edition="core",
         secret_key="s" * 32,
         encryption_key="e" * 16,
     )

@@ -1,7 +1,7 @@
 name: woobe-test
 
 x-backend-test-common: &backend-test-common
-  WOOBE_EDITION: community
+  WOOBE_EDITION: core
   WOOBE_ENVIRONMENT: test
   WOOBE_DEBUG: "false"
   WOOBE_JSON_LOGS: "false"

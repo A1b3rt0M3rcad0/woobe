@@ -1,20 +1,18 @@
-"""Public contract for explicit external-edition composition.
+"""Public contract for explicit Enterprise composition.
 
 LICENSE NOTICE
 --------------
-This file is Covered Software under the Woobe Community license in the
-repository root ``LICENSE.md``. That license governs this contract itself.
+This file is Covered Software under the Woobe Core license in the repository
+root ``LICENSE.md``. That license governs this integration contract itself.
 
 Implementing, importing, satisfying, or composing through this contract does
-not grant any license to Woobe Cloud, future Woobe Enterprise code, or any
-other proprietary implementation maintained outside this Community
-repository. Proprietary implementations remain governed exclusively by the
-license distributed with their own source repository or by a separate written
-agreement with Woobe.
+not grant any license to Woobe Enterprise implementation. Enterprise code is
+separately licensed under ``LICENSE_EE.md`` and/or a written agreement with
+Woobe.
 
-Community owns only this neutral composition seam. External edition
-repositories provide concrete routers and worker entries. Community must never
-import proprietary edition implementations.
+Core owns only this neutral composition seam. Enterprise implementations may
+provide concrete routers and worker entries, but Core must never import
+Enterprise implementation modules.
 """
 
 from __future__ import annotations
@@ -28,12 +26,12 @@ from shared.workers.discovery import ModuleWorkerEntry
 
 @dataclass(frozen=True, slots=True)
 class EditionIntegration:
-    """Composition payload supplied by an external, separately licensed edition.
+    """Composition payload supplied by a separately licensed Enterprise layer.
 
     ``name`` is operational metadata only. It is not a license selector and it
-    cannot enable proprietary rights or features by configuration alone.
+    cannot enable Enterprise rights or features by configuration alone.
     """
 
-    name: str = "community"
+    name: str = "core"
     api_routers: tuple[APIRouter, ...] = ()
     worker_entries: tuple[ModuleWorkerEntry, ...] = ()

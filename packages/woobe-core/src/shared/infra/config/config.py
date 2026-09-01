@@ -61,7 +61,7 @@ class Settings(BaseSettings):
     )
 
     service_role: str = "api"
-    edition: str = "community"
+    edition: str = "core"
 
     database_url: str = "postgresql://postgres:postgres@localhost:5432/woobe"
     debug: bool = False
@@ -161,20 +161,12 @@ class Settings(BaseSettings):
     retry_max_delay_seconds: float = 300.0
     retry_backoff_multiplier: float = 2.0
 
-    @property
-    def is_cloud(self) -> bool:
-        return self.edition == "cloud"
-
-    @property
-    def managed_billing_enabled(self) -> bool:
-        return self.is_cloud
-
     @field_validator("edition", mode="before")
     @classmethod
     def validate_edition(cls, value: object) -> str:
         normalized = str(value).strip().lower()
-        if normalized != "community":
-            raise ValueError("WOOBE_EDITION must be 'community' in the Community distribution")
+        if normalized != "core":
+            raise ValueError("WOOBE_EDITION must be 'core' in the Core distribution")
         return normalized
 
     @field_validator("database_url", mode="before")
