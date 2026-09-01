@@ -11,7 +11,6 @@ PACKAGE_ROOTS = {
     "woobe-api",
     "woobe-workers",
     "woobe-frontend",
-    "woobe-db",
     "woobe-ee",
     "woobe-testkit",
     "woobe-mock",
@@ -44,6 +43,7 @@ def test_package_workspace_is_the_public_source_surface() -> None:
     assert packages.is_dir()
     actual = {path.name for path in packages.iterdir() if path.is_dir()}
     assert PACKAGE_ROOTS.issubset(actual)
+    assert "woobe-db" not in actual
 
     for removed_root in ("src", "web", "embed", "migrations"):
         assert not (ROOT / removed_root).exists(), removed_root
@@ -160,7 +160,7 @@ def test_backend_test_images_are_explicit_and_package_aware() -> None:
         assert excluded not in mocked_text
 
     integration_text = integration.read_text(encoding="utf-8")
-    assert "alembic -c packages/woobe-db/alembic.ini upgrade head" in integration_text
+    assert "alembic -c packages/woobe-core/alembic.ini upgrade head" in integration_text
     assert "python -m pytest -q tests/integration" in integration_text
     assert "PYTHONPATH=" not in integration_text
     for package in ("woobe-core", "woobe-api", "woobe-workers", "woobe-testkit", "woobe-mock"):
