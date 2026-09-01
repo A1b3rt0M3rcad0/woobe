@@ -15,7 +15,7 @@ import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 SRC_MODULES = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules"
-MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-db" / "migrations" / "versions"
+MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "migrations" / "versions"
 FK_ALLOWLIST_FILE = (
     PROJECT_ROOT / "tests" / "architecture" / "legacy_database_fk_allowlist.yaml"
 )
