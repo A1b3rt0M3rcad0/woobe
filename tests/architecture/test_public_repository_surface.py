@@ -6,23 +6,25 @@ ROOT = Path(__file__).resolve().parents[2]
 CANONICAL_TEST_COMMAND = (
     "docker compose -f compose.test.yaml up --build --exit-code-from tests tests"
 )
-PACKAGE_ROOTS = {
+PRODUCT_PACKAGE_ROOTS = {
     "woobe-core",
     "woobe-api",
     "woobe-workers",
     "woobe-frontend",
+    "woobe-embed",
     "woobe-ee",
-    "woobe-testkit",
-    "woobe-mock",
-    "woobe-e2e",
 }
-PYTHON_PACKAGE_ROOTS = {
+PYTHON_PRODUCT_PACKAGE_ROOTS = {
     "woobe-core",
     "woobe-api",
     "woobe-workers",
+}
+TOOLING_ROOTS = {
     "woobe-testkit",
     "woobe-mock",
+    "quality-gate",
 }
+PYTHON_TOOLING_ROOTS = TOOLING_ROOTS
 
 
 def test_internal_workspace_artifacts_are_not_part_of_public_head() -> None:
@@ -38,19 +40,41 @@ def test_internal_workspace_artifacts_are_not_part_of_public_head() -> None:
         assert not (ROOT / path).exists(), path
 
 
-def test_package_workspace_is_the_public_source_surface() -> None:
+def test_product_packages_are_the_public_product_source_surface() -> None:
     packages = ROOT / "packages"
     assert packages.is_dir()
     actual = {path.name for path in packages.iterdir() if path.is_dir()}
-    assert PACKAGE_ROOTS.issubset(actual)
+    assert PRODUCT_PACKAGE_ROOTS.issubset(actual)
     assert "woobe-db" not in actual
+    for engineering_boundary in ("woobe-testkit", "woobe-mock", "woobe-e2e"):
+        assert engineering_boundary not in actual
 
-    for removed_root in ("src", "web", "embed", "migrations"):
+    for removed_root in ("src", "web", "embed", "migrations", "quality_gate"):
         assert not (ROOT / removed_root).exists(), removed_root
 
 
+def test_engineering_tooling_is_separate_from_product_packages() -> None:
+    tooling = ROOT / "tooling"
+    assert tooling.is_dir()
+    actual = {path.name for path in tooling.iterdir() if path.is_dir()}
+    assert TOOLING_ROOTS.issubset(actual)
+
+    for package in PYTHON_TOOLING_ROOTS:
+        pyproject = tooling / package / "pyproject.toml"
+        assert pyproject.is_file(), f"{package} must define package installation metadata"
+        content = pyproject.read_text(encoding="utf-8")
+        assert "[build-system]" in content
+        assert "[project]" in content
+
+
+def test_cross_system_validation_owns_e2e_surface() -> None:
+    assert (ROOT / "tests/e2e").is_dir()
+    assert (ROOT / "tests/e2e/package.json").is_file()
+    assert not (ROOT / "packages/woobe-e2e").exists()
+
+
 def test_python_process_boundaries_have_install_metadata() -> None:
-    for package in PYTHON_PACKAGE_ROOTS:
+    for package in PYTHON_PRODUCT_PACKAGE_ROOTS:
         pyproject = ROOT / "packages" / package / "pyproject.toml"
         assert pyproject.is_file(), f"{package} must define package installation metadata"
         content = pyproject.read_text(encoding="utf-8")
@@ -147,8 +171,10 @@ def test_backend_test_images_are_explicit_and_package_aware() -> None:
     assert "packages/woobe-api/src" in mocked_text
     assert "packages/woobe-workers/src" in mocked_text
     assert "PYTHONPATH=" not in mocked_text
-    for package in ("woobe-core", "woobe-api", "woobe-workers", "woobe-testkit", "woobe-mock"):
+    for package in ("woobe-core", "woobe-api", "woobe-workers"):
         assert f"--editable packages/{package}" in mocked_text
+    for tool in ("woobe-testkit", "woobe-mock"):
+        assert f"--editable tooling/{tool}" in mocked_text
     assert "test_billing" not in mocked_text
     for excluded in (
         "tests/modules",
@@ -163,8 +189,10 @@ def test_backend_test_images_are_explicit_and_package_aware() -> None:
     assert "alembic -c packages/woobe-core/alembic.ini upgrade head" in integration_text
     assert "python -m pytest -q tests/integration" in integration_text
     assert "PYTHONPATH=" not in integration_text
-    for package in ("woobe-core", "woobe-api", "woobe-workers", "woobe-testkit", "woobe-mock"):
+    for package in ("woobe-core", "woobe-api", "woobe-workers"):
         assert f"--editable packages/{package}" in integration_text
+    for tool in ("woobe-testkit", "woobe-mock"):
+        assert f"--editable tooling/{tool}" in integration_text
     assert "tests/integration/billing" not in integration_text
     assert "tests/editions" not in integration_text
     assert "tests/migrations" not in integration_text

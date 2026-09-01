@@ -16,20 +16,30 @@ An Agent Run is one logical execution of an Agent. A Network Run coordinates one
 
 HTTP, streaming, and async jobs are transport/delivery forms, not separate execution ontologies.
 
-## Repository package boundaries
+## Repository boundaries
 
-Woobe Community is organized under `packages/`:
+Woobe separates product source, engineering tooling, and system validation:
 
 ```text
-packages/
-├── woobe-core/       # bounded contexts, runtime contracts, shared technical infrastructure + migrations
-├── woobe-api/        # HTTP process composition root
-├── woobe-workers/    # worker process composition root
-├── woobe-frontend/   # control-plane frontend + ChatSurface embed
-├── woobe-ee/         # reserved boundary; no Community dependency on proprietary code
-├── woobe-testkit/    # shared test-only helpers
-├── woobe-mock/       # protocol mocks/fault injection
-└── woobe-e2e/        # assembled-product black-box validation
+packages/                         # product / distributable artifacts
+├── woobe-core/                   # bounded contexts, runtime contracts, shared infrastructure + migrations
+├── woobe-api/                    # HTTP process composition root
+├── woobe-workers/                # worker process composition root
+├── woobe-frontend/               # administrative control-plane frontend
+├── woobe-embed/                  # independently deployable ChatSurface embed
+└── woobe-ee/                     # reserved Enterprise boundary
+
+tooling/                          # engineering-only packages
+├── woobe-testkit/                # shared test helpers
+├── woobe-mock/                   # protocol mocks/fault injection
+└── quality-gate/                 # executable architecture policies/checker
+
+tests/                            # repository and cross-system validation
+├── architecture/
+├── contract/
+├── integration/
+├── security/
+└── e2e/
 ```
 
 `woobe-core` is a product Core package, not a framework-neutral library. Domain, application, infrastructure, and bounded-context presentation/composition code remain colocated with the module that owns the behavior. This includes module-local routers, controllers, schemas, and composers.
@@ -38,9 +48,15 @@ packages/
 
 `woobe-workers` owns process-level worker composition. Concrete workers remain under the owning bounded context in `woobe-core/src/modules/<module>/infra/workers/`; the Workers process discovers and composes them. Core must not import Workers.
 
+`woobe-frontend` and `woobe-embed` are separate product artifacts. The former is the control-plane UI; the latter is the browser-facing ChatSurface asset/runtime and can be built and deployed independently.
+
+`tooling/` is never part of the production dependency graph. Testkit, mocks, and the architecture quality gate may consume product packages for validation, but product packages cannot depend on them.
+
+`tests/` owns validation that spans package/repository/system boundaries. E2E belongs there because it validates the assembled product rather than providing a production artifact.
+
 Alembic configuration and migration history remain owned by `woobe-core` at `packages/woobe-core/alembic.ini` and `packages/woobe-core/migrations/`. Production migrations use this Core-owned migration surface before the API starts. Extracting migration execution into a separate database package is intentionally deferred to a dedicated change.
 
-Internal Python boundaries use package-level installation metadata. Runtime and backend-test images install those packages as editable distributions instead of relying on `PYTHONPATH`, while the root dependency manifest and lock remain authoritative for the MVP.
+Internal Python boundaries use package-level installation metadata. Runtime and backend-test images install required internal packages as editable distributions while the root dependency manifest and lock remain authoritative for the MVP.
 
 The durable decision is recorded in `docs/adr/0004-package-workspace-and-process-boundaries.md`.
 
@@ -62,8 +78,8 @@ Enterprise = reserved product boundary; no proprietary runtime implementation is
 
 Community product code is rooted under `packages/`. Proprietary Cloud implementation is not part of the Community source tree or Community container build context. `packages/woobe-ee` is a reserved boundary marker and must not make Community depend on proprietary implementation.
 
-Community composition roots include `packages/woobe-api/src/main.py`, `packages/woobe-workers/src/worker_main.py`, `packages/woobe-core/migrations/env.py`, the root `compose.yaml`, and the frontend package. They must remain runnable without proprietary edition source.
+Community composition roots include `packages/woobe-api/src/main.py`, `packages/woobe-workers/src/worker_main.py`, `packages/woobe-core/migrations/env.py`, the root `compose.yaml`, `packages/woobe-frontend`, and `packages/woobe-embed`. They must remain runnable without proprietary edition source.
 
-Architecture tests under `tests/architecture/` protect package dependency direction, Community distribution boundaries, worker ownership, database ownership, migration ownership, and the absence of legacy root source trees.
+Architecture tests under `tests/architecture/` protect package dependency direction, Community distribution boundaries, worker ownership, database ownership, migration ownership, tooling separation, and the absence of legacy root source trees.
 
 The Community licensing and product boundary is described by `LICENSE.md` and `LICENSING.md`. Proprietary product terms are intentionally outside this repository.

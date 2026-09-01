@@ -161,21 +161,35 @@ Woobe Cloud may build on the same core concepts, but proprietary Cloud implement
 
 ## Repository architecture
 
+The repository separates product artifacts from engineering tooling and assembled-system validation:
+
 ```text
-packages/
-├── woobe-core/       # bounded contexts + shared Community/Core code + migrations
-├── woobe-api/        # HTTP process composition root
-├── woobe-workers/    # worker process composition root
-├── woobe-frontend/   # control-plane frontend + ChatSurface embed
-├── woobe-ee/         # reserved Enterprise boundary
-├── woobe-testkit/    # shared test helpers
-├── woobe-mock/       # protocol mocks
-└── woobe-e2e/        # assembled-product validation
+packages/                         # product / distributable artifacts
+├── woobe-core/                   # bounded contexts + shared Community/Core code + migrations
+├── woobe-api/                    # HTTP process composition root
+├── woobe-workers/                # worker process composition root
+├── woobe-frontend/               # administrative control-plane frontend
+├── woobe-embed/                  # independently deployable ChatSurface embed
+└── woobe-ee/                     # reserved Enterprise boundary
+
+tooling/                          # engineering/development only
+├── woobe-testkit/                # shared test helpers
+├── woobe-mock/                   # protocol mocks/fault injection
+└── quality-gate/                 # architecture checker and policies
+
+tests/                            # repository/cross-system validation
+├── architecture/
+├── contract/
+├── integration/
+├── security/
+└── e2e/
 ```
 
-`woobe-core` contains the bounded contexts, their module-local presentation/composition code, and the current Alembic configuration/history at `packages/woobe-core/alembic.ini` and `packages/woobe-core/migrations/`. `woobe-api` owns process-level FastAPI composition; `woobe-workers` owns the worker process composition root. API and Workers may depend on Core. Core must not depend on API, Workers, or Enterprise implementation. A separate database package is intentionally outside this repository cutover and may be introduced by a dedicated future PR.
+`woobe-core` contains the bounded contexts, their module-local presentation/composition code, and the current Alembic configuration/history at `packages/woobe-core/alembic.ini` and `packages/woobe-core/migrations/`. `woobe-api` owns process-level FastAPI composition; `woobe-workers` owns the worker process composition root. API and Workers may depend on Core. Core must not depend on API, Workers, or Enterprise implementation.
 
-Internal Python packages are installed as distributions in runtime and backend-test images rather than loaded through repository-level `PYTHONPATH` configuration.
+`packages/woobe-frontend` and `packages/woobe-embed` are separate product artifacts: the first is the control-plane UI; the second is the browser-facing ChatSurface runtime. Engineering packages under `tooling/` may depend on product packages for validation, but production packages must never depend on tooling. E2E belongs to `tests/e2e` because it validates the assembled system rather than constituting a product package.
+
+A separate database package is intentionally outside this repository cutover and may be introduced by a dedicated future PR.
 
 Read `docs/ARCHITECTURE.md` and `docs/adr/0004-package-workspace-and-process-boundaries.md` for the detailed boundaries.
 
