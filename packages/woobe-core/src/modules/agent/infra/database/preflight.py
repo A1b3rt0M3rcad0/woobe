@@ -16,7 +16,7 @@ AGENT_MODELS = (
     / "database"
     / "models.py"
 )
-MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-db" / "migrations" / "versions"
+MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "migrations" / "versions"
 
 AGENT_SCHEMA_TABLES: dict[str, str] = {
     "provider_credentials": "agent",
