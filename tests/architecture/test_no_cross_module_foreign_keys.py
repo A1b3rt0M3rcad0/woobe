@@ -14,8 +14,8 @@ from pathlib import Path
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_MODULES = PROJECT_ROOT / "src" / "modules"
-MIGRATIONS_DIR = PROJECT_ROOT / "migrations" / "versions"
+SRC_MODULES = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules"
+MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-db" / "migrations" / "versions"
 FK_ALLOWLIST_FILE = (
     PROJECT_ROOT / "tests" / "architecture" / "legacy_database_fk_allowlist.yaml"
 )
@@ -42,7 +42,7 @@ def _load_fk_allowlist() -> set[tuple[str, str, str, str, str]]:
     if not FK_ALLOWLIST_FILE.exists():
         return set()
     with open(FK_ALLOWLIST_FILE, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+        data = yaml.safe_load(f) or {}
     entries = data.get("entries") or []
     return {
         (
@@ -85,7 +85,6 @@ class TestNoCrossModuleForeignKeys:
         cross_count = 0
         legacy_refs = []
         cross_unlisted = []
-
         allowlist = _load_fk_allowlist()
 
         for py_file in sorted(SRC_MODULES.rglob("*.py")):
@@ -97,9 +96,7 @@ class TestNoCrossModuleForeignKeys:
                 continue
 
             source_module = _module_from_path(py_file)
-            fk_refs = _extract_fk_refs(source)
-
-            for schema, table, full_ref in fk_refs:
+            for schema, table, full_ref in _extract_fk_refs(source):
                 target_module = _schema_to_module(schema)
                 if target_module is None:
                     continue
@@ -116,8 +113,8 @@ class TestNoCrossModuleForeignKeys:
                 else:
                     cross_count += 1
                     matched = any(
-                        al_key[0] == source_module and al_key[3] == schema and al_key[4] == table
-                        for al_key in allowlist
+                        key[0] == source_module and key[3] == schema and key[4] == table
+                        for key in allowlist
                     )
                     if not matched:
                         cross_unlisted.append(
@@ -149,8 +146,7 @@ class TestNoCrossModuleForeignKeys:
             except UnicodeDecodeError:
                 continue
 
-            fk_refs = _extract_fk_refs(source)
-            for schema, table, full_ref in fk_refs:
+            for schema, _, full_ref in _extract_fk_refs(source):
                 if schema in LEGACY_SCHEMAS:
                     critical_refs.append(
                         f"{_relative_posix(py_file)}: FK('{full_ref}') "
@@ -159,6 +155,7 @@ class TestNoCrossModuleForeignKeys:
 
         if critical_refs:
             import warnings
+
             warnings.warn(
                 f"Found {len(critical_refs)} critical legacy schema FK references:\n"
                 + "\n".join(critical_refs)
@@ -177,18 +174,15 @@ class TestNoCrossModuleForeignKeys:
             except UnicodeDecodeError:
                 continue
 
-            fk_refs = _extract_fk_refs(source)
-            for schema, table, full_ref in fk_refs:
+            for schema, table, full_ref in _extract_fk_refs(source):
                 if schema in LEGACY_SCHEMAS:
                     continue
                 target_module = _schema_to_module(schema)
                 if target_module is None:
                     continue
-
                 matched = any(
-                    al_key[0] == "migrations"
-                    or (al_key[3] == schema and al_key[4] == table)
-                    for al_key in allowlist
+                    key[0] == "migrations" or (key[3] == schema and key[4] == table)
+                    for key in allowlist
                 )
                 if not matched:
                     violations.append(
@@ -210,8 +204,8 @@ class TestNoCrossModuleForeignKeys:
                 ref_mod = _schema_to_module(ref_schema)
                 if src_mod and ref_mod and src_mod != ref_mod:
                     matched = any(
-                        al_key[0] == "migrations" or al_key[3] == ref_schema
-                        for al_key in allowlist
+                        key[0] == "migrations" or key[3] == ref_schema
+                        for key in allowlist
                     )
                     if not matched:
                         violations.append(

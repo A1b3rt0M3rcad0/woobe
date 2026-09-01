@@ -11,8 +11,8 @@ from pathlib import Path
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_MODULES = PROJECT_ROOT / "src" / "modules"
-MIGRATIONS_DIR = PROJECT_ROOT / "migrations" / "versions"
+SRC_MODULES = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules"
+MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-db" / "migrations" / "versions"
 FK_ALLOWLIST_FILE = Path(__file__).resolve().parent / "legacy_database_fk_allowlist.yaml"
 
 SCHEMA_TO_MODULE: dict[str, str] = {
@@ -35,7 +35,7 @@ def _load_fk_allowlist() -> set[tuple[str, str, str, str, str]]:
     if not FK_ALLOWLIST_FILE.exists():
         return set()
     with open(FK_ALLOWLIST_FILE, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+        data = yaml.safe_load(f) or {}
     entries = data.get("entries") or []
     return {
         (
@@ -77,9 +77,7 @@ def _extract_fk_refs(source: str) -> list[tuple[str, str, str]]:
         ref = match.group(1)
         parts = ref.split(".")
         if len(parts) >= 2:
-            schema = parts[0]
-            table = parts[1]
-            results.append((schema, table, ref))
+            results.append((parts[0], parts[1], ref))
     return results
 
 
@@ -97,22 +95,16 @@ class TestDatabaseBoundaries:
                 continue
 
             source_module = _module_from_path(py_file)
-            fk_refs = _extract_fk_refs(source)
-
-            for schema, table, full_ref in fk_refs:
+            for schema, table, full_ref in _extract_fk_refs(source):
                 if schema in LEGACY_SCHEMAS and source_module == "agent":
                     continue
                 target_module = _schema_to_module(schema)
-                if target_module is None:
-                    continue
-                if target_module == source_module:
+                if target_module is None or target_module == source_module:
                     continue
 
                 matched = any(
-                    al_key[0] == source_module
-                    and al_key[3] == schema
-                    and al_key[4] == table
-                    for al_key in allowlist
+                    key[0] == source_module and key[3] == schema and key[4] == table
+                    for key in allowlist
                 )
                 if not matched:
                     violations.append(
@@ -138,18 +130,15 @@ class TestDatabaseBoundaries:
             except UnicodeDecodeError:
                 continue
 
-            fk_refs = _extract_fk_refs(source)
-            for schema, table, full_ref in fk_refs:
+            for schema, table, full_ref in _extract_fk_refs(source):
                 if schema in LEGACY_SCHEMAS:
                     continue
                 target_module = _schema_to_module(schema)
                 if target_module is None:
                     continue
-
                 matched = any(
-                    al_key[0] == "migrations"
-                    or (al_key[3] == schema and al_key[4] == table)
-                    for al_key in allowlist
+                    key[0] == "migrations" or (key[3] == schema and key[4] == table)
+                    for key in allowlist
                 )
                 if not matched:
                     violations.append(
@@ -169,8 +158,8 @@ class TestDatabaseBoundaries:
                 ref_mod = _schema_to_module(referent_schema)
                 if src_mod and ref_mod and src_mod != ref_mod:
                     matched = any(
-                        al_key[0] == "migrations" or al_key[3] == referent_schema
-                        for al_key in allowlist
+                        key[0] == "migrations" or key[3] == referent_schema
+                        for key in allowlist
                     )
                     if not matched:
                         violations.append(
@@ -209,15 +198,11 @@ class TestDatabaseBoundaries:
                 continue
 
             source_module = _module_from_path(py_file)
-            fk_refs = _extract_fk_refs(source)
-
-            for schema, table, full_ref in fk_refs:
+            for schema, table, full_ref in _extract_fk_refs(source):
                 if schema in LEGACY_SCHEMAS:
                     continue
                 target_module = _schema_to_module(schema)
-                if target_module is None:
-                    continue
-                if target_module == source_module:
+                if target_module is None or target_module == source_module:
                     continue
 
                 ref_col = table + "_id"
@@ -231,9 +216,6 @@ class TestDatabaseBoundaries:
         with open(FK_ALLOWLIST_FILE, encoding="utf-8") as f:
             data = yaml.safe_load(f) or {}
         entries = data.get("entries") or []
-
-        if not entries:
-            return
 
         for entry in entries:
             assert entry.get("removal_spec"), (
