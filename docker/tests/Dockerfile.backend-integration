@@ -38,9 +38,10 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     --editable packages/woobe-mock \
     && uv pip check --python /opt/venv/bin/python
 
-COPY packages/woobe-db/ packages/woobe-db/
+COPY packages/woobe-core/alembic.ini packages/woobe-core/alembic.ini
+COPY packages/woobe-core/migrations/ packages/woobe-core/migrations/
 COPY tests/ tests/
 COPY scripts/ scripts/
 COPY pytest.ini ./
 
-CMD ["/bin/sh", "-c", "set -eu; mkdir -p /artifacts; alembic -c packages/woobe-db/alembic.ini upgrade head; python -m pytest -q tests/integration --junitxml=/artifacts/backend-integration.xml"]
+CMD ["/bin/sh", "-c", "set -eu; mkdir -p /artifacts; alembic -c packages/woobe-core/alembic.ini upgrade head; python -m pytest -q tests/integration --junitxml=/artifacts/backend-integration.xml"]
