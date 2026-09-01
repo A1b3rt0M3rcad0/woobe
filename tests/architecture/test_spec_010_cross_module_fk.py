@@ -19,7 +19,7 @@ AGENT_MODELS = CORE_MODULES / "agent" / "infra" / "database" / "models.py"
 METERING_MODELS = CORE_MODULES / "metering" / "infra" / "database" / "models.py"
 OBSERVABILITY_MODELS = CORE_MODULES / "observability" / "infra" / "database" / "models.py"
 TOOLS_MODELS = CORE_MODULES / "tools" / "infra" / "database" / "models.py"
-MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-db" / "migrations" / "versions"
+MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "migrations" / "versions"
 SCHEMA_ALLOWLIST_FILE = PROJECT_ROOT / "tests" / "architecture" / "legacy_schema_allowlist.yaml"
 
 _CROSS_MODULE_FK_PATTERN = re.compile(r'ForeignKey\s*\(\s*["\'](core|identity)\.')
@@ -86,7 +86,7 @@ class TestMigration0018Exists:
     def test_migration_0018_file_exists(self):
         candidates = list(MIGRATIONS_DIR.glob("0018*.py"))
         assert len(candidates) >= 1, (
-            "Migration 0018 file not found in packages/woobe-db/migrations/versions/"
+            "Migration 0018 file not found in packages/woobe-core/migrations/versions/"
         )
 
     def test_migration_0018_has_drop_foreignkey(self):
