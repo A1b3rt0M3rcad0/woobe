@@ -1,0 +1,41 @@
+[transaction_ownership]
+module = "chat_surface"
+module_root = "packages/woobe-core/src/modules/chat_surface"
+uow_file = "packages/woobe-core/src/modules/chat_surface/infra/database/unit_of_work.py"
+resources_file = "packages/woobe-core/src/modules/chat_surface/composition/resources.py"
+process_resources = ["SETTINGS", "DATABASE_ENGINE", "EXECUTION_STATE_STORE"]
+forbidden_database_facades = [
+  "ChatSurfaceDatabase",
+  "ChatSurfaceDatabaseInput",
+  "chat_surface_session_factory",
+  "coerce_chat_surface_database",
+  "SESSION_FACTORY",
+  "CHAT_SURFACE_DATABASE",
+]
+forbidden_session_creators = [
+  "async_sessionmaker",
+  "sessionmaker",
+  "create_session_factory",
+  "open_session",
+]
+transaction_methods = ["begin", "commit", "rollback", "close"]
+transaction_target_names = [
+  "session",
+  "_session",
+  "transaction",
+  "_transaction",
+  "tx",
+  "_tx",
+]
+facade_forbidden_scopes = [
+  "application",
+  "presentation",
+  "composition",
+]
+uow_type = "ChatSurfaceUnitOfWork"
+uow_engine_type = "AsyncEngine"
+forbidden_uow_constructor_types = [
+  "ChatSurfaceDatabase",
+  "async_sessionmaker",
+  "AsyncSession",
+]

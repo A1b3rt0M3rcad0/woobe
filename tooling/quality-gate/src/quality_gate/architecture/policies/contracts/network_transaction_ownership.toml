@@ -1,0 +1,41 @@
+[transaction_ownership]
+module = "network"
+module_root = "packages/woobe-core/src/modules/network"
+uow_file = "packages/woobe-core/src/modules/network/infra/database/unit_of_work.py"
+resources_file = "packages/woobe-core/src/modules/network/composition/resources.py"
+process_resources = ["SETTINGS", "DATABASE_ENGINE", "EXECUTION_STATE_STORE"]
+forbidden_database_facades = [
+  "NetworkDatabase",
+  "NetworkDatabaseInput",
+  "network_session_factory",
+  "coerce_network_database",
+  "SESSION_FACTORY",
+  "NETWORK_DATABASE",
+]
+forbidden_session_creators = [
+  "async_sessionmaker",
+  "sessionmaker",
+  "create_session_factory",
+  "open_session",
+]
+transaction_methods = ["begin", "commit", "rollback", "close"]
+transaction_target_names = [
+  "session",
+  "_session",
+  "transaction",
+  "_transaction",
+  "tx",
+  "_tx",
+]
+facade_forbidden_scopes = [
+  "application",
+  "presentation",
+  "composition",
+]
+uow_type = "NetworkUnitOfWork"
+uow_engine_type = "AsyncEngine"
+forbidden_uow_constructor_types = [
+  "NetworkDatabase",
+  "async_sessionmaker",
+  "AsyncSession",
+]

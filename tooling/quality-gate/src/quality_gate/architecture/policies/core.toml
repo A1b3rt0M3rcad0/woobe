@@ -1,0 +1,137 @@
+[module]
+name = "core"
+root = "packages/woobe-core/src/modules/core"
+package = "modules.core"
+required_layers = ["domain", "application", "infra", "presentation", "composition"]
+
+[constraints]
+forbid_cross_module_imports = false
+forbid_dynamic_imports = true
+forbid_wildcard_imports = true
+forbid_cycles = true
+forbidden_paths = ["runtime", "application/composers", "application/ports", "domain/ports", "domain/repositories.py", "presentation/*routes*.py"]
+
+[composer_contract]
+source = ["composition/composers/**"]
+function_suffix = "_composer"
+streaming_suffix = "_stream_composer"
+allowed_handlers = ["TransactionalHandler", "StreamingTransactionalHandler"]
+regular_handler = "TransactionalHandler"
+streaming_handler = "StreamingTransactionalHandler"
+uow_types = ["CoreUnitOfWork"]
+uow_factory_functions = []
+long_lived_handler = "Callable"
+long_lived_functions = []
+forbidden_parameter_types = ["AsyncSession", "AsyncEngine", "async_sessionmaker"]
+forbidden_parameter_names = ["session", "session_factory", "async_engine", "engine"]
+forbidden_calls = ["Settings", "Settings.model_validate", "create_engine", "create_session_factory"]
+repository_suffixes = ["Repository", "OutboxEventWriter"]
+forbid_control_flow = true
+forbid_nested_definitions = true
+forbid_uow_attribute_access = true
+require_repository_uow_argument = true
+require_zero_arguments = true
+dependency_parameter_tokens = ["database", "settings", "session", "engine", "factory", "executor", "repository", "repo", "storage", "publisher", "client", "registry", "uow", "unit_of_work"]
+uow_resource_names = ["DATABASE_ENGINE"]
+forbid_module_level_transients = true
+transient_suffixes = ["UnitOfWork", "Repository", "OutboxEventWriter", "UseCase", "Controller", "Handler", "Service"]
+forbid_composed_dependency_calls = true
+enforce_zero_arg_callsites = true
+forbidden_module_level_calls = ["Settings", "create_engine", "create_session_factory"]
+
+[unit_of_work_contract]
+interface_files = ["packages/woobe-core/src/shared/contracts/unit_of_work.py"]
+deprecated_interface_files = []
+concrete_sources = ["infra/database/unit_of_work.py"]
+forbidden_interface_imports = ["sqlalchemy", "alembic", "asyncpg", "psycopg2", "pgvector", "fastapi", "starlette", "aio_pika", "boto3", "langchain", "langchain_core", "langchain_openai", "shared.infra", "modules"]
+repository_name_fragments = ["Repository", "Writer"]
+allowed_properties = ["session"]
+forbid_repository_imports = true
+forbid_repository_properties = true
+
+[repository_contract]
+interface_sources = ["application/interfaces/repositories.py", "application/interfaces/*repository*.py", "application/interfaces/**/*repository*.py"]
+concrete_sources = ["infra/database/**/*.py", "infra/database/*.py"]
+external_base_files = []
+concrete_name_prefixes = ["SQLAlchemy", "SqlAlchemy"]
+excluded_port_bases = ["BaseSQLAlchemyRepository", "SqlAlchemyRepositoryBase"]
+forbidden_interface_imports = ["sqlalchemy", "alembic", "asyncpg", "psycopg2", "pgvector", "modules.core.infra", "shared.infra"]
+forbidden_constructor_types = ["AsyncSession", "AsyncEngine", "async_sessionmaker"]
+forbidden_transaction_methods = ["commit", "rollback"]
+require_application_port_base = true
+require_uow_constructor = true
+
+[application_contract]
+source = ["application/use_cases/**/*.py", "application/use_cases/*.py", "application/*use_case*.py"]
+dependency_name_tokens = ["repo", "repository", "reader", "writer", "factory", "executor", "storage", "cipher", "publisher", "clock"]
+forbid_untyped_dependencies = true
+
+[[rules]]
+id = "ARCH026"
+description = "composers are pure composition roots: they may wire concrete implementations but cannot depend directly on frameworks, transport primitives or configuration loaders"
+source = ["composition/composers/**"]
+allow = ["modules.core.composition", "modules.core.domain", "modules.core.application", "modules.core.infra", "modules.core.presentation.controllers", "modules.core.presentation.http.controllers", "modules.core.presentation.interfaces", "modules.core.presentation.schemas", "shared.contracts", "shared.security", "shared.infra.crypto", "shared.infra.transactional_handler", "shared.infra.streaming_transactional_handler", "modules.identity.entrypoint"]
+deny = ["modules.core.presentation.http.routes", "shared.infra.config", "shared.presentation", "sqlalchemy", "alembic", "asyncpg", "psycopg2", "pgvector", "fastapi", "starlette", "aio_pika", "boto3", "langchain", "langchain_core", "langchain_openai", "httpx", "uvicorn"]
+
+[[rules]]
+id = "ARCH005"
+description = "presentation controllers depend only on application contracts, domain values and presentation code"
+source = ["presentation/controllers/**", "presentation/http/controllers/**"]
+allow = ["shared.contracts", "shared.security.principal", "modules.core.presentation", "modules.core.application.interfaces", "modules.core.application.dtos", "modules.core.domain", "shared.presentation"]
+deny = ["modules.core.application.use_cases", "modules.core.infra", "modules.core.composition", "shared.infra", "shared.messaging", "shared.workers"]
+
+[[rules]]
+id = "ARCH006H"
+description = "HTTP routes are transport adapters and may invoke zero-argument module composers, but cannot own infrastructure or application use cases"
+source = ["presentation/http/**"]
+allow = ["shared.contracts", "shared.security.principal", "modules.core.presentation", "modules.core.application.interfaces", "modules.core.application.dtos", "modules.core.domain", "modules.core.composition.composers", "shared.presentation", "shared.security"]
+deny = ["modules.core.application.use_cases", "modules.core.infra", "modules.core.composition.resources", "shared.infra", "shared.messaging", "shared.workers", "sqlalchemy"]
+
+[[rules]]
+id = "ARCH006"
+description = "presentation is transport-only and cannot import composition or infrastructure"
+source = ["presentation/**"]
+allow = ["shared.contracts", "shared.security.principal", "modules.core.presentation", "modules.core.application.interfaces", "modules.core.application.dtos", "modules.core.domain", "shared.presentation", "shared.security"]
+deny = ["modules.core.application.use_cases", "modules.core.infra", "modules.core.composition", "shared.infra", "shared.messaging", "shared.workers", "sqlalchemy"]
+
+[[rules]]
+id = "ARCH004W"
+description = "infra workers are inbound adapters: they may invoke Application use cases but cannot depend on presentation or composition"
+source = ["infra/workers/**"]
+allow = ["modules.core.infra", "modules.core.application", "modules.core.domain", "shared"]
+deny = ["modules.core.presentation", "modules.core.composition"]
+
+[[rules]]
+id = "ARCH019"
+description = "composition is the outer module layer and may wire application, infrastructure and presentation without being imported back by them"
+source = ["composition/**"]
+allow = ["modules.core.composition", "modules.core.domain", "modules.core.application", "modules.core.infra", "modules.core.presentation", "shared", "modules.identity.entrypoint"]
+deny = []
+
+[[rules]]
+id = "ARCH020"
+description = "module entrypoint reaches internals only through composition"
+source = ["entrypoint.py", "__init__.py"]
+allow = ["modules.core.composition"]
+deny = ["modules.core.domain", "modules.core.application", "modules.core.infra", "modules.core.presentation"]
+
+[[rules]]
+id = "ARCH002"
+description = "domain remains independent from outer layers and technical frameworks"
+source = ["domain/**"]
+allow = ["modules.core.domain", "shared.contracts"]
+deny = ["modules.core.application", "modules.core.infra", "modules.core.presentation", "modules.core.composition", "shared.infra", "shared.messaging", "shared.presentation", "shared.workers", "sqlalchemy", "alembic", "asyncpg", "psycopg2", "pgvector", "fastapi", "starlette", "aio_pika", "boto3", "langchain", "langchain_core", "langchain_openai", "httpx", "uvicorn"]
+
+[[rules]]
+id = "ARCH003"
+description = "application owns ports and business orchestration and depends only on application, domain and stable shared contracts"
+source = ["application/**"]
+allow = ["modules.core.application", "modules.core.domain", "shared.contracts", "shared.security.redaction", "shared.security.crypto"]
+deny = ["modules.core.infra", "modules.core.presentation", "modules.core.composition", "shared.infra", "shared.messaging", "shared.presentation", "shared.workers", "sqlalchemy", "alembic", "asyncpg", "psycopg2", "pgvector", "fastapi", "starlette", "aio_pika", "boto3", "langchain", "langchain_core", "langchain_openai", "httpx", "uvicorn"]
+
+[[rules]]
+id = "ARCH004"
+description = "infrastructure implements application contracts and cannot depend on concrete application use cases, presentation or composition"
+source = ["infra/**"]
+allow = ["modules.core.infra", "modules.core.application.interfaces", "modules.core.application.dtos", "modules.core.domain", "shared"]
+deny = ["modules.core.application.use_cases", "modules.core.presentation", "modules.core.composition"]

@@ -1,0 +1,31 @@
+[runtime_transaction_boundaries]
+module = "chat_surface"
+module_root = "packages/woobe-core/src/modules/chat_surface"
+resources_file = "packages/woobe-core/src/modules/chat_surface/composition/resources.py"
+uow_type = "ChatSurfaceUnitOfWork"
+engine_resource = "DATABASE_ENGINE"
+long_lived_annotation = "Callable"
+long_lived_composer_sources = []
+long_lived_composer_functions = []
+forbidden_database_types = ["AsyncEngine", "AsyncSession", "async_sessionmaker"]
+framework_forbidden_scopes = [
+  "application",
+  "presentation",
+  "infra/runtime",
+  "infra/adapters",
+  "infra/execution",
+]
+uow_constructor_forbidden_scopes = [
+  "application",
+  "presentation",
+  "infra/runtime",
+  "infra/adapters",
+  "infra/execution",
+]
+engine_allowed_consumers = ["ChatSurfaceUnitOfWork"]
+engine_allowed_paths = [
+  "composition/composers/**",
+  "composition/factories/**",
+]
+forbidden_runtime_markers = ["WorkflowHandler"]
+forbidden_runtime_paths = ["composition/workflows/**"]

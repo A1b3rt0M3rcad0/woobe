@@ -26,7 +26,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  agent-architecture:
+  core-module-architecture:
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 10
     steps:
@@ -39,7 +39,7 @@ jobs:
         run: uv sync --frozen --all-groups --extra test
       - name: Quality gate self-tests
         run: uv run pytest -q tests/quality_gate
-      - name: Agent architecture policy
+      - name: Core module architecture policies
         run: >-
           PYTHONPATH=tooling/quality-gate/src
           uv run python -m quality_gate.architecture.checker

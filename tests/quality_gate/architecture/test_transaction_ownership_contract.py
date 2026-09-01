@@ -1,34 +1,80 @@
 from __future__ import annotations
 
 import ast
+from dataclasses import dataclass
 from pathlib import Path
 import tomllib
 
+import pytest
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-POLICY_FILE = (
+CONTRACT_DIR = (
     PROJECT_ROOT
-    / "tooling/quality-gate/src/quality_gate/architecture/policies/contracts/agent_transaction_ownership.toml"
+    / "tooling/quality-gate/src/quality_gate/architecture/policies/contracts"
 )
-with POLICY_FILE.open("rb") as stream:
-    POLICY = tomllib.load(stream)["transaction_ownership"]
-
-AGENT_ROOT = PROJECT_ROOT / POLICY["module_root"]
-UOW_FILE = PROJECT_ROOT / POLICY["uow_file"]
-RESOURCES_FILE = PROJECT_ROOT / POLICY["resources_file"]
-PROCESS_RESOURCE_NAMES = set(POLICY["process_resources"])
-FORBIDDEN_DATABASE_FACADE_IMPORTS = set(POLICY["forbidden_database_facades"])
-FORBIDDEN_SESSION_CREATORS = set(POLICY["forbidden_session_creators"])
-TRANSACTION_METHODS = set(POLICY["transaction_methods"])
-TRANSACTION_TARGET_NAMES = set(POLICY["transaction_target_names"])
-FACADE_FORBIDDEN_SCOPES = tuple(POLICY["facade_forbidden_scopes"])
-UOW_TYPE = POLICY["uow_type"]
-UOW_ENGINE_TYPE = POLICY["uow_engine_type"]
-FORBIDDEN_UOW_CONSTRUCTOR_TYPES = set(POLICY["forbidden_uow_constructor_types"])
 
 
-def _python_files() -> tuple[Path, ...]:
-    return tuple(sorted(path for path in AGENT_ROOT.rglob("*.py") if path.is_file()))
+@dataclass(frozen=True)
+class TransactionOwnershipContract:
+    name: str
+    module_root: Path
+    uow_file: Path
+    resources_file: Path
+    process_resources: frozenset[str]
+    forbidden_database_facades: frozenset[str]
+    forbidden_session_creators: frozenset[str]
+    transaction_methods: frozenset[str]
+    transaction_target_names: frozenset[str]
+    facade_forbidden_scopes: tuple[str, ...]
+    uow_type: str
+    uow_engine_type: str
+    forbidden_uow_constructor_types: frozenset[str]
+
+
+def _load_contracts() -> tuple[TransactionOwnershipContract, ...]:
+    contracts: list[TransactionOwnershipContract] = []
+    for path in sorted(CONTRACT_DIR.glob("*_transaction_ownership.toml")):
+        with path.open("rb") as stream:
+            policy = tomllib.load(stream)["transaction_ownership"]
+        contracts.append(
+            TransactionOwnershipContract(
+                name=str(policy.get("module") or path.stem.removesuffix("_transaction_ownership")),
+                module_root=PROJECT_ROOT / policy["module_root"],
+                uow_file=PROJECT_ROOT / policy["uow_file"],
+                resources_file=PROJECT_ROOT / policy["resources_file"],
+                process_resources=frozenset(policy["process_resources"]),
+                forbidden_database_facades=frozenset(policy["forbidden_database_facades"]),
+                forbidden_session_creators=frozenset(policy["forbidden_session_creators"]),
+                transaction_methods=frozenset(policy["transaction_methods"]),
+                transaction_target_names=frozenset(policy["transaction_target_names"]),
+                facade_forbidden_scopes=tuple(policy["facade_forbidden_scopes"]),
+                uow_type=policy["uow_type"],
+                uow_engine_type=policy["uow_engine_type"],
+                forbidden_uow_constructor_types=frozenset(
+                    policy["forbidden_uow_constructor_types"]
+                ),
+            )
+        )
+    assert contracts, "no transaction ownership contracts found"
+    return tuple(contracts)
+
+
+CONTRACTS = _load_contracts()
+
+
+def _id(contract: TransactionOwnershipContract) -> str:
+    return contract.name
+
+
+def _python_files(contract: TransactionOwnershipContract) -> tuple[Path, ...]:
+    assert contract.module_root.is_dir(), (
+        f"{contract.name}: module root is missing: "
+        f"{contract.module_root.relative_to(PROJECT_ROOT)}"
+    )
+    return tuple(
+        sorted(path for path in contract.module_root.rglob("*.py") if path.is_file())
+    )
 
 
 def _parse(path: Path) -> ast.Module:
@@ -53,7 +99,9 @@ def _imported_names(tree: ast.Module) -> tuple[tuple[str, int], ...]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             for alias in node.names:
-                imported.append((alias.asname or alias.name.rsplit(".", 1)[-1], node.lineno))
+                imported.append(
+                    (alias.asname or alias.name.rsplit(".", 1)[-1], node.lineno)
+                )
         elif isinstance(node, ast.ImportFrom):
             for alias in node.names:
                 imported.append((alias.asname or alias.name, node.lineno))
@@ -75,20 +123,26 @@ def _annotation_names(node: ast.AST | None) -> set[str]:
     return values
 
 
-def _is_transaction_target(target: str) -> bool:
+def _is_transaction_target(
+    target: str,
+    contract: TransactionOwnershipContract,
+) -> bool:
     if "." not in target:
         return False
     base, method = target.rsplit(".", 1)
-    if method not in TRANSACTION_METHODS:
+    if method not in contract.transaction_methods:
         return False
     leaf = base.rsplit(".", 1)[-1].lower()
-    return leaf in TRANSACTION_TARGET_NAMES
+    return leaf in contract.transaction_target_names
 
 
-def test_arch_uow_001_only_uow_may_create_or_open_database_sessions() -> None:
+@pytest.mark.parametrize("contract", CONTRACTS, ids=_id)
+def test_arch_uow_001_only_uow_may_create_or_open_database_sessions(
+    contract: TransactionOwnershipContract,
+) -> None:
     violations: list[str] = []
-    for path in _python_files():
-        if path == UOW_FILE:
+    for path in _python_files(contract):
+        if path == contract.uow_file:
             continue
         tree = _parse(path)
         relative = path.relative_to(PROJECT_ROOT)
@@ -97,17 +151,22 @@ def test_arch_uow_001_only_uow_may_create_or_open_database_sessions() -> None:
                 continue
             target = _name(node.func)
             short = target.rsplit(".", 1)[-1] if target else None
-            if short in FORBIDDEN_SESSION_CREATORS:
+            if short in contract.forbidden_session_creators:
                 violations.append(
                     f"{relative}:{node.lineno}: creates/opens a database session via {target}"
                 )
-    assert not violations, "ARCH-UOW-001\n" + "\n".join(violations)
+    assert not violations, f"ARCH-UOW-001 [{contract.name}]\n" + "\n".join(
+        violations
+    )
 
 
-def test_arch_uow_002_only_uow_may_manage_transaction_lifecycle() -> None:
+@pytest.mark.parametrize("contract", CONTRACTS, ids=_id)
+def test_arch_uow_002_only_uow_may_manage_transaction_lifecycle(
+    contract: TransactionOwnershipContract,
+) -> None:
     violations: list[str] = []
-    for path in _python_files():
-        if path == UOW_FILE:
+    for path in _python_files(contract):
+        if path == contract.uow_file:
             continue
         tree = _parse(path)
         relative = path.relative_to(PROJECT_ROOT)
@@ -115,30 +174,51 @@ def test_arch_uow_002_only_uow_may_manage_transaction_lifecycle() -> None:
             if not isinstance(node, ast.Call):
                 continue
             target = _name(node.func)
-            if target and _is_transaction_target(target):
+            if target and _is_transaction_target(target, contract):
                 violations.append(
-                    f"{relative}:{node.lineno}: transaction lifecycle call {target}() is UoW-owned"
+                    f"{relative}:{node.lineno}: transaction lifecycle call "
+                    f"{target}() is UoW-owned"
                 )
-    assert not violations, "ARCH-UOW-002\n" + "\n".join(violations)
+    assert not violations, f"ARCH-UOW-002 [{contract.name}]\n" + "\n".join(
+        violations
+    )
 
 
-def test_arch_uow_003_runtime_and_composition_cannot_use_database_facades() -> None:
+@pytest.mark.parametrize("contract", CONTRACTS, ids=_id)
+def test_arch_uow_003_application_presentation_and_composition_cannot_use_database_facades(
+    contract: TransactionOwnershipContract,
+) -> None:
     violations: list[str] = []
-    scoped_roots = tuple(AGENT_ROOT / scope for scope in FACADE_FORBIDDEN_SCOPES)
+    scoped_roots = tuple(
+        contract.module_root / scope for scope in contract.facade_forbidden_scopes
+    )
     for root in scoped_roots:
+        if not root.is_dir():
+            continue
         for path in sorted(root.rglob("*.py")):
             tree = _parse(path)
             relative = path.relative_to(PROJECT_ROOT)
             for imported, line in _imported_names(tree):
-                if imported in FORBIDDEN_DATABASE_FACADE_IMPORTS:
+                if imported in contract.forbidden_database_facades:
                     violations.append(
-                        f"{relative}:{line}: imports database facade/session factory {imported}"
+                        f"{relative}:{line}: imports database facade/session factory "
+                        f"{imported}"
                     )
-    assert not violations, "ARCH-UOW-003\n" + "\n".join(violations)
+    assert not violations, f"ARCH-UOW-003 [{contract.name}]\n" + "\n".join(
+        violations
+    )
 
 
-def test_arch_uow_004_process_resources_are_process_scoped_only() -> None:
-    tree = _parse(RESOURCES_FILE)
+@pytest.mark.parametrize("contract", CONTRACTS, ids=_id)
+def test_arch_uow_004_process_resources_are_declared_explicitly(
+    contract: TransactionOwnershipContract,
+) -> None:
+    assert contract.resources_file.is_file(), (
+        f"ARCH-UOW-004 [{contract.name}]\n"
+        f"missing composition resources file: "
+        f"{contract.resources_file.relative_to(PROJECT_ROOT)}"
+    )
+    tree = _parse(contract.resources_file)
     violations: list[str] = []
     for node in tree.body:
         names: list[tuple[str, int]] = []
@@ -148,20 +228,32 @@ def test_arch_uow_004_process_resources_are_process_scoped_only() -> None:
                 if isinstance(target, ast.Name):
                     names.append((target.id, node.lineno))
         for name, line in names:
-            if name.startswith("_") or name in PROCESS_RESOURCE_NAMES:
+            if name.startswith("_") or name in contract.process_resources:
                 continue
             violations.append(
-                f"{RESOURCES_FILE.relative_to(PROJECT_ROOT)}:{line}: process resource {name} is not allowed"
+                f"{contract.resources_file.relative_to(PROJECT_ROOT)}:{line}: "
+                f"process resource {name} is not declared by the module contract"
             )
-    assert not violations, "ARCH-UOW-004\n" + "\n".join(violations)
+    assert not violations, f"ARCH-UOW-004 [{contract.name}]\n" + "\n".join(
+        violations
+    )
 
 
-def test_arch_uow_005_agent_uow_accepts_engine_only() -> None:
-    tree = _parse(UOW_FILE)
+@pytest.mark.parametrize("contract", CONTRACTS, ids=_id)
+def test_arch_uow_005_uow_accepts_engine_only(
+    contract: TransactionOwnershipContract,
+) -> None:
+    assert contract.uow_file.is_file(), (
+        f"ARCH-UOW-005 [{contract.name}]\n"
+        f"missing UnitOfWork file: {contract.uow_file.relative_to(PROJECT_ROOT)}"
+    )
+    tree = _parse(contract.uow_file)
     violations: list[str] = []
+    found = False
     for node in tree.body:
-        if not isinstance(node, ast.ClassDef) or node.name != UOW_TYPE:
+        if not isinstance(node, ast.ClassDef) or node.name != contract.uow_type:
             continue
+        found = True
         init = next(
             (
                 item
@@ -171,7 +263,7 @@ def test_arch_uow_005_agent_uow_accepts_engine_only() -> None:
             ),
             None,
         )
-        assert init is not None, f"{UOW_TYPE} must define __init__"
+        assert init is not None, f"{contract.uow_type} must define __init__"
         args = [
             arg
             for arg in (*init.args.posonlyargs, *init.args.args, *init.args.kwonlyargs)
@@ -179,14 +271,28 @@ def test_arch_uow_005_agent_uow_accepts_engine_only() -> None:
         ]
         if len(args) != 1:
             violations.append(
-                f"{UOW_FILE.relative_to(PROJECT_ROOT)}:{init.lineno}: {UOW_TYPE} must accept exactly one {UOW_ENGINE_TYPE}"
+                f"{contract.uow_file.relative_to(PROJECT_ROOT)}:{init.lineno}: "
+                f"{contract.uow_type} must accept exactly one "
+                f"{contract.uow_engine_type}"
             )
             continue
         arg = args[0]
         names = _annotation_names(arg.annotation)
-        if UOW_ENGINE_TYPE not in names or names.intersection(FORBIDDEN_UOW_CONSTRUCTOR_TYPES):
+        if (
+            contract.uow_engine_type not in names
+            or names.intersection(contract.forbidden_uow_constructor_types)
+        ):
             annotation = ast.unparse(arg.annotation) if arg.annotation else "<untyped>"
             violations.append(
-                f"{UOW_FILE.relative_to(PROJECT_ROOT)}:{arg.lineno}: {UOW_TYPE} constructor must accept {UOW_ENGINE_TYPE} only; got {annotation}"
+                f"{contract.uow_file.relative_to(PROJECT_ROOT)}:{arg.lineno}: "
+                f"{contract.uow_type} constructor must accept "
+                f"{contract.uow_engine_type} only; got {annotation}"
             )
-    assert not violations, "ARCH-UOW-005\n" + "\n".join(violations)
+    if not found:
+        violations.append(
+            f"{contract.uow_file.relative_to(PROJECT_ROOT)}: "
+            f"missing {contract.uow_type}"
+        )
+    assert not violations, f"ARCH-UOW-005 [{contract.name}]\n" + "\n".join(
+        violations
+    )

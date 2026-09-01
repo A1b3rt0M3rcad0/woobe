@@ -1,4 +1,5 @@
 [transaction_ownership]
+module = "agent"
 module_root = "packages/woobe-core/src/modules/agent"
 uow_file = "packages/woobe-core/src/modules/agent/infra/database/unit_of_work.py"
 resources_file = "packages/woobe-core/src/modules/agent/composition/resources.py"

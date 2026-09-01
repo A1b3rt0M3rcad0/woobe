@@ -1,0 +1,41 @@
+[transaction_ownership]
+module = "identity"
+module_root = "packages/woobe-core/src/modules/identity"
+uow_file = "packages/woobe-core/src/modules/identity/infra/database/unit_of_work.py"
+resources_file = "packages/woobe-core/src/modules/identity/composition/resources.py"
+process_resources = ["SETTINGS", "DATABASE_ENGINE"]
+forbidden_database_facades = [
+  "IdentityDatabase",
+  "IdentityDatabaseInput",
+  "identity_session_factory",
+  "coerce_identity_database",
+  "SESSION_FACTORY",
+  "IDENTITY_DATABASE",
+]
+forbidden_session_creators = [
+  "async_sessionmaker",
+  "sessionmaker",
+  "create_session_factory",
+  "open_session",
+]
+transaction_methods = ["begin", "commit", "rollback", "close"]
+transaction_target_names = [
+  "session",
+  "_session",
+  "transaction",
+  "_transaction",
+  "tx",
+  "_tx",
+]
+facade_forbidden_scopes = [
+  "application",
+  "presentation",
+  "composition",
+]
+uow_type = "IdentityUnitOfWork"
+uow_engine_type = "AsyncEngine"
+forbidden_uow_constructor_types = [
+  "IdentityDatabase",
+  "async_sessionmaker",
+  "AsyncSession",
+]
