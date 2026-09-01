@@ -8,7 +8,8 @@ from __future__ import annotations
 from pathlib import Path
 
 
-SHARED_DIR = Path("src/shared")
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
+SHARED_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "shared"
 
 
 def test_shared_domain_directory_removed():
