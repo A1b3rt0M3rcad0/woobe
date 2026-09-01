@@ -9,7 +9,7 @@ on:
       - "packages/woobe-core/**"
       - "packages/woobe-api/**"
       - "packages/woobe-workers/**"
-      - "quality_gate/**"
+      - "tooling/quality-gate/**"
       - "tests/quality_gate/**"
       - "tests/architecture/**"
       - "pyproject.toml"
@@ -40,4 +40,7 @@ jobs:
       - name: Quality gate self-tests
         run: uv run pytest -q tests/quality_gate
       - name: Agent architecture policy
-        run: uv run python -m quality_gate.architecture.checker
+        run: >-
+          PYTHONPATH=tooling/quality-gate/src
+          uv run python -m quality_gate.architecture.checker
+          --policy-dir tooling/quality-gate/src/quality_gate/architecture/policies

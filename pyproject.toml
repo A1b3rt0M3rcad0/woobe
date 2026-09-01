@@ -49,8 +49,9 @@ extraPaths = [
     "packages/woobe-core/src",
     "packages/woobe-api/src",
     "packages/woobe-workers/src",
-    "packages/woobe-testkit/src",
-    "packages/woobe-mock/src",
+    "tooling/woobe-testkit/src",
+    "tooling/woobe-mock/src",
+    "tooling/quality-gate/src",
 ]
 
 [tool.ruff.lint.per-file-ignores]

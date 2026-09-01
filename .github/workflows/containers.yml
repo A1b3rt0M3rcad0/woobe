@@ -40,7 +40,7 @@ jobs:
           --build-arg VITE_WOOBE_EDITION=community
           --tag woobe-web:ci packages/woobe-frontend
       - name: Build ChatSurface image
-        run: docker build --pull --no-cache --tag woobe-chat-embed:ci packages/woobe-frontend/embed
+        run: docker build --pull --no-cache --tag woobe-chat-embed:ci packages/woobe-embed
       - name: Require non-root runtime users
         run: |
           set -euo pipefail

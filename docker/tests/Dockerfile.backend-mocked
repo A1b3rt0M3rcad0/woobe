@@ -25,17 +25,17 @@ COPY packages/woobe-api/pyproject.toml packages/woobe-api/pyproject.toml
 COPY packages/woobe-api/src/ packages/woobe-api/src/
 COPY packages/woobe-workers/pyproject.toml packages/woobe-workers/pyproject.toml
 COPY packages/woobe-workers/src/ packages/woobe-workers/src/
-COPY packages/woobe-testkit/pyproject.toml packages/woobe-testkit/pyproject.toml
-COPY packages/woobe-testkit/src/ packages/woobe-testkit/src/
-COPY packages/woobe-mock/pyproject.toml packages/woobe-mock/pyproject.toml
-COPY packages/woobe-mock/src/ packages/woobe-mock/src/
+COPY tooling/woobe-testkit/pyproject.toml tooling/woobe-testkit/pyproject.toml
+COPY tooling/woobe-testkit/src/ tooling/woobe-testkit/src/
+COPY tooling/woobe-mock/pyproject.toml tooling/woobe-mock/pyproject.toml
+COPY tooling/woobe-mock/src/ tooling/woobe-mock/src/
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/venv/bin/python --no-deps \
     --editable packages/woobe-core \
     --editable packages/woobe-api \
     --editable packages/woobe-workers \
-    --editable packages/woobe-testkit \
-    --editable packages/woobe-mock \
+    --editable tooling/woobe-testkit \
+    --editable tooling/woobe-mock \
     && uv pip check --python /opt/venv/bin/python
 
 COPY tests/ tests/

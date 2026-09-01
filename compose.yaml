@@ -170,7 +170,7 @@ services:
 
   chat-embed:
     build:
-      context: packages/woobe-frontend/embed
+      context: packages/woobe-embed
     ports:
       - "${WOOBE_CHAT_EMBED_PORT:-8081}:8080"
     restart: unless-stopped
