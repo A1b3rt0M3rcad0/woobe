@@ -121,6 +121,13 @@ def _binding(*, target_type: str):
     )
 
 
+def _authorized(binding):
+    return SimpleNamespace(
+        surface=SimpleNamespace(id=uuid4()),
+        binding=binding,
+    )
+
+
 def _agent_run(binding):
     return SimpleNamespace(
         id=uuid4(),
@@ -287,11 +294,15 @@ async def test_begin_message_active_run_conflict_carries_canonical_run_identity(
     binding = _binding(target_type=target_type)
     run = _agent_run(binding) if target_type == "agent" else _network_run(binding)
     service = ControlPlaneChatSurfaceService(_AdmissionSessionFactory(), SimpleNamespace())
-    authorized = SimpleNamespace(binding=binding)
+    authorized = _authorized(binding)
+
+    async def reconcile_surface(_surface_id):
+        return None
 
     async def active_run(_binding):
         return run.id, "running"
 
+    service._reconcile_surface_active_messages = reconcile_surface
     service._active_run_for_binding = active_run
 
     with pytest.raises(ConflictError) as raised:
@@ -370,9 +381,13 @@ async def test_begin_message_reconciles_active_message_request_before_creating_n
 ) -> None:
     binding = _binding(target_type="agent")
     service = ControlPlaneChatSurfaceService(_AdmissionSessionFactory(), SimpleNamespace())
-    authorized = SimpleNamespace(binding=binding)
+    authorized = _authorized(binding)
     created = SimpleNamespace(id=uuid4())
     events: list[str] = []
+
+    async def reconcile_surface(surface_id):
+        assert surface_id == authorized.surface.id
+        events.append("surface-reconcile")
 
     async def no_active_run(_binding):
         return None, None
@@ -385,6 +400,7 @@ async def test_begin_message_reconciles_active_message_request_before_creating_n
         events.append("create")
         return created, True
 
+    service._reconcile_surface_active_messages = reconcile_surface
     service._active_run_for_binding = no_active_run
     service.active_message_request = reconcile
     monkeypatch.setattr(ChatSurfaceService, "begin_message", base_begin_message)
@@ -392,7 +408,7 @@ async def test_begin_message_reconciles_active_message_request_before_creating_n
     result = await service.begin_message(authorized, "next-message")
 
     assert result == (created, True)
-    assert events == ["reconcile", "create"]
+    assert events == ["surface-reconcile", "reconcile", "create"]
 
 
 @pytest.mark.asyncio
@@ -401,10 +417,16 @@ async def test_begin_message_retries_once_after_legacy_active_message_integrity_
 ) -> None:
     binding = _binding(target_type="agent")
     service = ControlPlaneChatSurfaceService(_AdmissionSessionFactory(), SimpleNamespace())
-    authorized = SimpleNamespace(binding=binding)
+    authorized = _authorized(binding)
     created = SimpleNamespace(id=uuid4())
     begin_calls = 0
     reconcile_calls = 0
+    surface_reconcile_calls = 0
+
+    async def reconcile_surface(surface_id):
+        nonlocal surface_reconcile_calls
+        assert surface_id == authorized.surface.id
+        surface_reconcile_calls += 1
 
     async def no_active_run(_binding):
         return None, None
@@ -421,6 +443,7 @@ async def test_begin_message_retries_once_after_legacy_active_message_integrity_
             raise ConflictError("ChatSurface Session already has an active Run")
         return created, True
 
+    service._reconcile_surface_active_messages = reconcile_surface
     service._active_run_for_binding = no_active_run
     service.active_message_request = reconcile
     monkeypatch.setattr(ChatSurfaceService, "begin_message", base_begin_message)
@@ -430,6 +453,7 @@ async def test_begin_message_retries_once_after_legacy_active_message_integrity_
     assert result == (created, True)
     assert begin_calls == 2
     assert reconcile_calls == 2
+    assert surface_reconcile_calls == 1
 
 
 @pytest.mark.asyncio
