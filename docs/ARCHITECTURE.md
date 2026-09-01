@@ -22,11 +22,10 @@ Woobe Community is organized under `packages/`:
 
 ```text
 packages/
-├── woobe-core/       # bounded contexts, runtime contracts, shared technical infrastructure
+├── woobe-core/       # bounded contexts, runtime contracts, shared technical infrastructure + migrations
 ├── woobe-api/        # HTTP process composition root
 ├── woobe-workers/    # worker process composition root
 ├── woobe-frontend/   # control-plane frontend + ChatSurface embed
-├── woobe-db/         # Alembic/migration one-shot boundary
 ├── woobe-ee/         # reserved boundary; no Community dependency on proprietary code
 ├── woobe-testkit/    # shared test-only helpers
 ├── woobe-mock/       # protocol mocks/fault injection
@@ -39,7 +38,7 @@ packages/
 
 `woobe-workers` owns process-level worker composition. Concrete workers remain under the owning bounded context in `woobe-core/src/modules/<module>/infra/workers/`; the Workers process discovers and composes them. Core must not import Workers.
 
-`woobe-db` owns the Alembic environment and migration history. Production migrations run through this package before the API starts.
+Alembic configuration and migration history remain owned by `woobe-core` at `packages/woobe-core/alembic.ini` and `packages/woobe-core/migrations/`. Production migrations use this Core-owned migration surface before the API starts. Extracting migration execution into a separate database package is intentionally deferred to a dedicated change.
 
 Internal Python boundaries use package-level installation metadata. Runtime and backend-test images install those packages as editable distributions instead of relying on `PYTHONPATH`, while the root dependency manifest and lock remain authoritative for the MVP.
 
@@ -63,7 +62,7 @@ Enterprise = reserved product boundary; no proprietary runtime implementation is
 
 Community product code is rooted under `packages/`. Proprietary Cloud implementation is not part of the Community source tree or Community container build context. `packages/woobe-ee` is a reserved boundary marker and must not make Community depend on proprietary implementation.
 
-Community composition roots include `packages/woobe-api/src/main.py`, `packages/woobe-workers/src/worker_main.py`, `packages/woobe-db/migrations/env.py`, the root `compose.yaml`, and the frontend package. They must remain runnable without proprietary edition source.
+Community composition roots include `packages/woobe-api/src/main.py`, `packages/woobe-workers/src/worker_main.py`, `packages/woobe-core/migrations/env.py`, the root `compose.yaml`, and the frontend package. They must remain runnable without proprietary edition source.
 
 Architecture tests under `tests/architecture/` protect package dependency direction, Community distribution boundaries, worker ownership, database ownership, migration ownership, and the absence of legacy root source trees.
 
