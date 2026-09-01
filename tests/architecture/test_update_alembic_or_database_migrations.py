@@ -4,9 +4,12 @@ import pathlib
 import re
 
 
-MIGRATIONS_DIR = pathlib.Path("migrations/versions")
-ENV_PATH = pathlib.Path("migrations/env.py")
-DB_BASE = pathlib.Path("src/shared/infra/database/base.py")
+MIGRATIONS_DIR = pathlib.Path("packages/woobe-db/migrations/versions")
+ENV_PATH = pathlib.Path("packages/woobe-db/migrations/env.py")
+DB_BASE = pathlib.Path("packages/woobe-core/src/shared/infra/database/base.py")
+AGENT_MODELS = pathlib.Path(
+    "packages/woobe-core/src/modules/agent/infra/database/models.py"
+)
 
 
 class TestAlembicMigrationsSuccess:
@@ -37,7 +40,9 @@ class TestAlembicMigrationsSuccess:
             "modules.network.infra.database.models",
         ]
         for module_path in required_imports:
-            assert module_path in content, f"migrations/env.py must import {module_path}"
+            assert module_path in content, (
+                f"packages/woobe-db/migrations/env.py must import {module_path}"
+            )
 
     def test_migration_files_exist(self):
         assert list(MIGRATIONS_DIR.glob("*.py")), "Migration version files must exist"
@@ -91,9 +96,10 @@ class TestAlembicMigrationsRejectsForbidden:
                 )
 
     def test_agent_migration_models_follow_expand_migrate_contract(self):
-        agent_models = pathlib.Path("src/modules/agent/infra/database/models.py")
-        if agent_models.is_file():
-            assert "__tablename__" in agent_models.read_text(encoding="utf-8")
+        assert AGENT_MODELS.is_file(), (
+            "Agent models must exist under packages/woobe-core/src"
+        )
+        assert "__tablename__" in AGENT_MODELS.read_text(encoding="utf-8")
 
 
 class TestAlembicMigrationsKeepsCompatibility:

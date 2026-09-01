@@ -1,23 +1,23 @@
 # Temporary Legacy Schema Allowlist
-# Each entry permits a known legacy schema reference in agent models/migrations.
+# Each entry permits a known legacy schema reference in historical migrations.
 # Fields: file_path, line_pattern, schema, reason, removal_spec
 # This file must have zero entries after spec 017.
 
 entries:
   # --- historical migrations ---
-  - file_path: migrations/versions/*
+  - file_path: packages/woobe-db/migrations/versions/*
     line_pattern: 'schema="ai"'
     schema: ai
     reason: "Historical migration creating/altering legacy ai schema objects"
     removal_spec: "016"
 
-  - file_path: migrations/versions/*
+  - file_path: packages/woobe-db/migrations/versions/*
     line_pattern: 'schema="knowledge"'
     schema: knowledge
     reason: "Historical migration creating/altering legacy knowledge schema objects"
     removal_spec: "016"
 
-  - file_path: migrations/versions/*
+  - file_path: packages/woobe-db/migrations/versions/*
     line_pattern: 'schema="runtime"'
     schema: runtime
     reason: "Historical migration creating/altering legacy runtime schema objects"

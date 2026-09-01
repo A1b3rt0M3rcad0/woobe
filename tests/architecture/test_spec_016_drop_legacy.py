@@ -8,8 +8,19 @@ import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-MIGRATIONS_DIR = PROJECT_ROOT / "migrations" / "versions"
+MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-db" / "migrations" / "versions"
 MIGRATION_0020 = MIGRATIONS_DIR / "0020_drop_legacy_schemas.py"
+AGENT_MODELS = (
+    PROJECT_ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "agent"
+    / "infra"
+    / "database"
+    / "models.py"
+)
 
 
 class TestMigration0020Exists:
@@ -40,14 +51,18 @@ class TestMigration0020DropsLegacySchemas:
 
     def test_upgrade_has_all_ai_view_names(self):
         text = MIGRATION_0020.read_text(encoding="utf-8")
-        for view in ("provider_credentials", "agents", "agent_prompts", "agent_contracts",
-                      "agent_model_configs", "agent_releases", "agent_release_tests"):
+        for view in (
+            "provider_credentials", "agents", "agent_prompts", "agent_contracts",
+            "agent_model_configs", "agent_releases", "agent_release_tests",
+        ):
             assert view in text, f"AI view {view} not referenced in migration"
 
     def test_upgrade_has_all_knowledge_view_names(self):
         text = MIGRATION_0020.read_text(encoding="utf-8")
-        for view in ("document_collections", "agent_collections", "documents",
-                      "document_chunks", "knowledge_versions"):
+        for view in (
+            "document_collections", "agent_collections", "documents",
+            "document_chunks", "knowledge_versions",
+        ):
             assert view in text, f"Knowledge view {view} not referenced in migration"
 
     def test_upgrade_has_all_runtime_view_names(self):
@@ -81,9 +96,8 @@ class TestMigration0020Downgrade:
 
 
 class TestAgentTablesPreserved:
-    def test_agent_tables_unaffected_in_src_models(self):
-        models_py = PROJECT_ROOT / "src" / "modules" / "agent" / "infra" / "database" / "models.py"
-        text = models_py.read_text(encoding="utf-8")
+    def test_agent_tables_unaffected_in_core_models(self):
+        text = AGENT_MODELS.read_text(encoding="utf-8")
         assert re.search(r'schema["\s]*[:=]["\s]*"agent"', text), (
             "No schema='agent' reference found in models.py"
         )
