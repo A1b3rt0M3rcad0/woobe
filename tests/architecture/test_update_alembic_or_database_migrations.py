@@ -4,8 +4,8 @@ import pathlib
 import re
 
 
-MIGRATIONS_DIR = pathlib.Path("packages/woobe-db/migrations/versions")
-ENV_PATH = pathlib.Path("packages/woobe-db/migrations/env.py")
+MIGRATIONS_DIR = pathlib.Path("packages/woobe-core/migrations/versions")
+ENV_PATH = pathlib.Path("packages/woobe-core/migrations/env.py")
 DB_BASE = pathlib.Path("packages/woobe-core/src/shared/infra/database/base.py")
 AGENT_MODELS = pathlib.Path(
     "packages/woobe-core/src/modules/agent/infra/database/models.py"
@@ -41,7 +41,7 @@ class TestAlembicMigrationsSuccess:
         ]
         for module_path in required_imports:
             assert module_path in content, (
-                f"packages/woobe-db/migrations/env.py must import {module_path}"
+                f"packages/woobe-core/migrations/env.py must import {module_path}"
             )
 
     def test_migration_files_exist(self):
