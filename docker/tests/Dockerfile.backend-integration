@@ -11,7 +11,7 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     PATH="/opt/venv/bin:$PATH" \
-    PYTHONPATH="/app/src:/app" \
+    PYTHONPATH="/app/packages/woobe-core/src:/app/packages/woobe-api/src:/app/packages/woobe-workers/src:/app/packages/woobe-testkit/src:/app/packages/woobe-mock/src:/app" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -20,10 +20,14 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --all-groups --extra test --no-install-project
 
-COPY src/ src/
+COPY packages/woobe-core/src/ packages/woobe-core/src/
+COPY packages/woobe-api/src/ packages/woobe-api/src/
+COPY packages/woobe-workers/src/ packages/woobe-workers/src/
+COPY packages/woobe-testkit/ packages/woobe-testkit/
+COPY packages/woobe-mock/ packages/woobe-mock/
+COPY packages/woobe-db/ packages/woobe-db/
 COPY tests/ tests/
-COPY migrations/ migrations/
 COPY scripts/ scripts/
-COPY alembic.ini pytest.ini ./
+COPY pytest.ini ./
 
-CMD ["/bin/sh", "-c", "set -eu; mkdir -p /artifacts; alembic upgrade head; python -m pytest -q tests/integration --junitxml=/artifacts/backend-integration.xml"]
+CMD ["/bin/sh", "-c", "set -eu; mkdir -p /artifacts; alembic -c packages/woobe-db/alembic.ini upgrade head; python -m pytest -q tests/integration --junitxml=/artifacts/backend-integration.xml"]

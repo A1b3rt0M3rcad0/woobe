@@ -44,6 +44,15 @@ dev = [
     "ruff>=0.15.15",
 ]
 
+[tool.pyright]
+extraPaths = [
+    "packages/woobe-core/src",
+    "packages/woobe-api/src",
+    "packages/woobe-workers/src",
+    "packages/woobe-testkit/src",
+    "packages/woobe-mock/src",
+]
+
 [tool.ruff.lint.per-file-ignores]
-"src/modules/agent/application/mcp_oauth_flows.py" = ["F401"]
-"src/modules/agent/infra/database/models.py" = ["F401"]
+"packages/woobe-core/src/modules/agent/application/mcp_oauth_flows.py" = ["F401"]
+"packages/woobe-core/src/modules/agent/infra/database/models.py" = ["F401"]

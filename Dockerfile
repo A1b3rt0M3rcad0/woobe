@@ -27,7 +27,7 @@ RUN /opt/venv/bin/python -c "from pypdf import PdfReader; print('pypdf runtime d
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
 ENV PATH="/opt/venv/bin:$PATH" \
-    PYTHONPATH="/app/src" \
+    PYTHONPATH="/app/packages/woobe-core/src:/app/packages/woobe-api/src:/app/packages/woobe-workers/src" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -40,9 +40,10 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY --from=builder --chown=woobe:woobe /opt/venv /opt/venv
-COPY --chown=woobe:woobe src/ src/
-COPY --chown=woobe:woobe migrations/ migrations/
-COPY --chown=woobe:woobe alembic.ini ./
+COPY --chown=woobe:woobe packages/woobe-core/src/ packages/woobe-core/src/
+COPY --chown=woobe:woobe packages/woobe-api/src/ packages/woobe-api/src/
+COPY --chown=woobe:woobe packages/woobe-workers/src/ packages/woobe-workers/src/
+COPY --chown=woobe:woobe packages/woobe-db/ packages/woobe-db/
 COPY --chown=woobe:woobe scripts/docker-entrypoint.sh /usr/local/bin/woobe-entrypoint
 
 RUN sed -i 's/\r$//' /usr/local/bin/woobe-entrypoint \
@@ -56,4 +57,4 @@ USER 10001:10001
 EXPOSE 8000
 
 ENTRYPOINT ["/usr/local/bin/woobe-entrypoint"]
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

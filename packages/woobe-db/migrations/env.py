@@ -1,6 +1,5 @@
 import asyncio
 import os
-import sys
 from logging.config import fileConfig
 from typing import Any
 
@@ -9,22 +8,20 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
-
-from shared.infra.database.base import Base  # noqa: E402
-from modules.identity.infra.database.models import *  # noqa: E402,F401,F403
-from modules.core.infra.database.models import *  # noqa: E402,F401,F403
-from modules.chat_surface.infra.database.models import *  # noqa: E402,F401,F403
-from modules.agent.infra.database.models import *  # noqa: E402,F401,F403
-from modules.agent.infra.database.run_models import *  # noqa: E402,F401,F403
-from modules.agent.infra.database.context_models import *  # noqa: E402,F401,F403
-from modules.agent.infra.database.provider_model_repositories import ProviderModelModel  # noqa: E402,F401
-from modules.agent.infra.database.release_activation_repository import AgentReleaseActivationModel  # noqa: E402,F401
-from modules.agent.infra.database.vector_snapshot_models import *  # noqa: E402,F401,F403
-from modules.network.infra.database.models import *  # noqa: E402,F401,F403
-from modules.network.infra.database.schema_extensions import *  # noqa: E402,F401,F403
-from modules.metering.infra.database.models import *  # noqa: E402,F401,F403
-from modules.observability.infra.database.models import *  # noqa: E402,F401,F403
+from modules.agent.infra.database.context_models import *  # noqa: F401,F403
+from modules.agent.infra.database.models import *  # noqa: F401,F403
+from modules.agent.infra.database.provider_model_repositories import ProviderModelModel  # noqa: F401
+from modules.agent.infra.database.release_activation_repository import AgentReleaseActivationModel  # noqa: F401
+from modules.agent.infra.database.run_models import *  # noqa: F401,F403
+from modules.agent.infra.database.vector_snapshot_models import *  # noqa: F401,F403
+from modules.chat_surface.infra.database.models import *  # noqa: F401,F403
+from modules.core.infra.database.models import *  # noqa: F401,F403
+from modules.identity.infra.database.models import *  # noqa: F401,F403
+from modules.metering.infra.database.models import *  # noqa: F401,F403
+from modules.network.infra.database.models import *  # noqa: F401,F403
+from modules.network.infra.database.schema_extensions import *  # noqa: F401,F403
+from modules.observability.infra.database.models import *  # noqa: F401,F403
+from shared.infra.database.base import Base
 
 
 def _async_postgres_url(value: str) -> str:
