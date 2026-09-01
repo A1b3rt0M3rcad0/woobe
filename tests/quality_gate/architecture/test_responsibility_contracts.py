@@ -7,6 +7,9 @@ from quality_gate.architecture.policy import load_policy
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 RESPONSIBILITY_SOURCE = (
     PROJECT_ROOT
+    / "tooling"
+    / "quality-gate"
+    / "src"
     / "quality_gate"
     / "architecture"
     / "responsibilities"

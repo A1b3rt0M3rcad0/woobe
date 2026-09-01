@@ -5,7 +5,10 @@ from quality_gate.architecture.policy import load_policy
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-POLICY_SOURCE = PROJECT_ROOT / "quality_gate/architecture/policies/agent.toml"
+POLICY_SOURCE = (
+    PROJECT_ROOT
+    / "tooling/quality-gate/src/quality_gate/architecture/policies/agent.toml"
+)
 CORE_SOURCE = Path("packages/woobe-core/src")
 
 

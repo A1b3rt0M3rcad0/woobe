@@ -9,7 +9,7 @@ import tomllib
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 POLICY_FILE = (
     PROJECT_ROOT
-    / "quality_gate/architecture/policies/contracts/agent_runtime_transaction_boundaries.toml"
+    / "tooling/quality-gate/src/quality_gate/architecture/policies/contracts/agent_runtime_transaction_boundaries.toml"
 )
 with POLICY_FILE.open("rb") as stream:
     POLICY = tomllib.load(stream)["runtime_transaction_boundaries"]
