@@ -8,7 +8,7 @@ The core principle is simple: **production should run immutable, traceable relea
 
 > **Pre-release status**
 >
-> Woobe is being prepared for its first public Community release. Public interfaces, deployment contracts and the Community license remain pre-release until the release checklist is completed.
+> Woobe is being prepared for its first public Community release. Public interfaces, deployment contracts, and the Community license remain pre-release until the release checklist is completed.
 
 ## Why Woobe
 
@@ -56,7 +56,7 @@ Rollback when needed
 | **Project** | Technical isolation boundary for Agents, Networks, Tools, Knowledge, runtime, Runs, and Traces. |
 | **Agent** | Mutable AI configuration during development. |
 | **Agent Release** | Immutable Agent snapshot consumed by Production. |
-| **Agent Network** | Operational composition of Agents inside a Project. |
+| **Agent Network** | First-class operational composition of Agents inside a Project. A Project may own multiple Networks. |
 | **Network Release** | Immutable snapshot of a Network and its versioned bindings. |
 | **Session** | Long-lived conversational context. |
 | **Agent Run** | One finite logical Agent execution. |
@@ -102,25 +102,26 @@ The default topology is intentionally small and single-host oriented.
 | --- | --- | --- |
 | **PostgreSQL + pgvector** | Durable application state and vector-capable persistence | Internal |
 | **RabbitMQ** | Asynchronous runtime and background work | Internal |
+| **Redis** | Shared runtime coordination and ephemeral distributed state | Internal |
 | **Migrations** | Applies the database schema before API startup | One-shot |
 | **API** | Control-plane and runtime HTTP surface | `:8000` |
 | **Workers** | Background and asynchronous execution | Internal |
 | **Web** | Woobe control-plane interface | `:8080` |
 | **Chat Embed** | Browser-facing ChatSurface assets | `:8081` |
 
-PostgreSQL, RabbitMQ, and local Knowledge uploads use persistent Docker volumes. Redis, PgBouncer, and MinIO are not part of the default Community product topology; contributor infrastructure is layered explicitly through `deploy/dev/compose.yml`.
+PostgreSQL, RabbitMQ, Redis, and local Knowledge uploads are composed by the supported Community deployment. Contributor-only infrastructure is layered explicitly through `deploy/dev/compose.yml`.
 
 ## From development to production
 
 Draft configuration is mutable. Staging validates configuration intended for release. Production runs immutable Agent Releases and Network Releases. Rollback restores an earlier immutable release rather than reconstructing old state.
 
-A self-hosted Community instance uses the same root `compose.yaml` with `WOOBE_ENVIRONMENT=production` plus production-safe secrets, cookies, host allowlists, TLS termination and backup procedures.
+A self-hosted Community instance uses the same root `compose.yaml` with `WOOBE_ENVIRONMENT=production` plus production-safe secrets, cookies, host allowlists, TLS termination, and backup procedures.
 
 ## Agent Networks
 
-Woobe starts with a single Agent and grows into an Agent Network when coordinated behavior is required. A Project owns one operational Agent Network. The Network is versioned independently from its Agents so the composition itself is a first-class production artifact.
+A Project may own multiple Agent Networks. Each Network is a first-class operational entity with its own composition, versions, releases, runs, sessions, traces, and configuration. Network versioning is independent from Agent versioning so composition itself is a production artifact.
 
-In Production, the Network must bind to released Agents so mutable configuration cannot silently change production behavior.
+In Production, Networks bind to released Agents so mutable Agent configuration cannot silently change production behavior.
 
 ## Knowledge and RAG
 
@@ -151,33 +152,39 @@ This repository and the supported self-host artifacts distribute **Woobe Communi
 ```text
 Community  = Core distributed here
 Cloud      = proprietary Woobe-managed product; implementation is not distributed here
-Enterprise = not currently implemented or distributed
+Enterprise = reserved product boundary; no proprietary runtime implementation is distributed here
 ```
 
-Community does not require a Woobe Cloud account, has no required call-home dependency, and does not add a Woobe per-Run fee. The operator owns its infrastructure, model-provider costs and external services used through Tools.
+Community does not require a Woobe Cloud account, has no required call-home dependency, and does not add a Woobe per-Run fee. The operator owns its infrastructure, model-provider costs, and external services used through Tools.
 
-Woobe Cloud may build on the same core concepts, but proprietary Cloud implementation is intentionally outside the Community source tree and Community container build context. No empty Enterprise implementation tree is maintained.
+Woobe Cloud may build on the same core concepts, but proprietary Cloud implementation is intentionally outside the Community source tree and Community container build context. `packages/woobe-ee` is a reserved public package boundary only and contains no Enterprise runtime implementation in the Community distribution.
 
-## Architecture
+## Repository architecture
 
 ```text
-src/
-├── modules/                       # Community/Core bounded contexts
-└── shared/                        # technical shared infrastructure
-
-web/
-└── src/                           # Community/Core web application
+packages/
+├── woobe-core/       # bounded contexts + shared Community/Core code
+├── woobe-api/        # HTTP process composition root
+├── woobe-workers/    # worker process composition root
+├── woobe-frontend/   # control-plane frontend + ChatSurface embed
+├── woobe-db/         # Alembic/migrations
+├── woobe-ee/         # reserved Enterprise boundary
+├── woobe-testkit/    # shared test helpers
+├── woobe-mock/       # protocol mocks
+└── woobe-e2e/        # assembled-product validation
 ```
 
-At runtime, API and Workers are separate processes. PostgreSQL stores durable state, RabbitMQ carries asynchronous work, Web serves the control plane, and Chat Embed publishes browser-facing ChatSurface assets.
+`woobe-core` contains the bounded contexts, including their module-local presentation/composition code. `woobe-api` owns process-level FastAPI composition; `woobe-workers` owns the worker process composition root; `woobe-db` owns migrations. API and Workers may depend on Core. Core must not depend on API, Workers, DB, or Enterprise implementation.
 
-Read `docs/ARCHITECTURE.md` for domain, runtime, and distribution boundaries.
+Internal Python packages are installed as distributions in runtime and backend-test images rather than loaded through repository-level `PYTHONPATH` configuration.
+
+Read `docs/ARCHITECTURE.md` and `docs/adr/0004-package-workspace-and-process-boundaries.md` for the detailed boundaries.
 
 ## Deployment surface
 
 ```text
 compose.yaml                 # supported Community self-host topology
-compose.test.yaml            # standalone validation contract
+compose.test.yaml            # standalone backend validation contract
 deploy/dev/compose.yml       # optional contributor extension
 ```
 
@@ -188,13 +195,11 @@ python scripts/generate_self_host_env.py
 docker compose up -d --build
 ```
 
-Validation path:
+Backend validation path:
 
 ```bash
 docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 ```
-
-Repository workflows are manual and should be executed deliberately when validation is requested.
 
 ## Security model
 
@@ -213,7 +218,7 @@ Back up PostgreSQL together with the Knowledge upload volume so metadata and phy
 
 ## Contributing
 
-The integration branch is `development`. Feature and fix branches should target `development` through focused pull requests. Read `CONTRIBUTING.md` before opening a change.
+The integration branch is `master`. Feature and fix branches should start from `master` and target `master` through focused pull requests. Read `CONTRIBUTING.md` before opening a change.
 
 External contribution acceptance remains gated by the contribution policy described in `CONTRIBUTOR_LICENSE_AGREEMENT.md` until the final process is activated.
 
