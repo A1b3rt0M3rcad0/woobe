@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-db" / "migrations" / "versions"
+MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "migrations" / "versions"
 MIGRATION_0020 = MIGRATIONS_DIR / "0020_drop_legacy_schemas.py"
 AGENT_MODELS = (
     PROJECT_ROOT
