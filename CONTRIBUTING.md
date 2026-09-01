@@ -21,15 +21,14 @@ The primary technical isolation unit is Project. Workspace is the commercial/mem
 
 The Community repository is organized under `packages/`:
 
-- `packages/woobe-core` — bounded contexts, domain/application code, shared technical infrastructure, runtime contracts, and bounded-context presentation/composition code.
+- `packages/woobe-core` — bounded contexts, domain/application code, shared technical infrastructure, runtime contracts, bounded-context presentation/composition code, and Alembic migrations.
 - `packages/woobe-api` — HTTP process composition root.
 - `packages/woobe-workers` — worker process composition root.
-- `packages/woobe-db` — Alembic and migration one-shot boundary.
 - `packages/woobe-frontend` — control-plane frontend and ChatSurface embed.
 - `packages/woobe-testkit`, `packages/woobe-mock`, and `packages/woobe-e2e` — test boundaries.
 - `packages/woobe-ee` — reserved boundary only; Community must not depend on proprietary implementation.
 
-API and Workers may depend on Core. Core must not depend on API, Workers, DB, or Enterprise implementation. Frontend and Embed consume HTTP contracts rather than importing Python Core.
+API and Workers may depend on Core. Core must not depend on API, Workers, or Enterprise implementation. Frontend and Embed consume HTTP contracts rather than importing Python Core. Alembic configuration and migration history remain under `packages/woobe-core`; extracting them into a separate database package is a separate change.
 
 Bounded-context `presentation` and `composition` code intentionally stays with its owning module in `woobe-core`; process-level FastAPI bootstrap and transport composition belong to `woobe-api`. See `docs/adr/0004-package-workspace-and-process-boundaries.md`.
 
