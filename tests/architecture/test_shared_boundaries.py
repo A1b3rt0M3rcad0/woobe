@@ -4,14 +4,14 @@ from pathlib import Path
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_SHARED = PROJECT_ROOT / "src" / "shared"
+CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
+SRC_SHARED = CORE_SRC / "shared"
+SRC_MODULES = CORE_SRC / "modules"
 ALLOWLIST_FILE = Path(__file__).resolve().parent / "legacy_import_allowlist.yaml"
-
-DOMAIN_LAYERS = {"domain", "application", "service"}
 
 KNOWN_MODULES = {
     d.name
-    for d in (PROJECT_ROOT / "src" / "modules").iterdir()
+    for d in SRC_MODULES.iterdir()
     if d.is_dir() and not d.name.startswith("_")
 }
 
@@ -20,7 +20,7 @@ def _load_allowlist(scope: str) -> set[str]:
     if not ALLOWLIST_FILE.exists():
         return set()
     with open(ALLOWLIST_FILE, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+        data = yaml.safe_load(f) or {}
     entries = data.get("entries") or []
     return {
         e["file"].replace("\\", "/")

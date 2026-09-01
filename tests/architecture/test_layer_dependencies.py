@@ -4,13 +4,12 @@ from pathlib import Path
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_MODULES = PROJECT_ROOT / "src" / "modules"
+CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
+SRC_MODULES = CORE_SRC / "modules"
 ALLOWLIST_FILE = Path(__file__).resolve().parent / "legacy_import_allowlist.yaml"
 
 KNOWN_LAYERS = {"domain", "application", "service", "infra", "presentation"}
-
 COMPOSER_DIRS = {"composers"}
-
 SCOPE = "layer_dependencies"
 
 
@@ -18,10 +17,10 @@ def _load_allowlist() -> set[tuple[str, str]]:
     if not ALLOWLIST_FILE.exists():
         return set()
     with open(ALLOWLIST_FILE, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+        data = yaml.safe_load(f) or {}
     entries = data.get("entries") or []
     return {
-        (e["file"].replace("/", "\\").replace("\\", "/"), e.get("target_layer", ""))
+        (e["file"].replace("\\", "/"), e.get("target_layer", ""))
         for e in entries
         if e.get("scope") == SCOPE
     }
@@ -42,57 +41,26 @@ def _extract_layer_imports(file_path: Path) -> list[tuple[str, str, str]]:
     except (SyntaxError, UnicodeDecodeError):
         return []
 
-    violations = []
-    rel_path = _relative_posix(file_path)
-    parts = rel_path.split("/")
-    if len(parts) < 4 or parts[0] != "src" or parts[1] != "modules":
+    relative_module_path = file_path.relative_to(SRC_MODULES)
+    if len(relative_module_path.parts) < 2:
         return []
-    source_module = parts[2]
+    source_module = relative_module_path.parts[0]
+    rel_path = _relative_posix(file_path)
+    violations = []
 
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module:
             mod_parts = node.module.split(".")
             if (
-                len(mod_parts) >= 4
+                len(mod_parts) >= 3
                 and mod_parts[0] == "modules"
                 and mod_parts[1] == source_module
             ):
                 target_layer = mod_parts[2]
-                if target_layer not in KNOWN_LAYERS:
-                    continue
-                violations.append((rel_path, target_layer, node.module))
+                if target_layer in KNOWN_LAYERS:
+                    violations.append((rel_path, target_layer, node.module))
 
     return violations
-
-
-def _check_domain_rules(violations: list[tuple[str, str, str]]) -> list[str]:
-    issues = []
-    for rel_path, target_layer, _ in violations:
-        if rel_path.startswith("src/modules/") and "/domain/" in rel_path:
-            issues.append(
-                f"{rel_path}: domain must not import from '{target_layer}'"
-            )
-    return issues
-
-
-def _check_presentation_rules(violations: list[tuple[str, str, str]]) -> list[str]:
-    issues = []
-    for rel_path, target_layer, _ in violations:
-        if rel_path.startswith("src/modules/") and "/presentation/" in rel_path:
-            issues.append(
-                f"{rel_path}: presentation must not import from '{target_layer}'"
-            )
-    return issues
-
-
-def _check_service_use_case_rules(violations: list[tuple[str, str, str]]) -> list[str]:
-    issues = []
-    for rel_path, target_layer, _ in violations:
-        if "/service/use_cases.py" in rel_path or "/application/use_cases/" in rel_path:
-            issues.append(
-                f"{rel_path}: use_case must not import from '{target_layer}'"
-            )
-    return issues
 
 
 class TestLayerDependencies:
@@ -105,39 +73,26 @@ class TestLayerDependencies:
                 continue
             for py_file in module_dir.rglob("*.py"):
                 rel_path = _relative_posix(py_file)
-                layer_imports = _extract_layer_imports(py_file)
-                if not layer_imports:
-                    continue
+                relative_module_path = py_file.relative_to(SRC_MODULES)
+                parts = relative_module_path.parts
+                parent_dir = parts[1] if len(parts) > 1 else ""
+                grandparent_dir = parts[2] if len(parts) > 2 else ""
+                source_module = parts[0]
+                is_composer = parent_dir in COMPOSER_DIRS or grandparent_dir in COMPOSER_DIRS
 
-                parts = rel_path.split("/")
-                parent_dir = parts[3] if len(parts) > 3 else ""
-                grandparent_dir = parts[4] if len(parts) > 4 else ""
-                is_composer = (
-                    parent_dir in COMPOSER_DIRS
-                    or grandparent_dir in COMPOSER_DIRS
-                )
-
-                source_module = parts[2]
-
-                for rel_path_imp, target_layer, full_import in layer_imports:
+                for rel_path_imp, target_layer, full_import in _extract_layer_imports(py_file):
                     if is_composer:
                         continue
 
                     is_domain = "/domain/" in rel_path_imp
                     is_presentation = "/presentation/" in rel_path_imp
-                    is_use_case = "/service/use_cases.py" in rel_path_imp or (
-                        "/application/use_cases/" in rel_path_imp
+                    is_use_case = "/service/use_cases.py" in rel_path_imp or "/application/use_cases/" in rel_path_imp
+
+                    should_check = (
+                        (is_domain and target_layer in ("application", "service", "infra", "presentation"))
+                        or (is_presentation and target_layer == "infra")
+                        or (is_use_case and target_layer == "infra")
                     )
-
-                    should_check = False
-
-                    if is_domain and target_layer in ("application", "service", "infra", "presentation"):
-                        should_check = True
-                    elif is_presentation and target_layer == "infra":
-                        should_check = True
-                    elif is_use_case and target_layer == "infra":
-                        should_check = True
-
                     if not should_check:
                         continue
 
@@ -177,7 +132,7 @@ class TestLayerDependencies:
             if isinstance(node, ast.ImportFrom) and node.module:
                 mod_parts = node.module.split(".")
                 if (
-                    len(mod_parts) >= 4
+                    len(mod_parts) >= 3
                     and mod_parts[0] == "modules"
                     and mod_parts[2] == "infra"
                 ):
