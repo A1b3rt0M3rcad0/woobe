@@ -131,13 +131,45 @@ Woobe is currently pre-release. The repository architecture, self-host contract 
 
 The integration branch is `master`. Feature and fix branches should start from `master` and target `master` through focused pull requests.
 
-## License
+## Licensing
 
-Woobe Community/Core is **source-available and self-hostable**. It is not represented as OSI Open Source software.
+Woobe uses explicit product boundaries. **Do not assume that every current or future Woobe edition is covered by the same license.**
 
-The Community/Core distribution is governed by [`LICENSE.md`](LICENSE.md). Additional product and licensing boundaries are described in [`LICENSING.md`](LICENSING.md), [`NOTICE.md`](NOTICE.md) and [`TRADEMARKS.md`](TRADEMARKS.md).
+### Community / Core packages
 
-The current license text remains pre-release and should receive qualified legal review before public or commercial reliance.
+The following product packages are part of the Woobe Community/Core distribution and are governed by the **Woobe Sustainable Use License 1.0** in [`LICENSE.md`](LICENSE.md), except for any individual third-party component or file that carries its own license notice:
+
+| Package | Product role | License |
+| --- | --- | --- |
+| `packages/woobe-core` | Community/Core bounded contexts, runtime contracts, shared infrastructure and migrations | **Woobe Sustainable Use License 1.0** |
+| `packages/woobe-api` | Community HTTP/API process | **Woobe Sustainable Use License 1.0** |
+| `packages/woobe-workers` | Community worker process | **Woobe Sustainable Use License 1.0** |
+| `packages/woobe-frontend` | Community administrative control-plane frontend | **Woobe Sustainable Use License 1.0** |
+| `packages/woobe-embed` | Community ChatSurface browser artifact | **Woobe Sustainable Use License 1.0** |
+
+The Woobe Sustainable Use License is **source-available, not OSI Open Source**. It permits self-hosting, internal production use, permitted private modifications, use as infrastructure behind a separate commercial product, and other uses expressly granted by the license. It restricts commercial resale, white-label/OEM supply, or hosted/managed access where the primary or substantial value being sold is the Woobe control plane itself, unless Woobe grants a separate written commercial agreement.
+
+[`LICENSE.md`](LICENSE.md) is the controlling legal text for those Community/Core packages. [`LICENSING.md`](LICENSING.md) is an explanatory guide and does not replace the license.
+
+### Enterprise boundary — `packages/woobe-ee`
+
+`packages/woobe-ee` is currently a **reserved product boundary only**. Woobe Enterprise is not currently implemented or distributed, and **there is no Enterprise source license defined at this time**.
+
+Do not interpret the presence of `packages/woobe-ee` as granting rights to any future Enterprise implementation. If Enterprise capabilities are introduced, their source, distribution and commercial terms must be defined explicitly and separately at that time.
+
+### Woobe Cloud
+
+Woobe Cloud is a **proprietary Woobe-managed product**. Proprietary Cloud implementation is not distributed in this repository or in the Community build context, and the Community/Core license grants no rights to proprietary Woobe Cloud implementation.
+
+### Third-party software, notices and trademarks
+
+Third-party dependencies remain governed by their own licenses; the Woobe Sustainable Use License does not replace or modify those terms. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and [`NOTICE.md`](NOTICE.md) for applicable notices.
+
+No trademark license is granted beyond the rights expressly described by the project terms. See [`TRADEMARKS.md`](TRADEMARKS.md).
+
+For the practical distinction between permitted internal/commercial-product use and restricted resale of the Woobe control plane, read [`LICENSING.md`](LICENSING.md).
+
+> **Pre-release legal status:** `LICENSE.md` is the active Community/Core license text in this repository, but the public release remains subject to the legal and release gates documented in [`docs/PUBLIC_RELEASE_CHECKLIST.md`](docs/PUBLIC_RELEASE_CHECKLIST.md). Qualified legal review is still required before public or commercial reliance.
 
 ## Contributing
 
