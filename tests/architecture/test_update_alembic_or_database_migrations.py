@@ -1,4 +1,4 @@
-"""Architecture checks for the Community Alembic migration environment."""
+"""Architecture checks for the Core Alembic migration environment."""
 
 import pathlib
 import re
@@ -17,18 +17,18 @@ class TestAlembicMigrationsSuccess:
         content = ENV_PATH.read_text(encoding="utf-8")
         assert "modules.agent.infra.database.models" in content
 
-    def test_alembic_env_no_longer_imports_legacy_or_proprietary_models(self):
+    def test_alembic_env_no_longer_imports_legacy_or_enterprise_models(self):
         content = ENV_PATH.read_text(encoding="utf-8")
         for forbidden in (
             "from modules.ai.infra.models",
             "from modules.knowledge.infra.models",
             "from modules.runtime.infra.models",
             "from modules.tools.infra.database.models",
-            "editions.cloud",
+            "editions.enterprise",
         ):
             assert forbidden not in content
 
-    def test_alembic_env_imports_all_required_community_modules(self):
+    def test_alembic_env_imports_all_required_core_modules(self):
         content = ENV_PATH.read_text(encoding="utf-8")
         required_imports = [
             "modules.identity.infra.database.models",

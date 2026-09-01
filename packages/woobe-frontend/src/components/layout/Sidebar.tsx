@@ -11,7 +11,6 @@ import {
   Key,
   BarChart3,
   Activity,
-  CreditCard,
   Settings,
   Play,
   FolderKanban,
@@ -22,7 +21,6 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import { isCloudEdition } from '@/lib/edition'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { workspaceProjectPath } from '@/lib/constants/routes'
@@ -104,13 +102,6 @@ function WorkspaceNavGroup({ workspaceId }: { workspaceId: string }) {
       href: `/workspaces/${workspaceId}/settings`,
     },
   ]
-
-  if (isCloudEdition) {
-    workspaceItems.push({
-      item: { label: 'Billing', icon: CreditCard, href: `/workspaces/${workspaceId}/billing` },
-      href: `/workspaces/${workspaceId}/billing`,
-    })
-  }
 
   return (
     <section className="space-y-2 border-t border-border p-3">

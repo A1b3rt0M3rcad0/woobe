@@ -1,4 +1,3 @@
-export type WoobeEdition = 'community'
+export type WoobeEdition = 'core'
 
-export const woobeEdition: WoobeEdition = 'community'
-export const isCloudEdition = false
+export const woobeEdition: WoobeEdition = 'core'

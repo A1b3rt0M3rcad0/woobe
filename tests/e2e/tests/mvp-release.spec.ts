@@ -64,8 +64,8 @@ async function respond(route: Route, data: unknown, status = 200) {
   })
 }
 
-async function installApi(page: Page, options?: { freshCommunity?: boolean }) {
-  const freshCommunity = options?.freshCommunity ?? false
+async function installApi(page: Page, options?: { freshCore?: boolean }) {
+  const freshCore = options?.freshCore ?? false
 
   await page.route('**/*', async (route) => {
     const request = route.request()
@@ -79,9 +79,9 @@ async function installApi(page: Page, options?: { freshCommunity?: boolean }) {
 
     if (path === '/identity/instance/status') {
       await respond(route, {
-        initialized: !freshCommunity,
-        edition: 'community',
-        signup_mode: freshCommunity ? 'bootstrap' : 'invite_only',
+        initialized: !freshCore,
+        edition: 'core',
+        signup_mode: freshCore ? 'bootstrap' : 'invite_only',
         telemetry_enabled: false,
         requires_existing_owner_bootstrap: false,
       })
@@ -129,8 +129,8 @@ async function login(page: Page) {
   await expect(page).toHaveURL(/\/workspaces\/workspace-a\/projects\/project-a|\/dashboard/)
 }
 
-test('bootstraps the first Woobe Community owner', async ({ page }) => {
-  await installApi(page, { freshCommunity: true })
+test('bootstraps the first Woobe Core owner', async ({ page }) => {
+  await installApi(page, { freshCore: true })
   await page.goto('/register')
   await page.getByPlaceholder('you@company.com').fill(user.email)
   await page.getByPlaceholder('At least 6 characters').fill('ReleaseGate123!')
@@ -139,7 +139,7 @@ test('bootstraps the first Woobe Community owner', async ({ page }) => {
   await expect(page.getByText('Woobe', { exact: true }).first()).toBeVisible()
 })
 
-test('opens a Project and keeps Cloud Billing out of Community navigation', async ({ page }) => {
+test('opens a Project without edition-specific billing navigation', async ({ page }) => {
   await installApi(page)
   await login(page)
   await page.goto(`/workspaces/${workspace.id}/projects/${project.id}`)

@@ -1,70 +1,78 @@
 # Woobe public release checklist
 
-This checklist is a release gate for making the Woobe repository and Community distribution public. It is intentionally stricter than normal development completion.
+This checklist is the release gate for publishing Woobe Core source and Core distribution artifacts. It is intentionally stricter than normal development completion.
 
 ## Repository surface
 
-- [ ] Root `compose.yaml` is the only supported default Community self-host contract.
-- [ ] Root `compose.test.yaml` is a standalone validation contract and is not presented as a product distribution.
-- [ ] Development-only infrastructure is explicit under `deploy/dev/` and is not presented as a product distribution.
-- [ ] No proprietary Cloud or Enterprise implementation is present in the public Community HEAD or Community build contexts.
-- [ ] No obsolete `deploy/test/` overlay, host-shell test orchestrator, `.opencode/`, `opencode.json`, internal `specs/`, `docs/mvp/`, stage markers, execution journals, generated evidence, one-off debugging stacks, or obsolete one-off migration scripts remain in the public HEAD.
-- [ ] Exactly one pull request template exists under `.github/`.
-- [ ] Browser acceptance tests use the root `e2e/` package; Python tests use the taxonomy under `tests/` without a competing `tests/e2e/` namespace.
-- [ ] Durable runtime and testing documentation is under `docs/` and describes current behavior rather than implementation history.
-- [ ] Legacy codename strings have been reviewed across the public tree and either removed or justified as historical compatibility where technically required.
+- [ ] Root `compose.yaml` is the only supported default Woobe Core self-host contract.
+- [ ] Root `compose.test.yaml` is validation infrastructure and is not presented as a product distribution.
+- [ ] Development-only infrastructure is explicit under `deploy/dev/`.
+- [ ] Core product packages are exactly `woobe-core`, `woobe-api`, `woobe-workers`, `woobe-frontend` and `woobe-embed`.
+- [ ] `packages/woobe-ee` contains no Enterprise implementation in the Core release artifact/build context unless an explicit Enterprise release is being prepared under its own terms.
+- [ ] `tests/e2e/` owns assembled browser/full-stack validation.
+- [ ] Root legacy source surfaces (`src/`, `web/`, `embed`, `migrations`, `quality_gate`) are absent.
+- [ ] Durable runtime/testing documentation reflects the current package topology and Core/Enterprise model.
 
-## Secrets, proprietary source and Git history — blocking
+## Secrets and Git history — blocking
 
-Deleting a file from the current branch does **not** remove it from Git history.
+Deleting a file from the current branch does not remove it from Git history.
 
-Before changing repository visibility:
-
-- [ ] Run the full-history audit with `scripts/audit_public_history.sh`. The script scans secrets across all reachable refs and fails when known proprietary implementation paths remain reachable.
-- [ ] Review findings manually; rotate or revoke every real credential that has ever been committed, even if the file was later deleted.
-- [ ] Review any historical proprietary-path report and confirm Cloud/Enterprise/Billing implementation cannot become public merely because it was removed from the current HEAD.
-- [ ] Decide and execute the public-history strategy: either rewrite/sanitize existing history or publish from a deliberately sanitized public baseline.
-- [ ] Verify branches and tags that will become visible, not only the current `development` HEAD.
-- [ ] Re-run the history audit against the exact repository state intended for publication.
+- [ ] Run `scripts/audit_public_history.sh` against every ref intended for publication.
+- [ ] Review all findings manually and rotate/revoke every real credential that has ever been committed.
+- [ ] Confirm historical proprietary or separately licensed implementation cannot become public merely because it was removed from current HEAD.
+- [ ] Decide and execute the publication-history strategy: sanitize existing history or publish from a deliberately sanitized baseline.
+- [ ] Re-run the history audit against the exact commit and refs intended for publication.
 
 Do not make the repository public while this section is incomplete.
 
-## Community deployment
+## Core deployment
 
-- [ ] Generate a fresh `.env` using `python scripts/generate_self_host_env.py`.
-- [ ] Validate the root `compose.yaml` configuration.
-- [ ] Start the complete Community stack from the root Compose contract.
-- [ ] Confirm persistent PostgreSQL, RabbitMQ, and Knowledge volumes.
-- [ ] Exercise a production-shaped configuration with secure cookies, exact HTTPS CORS origins, exact trusted hosts, and distinct strong secrets.
-- [ ] Verify API `/live` and `/ready`, Web, Workers, and ChatSurface health/assets.
-- [ ] Verify first-owner bootstrap and invite-only behavior after initialization.
-- [ ] Verify backup and restore with PostgreSQL plus local Knowledge files.
+- [ ] Generate a fresh `.env` using `python scripts/generate_self_host_env.py` and confirm `WOOBE_EDITION=core`.
+- [ ] Validate `docker compose config --quiet`.
+- [ ] Start the complete Core stack from root `compose.yaml`.
+- [ ] Verify PostgreSQL, RabbitMQ, Redis, migration, API, Workers, Web and ChatSurface behavior.
+- [ ] Exercise production-shaped configuration with secure cookies, exact HTTPS origins, exact trusted hosts and independent strong secrets.
+- [ ] Verify first-owner bootstrap, registration/invite policy and existing-installation bootstrap behavior.
+- [ ] Verify backup/restore for durable database and Knowledge state.
 
 ## Quality and security
 
 - [ ] Validate the standalone test contract with `docker compose -f compose.test.yaml config --quiet`.
-- [ ] Run the full local/CI validation contract with `docker compose -f compose.test.yaml up --build --exit-code-from tests tests`; the manual tests workflow must execute this exact same command.
-- [ ] Confirm backend mocked and backend integration suites complete successfully through their dedicated `docker/tests/Dockerfile.*` images.
-- [ ] Confirm the test topology uses Docker service DNS rather than `host.docker.internal` and requires no host Bash/WSL dependency.
-- [ ] Run the manual container workflow: builds, non-root checks, SPDX SBOM generation, third-party dependency inventory, and HIGH/CRITICAL image scanning.
-- [ ] Run the manual acceptance workflow: backup/restore and production-shaped Community smoke against the actual root `compose.yaml` distribution.
-- [ ] Run the manual security workflow and the full-history audit script.
-- [ ] Review unresolved HIGH/CRITICAL findings and document accepted risk explicitly.
+- [ ] Run the backend validation contract `docker compose -f compose.test.yaml up --build --exit-code-from tests tests`.
+- [ ] Run frontend tests/build and ChatSurface tests/typecheck/build.
+- [ ] Run architecture/Quality Gate validation against the current package boundaries.
+- [ ] Run container validation: builds, non-root checks, OCI Core license metadata, SPDX SBOM generation, third-party inventory and HIGH/CRITICAL image scanning.
+- [ ] Run production-shaped acceptance including migrations, backup/restore, graceful restart and representative runtime smoke.
+- [ ] Review unresolved security findings and document accepted risk explicitly.
 
-## Licensing and repository administration — blocking
+## Licensing, contributions and brand — blocking
 
-- [ ] Qualified counsel has reviewed `LICENSE.md`, `LICENSING.md`, `CONTRIBUTOR_LICENSE_AGREEMENT.md`, trademark terms and the external contribution strategy for the intended jurisdictions.
-- [ ] The repository CLA text and acceptance workflow are enabled, and the CLA check is required by branch protection before external contributions are merged.
-- [ ] Run the container workflow for the exact release artifacts, review the generated `woobe-third-party-inventory`, and include every notice or attribution required by the original component licenses.
-- [ ] Community build artifacts have been inspected to confirm proprietary edition source is absent.
-- [ ] GitHub default branch is the intended public integration branch.
-- [ ] Branch protection/rulesets are configured for the public workflow.
+- [ ] Qualified counsel has reviewed `LICENSE.md`, `LICENSE_EE.md`, `LICENSING.md`, `CONTRIBUTOR_LICENSE_AGREEMENT.md` and `TRADEMARKS.md` for the intended jurisdictions/business model.
+- [ ] The Core license clearly permits intended self-host/internal/product-infrastructure use and clearly defines the restriction on commercial resale/white-label/OEM/hosted sale of the Woobe system itself.
+- [ ] `packages/woobe-ee` is explicitly excluded from the Core license grant and Enterprise terms are delivered separately when Enterprise code is distributed.
+- [ ] The CLA acceptance mechanism is enabled and required for external contributions before merge.
+- [ ] `PULL_REQUEST_TEMPLATE.md` requires product/license impact and third-party provenance review.
+- [ ] Woobe name/logo/brand restrictions are separated from software rights and accurately documented in `TRADEMARKS.md`.
+- [ ] Container images publish `org.opencontainers.image.licenses=LicenseRef-Woobe-Core-Sustainable-Use-1.0`.
+
+## Third-party software — blocking
+
+- [ ] Generate SPDX SBOMs for the exact API, Web and ChatSurface release images.
+- [ ] Review the generated `woobe-third-party-inventory` against the original licenses.
+- [ ] Include every required copyright notice, attribution, license copy, source offer or other distribution obligation.
+- [ ] Confirm `THIRD_PARTY_NOTICES.md` and `NOTICE.md` match the exact release inventory.
+- [ ] Re-run inventory review whenever a released dependency or base image changes.
+
+## Repository administration
+
+- [ ] GitHub default/integration branch is `master`.
+- [ ] Branch protection/rulesets require the intended validation and CLA checks.
 - [ ] Private vulnerability reporting/security contact is configured.
-- [ ] Repository description, topics, homepage/docs URL, and package/container visibility are correct.
+- [ ] Repository description, topics, homepage/docs URL and package/container visibility are correct.
 
 ## Release
 
-- [ ] Version is selected according to the release policy.
+- [ ] Version is selected according to release policy.
 - [ ] Changelog/release notes describe user-visible changes and migration considerations.
-- [ ] Published images correspond to the reviewed commit.
-- [ ] Final public tree contains only product code, tests, current documentation, supported deployment contracts, and contribution/governance files.
+- [ ] Published Core images correspond exactly to the reviewed commit and carry the expected license metadata.
+- [ ] Final public tree contains only intended product code, Enterprise boundary marker/contracts, tests, current documentation, supported deployment contracts and contribution/governance files.

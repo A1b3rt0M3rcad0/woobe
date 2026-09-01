@@ -19,16 +19,12 @@ export async function getInstanceStatus(): Promise<InstanceStatus> {
 
 export async function register(data: RegisterRequest): Promise<RegisterResponse> {
   const instance = await getInstanceStatus()
-  if (
-    instance.edition === 'community'
-    && !instance.initialized
-    && instance.requires_existing_owner_bootstrap
-  ) {
+  if (!instance.initialized && instance.requires_existing_owner_bootstrap) {
     throw new Error(
       'This existing Woobe installation requires explicit Instance Owner bootstrap before new registrations.'
     )
   }
-  if (instance.edition === 'community' && !instance.initialized) {
+  if (!instance.initialized) {
     return post<RegisterResponse>('/identity/instance/bootstrap', data)
   }
   return post<RegisterResponse>('/identity/auth/register', data)

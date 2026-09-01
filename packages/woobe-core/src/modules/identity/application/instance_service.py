@@ -65,23 +65,12 @@ class InstanceService:
         return {
             "initialized": initialized,
             "edition": self._settings.edition,
-            "signup_mode": (
-                str(row["signup_mode"])
-                if row is not None
-                else "open"
-                if self._settings.is_cloud
-                else "bootstrap"
-            ),
+            "signup_mode": str(row["signup_mode"]) if row is not None else "bootstrap",
             "telemetry_enabled": bool(row["telemetry_enabled"]) if row is not None else False,
-            "requires_existing_owner_bootstrap": (
-                self._settings.edition == "community" and not initialized and user_count > 0
-            ),
+            "requires_existing_owner_bootstrap": not initialized and user_count > 0,
         }
 
     async def ensure_registration_allowed(self, email: str) -> None:
-        if self._settings.is_cloud:
-            return
-
         normalized_email = email.strip().lower()
         async with self._session_factory() as session:
             row = (
@@ -101,7 +90,7 @@ class InstanceService:
                 or row["initialized_at"] is None
             ):
                 raise ConflictError(
-                    "Woobe Community is not initialized. Bootstrap the instance before registration."
+                    "Woobe Core is not initialized. Bootstrap the instance before registration."
                 )
 
             signup_mode = str(row["signup_mode"])
@@ -138,8 +127,8 @@ class InstanceService:
         user_agent: str | None,
         ip_address: str | None,
     ) -> IssuedAuthentication:
-        if self._settings.edition != "community":
-            raise ConflictError("Instance bootstrap is only available in Woobe Community")
+        if self._settings.edition != "core":
+            raise ConflictError("Instance bootstrap is only available in Woobe Core")
 
         normalized_email = email.strip().lower()
         now = datetime.now(UTC)
@@ -264,8 +253,8 @@ class InstanceService:
             )
 
     async def bootstrap_existing_owner(self, *, owner_email: str) -> UUID:
-        if self._settings.edition != "community":
-            raise ConflictError("Existing-owner bootstrap is only available in Woobe Community")
+        if self._settings.edition != "core":
+            raise ConflictError("Existing-owner bootstrap is only available in Woobe Core")
 
         normalized_email = owner_email.strip().lower()
         now = datetime.now(UTC)

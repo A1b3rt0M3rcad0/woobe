@@ -53,7 +53,7 @@ WOOBE_MCP_SESSION_KEY_PREFIX=woobe:mcp-session
 WOOBE_MCP_SESSION_TTL_SECONDS=3600
 ```
 
-Woobe Community disables Redis-backed MCP session caching by default to keep the first-run topology small. Deployments that explicitly provide Redis can enable it when required.
+The supported Core Compose topology includes Redis and enables the shared MCP session cache for runtime services. Custom deployments may disable the cache; the runtime must continue according to its configured fallback policy.
 
 ## Security
 

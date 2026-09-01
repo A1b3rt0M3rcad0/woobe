@@ -82,18 +82,25 @@ def test_python_process_boundaries_have_install_metadata() -> None:
         assert "[project]" in content
 
 
-def test_enterprise_boundary_contains_no_proprietary_runtime_code() -> None:
+def test_enterprise_boundary_is_separate_from_core_runtime() -> None:
     ee = ROOT / "packages/woobe-ee"
     assert (ee / "README.md").is_file()
     assert not (ee / "src").exists()
-    for path in (
-        "LICENSE-CLOUD.md",
-        "LICENSE-ENTERPRISE.md",
-    ):
-        assert not (ROOT / path).exists(), path
 
-    assert (ROOT / "LICENSE.md").is_file()
-    assert (ROOT / "LICENSING.md").is_file()
+    for path in (
+        "LICENSE.md",
+        "LICENSE_EE.md",
+        "LICENSING.md",
+        "TRADEMARKS.md",
+        "THIRD_PARTY_NOTICES.md",
+    ):
+        assert (ROOT / path).is_file(), path
+
+    core_license = (ROOT / "LICENSE.md").read_text(encoding="utf-8")
+    ee_notice = (ROOT / "LICENSE_EE.md").read_text(encoding="utf-8")
+    assert "packages/woobe-ee" in core_license
+    assert "not licensed as Woobe Core" in core_license
+    assert "not licensed under the Woobe Core" in ee_notice
 
 
 def test_public_deployment_surface_has_one_default_contract() -> None:
