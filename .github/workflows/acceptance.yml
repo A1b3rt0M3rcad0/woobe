@@ -125,10 +125,10 @@ jobs:
       - name: Migration rollback and re-upgrade
         run: |
           set -euo pipefail
-          uv run alembic -c packages/woobe-db/alembic.ini upgrade head
-          uv run alembic -c packages/woobe-db/alembic.ini downgrade -1
-          uv run alembic -c packages/woobe-db/alembic.ini upgrade head
-          uv run alembic -c packages/woobe-db/alembic.ini check
+          uv run alembic -c packages/woobe-core/alembic.ini upgrade head
+          uv run alembic -c packages/woobe-core/alembic.ini downgrade -1
+          uv run alembic -c packages/woobe-core/alembic.ini upgrade head
+          uv run alembic -c packages/woobe-core/alembic.ini check
       - name: Backup and restore isolated database
         run: |
           set -euo pipefail
