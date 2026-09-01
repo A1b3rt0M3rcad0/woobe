@@ -38,6 +38,11 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
+LABEL org.opencontainers.image.title="Woobe Core API" \
+      org.opencontainers.image.description="Woobe Core API and worker runtime" \
+      org.opencontainers.image.licenses="LicenseRef-Woobe-Core-Sustainable-Use-1.0" \
+      org.opencontainers.image.source="https://github.com/A1b3rt0M3rcad0/woobe"
+
 ENV PATH="/opt/venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1

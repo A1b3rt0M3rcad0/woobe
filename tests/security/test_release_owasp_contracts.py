@@ -54,7 +54,7 @@ def test_production_frontend_has_required_browser_security_headers() -> None:
     assert "proxy_pass http://api" not in nginx
 
 
-def test_default_community_compose_has_explicit_product_boundary() -> None:
+def test_default_core_compose_has_explicit_product_boundary() -> None:
     compose = read("compose.yaml")
 
     for service in (
@@ -71,8 +71,6 @@ def test_default_community_compose_has_explicit_product_boundary() -> None:
     for optional_service in ("pgbouncer", "minio", "rabbitmq-observer"):
         assert f"\n  {optional_service}:\n" not in compose
 
-    # Redis is part of the supported runtime boundary because active Agent /
-    # Network execution state, leases and recovery checkpoints depend on it.
     assert "WOOBE_REDIS_URL: redis://redis:6379/0" in compose
     assert "--appendonly" in compose
     assert '      - "yes"' in compose
@@ -80,7 +78,7 @@ def test_default_community_compose_has_explicit_product_boundary() -> None:
     assert "      - everysec" in compose
     assert '["CMD", "redis-cli", "ping"]' in compose
 
-    assert "WOOBE_EDITION: community" in compose
+    assert "WOOBE_EDITION: core" in compose
     assert "WOOBE_STORAGE_DRIVER: local" in compose
     assert 'WOOBE_MCP_SESSION_CACHE_ENABLED: "true"' in compose
     assert "WOOBE_CHAT_TOKEN_SIGNING_KEY" in compose
@@ -143,6 +141,7 @@ def test_frontend_build_contract_includes_api_chat_surface_and_edition() -> None
     assert "VITE_API_URL" in dockerfile
     assert "VITE_CHAT_EMBED_URL" in dockerfile
     assert "VITE_WOOBE_EDITION" in dockerfile
+    assert 'org.opencontainers.image.licenses="LicenseRef-Woobe-Core-Sustainable-Use-1.0"' in dockerfile
 
 
 def test_runtime_security_matrix_covers_private_resource_families() -> None:
