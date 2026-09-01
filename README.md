@@ -163,18 +163,17 @@ Woobe Cloud may build on the same core concepts, but proprietary Cloud implement
 
 ```text
 packages/
-├── woobe-core/       # bounded contexts + shared Community/Core code
+├── woobe-core/       # bounded contexts + shared Community/Core code + migrations
 ├── woobe-api/        # HTTP process composition root
 ├── woobe-workers/    # worker process composition root
 ├── woobe-frontend/   # control-plane frontend + ChatSurface embed
-├── woobe-db/         # Alembic/migrations
 ├── woobe-ee/         # reserved Enterprise boundary
 ├── woobe-testkit/    # shared test helpers
 ├── woobe-mock/       # protocol mocks
 └── woobe-e2e/        # assembled-product validation
 ```
 
-`woobe-core` contains the bounded contexts, including their module-local presentation/composition code. `woobe-api` owns process-level FastAPI composition; `woobe-workers` owns the worker process composition root; `woobe-db` owns migrations. API and Workers may depend on Core. Core must not depend on API, Workers, DB, or Enterprise implementation.
+`woobe-core` contains the bounded contexts, their module-local presentation/composition code, and the current Alembic configuration/history at `packages/woobe-core/alembic.ini` and `packages/woobe-core/migrations/`. `woobe-api` owns process-level FastAPI composition; `woobe-workers` owns the worker process composition root. API and Workers may depend on Core. Core must not depend on API, Workers, or Enterprise implementation. A separate database package is intentionally outside this repository cutover and may be introduced by a dedicated future PR.
 
 Internal Python packages are installed as distributions in runtime and backend-test images rather than loaded through repository-level `PYTHONPATH` configuration.
 
