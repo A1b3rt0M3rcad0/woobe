@@ -12,12 +12,20 @@ from modules.network.infra.workers.execution_worker import NetworkExecutionProce
 class _CancellationStore:
     def __init__(self) -> None:
         self.cancel_running_calls = 0
+        self.fence_calls = 0
+        self.release_fence_calls = 0
 
     async def is_cancel_requested(self, _execution_id) -> bool:
         return True
 
     async def cancel_running_invocations(self, _execution_id) -> None:
         self.cancel_running_calls += 1
+
+    def fence_execution(self, _execution_id) -> None:
+        self.fence_calls += 1
+
+    def release_execution_fence(self, _execution_id) -> None:
+        self.release_fence_calls += 1
 
 
 @pytest.mark.asyncio
@@ -48,6 +56,30 @@ async def test_network_cancellation_interrupts_blocked_active_execution() -> Non
 
     assert interrupted.is_set()
     assert store.cancel_running_calls == 1
+    assert store.fence_calls == 1
+    assert store.release_fence_calls == 1
+
+
+@pytest.mark.asyncio
+async def test_network_completion_wins_when_execution_is_already_done_at_cancel_poll_boundary() -> None:
+    execution_id = uuid4()
+    store = _CancellationStore()
+    processor = object.__new__(NetworkExecutionProcessor)
+    processor._store = store
+    expected = object()
+
+    async def completed_execution():
+        return expected
+
+    result = await processor._execute_with_cancellation(
+        execution_id,
+        completed_execution(),
+    )
+
+    assert result is expected
+    assert store.cancel_running_calls == 0
+    assert store.fence_calls == 0
+    assert store.release_fence_calls == 0
 
 
 class _TerminalStore:

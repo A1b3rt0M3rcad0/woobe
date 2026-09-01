@@ -54,6 +54,8 @@ async def test_network_store_keeps_invocations_context_cancel_and_terminal_state
     )
 
     assert invocation.agent_session_id == existing_agent_session_id
+    assert invocation.context_state == "reused"
+    assert invocation.previous_invocation_count == 0
 
     new_agent_session_id = uuid4()
     invocation_result = AgentInvocationResult(
@@ -141,6 +143,52 @@ async def test_network_store_keeps_invocations_context_cancel_and_terminal_state
     final_state = await store.snapshot(execution_id)
     assert final_state["status"] == "completed"
     assert final_state["phase"] == "persisted"
+
+
+@pytest.mark.asyncio
+async def test_failed_stateful_invocation_does_not_advance_session_continuity() -> None:
+    state = InMemoryExecutionStateStore()
+    store = RedisNetworkExecutionStore(state)
+    execution = NetworkExecutionSnapshot(
+        id=uuid4(),
+        network_id=uuid4(),
+        network_version_id=None,
+        network_session_id=uuid4(),
+        project_id=uuid4(),
+        input_message="network input",
+        draft_revision=1,
+        definition_snapshot={"nodes": [], "edges": []},
+        resolved_bindings_snapshot={},
+        status="queued",
+    )
+    node_id = uuid4()
+    agent_id = uuid4()
+    failed_session_id = uuid4()
+
+    await store.initialize(execution, ttl_seconds=3600)
+    invocation = await store.start_invocation(
+        execution=execution,
+        node_id=node_id,
+        agent_id=agent_id,
+        depth=0,
+        message="agent input",
+        parent_invocation_id=None,
+        persist_context=True,
+    )
+    assert invocation.context_state == "created"
+
+    await store.fail_invocation(
+        invocation.id,
+        "Agent failed after preparing a stateful Session",
+        agent_session_id=failed_session_id,
+        persist_context=True,
+    )
+
+    snapshot = await store.snapshot(execution.id)
+    assert f"agent_session:{node_id}" not in snapshot
+    persisted = (await store.invocations(execution.id))[0]
+    assert persisted["agent_session_id"] == str(failed_session_id)
+    assert persisted["status"] == "failed"
 
 
 @pytest.mark.asyncio
@@ -290,7 +338,7 @@ async def test_network_store_captures_structured_failure_from_runtime_event() ->
     assert persisted["failure"]["cause_agent_id"] == str(agent_id)
 
 
-def test_finalizer_prefers_structured_failure_and_uses_network_failure_as_fallback() -> None:
+def test_finalizer_prefers_structured_failure_and_uses_safe_network_fallback() -> None:
     structured = _invocation_failure(
         {
             "failure": {
@@ -303,6 +351,7 @@ def test_finalizer_prefers_structured_failure_and_uses_network_failure_as_fallba
         },
         terminal_failure_code="budget_exceeded",
         terminal_failure_detail="Network execution timeout exceeded",
+        terminal_failure_message="The Network execution timed out.",
     )
     assert structured["code"] == "provider_timeout"
     assert structured["internal_detail"] == "ReadTimeout: 30 seconds"
@@ -311,7 +360,8 @@ def test_finalizer_prefers_structured_failure_and_uses_network_failure_as_fallba
         {"error": None},
         terminal_failure_code="budget_exceeded",
         terminal_failure_detail="Network execution timeout exceeded",
+        terminal_failure_message="The Network execution timed out.",
     )
     assert fallback["code"] == "budget_exceeded"
-    assert fallback["message"] == "Network execution timeout exceeded"
+    assert fallback["message"] == "The Network execution timed out."
     assert fallback["internal_detail"] == "Network execution timeout exceeded"

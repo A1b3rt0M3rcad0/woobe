@@ -17,6 +17,7 @@ from modules.core.infra.database.models import *  # noqa: E402,F401,F403
 from modules.chat_surface.infra.database.models import *  # noqa: E402,F401,F403
 from modules.agent.infra.database.models import *  # noqa: E402,F401,F403
 from modules.agent.infra.database.run_models import *  # noqa: E402,F401,F403
+from modules.agent.infra.database.context_models import *  # noqa: E402,F401,F403
 from modules.agent.infra.database.provider_model_repositories import ProviderModelModel  # noqa: E402,F401
 from modules.agent.infra.database.release_activation_repository import AgentReleaseActivationModel  # noqa: E402,F401
 from modules.agent.infra.database.vector_snapshot_models import *  # noqa: E402,F401,F403

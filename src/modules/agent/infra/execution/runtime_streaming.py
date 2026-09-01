@@ -141,6 +141,10 @@ class RuntimeStreamChannel:
     terminal_emitted: bool = False
     public_output: str = ""
     latest_usage: dict[str, Any] | None = None
+    _observer_queues: set[asyncio.Queue[RuntimeStreamEvent]] = field(
+        default_factory=set,
+        repr=False,
+    )
 
     def bind_execution(
         self,
@@ -154,6 +158,14 @@ class RuntimeStreamChannel:
         self.session_id = session_id
         self.project_id = project_id
         self.agent_id = agent_id
+
+    def subscribe(self) -> asyncio.Queue[RuntimeStreamEvent]:
+        queue: asyncio.Queue[RuntimeStreamEvent] = asyncio.Queue()
+        self._observer_queues.add(queue)
+        return queue
+
+    def unsubscribe(self, queue: asyncio.Queue[RuntimeStreamEvent]) -> None:
+        self._observer_queues.discard(queue)
 
     def _capture_public_state(self, event_type: str, payload: dict[str, Any]) -> None:
         if event_type == "token":
@@ -196,17 +208,18 @@ class RuntimeStreamChannel:
         self._capture_public_state(event_type, payload)
         if event_type in {"done", "error", "cancelled"}:
             self.terminal_emitted = True
-        await self.queue.put(
-            RuntimeStreamEvent(
-                event_type=event_type,
-                payload={
-                    "protocol_version": RUNTIME_STREAM_PROTOCOL_VERSION,
-                    "request_id": str(self.request_id),
-                    "occurred_at": _stream_utc_iso(),
-                    **payload,
-                },
-            )
+        event = RuntimeStreamEvent(
+            event_type=event_type,
+            payload={
+                "protocol_version": RUNTIME_STREAM_PROTOCOL_VERSION,
+                "request_id": str(self.request_id),
+                "occurred_at": _stream_utc_iso(),
+                **payload,
+            },
         )
+        await self.queue.put(event)
+        for observer_queue in tuple(self._observer_queues):
+            observer_queue.put_nowait(event)
 
     def mark_first_token(self, *, provider: str, model: str) -> None:
         if self.ttft_ms is not None:
@@ -329,23 +342,25 @@ def _is_final_response_phase(phase: str) -> bool:
     return phase in _FINAL_RESPONSE_PHASES
 
 
-def _can_stream_phase_live(phase: str) -> bool:
-    # Tool-capable phases can emit assistant text before selecting a tool call.
-    # Stream only phases that are committed to final user-facing output.
-    return _is_final_response_phase(phase)
+def _is_capability_selection_phase(phase: str) -> bool:
+    return phase == "capability_response_generation" or phase.startswith("tool_followup_")
 
 
 def _can_emit_phase_as_final(phase: str) -> bool:
-    return (
-        _is_final_response_phase(phase)
-        or phase == "tool_planning"
-        or phase.startswith("tool_followup_")
-    )
+    return _is_final_response_phase(phase) or _is_capability_selection_phase(phase)
+
+
+def _can_stream_phase_live(phase: str) -> bool:
+    # Capability-aware invocations are streamed optimistically so direct responses
+    # preserve provider TTFT instead of waiting for the entire invocation. If the
+    # provider later selects another Tool/Delegation, the already-published candidate
+    # text is retracted atomically through the runtime stream protocol.
+    return _can_emit_phase_as_final(phase)
 
 
 def _activity_for_phase(phase: str) -> tuple[str, str]:
-    if phase == "tool_planning":
-        return "planning_tools", "Checking whether tools are needed..."
+    if phase == "capability_response_generation":
+        return "generating_answer", "Generating response..."
     if phase.startswith("tool_followup_"):
         return "generating_answer", "Generating response..."
     if _is_final_response_phase(phase):
@@ -371,7 +386,29 @@ async def _emit_visible_token(
         channel="final",
         phase=phase,
         provider=provider,
-        model=model_name,
+        model_name=model_name,
+    )
+
+
+async def _retract_streamed_tokens(
+    channel: RuntimeStreamChannel,
+    *,
+    streamed_visible_tokens: list[str],
+    phase: str,
+    reason: str,
+    provider: str,
+    model_name: str,
+) -> None:
+    if not streamed_visible_tokens:
+        return
+    await channel.emit(
+        "token_retract",
+        phase=phase,
+        reason=reason,
+        content_length=sum(len(content) for content in streamed_visible_tokens),
+        token_count=len(streamed_visible_tokens),
+        provider=provider,
+        model_name=model_name,
     )
 
 
@@ -432,8 +469,21 @@ async def invoke_model_with_optional_streaming(
                 else:
                     pending_visible_tokens.append(visible_content)
     except asyncio.CancelledError:
+        # Once assistant text was made public, user cancellation must preserve the
+        # visible partial answer. Cancellation is terminal; there is no later capability
+        # decision that can invalidate already-observed output. Tool selection remains
+        # the only normal path that retracts optimistic capability text.
         raise
     except Exception:
+        if _is_capability_selection_phase(phase):
+            await _retract_streamed_tokens(
+                channel,
+                streamed_visible_tokens=streamed_visible_tokens,
+                phase=phase,
+                reason="capability_decision_failed",
+                provider=provider,
+                model_name=model_name,
+            )
         runtime_metrics.increment_provider_failure(
             provider=provider,
             model=model_name,
@@ -463,14 +513,13 @@ async def invoke_model_with_optional_streaming(
 
     accumulated = normalize_llm_result_content(accumulated)
     if _result_has_tool_calls(accumulated) and streamed_visible_tokens:
-        await channel.emit(
-            "token_retract",
+        await _retract_streamed_tokens(
+            channel,
+            streamed_visible_tokens=streamed_visible_tokens,
             phase=phase,
             reason="tool_call_selected",
-            content_length=sum(len(content) for content in streamed_visible_tokens),
-            token_count=len(streamed_visible_tokens),
             provider=provider,
-            model=model_name,
+            model_name=model_name,
         )
     elif (
         pending_visible_tokens

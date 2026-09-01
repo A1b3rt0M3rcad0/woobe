@@ -185,7 +185,17 @@ class AgentRunReattachService:
         if str(run.status) in _TERMINAL_STATUSES:
             return {"run_id": str(run_id), "status": str(run.status)}
 
-        state = await self._state_store.get(run_id)
+        try:
+            state = await self._state_store.get(run_id)
+        except Exception as exc:
+            # Cancellation is a control command that requires the live execution
+            # owner. Do not pretend it was accepted when the hot control plane cannot
+            # be read; the durable Run remains authoritative and active.
+            raise ConflictError(
+                "Agent Run runtime control state is temporarily unavailable; "
+                "cancellation was not requested"
+            ) from exc
+
         if state is None:
             latest = await self._load_run(run_id, principal)
             if str(latest.status) in _TERMINAL_STATUSES:
@@ -193,5 +203,11 @@ class AgentRunReattachService:
             raise ConflictError(
                 "Agent Run has no active runtime state; cancellation cannot be confirmed safely"
             )
-        await self._state_store.request_cancel(run_id)
+
+        try:
+            await self._state_store.request_cancel(run_id)
+        except Exception as exc:
+            raise ConflictError(
+                "Agent Run cancellation request could not be recorded safely"
+            ) from exc
         return {"run_id": str(run_id), "status": "cancel_requested"}

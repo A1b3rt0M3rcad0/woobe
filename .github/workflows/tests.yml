@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tests:
     runs-on: [self-hosted, Linux, X64]
@@ -17,6 +21,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Prepare Docker access
+        run: bash scripts/ci/prepare_docker_access.sh
 
       - name: Reset stale validation stack
         run: docker compose -f compose.test.yaml down -v --remove-orphans || true
@@ -42,8 +49,12 @@ jobs:
         if: always()
         run: docker compose -f compose.test.yaml down -v --remove-orphans
 
-      - name: Upload backend test evidence
+      - name: Cleanup Docker access
         if: always()
+        run: bash scripts/ci/cleanup_docker_access.sh
+
+      - name: Upload backend test evidence
+        if: ${{ always() && github.event_name == 'workflow_dispatch' }}
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
@@ -51,3 +62,4 @@ jobs:
           path: .test-artifacts
           if-no-files-found: warn
           include-hidden-files: true
+          retention-days: 1

@@ -100,6 +100,16 @@ export function invocationCount(root: NetworkAgentInvocation): number {
   return 1 + root.children.reduce((total, child) => total + invocationCount(child), 0)
 }
 
+export function uniqueAgentCount(root: NetworkAgentInvocation): number {
+  const agentIds = new Set<string>()
+  const visit = (invocation: NetworkAgentInvocation) => {
+    if (invocation.agentId) agentIds.add(invocation.agentId)
+    invocation.children.forEach(visit)
+  }
+  visit(root)
+  return agentIds.size
+}
+
 export function delegationCount(root: NetworkAgentInvocation): number {
   return root.children.length
     + root.children.reduce((total, child) => total + delegationCount(child), 0)
@@ -142,6 +152,12 @@ function asNumber(value: unknown): number | null {
 
 function asBoolean(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null
+}
+
+function asContextState(value: unknown): NetworkAgentInvocation['contextState'] {
+  return value === 'created' || value === 'reused' || value === 'stateless'
+    ? value
+    : 'created'
 }
 
 function asUsage(value: unknown): UsageInfo | null {
@@ -339,9 +355,9 @@ export function buildExecutionFromRuntimeEvents({
         nodeId: event.node_id ?? undefined,
         agentId: event.agent_id ?? binding?.agent.id ?? '',
         agentName: String(event.data.label ?? binding?.agent.name ?? 'Agent'),
-        agentSessionId: null,
-        contextState: 'created',
-        previousInvocationCount: 0,
+        agentSessionId: asString(event.data.agent_session_id),
+        contextState: asContextState(event.data.context_state),
+        previousInvocationCount: asNumber(event.data.previous_invocation_count) ?? 0,
         childTraceId: null,
         provider: typeof event.data.provider === 'string'
           ? event.data.provider
@@ -427,7 +443,7 @@ export function buildExecutionFromRuntimeEvents({
       current.durationMs = elapsedMilliseconds(current.startedAt, current.completedAt)
       current.agentSessionId = typeof event.data.agent_session_id === 'string'
         ? event.data.agent_session_id
-        : null
+        : current.agentSessionId
       current.childTraceId = childTraceId
       current.provider = typeof event.data.provider === 'string' ? event.data.provider : current.provider
       current.model = typeof event.data.model === 'string' ? event.data.model : current.model
@@ -466,6 +482,9 @@ export function buildExecutionFromRuntimeEvents({
       current.status = 'error'
       current.completedAt = event.created_at ?? null
       current.durationMs = elapsedMilliseconds(current.startedAt, current.completedAt)
+      current.agentSessionId = typeof event.data.agent_session_id === 'string'
+        ? event.data.agent_session_id
+        : current.agentSessionId
       current.failure = asFailure(event.data)
       current.tools = markRunningToolsFailed(current.tools)
     }
@@ -561,10 +580,13 @@ export function buildTurnFromRuntimeEvents({
     fallbackTraceId,
     terminalStatus,
   })
+  const visibleAnswer = terminalStatus === 'cancelled'
+    ? answer
+    : answer || built.execution.root.failure?.message || ''
   return {
     id: executionId,
     user,
-    answer: answer || built.execution.root.failure?.message || '',
+    answer: visibleAnswer,
     parsedOutput: built.execution.root.parsedOutput,
     outputParseError: built.execution.root.outputParseError,
     provider: built.provider,

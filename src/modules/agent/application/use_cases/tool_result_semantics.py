@@ -122,10 +122,12 @@ def _structured_error(value: Any) -> tuple[str | None, str] | None:
 def normalize_tool_result(output: Any) -> NormalizedToolResult:
     if isinstance(output, dict) and output.get("success") is False:
         explicit_error = _structured_error(output)
+        explicit_code = _as_text(output.get("error_code"))
         return NormalizedToolResult(
             success=False,
             status="error",
             error_code=(explicit_error[0] if explicit_error else None)
+            or explicit_code
             or "tool_execution_failed",
             error_message=(
                 explicit_error[1]

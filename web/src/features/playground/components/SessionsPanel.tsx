@@ -3,6 +3,7 @@ import { CopyButton } from '@/components/common/CopyButton'
 import { Separator } from '@/components/ui/Separator'
 import { Activity, AlertTriangle, Circle, Clock, Loader2, MessageSquare, Plus, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useAgentStreamStopState } from '@/features/playground/stream-stop-state'
 import type { SessionListItem } from '@/features/playground/types'
 
 interface SessionsPanelProps {
@@ -71,9 +72,15 @@ export function SessionsPanel({
   onRetry,
 }: SessionsPanelProps) {
   const sentinelRef = useRef<HTMLDivElement | null>(null)
-  const newSessionsDisabled = sessionMode === 'stateless' || Boolean(creationDisabledReason)
-  const disabledReason = creationDisabledReason
-    ?? (sessionMode === 'stateless' ? 'This Agent runtime is stateless and cannot create persistent Sessions' : undefined)
+  const runtimeState = useAgentStreamStopState()
+  const runtimeBusy = runtimeState !== 'idle'
+  const newSessionsDisabled = runtimeBusy || sessionMode === 'stateless' || Boolean(creationDisabledReason)
+  const disabledReason = runtimeBusy
+    ? runtimeState === 'stopping'
+      ? 'Wait for the active Agent Run cancellation to finish before changing Sessions'
+      : 'Wait for the active Agent Run to finish or stop it before changing Sessions'
+    : creationDisabledReason
+      ?? (sessionMode === 'stateless' ? 'This Agent runtime is stateless and cannot create persistent Sessions' : undefined)
   const selectedSessionMissing = Boolean(currentSessionId) && !sessions.some((session) => session.id === currentSessionId)
 
   useEffect(() => {
@@ -207,8 +214,10 @@ export function SessionsPanel({
                 type="button"
                 key={session.id}
                 onClick={() => onSelectSession(session.id)}
+                disabled={runtimeBusy}
+                title={runtimeBusy ? disabledReason : undefined}
                 className={cn(
-                  'w-full rounded-xl border p-3 text-left shadow-sm shadow-black/5 transition-colors',
+                  'w-full rounded-xl border p-3 text-left shadow-sm shadow-black/5 transition-colors disabled:cursor-not-allowed disabled:opacity-60',
                   isCurrent
                     ? 'border-primary/35 bg-primary/10'
                     : 'border-border/80 bg-background/45 hover:border-primary/25 hover:bg-background/70',

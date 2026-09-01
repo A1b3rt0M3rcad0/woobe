@@ -4,6 +4,7 @@ import type { NetworkRuntimeEvent } from '@/features/network/types'
 import type { AgentNodeId } from './networkWorkspaceTypes'
 
 export type LiveNetworkAgentStatus = 'running' | 'success' | 'error' | 'cancelled'
+export type LiveNetworkDelegationStatus = 'running' | 'success' | 'error' | 'skipped' | 'cancelled'
 
 export interface LiveNetworkAgent {
   invocationId: string
@@ -15,6 +16,17 @@ export interface LiveNetworkAgent {
   durationMs?: number | null
 }
 
+export interface LiveNetworkDelegation {
+  id: string
+  invocationId?: string | null
+  targetNodeId?: AgentNodeId
+  target: string
+  status: LiveNetworkDelegationStatus
+  startedAt?: string | null
+  completedAt?: string | null
+  reason?: string | null
+}
+
 export interface LiveNetworkToolCall extends ToolCallInfo {
   invocationId?: string | null
   startedAt?: string | null
@@ -22,12 +34,13 @@ export interface LiveNetworkToolCall extends ToolCallInfo {
 
 export interface LiveNetworkExecutionState {
   agents: LiveNetworkAgent[]
+  delegations: LiveNetworkDelegation[]
   tools: LiveNetworkToolCall[]
   sources: SourceInfo[]
 }
 
 export function emptyLiveNetworkExecution(): LiveNetworkExecutionState {
-  return { agents: [], tools: [], sources: [] }
+  return { agents: [], delegations: [], tools: [], sources: [] }
 }
 
 function asRecord(value: unknown): Record<string, unknown> {
@@ -44,6 +57,10 @@ function asNumber(value: unknown): number | null {
 
 function asBoolean(value: unknown): boolean | null {
   return typeof value === 'boolean' ? value : null
+}
+
+function isDelegationToolName(value: string | null): boolean {
+  return Boolean(value?.startsWith('delegate_to_'))
 }
 
 function sourceKey(source: SourceInfo, index: number): string {
@@ -64,17 +81,6 @@ function mergeSources(current: SourceInfo[], rawSources: unknown): SourceInfo[] 
   return [...merged.values()]
 }
 
-function resolvedToolName(
-  existing: LiveNetworkToolCall,
-  candidate: LiveNetworkToolCall,
-): string {
-  if (
-    existing.tool_name.startsWith('Delegate to ')
-    && candidate.tool_name.startsWith('delegate_to_')
-  ) return existing.tool_name
-  return candidate.tool_name
-}
-
 function upsertTool(
   tools: LiveNetworkToolCall[],
   candidate: LiveNetworkToolCall,
@@ -84,7 +90,7 @@ function upsertTool(
   const index = tools.findIndex((tool) => tool.tool_call_id === key)
   if (index < 0) return [...tools, candidate]
   return tools.map((tool, toolIndex) => toolIndex === index
-    ? { ...tool, ...candidate, tool_name: resolvedToolName(tool, candidate) }
+    ? { ...tool, ...candidate }
     : tool)
 }
 
@@ -97,7 +103,7 @@ function mergeCompletedTools(
   return rawTools.reduce<LiveNetworkToolCall[]>((tools, rawTool) => {
     const tool = asRecord(rawTool)
     const toolName = asString(tool.tool_name)
-    if (!toolName) return tools
+    if (!toolName || isDelegationToolName(toolName)) return tools
     return upsertTool(tools, {
       tool_call_id: asString(tool.tool_call_id),
       tool_name: toolName,
@@ -111,6 +117,23 @@ function mergeCompletedTools(
       invocationId,
     })
   }, current)
+}
+
+function delegationId(event: NetworkRuntimeEvent, target: string): string {
+  const fingerprint = asString(event.data.task_fingerprint)
+  if (fingerprint) return fingerprint
+  return `${event.invocation_id ?? 'root'}:${asString(event.data.target_node_id) ?? target}`
+}
+
+function upsertDelegation(
+  delegations: LiveNetworkDelegation[],
+  candidate: LiveNetworkDelegation,
+): LiveNetworkDelegation[] {
+  const index = delegations.findIndex((delegation) => delegation.id === candidate.id)
+  if (index < 0) return [...delegations, candidate]
+  return delegations.map((delegation, delegationIndex) => delegationIndex === index
+    ? { ...delegation, ...candidate }
+    : delegation)
 }
 
 function elapsedMilliseconds(startedAt?: string | null, completedAt?: string | null): number | null {
@@ -139,45 +162,38 @@ function updateAgent(
   ))
 }
 
-function delegationToolName(target: string): string {
-  const slug = target
-    .trim()
-    .toLowerCase()
-    .replace(/-/g, '_')
-    .replace(/[^a-z0-9_]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-  return `delegate_to_${slug}`.slice(0, 64)
-}
-
-function labelDelegationTool(
-  tools: LiveNetworkToolCall[],
-  invocationId: string | null | undefined,
-  target: string,
-): LiveNetworkToolCall[] {
-  const expectedName = delegationToolName(target)
-  let matched = false
-  const renamed = tools.map((tool) => {
-    if (
-      tool.invocationId === invocationId
-      && tool.status === 'running'
-      && tool.tool_name === expectedName
-    ) {
-      matched = true
-      return { ...tool, tool_name: `Delegate to ${target}` }
-    }
-    return tool
-  })
-  if (matched) return renamed
-
-  const fallbackIndex = [...renamed].reverse().findIndex((tool) => (
-    tool.invocationId === invocationId && tool.status === 'running'
-  ))
-  if (fallbackIndex < 0) return renamed
-  const actualIndex = renamed.length - fallbackIndex - 1
-  return renamed.map((tool, index) => (
-    index === actualIndex ? { ...tool, tool_name: `Delegate to ${target}` } : tool
-  ))
+function updateDelegationFromEvent(
+  state: LiveNetworkExecutionState,
+  eventType: string,
+  event: NetworkRuntimeEvent,
+): LiveNetworkExecutionState {
+  const target = asString(event.data.target) ?? asString(event.data.target_node_id) ?? 'Agent'
+  const id = delegationId(event, target)
+  const existing = state.delegations.find((delegation) => delegation.id === id)
+  const status: LiveNetworkDelegationStatus = eventType === 'delegation_started'
+    ? 'running'
+    : eventType === 'delegation_completed'
+      ? 'success'
+      : eventType === 'delegation_skipped'
+        ? 'skipped'
+        : 'error'
+  return {
+    ...state,
+    delegations: upsertDelegation(state.delegations, {
+      id,
+      invocationId: event.invocation_id ?? existing?.invocationId ?? null,
+      targetNodeId: (asString(event.data.target_node_id) as AgentNodeId | null) ?? existing?.targetNodeId,
+      target: asString(event.data.target) ?? existing?.target ?? target,
+      status,
+      startedAt: eventType === 'delegation_started'
+        ? event.created_at ?? null
+        : existing?.startedAt ?? null,
+      completedAt: eventType === 'delegation_started'
+        ? existing?.completedAt ?? null
+        : event.created_at ?? null,
+      reason: asString(event.data.reason) ?? existing?.reason ?? null,
+    }),
+  }
 }
 
 export function applyNetworkRuntimeEvent(
@@ -212,6 +228,7 @@ export function applyNetworkRuntimeEvent(
         status,
         durationMs: elapsedMilliseconds(current?.startedAt, event.created_at),
       }),
+      delegations: state.delegations,
       tools: eventType === 'agent_invocation_completed'
         ? mergeCompletedTools(state.tools, event.data.tool_calls, invocationId)
         : state.tools,
@@ -224,7 +241,7 @@ export function applyNetworkRuntimeEvent(
   if (eventType === 'tool_call_started') {
     const toolCallId = asString(event.data.tool_call_id)
     const toolName = asString(event.data.tool_name)
-    if (!toolName) return state
+    if (!toolName || isDelegationToolName(toolName)) return state
     return {
       ...state,
       tools: upsertTool(state.tools, {
@@ -242,7 +259,7 @@ export function applyNetworkRuntimeEvent(
   if (eventType === 'tool_call_completed') {
     const toolCallId = asString(event.data.tool_call_id)
     const toolName = asString(event.data.tool_name)
-    if (!toolName) return state
+    if (!toolName || isDelegationToolName(toolName)) return state
     return {
       ...state,
       tools: upsertTool(state.tools, {
@@ -264,13 +281,13 @@ export function applyNetworkRuntimeEvent(
     return { ...state, sources: mergeSources(state.sources, event.data.sources) }
   }
 
-  if (eventType === 'delegation_started') {
-    const target = asString(event.data.target)
-    if (!target) return state
-    return {
-      ...state,
-      tools: labelDelegationTool(state.tools, invocationId, target),
-    }
+  if (
+    eventType === 'delegation_started'
+    || eventType === 'delegation_completed'
+    || eventType === 'delegation_failed'
+    || eventType === 'delegation_skipped'
+  ) {
+    return updateDelegationFromEvent(state, eventType, event)
   }
 
   if (eventType === 'execution_failed') {
@@ -278,6 +295,9 @@ export function applyNetworkRuntimeEvent(
       ...state,
       agents: state.agents.map((agent) => (
         agent.status === 'running' ? { ...agent, status: 'error' } : agent
+      )),
+      delegations: state.delegations.map((delegation) => (
+        delegation.status === 'running' ? { ...delegation, status: 'error' } : delegation
       )),
       tools: state.tools.map((tool) => (
         tool.status === 'running'
@@ -292,6 +312,9 @@ export function applyNetworkRuntimeEvent(
       ...state,
       agents: state.agents.map((agent) => (
         agent.status === 'running' ? { ...agent, status: 'cancelled' } : agent
+      )),
+      delegations: state.delegations.map((delegation) => (
+        delegation.status === 'running' ? { ...delegation, status: 'cancelled' } : delegation
       )),
       tools: state.tools.map((tool) => (
         tool.status === 'running'

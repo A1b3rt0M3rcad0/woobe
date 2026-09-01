@@ -73,11 +73,174 @@ function eventData(event: NetworkRuntimeEvent): Record<string, unknown> {
   return event.data && typeof event.data === 'object' ? event.data : {}
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+}
+
+function asString(value: unknown): string | null {
+  return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function asNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
 function syntheticEvent(
   source: NetworkRuntimeEvent,
   data: Record<string, unknown>,
 ): NetworkRuntimeEvent {
   return { ...source, data }
+}
+
+function snapshotInvocationEvent(
+  source: NetworkRuntimeEvent,
+  rawInvocation: unknown,
+  completed: boolean,
+): NetworkRuntimeEvent | null {
+  const invocation = asRecord(rawInvocation)
+  const invocationId = asString(invocation.id)
+  if (!invocationId) return null
+  const data: Record<string, unknown> = {
+    label: invocation.label ?? invocation.agent_id ?? 'Agent',
+    provider: invocation.provider ?? null,
+    model: invocation.model ?? null,
+    source: invocation.source ?? null,
+    version: invocation.version ?? null,
+    context_state: invocation.context_state ?? null,
+    previous_invocation_count: invocation.previous_invocation_count ?? 0,
+    agent_session_id: invocation.agent_session_id ?? null,
+  }
+  if (completed) {
+    data.trace_id = invocation.trace_id ?? null
+    data.usage = invocation.usage ?? null
+    const failure = asRecord(invocation.failure)
+    Object.assign(data, failure)
+  } else {
+    data.started_at = invocation.started_at ?? source.created_at ?? null
+  }
+  return {
+    ...source,
+    invocation_id: invocationId,
+    parent_invocation_id: asString(invocation.parent_invocation_id),
+    node_id: asString(invocation.node_id),
+    agent_id: asString(invocation.agent_id),
+    depth: asNumber(invocation.depth) ?? 0,
+    created_at: asString(completed ? invocation.completed_at : invocation.started_at) ?? source.created_at,
+    data,
+  }
+}
+
+function hydrateInvocationSnapshot(
+  source: NetworkRuntimeEvent,
+  data: Record<string, unknown>,
+  callbacks: NetworkStreamCallbacks,
+) {
+  const rawInvocations = Array.isArray(data.invocations) ? data.invocations : []
+  for (const rawInvocation of rawInvocations) {
+    const invocation = asRecord(rawInvocation)
+    const started = snapshotInvocationEvent(source, invocation, false)
+    if (!started) continue
+    callbacks.onEvent('agent_invocation_started', started)
+
+    const status = asString(invocation.status)
+    if (!status || status === 'running' || status === 'queued') continue
+    const terminal = snapshotInvocationEvent(source, invocation, true)
+    if (!terminal) continue
+    if (status === 'completed' || status === 'success') {
+      callbacks.onEvent('agent_invocation_completed', terminal)
+    } else if (status === 'cancelled') {
+      callbacks.onEvent('agent_invocation_cancelled', terminal)
+    } else {
+      callbacks.onEvent('agent_invocation_failed', terminal)
+    }
+  }
+}
+
+function hydrateDelegationSnapshot(
+  source: NetworkRuntimeEvent,
+  data: Record<string, unknown>,
+  callbacks: NetworkStreamCallbacks,
+) {
+  const rawDelegations = Array.isArray(data.delegations) ? data.delegations : []
+  for (const rawDelegation of rawDelegations) {
+    const delegation = asRecord(rawDelegation)
+    const target = asString(delegation.target) ?? asString(delegation.target_node_id)
+    if (!target) continue
+    const sharedData: Record<string, unknown> = {
+      target,
+      target_node_id: delegation.target_node_id ?? null,
+      task_fingerprint: delegation.id ?? null,
+      reason: delegation.reason ?? null,
+    }
+    const startedAt = asString(delegation.started_at) ?? source.created_at
+    callbacks.onEvent('delegation_started', {
+      ...source,
+      invocation_id: asString(delegation.parent_invocation_id),
+      created_at: startedAt,
+      data: sharedData,
+    })
+
+    const status = asString(delegation.status)
+    if (!status || status === 'running' || status === 'queued') continue
+    const eventType = status === 'completed' || status === 'success'
+      ? 'delegation_completed'
+      : status === 'skipped'
+        ? 'delegation_skipped'
+        : 'delegation_failed'
+    callbacks.onEvent(eventType, {
+      ...source,
+      invocation_id: asString(delegation.parent_invocation_id),
+      created_at: asString(delegation.completed_at) ?? source.created_at,
+      data: sharedData,
+    })
+  }
+}
+
+function hydrateToolSnapshot(
+  source: NetworkRuntimeEvent,
+  data: Record<string, unknown>,
+  callbacks: NetworkStreamCallbacks,
+) {
+  const rawTools = Array.isArray(data.tools) ? data.tools : []
+  for (const rawTool of rawTools) {
+    const tool = asRecord(rawTool)
+    const toolName = asString(tool.tool_name)
+    if (!toolName || toolName.startsWith('delegate_to_')) continue
+    const toolCallId = asString(tool.tool_call_id) ?? asString(tool.id)
+    const invocationId = asString(tool.invocation_id)
+    const sharedData: Record<string, unknown> = {
+      tool_call_id: toolCallId,
+      tool_name: toolName,
+    }
+    callbacks.onEvent('tool_call_started', {
+      ...source,
+      invocation_id: invocationId,
+      created_at: asString(tool.started_at) ?? source.created_at,
+      data: {
+        ...sharedData,
+        status: 'running',
+        started_at: tool.started_at ?? source.created_at ?? null,
+      },
+    })
+
+    const status = asString(tool.status)
+    if (!status || status === 'running' || status === 'queued') continue
+    callbacks.onEvent('tool_call_completed', {
+      ...source,
+      invocation_id: invocationId,
+      created_at: asString(tool.completed_at) ?? source.created_at,
+      data: {
+        ...sharedData,
+        duration_ms: tool.duration_ms ?? null,
+        success: tool.success ?? (status === 'success' || status === 'completed'),
+        status,
+        error_code: tool.error_code ?? null,
+        error: tool.error ?? null,
+      },
+    })
+  }
 }
 
 function eventSequence(parsed: ParsedSseEvent, event: NetworkRuntimeEvent): number | null {
@@ -94,8 +257,6 @@ function acceptSequence(
   streamState: NetworkStreamState,
 ): boolean {
   const data = eventData(event)
-  // Durable-only run.state is authoritative and is not part of Redis ordering.
-  // Never reject it because an earlier observer saw a larger hot-stream sequence.
   if (parsed.event === 'run.state' && data.realtime_available === false) return true
 
   const sequence = eventSequence(parsed, event)
@@ -134,7 +295,7 @@ function applyRunState(
           content: suffix,
           visibility: 'assistant',
           channel: 'final',
-          phase: 'final_response_generation',
+          phase: 'capability_response_generation',
         }))
       }
     } else {
@@ -149,13 +310,16 @@ function applyRunState(
           content: output,
           visibility: 'assistant',
           channel: 'final',
-          phase: 'final_response_generation',
+          phase: 'capability_response_generation',
         }))
       }
     }
     streamState.output = output
   }
 
+  hydrateInvocationSnapshot(event, data, callbacks)
+  hydrateDelegationSnapshot(event, data, callbacks)
+  hydrateToolSnapshot(event, data, callbacks)
   callbacks.onEvent('run.state', event)
   const status = typeof data.status === 'string' ? data.status : ''
   if (!TERMINAL_RUN_STATUSES.has(status)) return false
@@ -175,11 +339,15 @@ function applyRunState(
       cancelled: true,
     }))
   } else {
+    const error = asRecord(data.error)
     callbacks.onEvent('execution_failed', syntheticEvent(event, {
-      code: data.failure_code ?? 'runtime_error',
-      message: data.failure_detail ?? 'Network execution failed',
+      code: data.failure_code ?? error.code ?? 'runtime_error',
+      message: data.failure_detail ?? error.message ?? 'Network execution failed',
       uncertain: status === 'uncertain',
       trace_id: data.trace_id ?? null,
+      root_partial_result_available: error.root_partial_result_available ?? false,
+      completed_child_results_available: error.completed_child_results_available ?? false,
+      completed_child_result_count: error.completed_child_result_count ?? 0,
     }))
   }
   return true
@@ -331,8 +499,6 @@ export async function streamNetworkExecution(
       if (completed) return
     } catch (error) {
       if (signal?.aborted || attempt === 3) throw error
-      // Never create a second execution after the canonical execution id is known.
-      // All retries become observer reattach operations.
       if (!stableInput.executionId && attempt > 0) throw error
     }
     await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))

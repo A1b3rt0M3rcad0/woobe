@@ -38,6 +38,59 @@ async def test_multiple_observers_receive_same_live_event_independently() -> Non
     await stream_b.aclose()
 
 
+@pytest.mark.asyncio
+async def test_reattach_snapshot_and_live_tail_do_not_duplicate_materialized_output() -> None:
+    store = InMemoryExecutionStateStore()
+    run_id = uuid4()
+    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+    await store.append_event(
+        run_id,
+        "token",
+        {
+            "content": "Hello",
+            "visibility": "assistant",
+            "channel": "final",
+        },
+    )
+
+    reader = RuntimeStreamReader(store, block_ms=20)
+    stream = reader.stream(run_id, "agent", durable_fallback=lambda: None)
+
+    snapshot = await anext(stream)
+    assert snapshot.event_type == "run.state"
+    assert snapshot.sequence == 1
+    assert snapshot.data["output"] == "Hello"
+
+    # Anything materialized into the replacement snapshot is behind the cursor that
+    # starts the live tail. Only a genuinely newer event may be delivered next.
+    await store.append_event(
+        run_id,
+        "token",
+        {
+            "content": " world",
+            "visibility": "assistant",
+            "channel": "final",
+        },
+    )
+    live = await anext(stream)
+
+    assert live.event_type == "token"
+    assert live.sequence == 2
+    assert live.data["content"] == " world"
+    assert live.data["content"] != "Hello"
+
+    await store.append_event(
+        run_id,
+        "done",
+        {"answer": "Hello world"},
+    )
+    terminal = await anext(stream)
+    assert terminal.event_type == "done"
+    assert terminal.sequence == 3
+
+    await stream.aclose()
+
+
 class _UnavailableStore:
     async def get(self, _run_id):
         raise RuntimeError("redis unavailable")

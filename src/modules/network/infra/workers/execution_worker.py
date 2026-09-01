@@ -4,7 +4,6 @@ import asyncio
 import json
 import logging
 import os
-from contextlib import suppress
 from typing import Any
 from uuid import UUID
 
@@ -34,6 +33,63 @@ _TERMINAL_EXECUTION_STATUSES = {
     "timed_out",
     "uncertain",
 }
+_NETWORK_CANCEL_DRAIN_SECONDS = 0.25
+_DETACHED_NETWORK_EXECUTIONS: set[asyncio.Task[Any]] = set()
+
+
+async def _cancel_task_with_grace(task: asyncio.Task[Any]) -> bool:
+    """Return once cooperative cancellation drains or the bounded grace expires."""
+    if task.done():
+        return True
+    task.cancel()
+    try:
+        await asyncio.wait_for(
+            asyncio.shield(task),
+            timeout=_NETWORK_CANCEL_DRAIN_SECONDS,
+        )
+    except asyncio.CancelledError:
+        return True
+    except asyncio.TimeoutError:
+        return False
+    except Exception:
+        # The Run cancellation command remains authoritative even when provider work
+        # exits through a provider/runtime exception after interruption.
+        return True
+    return True
+
+
+def _track_detached_network_execution(
+    task: asyncio.Task[Any],
+    *,
+    execution_id: UUID,
+    store: RedisNetworkExecutionStore,
+) -> None:
+    """Keep non-cooperative provider work alive but fenced from canonical Run state."""
+    _DETACHED_NETWORK_EXECUTIONS.add(task)
+
+    def completed(done: asyncio.Task[Any]) -> None:
+        _DETACHED_NETWORK_EXECUTIONS.discard(done)
+        store.release_execution_fence(execution_id)
+        if done.cancelled():
+            return
+        try:
+            error = done.exception()
+        except asyncio.CancelledError:
+            return
+        except Exception:
+            logger.exception(
+                "Detached Network runtime task completion could not be inspected"
+            )
+            return
+        if error is not None and not isinstance(error, NetworkExecutionCancelled):
+            logger.warning(
+                "Detached Network provider work ended after Run cancellation "
+                "execution_id=%s error=%s",
+                execution_id,
+                error,
+            )
+
+    task.add_done_callback(completed)
 
 
 class NetworkExecutionProcessor:
@@ -88,9 +144,6 @@ class NetworkExecutionProcessor:
             agent_contexts=loaded.agent_contexts,
         )
 
-        # Cancellation may race with worker startup. PostgreSQL is checked once more
-        # after Redis initialization so an execution cancelled while it was queued
-        # cannot start external work from a stale detached ORM snapshot.
         durable = await self._loader.load(execution_id)
         if durable is None:
             return
@@ -161,8 +214,9 @@ class NetworkExecutionProcessor:
                 execution_id,
                 version,
                 status="failed",
-                code="budget_exceeded",
+                code=exc.code,
                 detail=str(exc),
+                message=str(exc),
                 uncertain=False,
             )
         except NetworkRuntimeFailure as exc:
@@ -173,8 +227,10 @@ class NetworkExecutionProcessor:
                 status="failed",
                 code=exc.code,
                 detail=exc.internal_detail,
+                message=exc.safe_message,
                 uncertain=False,
                 trace_id=exc.trace_id,
+                partial_result_available=exc.partial_result_available,
             )
         except Exception as exc:
             logger.exception("Network execution failed execution_id=%s", execution_id)
@@ -184,6 +240,7 @@ class NetworkExecutionProcessor:
                 status="failed",
                 code="runtime_error",
                 detail=str(exc),
+                message="The Network Run failed before producing a complete result.",
                 uncertain=False,
             )
         finally:
@@ -191,24 +248,45 @@ class NetworkExecutionProcessor:
             await heartbeat_task
 
     async def _execute_with_cancellation(self, execution_id: UUID, execution_coro):
-        """Interrupt the active Agent/provider task when Run cancellation is requested."""
+        """Interrupt active work without letting a non-cooperative provider block Stop."""
         execution_task = asyncio.create_task(execution_coro)
+        detached = False
         try:
             while True:
                 done, _ = await asyncio.wait({execution_task}, timeout=0.2)
                 if execution_task in done:
                     return await execution_task
-                if await self._store.is_cancel_requested(execution_id):
-                    execution_task.cancel()
-                    with suppress(asyncio.CancelledError):
-                        await execution_task
+                if not await self._store.is_cancel_requested(execution_id):
+                    continue
+
+                # Fence canonical state before interruption. A provider/library that
+                # swallows CancelledError may continue running in the background, but
+                # it can no longer append tokens, complete invocations or delegate.
+                self._store.fence_execution(execution_id)
+                drained = await _cancel_task_with_grace(execution_task)
+                try:
                     await self._store.cancel_running_invocations(execution_id)
-                    raise NetworkExecutionCancelled("Network execution was cancelled")
+                finally:
+                    if drained:
+                        self._store.release_execution_fence(execution_id)
+                    else:
+                        detached = True
+                        _track_detached_network_execution(
+                            execution_task,
+                            execution_id=execution_id,
+                            store=self._store,
+                        )
+                raise NetworkExecutionCancelled("Network execution was cancelled")
         finally:
-            if not execution_task.done():
-                execution_task.cancel()
-                with suppress(asyncio.CancelledError):
-                    await execution_task
+            if not execution_task.done() and not detached:
+                drained = await _cancel_task_with_grace(execution_task)
+                if not drained:
+                    self._store.fence_execution(execution_id)
+                    _track_detached_network_execution(
+                        execution_task,
+                        execution_id=execution_id,
+                        store=self._store,
+                    )
 
     async def _heartbeat(
         self,
@@ -267,30 +345,51 @@ class NetworkExecutionProcessor:
         status: str,
         code: str,
         detail: str,
+        message: str,
         uncertain: bool,
         trace_id: UUID | None = None,
+        partial_result_available: bool = False,
     ) -> None:
+        output = await self._store.partial_output(execution_id)
+        invocations = await self._store.invocations(execution_id)
+        completed_child_count = sum(
+            1
+            for item in invocations
+            if str(item.get("status") or "") == "completed"
+            and int(item.get("depth") or 0) > 0
+            and bool(item.get("output_message") or item.get("parsed_output"))
+        )
+        root_partial_result_available = bool(output)
+        terminal_has_partial = partial_result_available or root_partial_result_available
         payload = {
             "failure_code": code,
             "failure_detail": detail,
+            "failure_message": message,
             "trace_id": str(trace_id) if trace_id else None,
             "uncertain": uncertain,
+            "output": output,
+            "partial": root_partial_result_available,
+            "partial_result_available": terminal_has_partial,
+            "root_partial_result_available": root_partial_result_available,
+            "completed_child_results_available": completed_child_count > 0,
+            "completed_child_result_count": completed_child_count,
         }
         await self._store.mark_terminal_pending(
             execution_id,
             status=status,
             result=payload,
         )
-        invocations = await self._store.invocations(execution_id)
         await self._finalizer.finalize(
             execution_id=execution_id,
             version=version,
             invocation_states=invocations,
             terminal_status=status,
-            output=None,
+            output=output,
             trace_id=trace_id,
             failure_code=code,
             failure_detail=detail,
+            failure_message=message,
+            partial_result_available=terminal_has_partial,
             uncertain=uncertain,
         )
         await self._store.mark_persisted(
@@ -316,6 +415,7 @@ class NetworkExecutionProcessor:
             trace_id=None,
             failure_code=code,
             failure_detail=detail,
+            failure_message="The Network Run could not be prepared for execution.",
             uncertain=uncertain,
         )
 
@@ -339,6 +439,8 @@ class NetworkExecutionProcessor:
             trace_id=trace_id,
             failure_code=result.get("failure_code"),
             failure_detail=result.get("failure_detail"),
+            failure_message=result.get("failure_message"),
+            partial_result_available=bool(result.get("partial_result_available")),
             uncertain=bool(result.get("uncertain")),
             streamed_output=bool(result.get("streamed_output")),
         )
@@ -432,16 +534,9 @@ class NetworkLeaseRecoveryWorker:
 
             state = await self._store.snapshot(execution_id)
             if not state:
-                # New Redis-backed executions intentionally remain `queued` in
-                # PostgreSQL while running. Absence of Redis state therefore does
-                # not prove that external work started; a broker-delayed request
-                # must never be converted to UNCERTAIN merely because it is old.
                 if durable_status == "queued":
                     continue
 
-                # Legacy `running` / `cancel_requested` durable states do prove
-                # that execution had crossed the old start boundary. Without hot
-                # state we cannot establish whether external side effects happened.
                 await self._finalizer.finalize(
                     execution_id=execution_id,
                     version=loaded.version,
@@ -453,6 +548,9 @@ class NetworkLeaseRecoveryWorker:
                     failure_detail=(
                         "Execution state disappeared after execution had started; "
                         "automatic replay was blocked."
+                    ),
+                    failure_message=(
+                        "The Network execution state was lost after execution started."
                     ),
                     uncertain=True,
                 )
@@ -478,6 +576,8 @@ class NetworkLeaseRecoveryWorker:
                     trace_id=trace_id,
                     failure_code=result.get("failure_code"),
                     failure_detail=result.get("failure_detail"),
+                    failure_message=result.get("failure_message"),
+                    partial_result_available=bool(result.get("partial_result_available")),
                     uncertain=bool(result.get("uncertain")),
                     streamed_output=bool(result.get("streamed_output")),
                 )
@@ -511,6 +611,9 @@ class NetworkLeaseRecoveryWorker:
                 failure_detail=(
                     "Worker lease expired after execution started; automatic replay "
                     "was blocked to avoid duplicate external side effects."
+                ),
+                failure_message=(
+                    "The Network worker lease expired before the Run could be finalized."
                 ),
                 uncertain=uncertain,
             )

@@ -8,11 +8,13 @@ import {
   isFirstRunSearch,
   removeFirstRunFromLocation,
 } from '@/features/playground/lib/first-run'
+import { useAgentStreamStopState } from '@/features/playground/stream-stop-state'
 import type { ChatMessage as ChatMessageType } from '@/features/playground/types'
 
 interface ChatCanvasProps {
   messages: ChatMessageType[]
   isSending: boolean
+  isStopping?: boolean
   isSessionLoading?: boolean
   onSend: (content: string) => void
   onStop: () => void
@@ -31,6 +33,24 @@ const BOTTOM_THRESHOLD_PX = 48
 
 function isNearBottom(el: HTMLDivElement): boolean {
   return el.scrollHeight - el.scrollTop - el.clientHeight <= BOTTOM_THRESHOLD_PX
+}
+
+function isEmptyTerminalAssistantPlaceholder(
+  message: ChatMessageType,
+  index: number,
+  messages: ChatMessageType[],
+  isSending: boolean,
+): boolean {
+  return !isSending
+    && index === messages.length - 1
+    && message.role === 'assistant'
+    && !message.content.trim()
+    && !message.activity
+    && !message.output_parse_error
+    && !message.parsed_output
+    && !message.usage
+    && !(message.tool_calls?.length)
+    && !(message.sources?.length)
 }
 
 function SessionMessagesLoading() {
@@ -58,7 +78,7 @@ function SessionMessagesLoading() {
   )
 }
 
-export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSend, onStop, agentName, runtimeBlocked = false, runtimeBlockReason }: ChatCanvasProps) {
+export function ChatCanvas({ messages, isSending, isStopping, isSessionLoading = false, onSend, onStop, agentName, runtimeBlocked = false, runtimeBlockReason }: ChatCanvasProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesContentRef = useRef<HTMLDivElement>(null)
   const shouldStickToBottomRef = useRef(true)
@@ -67,7 +87,12 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
     typeof window !== 'undefined' && isFirstRunSearch(window.location.search),
   )
   const [showFirstRunSuccess, setShowFirstRunSuccess] = useState(false)
-  const lastMessageContent = messages[messages.length - 1]?.content ?? ''
+  const stopState = useAgentStreamStopState()
+  const stopping = isStopping ?? stopState === 'stopping'
+  const visibleMessages = messages.filter(
+    (message, index) => !isEmptyTerminalAssistantPlaceholder(message, index, messages, isSending),
+  )
+  const lastMessageContent = visibleMessages[visibleMessages.length - 1]?.content ?? ''
   const currentFirstRun = typeof window !== 'undefined'
     && isFirstRunSearch(window.location.search)
 
@@ -121,7 +146,7 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
 
   useLayoutEffect(() => {
     scrollToBottomIfPinned()
-  }, [messages.length, lastMessageContent, isSending, scrollToBottomIfPinned])
+  }, [visibleMessages.length, lastMessageContent, isSending, scrollToBottomIfPinned])
 
   useLayoutEffect(() => {
     const content = messagesContentRef.current
@@ -134,7 +159,7 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
     return () => observer.disconnect()
   }, [scrollToBottomIfPinned])
 
-  const isEmpty = messages.length === 0
+  const isEmpty = visibleMessages.length === 0
 
   return (
     <section className="flex flex-col flex-1 min-w-0 min-h-0 overflow-hidden bg-background">
@@ -180,12 +205,12 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
           </div>
         ) : (
           <div ref={messagesContentRef} className="relative space-y-4 p-4 pb-2">
-            {messages.map((msg, i) => (
+            {visibleMessages.map((msg, i) => (
               <ChatMessage
                 key={i}
                 message={msg}
-                isStreaming={msg.role === 'assistant' && isSending && i === messages.length - 1}
-                isLast={i === messages.length - 1}
+                isStreaming={msg.role === 'assistant' && isSending && i === visibleMessages.length - 1}
+                isLast={i === visibleMessages.length - 1}
                 agentName={agentName}
               />
             ))}
@@ -203,7 +228,7 @@ export function ChatCanvas({ messages, isSending, isSessionLoading = false, onSe
         )}
       </ScrollArea>
 
-      <ChatComposer isSending={isSending} onSend={handleSend} onStop={onStop} runtimeBlocked={runtimeBlocked} runtimeBlockReason={runtimeBlockReason} />
+      <ChatComposer isSending={isSending} isStopping={stopping} onSend={handleSend} onStop={onStop} runtimeBlocked={runtimeBlocked} runtimeBlockReason={runtimeBlockReason} />
     </section>
   )
 }

@@ -81,6 +81,7 @@ export interface TraceToolCall {
   status?: string | null
   latency_ms?: number | null
   error?: string | null
+  error_code?: string | null
 }
 
 export interface TraceUsage {
@@ -168,4 +169,97 @@ export interface TraceDetailNormalized extends TraceSummary {
   sources: TraceSource[]
   toolCalls: TraceToolCall[]
   events: TraceEvent[]
+}
+
+export interface ContextContributionEvidence {
+  id: string
+  ordinal: number
+  source_type: string
+  source_ref?: string | null
+  parent_ref?: string | null
+  modality: string
+  priority: string
+  raw_units?: number | null
+  materialized_units?: number | null
+  selection_method?: string | null
+  relevance_score?: number | null
+  transformations: string[]
+  trust?: string | null
+  sensitivity?: string | null
+  integrity_hash?: string | null
+  metadata: Record<string, unknown>
+}
+
+export interface ContextSnapshotEvidence {
+  id: string
+  policy_schema_version: number
+  policy_hash: string
+  model_capacity_units?: number | null
+  reserved_output_units?: number | null
+  runtime_reserve_units: number
+  usable_input_budget?: number | null
+  estimated_input_units: number
+  reported_input_units?: number | null
+  utilization?: number | null
+  pressure_status: string
+  measurement_status: string
+  manifest: Record<string, unknown>
+  materialized_hash: string
+  retention_mode: string
+  reproduction_level: string
+  contributions: ContextContributionEvidence[]
+}
+
+export interface ContextModelInvocation {
+  id: string | null
+  call_index: number | null
+  phase: string | null
+  provider: string | null
+  model: string | null
+  status: string | null
+  latency_ms?: number | null
+  input_units?: number | null
+  output_units?: number | null
+  total_units?: number | null
+  cost_usd?: number | null
+  started_at?: string | null
+  ended_at?: string | null
+  context_snapshot?: ContextSnapshotEvidence | null
+  persistence?: string | null
+}
+
+export interface AgentRunDetail {
+  id: string
+  project_id: string
+  agent_id: string
+  session_id?: string | null
+  agent_release_id?: string | null
+  input_message_id?: string | null
+  output_message_id?: string | null
+  trace_id: string
+  network_execution_id?: string | null
+  network_invocation_id?: string | null
+  parent_run_id?: string | null
+  rerun_of_run_id?: string | null
+  environment: string
+  origin: string
+  status: string
+  input_message: string
+  answer?: string | null
+  provider?: string | null
+  model?: string | null
+  parsed_output?: unknown | null
+  output_parse_error?: string | null
+  usage?: Record<string, unknown> | null
+  diagnostics?: Record<string, unknown> | null
+  tool_calls: TraceToolCall[]
+  sources: TraceSource[]
+  llm_calls: Record<string, unknown>[]
+  failure?: Record<string, unknown> | null
+  failure_code?: string | null
+  failure_detail?: string | null
+  started_at?: string | null
+  completed_at?: string | null
+  created_at?: string | null
+  updated_at?: string | null
 }

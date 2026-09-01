@@ -23,6 +23,15 @@ export class RuntimeStreamGapError extends Error {
   }
 }
 
+export class RuntimeStreamProtocolError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RuntimeStreamProtocolError";
+  }
+}
+
+const SUPPORTED_RUNTIME_STREAM_PROTOCOL_VERSION = 1;
+
 function objectValue(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -35,6 +44,16 @@ function sequenceValue(value: unknown): number | null {
     : null;
 }
 
+function validateProtocolVersion(data: Record<string, unknown>): void {
+  const value = data.protocol_version;
+  if (value === undefined || value === null) return;
+  if (value !== SUPPORTED_RUNTIME_STREAM_PROTOCOL_VERSION) {
+    throw new RuntimeStreamProtocolError(
+      `Unsupported runtime stream protocol version: ${String(value)}`,
+    );
+  }
+}
+
 export function parseRuntimeFrame(frame: string): ParsedRuntimeFrame | null {
   const lines = frame.split(/\r?\n/);
   const eventLine = lines.find((line) => line.startsWith("event:"));
@@ -42,11 +61,17 @@ export function parseRuntimeFrame(frame: string): ParsedRuntimeFrame | null {
   const dataLines = lines.filter((line) => line.startsWith("data:"));
   if (!dataLines.length) return null;
 
-  const parsed = JSON.parse(
-    dataLines.map((line) => line.slice(5).trimStart()).join("\n"),
-  ) as unknown;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(
+      dataLines.map((line) => line.slice(5).trimStart()).join("\n"),
+    ) as unknown;
+  } catch {
+    return null;
+  }
   const data = objectValue(parsed);
   if (!data) return null;
+  validateProtocolVersion(data);
   const payload = objectValue(data.data) ?? data;
   const eventType = eventLine?.slice(6).trim()
     || (typeof data.type === "string" ? data.type : "message");

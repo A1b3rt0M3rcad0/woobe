@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -32,6 +33,7 @@ from shared.contracts.execution_state import ExecutionStateStore
 from shared.contracts.time import utc_now
 from shared.runtime_reattach import (
     RuntimeEventPublisher,
+    RuntimeStreamFrame,
     RuntimeStreamReader,
     format_sse_frame,
 )
@@ -44,6 +46,18 @@ logger = logging.getLogger(__name__)
 # cancel the execution it was watching.
 _DETACHED_AGENT_EXECUTIONS: set[asyncio.Task[Any]] = set()
 _DETACHED_AGENT_EVENT_PUMPS: set[asyncio.Task[Any]] = set()
+_DETACHED_AGENT_CANCEL_WATCHERS: set[asyncio.Task[Any]] = set()
+_INITIAL_OBSERVER_POLL_SECONDS = 0.25
+_CANCEL_POLL_SECONDS = 0.05
+_TERMINAL_STREAM_EVENTS = {"done", "error", "cancelled"}
+_AUTHORITATIVE_TERMINALS = {
+    "completed",
+    "cancelled",
+    "failed",
+    "timed_out",
+    "uncertain",
+}
+_AUTHORITATIVE_NON_SUCCESS_TERMINALS = _AUTHORITATIVE_TERMINALS - {"completed"}
 
 
 def _track(task: asyncio.Task[Any], registry: set[asyncio.Task[Any]]) -> None:
@@ -61,10 +75,10 @@ def _track(task: asyncio.Task[Any], registry: set[asyncio.Task[Any]]) -> None:
             logger.exception("Detached Agent runtime task completion could not be inspected")
             return
         # Agent execution errors are already durably finalized and projected into the
-        # Run stream. Pump failures are infrastructure defects and must remain visible.
-        if error is not None and registry is _DETACHED_AGENT_EVENT_PUMPS:
+        # Run stream. Background infrastructure failures must remain visible.
+        if error is not None and registry is not _DETACHED_AGENT_EXECUTIONS:
             logger.error(
-                "Detached Agent runtime event pump failed",
+                "Detached Agent runtime background task failed",
                 exc_info=(type(error), error, error.__traceback__),
             )
 
@@ -96,6 +110,22 @@ class AskAgentStreamService:
         token = current_runtime_stream.set(channel)
         try:
             result = await self._use_case.execute(input_dto)
+
+            # The provider result is not allowed to overwrite a terminal lifecycle
+            # fact that another racing finalizer already committed. Repository-level
+            # immutability protects PostgreSQL; this projection guard protects SSE.
+            run_id = getattr(channel, "run_id", None)
+            if run_id is not None:
+                durable = await self._durable_fallback(run_id)
+                durable_status = (
+                    str(durable.get("status") or "")
+                    if durable is not None
+                    else ""
+                )
+                if durable_status in _AUTHORITATIVE_NON_SUCCESS_TERMINALS:
+                    await self._emit_durable_terminal_after_race(channel)
+                    return result
+
             await channel.emit("done", **result.model_dump(mode="json"))
             return result
         except asyncio.CancelledError:
@@ -104,6 +134,17 @@ class AskAgentStreamService:
                 input_dto,
                 "cancel_requested",
             )
+            if not persisted:
+                emitted_durable_terminal = await self._emit_durable_terminal_after_race(
+                    channel
+                )
+                if not emitted_durable_terminal:
+                    await channel.emit(
+                        "error",
+                        message="Run cancellation could not be durably confirmed",
+                    )
+                raise
+
             result = {
                 "answer": channel.public_output,
                 "partial": bool(channel.public_output),
@@ -118,16 +159,135 @@ class AskAgentStreamService:
                 result=result,
                 usage=channel.latest_usage,
                 partial=bool(channel.public_output),
-                persisted=persisted,
+                persisted=True,
             )
             raise
         except Exception as exc:
-            # The use case owns durable failure finalization. This terminal runtime
-            # event is emitted only after execute() has returned with the failure.
+            # Finalizers may deliberately abort their UoW when another terminal writer
+            # won first. More generally, a provider failure may already have been
+            # persisted before it propagates here. Durable state is authoritative over
+            # the exception object and over any stale hot terminal_pending projection.
+            run_id = getattr(channel, "run_id", None)
+            if run_id is not None:
+                durable = await self._durable_fallback(run_id)
+                durable_status = (
+                    str(durable.get("status") or "")
+                    if durable is not None
+                    else ""
+                )
+                if durable_status in _AUTHORITATIVE_TERMINALS:
+                    await self._emit_durable_terminal_after_race(channel)
+                    raise
+
             await channel.emit("error", message=redact_text(str(exc)))
             raise
         finally:
             current_runtime_stream.reset(token)
+
+    async def _restore_hot_terminal(
+        self,
+        run_id: UUID,
+        *,
+        status: str,
+        result: dict[str, Any],
+        usage: dict[str, Any] | None,
+    ) -> None:
+        try:
+            payload: dict[str, Any] = {
+                "status": status,
+                "phase": "persisted",
+                "terminal_result": result,
+            }
+            if usage is not None:
+                payload["usage"] = usage
+            await self._state_store.update(run_id, payload)
+            await self._state_store.expire(run_id, ttl_seconds=900)
+        except Exception as exc:
+            # PostgreSQL remains the source of truth. Hot-state restoration is best
+            # effort so a stale terminal_pending projection cannot become authoritative.
+            logger.debug("Could not restore authoritative Agent Run hot terminal: %s", exc)
+
+    async def _emit_durable_terminal_after_race(
+        self,
+        channel: RuntimeStreamChannel,
+    ) -> bool:
+        run_id = getattr(channel, "run_id", None)
+        if run_id is None:
+            return False
+
+        durable = await self._durable_fallback(run_id)
+        if durable is None:
+            return False
+
+        status = str(durable.get("status") or "")
+        result = durable.get("result")
+        result_payload = dict(result) if isinstance(result, dict) else {}
+        output = durable.get("output")
+        output_text = output if isinstance(output, str) else ""
+        usage = durable.get("usage")
+        usage_payload = usage if isinstance(usage, dict) else None
+
+        if status == "completed":
+            result_payload.setdefault("answer", output_text)
+            if usage_payload is not None:
+                result_payload.setdefault("usage", usage_payload)
+            await self._restore_hot_terminal(
+                run_id,
+                status=status,
+                result=result_payload,
+                usage=usage_payload,
+            )
+            await channel.emit("done", **result_payload)
+            return True
+
+        if status == "cancelled":
+            result_payload.setdefault("answer", output_text)
+            result_payload.setdefault("partial", bool(output_text))
+            result_payload.setdefault("cancelled", True)
+            result_payload.setdefault("reason", "cancel_requested")
+            if usage_payload is not None:
+                result_payload.setdefault("usage", usage_payload)
+            await self._restore_hot_terminal(
+                run_id,
+                status=status,
+                result=result_payload,
+                usage=usage_payload,
+            )
+            await channel.emit(
+                "cancelled",
+                reason=result_payload.get("reason", "cancel_requested"),
+                output=output_text,
+                result=result_payload,
+                usage=usage_payload,
+                partial=bool(result_payload.get("partial", bool(output_text))),
+                persisted=True,
+            )
+            return True
+
+        if status in {"failed", "timed_out", "uncertain"}:
+            message = durable.get("failure_detail")
+            if not isinstance(message, str) or not message:
+                candidate = result_payload.get("error") or result_payload.get("message")
+                message = candidate if isinstance(candidate, str) else None
+            await self._restore_hot_terminal(
+                run_id,
+                status=status,
+                result=result_payload,
+                usage=usage_payload,
+            )
+            await channel.emit(
+                "error",
+                message=(
+                    redact_text(message)
+                    if isinstance(message, str) and message
+                    else f"Run already reached terminal status: {status}"
+                ),
+                status=status,
+                uncertain=status == "uncertain",
+            )
+            return True
+
+        return False
 
     async def _persist_cancelled(
         self,
@@ -138,12 +298,97 @@ class AskAgentStreamService:
         if channel.trace_id is None:
             return False
 
+        from modules.agent.application.interfaces.execution import InstrumentedExecution
+        from modules.agent.application.interfaces.execution_context import current_execution
+        from modules.agent.infra.execution.agent_run_metrics import build_agent_run_metrics
+
         project_id = channel.project_id or input_dto.project_id
         agent_id = channel.agent_id or input_dto.agent_id
         session_id = channel.session_id or input_dto.session_id
         run_id = getattr(channel, "run_id", None)
         partial_output = channel.public_output
+        completed_at = datetime.now(timezone.utc)
+        execution_context = getattr(channel, "execution_context", None)
+        if execution_context is None:
+            execution_context = current_execution.get()
+        execution = getattr(execution_context, "execution", None)
+
         usage = dict(channel.latest_usage or {})
+        diagnostics: dict[str, Any] | None = None
+        llm_calls: list[dict[str, Any]] = []
+        tool_calls: list[dict[str, Any]] = []
+        if execution_context is not None and isinstance(execution, InstrumentedExecution):
+            snapshot_calls: list[dict[str, Any]] = []
+            for raw_call in execution.llm_calls:
+                call = dict(raw_call)
+                if call.get("status") == "running":
+                    started_text = call.get("started_at")
+                    latency_ms = int(call.get("latency_ms") or 0)
+                    if isinstance(started_text, str):
+                        try:
+                            started_at = datetime.fromisoformat(started_text)
+                            latency_ms = max(
+                                latency_ms,
+                                round((completed_at - started_at).total_seconds() * 1000),
+                            )
+                        except (TypeError, ValueError):
+                            pass
+                    call.update(
+                        {
+                            "status": "cancelled",
+                            "error": None,
+                            "ended_at": completed_at.isoformat(),
+                            "occurred_at": completed_at.isoformat(),
+                            "latency_ms": max(latency_ms, 0),
+                            "input_tokens": call.get("input_tokens"),
+                            "output_tokens": call.get("output_tokens"),
+                            "total_tokens": call.get("total_tokens"),
+                            "cost_usd": call.get("cost_usd"),
+                            "cost_status": call.get("cost_status") or "unknown_tokens",
+                            "cost_reason": call.get("cost_reason")
+                            or "Model invocation was cancelled before final provider usage",
+                            "usage_complete": False,
+                        }
+                    )
+                snapshot_calls.append(call)
+
+            snapshot_execution = InstrumentedExecution(
+                result=None,
+                tool_calls=list(execution.tool_calls),
+                llm_calls=snapshot_calls,
+                timeline=list(execution.timeline),
+                tool_wall_latency_ms=execution.tool_wall_latency_ms,
+                tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
+                failure_context=execution.failure_context,
+            )
+            try:
+                metrics = build_agent_run_metrics(
+                    context=execution_context,
+                    execution=snapshot_execution,
+                    binding=object(),
+                    fallback_used=False,
+                    finalization_work_ms=0,
+                    completed_at=completed_at.isoformat(),
+                )
+                metric_usage = metrics.usage.model_dump(mode="json")
+                for key, value in usage.items():
+                    if metric_usage.get(key) is None and value is not None:
+                        metric_usage[key] = value
+                usage = metric_usage
+                diagnostics = metrics.diagnostics
+                llm_calls = metrics.llm_calls
+                tool_calls = [
+                    item.model_dump(mode="json")
+                    if hasattr(item, "model_dump")
+                    else dict(item)
+                    if isinstance(item, dict)
+                    else {"value": str(item)}
+                    for item in snapshot_execution.tool_calls
+                ]
+            except Exception as exc:
+                # Cancellation must remain durable even if telemetry enrichment degrades.
+                logger.warning("Could not build cancelled Agent telemetry snapshot: %s", exc)
+
         result = {
             "answer": partial_output,
             "partial": bool(partial_output),
@@ -153,6 +398,10 @@ class AskAgentStreamService:
             "trace_id": str(channel.trace_id),
             "session_id": str(session_id) if session_id is not None else None,
         }
+        if diagnostics is not None:
+            result["diagnostics"] = diagnostics
+            result["llm_calls"] = llm_calls
+            result["tool_calls"] = tool_calls
         payload = {
             "run_id": str(run_id) if run_id is not None else None,
             "trace_id": str(channel.trace_id),
@@ -168,12 +417,12 @@ class AskAgentStreamService:
             session_id=session_id,
             payload=payload,
         )
-        completed_at = datetime.now(timezone.utc)
 
         async def persist(
             repositories: AgentRuntimeRepositories,
             outbox: OutboxEventWriter,
         ) -> bool:
+            run = None
             if run_id is not None:
                 lock_reader = getattr(
                     repositories.runs,
@@ -190,7 +439,6 @@ class AskAgentStreamService:
                 if usage:
                     run.usage = usage
                 run.completed_at = completed_at
-                await repositories.runs.save(run)
 
             if session_id is not None and partial_output:
                 session = await repositories.sessions.get_by_id(session_id)
@@ -211,6 +459,8 @@ class AskAgentStreamService:
                     },
                 )
                 created = await repositories.messages.create(message)
+                if run is not None:
+                    run.output_message_id = created.id
                 session.last_message_at = utc_now()
                 await repositories.sessions.update(session)
                 await outbox.write(
@@ -222,6 +472,9 @@ class AskAgentStreamService:
                         role="assistant",
                     )
                 )
+
+            if run is not None:
+                await repositories.runs.save(run)
 
             await outbox.write(event)
             return True
@@ -242,34 +495,94 @@ class AskAgentStreamService:
                 pass
         return persisted
 
+    @staticmethod
+    def _event_for_run(
+        event: RuntimeStreamEvent,
+        run_id: UUID | None,
+    ) -> RuntimeStreamEvent:
+        if run_id is None or event.payload.get("run_id") is not None:
+            return event
+        return RuntimeStreamEvent(
+            event_type=event.event_type,
+            payload={**event.payload, "run_id": str(run_id)},
+        )
+
+    async def _watch_cancellation(
+        self,
+        input_dto: AskInput,
+        channel: RuntimeStreamChannel,
+        execution_task: asyncio.Task[AskOutput],
+    ) -> None:
+        cancellation_persisted = False
+        terminal_projected = False
+        while not execution_task.done():
+            run_id = getattr(channel, "run_id", None)
+            if run_id is None:
+                await asyncio.sleep(_CANCEL_POLL_SECONDS)
+                continue
+            try:
+                if not await self._state_store.is_cancel_requested(run_id):
+                    await asyncio.sleep(_CANCEL_POLL_SECONDS)
+                    continue
+
+                # Do not interrupt before the canonical durable identity is complete.
+                # Once the request is visible, cancellation persistence wins first;
+                # provider interruption is a consequence, not the source of truth.
+                if channel.trace_id is None:
+                    await asyncio.sleep(_CANCEL_POLL_SECONDS)
+                    continue
+
+                if not cancellation_persisted:
+                    cancellation_persisted = await self._persist_cancelled(
+                        channel,
+                        input_dto,
+                        "cancel_requested",
+                    )
+
+                # Once PostgreSQL has accepted CANCELLED, the public Run lifecycle is
+                # terminal independently of whether a provider cooperates with task
+                # cancellation. Project that durable fact immediately; late provider
+                # tokens are ignored by the terminal channel and late finalizers lose
+                # against repository terminal immutability.
+                if cancellation_persisted and not terminal_projected:
+                    terminal_projected = await self._emit_durable_terminal_after_race(
+                        channel
+                    )
+
+                if not execution_task.done():
+                    execution_task.cancel()
+                    # Keep applying cooperative cancellation without a hot spin. A
+                    # misbehaving provider may swallow CancelledError, but it no longer
+                    # controls the observer lifecycle after durable cancellation.
+                    await asyncio.sleep(_CANCEL_POLL_SECONDS)
+                continue
+            except Exception as exc:
+                logger.debug(
+                    "Standalone cancellation watcher could not read hot state: %s",
+                    exc,
+                )
+                await asyncio.sleep(_CANCEL_POLL_SECONDS)
+
     async def _pump_events(
         self,
         input_dto: AskInput,
         channel: RuntimeStreamChannel,
         execution_task: asyncio.Task[AskOutput],
     ) -> None:
+        del input_dto
         buffered: list[RuntimeStreamEvent] = []
         terminal_seen = False
         while not terminal_seen:
-            run_id = getattr(channel, "run_id", None)
-            runtime_ready = False
-            if run_id is not None:
-                try:
-                    runtime_ready = await self._state_store.get(run_id) is not None
-                    if runtime_ready and await self._state_store.is_cancel_requested(run_id):
-                        if not execution_task.done():
-                            execution_task.cancel()
-                except Exception:
-                    runtime_ready = False
-
             try:
                 event = await asyncio.wait_for(channel.queue.get(), timeout=0.25)
-                buffered.append(event)
+                run_id = getattr(channel, "run_id", None)
+                buffered.append(self._event_for_run(event, run_id))
             except asyncio.TimeoutError:
                 event = None
 
             run_id = getattr(channel, "run_id", None)
-            if run_id is not None and not runtime_ready:
+            runtime_ready = False
+            if run_id is not None:
                 try:
                     runtime_ready = await self._state_store.get(run_id) is not None
                 except Exception:
@@ -278,20 +591,29 @@ class AskAgentStreamService:
             if run_id is not None and runtime_ready and buffered:
                 pending, buffered = buffered, []
                 for queued in pending:
-                    payload = dict(queued.payload)
-                    if queued.event_type == "meta" and payload.get("run_id") is None:
-                        payload["run_id"] = str(run_id)
+                    queued = self._event_for_run(queued, run_id)
                     await self._publisher.publish(
                         run_id,
                         "agent",
                         queued.event_type,
-                        payload,
+                        dict(queued.payload),
                     )
-                    if queued.event_type in {"done", "error", "cancelled"}:
+                    if queued.event_type in _TERMINAL_STREAM_EVENTS:
                         terminal_seen = True
 
             if execution_task.done() and not buffered and terminal_seen:
                 return
+
+            if execution_task.done() and buffered and not runtime_ready:
+                if any(
+                    queued.event_type in _TERMINAL_STREAM_EVENTS
+                    for queued in buffered
+                ):
+                    logger.warning(
+                        "Standalone hot event persistence unavailable after terminal Run; "
+                        "durable Agent Run remains authoritative"
+                    )
+                    return
 
             if execution_task.done() and not terminal_seen and event is None:
                 # _run_execution always attempts to enqueue a terminal event. Give
@@ -316,6 +638,7 @@ class AskAgentStreamService:
                 "output": output or "",
                 "result": result,
                 "usage": run.usage if isinstance(run.usage, dict) else {},
+                "failure_detail": run.failure_detail,
                 "trace_id": str(run.trace_id) if run.trace_id else None,
                 "project_id": str(run.project_id),
                 "agent_id": str(run.agent_id),
@@ -328,33 +651,6 @@ class AskAgentStreamService:
             }
 
         return await self._transactions.read(read_run)
-
-    async def _wait_for_hot_state(
-        self,
-        run_id: UUID,
-        execution_task: asyncio.Task[AskOutput],
-        *,
-        timeout_seconds: float = 1.0,
-    ) -> None:
-        """Bridge the small Acceptance -> hot-state initialization window.
-
-        The canonical Run id becomes available immediately after the durable
-        Acceptance commit, while Redis initialization intentionally happens after
-        credential preparation. Attaching in that interval would incorrectly look
-        like a completed durable-only fallback and close the observer. Wait briefly
-        for the hot state; on Redis degradation the timeout preserves execution and
-        the caller still falls back to the durable Run rather than creating another.
-        """
-        deadline = asyncio.get_running_loop().time() + timeout_seconds
-        while asyncio.get_running_loop().time() < deadline:
-            try:
-                if await self._state_store.get(run_id) is not None:
-                    return
-            except Exception:
-                return
-            if execution_task.done():
-                return
-            await asyncio.sleep(0.01)
 
     async def attach(
         self,
@@ -376,33 +672,73 @@ class AskAgentStreamService:
         disconnect_check: DisconnectCheck | None = None,
     ) -> AsyncGenerator[str, None]:
         channel = RuntimeStreamChannel()
+        initial_observer_queue = channel.subscribe()
         execution_task = asyncio.create_task(self._run_execution(input_dto, channel))
         _track(execution_task, _DETACHED_AGENT_EXECUTIONS)
         pump_task = asyncio.create_task(
             self._pump_events(input_dto, channel, execution_task)
         )
         _track(pump_task, _DETACHED_AGENT_EVENT_PUMPS)
+        cancellation_task = asyncio.create_task(
+            self._watch_cancellation(input_dto, channel, execution_task)
+        )
+        _track(cancellation_task, _DETACHED_AGENT_CANCEL_WATCHERS)
 
-        # Acceptance creates the canonical Run before external execution. Wait only
-        # for that identity, then observe through the shared hot stream. The request
-        # no longer owns execution after this point.
-        while getattr(channel, "run_id", None) is None:
-            if disconnect_check is not None and await disconnect_check():
-                return
-            if execution_task.done():
+        # POST observes the active channel directly. The persistence pump consumes its
+        # own queue and writes the same events to hot state for GET reattach. A slow or
+        # batching Redis path therefore cannot delay already-produced tokens or Stop.
+        last_heartbeat = time.monotonic()
+        try:
+            while True:
+                if disconnect_check is not None and await disconnect_check():
+                    return
                 try:
-                    await execution_task
-                except asyncio.CancelledError:
-                    return
-                except Exception as exc:
-                    yield self._format_early_error(exc)
-                    return
-            await asyncio.sleep(0.01)
+                    event = await asyncio.wait_for(
+                        initial_observer_queue.get(),
+                        timeout=_INITIAL_OBSERVER_POLL_SECONDS,
+                    )
+                except asyncio.TimeoutError:
+                    now = time.monotonic()
+                    if now - last_heartbeat >= RUNTIME_STREAM_HEARTBEAT_SECONDS:
+                        last_heartbeat = now
+                        yield format_sse_frame(
+                            RuntimeStreamFrame(
+                                "heartbeat",
+                                {
+                                    "request_id": str(channel.request_id),
+                                    "run_id": (
+                                        str(getattr(channel, "run_id"))
+                                        if getattr(channel, "run_id", None) is not None
+                                        else None
+                                    ),
+                                    "ts": _now_iso(),
+                                },
+                            )
+                        )
+                    if execution_task.done() and pump_task.done() and initial_observer_queue.empty():
+                        if execution_task.cancelled():
+                            return
+                        error = execution_task.exception()
+                        if error is not None:
+                            yield self._format_early_error(error)
+                        return
+                    continue
 
-        run_id = getattr(channel, "run_id")
-        await self._wait_for_hot_state(run_id, execution_task)
-        async for chunk in self.attach(run_id, disconnect_check):
-            yield chunk
+                event = self._event_for_run(
+                    event,
+                    getattr(channel, "run_id", None),
+                )
+                last_heartbeat = time.monotonic()
+                yield format_sse_frame(
+                    RuntimeStreamFrame(
+                        event.event_type,
+                        dict(event.payload),
+                    )
+                )
+                if event.event_type in _TERMINAL_STREAM_EVENTS:
+                    return
+        finally:
+            channel.unsubscribe(initial_observer_queue)
 
     @staticmethod
     def _format_early_error(exc: Exception) -> str:

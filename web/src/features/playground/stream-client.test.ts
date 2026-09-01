@@ -171,3 +171,29 @@ describe('Agent runtime stream reattach', () => {
     }))
   })
 })
+
+describe('Agent runtime terminal response', () => {
+  it('preserves the effective provider in the terminal response contract', async () => {
+    const done = `event: done\ndata: ${JSON.stringify({
+      type: 'done',
+      run_id: 'run-1',
+      answer: 'provider answer',
+      provider: 'openai',
+      model: 'gpt-test',
+    })}\n\n`
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(streamResponse(done)))
+    const handlers = callbacks()
+
+    await askStreamV1({
+      project_id: 'project-1',
+      agent_id: 'agent-1',
+      message: 'hello',
+    }, handlers)
+
+    expect(handlers.onDone).toHaveBeenCalledWith(expect.objectContaining({
+      answer: 'provider answer',
+      provider: 'openai',
+      model: 'gpt-test',
+    }))
+  })
+})

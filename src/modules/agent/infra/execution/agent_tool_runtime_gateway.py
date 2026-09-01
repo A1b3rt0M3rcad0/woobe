@@ -6,10 +6,6 @@ from uuid import UUID
 
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
-from modules.agent.application.runtime_tool_inventory import (
-    execute_runtime_tool_inventory,
-    is_runtime_tool_inventory_id,
-)
 from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.domain.enums import ToolStatus
 from modules.agent.domain.errors import ToolNotFoundError
@@ -62,8 +58,6 @@ class AgentToolRuntimeGateway:
             internal_handler = self._internal_tool_handlers.get(tool_id)
         if internal_handler is not None:
             return await internal_handler(dict(input_data or {}))
-        if is_runtime_tool_inventory_id(tool_id):
-            return execute_runtime_tool_inventory(input_data)
 
         runtime_input = dict(input_data or {})
         if context and context.session_id:

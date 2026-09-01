@@ -40,7 +40,13 @@ function invocationContexts(root: NetworkAgentInvocation, session: NetworkSessio
   const visit = (invocation: NetworkAgentInvocation) => {
     if (invocation.nodeId) {
       const existing = byNode.get(invocation.nodeId)
-      const invokedAt = session.lastMessageAt ?? session.createdAt
+      const invokedAt = invocation.completedAt
+        ?? invocation.startedAt
+        ?? session.lastMessageAt
+        ?? session.createdAt
+      const invocationMessageCount = invocation.contextState === 'stateless'
+        ? 0
+        : 1 + (invocation.output != null ? 1 : 0)
       byNode.set(invocation.nodeId, {
         id: existing?.id ?? `${session.id}:${invocation.nodeId}`,
         networkSessionId: session.id,
@@ -48,11 +54,11 @@ function invocationContexts(root: NetworkAgentInvocation, session: NetworkSessio
         agentId: invocation.agentId,
         agentName: invocation.agentName,
         sessionMode: invocation.contextState === 'stateless' ? 'stateless' : 'stateful',
-        agentSessionId: invocation.agentSessionId,
+        agentSessionId: invocation.agentSessionId ?? existing?.agentSessionId ?? null,
         source: invocation.source,
         version: invocation.version,
         invocationCount: (existing?.invocationCount ?? 0) + 1,
-        messageCount: session.messageCount,
+        messageCount: (existing?.messageCount ?? 0) + invocationMessageCount,
         createdAt: existing?.createdAt ?? invokedAt,
         lastInvokedAt: invokedAt,
       })
@@ -88,7 +94,8 @@ export function hydrateNetworkHistory({ messages, environment, bindings, session
     if (!source?.execution) continue
     const records = historyRecords(source, session.id)
     const user = group.user?.content ?? ''
-    const answer = group.assistant?.content ?? source.execution.failure?.message ?? ''
+    const answer = group.assistant?.content
+      ?? (source.execution.status === 'cancelled' ? '' : source.execution.failure?.message ?? '')
     const turn = buildTurnFromRuntimeEvents({ records, environment, bindings, executionId, user, answer, fallbackTraceId: source.execution.root_trace_id ?? undefined, terminalStatus: terminalStatus(source.execution.status) })
     const contexts = session.agentContexts.length ? session.agentContexts : invocationContexts(turn.execution.root, session)
     turns.push(turn)

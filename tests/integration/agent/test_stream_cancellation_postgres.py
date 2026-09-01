@@ -27,7 +27,6 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
 
     project_id = uuid4()
     agent_id = uuid4()
-    session_id = uuid4()
     trace_id = uuid4()
     transactions = AgentRuntimeTransactionRunner(lambda: AgentUnitOfWork(engine))
     service = AskAgentStreamService(
@@ -38,15 +37,22 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
     input_dto = AskInput(
         project_id=project_id,
         agent_id=agent_id,
-        session_id=session_id,
+        session_id=None,
         message="cancel this request",
     )
     channel = RuntimeStreamChannel()
     channel.bind_execution(
         trace_id=trace_id,
-        session_id=session_id,
+        session_id=None,
         project_id=project_id,
         agent_id=agent_id,
+    )
+    await channel.emit(
+        "token",
+        content="partial answer",
+        visibility="assistant",
+        channel="final",
+        phase="response_generation",
     )
 
     persisted = await service._persist_cancelled(
@@ -72,6 +78,7 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
             assert outbox.payload["agent_id"] == str(agent_id)
             assert outbox.payload["request_id"]
             assert outbox.payload["reason"] == "cancel_requested"
+            assert outbox.payload["partial"] is True
 
             await project_agent_event(
                 event_type=outbox.event_type,
@@ -88,16 +95,26 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
             assert trace.data["last_event_type"] == "agent.execution.cancelled.v1"
             assert trace.data["cancellation_reason"] == "cancel_requested"
 
-            event = (
-                await session.execute(
-                    select(TraceEventModel).where(
-                        TraceEventModel.trace_id == trace_id,
-                        TraceEventModel.event_type == "warning",
+            events = list(
+                (
+                    await session.scalars(
+                        select(TraceEventModel).where(
+                            TraceEventModel.trace_id == trace_id
+                        )
                     )
-                )
-            ).scalar_one()
-            assert event.payload["event"] == "agent.execution.cancelled.v1"
-            assert event.payload["reason"] == "cancel_requested"
+                ).all()
+            )
+            cancellation_event = next(
+                event
+                for event in events
+                if event.payload.get("event") == "agent.execution.cancelled.v1"
+            )
+            assert cancellation_event.payload["reason"] == "cancel_requested"
+            assert cancellation_event.payload["partial"] is True
+            assert all(
+                event.payload.get("event") != "agent.execution.completed.v1"
+                for event in events
+            )
     finally:
         async with session_factory() as session:
             await session.execute(

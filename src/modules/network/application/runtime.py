@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import time
 from dataclasses import dataclass
@@ -56,6 +57,8 @@ class NetworkInvocationState:
     depth: int
     status: str
     input_message: str
+    context_state: str = "stateless"
+    previous_invocation_count: int = 0
 
 
 def agent_capability_summary(node: NetworkNode) -> str:
@@ -70,12 +73,43 @@ def delegation_tool_description(node: NetworkNode) -> str:
         f"Specialist capability: {capability} "
         "Use this specialist only when that capability is required. Send the "
         "precise task and only the context needed to complete it, then integrate "
-        "the returned result into your response."
+        "the returned result into your response. This runtime Tool is the source "
+        "of truth for whether this Agent can be delegated to; never claim a "
+        "delegation occurred unless the Tool actually completed successfully. "
+        "If the runtime reports network_deadline_near, stop delegating and produce "
+        "the best final response from results already available."
     )
 
 
+def _delegation_fingerprint(
+    *,
+    target_node_id: UUID,
+    task: str,
+    context: object,
+    expected_output: str,
+) -> str:
+    normalized_task = " ".join(task.lower().split())
+    normalized_expected = " ".join(expected_output.lower().split())
+    payload = {
+        "target_node_id": str(target_node_id),
+        "task": normalized_task,
+        "context": context if isinstance(context, dict) else None,
+        "expected_output": normalized_expected,
+    }
+    encoded = json.dumps(
+        payload,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    ).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
 class NetworkBudgetExceeded(RuntimeError):
-    pass
+    def __init__(self, message: str, *, code: str = "network_budget_exceeded") -> None:
+        super().__init__(message)
+        self.code = code
 
 
 class NetworkExecutionCancelled(RuntimeError):
@@ -253,9 +287,21 @@ class NetworkExecutor:
         for edge in definition.edges:
             outgoing[edge.source_node_id].append(edge.target_node_id)
 
+        timeout_seconds = float(definition.limits.timeout_seconds)
         started = time.monotonic()
+        deadline = started + timeout_seconds
+        # Keep enough of the configured wall clock for the parent Agent to consume
+        # completed Tool/delegation results and make its terminal model call. This is
+        # deliberately an internal policy, not another MVP setting users must tune.
+        finalization_reserve_seconds = min(
+            15.0,
+            max(2.0, timeout_seconds * 0.15),
+        )
         invocation_count = 0
         count_lock = asyncio.Lock()
+
+        def remaining_seconds() -> float:
+            return max(0.0, deadline - time.monotonic())
 
         async def invoke_node(
             node_id: UUID,
@@ -267,13 +313,22 @@ class NetworkExecutor:
             if await self._store.is_cancel_requested(execution.id):
                 raise NetworkExecutionCancelled("Network execution was cancelled")
             if depth > definition.limits.max_depth:
-                raise NetworkBudgetExceeded("Network maximum depth exceeded")
-            if time.monotonic() - started >= definition.limits.timeout_seconds:
-                raise NetworkBudgetExceeded("Network execution timeout exceeded")
+                raise NetworkBudgetExceeded(
+                    "Network maximum depth exceeded",
+                    code="network_max_depth_exceeded",
+                )
+            if remaining_seconds() <= 0:
+                raise NetworkBudgetExceeded(
+                    "Network execution timeout exceeded",
+                    code="network_timeout_exceeded",
+                )
             async with count_lock:
                 invocation_count += 1
                 if invocation_count > definition.limits.max_invocations:
-                    raise NetworkBudgetExceeded("Network invocation budget exceeded")
+                    raise NetworkBudgetExceeded(
+                        "Network invocation budget exceeded",
+                        code="network_max_invocations_exceeded",
+                    )
 
             node = nodes[node_id]
             binding = resolved_bindings.get(str(node_id)) or {}
@@ -332,6 +387,16 @@ class NetworkExecutor:
                     node=node,
                 ) from exc
 
+            invocation_context_state = str(
+                getattr(
+                    invocation,
+                    "context_state",
+                    "created" if persist_agent_context else "stateless",
+                )
+            )
+            previous_invocation_count = int(
+                getattr(invocation, "previous_invocation_count", 0) or 0
+            )
             try:
                 await self._store.emit(
                     execution.id,
@@ -350,7 +415,13 @@ class NetworkExecutor:
                             else None
                         ),
                         "session_mode": agent_session_mode,
-                        "context_state": "created" if persist_agent_context else "stateless",
+                        "agent_session_id": (
+                            str(invocation.agent_session_id)
+                            if invocation.agent_session_id
+                            else None
+                        ),
+                        "context_state": invocation_context_state,
+                        "previous_invocation_count": previous_invocation_count,
                         "source": (
                             "draft"
                             if runtime_environment == "draft"
@@ -378,6 +449,8 @@ class NetworkExecutor:
                 ) from exc
 
             tools: list[InternalDelegationTool] = []
+            active_delegation_fingerprints: set[str] = set()
+            successful_delegation_targets: set[UUID] = set()
             for target_id in outgoing[node_id]:
                 target = nodes[target_id]
                 tool_id = uuid5(
@@ -395,9 +468,89 @@ class NetworkExecutor:
                 ) -> dict:
                     task = str(arguments.get("task") or "").strip()
                     if not task:
-                        return {"success": False, "error": "Delegation task cannot be blank"}
+                        return {
+                            "success": False,
+                            "error_code": "invalid_delegation_task",
+                            "error": "Delegation task cannot be blank",
+                        }
+
+                    if delegated_target_id in successful_delegation_targets:
+                        await self._store.emit(
+                            execution.id,
+                            "delegation_skipped",
+                            {
+                                "target_node_id": str(delegated_target_id),
+                                "target": delegated_target_label,
+                                "reason": "already_completed_successfully",
+                            },
+                            invocation_id=invocation.id,
+                        )
+                        return {
+                            "success": False,
+                            "error_code": "duplicate_successful_delegation",
+                            "error": (
+                                "This Agent already completed a delegation successfully in "
+                                "the current parent invocation. Reuse that result instead of "
+                                "calling the same Agent again."
+                            ),
+                        }
+
+                    remaining = remaining_seconds()
+                    if remaining <= finalization_reserve_seconds:
+                        await self._store.emit(
+                            execution.id,
+                            "delegation_skipped",
+                            {
+                                "target_node_id": str(delegated_target_id),
+                                "target": delegated_target_label,
+                                "reason": "network_deadline_near",
+                                "remaining_seconds": round(remaining, 3),
+                                "finalization_reserve_seconds": round(
+                                    finalization_reserve_seconds,
+                                    3,
+                                ),
+                            },
+                            invocation_id=invocation.id,
+                        )
+                        return {
+                            "success": False,
+                            "error_code": "network_deadline_near",
+                            "error": (
+                                "No Network execution budget remains for another delegation. "
+                                "Produce the final response now from completed results already "
+                                "available in this Agent Run."
+                            ),
+                        }
+
                     context = arguments.get("context")
                     expected_output = str(arguments.get("expected_output") or "").strip()
+                    fingerprint = _delegation_fingerprint(
+                        target_node_id=delegated_target_id,
+                        task=task,
+                        context=context,
+                        expected_output=expected_output,
+                    )
+                    if fingerprint in active_delegation_fingerprints:
+                        await self._store.emit(
+                            execution.id,
+                            "delegation_skipped",
+                            {
+                                "target_node_id": str(delegated_target_id),
+                                "target": delegated_target_label,
+                                "reason": "duplicate_delegation",
+                                "task_fingerprint": fingerprint,
+                            },
+                            invocation_id=invocation.id,
+                        )
+                        return {
+                            "success": False,
+                            "error_code": "duplicate_delegation",
+                            "error": (
+                                "An equivalent task is already being delegated to this "
+                                "Agent in the current parent invocation."
+                            ),
+                        }
+
                     envelope: dict[str, object] = {
                         "delegated_by": delegating_agent_label,
                         "delegated_to": delegated_target_label,
@@ -414,6 +567,8 @@ class NetworkExecutor:
                         "instructions and return the result to the delegating Agent.\n\n"
                         + json.dumps(envelope, ensure_ascii=False, indent=2)
                     )
+
+                    active_delegation_fingerprints.add(fingerprint)
                     await self._store.emit(
                         execution.id,
                         "delegation_started",
@@ -421,15 +576,39 @@ class NetworkExecutor:
                             "target_node_id": str(delegated_target_id),
                             "target": delegated_target_label,
                             "target_capability": delegated_target_capability,
+                            "task_fingerprint": fingerprint,
                         },
                         invocation_id=invocation.id,
                     )
-                    child = await invoke_node(
-                        delegated_target_id,
-                        delegated_message,
-                        depth + 1,
-                        invocation.id,
-                    )
+                    try:
+                        child = await invoke_node(
+                            delegated_target_id,
+                            delegated_message,
+                            depth + 1,
+                            invocation.id,
+                        )
+                    except NetworkRuntimeFailure as failure:
+                        await self._store.emit(
+                            execution.id,
+                            "delegation_failed",
+                            {
+                                "target_node_id": str(delegated_target_id),
+                                "target": delegated_target_label,
+                                "task_fingerprint": fingerprint,
+                                **failure.public_payload(),
+                            },
+                            invocation_id=invocation.id,
+                        )
+                        return {
+                            "success": False,
+                            "error_code": failure.code,
+                            "error": failure.safe_message,
+                            "failure": failure.public_payload(),
+                        }
+                    finally:
+                        active_delegation_fingerprints.discard(fingerprint)
+
+                    successful_delegation_targets.add(delegated_target_id)
                     await self._store.emit(
                         execution.id,
                         "delegation_completed",
@@ -439,6 +618,7 @@ class NetworkExecutor:
                             "result_type": (
                                 "structured" if child.parsed_output is not None else "text"
                             ),
+                            "task_fingerprint": fingerprint,
                         },
                         invocation_id=invocation.id,
                     )
@@ -507,22 +687,10 @@ class NetworkExecutor:
                     },
                     stream_handler=stream_agent_event,
                 )
-            except NetworkExecutionCancelled as exc:
-                await self._store.fail_invocation(invocation.id, str(exc))
-                await self._store.emit(
-                    execution.id,
-                    "agent_invocation_failed",
-                    {
-                        "code": "execution_cancelled",
-                        "stage": "network_control",
-                        "message": "The Network Run was cancelled.",
-                        "retryable": False,
-                        "cause_invocation_id": str(invocation.id),
-                        "cause_node_id": str(node.id),
-                        "cause_agent_id": str(node.agent_id),
-                    },
-                    invocation_id=invocation.id,
-                )
+            except NetworkExecutionCancelled:
+                # Cancellation is control flow, not an Agent failure. Keep the
+                # in-flight invocation non-terminal here so the execution owner can
+                # atomically convert all still-running invocations to CANCELLED.
                 raise
             except NetworkBudgetExceeded as exc:
                 await self._store.fail_invocation(invocation.id, str(exc))
@@ -530,7 +698,7 @@ class NetworkExecutor:
                     execution.id,
                     "agent_invocation_failed",
                     {
-                        "code": "budget_exceeded",
+                        "code": exc.code,
                         "stage": "network_budget",
                         "message": str(exc),
                         "retryable": False,
@@ -589,7 +757,7 @@ class NetworkExecutor:
             return result
 
         try:
-            async with asyncio.timeout(definition.limits.timeout_seconds):
+            async with asyncio.timeout(timeout_seconds):
                 return await invoke_node(
                     definition.root_node_id,
                     execution.input_message,
@@ -597,4 +765,7 @@ class NetworkExecutor:
                     None,
                 )
         except TimeoutError as exc:
-            raise NetworkBudgetExceeded("Network execution timeout exceeded") from exc
+            raise NetworkBudgetExceeded(
+                "Network execution timeout exceeded",
+                code="network_timeout_exceeded",
+            ) from exc

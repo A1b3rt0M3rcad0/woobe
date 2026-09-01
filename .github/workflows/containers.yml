@@ -9,12 +9,18 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   containers:
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare Docker access
+        run: bash scripts/ci/prepare_docker_access.sh
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
@@ -112,12 +118,14 @@ jobs:
           output.write_text('\n'.join(lines), encoding='utf-8')
           PY
       - name: Upload third-party dependency inventory
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
           name: woobe-third-party-inventory
           path: .test-artifacts/THIRD_PARTY_INVENTORY.md
           if-no-files-found: error
+          retention-days: 1
       - name: Scan API image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
@@ -142,3 +150,6 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: '1'
+      - name: Cleanup Docker access
+        if: always()
+        run: bash scripts/ci/cleanup_docker_access.sh

@@ -8,7 +8,6 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
-from modules.agent.application.runtime_tool_inventory import RUNTIME_TOOL_INVENTORY_NAME
 from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot
 from modules.agent.domain.entities import Agent, Tool
 from modules.agent.domain.enums import RiskLevel, ToolStatus, ToolType
@@ -105,7 +104,7 @@ async def _run_prepare(use_case, input_dto, context):
 
 
 @pytest.mark.asyncio
-async def test_structured_runtime_preserves_release_tool_selection_through_full_prepare(
+async def test_structured_runtime_preserves_exact_release_tool_selection_through_full_prepare(
     monkeypatch,
 ):
     project_id = uuid4()
@@ -133,9 +132,8 @@ async def test_structured_runtime_preserves_release_tool_selection_through_full_
     result = await _run_prepare(_use_case(), input_dto, context)
 
     assert result[9] is True
-    assert result[8][tool.name] == str(tool.id)
-    assert RUNTIME_TOOL_INVENTORY_NAME in result[8]
-    assert len(result[7]) == 2
+    assert result[8] == {tool.name: str(tool.id)}
+    assert len(result[7]) == 1
     assert context.tool_metadata["source"] == "release_snapshot"
     assert context.tool_metadata["tool_ids"] == [str(tool.id)]
     assert str(tool.id) in context.tool_snapshots
@@ -166,32 +164,6 @@ async def test_tool_enabled_prepare_injects_grounding_rule_before_user_message(m
     assert isinstance(result[11][-1], HumanMessage)
     system_messages = [m.content for m in result[11] if isinstance(m, SystemMessage)]
     assert any("Tool grounding rules" in content for content in system_messages)
-
-
-@pytest.mark.asyncio
-async def test_tool_inventory_rule_is_injected_when_inventory_tool_is_available(monkeypatch):
-    project_id = uuid4()
-    agent = _agent(project_id=project_id)
-    tool_id = uuid4()
-    prepared = _prepared(
-        agent,
-        definitions=[_definition(RUNTIME_TOOL_INVENTORY_NAME)],
-        mapping={RUNTIME_TOOL_INVENTORY_NAME: str(tool_id)},
-        has_tools=True,
-    )
-    _patch_lowest_prepare(monkeypatch, prepared)
-    context = new_execution_context()
-    input_dto = AskInput(
-        project_id=project_id,
-        agent_id=agent.id,
-        message="what tools do you have?",
-    )
-
-    result = await _run_prepare(_use_case(), input_dto, context)
-
-    system_messages = [m.content for m in result[11] if isinstance(m, SystemMessage)]
-    assert any("Runtime tool inventory rule" in content for content in system_messages)
-    assert any(RUNTIME_TOOL_INVENTORY_NAME in content for content in system_messages)
 
 
 @pytest.mark.asyncio
@@ -307,8 +279,9 @@ async def test_release_snapshot_and_internal_delegation_coexist_in_network_runti
     result = await _run_prepare(_use_case(), input_dto, context)
 
     assert result[9] is True
-    assert result[8][tool.name] == str(tool.id)
-    assert RUNTIME_TOOL_INVENTORY_NAME in result[8]
-    assert result[8]["delegate_child"] == str(delegate_id)
+    assert result[8] == {
+        tool.name: str(tool.id),
+        "delegate_child": str(delegate_id),
+    }
     assert context.tool_metadata["source"] == "release_snapshot"
     assert str(tool.id) in context.tool_snapshots

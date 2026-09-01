@@ -8,7 +8,7 @@ from modules.agent.infra.execution.structured_output_ask_use_case import (
 
 
 @pytest.mark.asyncio
-async def test_json_formatting_result_replaces_text_result_after_tool_call():
+async def test_tool_followup_returns_structured_result_without_repair_call():
     tool_request = MagicMock()
     tool_request.content = ""
     tool_request.tool_calls = [
@@ -19,10 +19,6 @@ async def test_json_formatting_result_replaces_text_result_after_tool_call():
         }
     ]
 
-    text_result = MagicMock()
-    text_result.content = "The result is 16."
-    text_result.tool_calls = []
-
     json_result = MagicMock()
     json_result.content = '{"message":"16"}'
     json_result.tool_calls = []
@@ -30,14 +26,11 @@ async def test_json_formatting_result_replaces_text_result_after_tool_call():
     tool_model = MagicMock()
     tool_model.bind_tools.return_value = tool_model
     tool_model.ainvoke = AsyncMock(
-        side_effect=[tool_request, text_result],
+        side_effect=[tool_request, json_result],
     )
 
-    json_model = MagicMock()
-    json_model.ainvoke = AsyncMock(return_value=json_result)
-
     llm_factory = MagicMock()
-    llm_factory.create_chat_model.side_effect = [tool_model, json_model]
+    llm_factory.create_chat_model.side_effect = [tool_model]
 
     use_case = StructuredOutputAskAgentUseCase(
         transactions=MagicMock(),
@@ -52,6 +45,7 @@ async def test_json_formatting_result_replaces_text_result_after_tool_call():
     agent.model = "deepseek-v4-flash"
     agent.temperature = 0.2
     agent.max_output_tokens = 1000
+    agent.settings = {}
 
     result, tool_calls, tool_was_called, json_latency = (
         await use_case._execute_llm(
@@ -76,4 +70,5 @@ async def test_json_formatting_result_replaces_text_result_after_tool_call():
     assert tool_was_called is True
     assert len(tool_calls) == 1
     assert json_latency is None
-    json_model.ainvoke.assert_awaited_once()
+    assert llm_factory.create_chat_model.call_count == 1
+    assert tool_model.ainvoke.await_count == 2

@@ -71,6 +71,9 @@ class NetworkRuntimeFailure(RuntimeError):
             "cause_node_id": str(self.node_id) if self.node_id else None,
             "cause_agent_id": str(self.agent_id) if self.agent_id else None,
             "trace_id": str(self.trace_id) if self.trace_id else None,
+            "agent_session_id": (
+                str(self.agent_session_id) if self.agent_session_id else None
+            ),
         }
 
 
@@ -102,6 +105,43 @@ def _provider_request_message(phase: str | None) -> str:
     return "The model provider rejected the Agent request."
 
 
+def _instrumented_orchestration_failure(
+    normalized: str,
+    detail: str,
+    fields: dict[str, Any],
+) -> NetworkRuntimeFailure | None:
+    """Classify local InstrumentedExecutionError values before provider mapping.
+
+    InstrumentedExecutionError is an execution envelope, not proof that an upstream
+    provider rejected a request. Provider failures still classify through their
+    concrete exception/status signatures below.
+    """
+
+    if "instrumentedexecutionerror" not in normalized:
+        return None
+    if "repeated semantic tool failures" in normalized:
+        return NetworkRuntimeFailure(
+            code="repeated_tool_failures",
+            stage="tool_orchestration",
+            safe_message=(
+                "The Agent stopped after repeated Tool or delegation failures."
+            ),
+            internal_detail=detail,
+            retryable=False,
+            **fields,
+        )
+    if "tool round limit" in normalized or "tool call round limit" in normalized:
+        return NetworkRuntimeFailure(
+            code="tool_loop_exhausted",
+            stage="tool_orchestration",
+            safe_message="The Agent reached the Tool orchestration round limit.",
+            internal_detail=detail,
+            retryable=False,
+            **fields,
+        )
+    return None
+
+
 def classify_runtime_exception(
     exception: Exception,
     *,
@@ -119,6 +159,20 @@ def classify_runtime_exception(
         for item in chain
     ).lower()
 
+    if (
+        "pinned agent session was not found" in normalized
+        or "pinned agent session does not belong to this agent" in normalized
+    ):
+        return NetworkRuntimeFailure(
+            code="agent_context_error",
+            stage="agent_context_preparation",
+            safe_message=(
+                "The Agent session continuity could not be restored for this Network Run."
+            ),
+            internal_detail=detail,
+            retryable=False,
+            **fields,
+        )
     if "credential" in normalized or "decrypt" in normalized or "secret" in normalized:
         return NetworkRuntimeFailure(
             code="credential_error",
@@ -278,9 +332,17 @@ def classify_runtime_exception(
             retryable=True,
             **fields,
         )
+
+    local_orchestration = _instrumented_orchestration_failure(
+        normalized,
+        detail,
+        fields,
+    )
+    if local_orchestration is not None:
+        return local_orchestration
+
     if (
-        "instrumentedexecutionerror" in normalized
-        or "apistatuserror" in normalized
+        "apistatuserror" in normalized
         or "badrequesterror" in normalized
         or "openai.notfounderror" in normalized
         or "unprocessableentityerror" in normalized
@@ -296,6 +358,16 @@ def classify_runtime_exception(
             code="provider_request_error",
             stage="provider_request",
             safe_message=_provider_request_message(fields["phase"]),
+            internal_detail=detail,
+            retryable=False,
+            **fields,
+        )
+
+    if "instrumentedexecutionerror" in normalized:
+        return NetworkRuntimeFailure(
+            code="agent_orchestration_error",
+            stage="agent_orchestration",
+            safe_message="The Agent orchestration could not complete a valid result.",
             internal_detail=detail,
             retryable=False,
             **fields,

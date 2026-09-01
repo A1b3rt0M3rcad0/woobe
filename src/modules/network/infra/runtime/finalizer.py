@@ -7,6 +7,7 @@ from uuid import UUID, NAMESPACE_URL, uuid5
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from modules.agent.infra.database.context_evidence_store import ContextEvidenceStore
 from modules.agent.infra.database.models import MessageModel, SessionModel
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.network.application.runtime import NetworkVersionSnapshot
@@ -47,6 +48,7 @@ def _invocation_failure(
     *,
     terminal_failure_code: str | None,
     terminal_failure_detail: str | None,
+    terminal_failure_message: str | None,
 ) -> dict[str, Any]:
     raw = item.get("failure")
     if isinstance(raw, dict):
@@ -62,8 +64,8 @@ def _invocation_failure(
             "code": code,
             "stage": "network_runtime",
             "message": (
-                str(terminal_failure_detail or "").strip()
-                or detail
+                str(terminal_failure_message or "").strip()
+                or "The Agent Run failed before producing a valid result."
             ),
             "retryable": False,
             "internal_detail": detail,
@@ -73,14 +75,14 @@ def _invocation_failure(
     failure.setdefault("stage", "network_runtime")
     failure.setdefault(
         "message",
-        str(terminal_failure_detail or "").strip()
-        or str(item.get("error") or "").strip()
-        or "Agent invocation failed",
+        str(terminal_failure_message or "").strip()
+        or "The Agent Run failed before producing a valid result.",
     )
     failure.setdefault("retryable", False)
     failure.setdefault(
         "internal_detail",
         str(item.get("error") or "").strip()
+        or str(terminal_failure_detail or "").strip()
         or str(failure.get("message") or "").strip()
         or "Agent invocation failed",
     )
@@ -131,6 +133,8 @@ class NetworkRuntimeFinalizer:
         trace_id: UUID | None,
         failure_code: str | None = None,
         failure_detail: str | None = None,
+        failure_message: str | None = None,
+        partial_result_available: bool = False,
         uncertain: bool = False,
         streamed_output: bool = False,
     ) -> bool:
@@ -149,6 +153,7 @@ class NetworkRuntimeFinalizer:
             environment = self._environment(version)
             bindings = self._bindings(version, execution)
             repository = NetworkRuntimeRepository(session)
+            context_evidence = ContextEvidenceStore(session)
             durable_invocation_events: list[
                 tuple[datetime, int, str, dict[str, Any], dict[str, Any]]
             ] = []
@@ -176,6 +181,7 @@ class NetworkRuntimeFinalizer:
                         item,
                         terminal_failure_code=failure_code,
                         terminal_failure_detail=failure_detail,
+                        terminal_failure_message=failure_message,
                     )
                     if status == "failed"
                     else None
@@ -223,10 +229,12 @@ class NetworkRuntimeFinalizer:
                     "cost_status": (diagnostics or {}).get("cost_status"),
                     "cost_usd": (usage or {}).get("cost_usd"),
                     "cancelled": status == "cancelled",
-                    "partial": status == "cancelled" and bool(item.get("output_message")),
+                    "partial": status != "completed" and bool(item.get("output_message")),
                     "failure": failure,
                 }
 
+                user_message_id = None
+                assistant_message_id = None
                 if session_id is not None:
                     agent_session = await session.get(SessionModel, session_id)
                     if agent_session is None:
@@ -261,7 +269,7 @@ class NetworkRuntimeFinalizer:
                                 },
                             )
                         )
-                    if item.get("output_message") is not None:
+                    if item.get("output_message"):
                         assistant_message_id = _message_id(invocation_id, "assistant")
                         if await session.get(MessageModel, assistant_message_id) is None:
                             session.add(
@@ -293,7 +301,7 @@ class NetworkRuntimeFinalizer:
                                         "parsed_output": item.get("parsed_output"),
                                         "output_parse_error": item.get("output_parse_error"),
                                         "cancelled": status == "cancelled",
-                                        "partial": status == "cancelled",
+                                        "partial": status != "completed",
                                     },
                                 )
                             )
@@ -306,6 +314,8 @@ class NetworkRuntimeFinalizer:
                         agent_id=agent_id,
                         session_id=session_id,
                         agent_release_id=release_id,
+                        input_message_id=user_message_id,
+                        output_message_id=assistant_message_id,
                         trace_id=invocation_trace_id
                         or uuid5(
                             NAMESPACE_URL,
@@ -339,6 +349,16 @@ class NetworkRuntimeFinalizer:
                         completed_at=completed_at,
                     )
                     session.add(run)
+
+                await context_evidence.persist_from_calls(
+                    agent_run_id=invocation_id,
+                    project_id=execution.project_id,
+                    agent_id=agent_id,
+                    trace_id=run.trace_id,
+                    network_execution_id=execution.id,
+                    network_invocation_id=invocation_id,
+                    calls=llm_calls,
+                )
 
                 invocation = await session.get(NetworkInvocationModel, invocation_id)
                 if invocation is None:
@@ -381,6 +401,10 @@ class NetworkRuntimeFinalizer:
                     if environment == "draft"
                     else binding.get("release_version")
                 )
+                context_state = str(
+                    item.get("context_state")
+                    or ("created" if item.get("persist_context") else "stateless")
+                )
                 durable_invocation_events.append(
                     (
                         started_at,
@@ -390,8 +414,10 @@ class NetworkRuntimeFinalizer:
                             "provider": item.get("provider"),
                             "model": item.get("model"),
                             "session_mode": binding.get("session_mode"),
-                            "context_state": (
-                                "created" if item.get("persist_context") else "stateless"
+                            "agent_session_id": str(session_id) if session_id else None,
+                            "context_state": context_state,
+                            "previous_invocation_count": int(
+                                item.get("previous_invocation_count") or 0
                             ),
                             "source": source,
                             "version": version_label,
@@ -456,6 +482,7 @@ class NetworkRuntimeFinalizer:
                                 else None
                             )
                         ),
+                        "agent_session_id": str(session_id) if session_id else None,
                         "cause_invocation_id": (
                             failure.get("cause_invocation_id")
                             or str(invocation_id)
@@ -485,7 +512,14 @@ class NetworkRuntimeFinalizer:
                     )
                 )
 
-                if item.get("persist_context") and session_id is not None:
+                # Stateful continuity is committed only by successful Agent Runs.
+                # Failed/cancelled sessions remain evidence but never become the
+                # next NetworkAgentContext pointer.
+                if (
+                    status == "completed"
+                    and item.get("persist_context")
+                    and session_id is not None
+                ):
                     context = await session.scalar(
                         select(NetworkAgentContextModel).where(
                             NetworkAgentContextModel.network_session_id
@@ -591,13 +625,38 @@ class NetworkRuntimeFinalizer:
                     root_trace_id=trace_id,
                     uncertain=uncertain,
                 )
+                execution.output_message = output or ""
+                has_partial = partial_result_available or bool(output)
+                if output:
+                    session.add(
+                        NetworkMessageModel(
+                            network_session_id=execution.network_session_id,
+                            network_execution_id=execution.id,
+                            project_id=execution.project_id,
+                            role="assistant",
+                            content=output,
+                            data={
+                                "trace_id": str(trace_id) if trace_id else None,
+                                "failed": True,
+                                "partial": True,
+                                "failure_code": failure_code or "runtime_error",
+                            },
+                        )
+                    )
                 await repository.append_event(
                     execution,
                     "execution_failed",
                     {
                         "code": failure_code or "runtime_error",
+                        "message": (
+                            failure_message
+                            or "The Network Run failed before producing a complete result."
+                        ),
                         "uncertain": uncertain,
                         "trace_id": str(trace_id) if trace_id else None,
+                        "output": output or "",
+                        "partial": bool(output),
+                        "partial_result_available": has_partial,
                     },
                 )
             return True

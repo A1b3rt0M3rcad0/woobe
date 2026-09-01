@@ -4,7 +4,6 @@ from langchain_core.messages import SystemMessage
 
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
-from modules.agent.application.runtime_tool_inventory import RUNTIME_TOOL_INVENTORY_NAME
 from modules.agent.application.use_cases.structured_output_contract import (
     format_contract_errors,
     normalize_contract_for_prompt,
@@ -44,18 +43,15 @@ _OUTPUT_CONTRACT_RUNTIME_RULES = (
     "- Return only the final JSON object."
 )
 
-_RUNTIME_TOOL_INVENTORY_RUNTIME_RULES = (
-    "Runtime tool inventory rule: if the user asks what tools, MCP providers, "
-    "integrations, external access, or runtime capabilities are available, call "
-    f"{RUNTIME_TOOL_INVENTORY_NAME} before answering."
-)
-
 _TOOL_GROUNDING_RUNTIME_RULES = (
     "Tool grounding rules:\n"
+    "- The Tool definitions attached to this Model Invocation are the complete "
+    "set of runtime Tools available to this Agent. Do not call another Tool just "
+    "to discover which Tools exist.\n"
     "- Never invent identifiers, owners, repository names, URLs, resource IDs, "
     "tenant IDs, slugs or keys required by a Tool.\n"
     "- If a qualified identifier is missing, use a real discovery or search Tool "
-    "when one is available.\n"
+    "when one is explicitly present in the attached Tool definitions.\n"
     "- If no discovery Tool is available, ask the user for the missing identifier.\n"
     "- Do not try guessed candidates or fabricated alternatives after a Tool rejects "
     "an identifier or reports that a resource was not found."
@@ -133,7 +129,14 @@ class StructuredOutputAskAgentUseCase(
         prepared = await super()._prepare(input_dto)
         updated = list(prepared)
         context = current_execution.get()
-        tool_name_to_id = dict(updated[8])
+
+        if context is not None:
+            raw_sources = updated[10] if len(updated) > 10 else []
+            context.context_rag_sources = [
+                source.model_dump() if hasattr(source, "model_dump") else dict(source)
+                for source in raw_sources or []
+                if hasattr(source, "model_dump") or isinstance(source, dict)
+            ]
 
         if context and context.internal_tool_definitions:
             definitions = list(updated[7])
@@ -150,7 +153,6 @@ class StructuredOutputAskAgentUseCase(
             updated[7] = definitions
             updated[8] = mapping
             updated[9] = bool(definitions)
-            tool_name_to_id = mapping
 
         if updated[9]:
             messages = list(updated[11])
@@ -160,16 +162,27 @@ class StructuredOutputAskAgentUseCase(
                 SystemMessage(content=_TOOL_GROUNDING_RUNTIME_RULES),
             )
             updated[11] = messages
-
-        if RUNTIME_TOOL_INVENTORY_NAME in tool_name_to_id:
-            messages = list(updated[11])
-            insert_at = len(messages) - 1 if messages else 0
-            messages.insert(
-                insert_at,
-                SystemMessage(content=_RUNTIME_TOOL_INVENTORY_RUNTIME_RULES),
-            )
-            updated[11] = messages
         return tuple(updated)
+
+    async def _save_user_message(
+        self,
+        session_repo,
+        message_repo,
+        session,
+        content,
+        agent,
+    ):
+        created = await super()._save_user_message(
+            session_repo,
+            message_repo,
+            session,
+            content,
+            agent,
+        )
+        context = current_execution.get()
+        if context is not None:
+            context.input_message_id = created.id
+        return created
 
     async def _do_save_assistant_message(
         self,

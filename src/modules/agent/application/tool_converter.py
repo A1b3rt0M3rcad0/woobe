@@ -12,7 +12,6 @@ from modules.agent.application.interfaces.tool_types import (
     MCP_PROTOCOL,
     normalize_tool_protocol,
 )
-from modules.agent.application.runtime_tool_inventory import append_runtime_inventory_tool
 from modules.agent.domain.enums import ToolType
 from modules.agent.domain.mcp_permissions import allowed_mcp_discovered_tools
 
@@ -277,7 +276,7 @@ def agent_tools_to_openai_definitions_and_mapping(
         definitions.append(definition)
         mapping[unique_name] = str(tool.id)
 
-    return append_runtime_inventory_tool(definitions, mapping)
+    return definitions, mapping
 
 
 def _safe_tool_name(tool: Any) -> str:

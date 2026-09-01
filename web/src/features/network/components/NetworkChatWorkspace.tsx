@@ -50,6 +50,9 @@ const LIVE_EXECUTION_EVENT_TYPES = new Set([
   'tool_call_completed',
   'sources',
   'delegation_started',
+  'delegation_completed',
+  'delegation_failed',
+  'delegation_skipped',
   'execution_failed',
   'execution_cancelled',
 ])
@@ -66,6 +69,8 @@ function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
   if (eventType === 'tool_call_completed') return `Tool completed: ${String(event.data.tool_name ?? 'tool')}`
   if (eventType === 'delegation_started') return `Delegating to ${String(event.data.target ?? event.data.target_node_id ?? 'Agent')}`
   if (eventType === 'delegation_completed') return `Delegation completed: ${String(event.data.target ?? 'Agent')}`
+  if (eventType === 'delegation_failed') return `Delegation failed: ${String(event.data.target ?? 'Agent')}`
+  if (eventType === 'delegation_skipped') return `Delegation skipped: ${String(event.data.target ?? 'Agent')}`
   if (eventType === 'execution_completed') return 'Network execution completed'
   if (eventType === 'execution_failed') return `Execution failed: ${String(event.data.message ?? event.data.code ?? 'runtime error')}`
   if (eventType === 'execution_cancelled') return 'Network execution cancelled'
@@ -115,6 +120,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   const abortRef = useRef<AbortController | null>(null)
   const executionIdRef = useRef<string | null>(null)
   const stopIntentRef = useRef(false)
+  const stopRequestRef = useRef(false)
   const reattachExecutionRef = useRef<string | null>(null)
   const previousSessionIdRef = useRef<string | null>(activeSession?.id ?? null)
   const mountedRef = useRef(true)
@@ -137,6 +143,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   const clearLiveState = () => {
     liveAnswerSchedulerRef.current?.clear()
     stopIntentRef.current = false
+    stopRequestRef.current = false
     setRunning(false)
     setStopping(false)
     setPendingMessage(null)
@@ -173,7 +180,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   useLayoutEffect(() => {
     const element = scrollRef.current
     if (element && shouldStickToBottomRef.current) element.scrollTop = element.scrollHeight
-  }, [turns.length, running, liveAnswer, liveActivity.length, liveExecution.agents.length, liveExecution.tools.length, liveExecution.sources.length])
+  }, [turns.length, running, liveAnswer, liveActivity.length, liveExecution.agents.length, liveExecution.delegations.length, liveExecution.tools.length, liveExecution.sources.length])
 
   const refreshPersistedSession = async (sessionId: string) => {
     await Promise.all([
@@ -189,6 +196,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
     void cancelNetworkExecution(executionId, projectId)
       .then(() => toast.info('Network execution cancellation requested'))
       .catch((error) => {
+        stopRequestRef.current = false
         setStopping(false)
         toast.warning(error instanceof Error ? error.message : 'Run cancellation could not be confirmed')
       })
@@ -220,6 +228,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
       executionIdRef.current = active.execution_id
       liveAnswerSchedulerRef.current?.clear()
       setRunning(true)
+      stopRequestRef.current = active.status === 'cancel_requested'
       setStopping(active.status === 'cancel_requested')
       setPendingMessage(active.input_message)
       setLiveAnswer('')
@@ -305,7 +314,8 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   }, [activeSession?.id, creatingSession, environment, networkId, onSelectSession, projectId, running, runtimeEnabled])
 
   const stop = () => {
-    if (!running || stopping) return
+    if (!running || stopping || stopRequestRef.current) return
+    stopRequestRef.current = true
     const executionId = executionIdRef.current
     setStopping(true)
     if (!executionId) {
@@ -364,6 +374,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
 
     liveAnswerSchedulerRef.current?.clear()
     stopIntentRef.current = false
+    stopRequestRef.current = false
     setText('')
     setRunning(true)
     setStopping(false)

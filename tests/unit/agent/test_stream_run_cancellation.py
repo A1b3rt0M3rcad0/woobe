@@ -83,6 +83,20 @@ class _DetachedUseCase:
             "agent.run.accepted",
             {"trace_id": str(self.run.trace_id)},
         )
+        await channel.emit(
+            "meta",
+            run_id=str(self.run.id),
+            trace_id=str(self.run.trace_id),
+            project_id=str(self.run.project_id),
+            agent_id=str(self.run.agent_id),
+        )
+        await channel.emit(
+            "token",
+            content="partial",
+            visibility="assistant",
+            channel="final",
+            phase="response_generation",
+        )
         await asyncio.sleep(0.05)
         self.completed.set()
         return SimpleNamespace(
@@ -90,6 +104,103 @@ class _DetachedUseCase:
                 "run_id": str(self.run.id),
                 "answer": "completed after observer left",
             }
+        )
+
+
+class _BlockingCancelableUseCase:
+    def __init__(self, run: AgentRun, store: InMemoryExecutionStateStore) -> None:
+        self.run = run
+        self.store = store
+        self.started = asyncio.Event()
+        self.cancelled = asyncio.Event()
+
+    async def execute(self, input_dto):
+        del input_dto
+        channel = current_runtime_stream.get()
+        assert channel is not None
+        channel.bind_execution(
+            trace_id=self.run.trace_id,
+            session_id=None,
+            project_id=self.run.project_id,
+            agent_id=self.run.agent_id,
+        )
+        setattr(channel, "run_id", self.run.id)
+        await self.store.create(
+            self.run.id,
+            {
+                "status": "running",
+                "project_id": str(self.run.project_id),
+                "agent_id": str(self.run.agent_id),
+            },
+            ttl_seconds=3600,
+        )
+        await channel.emit(
+            "meta",
+            run_id=str(self.run.id),
+            trace_id=str(self.run.trace_id),
+            project_id=str(self.run.project_id),
+            agent_id=str(self.run.agent_id),
+        )
+        await channel.emit(
+            "token",
+            content="partial before stop",
+            visibility="assistant",
+            channel="final",
+            phase="response_generation",
+        )
+        self.started.set()
+        try:
+            await asyncio.Event().wait()
+        except asyncio.CancelledError:
+            self.cancelled.set()
+            raise
+
+
+class _CancelledRaceUseCase:
+    def __init__(self, run: AgentRun) -> None:
+        self.run = run
+
+    async def execute(self, input_dto):
+        del input_dto
+        channel = current_runtime_stream.get()
+        assert channel is not None
+        channel.bind_execution(
+            trace_id=self.run.trace_id,
+            session_id=None,
+            project_id=self.run.project_id,
+            agent_id=self.run.agent_id,
+        )
+        setattr(channel, "run_id", self.run.id)
+        raise asyncio.CancelledError
+
+
+class _NoInitialTailReadStore(InMemoryExecutionStateStore):
+    async def read_events_after_cursor(self, *args, **kwargs):
+        raise AssertionError("initial POST observer must not consume the Redis/hot tail")
+
+
+class _BlockingTokenPersistenceStore(InMemoryExecutionStateStore):
+    def __init__(self) -> None:
+        super().__init__()
+        self.token_persist_started = asyncio.Event()
+        self.release_token_persist = asyncio.Event()
+
+    async def append_event(
+        self,
+        run_id,
+        event_type,
+        payload,
+        *,
+        maxlen=2000,
+    ):
+        if event_type == "token":
+            self.token_persist_started.set()
+            await self.release_token_persist.wait()
+        return await super().append_event(
+            run_id,
+            event_type,
+            payload,
+            maxlen=maxlen,
         )
 
 
@@ -136,13 +247,122 @@ async def test_closing_stream_observer_does_not_cancel_agent_execution() -> None
 
     stream = service.stream(_input(run))
     first = await anext(stream)
-    assert "event: run.state" in first
+    assert "event: meta" in first
+    assert str(run.id) in first
 
     await stream.aclose()
     await asyncio.wait_for(use_case.completed.wait(), timeout=1)
 
     assert transactions.write_calls == 0
     assert transactions.runs.run.status == AgentRunStatus.RUNNING
+
+
+@pytest.mark.asyncio
+async def test_initial_post_observer_receives_live_token_without_hot_tail_read() -> None:
+    run = _run()
+    store = _NoInitialTailReadStore()
+    transactions = _Transactions(run)
+    use_case = _DetachedUseCase(run, store)
+    service = AskAgentStreamService(use_case, transactions, state_store=store)
+
+    stream = service.stream(_input(run))
+    first = await asyncio.wait_for(anext(stream), timeout=1)
+    second = await asyncio.wait_for(anext(stream), timeout=1)
+
+    assert "event: meta" in first
+    assert "event: token" in second
+    assert '"content": "partial"' in second
+    assert use_case.completed.is_set() is False
+
+    await stream.aclose()
+    await asyncio.wait_for(use_case.completed.wait(), timeout=1)
+
+
+@pytest.mark.asyncio
+async def test_initial_post_token_is_visible_before_hot_persistence_completes() -> None:
+    run = _run()
+    store = _BlockingTokenPersistenceStore()
+    transactions = _Transactions(run)
+    use_case = _DetachedUseCase(run, store)
+    service = AskAgentStreamService(use_case, transactions, state_store=store)
+
+    stream = service.stream(_input(run))
+    try:
+        first = await asyncio.wait_for(anext(stream), timeout=1)
+        second = await asyncio.wait_for(anext(stream), timeout=1)
+
+        assert "event: meta" in first
+        assert "event: token" in second
+        assert '"content": "partial"' in second
+        await asyncio.wait_for(store.token_persist_started.wait(), timeout=1)
+        assert store.release_token_persist.is_set() is False
+    finally:
+        store.release_token_persist.set()
+        await stream.aclose()
+
+    await asyncio.wait_for(use_case.completed.wait(), timeout=1)
+
+
+@pytest.mark.asyncio
+async def test_cancel_watcher_is_not_blocked_by_hot_event_persistence() -> None:
+    run = _run()
+    store = _BlockingTokenPersistenceStore()
+    transactions = _Transactions(run)
+    use_case = _BlockingCancelableUseCase(run, store)
+    service = AskAgentStreamService(use_case, transactions, state_store=store)
+
+    stream = service.stream(_input(run))
+    try:
+        first = await asyncio.wait_for(anext(stream), timeout=1)
+        second = await asyncio.wait_for(anext(stream), timeout=1)
+        assert "event: meta" in first
+        assert "event: token" in second
+        await asyncio.wait_for(store.token_persist_started.wait(), timeout=1)
+        assert store.release_token_persist.is_set() is False
+
+        await store.request_cancel(run.id)
+
+        terminal = await asyncio.wait_for(anext(stream), timeout=1)
+        assert "event: cancelled" in terminal
+        assert '"persisted": true' in terminal
+        assert store.release_token_persist.is_set() is False
+        await asyncio.wait_for(use_case.cancelled.wait(), timeout=1)
+        assert transactions.runs.run.status == AgentRunStatus.CANCELLED
+    finally:
+        store.release_token_persist.set()
+        await stream.aclose()
+
+
+@pytest.mark.asyncio
+async def test_cancel_request_drives_task_cancellation_persistence_and_terminal_event() -> None:
+    run = _run()
+    store = InMemoryExecutionStateStore()
+    transactions = _Transactions(run)
+    use_case = _BlockingCancelableUseCase(run, store)
+    service = AskAgentStreamService(use_case, transactions, state_store=store)
+
+    stream = service.stream(_input(run))
+    first = await asyncio.wait_for(anext(stream), timeout=1)
+    second = await asyncio.wait_for(anext(stream), timeout=1)
+    assert "event: meta" in first
+    assert "event: token" in second
+    await asyncio.wait_for(use_case.started.wait(), timeout=1)
+
+    await store.request_cancel(run.id)
+
+    terminal = await asyncio.wait_for(anext(stream), timeout=2)
+    assert "event: cancelled" in terminal
+    assert '"output": "partial before stop"' in terminal
+    assert '"persisted": true' in terminal
+    await asyncio.wait_for(use_case.cancelled.wait(), timeout=1)
+
+    assert transactions.runs.run.status == AgentRunStatus.CANCELLED
+    assert transactions.runs.run.result is not None
+    assert transactions.runs.run.result["answer"] == "partial before stop"
+    assert transactions.runs.run.result["partial"] is True
+    assert transactions.runs.run.result["cancelled"] is True
+    with pytest.raises(StopAsyncIteration):
+        await asyncio.wait_for(anext(stream), timeout=1)
 
 
 @pytest.mark.asyncio
@@ -238,3 +458,31 @@ async def test_late_explicit_cancel_does_not_overwrite_completed_run() -> None:
     assert transactions.runs.run.status == AgentRunStatus.COMPLETED
     assert transactions.runs.save_calls == 0
     assert transactions.outbox.events == []
+
+
+@pytest.mark.asyncio
+async def test_cancel_completion_race_emits_durable_completed_terminal_instead_of_false_cancelled() -> None:
+    run = _run()
+    run.status = AgentRunStatus.COMPLETED
+    run.result = {
+        "answer": "durable winner",
+        "trace_id": str(run.trace_id),
+        "usage": {"input_tokens": 3, "output_tokens": 2, "total_tokens": 5},
+    }
+    transactions = _Transactions(run)
+    service = AskAgentStreamService(
+        _CancelledRaceUseCase(run),
+        transactions,
+        state_store=InMemoryExecutionStateStore(),
+    )
+    channel = _channel(run)
+
+    with pytest.raises(asyncio.CancelledError):
+        await service._run_execution(_input(run), channel)
+
+    terminal = await asyncio.wait_for(channel.queue.get(), timeout=1)
+    assert terminal.event_type == "done"
+    assert terminal.payload["answer"] == "durable winner"
+    assert terminal.payload.get("cancelled") is not True
+    assert transactions.runs.run.status == AgentRunStatus.COMPLETED
+    assert transactions.runs.save_calls == 0

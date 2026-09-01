@@ -31,7 +31,7 @@ interface SurfaceConfiguration {
 }
 
 interface ActiveRun {
-  message_request_id: string;
+  message_request_id: string | null;
   run_id: string | null;
   status: string;
   target_type: "agent" | "network";
@@ -49,6 +49,17 @@ class SessionExpiredError extends Error {
   constructor() {
     super("Session expired");
     this.name = "SessionExpiredError";
+  }
+}
+
+class ChatApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly data: unknown,
+  ) {
+    super(message);
+    this.name = "ChatApiError";
   }
 }
 
@@ -123,6 +134,21 @@ function ensureUi(nextAppearance = appearance): ChatUi {
   return ui;
 }
 
+function setStoppingState(next: boolean) {
+  if (stopping === next) return;
+  stopping = next;
+  ensureUi().setStopping(next);
+}
+
+function restoreActiveRunState(active: ActiveRun) {
+  const cancellationPending = active.status === "cancel_requested";
+  stopping = cancellationPending;
+  ensureUi().setStopping(cancellationPending);
+  if (cancellationPending) {
+    emit("run.stopping", { resumed: true, runId: active.run_id });
+  }
+}
+
 async function api(path: string, init: RequestInit = {}) {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
@@ -138,7 +164,21 @@ async function api(path: string, init: RequestInit = {}) {
     emit("session.expired");
     throw new SessionExpiredError();
   }
-  if (!response.ok) throw new Error(`Woobe Chat request failed (${response.status})`);
+  if (!response.ok) {
+    let payload: unknown = null;
+    try {
+      payload = await response.json();
+    } catch {
+      payload = null;
+    }
+    const body = payload && typeof payload === "object" && !Array.isArray(payload)
+      ? (payload as Record<string, unknown>)
+      : null;
+    const message = typeof body?.message === "string"
+      ? body.message
+      : `Woobe Chat request failed (${response.status})`;
+    throw new ChatApiError(message, response.status, body?.data ?? null);
+  }
   return response;
 }
 
@@ -182,6 +222,32 @@ async function loadActiveRun(): Promise<ActiveRun | null> {
   const payload = await response.json();
   const active = payload.data as ActiveRun | null | undefined;
   return active?.run_id ? active : null;
+}
+
+async function recoverAcceptedActiveRun(): Promise<ActiveRun | null> {
+  return loadActiveRun();
+}
+
+function activeRunFromConflict(error: unknown): ActiveRun | null {
+  if (!(error instanceof ChatApiError) || error.status !== 409) return null;
+  if (!error.data || typeof error.data !== "object" || Array.isArray(error.data)) {
+    return null;
+  }
+  const data = error.data as Record<string, unknown>;
+  if (
+    data.code !== "active_run_conflict"
+    || typeof data.run_id !== "string"
+    || typeof data.status !== "string"
+    || (data.target_type !== "agent" && data.target_type !== "network")
+  ) {
+    return null;
+  }
+  return {
+    message_request_id: null,
+    run_id: data.run_id,
+    status: data.status,
+    target_type: data.target_type,
+  };
 }
 
 function appendError(error: unknown) {
@@ -234,6 +300,11 @@ function applyRuntimeFrame(
   const { eventType, data, payload } = parsed;
   if (eventType === "run.state") {
     replaceAnswer(observer, typeof payload.output === "string" ? payload.output : "");
+    if (payload.status === "cancel_requested") {
+      const wasStopping = stopping;
+      setStoppingState(true);
+      if (!wasStopping) emit("run.stopping", { resumed: true });
+    }
   } else if (eventType === "agent_activity" || data.type === "agent_activity") {
     const activity = publicActivity(data);
     if (activity) {
@@ -302,9 +373,15 @@ async function consumeRuntimeStream(
   };
 
   try {
-    while (observer.terminalStatus === null) {
+    while (true) {
       const { value, done } = await reader.read();
       if (done) break;
+      if (observer.terminalStatus !== null) {
+        // A terminal frame is authoritative, but the HTTP body still needs to be
+        // drained until EOF. Cancelling the Fetch reader here aborts the server-side
+        // StreamingResponse while ChatSurface finalization may still be committing.
+        continue;
+      }
       buffer += decoder.decode(value, { stream: true });
       const frames = buffer.split(/\r?\n\r?\n/);
       buffer = frames.pop() ?? "";
@@ -313,16 +390,14 @@ async function consumeRuntimeStream(
         if (observer.terminalStatus !== null) break;
       }
     }
-    buffer += decoder.decode();
-    if (observer.terminalStatus === null && buffer.trim()) consumeFrame(buffer);
+    if (observer.terminalStatus === null) {
+      buffer += decoder.decode();
+      if (buffer.trim()) consumeFrame(buffer);
+    }
     return observer.terminalStatus;
   } catch (error) {
     await reader.cancel().catch(() => undefined);
     throw error;
-  } finally {
-    if (observer.terminalStatus !== null) {
-      await reader.cancel().catch(() => undefined);
-    }
   }
 }
 
@@ -411,16 +486,14 @@ async function observeRuntimeRun(
 async function requestCancel() {
   if (!submitting || stopping || !sessionId) return;
   const chatUi = ensureUi();
-  stopping = true;
-  chatUi.setStopping(true);
+  setStoppingState(true);
   emit("run.stopping");
   try {
     await api(`/v1/chat/sessions/${sessionId}/active-run/cancel`, {
       method: "POST",
     });
   } catch (error) {
-    stopping = false;
-    chatUi.setStopping(false);
+    setStoppingState(false);
     appendError(error);
   }
 }
@@ -432,8 +505,7 @@ async function resumeActiveRun() {
 
   const chatUi = ensureUi();
   submitting = true;
-  stopping = false;
-  chatUi.setStopping(false);
+  restoreActiveRunState(active);
   chatUi.setSubmitting(true);
   emit("run.started", { resumed: true, runId: active.run_id });
   try {
@@ -494,10 +566,12 @@ async function sendMessage(message: string) {
       });
     } catch (error) {
       if (error instanceof SessionExpiredError) throw error;
-      // The POST may have crossed the durable Acceptance boundary before the
-      // transport failed. Recover by Session/Run identity; never submit it again.
-      const active = await loadActiveRun();
+      // A structured admission conflict already carries the canonical Run identity.
+      // Other ambiguous failures get one server-side reconciliation request; the
+      // iframe never polls active-run or resubmits the user's message.
+      const active = activeRunFromConflict(error) ?? await recoverAcceptedActiveRun();
       if (!active) throw error;
+      restoreActiveRunState(active);
       response = await api(`/v1/chat/sessions/${sessionId}/active-run/stream`);
     }
     await observeRuntimeRun(response, { resumed: false });

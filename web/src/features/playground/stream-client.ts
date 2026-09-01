@@ -15,9 +15,15 @@ import type {
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const PROTOCOL_VERSION = 1
-const FINAL_PHASES = new Set(['response_generation', 'final_response_generation'])
+const FINAL_PHASES = new Set([
+  'response_generation',
+  'capability_response_generation',
+  'final_response_generation',
+])
 const PROVIDER_CONTROL_TOKENS = ['<｜end▁of▁sentence｜>', '<|endoftext|>', '<|eot_id|>']
 const TERMINAL_RUN_STATUSES = new Set(['completed', 'failed', 'cancelled', 'timed_out', 'uncertain'])
+const TERMINAL_STREAM_EVENTS = new Set(['done', 'error', 'cancelled'])
+const MAX_VISUAL_FRAMES_PER_PAINT = 6
 
 export interface TokenRetractInfo {
   phase?: string | null
@@ -132,11 +138,7 @@ function streamTextOf(item: Record<string, unknown>): StreamTokenInfo {
 }
 
 function isFinalPhase(phase: string): boolean {
-  return (
-    FINAL_PHASES.has(phase)
-    || phase === 'tool_planning'
-    || phase.startsWith('tool_followup_')
-  )
+  return FINAL_PHASES.has(phase) || phase.startsWith('tool_followup_')
 }
 
 function isFinalStreamText(item: StreamTokenInfo): boolean {
@@ -219,6 +221,77 @@ function responseOf(item: Record<string, unknown>): AskResponse {
     execution_events: Array.isArray(item.execution_events) ? item.execution_events as ExecutionEvent[] : [],
     diagnostics: (item.diagnostics ?? null) as ExecutionDiagnostics | null,
   }
+}
+
+function frameType(frame: SseFrame): string {
+  const item = parseSseJson(frame)
+  return typeof item?.type === 'string' ? item.type : frame.event || 'unknown'
+}
+
+function isVisualStreamFrame(frame: SseFrame): boolean {
+  const type = frameType(frame)
+  return type === 'token' || type === 'token_retract' || type === 'run.state'
+}
+
+function streamAbortError(): DOMException {
+  return new DOMException('Agent stream aborted', 'AbortError')
+}
+
+function waitForBrowserPaint(signal: AbortSignal | undefined): Promise<void> {
+  if (signal?.aborted) return Promise.reject(streamAbortError())
+
+  const documentRef = typeof document === 'undefined' ? null : document
+  if (documentRef?.visibilityState === 'hidden') return Promise.resolve()
+
+  return new Promise((resolve, reject) => {
+    let settled = false
+    let frameId: number | null = null
+    let timerId: ReturnType<typeof setTimeout> | null = null
+
+    const cleanup = () => {
+      signal?.removeEventListener('abort', onAbort)
+      documentRef?.removeEventListener('visibilitychange', onVisibilityChange)
+      if (frameId !== null && typeof cancelAnimationFrame === 'function') {
+        cancelAnimationFrame(frameId)
+      }
+      if (timerId !== null) clearTimeout(timerId)
+    }
+
+    const finish = () => {
+      if (settled) return
+      settled = true
+      cleanup()
+      resolve()
+    }
+
+    const onAbort = () => {
+      if (settled) return
+      settled = true
+      cleanup()
+      reject(streamAbortError())
+    }
+
+    const onVisibilityChange = () => {
+      if (documentRef?.visibilityState === 'hidden') finish()
+    }
+
+    signal?.addEventListener('abort', onAbort, { once: true })
+    documentRef?.addEventListener('visibilitychange', onVisibilityChange)
+
+    if (signal?.aborted) {
+      onAbort()
+      return
+    }
+    if (documentRef?.visibilityState === 'hidden') {
+      finish()
+      return
+    }
+    if (typeof requestAnimationFrame === 'function') {
+      frameId = requestAnimationFrame(() => finish())
+      return
+    }
+    timerId = setTimeout(() => finish(), 0)
+  })
 }
 
 function reconcileRunState(
@@ -380,17 +453,37 @@ async function consumeResponse(
   const decoder = new TextDecoder()
   const parser = new SseFrameParser()
   let terminal = false
-  const consume = (frames: SseFrame[]) => {
-    for (const frame of frames) if (dispatch(frame, callbacks, state)) terminal = true
+  let visualFramesSincePaint = 0
+
+  const consume = async (frames: SseFrame[]) => {
+    for (const frame of frames) {
+      const type = frameType(frame)
+      if (TERMINAL_STREAM_EVENTS.has(type) && visualFramesSincePaint > 0) {
+        visualFramesSincePaint = 0
+        await waitForBrowserPaint(signal)
+      }
+
+      if (dispatch(frame, callbacks, state)) {
+        terminal = true
+        return
+      }
+      if (!isVisualStreamFrame(frame)) continue
+
+      visualFramesSincePaint += 1
+      if (type === 'run.state' || visualFramesSincePaint >= MAX_VISUAL_FRAMES_PER_PAINT) {
+        visualFramesSincePaint = 0
+        await waitForBrowserPaint(signal)
+      }
+    }
   }
 
   try {
     while (!terminal) {
       const { done, value } = await reader.read()
       if (done) break
-      consume(parser.push(decoder.decode(value, { stream: true })))
+      await consume(parser.push(decoder.decode(value, { stream: true })))
     }
-    consume(parser.finish(decoder.decode()))
+    await consume(parser.finish(decoder.decode()))
     return terminal
   } finally {
     if (terminal || signal?.aborted) await reader.cancel().catch(() => undefined)
