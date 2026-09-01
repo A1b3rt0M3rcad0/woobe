@@ -2,7 +2,7 @@ import ast
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-OBSERVABILITY_DOMAIN_DIR = PROJECT_ROOT / "src" / "modules" / "observability" / "domain"
+OBSERVABILITY_DOMAIN_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "observability" / "domain"
 
 FORBIDDEN_IMPORTS = {"sqlalchemy", "fastapi"}
 

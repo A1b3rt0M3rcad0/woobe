@@ -1,7 +1,7 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-IDENTITY_DIR = PROJECT_ROOT / "src" / "modules" / "identity"
+IDENTITY_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "identity"
 
 
 class TestIdentityDatabaseLocation:
