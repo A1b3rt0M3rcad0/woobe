@@ -25,7 +25,7 @@ AGENT_MODELS = (
     / "database"
     / "models.py"
 )
-MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-db" / "migrations" / "versions"
+MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "migrations" / "versions"
 SCHEMA_ALLOWLIST_FILE = PROJECT_ROOT / "tests" / "architecture" / "legacy_schema_allowlist.yaml"
 AGENT_MODELS_RELATIVE = "packages/woobe-core/src/modules/agent/infra/database/models.py"
 
