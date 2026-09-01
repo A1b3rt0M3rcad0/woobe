@@ -1,7 +1,7 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-CORE_DIR = PROJECT_ROOT / "src" / "modules" / "core"
+CORE_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "core"
 
 
 class TestNoLegacyCorePaths:

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-OBSERVABILITY_DIR = PROJECT_ROOT / "src" / "modules" / "observability"
+OBSERVABILITY_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "observability"
 
 
 class TestNoLegacyObservabilityPaths:
