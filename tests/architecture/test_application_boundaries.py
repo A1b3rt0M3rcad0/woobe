@@ -4,17 +4,15 @@ from pathlib import Path
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_MODULES = PROJECT_ROOT / "src" / "modules"
+CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
+SRC_MODULES = CORE_SRC / "modules"
+SRC_SHARED = CORE_SRC / "shared"
 ALLOWLIST_FILE = PROJECT_ROOT / "tests" / "architecture" / "legacy_import_allowlist.yaml"
 
 FORBIDDEN_USE_CASE_IMPORTS = {"fastapi", "sqlalchemy"}
-
 USE_CASE_PATTERNS = {"service/use_cases.py", "application/use_cases"}
-
 SCOPE = "application_boundaries"
-COMPOSER_LOGIC_ALLOWLIST = {
-    "src/modules/agent/application/composers/promote_release_composer.py",
-}
+COMPOSER_LOGIC_ALLOWLIST: set[str] = set()
 
 
 def _relative_posix(path: Path) -> str:
@@ -25,10 +23,10 @@ def _load_allowlist() -> set[tuple[str, str]]:
     if not ALLOWLIST_FILE.exists():
         return set()
     with open(ALLOWLIST_FILE, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+        data = yaml.safe_load(f) or {}
     entries = data.get("entries") or []
     return {
-        (e["file"].replace("/", "\\").replace("\\", "/"), e.get("target_package", ""))
+        (e["file"].replace("\\", "/"), e.get("target_package", ""))
         for e in entries
         if e.get("scope") == SCOPE
     }
@@ -45,10 +43,7 @@ class TestApplicationBoundaries:
 
             for py_file in module_dir.rglob("*.py"):
                 rel_path = _relative_posix(py_file)
-
-                is_use_case_file = any(
-                    pattern in rel_path for pattern in USE_CASE_PATTERNS
-                )
+                is_use_case_file = any(pattern in rel_path for pattern in USE_CASE_PATTERNS)
                 if not is_use_case_file:
                     continue
 
@@ -65,16 +60,13 @@ class TestApplicationBoundaries:
                             top_level = alias.name.split(".")[0]
                             if top_level in FORBIDDEN_USE_CASE_IMPORTS:
                                 package = top_level
-                    elif isinstance(node, ast.ImportFrom):
-                        if node.module:
-                            top_level = node.module.split(".")[0]
-                            if top_level in FORBIDDEN_USE_CASE_IMPORTS:
-                                package = top_level
+                    elif isinstance(node, ast.ImportFrom) and node.module:
+                        top_level = node.module.split(".")[0]
+                        if top_level in FORBIDDEN_USE_CASE_IMPORTS:
+                            package = top_level
 
                     if package and (rel_path, package) not in allowlist:
-                        violations.append(
-                            f"{rel_path} imports forbidden '{package}'"
-                        )
+                        violations.append(f"{rel_path} imports forbidden '{package}'")
 
         assert not violations, (
             f"Found {len(violations)} use case violation(s):\n"
@@ -116,7 +108,7 @@ class TestApplicationBoundaries:
         )
 
     def test_dtos_not_in_shared(self):
-        shared_dtos = list((PROJECT_ROOT / "src" / "shared").rglob("**/dtos*"))
+        shared_dtos = list(SRC_SHARED.rglob("**/dtos*"))
         shared_dto_files = [str(p) for p in shared_dtos if p.is_file()]
 
         assert len(shared_dto_files) == 0, (

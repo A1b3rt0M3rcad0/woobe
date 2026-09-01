@@ -5,9 +5,10 @@ from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-INVOKER_FILE = PROJECT_ROOT / "src/modules/network/infra/runtime/agent_invoker.py"
-APPLICATION_RUNTIME_FILE = PROJECT_ROOT / "src/modules/network/application/runtime.py"
-REDIS_STORE_FILE = PROJECT_ROOT / "src/modules/network/infra/runtime/redis_store.py"
+CORE_ROOT = PROJECT_ROOT / "packages/woobe-core/src"
+INVOKER_FILE = CORE_ROOT / "modules/network/infra/runtime/agent_invoker.py"
+APPLICATION_RUNTIME_FILE = CORE_ROOT / "modules/network/application/runtime.py"
+REDIS_STORE_FILE = CORE_ROOT / "modules/network/infra/runtime/redis_store.py"
 
 FORBIDDEN_AGENT_INTERNALS = {
     "AgentToolRuntimeGateway",

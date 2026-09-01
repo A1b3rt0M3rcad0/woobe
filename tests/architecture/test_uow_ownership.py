@@ -5,7 +5,8 @@ from pathlib import Path
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_MODULES = PROJECT_ROOT / "src" / "modules"
+CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
+SRC_MODULES = CORE_SRC / "modules"
 ALLOWLIST_FILE = PROJECT_ROOT / "tests" / "architecture" / "legacy_import_allowlist.yaml"
 
 
@@ -13,7 +14,7 @@ def _load_allowlist_patterns(scope: str) -> list[str]:
     if not ALLOWLIST_FILE.exists():
         return []
     with open(ALLOWLIST_FILE, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+        data = yaml.safe_load(f) or {}
     entries = data.get("entries") or []
     return [
         e["file"].replace("\\", "/")

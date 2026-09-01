@@ -4,7 +4,8 @@ from pathlib import Path
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_AGENT = PROJECT_ROOT / "src" / "modules" / "agent"
+CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
+SRC_AGENT = CORE_SRC / "modules" / "agent"
 ALLOWLIST_FILE = Path(__file__).resolve().parent / "legacy_import_allowlist.yaml"
 
 LEGACY_MODULES = {"ai", "knowledge", "runtime"}
@@ -19,10 +20,10 @@ def _load_agent_allowlist() -> set[tuple[str, str]]:
     if not ALLOWLIST_FILE.exists():
         return set()
     with open(ALLOWLIST_FILE, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+        data = yaml.safe_load(f) or {}
     entries = data.get("entries") or []
     return {
-        (e["file"].replace("/", "\\").replace("\\", "/"), e["target_module"])
+        (e["file"].replace("\\", "/"), e["target_module"])
         for e in entries
         if e.get("scope") == "module_boundaries"
     }
@@ -36,14 +37,6 @@ LAYER_RULES = {
 
 def _relative_posix(path: Path) -> str:
     return path.relative_to(PROJECT_ROOT).as_posix()
-
-
-def _determine_layer(file_path: Path) -> str | None:
-    rel = file_path.relative_to(SRC_AGENT)
-    parts = rel.parts
-    if parts:
-        return parts[0]
-    return None
 
 
 def _extract_imports(file_path: Path) -> list[tuple[str, int]]:

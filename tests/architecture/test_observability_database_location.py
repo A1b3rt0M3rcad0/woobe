@@ -2,7 +2,7 @@ import ast
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-OBSERVABILITY_INFRA_DIR = PROJECT_ROOT / "src" / "modules" / "observability" / "infra"
+OBSERVABILITY_INFRA_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "observability" / "infra"
 OBSERVABILITY_DB_DIR = OBSERVABILITY_INFRA_DIR / "database"
 
 

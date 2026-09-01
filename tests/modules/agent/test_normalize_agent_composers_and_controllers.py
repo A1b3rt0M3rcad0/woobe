@@ -4,7 +4,7 @@ import ast
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-AGENT_DIR = PROJECT_ROOT / "src" / "modules" / "agent"
+AGENT_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent"
 COMPOSERS_DIR = AGENT_DIR / "application" / "composers"
 CONTROLLERS_DIR = AGENT_DIR / "presentation" / "controllers"
 

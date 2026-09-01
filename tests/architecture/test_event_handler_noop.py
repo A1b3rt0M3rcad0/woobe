@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_MODULES = PROJECT_ROOT / "src" / "modules"
+SRC_MODULES = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules"
 
 KNOWN_NOOP_HANDLERS: set[str] = {"billing", "core", "identity", "metering", "observability"}
 
@@ -31,16 +31,11 @@ class TestEventHandlerNoop:
                 continue
             source = file_path.read_text(encoding="utf-8")
 
-            has_no_op = (
-                '"No handler registered' in source
-            )
-            if has_no_op:
+            if '"No handler registered' in source:
                 current_noop_modules.add(rel_path.split("/")[0])
 
         unknown_noop = current_noop_modules - KNOWN_NOOP_HANDLERS
-        assert not unknown_noop, (
-            f"New no-op modules detected: {unknown_noop}"
-        )
+        assert not unknown_noop, f"New no-op modules detected: {unknown_noop}"
 
     def test_agent_no_self_consumption_handlers(self):
         file_path = SRC_MODULES / "agent" / "infra" / "messaging" / "inbox_handlers.py"

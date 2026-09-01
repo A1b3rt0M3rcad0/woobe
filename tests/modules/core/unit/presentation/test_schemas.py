@@ -1,7 +1,7 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[5]
-SCHEMAS_FILE = PROJECT_ROOT / "src" / "modules" / "core" / "presentation" / "schemas.py"
+SCHEMAS_FILE = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "core" / "presentation" / "schemas.py"
 
 
 class TestCoreSchemas:

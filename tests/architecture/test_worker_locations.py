@@ -1,12 +1,10 @@
 import ast
 from pathlib import Path
 
-import yaml
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_WORKERS = PROJECT_ROOT / "src" / "workers"
-SRC_MODULES = PROJECT_ROOT / "src" / "modules"
-ALLOWLIST_FILE = Path(__file__).resolve().parent / "legacy_import_allowlist.yaml"
+CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
+WORKER_SRC = PROJECT_ROOT / "packages" / "woobe-workers" / "src"
+SRC_MODULES = CORE_SRC / "modules"
 
 KNOWN_MODULES = {
     d.name
@@ -15,24 +13,11 @@ KNOWN_MODULES = {
 }
 
 
-def _load_allowlist(scope: str) -> set[tuple[str, str]]:
-    if not ALLOWLIST_FILE.exists():
-        return set()
-    with open(ALLOWLIST_FILE, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    entries = data.get("entries") or []
-    return {
-        (e["file"].replace("\\", "/"), e["target_module"])
-        for e in entries
-        if e.get("scope") == scope
-    }
-
-
 def _relative_posix(path: Path) -> str:
     return path.relative_to(PROJECT_ROOT).as_posix()
 
 
-def _extract_module_internal_imports(file_path: Path) -> list[tuple[str, str]]:
+def _extract_module_presentation_imports(file_path: Path) -> list[str]:
     try:
         source = file_path.read_text(encoding="utf-8")
         tree = ast.parse(source, filename=str(file_path))
@@ -40,55 +25,41 @@ def _extract_module_internal_imports(file_path: Path) -> list[tuple[str, str]]:
         return []
 
     violations = []
-    internal_layers = {"domain", "infra", "application", "service", "presentation"}
-
     for node in ast.walk(tree):
+        imported_modules: list[str] = []
         if isinstance(node, ast.ImportFrom) and node.module:
-            parts = node.module.split(".")
+            imported_modules.append(node.module)
+        elif isinstance(node, ast.Import):
+            imported_modules.extend(alias.name for alias in node.names)
+
+        for imported in imported_modules:
+            parts = imported.split(".")
             if (
                 len(parts) >= 3
                 and parts[0] == "modules"
                 and parts[1] in KNOWN_MODULES
-                and parts[2] in internal_layers
+                and parts[2] == "presentation"
             ):
-                violations.append((parts[1], node.module))
-        elif isinstance(node, ast.Import):
-            for alias in node.names:
-                parts = alias.name.split(".")
-                if (
-                    len(parts) >= 3
-                    and parts[0] == "modules"
-                    and parts[1] in KNOWN_MODULES
-                    and parts[2] in internal_layers
-                ):
-                    violations.append((parts[1], alias.name))
+                violations.append(imported)
     return violations
 
 
 class TestWorkerLocations:
-    def test_no_unlisted_module_imports_in_root_workers(self):
-        if not SRC_WORKERS.exists():
+    def test_worker_process_package_does_not_depend_on_http_presentation(self):
+        if not WORKER_SRC.exists():
             return
 
-        allowlist = _load_allowlist("worker_locations")
-        unlisted = []
+        violations = []
+        for py_file in WORKER_SRC.rglob("*.py"):
+            for imported in _extract_module_presentation_imports(py_file):
+                violations.append(f"{_relative_posix(py_file)} imports {imported}")
 
-        for py_file in SRC_WORKERS.rglob("*.py"):
-            imports = _extract_module_internal_imports(py_file)
-            if imports:
-                rel_path = _relative_posix(py_file)
-                for target_mod, full_import in imports:
-                    if (rel_path, target_mod) not in allowlist:
-                        unlisted.append(
-                            f"{rel_path} imports {full_import} (module internal)"
-                        )
-
-        assert not unlisted, (
-            "Root workers must not import module internals (unlisted):\n"
-            + "\n".join(f"  - {v}" for v in unlisted)
+        assert not violations, (
+            "woobe-workers is a process composition boundary and must not depend on module presentation/http code:\n"
+            + "\n".join(f"  - {v}" for v in violations)
         )
 
-    def test_concrete_workers_belong_to_modules(self):
+    def test_concrete_workers_belong_to_core_modules(self):
         if not SRC_MODULES.exists():
             return
 
@@ -106,33 +77,39 @@ class TestWorkerLocations:
                     except (SyntaxError, UnicodeDecodeError):
                         continue
                     for node in ast.walk(tree):
-                        if isinstance(node, ast.ClassDef):
-                            if "worker" in node.name.lower():
-                                rel_path = _relative_posix(py_file)
-                                assert rel_path.startswith("src/modules/"), (
-                                    f"Worker {node.name} in {rel_path} is not under src/modules/"
-                                )
+                        if isinstance(node, ast.ClassDef) and "worker" in node.name.lower():
+                            rel_path = _relative_posix(py_file)
+                            assert rel_path.startswith(
+                                "packages/woobe-core/src/modules/"
+                            ), (
+                                f"Worker {node.name} in {rel_path} is not owned by a Core module"
+                            )
 
-    def test_allowlist_entries_have_removal_spec(self):
-        if not ALLOWLIST_FILE.exists():
+    def test_worker_process_package_contains_no_concrete_worker_classes(self):
+        if not WORKER_SRC.exists():
             return
-        with open(ALLOWLIST_FILE, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-        entries = data.get("entries") or []
-        worker_entries = [e for e in entries if e.get("scope") == "worker_locations"]
-        for entry in worker_entries:
-            assert entry.get("removal_spec"), (
-                f"Worker allowlist entry missing removal_spec: {entry['file']}"
-            )
 
-    def test_detects_forbidden_module_import_in_workers(self):
-        forbidden_source = """\
-from modules.runtime.infra.ask_job_worker import AskJobWorker
-from modules.metering.infra.models import UsageEventModel
-"""
+        violations = []
+        for py_file in WORKER_SRC.rglob("*.py"):
+            try:
+                tree = ast.parse(
+                    py_file.read_text(encoding="utf-8"), filename=str(py_file)
+                )
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+            for node in tree.body:
+                if isinstance(node, ast.ClassDef) and "worker" in node.name.lower():
+                    violations.append(f"{_relative_posix(py_file)}: {node.name}")
+
+        assert not violations, (
+            "woobe-workers must contain process bootstrap/composition only; concrete workers belong to woobe-core modules:\n"
+            + "\n".join(f"  - {v}" for v in violations)
+        )
+
+    def test_detects_presentation_import_in_worker_process(self):
+        forbidden_source = "from modules.agent.presentation.http.routes import router"
         tree = ast.parse(forbidden_source)
         violations = []
-        internal_layers = {"domain", "infra", "application", "service", "presentation"}
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module:
                 parts = node.module.split(".")
@@ -140,11 +117,8 @@ from modules.metering.infra.models import UsageEventModel
                     len(parts) >= 3
                     and parts[0] == "modules"
                     and parts[1] in KNOWN_MODULES
-                    and parts[2] in internal_layers
+                    and parts[2] == "presentation"
                 ):
-                    violations.append((parts[1], node.module))
+                    violations.append(node.module)
 
-        assert len(violations) == 1, (
-            f"Expected 1 violation from fixture, got {len(violations)}"
-        )
-        assert violations[0][0] == "metering"
+        assert violations == ["modules.agent.presentation.http.routes"]

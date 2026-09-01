@@ -2,7 +2,7 @@ import ast
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-CORE_DOMAIN_DIR = PROJECT_ROOT / "src" / "modules" / "core" / "domain"
+CORE_DOMAIN_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "core" / "domain"
 
 FORBIDDEN_IMPORTS = {"sqlalchemy", "fastapi"}
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-MESSAGING_DIR = PROJECT_ROOT / "src" / "modules" / "agent" / "infra" / "messaging"
+MESSAGING_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent" / "infra" / "messaging"
 EVENT_MAPPERS_FILE = MESSAGING_DIR / "event_mappers.py"
 PUBLISHERS_FILE = MESSAGING_DIR / "publishers.py"
 CONSUMERS_FILE = MESSAGING_DIR / "consumers.py"

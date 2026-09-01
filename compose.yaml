@@ -1,7 +1,7 @@
 name: woobe
 
 x-runtime-environment: &runtime-environment
-  WOOBE_EDITION: community
+  WOOBE_EDITION: core
   WOOBE_ENVIRONMENT: ${WOOBE_ENVIRONMENT:-development}
   WOOBE_DEBUG: ${WOOBE_DEBUG:-false}
   WOOBE_JSON_LOGS: ${WOOBE_JSON_LOGS:-true}
@@ -98,7 +98,7 @@ services:
       - .env
     environment:
       WOOBE_POSTGRES_URL: postgresql://${POSTGRES_USER:?Run scripts/generate_self_host_env.py}:${POSTGRES_PASSWORD:?Run scripts/generate_self_host_env.py}@db:5432/${POSTGRES_DB:-woobe}
-    command: ["alembic", "upgrade", "head"]
+    command: ["alembic", "-c", "packages/woobe-core/alembic.ini", "upgrade", "head"]
     depends_on:
       db:
         condition: service_healthy
@@ -138,7 +138,7 @@ services:
 
   workers:
     <<: *runtime-service
-    command: ["python", "-m", "src.worker_main"]
+    command: ["python", "-m", "worker_main"]
     environment:
       <<: *runtime-environment
       WOOBE_RABBITMQ_URL: amqp://${RABBITMQ_USER:?Run scripts/generate_self_host_env.py}:${RABBITMQ_PASSWORD:?Run scripts/generate_self_host_env.py}@rabbitmq:5672/
@@ -154,11 +154,11 @@ services:
 
   web:
     build:
-      context: web
+      context: packages/woobe-frontend
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
         VITE_CHAT_EMBED_URL: ${VITE_CHAT_EMBED_URL:-http://localhost:8081}
-        VITE_WOOBE_EDITION: community
+        VITE_WOOBE_EDITION: core
     ports:
       - "${WOOBE_WEB_PORT:-8080}:8080"
     depends_on:
@@ -170,7 +170,7 @@ services:
 
   chat-embed:
     build:
-      context: embed
+      context: packages/woobe-embed
     ports:
       - "${WOOBE_CHAT_EMBED_PORT:-8081}:8080"
     restart: unless-stopped

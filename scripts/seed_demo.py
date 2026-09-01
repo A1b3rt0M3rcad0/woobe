@@ -25,7 +25,7 @@ def request_json(opener, method: str, url: str, payload: dict | None = None) -> 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Create the initial Woobe Community demo owner without hard-coded credentials"
+        description="Create the initial Woobe Core demo owner without hard-coded credentials"
     )
     parser.add_argument("--api", default=os.getenv("WOOBE_DEMO_API", "http://localhost:8000"))
     parser.add_argument("--email", default=os.getenv("WOOBE_DEMO_EMAIL"))
@@ -40,8 +40,8 @@ def main() -> None:
 
     opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor())
     status = request_json(opener, "GET", f"{args.api}/identity/instance/status")["data"]
-    if status["edition"] != "community":
-        raise SystemExit("seed_demo.py is intended for Woobe Community")
+    if status["edition"] != "core":
+        raise SystemExit("seed_demo.py is intended for Woobe Core")
     if status["initialized"]:
         raise SystemExit("Woobe instance is already initialized; refusing to create another owner")
     if status["requires_existing_owner_bootstrap"]:
@@ -56,7 +56,7 @@ def main() -> None:
         {"email": args.email, "password": args.password},
     )
     workspace = result.get("data", {}).get("workspace", {})
-    print("Woobe Community bootstrap completed")
+    print("Woobe Core bootstrap completed")
     print(f"Owner: {args.email}")
     if workspace.get("id"):
         print(f"Workspace: {workspace['id']}")

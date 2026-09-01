@@ -1,9 +1,8 @@
 """Tests for spec 015 — application cutover and observability.
 
 Validates that:
-- No runtime code references legacy schemas (ai, knowledge, runtime)
-- All imports from non-agent legacy modules have been removed from src/
-- Application bootstrap no longer depends on legacy schema references
+- No Core runtime code references legacy schemas (ai, knowledge, runtime)
+- All imports from non-agent legacy modules have been removed from woobe-core
 - Database already has all agent tables in agent schema
 - Compat views exist only as compatibility layer, not as primary access path
 """
@@ -14,9 +13,8 @@ import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_DIR = PROJECT_ROOT / "src"
+CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
 
-# Modules that should not be imported in src/ after cutover
 LEGACY_MODULES = {"modules.ai", "modules.knowledge", "modules.runtime"}
 
 
@@ -65,21 +63,19 @@ class TestCutoverNoLegacyModuleImports:
 
 class TestCutoverDatabaseState:
     def test_agent_schema_is_canonical(self):
-        model_files = list(SRC_DIR.rglob("*/models.py"))
+        model_files = list(CORE_SRC.rglob("*/models.py"))
         agent_models_found = 0
-        for mf in model_files:
-            text = mf.read_text(encoding="utf-8")
+        for model_file in model_files:
+            text = model_file.read_text(encoding="utf-8")
             if re.search(r'schema["\s]*[:=]["\s]*"agent"', text):
                 agent_models_found += 1
-        assert agent_models_found >= 1, (
-            "No models with schema='agent' found in any module"
-        )
+        assert agent_models_found >= 1, "No models with schema='agent' found in woobe-core"
 
 
 def _iter_source() -> list[Path]:
     exclude_dirs = {"__pycache__", ".venv", "node_modules"}
     files: list[Path] = []
-    for path in SRC_DIR.rglob("*.py"):
+    for path in CORE_SRC.rglob("*.py"):
         if any(excl in path.parts for excl in exclude_dirs):
             continue
         files.append(path)

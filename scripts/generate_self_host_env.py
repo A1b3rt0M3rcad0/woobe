@@ -31,7 +31,7 @@ def generate(template: Path, output: Path, *, force: bool) -> None:
     rabbit_password = token_urlsafe(24)
 
     values = {
-        "WOOBE_EDITION": "community",
+        "WOOBE_EDITION": "core",
         "WOOBE_SECRET_KEY": token_urlsafe(48),
         "WOOBE_ENCRYPTION_KEY": token_urlsafe(48),
         "WOOBE_CHAT_TOKEN_SIGNING_KEY": token_urlsafe(48),
@@ -49,7 +49,7 @@ def generate(template: Path, output: Path, *, force: bool) -> None:
         "WOOBE_UPLOAD_LOCAL_DIR": "/app/storage/uploads",
         "VITE_API_URL": "http://localhost:8000",
         "VITE_CHAT_EMBED_URL": "http://localhost:8081",
-        "VITE_WOOBE_EDITION": "community",
+        "VITE_WOOBE_EDITION": "core",
         "WOOBE_WEB_PORT": "8080",
         "WOOBE_CHAT_EMBED_PORT": "8081",
         "WOOBE_CORS_ORIGINS": "http://localhost:8080,http://127.0.0.1:8080,http://localhost:8081,http://127.0.0.1:8081",
@@ -58,11 +58,11 @@ def generate(template: Path, output: Path, *, force: bool) -> None:
     for key, value in values.items():
         content = set_value(content, key, value)
     output.write_text(content, encoding="utf-8")
-    print(f"Generated {output} for Woobe Community self-hosting")
+    print(f"Generated {output} for Woobe Core self-hosting")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate a Woobe Community .env with random secrets")
+    parser = argparse.ArgumentParser(description="Generate a Woobe Core .env with random secrets")
     parser.add_argument("--template", default=".env.example")
     parser.add_argument("--output", default=".env")
     parser.add_argument("--force", action="store_true")

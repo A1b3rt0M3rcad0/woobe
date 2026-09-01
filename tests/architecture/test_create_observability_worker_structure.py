@@ -7,20 +7,32 @@ from modules.observability.infra.workers.registry import ObservabilityWorkerRegi
 from shared.workers.contracts import WorkerRegistryProtocol
 
 
+ROOT = Path(__file__).resolve().parents[2]
+WORKERS_DIR = (
+    ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "observability"
+    / "infra"
+    / "workers"
+)
+
+
 class TestObservabilityWorkerStructure:
     """Verify the observability worker structure exists."""
 
     def test_workers_directory_exists(self):
-        path = Path("src/modules/observability/infra/workers")
-        assert path.exists()
-        assert path.is_dir()
+        assert WORKERS_DIR.exists()
+        assert WORKERS_DIR.is_dir()
 
     def test_init_file_exists(self):
-        path = Path("src/modules/observability/infra/workers/__init__.py")
+        path = WORKERS_DIR / "__init__.py"
         assert path.exists()
 
     def test_registry_file_exists(self):
-        path = Path("src/modules/observability/infra/workers/registry.py")
+        path = WORKERS_DIR / "registry.py"
         assert path.exists()
 
     def test_registry_class_exists(self):

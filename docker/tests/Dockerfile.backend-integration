@@ -11,7 +11,6 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     PATH="/opt/venv/bin:$PATH" \
-    PYTHONPATH="/app/src:/app" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -20,10 +19,29 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --all-groups --extra test --no-install-project
 
-COPY src/ src/
-COPY tests/ tests/
-COPY migrations/ migrations/
-COPY scripts/ scripts/
-COPY alembic.ini pytest.ini ./
+COPY packages/woobe-core/pyproject.toml packages/woobe-core/pyproject.toml
+COPY packages/woobe-core/src/ packages/woobe-core/src/
+COPY packages/woobe-api/pyproject.toml packages/woobe-api/pyproject.toml
+COPY packages/woobe-api/src/ packages/woobe-api/src/
+COPY packages/woobe-workers/pyproject.toml packages/woobe-workers/pyproject.toml
+COPY packages/woobe-workers/src/ packages/woobe-workers/src/
+COPY tooling/woobe-testkit/pyproject.toml tooling/woobe-testkit/pyproject.toml
+COPY tooling/woobe-testkit/src/ tooling/woobe-testkit/src/
+COPY tooling/woobe-mock/pyproject.toml tooling/woobe-mock/pyproject.toml
+COPY tooling/woobe-mock/src/ tooling/woobe-mock/src/
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python --no-deps \
+    --editable packages/woobe-core \
+    --editable packages/woobe-api \
+    --editable packages/woobe-workers \
+    --editable tooling/woobe-testkit \
+    --editable tooling/woobe-mock \
+    && uv pip check --python /opt/venv/bin/python
 
-CMD ["/bin/sh", "-c", "set -eu; mkdir -p /artifacts; alembic upgrade head; python -m pytest -q tests/integration --junitxml=/artifacts/backend-integration.xml"]
+COPY packages/woobe-core/alembic.ini packages/woobe-core/alembic.ini
+COPY packages/woobe-core/migrations/ packages/woobe-core/migrations/
+COPY tests/ tests/
+COPY scripts/ scripts/
+COPY pytest.ini ./
+
+CMD ["/bin/sh", "-c", "set -eu; mkdir -p /artifacts; alembic -c packages/woobe-core/alembic.ini upgrade head; python -m pytest -q tests/integration --junitxml=/artifacts/backend-integration.xml"]

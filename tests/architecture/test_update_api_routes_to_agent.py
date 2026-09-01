@@ -49,22 +49,22 @@ class TestAgentRoutesSuccess:
         )
 
     def test_main_registers_agent_router(self):
-        import src.main as main_mod
+        import main as main_mod
 
         source = inspect.getsource(main_mod.create_app)
         assert "agent_router" in source, (
-            "src/main.py must reference agent_router"
+            "packages/woobe-api/src/main.py must reference agent_router"
         )
         assert "include_router(agent_router)" in source, (
-            "src/main.py must register agent_router via include_router"
+            "packages/woobe-api/src/main.py must register agent_router via include_router"
         )
 
     def test_main_imports_agent_router(self):
-        import src.main as main_mod
+        import main as main_mod
 
         source = inspect.getsource(main_mod)
         assert "from modules.agent.presentation.routes import agent_router" in source, (
-            "src/main.py must import agent_router directly"
+            "packages/woobe-api/src/main.py must import agent_router directly"
         )
 
 
@@ -142,7 +142,7 @@ class TestAgentRoutesLegacyCompatibility:
         )
 
     def test_main_still_registers_legacy_routers(self):
-        import src.main as main_mod
+        import main as main_mod
 
         source = inspect.getsource(main_mod.create_app)
         assert "agent_ai_router" in source
@@ -150,7 +150,7 @@ class TestAgentRoutesLegacyCompatibility:
         assert "agent_runtime_router" in source
 
     def test_main_registers_agent_router_before_legacy(self):
-        import src.main as main_mod
+        import main as main_mod
 
         source = inspect.getsource(main_mod.create_app)
         agent_pos = source.index("include_router(agent_router)")

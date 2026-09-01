@@ -24,9 +24,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      - name: Generate isolated Community environment
+      - name: Generate isolated Core environment
         run: python scripts/generate_self_host_env.py --force
-      - name: Validate the supported Community Compose contract
+      - name: Validate the supported Core Compose contract
         run: docker compose config --quiet
       - name: Build API image
         run: docker build --pull --no-cache --tag woobe-api:ci .
@@ -37,10 +37,10 @@ jobs:
           --no-cache
           --build-arg VITE_API_URL=http://127.0.0.1:8000
           --build-arg VITE_CHAT_EMBED_URL=http://127.0.0.1:8081
-          --build-arg VITE_WOOBE_EDITION=community
-          --tag woobe-web:ci web
+          --build-arg VITE_WOOBE_EDITION=core
+          --tag woobe-web:ci packages/woobe-frontend
       - name: Build ChatSurface image
-        run: docker build --pull --no-cache --tag woobe-chat-embed:ci embed
+        run: docker build --pull --no-cache --tag woobe-chat-embed:ci packages/woobe-embed
       - name: Require non-root runtime users
         run: |
           set -euo pipefail
@@ -50,6 +50,13 @@ jobs:
             test "$configured_user" != "0"
             test "$configured_user" != "root"
             docker run --rm --entrypoint sh "$image" -c 'test "$(id -u)" -ne 0'
+          done
+      - name: Require Core image license metadata
+        run: |
+          set -euo pipefail
+          for image in woobe-api:ci woobe-web:ci woobe-chat-embed:ci; do
+            license="$(docker image inspect "$image" --format '{{ index .Config.Labels "org.opencontainers.image.licenses" }}')"
+            test "$license" = "LicenseRef-Woobe-Core-Sustainable-Use-1.0"
           done
       - name: Prepare release evidence directory
         run: mkdir -p .test-artifacts
@@ -103,9 +110,9 @@ jobs:
 
           output = Path('.test-artifacts/THIRD_PARTY_INVENTORY.md')
           lines = [
-              '# Woobe third-party dependency inventory',
+              '# Woobe Core third-party dependency inventory',
               '',
-              'Generated from the SPDX SBOMs of the exact Community container artifacts.',
+              'Generated from the SPDX SBOMs of the exact Core container artifacts.',
               'This inventory is release evidence and still requires manual review of notice obligations and original license texts.',
               '',
               '| Artifact | Package | Version | Declared license | Concluded license |',

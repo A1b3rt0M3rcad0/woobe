@@ -4,9 +4,9 @@ Woobe is an API-first control plane and runtime for versioned AI products.
 
 ## Domain boundaries
 
-Workspace is the commercial/membership unit. Project is the technical isolation unit. Agents, Agent Network, Tools, Knowledge, Runtime Keys, Runs and Traces are Project-scoped.
+Organization is the commercial account boundary. Project is the technical isolation boundary. Agents, Agent Networks, Tools, Knowledge, Runtime Keys, Runs and Traces are Project-scoped.
 
-Agents are configurable definitions. Agent Releases are immutable snapshots. A Project has one operational Agent Network; Network Releases are immutable snapshots of its composition. Draft is mutable, Staging is validation, and Production consumes immutable releases.
+Agents are configurable definitions. Agent Releases are immutable snapshots. A Project may own multiple Agent Networks; each Network is a first-class entity with its own versions, releases, runs, sessions, traces and configuration. Network Releases are immutable snapshots of network composition. Draft is mutable, Staging is validation and Production consumes immutable releases.
 
 Knowledge is organized around Collections and Documents. Vector Snapshots identify the exact generated knowledge set and indexing parameters used by runtime bindings.
 
@@ -16,28 +16,50 @@ An Agent Run is one logical execution of an Agent. A Network Run coordinates one
 
 HTTP, streaming and async jobs are transport/delivery forms, not separate execution ontologies.
 
+## Repository boundaries
+
+```text
+packages/                         # product / distributable artifacts
+├── woobe-core/                   # Core bounded contexts, runtime contracts, shared infrastructure + migrations
+├── woobe-api/                    # HTTP process composition root
+├── woobe-workers/                # worker process composition root
+├── woobe-frontend/               # administrative control-plane frontend
+├── woobe-embed/                  # independently deployable ChatSurface embed
+└── woobe-ee/                     # separately licensed Enterprise boundary
+
+tooling/                          # engineering-only packages
+├── woobe-testkit/
+├── woobe-mock/
+└── quality-gate/
+
+tests/                            # repository and cross-system validation
+├── architecture/
+├── contract/
+├── integration/
+├── security/
+└── e2e/
+```
+
+`woobe-core` is a product Core package, not a framework-neutral library. Domain, application, infrastructure and bounded-context presentation/composition code remain colocated with the module that owns the behavior.
+
+`woobe-api` owns process-level HTTP composition. `woobe-workers` owns process-level worker composition. API and Workers may depend on Core; Core must not import either process package.
+
+`woobe-frontend` and `woobe-embed` are separate product artifacts. The former is the administrative control plane; the latter is the browser-facing ChatSurface artifact.
+
+`tooling/` is never part of the production dependency graph. `tests/` owns validation that spans package/repository/system boundaries.
+
+Alembic configuration and migration history remain owned by `woobe-core` at `packages/woobe-core/alembic.ini` and `packages/woobe-core/migrations/`.
+
 ## Runtime boundaries
 
 Critical authorization, ownership, release immutability, duplicate-document rules, key scopes and runtime policy are enforced by the backend. The frontend reflects those rules but is not the security boundary.
 
-Runtime infrastructure is process-separated into API and Workers. RabbitMQ supports asynchronous module/runtime work. PostgreSQL is the durable source of application state. Redis is optional where cache-backed capabilities are enabled. Knowledge files can use local persistent storage or S3-compatible storage.
+PostgreSQL is the durable source of application state. RabbitMQ supports asynchronous work. Redis supports shared runtime coordination and execution recovery. Knowledge files use the configured storage provider.
 
-## Distribution boundaries
+## Core / Enterprise boundary
 
-The public repository and supported self-host distribution contain Woobe Community/Core only.
+Core comprises `woobe-core`, `woobe-api`, `woobe-workers`, `woobe-frontend` and `woobe-embed` and is governed by repository-root `LICENSE.md`.
 
-```text
-Community = Core
-Cloud     = proprietary Woobe-managed product built on Core, not distributed here
-Enterprise = not currently implemented or distributed
-```
+Enterprise is a separately licensed implementation boundary under `packages/woobe-ee`. Core must remain fully runnable without Enterprise implementation. The Core-side contract under `packages/woobe-core/src/editions/` is an interoperability seam, not a license switch.
 
-Shared operational code belongs under `src/modules/**` and `src/shared/**`. The Community frontend lives in the normal shared frontend tree. Proprietary Cloud implementation and future proprietary edition implementation are not part of the public Community source tree.
-
-Community composition roots such as `src/main.py`, `src/worker_main.py`, `migrations/env.py`, the root `compose.yaml`, and `web/src/app/**` must remain runnable without proprietary edition source.
-
-Architecture tests under `tests/architecture/` protect the Community boundary and must fail if proprietary edition implementation is added to the public Community distribution unintentionally.
-
-No empty Enterprise implementation tree is maintained. Enterprise directories should be introduced only when real Enterprise capabilities exist and their distribution model has been explicitly decided.
-
-The Community licensing and product boundary is described by `LICENSE.md` and `LICENSING.md`. Proprietary product terms are intentionally outside this repository.
+See `LICENSE_EE.md` and `docs/adr/0004-package-workspace-and-process-boundaries.md`.

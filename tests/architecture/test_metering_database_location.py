@@ -2,7 +2,7 @@ import ast
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-METERING_INFRA_DIR = PROJECT_ROOT / "src" / "modules" / "metering" / "infra"
+METERING_INFRA_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "metering" / "infra"
 METERING_DB_DIR = METERING_INFRA_DIR / "database"
 
 

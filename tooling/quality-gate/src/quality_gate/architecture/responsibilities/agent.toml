@@ -1,0 +1,138 @@
+[layer_surface]
+rule_id = "ARCH063"
+root = "composition"
+allowed = [
+  "composition/__init__.py",
+  "composition/composers/**",
+  "composition/workflows/**",
+  "composition/factories/**",
+  "composition/resources.py",
+  "composition/module.py",
+  "composition/workers.py",
+]
+
+[transport_ownership]
+rule_id = "ARCH064"
+imports = [
+  "fastapi",
+  "starlette",
+]
+allowed_sources = ["presentation/http/**"]
+
+[presentation_purity]
+rule_id = "ARCH065"
+source = ["presentation/**"]
+forbid_app_state = true
+forbidden_dependency_parameters = [
+  "session_factory",
+  "settings",
+  "engine",
+  "async_engine",
+  "database",
+  "uow",
+  "unit_of_work",
+  "repository",
+  "repo",
+  "executor",
+]
+
+[application_runtime_purity]
+rule_id = "ARCH066"
+source = [
+  "application/*runtime*.py",
+  "application/use_cases/*runtime*.py",
+]
+forbidden_imports = [
+  "{package}.infra",
+  "{package}.presentation",
+  "{package}.composition",
+  "shared.infra",
+  "shared.presentation",
+  "sqlalchemy",
+  "alembic",
+  "asyncpg",
+  "psycopg2",
+  "pgvector",
+  "fastapi",
+  "starlette",
+  "langchain",
+  "langchain_core",
+  "langchain_openai",
+  "httpx",
+  "aio_pika",
+  "boto3",
+]
+
+[runtime_adapter_ownership]
+rule_id = "ARCH067"
+allowed_sources = ["infra/**"]
+class_prefixes = ["SQLAlchemy", "SqlAlchemy"]
+class_suffixes = ["Gateway", "Adapter"]
+
+[composition_behavior]
+rule_id = "ARCH068"
+source = [
+  "composition/composers/**",
+  "composition/workflows/**",
+  "composition/factories/**",
+  "composition/module.py",
+  "composition/workers.py",
+]
+exclude = []
+forbid_async_functions = true
+forbid_async_with = true
+forbid_yield = true
+forbidden_method_calls = [
+  "execute",
+  "stream",
+  "run",
+  "invoke",
+  "ainvoke",
+  "commit",
+  "rollback",
+  "create_task",
+  "wait_for",
+]
+
+[responsibility_placement]
+rule_id = "ARCH069"
+use_case_sources = [
+  "application/**",
+  "infra/execution/ask_use_case.py",
+  "infra/execution/explicit_runtime_persistence.py",
+  "infra/execution/structured_output_ask_use_case.py",
+]
+controller_sources = ["presentation/**"]
+sqlalchemy_sources = ["infra/**"]
+
+[inbound_composition]
+rule_id = "ARCH070"
+source_root = "packages"
+forbidden_imports = ["{package}.composition"]
+allowed_sources = []
+
+[module_api]
+rule_id = "ARCH071"
+source = [
+  "packages/woobe-api/src/main.py",
+  "packages/woobe-core/src/shared/workers/discovery.py",
+]
+package = "{package}"
+allowed_imports = ["{package}.entrypoint"]
+
+[transport_neutral]
+rule_id = "ARCH072"
+source = [
+  "application/*runtime*.py",
+  "application/use_cases/*runtime*.py",
+]
+forbidden_imports = [
+  "fastapi",
+  "starlette",
+  "shared.presentation.http",
+]
+forbidden_string_markers = [
+  "event:",
+  "data:",
+  "text/event-stream",
+]

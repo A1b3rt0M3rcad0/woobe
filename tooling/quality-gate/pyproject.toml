@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "woobe-quality-gate"
+version = "0.1.0"
+description = "Woobe repository architecture quality gates"
+requires-python = ">=3.14"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["quality_gate*"]
+
+[tool.setuptools.package-data]
+quality_gate = [
+    "architecture/policies/*.toml",
+    "architecture/policies/contracts/*.toml",
+    "architecture/responsibilities/*.toml",
+]

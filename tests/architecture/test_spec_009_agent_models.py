@@ -3,7 +3,17 @@ from __future__ import annotations
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-AGENT_MODELS = PROJECT_ROOT / "src" / "modules" / "agent" / "infra" / "database" / "models.py"
+AGENT_MODELS = (
+    PROJECT_ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "agent"
+    / "infra"
+    / "database"
+    / "models.py"
+)
 
 AGENT_BUSINESS_TABLES = [
     "provider_credentials",
@@ -41,19 +51,19 @@ class TestBusinessTablesUseAgentSchema:
     def test_all_ai_business_tables_have_agent_schema(self):
         text = _get_models_text()
         for table in AGENT_BUSINESS_TABLES:
-            assert '\"schema\": \"agent\"' in text, \
+            assert '"schema": "agent"' in text, \
                 f"Table {table} should have schema='agent'"
 
     def test_all_knowledge_business_tables_have_agent_schema(self):
         text = _get_models_text()
         for table in KNOWLEDGE_BUSINESS_TABLES:
-            assert '\"schema\": \"agent\"' in text, \
+            assert '"schema": "agent"' in text, \
                 f"Table {table} should have schema='agent'"
 
     def test_all_runtime_business_tables_have_agent_schema(self):
         text = _get_models_text()
         for table in RUNTIME_BUSINESS_TABLES:
-            assert '\"schema\": \"agent\"' in text, \
+            assert '"schema": "agent"' in text, \
                 f"Table {table} should have schema='agent'"
 
     def test_no_legacy_messaging_tables(self):
@@ -62,7 +72,6 @@ class TestBusinessTablesUseAgentSchema:
         assert "KnowledgeInboxEventModel" not in text, "KnowledgeInboxEventModel should be removed"
         assert "RuntimeOutboxEventModel" not in text, "RuntimeOutboxEventModel should be removed"
         assert "RuntimeInboxEventModel" not in text, "RuntimeInboxEventModel should be removed"
-        # Verify no bare OutboxEventModel class (not AgentOutboxEventModel)
         assert " class OutboxEventModel" not in text, "OutboxEventModel class should be removed"
         assert " class InboxEventModel" not in text, "InboxEventModel class should be removed"
 
@@ -96,7 +105,6 @@ class TestAllowlistUpdated:
             / "legacy_schema_allowlist.yaml"
         )
         content = allowlist_path.read_text(encoding="utf-8")
-        # Verify models.py entries are removed
-        assert '"removal_spec": "009"' not in content, (
+        assert 'removal_spec: "009"' not in content and '"removal_spec": "009"' not in content, (
             "Allowlist should have no entries with removal_spec: '009'"
         )

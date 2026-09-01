@@ -7,20 +7,32 @@ from modules.identity.infra.workers.registry import IdentityWorkerRegistry
 from shared.workers.contracts import WorkerRegistryProtocol
 
 
+ROOT = Path(__file__).resolve().parents[2]
+WORKERS_DIR = (
+    ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "identity"
+    / "infra"
+    / "workers"
+)
+
+
 class TestIdentityWorkerStructure:
     """Verify the identity worker structure exists."""
 
     def test_workers_directory_exists(self):
-        path = Path("src/modules/identity/infra/workers")
-        assert path.exists()
-        assert path.is_dir()
+        assert WORKERS_DIR.exists()
+        assert WORKERS_DIR.is_dir()
 
     def test_init_file_exists(self):
-        path = Path("src/modules/identity/infra/workers/__init__.py")
+        path = WORKERS_DIR / "__init__.py"
         assert path.exists()
 
     def test_registry_file_exists(self):
-        path = Path("src/modules/identity/infra/workers/registry.py")
+        path = WORKERS_DIR / "registry.py"
         assert path.exists()
 
     def test_registry_class_exists(self):

@@ -1,7 +1,7 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
-UOW_FILE = PROJECT_ROOT / "src" / "modules" / "core" / "infra" / "database" / "unit_of_work.py"
+UOW_FILE = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "core" / "infra" / "database" / "unit_of_work.py"
 
 
 class TestCoreOutboxAtomicity:

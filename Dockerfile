@@ -20,14 +20,30 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/venv/bin/python \
     "python-multipart>=0.0.20" \
     "boto3>=1.35.0" \
-    "pypdf>=6.0.0" \
-    && uv pip check --python /opt/venv/bin/python
+    "pypdf>=6.0.0"
 RUN /opt/venv/bin/python -c "from pypdf import PdfReader; print('pypdf runtime dependency available')"
+
+COPY packages/woobe-core/pyproject.toml packages/woobe-core/pyproject.toml
+COPY packages/woobe-core/src/ packages/woobe-core/src/
+COPY packages/woobe-api/pyproject.toml packages/woobe-api/pyproject.toml
+COPY packages/woobe-api/src/ packages/woobe-api/src/
+COPY packages/woobe-workers/pyproject.toml packages/woobe-workers/pyproject.toml
+COPY packages/woobe-workers/src/ packages/woobe-workers/src/
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python --no-deps \
+    --editable packages/woobe-core \
+    --editable packages/woobe-api \
+    --editable packages/woobe-workers \
+    && uv pip check --python /opt/venv/bin/python
 
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
+LABEL org.opencontainers.image.title="Woobe Core API" \
+      org.opencontainers.image.description="Woobe Core API and worker runtime" \
+      org.opencontainers.image.licenses="LicenseRef-Woobe-Core-Sustainable-Use-1.0" \
+      org.opencontainers.image.source="https://github.com/A1b3rt0M3rcad0/woobe"
+
 ENV PATH="/opt/venv/bin:$PATH" \
-    PYTHONPATH="/app/src" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -40,9 +56,9 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY --from=builder --chown=woobe:woobe /opt/venv /opt/venv
-COPY --chown=woobe:woobe src/ src/
-COPY --chown=woobe:woobe migrations/ migrations/
-COPY --chown=woobe:woobe alembic.ini ./
+COPY --chown=woobe:woobe packages/woobe-core/ packages/woobe-core/
+COPY --chown=woobe:woobe packages/woobe-api/src/ packages/woobe-api/src/
+COPY --chown=woobe:woobe packages/woobe-workers/src/ packages/woobe-workers/src/
 COPY --chown=woobe:woobe scripts/docker-entrypoint.sh /usr/local/bin/woobe-entrypoint
 
 RUN sed -i 's/\r$//' /usr/local/bin/woobe-entrypoint \
@@ -56,4 +72,4 @@ USER 10001:10001
 EXPOSE 8000
 
 ENTRYPOINT ["/usr/local/bin/woobe-entrypoint"]
-CMD ["uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--proxy-headers", "--forwarded-allow-ips", "*"]

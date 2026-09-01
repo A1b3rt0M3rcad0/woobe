@@ -2,7 +2,7 @@ name: Acceptance
 
 on:
   pull_request:
-    branches: [development, master]
+    branches: [master]
     types: [opened, reopened, synchronize, ready_for_review]
   workflow_dispatch:
 
@@ -18,7 +18,7 @@ jobs:
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 40
     env:
-      PYTHONPATH: src:.
+      PYTHONPATH: packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src:.
       WOOBE_SECRET_KEY: acceptance-secret-key-at-least-32-characters
       WOOBE_ENCRYPTION_KEY: acceptance-encryption-key-at-least-32-characters
       WOOBE_CHAT_TOKEN_SIGNING_KEY: acceptance-chat-key-at-least-32-characters
@@ -125,10 +125,10 @@ jobs:
       - name: Migration rollback and re-upgrade
         run: |
           set -euo pipefail
-          uv run alembic upgrade head
-          uv run alembic downgrade -1
-          uv run alembic upgrade head
-          uv run alembic check
+          uv run alembic -c packages/woobe-core/alembic.ini upgrade head
+          uv run alembic -c packages/woobe-core/alembic.ini downgrade -1
+          uv run alembic -c packages/woobe-core/alembic.ini upgrade head
+          uv run alembic -c packages/woobe-core/alembic.ini check
       - name: Backup and restore isolated database
         run: |
           set -euo pipefail
@@ -175,11 +175,11 @@ jobs:
         if: always()
         run: bash scripts/ci/cleanup_docker_access.sh
 
-  community-smoke:
+  core-smoke:
     runs-on: [self-hosted, Linux, X64]
     timeout-minutes: 40
     env:
-      COMPOSE_PROJECT_NAME: woobe-community-${{ github.run_id }}
+      COMPOSE_PROJECT_NAME: woobe-core-${{ github.run_id }}
     steps:
       - uses: actions/checkout@v4
       - name: Prepare Docker access
@@ -187,7 +187,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      - name: Allocate isolated Community ports
+      - name: Allocate isolated Core ports
         run: |
           python - <<'PY' >> "$GITHUB_ENV"
           import socket
@@ -213,7 +213,7 @@ jobs:
           for sock in sockets:
               sock.close()
           PY
-      - name: Generate production-shaped Community environment
+      - name: Generate production-shaped Core environment
         run: |
           python scripts/generate_self_host_env.py --force
           python - <<'PY'
@@ -240,12 +240,12 @@ jobs:
               content = set_env(content, key, value)
           Path(".env").write_text(content)
           PY
-      - name: Validate supported Community topology
+      - name: Validate supported Core topology
         run: docker compose config --quiet
-      - name: Build and start production-shaped Community stack
+      - name: Build and start production-shaped Core stack
         run: |
           set -euo pipefail
-          docker compose up -d --build db rabbitmq
+          docker compose up -d --build db rabbitmq redis
           docker compose run --rm migrate
           if ! docker compose up -d api workers web chat-embed; then
             docker compose ps --all || true
@@ -276,10 +276,10 @@ jobs:
       - name: Capture smoke evidence
         if: always()
         run: |
-          docker compose ps --all > community-compose-ps.txt || true
-          docker compose logs --no-color > community-compose.log 2>&1 || true
-          cat community-compose-ps.txt || true
-          cat community-compose.log || true
+          docker compose ps --all > core-compose-ps.txt || true
+          docker compose logs --no-color > core-compose.log 2>&1 || true
+          cat core-compose-ps.txt || true
+          cat core-compose.log || true
       - name: Tear down
         if: always()
         run: docker compose down -v --remove-orphans
@@ -291,9 +291,9 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:
-          name: acceptance-community-smoke-evidence
+          name: acceptance-core-smoke-evidence
           path: |
-            community-compose-ps.txt
-            community-compose.log
+            core-compose-ps.txt
+            core-compose.log
           if-no-files-found: warn
           retention-days: 1

@@ -1,4 +1,4 @@
-name: Publish Woobe Community images
+name: Publish Woobe Core images
 
 on:
   workflow_dispatch:
@@ -32,28 +32,28 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build and push API
+      - name: Build and push Core API
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/woobe-api:${{ inputs.version }}
-      - name: Build and push Web reference image
+      - name: Build and push Core Web reference image
         uses: docker/build-push-action@v6
         with:
-          context: web
+          context: packages/woobe-frontend
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
             VITE_API_URL=${{ inputs.public_api_url }}
             VITE_CHAT_EMBED_URL=${{ inputs.public_chat_embed_url }}
-            VITE_WOOBE_EDITION=community
+            VITE_WOOBE_EDITION=core
           tags: ghcr.io/${{ github.repository_owner }}/woobe-web:${{ inputs.version }}
-      - name: Build and push ChatSurface
+      - name: Build and push Core ChatSurface
         uses: docker/build-push-action@v6
         with:
-          context: embed
+          context: packages/woobe-embed
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/woobe-chat-embed:${{ inputs.version }}

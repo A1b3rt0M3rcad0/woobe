@@ -1,25 +1,5 @@
 entries:
-  - scope: application_boundaries
-    file: src/modules/agent/application/use_cases/ask_use_case.py
-    target_package: sqlalchemy
-    reason: The established runtime orchestrator owns the AgentUnitOfWork transaction boundary and accepts an async SQLAlchemy session factory.
-    removal_spec: specs/execution/runtime-boundary-cleanup.md
-  - scope: layer_dependencies
-    file: src/modules/agent/application/use_cases/ask_use_case.py
-    target_layer: infra
-    reason: Concrete runtime orchestration assembles the agent UoW and persistence adapters.
-    removal_spec: specs/execution/runtime-boundary-cleanup.md
-  - scope: layer_dependencies
-    file: src/modules/agent/application/use_cases/ask_agent_stream_service.py
-    target_layer: infra
-    reason: SSE runtime orchestration assembles cancellation, tool and persistence adapters.
-    removal_spec: specs/execution/runtime-boundary-cleanup.md
-  - scope: layer_dependencies
-    file: src/modules/agent/application/use_cases/instrumented_execution_finalizer.py
-    target_layer: infra
-    reason: Execution finalization persists messages and transactional outbox events atomically.
-    removal_spec: specs/execution/runtime-boundary-cleanup.md
   - scope: shared_boundaries
-    file: src/shared/workers/discovery.py
+    file: packages/woobe-core/src/shared/workers/discovery.py
     reason: Generic worker plugin discovery intentionally resolves module registries by name without static module imports.
     removal_spec: specs/execution/runtime-boundary-cleanup.md

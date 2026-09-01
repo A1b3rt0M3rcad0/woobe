@@ -9,7 +9,8 @@ import re
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_MODULES = PROJECT_ROOT / "src" / "modules"
+CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
+SRC_MODULES = CORE_SRC / "modules"
 
 ALLOWED_UNVERSIONED_EVENTS: set[str] = {
     "tools.tool.created",
@@ -22,14 +23,14 @@ ALLOWED_UNVERSIONED_EVENTS: set[str] = {
 }
 
 ALLOWED_UNVERSIONED_FILES: set[str] = {
-    "src/modules/agent/infra/adapters/observability_trace_recorder.py",
-    "src/modules/agent/application/use_cases/ask_use_case.py",
-    "src/modules/agent/application/use_cases/ask_agent_stream_service.py",
-    "src/modules/agent/application/use_cases/ai_use_cases.py",
-    "src/modules/agent/application/use_cases/knowledge_use_cases.py",
-    "src/modules/agent/application/use_cases/runtime_use_cases.py",
-    "src/modules/agent/application/use_cases/tools_use_cases.py",
-    "src/modules/agent/infra/adapters/metering_usage_recorder.py",
+    "packages/woobe-core/src/modules/agent/infra/adapters/observability_trace_recorder.py",
+    "packages/woobe-core/src/modules/agent/application/use_cases/ask_use_case.py",
+    "packages/woobe-core/src/modules/agent/application/use_cases/ask_agent_stream_service.py",
+    "packages/woobe-core/src/modules/agent/application/use_cases/ai_use_cases.py",
+    "packages/woobe-core/src/modules/agent/application/use_cases/knowledge_use_cases.py",
+    "packages/woobe-core/src/modules/agent/application/use_cases/runtime_use_cases.py",
+    "packages/woobe-core/src/modules/agent/application/use_cases/tools_use_cases.py",
+    "packages/woobe-core/src/modules/agent/infra/adapters/metering_usage_recorder.py",
 }
 
 

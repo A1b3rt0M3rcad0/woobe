@@ -1,7 +1,7 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-METERING_DIR = PROJECT_ROOT / "src" / "modules" / "metering"
+METERING_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "metering"
 
 
 def test_metering_service_dir_does_not_exist():

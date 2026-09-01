@@ -9,10 +9,12 @@ import pathlib
 import yaml
 
 
-ALLOWLIST_PATH = pathlib.Path("tests/architecture/legacy_import_allowlist.yaml")
-AGENT_COMPOSERS_DIR = pathlib.Path("src/modules/agent/application/composers")
-AGENT_USE_CASES_DIR = pathlib.Path("src/modules/agent/application/use_cases")
-AGENT_INFRA_WORKERS_DIR = pathlib.Path("src/modules/agent/infra/workers")
+ROOT = pathlib.Path(__file__).resolve().parents[2]
+CORE_AGENT_DIR = ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent"
+ALLOWLIST_PATH = ROOT / "tests" / "architecture" / "legacy_import_allowlist.yaml"
+AGENT_COMPOSERS_DIR = CORE_AGENT_DIR / "application" / "composers"
+AGENT_USE_CASES_DIR = CORE_AGENT_DIR / "application" / "use_cases"
+AGENT_INFRA_WORKERS_DIR = CORE_AGENT_DIR / "infra" / "workers"
 
 FORBIDDEN_MODULES = (
     "modules.metering",
@@ -52,7 +54,7 @@ def _find_forbidden_imports_in_file(file_path: pathlib.Path):
 
 
 def _is_violation_allowlisted(file_path: pathlib.Path):
-    relative_path = str(file_path).replace("\\", "/")
+    relative_path = file_path.relative_to(ROOT).as_posix()
     for entry in _load_allowlist():
         entry_file = entry.get("file", "")
         if entry_file == relative_path:
@@ -152,9 +154,7 @@ class TestDependencyInjectionBindingsKeepsLegacyCompatibility:
     """Verify legacy cross-module DI is covered by allowlist."""
 
     def test_legacy_cross_module_imports_resolved(self):
-        composer = pathlib.Path(
-            "src/modules/agent/application/composers/ask_agent_composer.py"
-        )
+        composer = AGENT_COMPOSERS_DIR / "ask_agent_composer.py"
         assert composer.is_file()
         violations = _find_forbidden_imports_in_file(composer)
         assert len(violations) == 0, (
@@ -163,12 +163,11 @@ class TestDependencyInjectionBindingsKeepsLegacyCompatibility:
 
     def test_allowlist_has_no_unknown_files(self):
         allowlist = _load_allowlist()
-        root = pathlib.Path(".")
         for entry in allowlist:
             entry_file = entry.get("file", "")
             if not entry_file:
                 continue
-            full_path = root / entry_file
+            full_path = ROOT / entry_file
             assert full_path.is_file(), (
                 f"Allowlist references non-existent file: {entry_file}"
             )

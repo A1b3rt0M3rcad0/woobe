@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-AGENT_DOMAIN = PROJECT_ROOT / "src" / "modules" / "agent" / "domain"
+AGENT_DOMAIN = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent" / "domain"
 
 REQUIRED_DOMAIN_FILES = [
     "entities.py",

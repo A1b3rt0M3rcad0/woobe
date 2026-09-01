@@ -1,60 +1,86 @@
 # Contributing to Woobe
 
-Woobe uses `development` as the integration branch.
+Woobe uses `master` as the integration branch.
 
 ## Workflow
 
-1. Create a focused branch from the latest `development`.
+1. Create a focused branch from the latest `master`.
 2. Keep the change small and scoped to one concern.
-3. Preserve existing module boundaries and domain rules.
+3. Preserve existing package, module and domain boundaries.
 4. Add or update tests for behavior you change.
-5. Open a pull request targeting `development`.
-6. Do not merge your own PR unless repository policy explicitly permits it.
+5. Update documentation when public behavior, contracts, licensing or operations change.
+6. Open a pull request targeting `master`.
+7. Merge only according to repository policy.
 
 Recommended branch prefixes: `feature/`, `fix/`, `chore/`, `docs/` and `ci/`.
 
-## Architecture
+## Product boundaries
 
-Business rules belong in the backend. Frontend checks must not be the only barrier for ownership, permissions, release immutability, rollback, document uniqueness, credential security or runtime authorization.
+Woobe has two software boundaries:
 
-The primary technical isolation unit is Project. Workspace is the commercial/membership unit. Production runtime must use immutable Agent Releases or Network Releases rather than mutable Draft state.
+- **Core** — source-available product code under `packages/woobe-core`, `packages/woobe-api`, `packages/woobe-workers`, `packages/woobe-frontend` and `packages/woobe-embed`.
+- **Enterprise** — separately licensed boundary under `packages/woobe-ee`.
 
-The public Community product code lives under `src/modules/**`, `src/shared/**` and the shared frontend tree. Proprietary product implementation is not part of the Community source tree. Community code and build contracts must remain runnable without proprietary source.
+External contributions should target Core unless a maintainer explicitly requests an Enterprise-boundary change. Do not add Enterprise implementation to Core packages or make Core depend on Enterprise code.
+
+See `LICENSE.md`, `LICENSE_EE.md` and `LICENSING.md` before changing edition boundaries.
+
+## Repository architecture
+
+Organization is the commercial account boundary. Project is the primary technical isolation boundary. Production runtime must use immutable Agent Releases or Network Releases rather than mutable Draft state.
+
+The repository has three main code/validation concerns:
+
+- `packages/` — product and distributable artifacts.
+- `tooling/` — engineering-only packages: `woobe-testkit`, `woobe-mock` and `quality-gate`.
+- `tests/` — repository and cross-system validation, including architecture, contracts, integration, security and E2E.
+
+API and Workers may depend on Core. Core must not depend on API, Workers or Enterprise implementation. Frontend and Embed consume HTTP contracts rather than importing Python Core. Product runtime packages must not depend on `tooling/`. Tests and tooling may depend on product packages for validation.
+
+Alembic configuration and migration history remain under `packages/woobe-core`.
+
+Bounded-context `presentation` and `composition` code intentionally stays with its owning module in `woobe-core`; process-level FastAPI bootstrap and transport composition belong to `woobe-api`. See `docs/adr/0004-package-workspace-and-process-boundaries.md`.
 
 ## Scope discipline
 
-Do not combine unrelated refactors with a feature or fix. Avoid helpers, reexports or abstractions that only move code without reducing a concrete problem.
+Do not combine unrelated refactors with a feature or fix. Avoid helpers, reexports or abstractions that move code without solving a concrete problem.
 
-## Public repository surface
+Critical rules belong in the backend. Frontend checks must not be the only barrier for ownership, permissions, release immutability, rollback, document uniqueness, credential security or runtime authorization.
 
-The public repository is the product repository, not an archive of the internal development process.
+## Licensing, brand and third-party changes
 
-Keep durable product code, tests, current documentation, supported deployment contracts and contribution tooling in the repository. Do not commit internal AI-agent prompts or skills, implementation journals, stage markers, generated evidence, one-off debugging stacks, completed refactor plans, internal execution logs or temporary audit artifacts.
+Changes that touch licensing, Enterprise boundaries, notices, container distribution, package metadata, repository branding or Woobe trademarks require explicit review.
 
-Durable architecture decisions belong in `docs/adr/`. Current product behavior belongs in `docs/`. Work in progress belongs in Issues and pull requests rather than permanent `specs/` or `docs/mvp/` archives.
+Do not add third-party code, assets, images or generated material without clear provenance and license compatibility. Update `THIRD_PARTY_NOTICES.md` when a distributed dependency creates attribution or notice obligations.
+
+Brand assets are governed separately by `TRADEMARKS.md`; do not assume the software license grants rights to reuse Woobe branding.
 
 ## Quality
 
-The validation contract is the standalone root `compose.test.yaml`. It is intentionally separate from the Community distribution in `compose.yaml` and does not require Bash or WSL on the host.
-
-Run the validation stack locally with the same command used by the manual tests workflow:
+The standalone backend validation contract is root `compose.test.yaml`:
 
 ```bash
 docker compose -f compose.test.yaml up --build --exit-code-from tests tests
 ```
 
-After a local run, clean it with:
+Clean the validation stack with:
 
 ```bash
 docker compose -f compose.test.yaml down -v --remove-orphans
 ```
 
-The current validation topology is backend-focused and uses dedicated mocked and integration test images. Container, acceptance, security and release workflows remain separate and are intentionally executed only when validation is requested.
+Container, acceptance, security, quality-gate and release workflows are separate validation surfaces. The architecture gate lives under `tooling/quality-gate`.
 
 See `docs/testing/COMPOSE_TESTS.md` for the current topology.
 
 ## External contributions
 
-External contributors must read `CONTRIBUTOR_LICENSE_AGREEMENT.md` and explicitly accept it in the pull request body using the checkbox provided by the pull request template. The `CLA acceptance` workflow verifies that acceptance for contributors who are not repository owners, members or collaborators.
+External contributors must read `CONTRIBUTOR_LICENSE_AGREEMENT.md` and explicitly accept it in the pull request body using the checkbox provided by the pull request template.
 
-Do not merge an external contribution while the CLA check is failing. Public release still requires the legal and repository-governance review listed in `docs/PUBLIC_RELEASE_CHECKLIST.md`.
+The CLA allows Woobe to use and relicense contributions across Core and separately licensed Enterprise products while contributors retain their underlying ownership rights.
+
+Do not merge an external contribution while the CLA check is failing.
+
+## Security
+
+Do not publish secrets, access tokens, customer data or non-public vulnerability details in issues or pull requests. Security reports must follow `SECURITY.md`.

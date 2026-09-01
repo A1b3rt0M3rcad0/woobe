@@ -1,8 +1,8 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[5]
-ROUTES_FILE = PROJECT_ROOT / "src" / "modules" / "core" / "presentation" / "routes.py"
-CONTROLLERS_DIR = PROJECT_ROOT / "src" / "modules" / "core" / "presentation" / "controllers"
+ROUTES_FILE = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "core" / "presentation" / "routes.py"
+CONTROLLERS_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "core" / "presentation" / "controllers"
 
 
 class TestCoreRoutes:

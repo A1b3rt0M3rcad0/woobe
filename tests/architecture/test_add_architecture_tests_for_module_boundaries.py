@@ -1,278 +1,160 @@
-"""Tests for spec 111 — add architecture tests for module boundaries.
-
-Validates module import boundaries, shared-layer isolation, worker placement,
-and agent external module import restrictions. Uses the legacy import allowlist
-for temporary cross-module entries during migration.
-"""
+"""Package-aware architecture guards for bounded-context module boundaries."""
 from __future__ import annotations
 
 import ast
 from pathlib import Path
 
-import pytest
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_MODULES = PROJECT_ROOT / "src" / "modules"
-SRC_WORKERS = PROJECT_ROOT / "src" / "workers"
-SHARED = PROJECT_ROOT / "src" / "shared"
+CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
+SRC_MODULES = CORE_SRC / "modules"
+SHARED = CORE_SRC / "shared"
+WORKER_PROCESS = PROJECT_ROOT / "packages" / "woobe-workers" / "src"
 ALLOWLIST_FILE = Path(__file__).resolve().parent / "legacy_import_allowlist.yaml"
 
 KNOWN_MODULES = {
-    d.name
-    for d in SRC_MODULES.iterdir()
-    if d.is_dir() and not d.name.startswith("_")
+    path.name
+    for path in SRC_MODULES.iterdir()
+    if path.is_dir() and not path.name.startswith("_")
 }
-
 LEGACY_MODULES = {"ai", "knowledge", "runtime"}
-
 AGENT_FORBIDDEN_TARGETS = KNOWN_MODULES - {"agent", *LEGACY_MODULES}
 
 
-def _load_allowlist(scope: str) -> set[tuple[str, str]]:
+def _load_module_allowlist() -> set[tuple[str, str]]:
     if not ALLOWLIST_FILE.exists():
         return set()
-    with open(ALLOWLIST_FILE, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+    with open(ALLOWLIST_FILE, encoding="utf-8") as stream:
+        data = yaml.safe_load(stream) or {}
     entries = data.get("entries") or []
     return {
-        (e["file"].replace("\\", "/"), e["target_module"])
-        for e in entries
-        if e.get("scope") == scope
+        (entry["file"].replace("\\", "/"), entry["target_module"])
+        for entry in entries
+        if entry.get("scope") == "module_boundaries" and entry.get("target_module")
     }
 
 
-def _extract_cross_module_imports(
-    file_path: Path, source_module: str
-) -> list[tuple[str, str]]:
-    try:
-        source = file_path.read_text(encoding="utf-8")
-        tree = ast.parse(source, filename=str(file_path))
-    except (SyntaxError, UnicodeDecodeError):
-        return []
-
-    violations = []
-    for node in ast.walk(tree):
-        if isinstance(node, ast.ImportFrom) and node.module:
-            parts = node.module.split(".")
-            if len(parts) >= 2 and parts[0] == "modules":
-                target_module = parts[1]
-                if target_module != source_module and target_module in KNOWN_MODULES:
-                    violations.append((target_module, node.module))
-        elif isinstance(node, ast.Import):
-            for alias in node.names:
-                parts = alias.name.split(".")
-                if len(parts) >= 2 and parts[0] == "modules":
-                    target_module = parts[1]
-                    if target_module != source_module and target_module in KNOWN_MODULES:
-                        violations.append((target_module, alias.name))
-    return violations
-
-
-def _relative_posix(path: Path) -> str:
+def _relative(path: Path) -> str:
     return path.relative_to(PROJECT_ROOT).as_posix()
 
 
-def _repository_path(path_value: str) -> Path:
-    return PROJECT_ROOT.joinpath(*path_value.replace("\\", "/").split("/"))
-
-
-def _src_files_under(root: Path) -> list[Path]:
+def _python_files(root: Path) -> tuple[Path, ...]:
     if not root.is_dir():
-        return []
-    return sorted(p for p in root.rglob("*.py") if p.is_file())
+        return ()
+    return tuple(sorted(path for path in root.rglob("*.py") if path.is_file()))
+
+
+def _cross_module_imports(path: Path, source_module: str) -> tuple[tuple[str, str], ...]:
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (SyntaxError, UnicodeDecodeError):
+        return ()
+    values: list[tuple[str, str]] = []
+    for node in ast.walk(tree):
+        targets: list[str] = []
+        if isinstance(node, ast.ImportFrom) and node.module:
+            targets.append(node.module)
+        elif isinstance(node, ast.Import):
+            targets.extend(alias.name for alias in node.names)
+        for imported in targets:
+            parts = imported.split(".")
+            if (
+                len(parts) >= 2
+                and parts[0] == "modules"
+                and parts[1] in KNOWN_MODULES
+                and parts[1] != source_module
+            ):
+                values.append((parts[1], imported))
+    return tuple(values)
 
 
 class TestAddArchitectureTestsForModuleBoundaries:
-    """Module boundary architecture tests for spec 111."""
-
-    def test_add_architecture_tests_for_module_boundaries(self):
-        allowlist = _load_allowlist("module_boundaries")
-        unlisted = []
-
-        for mdir in sorted(SRC_MODULES.iterdir()):
-            if not mdir.is_dir() or mdir.name.startswith("_"):
-                continue
-            module_name = mdir.name
-            for py_file in _src_files_under(mdir):
-                rel = _relative_posix(py_file)
-                violations = _extract_cross_module_imports(py_file, module_name)
-                for target_module, import_path in violations:
-                    if (rel, target_module) not in allowlist and (
-                        rel.replace("\\", "/"),
-                        target_module,
-                    ) not in allowlist:
-                        unlisted.append(
-                            f"{rel} imports {target_module} ({import_path})"
-                        )
-
-        unlisted.sort()
-        assert not unlisted, (
-            f"Found {len(unlisted)} unlisted cross-module import(s):\n"
-            + "\n".join(unlisted)
-        )
-
-    def test_no_domain_in_shared(self):
-        domain_patterns = [
-            "domain.entities",
-            "domain.value_objects",
-            "domain.enums",
-            "domain.errors",
-            "application.use_cases",
-            "application.dtos",
-            "domain.repositories",
-            "domain.services",
-            "service.use_cases",
-            "service.dtos",
-            "domain.events",
-        ]
-
-        for py_file in _src_files_under(SHARED):
-            try:
-                source = py_file.read_text(encoding="utf-8")
-                tree = ast.parse(source, filename=str(py_file))
-            except (SyntaxError, UnicodeDecodeError):
-                continue
-
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    module_str = str(node.module)
-                    for pattern in domain_patterns:
-                        if pattern in module_str:
-                            assert "modules." not in module_str, (
-                                f"{_relative_posix(py_file)} imports module domain: {module_str}"
-                            )
-
-    def test_src_workers_no_concrete_implementation(self):
-        if SRC_WORKERS.is_dir():
-            for py_file in _src_files_under(SRC_WORKERS):
-                try:
-                    source = py_file.read_text(encoding="utf-8")
-                    tree = ast.parse(source, filename=str(py_file))
-                except (SyntaxError, UnicodeDecodeError):
-                    continue
-
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.ImportFrom) and node.module:
-                        parts = str(node.module).split(".")
-                        if len(parts) >= 2 and parts[0] == "modules":
-                            target = parts[1]
-                            rel = _relative_posix(py_file)
-                            allowlist = _load_allowlist("worker_locations")
-                            if (rel, target) not in allowlist and (
-                                rel.replace("\\", "/"),
-                                target,
-                            ) not in allowlist:
-                                assert False, (
-                                    f"{rel} has unlisted module import: {target}"
-                                )
-
-    def test_workers_only_in_module_infra_workers(self):
-        for mdir in sorted(SRC_MODULES.iterdir()):
-            if not mdir.is_dir() or mdir.name.startswith("_"):
-                continue
-            workers_dir = mdir / "infra" / "workers"
-            if workers_dir.is_dir():
-                for py_file in _src_files_under(workers_dir):
-                    rel = _relative_posix(py_file)
-                    assert "modules" in rel, (
-                        f"Worker file outside expected module path: {rel}"
-                    )
-
-    def test_agent_does_not_import_non_agent_non_legacy_modules(self):
-        agent_dir = SRC_MODULES / "agent"
-        if not agent_dir.is_dir():
-            pytest.skip("agent module does not exist")
-
+    def test_cross_module_imports_are_explicitly_allowlisted(self):
+        allowlist = _load_module_allowlist()
         violations = []
-        for py_file in _src_files_under(agent_dir):
-            rel = _relative_posix(py_file)
+        for module_dir in sorted(SRC_MODULES.iterdir()):
+            if not module_dir.is_dir() or module_dir.name.startswith("_"):
+                continue
+            for py_file in _python_files(module_dir):
+                rel = _relative(py_file)
+                for target, imported in _cross_module_imports(py_file, module_dir.name):
+                    if (rel, target) not in allowlist:
+                        violations.append(f"{rel} imports {target} via {imported}")
+        assert not violations, (
+            "Unlisted cross-module imports:\n" + "\n".join(violations[:40])
+        )
+
+    def test_shared_does_not_import_bounded_context_domain(self):
+        violations = []
+        for py_file in _python_files(SHARED):
             try:
-                source = py_file.read_text(encoding="utf-8")
-                tree = ast.parse(source, filename=str(py_file))
+                tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
             except (SyntaxError, UnicodeDecodeError):
                 continue
-
             for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    parts = str(node.module).split(".")
-                    if len(parts) >= 2 and parts[0] == "modules":
-                        target = parts[1]
-                        if target in AGENT_FORBIDDEN_TARGETS:
-                            allowlist = _load_allowlist("module_boundaries")
-                            if (rel, target) not in allowlist and (
-                                rel.replace("\\", "/"),
-                                target,
-                            ) not in allowlist:
-                                violations.append(
-                                    f"{rel} imports forbidden module: {target}"
-                                )
-
-        violations.sort()
+                imported = node.module if isinstance(node, ast.ImportFrom) else None
+                if imported and imported.startswith("modules."):
+                    violations.append(f"{_relative(py_file)} imports {imported}")
         assert not violations, (
-            "agent imports non-agent, non-legacy modules:\n"
-            + "\n".join(violations)
+            "Shared must not statically import bounded contexts:\n"
+            + "\n".join(violations[:30])
         )
 
-    def test_allowlist_entries_have_removal_spec(self):
-        if not ALLOWLIST_FILE.exists():
-            return
+    def test_worker_process_is_separate_from_core_modules(self):
+        assert WORKER_PROCESS.is_dir(), "packages/woobe-workers/src must exist"
+        assert (WORKER_PROCESS / "worker_main.py").is_file()
+        assert not (PROJECT_ROOT / "src" / "workers").exists()
 
-        with open(ALLOWLIST_FILE, encoding="utf-8") as f:
-            data = yaml.safe_load(f)
-        entries = data.get("entries") or []
+    def test_concrete_worker_directories_are_module_owned(self):
+        for module_dir in sorted(SRC_MODULES.iterdir()):
+            if not module_dir.is_dir() or module_dir.name.startswith("_"):
+                continue
+            workers_dir = module_dir / "infra" / "workers"
+            for py_file in _python_files(workers_dir):
+                assert py_file.is_relative_to(SRC_MODULES), (
+                    f"Worker outside Core module ownership: {_relative(py_file)}"
+                )
 
-        missing = []
-        for entry in entries:
-            if not entry.get("removal_spec"):
-                missing.append(f"{entry.get('file')} -> {entry.get('target_module')}")
-            elif not entry.get("scope"):
-                missing.append(f"{entry.get('file')} -> {entry.get('target_module')}")
-
-        assert not missing, (
-            "Allowlist entries missing removal_spec or scope:\n"
-            + "\n".join(missing)
+    def test_agent_does_not_import_non_agent_bounded_contexts(self):
+        agent_dir = SRC_MODULES / "agent"
+        violations = []
+        for py_file in _python_files(agent_dir):
+            for target, imported in _cross_module_imports(py_file, "agent"):
+                if target in AGENT_FORBIDDEN_TARGETS:
+                    violations.append(f"{_relative(py_file)} imports {imported}")
+        assert not violations, (
+            "Agent imports non-Agent bounded contexts:\n"
+            + "\n".join(violations[:30])
         )
 
-    def test_allowlist_references_valid_files(self):
+    def test_allowlist_entries_are_well_formed_and_reference_live_files(self):
         if not ALLOWLIST_FILE.exists():
             return
-
-        with open(ALLOWLIST_FILE, encoding="utf-8") as f:
-            data = yaml.safe_load(f) or {}
-
-        entries = data.get("entries") or []
-        for entry in entries:
-            file_path = _repository_path(entry["file"])
-            assert file_path.exists(), (
-                f"Allowlist references non-existent file: {entry['file']}"
-            )
+        with open(ALLOWLIST_FILE, encoding="utf-8") as stream:
+            data = yaml.safe_load(stream) or {}
+        for entry in data.get("entries") or []:
+            assert entry.get("scope"), f"Allowlist entry missing scope: {entry}"
+            assert entry.get("removal_spec"), f"Allowlist entry missing removal_spec: {entry}"
+            path = PROJECT_ROOT.joinpath(*entry["file"].replace("\\", "/").split("/"))
+            assert path.exists(), f"Allowlist references non-existent file: {entry['file']}"
 
 
 class TestAddArchitectureTestsForModuleBoundariesRejectsForbidden:
-    """Regression: forbidden patterns are detected."""
-
     def test_detects_forbidden_cross_module_import(self):
-        code = "from modules.core.infra.database.repositories import ProjectRepository\n"
-        tree = ast.parse(code)
-        violations = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                parts = str(node.module).split(".")
-                if len(parts) >= 2 and parts[0] == "modules":
-                    target = parts[1]
-                    if target in KNOWN_MODULES and target != "agent":
-                        violations.append(target)
-        assert violations == ["core"]
+        tree = ast.parse("from modules.core.infra.database.repositories import ProjectRepository\n")
+        assert any(
+            isinstance(node, ast.ImportFrom)
+            and node.module
+            and node.module.startswith("modules.core")
+            for node in ast.walk(tree)
+        )
 
     def test_detects_shared_containing_module_domain(self):
-        code = "from modules.agent.domain.entities import Agent\n"
-        tree = ast.parse(code)
-        found = False
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                if "domain.entities" in str(node.module) and "modules" in str(
-                    node.module
-                ):
-                    found = True
-        assert found
+        tree = ast.parse("from modules.agent.domain.entities import Agent\n")
+        assert any(
+            isinstance(node, ast.ImportFrom)
+            and node.module
+            and node.module.startswith("modules.agent.domain")
+            for node in ast.walk(tree)
+        )

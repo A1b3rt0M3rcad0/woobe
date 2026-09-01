@@ -14,9 +14,20 @@ from pathlib import Path
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-AGENT_MODELS = PROJECT_ROOT / "src" / "modules" / "agent" / "infra" / "database" / "models.py"
-MIGRATIONS_DIR = PROJECT_ROOT / "migrations" / "versions"
+AGENT_MODELS = (
+    PROJECT_ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "agent"
+    / "infra"
+    / "database"
+    / "models.py"
+)
+MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "migrations" / "versions"
 SCHEMA_ALLOWLIST_FILE = PROJECT_ROOT / "tests" / "architecture" / "legacy_schema_allowlist.yaml"
+AGENT_MODELS_RELATIVE = "packages/woobe-core/src/modules/agent/infra/database/models.py"
 
 LEGACY_SCHEMAS = {"ai", "knowledge", "runtime"}
 
@@ -52,12 +63,9 @@ def _load_schema_allowlist() -> set[tuple[str, str]]:
     if not SCHEMA_ALLOWLIST_FILE.exists():
         return set()
     with open(SCHEMA_ALLOWLIST_FILE, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+        data = yaml.safe_load(f) or {}
     entries = data.get("entries") or []
-    return {
-        (e["file_path"], e["line_pattern"])
-        for e in entries
-    }
+    return {(e["file_path"], e["line_pattern"]) for e in entries}
 
 
 class TestNoNewLegacySchemaReferences:
@@ -73,14 +81,13 @@ class TestNoNewLegacySchemaReferences:
         if not legacy_refs:
             return
         unlisted = set()
-        for r in legacy_refs:
+        for ref in legacy_refs:
             is_allowlisted = any(
-                allow_path == "src/modules/agent/infra/database/models.py"
-                and r in allow_pattern
+                allow_path == AGENT_MODELS_RELATIVE and ref in allow_pattern
                 for allow_path, allow_pattern in allowlist
             )
             if not is_allowlisted:
-                unlisted.add(r)
+                unlisted.add(ref)
         assert len(unlisted) == 0, (
             f"Unallowlisted legacy schema references: {unlisted}"
         )
@@ -91,8 +98,7 @@ class TestNoNewLegacySchemaReferences:
         for match in _LEGACY_TABLE_ARGS_PATTERN.finditer(text):
             schema = match.group(1)
             allowlisted = any(
-                allow_path == "src/modules/agent/infra/database/models.py"
-                and schema in allow_pattern
+                allow_path == AGENT_MODELS_RELATIVE and schema in allow_pattern
                 for allow_path, allow_pattern in allowlist
             )
             assert allowlisted, (
@@ -103,9 +109,7 @@ class TestNoNewLegacySchemaReferences:
 class TestLegacyForeignKeyReferences:
     """Guard: block new ForeignKey references to legacy schemas."""
 
-    MODELS_WITH_FK = [
-        PROJECT_ROOT / "src" / "modules" / "agent" / "infra" / "database" / "models.py",
-    ]
+    MODELS_WITH_FK = [AGENT_MODELS]
 
     def test_no_unallowlisted_legacy_fk_in_models(self):
         allowlist = _load_schema_allowlist()
@@ -115,10 +119,10 @@ class TestLegacyForeignKeyReferences:
             text = mod_path.read_text(encoding="utf-8")
             for match in _FK_LEGACY_PATTERN.finditer(text):
                 schema = match.group(1)
-                rel_path = str(mod_path.relative_to(PROJECT_ROOT)).replace("\\", "/")
+                rel_path = mod_path.relative_to(PROJECT_ROOT).as_posix()
                 allowlisted = any(
                     allow_path == rel_path
-                    for allow_path, allow_pattern in allowlist
+                    for allow_path, _allow_pattern in allowlist
                 )
                 assert allowlisted, (
                     f"New unallowlisted ForeignKey('{schema}.') in {rel_path}"
@@ -144,8 +148,8 @@ class TestAgentTableSchemaClassification:
 
     def test_no_legacy_schema_tables(self):
         legacy_tables = [
-            t for t, s in AGENT_TABLE_SCHEMAS.items()
-            if s in LEGACY_SCHEMAS
+            table for table, schema in AGENT_TABLE_SCHEMAS.items()
+            if schema in LEGACY_SCHEMAS
         ]
         assert len(legacy_tables) == 0, (
             f"Expected zero legacy schema tables, found {legacy_tables}"
@@ -165,14 +169,13 @@ class TestMigrationLegacySchemaGuard:
             return
         for py_file in sorted(MIGRATIONS_DIR.glob("*.py")):
             text = py_file.read_text(encoding="utf-8")
-            # Skip historical migrations (pre-consolidation)
             rev_match = re.search(r'revision\s*=\s*["\'](\d+)["\']', text)
             if rev_match:
                 rev_num = int(rev_match.group(1))
                 if rev_num <= 14:
                     continue
-            for match in self._LEGACY_MIGRATION_OP.finditer(text):
-                rel = str(py_file.relative_to(PROJECT_ROOT)).replace("\\", "/")
+            for _match in self._LEGACY_MIGRATION_OP.finditer(text):
+                rel = py_file.relative_to(PROJECT_ROOT).as_posix()
                 assert False, (
                     f"New migration {rel} creates objects in legacy schema (post-consolidation)"
                 )

@@ -4,11 +4,13 @@ from pathlib import Path
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_MODULES = PROJECT_ROOT / "src" / "modules"
+CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
+SRC_MODULES = CORE_SRC / "modules"
 ALLOWLIST_FILE = Path(__file__).resolve().parent / "legacy_import_allowlist.yaml"
 
 KNOWN_MODULES = {
-    d.name for d in SRC_MODULES.iterdir()
+    d.name
+    for d in SRC_MODULES.iterdir()
     if d.is_dir() and not d.name.startswith("_")
 }
 
@@ -17,16 +19,18 @@ def _load_allowlist(scope: str) -> set[tuple[str, str]]:
     if not ALLOWLIST_FILE.exists():
         return set()
     with open(ALLOWLIST_FILE, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
+        data = yaml.safe_load(f) or {}
     entries = data.get("entries") or []
     return {
-        (e["file"].replace("/", "\\").replace("\\", "/"), e["target_module"])
+        (e["file"].replace("\\", "/"), e["target_module"])
         for e in entries
         if e.get("scope") == scope
     }
 
 
-def _extract_cross_module_imports(file_path: Path, source_module: str) -> list[tuple[str, str]]:
+def _extract_cross_module_imports(
+    file_path: Path, source_module: str
+) -> list[tuple[str, str]]:
     try:
         source = file_path.read_text(encoding="utf-8")
         tree = ast.parse(source, filename=str(file_path))
@@ -53,6 +57,10 @@ def _extract_cross_module_imports(file_path: Path, source_module: str) -> list[t
 
 def _relative_posix(path: Path) -> str:
     return path.relative_to(PROJECT_ROOT).as_posix()
+
+
+def _repository_path(path_value: str) -> Path:
+    return PROJECT_ROOT.joinpath(*path_value.replace("\\", "/").split("/"))
 
 
 class TestModuleBoundaries:
@@ -88,7 +96,7 @@ class TestModuleBoundaries:
         module_entries = [e for e in entries if e.get("scope") == "module_boundaries"]
 
         for entry in module_entries:
-            file_path = PROJECT_ROOT / entry["file"].replace("/", "\\")
+            file_path = _repository_path(entry["file"])
             assert file_path.exists(), (
                 f"Allowlist references non-existent file: {entry['file']}"
             )
