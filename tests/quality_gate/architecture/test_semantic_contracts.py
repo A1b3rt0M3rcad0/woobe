@@ -6,10 +6,12 @@ from quality_gate.architecture.policy import load_policy
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 POLICY_SOURCE = PROJECT_ROOT / "quality_gate/architecture/policies/agent.toml"
+CORE_SOURCE = Path("packages/woobe-core/src")
 
 
 def _setup(tmp_path: Path) -> tuple[ArchitectureChecker, object, Path]:
-    module = tmp_path / "src/modules/agent"
+    source_root = tmp_path / CORE_SOURCE
+    module = source_root / "modules/agent"
     for layer in (
         "domain",
         "application/interfaces",
@@ -19,12 +21,12 @@ def _setup(tmp_path: Path) -> tuple[ArchitectureChecker, object, Path]:
         "composition/composers",
     ):
         (module / layer).mkdir(parents=True, exist_ok=True)
-    (tmp_path / "src/shared/contracts").mkdir(parents=True, exist_ok=True)
-    (tmp_path / "src/shared/infra/repositories").mkdir(parents=True, exist_ok=True)
-    (tmp_path / "src/shared/contracts/unit_of_work.py").write_text(
+    (source_root / "shared/contracts").mkdir(parents=True, exist_ok=True)
+    (source_root / "shared/infra/repositories").mkdir(parents=True, exist_ok=True)
+    (source_root / "shared/contracts/unit_of_work.py").write_text(
         "from abc import ABC\nclass UnitOfWork(ABC): pass\n", encoding="utf-8"
     )
-    (tmp_path / "src/shared/infra/repositories/base_repository.py").write_text(
+    (source_root / "shared/infra/repositories/base_repository.py").write_text(
         "class BaseSQLAlchemyRepository: pass\n", encoding="utf-8"
     )
     (module / "domain/entities.py").write_text("VALUE = 1\n", encoding="utf-8")
@@ -74,10 +76,11 @@ def test_strict_composer_rejects_framework_signature_control_flow_nested_defs_an
 
 def test_uow_contract_must_be_framework_neutral_and_transaction_only(tmp_path: Path) -> None:
     checker, policy, module = _setup(tmp_path)
-    shared_contract = tmp_path / "src/shared/contracts/unit_of_work.py"
+    source_root = tmp_path / CORE_SOURCE
+    shared_contract = source_root / "shared/contracts/unit_of_work.py"
     shared_contract.write_text("from sqlalchemy.ext.asyncio import AsyncSession\n", encoding="utf-8")
-    (tmp_path / "src/shared/infra/config/interface").mkdir(parents=True)
-    (tmp_path / "src/shared/infra/config/interface/unit_of_work.py").write_text("VALUE=1\n", encoding="utf-8")
+    (source_root / "shared/infra/config/interface").mkdir(parents=True)
+    (source_root / "shared/infra/config/interface/unit_of_work.py").write_text("VALUE=1\n", encoding="utf-8")
     (module / "infra/database/unit_of_work.py").write_text(
         "from modules.agent.infra.database.repositories import SQLAlchemyAgentRepository\n"
         "class AgentUnitOfWork:\n"

@@ -6,10 +6,15 @@ on:
       - development
       - master
     paths:
-      - "src/**"
+      - "packages/woobe-core/**"
+      - "packages/woobe-api/**"
+      - "packages/woobe-workers/**"
+      - "packages/woobe-db/**"
       - "quality_gate/**"
       - "tests/quality_gate/**"
+      - "tests/architecture/**"
       - "pyproject.toml"
+      - "pytest.ini"
       - "uv.lock"
       - ".github/workflows/quality-gate.yml"
   workflow_dispatch:

@@ -107,15 +107,15 @@ sqlalchemy_sources = ["infra/**"]
 
 [inbound_composition]
 rule_id = "ARCH070"
-source_root = "src"
+source_root = "packages"
 forbidden_imports = ["{package}.composition"]
 allowed_sources = []
 
 [module_api]
 rule_id = "ARCH071"
 source = [
-  "src/main.py",
-  "src/shared/workers/discovery.py",
+  "packages/woobe-api/src/main.py",
+  "packages/woobe-core/src/shared/workers/discovery.py",
 ]
 package = "{package}"
 allowed_imports = ["{package}.entrypoint"]

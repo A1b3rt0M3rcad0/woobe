@@ -4,9 +4,19 @@ import ast
 from pathlib import Path
 from typing import Any
 
-PROJECT_ROOT = Path(__file__).resolve().parents[5]
-AGENT_MODELS = PROJECT_ROOT / "src" / "modules" / "agent" / "infra" / "database" / "models.py"
-MIGRATIONS_DIR = PROJECT_ROOT / "migrations" / "versions"
+PROJECT_ROOT = Path(__file__).resolve().parents[7]
+AGENT_MODELS = (
+    PROJECT_ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "agent"
+    / "infra"
+    / "database"
+    / "models.py"
+)
+MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-db" / "migrations" / "versions"
 
 AGENT_SCHEMA_TABLES: dict[str, str] = {
     "provider_credentials": "agent",
@@ -29,6 +39,7 @@ AGENT_SCHEMA_TABLES: dict[str, str] = {
     "agent_outbox_events": "agent",
     "agent_inbox_events": "agent",
 }
+
 
 def collect_current_schema_assignments() -> dict[str, str]:
     """Read models.py and return {tablename: schema} from __table_args__."""
@@ -123,9 +134,7 @@ def check_target_table_conflicts() -> list[str]:
     Returns list of unexpected table names found in agent schema.
     """
     assignments = collect_current_schema_assignments()
-    expected_agent_tables = {
-        t for t, s in assignments.items() if s == "agent"
-    }
+    expected_agent_tables = {t for t, s in assignments.items() if s == "agent"}
     canonical_agent = set(AGENT_SCHEMA_TABLES.keys())
     unexpected = expected_agent_tables - canonical_agent
     return list(unexpected)

@@ -1,6 +1,6 @@
 [runtime_transaction_boundaries]
-module_root = "src/modules/agent"
-resources_file = "src/modules/agent/composition/resources.py"
+module_root = "packages/woobe-core/src/modules/agent"
+resources_file = "packages/woobe-core/src/modules/agent/composition/resources.py"
 uow_type = "AgentUnitOfWork"
 engine_resource = "DATABASE_ENGINE"
 long_lived_annotation = "Callable"

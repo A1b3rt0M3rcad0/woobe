@@ -38,9 +38,9 @@ jobs:
           --build-arg VITE_API_URL=http://127.0.0.1:8000
           --build-arg VITE_CHAT_EMBED_URL=http://127.0.0.1:8081
           --build-arg VITE_WOOBE_EDITION=community
-          --tag woobe-web:ci web
+          --tag woobe-web:ci packages/woobe-frontend
       - name: Build ChatSurface image
-        run: docker build --pull --no-cache --tag woobe-chat-embed:ci embed
+        run: docker build --pull --no-cache --tag woobe-chat-embed:ci packages/woobe-frontend/embed
       - name: Require non-root runtime users
         run: |
           set -euo pipefail

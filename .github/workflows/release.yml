@@ -42,7 +42,7 @@ jobs:
       - name: Build and push Web reference image
         uses: docker/build-push-action@v6
         with:
-          context: web
+          context: packages/woobe-frontend
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
@@ -53,7 +53,7 @@ jobs:
       - name: Build and push ChatSurface
         uses: docker/build-push-action@v6
         with:
-          context: embed
+          context: packages/woobe-frontend/embed
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/woobe-chat-embed:${{ inputs.version }}

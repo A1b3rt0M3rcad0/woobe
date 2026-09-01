@@ -1,7 +1,7 @@
 [transaction_ownership]
-module_root = "src/modules/agent"
-uow_file = "src/modules/agent/infra/database/unit_of_work.py"
-resources_file = "src/modules/agent/composition/resources.py"
+module_root = "packages/woobe-core/src/modules/agent"
+uow_file = "packages/woobe-core/src/modules/agent/infra/database/unit_of_work.py"
+resources_file = "packages/woobe-core/src/modules/agent/composition/resources.py"
 process_resources = ["SETTINGS", "DATABASE_ENGINE", "FILE_STORAGE"]
 forbidden_database_facades = [
   "AgentDatabase",

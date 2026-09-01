@@ -1,6 +1,6 @@
 [module]
 name = "agent"
-root = "src/modules/agent"
+root = "packages/woobe-core/src/modules/agent"
 package = "modules.agent"
 required_layers = ["domain", "application", "infra", "presentation", "composition"]
 
@@ -64,7 +64,7 @@ forbidden_module_level_calls = [
 ]
 
 [unit_of_work_contract]
-interface_files = ["src/shared/contracts/unit_of_work.py"]
+interface_files = ["packages/woobe-core/src/shared/contracts/unit_of_work.py"]
 deprecated_interface_files = []
 concrete_sources = ["infra/database/unit_of_work.py"]
 forbidden_interface_imports = [
