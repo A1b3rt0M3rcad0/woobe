@@ -2,7 +2,7 @@ import ast
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_MODULES = PROJECT_ROOT / "src" / "modules"
+SRC_MODULES = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules"
 MODULES = ["agent", "billing", "core", "identity", "metering", "observability", "tools"]
 
 
@@ -104,11 +104,11 @@ class TestDatabaseOwnership:
         )
 
     def test_no_legacy_schema_fk_in_agent_models(self):
-        text = Path("src/modules/agent/infra/database/models.py").read_text(
-            encoding="utf-8"
-        )
+        models_path = SRC_MODULES / "agent" / "infra" / "database" / "models.py"
+        text = models_path.read_text(encoding="utf-8")
         if '"ai.' in text or '"knowledge.' in text or '"runtime.' in text:
             import warnings
+
             warnings.warn(
                 "CRITICAL: Agent models still contain legacy schema FK references "
                 "(ai/knowledge/runtime). These must be migrated to 'agent' schema."
