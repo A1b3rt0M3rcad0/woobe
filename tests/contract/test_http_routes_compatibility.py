@@ -10,7 +10,8 @@ import ast
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_MODULES = PROJECT_ROOT / "src" / "modules"
+CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
+SRC_MODULES = CORE_SRC / "modules"
 
 REQUIRED_PRESENTATION_FILES = {"routes.py", "schemas.py"}
 OPTIONAL_PRESENTATION_FILES = {"mappers.py"}
