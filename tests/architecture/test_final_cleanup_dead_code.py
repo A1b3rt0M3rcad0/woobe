@@ -3,6 +3,13 @@
 import ast
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[2]
+CORE_SRC = ROOT / "packages" / "woobe-core" / "src"
+PYTHON_SOURCE_ROOTS = (
+    CORE_SRC,
+    ROOT / "packages" / "woobe-api" / "src",
+    ROOT / "packages" / "woobe-workers" / "src",
+)
 LEGACY_MODULES = {"ai", "knowledge", "runtime"}
 AUTOGEN_PARTS = {"__pycache__", ".pytest_cache", ".venv", ".git"}
 CANONICAL_MODULES = {"agent", "billing", "core", "identity", "metering", "observability"}
@@ -26,34 +33,45 @@ def _imports(path: Path) -> list[str]:
     return imports
 
 
+def _python_files() -> list[Path]:
+    files: list[Path] = []
+    for source_root in PYTHON_SOURCE_ROOTS:
+        if source_root.is_dir():
+            files.extend(source_root.rglob("*.py"))
+    return files
+
+
 class TestFinalCleanupDeadCode:
     def test_no_imports_from_removed_modules(self):
         violations = []
-        for py_file in Path("src").rglob("*.py"):
+        for py_file in _python_files():
             if _is_autogen(py_file):
                 continue
             for module in _imports(py_file):
                 parts = module.split(".")
                 if len(parts) >= 2 and parts[0] == "modules" and parts[1] in LEGACY_MODULES:
-                    violations.append(f"{py_file}: {module}")
+                    violations.append(f"{py_file.relative_to(ROOT)}: {module}")
         assert not violations, "Imports from removed modules:\n" + "\n".join(violations)
 
     def test_no_orphan_package_markers(self):
         orphaned = []
-        for init_file in Path("src").rglob("__init__.py"):
-            if _is_autogen(init_file) or init_file.read_text(encoding="utf-8").strip():
+        for source_root in PYTHON_SOURCE_ROOTS:
+            if not source_root.is_dir():
                 continue
-            siblings = [
-                child for child in init_file.parent.iterdir()
-                if child.name != "__init__.py" and child.name != "__pycache__"
-            ]
-            if not siblings:
-                orphaned.append(str(init_file))
+            for init_file in source_root.rglob("__init__.py"):
+                if _is_autogen(init_file) or init_file.read_text(encoding="utf-8").strip():
+                    continue
+                siblings = [
+                    child for child in init_file.parent.iterdir()
+                    if child.name != "__init__.py" and child.name != "__pycache__"
+                ]
+                if not siblings:
+                    orphaned.append(init_file.relative_to(ROOT).as_posix())
         assert not orphaned, f"Orphaned __init__.py files: {orphaned}"
 
     def test_no_duplicate_public_top_level_definitions_in_agent_layers(self):
         duplicates = []
-        agent_dir = Path("src/modules/agent")
+        agent_dir = CORE_SRC / "modules" / "agent"
         for layer_name in ("domain", "application", "infra", "presentation"):
             layer_dir = agent_dir / layer_name
             definitions: dict[str, str] = {}
@@ -69,26 +87,28 @@ class TestFinalCleanupDeadCode:
                         continue
                     if node.name.startswith("_"):
                         continue
+                    current = py_file.relative_to(ROOT).as_posix()
                     previous = definitions.get(node.name)
-                    if previous and previous != str(py_file):
+                    if previous and previous != current:
                         duplicates.append(
-                            f"{layer_name}: {node.name} in {previous} and {py_file}"
+                            f"{layer_name}: {node.name} in {previous} and {current}"
                         )
-                    definitions[node.name] = str(py_file)
+                    definitions[node.name] = current
         assert not duplicates, f"Duplicate public top-level definitions: {duplicates}"
 
     def test_canonical_modules_and_agent_layers_exist(self):
+        modules_dir = CORE_SRC / "modules"
         actual = {
-            path.name for path in Path("src/modules").iterdir()
+            path.name for path in modules_dir.iterdir()
             if path.is_dir() and not path.name.startswith("_")
         }
         assert CANONICAL_MODULES.issubset(actual)
         assert "tools" not in actual, "Tools are consolidated into the agent bounded context"
         for layer in ("domain", "application", "infra", "presentation"):
-            assert Path(f"src/modules/agent/{layer}").is_dir()
+            assert (modules_dir / "agent" / layer).is_dir()
 
     def test_shared_layer_exists(self):
-        assert Path("src/shared").is_dir()
+        assert (CORE_SRC / "shared").is_dir()
 
 
 class TestFinalCleanupDetectionFixtures:

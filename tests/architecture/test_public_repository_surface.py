@@ -6,6 +6,17 @@ ROOT = Path(__file__).resolve().parents[2]
 CANONICAL_TEST_COMMAND = (
     "docker compose -f compose.test.yaml up --build --exit-code-from tests tests"
 )
+PACKAGE_ROOTS = {
+    "woobe-core",
+    "woobe-api",
+    "woobe-workers",
+    "woobe-frontend",
+    "woobe-db",
+    "woobe-ee",
+    "woobe-testkit",
+    "woobe-mock",
+    "woobe-e2e",
+}
 
 
 def test_internal_workspace_artifacts_are_not_part_of_public_head() -> None:
@@ -21,12 +32,21 @@ def test_internal_workspace_artifacts_are_not_part_of_public_head() -> None:
         assert not (ROOT / path).exists(), path
 
 
-def test_proprietary_editions_are_not_distributed_in_community_head() -> None:
+def test_package_workspace_is_the_public_source_surface() -> None:
+    packages = ROOT / "packages"
+    assert packages.is_dir()
+    actual = {path.name for path in packages.iterdir() if path.is_dir()}
+    assert PACKAGE_ROOTS.issubset(actual)
+
+    for removed_root in ("src", "web", "embed", "migrations"):
+        assert not (ROOT / removed_root).exists(), removed_root
+
+
+def test_enterprise_boundary_contains_no_proprietary_runtime_code() -> None:
+    ee = ROOT / "packages/woobe-ee"
+    assert (ee / "README.md").is_file()
+    assert not (ee / "src").exists()
     for path in (
-        "src/editions/cloud",
-        "web/src/editions/cloud",
-        "src/editions/enterprise",
-        "web/src/editions/enterprise",
         "LICENSE-CLOUD.md",
         "LICENSE-ENTERPRISE.md",
     ):
@@ -88,7 +108,7 @@ def test_test_topology_is_backend_only_and_shell_independent() -> None:
     assert "scripts/test.sh" not in workflow
 
 
-def test_backend_test_images_are_explicit_and_scoped_to_community_backend() -> None:
+def test_backend_test_images_are_explicit_and_package_aware() -> None:
     mocked = ROOT / "docker/tests/Dockerfile.backend-mocked"
     integration = ROOT / "docker/tests/Dockerfile.backend-integration"
     assert mocked.is_file()
@@ -100,6 +120,9 @@ def test_backend_test_images_are_explicit_and_scoped_to_community_backend() -> N
 
     mocked_text = mocked.read_text(encoding="utf-8")
     assert "python -m pytest -q tests/unit tests/fakes/test_openai_provider.py" in mocked_text
+    assert "packages/woobe-core/src" in mocked_text
+    assert "packages/woobe-api/src" in mocked_text
+    assert "packages/woobe-workers/src" in mocked_text
     assert "test_billing" not in mocked_text
     for excluded in (
         "tests/modules",
@@ -111,7 +134,7 @@ def test_backend_test_images_are_explicit_and_scoped_to_community_backend() -> N
         assert excluded not in mocked_text
 
     integration_text = integration.read_text(encoding="utf-8")
-    assert "alembic upgrade head" in integration_text
+    assert "alembic -c packages/woobe-db/alembic.ini upgrade head" in integration_text
     assert "python -m pytest -q tests/integration" in integration_text
     assert "tests/integration/billing" not in integration_text
     assert "tests/editions" not in integration_text
@@ -137,12 +160,14 @@ def test_runtime_documentation_uses_durable_product_paths() -> None:
         assert (ROOT / path).is_file(), path
 
 
-def test_manual_workflow_surface_is_consolidated() -> None:
+def test_workflow_surface_matches_repository_contracts() -> None:
     workflow_dir = ROOT / ".github/workflows"
     actual = {path.name for path in workflow_dir.glob("*.yml")}
     assert actual == {
         "acceptance.yml",
+        "cla.yml",
         "containers.yml",
+        "quality-gate.yml",
         "release.yml",
         "security.yml",
         "tests.yml",

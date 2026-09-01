@@ -1,55 +1,68 @@
-"""Architecture tests for spec 061 — remove domain worker implementation from src/workers.
+"""Architecture tests for the worker package cutover.
 
-Updated for spec 152: src/workers/ has been fully removed. Verifies that no
-concrete workers or domain implementations exist at the root workers path.
+The legacy root src/workers package stays removed. Process bootstrap lives in
+packages/woobe-workers, while concrete domain workers remain owned by Core
+modules under modules/<module>/infra/workers.
 """
+import ast
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-SRC_WORKERS = ROOT / "src" / "workers"
+CORE_SRC = ROOT / "packages" / "woobe-core" / "src"
+API_SRC = ROOT / "packages" / "woobe-api" / "src"
+WORKER_SRC = ROOT / "packages" / "woobe-workers" / "src"
+PRODUCTION_ROOTS = (CORE_SRC, API_SRC, WORKER_SRC)
+LEGACY_SRC_WORKERS = ROOT / "src" / "workers"
 
 
-def test_remove_domain_worker_implementation_from_src_workers_success():
-    """Verify src/workers/ directory no longer exists (fully removed in spec 152)."""
-    assert not SRC_WORKERS.exists(), (
-        "src/workers/ must not exist after spec 152 removal. "
-        "Concrete workers belong in src/modules/<module>/infra/workers/."
+def test_legacy_root_worker_package_is_removed():
+    assert not LEGACY_SRC_WORKERS.exists(), (
+        "Legacy src/workers must remain removed. Process bootstrap belongs to "
+        "packages/woobe-workers and concrete workers belong to woobe-core modules."
     )
 
 
-def test_remove_domain_worker_implementation_from_src_workers_rejects_forbidden_dependency():
-    """Verify no module imports from the (now removed) workers package."""
-    import ast
+def test_worker_process_package_exists():
+    assert WORKER_SRC.is_dir(), "packages/woobe-workers/src must exist"
+    assert (WORKER_SRC / "worker_main.py").is_file(), (
+        "woobe-workers must own the worker process composition root"
+    )
 
+
+def test_no_production_package_imports_removed_workers_namespace():
     violations = []
-    for py_file in pathlib.Path("src").rglob("*.py"):
-        if "__pycache__" in str(py_file):
+    for base in PRODUCTION_ROOTS:
+        if not base.is_dir():
             continue
-        try:
-            source = py_file.read_text(encoding="utf-8", errors="replace")
-        except Exception:
-            continue
-        try:
-            tree = ast.parse(source)
-        except SyntaxError:
-            continue
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                if node.module == "workers" or node.module.startswith("workers."):
-                    violations.append(f"{py_file}: from {node.module}")
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name == "workers" or alias.name.startswith("workers."):
-                        violations.append(f"{py_file}: import {alias.name}")
+        for py_file in base.rglob("*.py"):
+            if "__pycache__" in str(py_file):
+                continue
+            try:
+                tree = ast.parse(
+                    py_file.read_text(encoding="utf-8", errors="replace")
+                )
+            except (OSError, SyntaxError):
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.ImportFrom) and node.module:
+                    if node.module == "workers" or node.module.startswith("workers."):
+                        violations.append(
+                            f"{py_file.relative_to(ROOT)}: from {node.module}"
+                        )
+                elif isinstance(node, ast.Import):
+                    for alias in node.names:
+                        if alias.name == "workers" or alias.name.startswith("workers."):
+                            violations.append(
+                                f"{py_file.relative_to(ROOT)}: import {alias.name}"
+                            )
 
     assert violations == [], (
-        f"Live imports from removed workers package found: {violations}"
+        f"Live imports from removed workers namespace found: {violations}"
     )
 
 
-def test_remove_domain_worker_implementation_from_src_workers_keeps_legacy_compatibility():
-    """Verify shared.workers.runner is still available as the central runner."""
-    shared_runner = ROOT / "src" / "shared" / "workers" / "runner.py"
+def test_shared_worker_runner_remains_in_core():
+    shared_runner = CORE_SRC / "shared" / "workers" / "runner.py"
     assert shared_runner.is_file(), (
-        "shared.workers.runner must exist after src/workers removal"
+        "shared.workers.runner must remain available from woobe-core"
     )
