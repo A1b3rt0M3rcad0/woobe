@@ -1,8 +1,6 @@
 # Woobe licensing model
 
-Woobe has two product boundaries: **Core** and **Enterprise**.
-
-There is no separate Woobe Cloud edition in this model. Woobe Core is the source-available, self-hostable product surface in this repository. Enterprise is a separately licensed extension boundary.
+Woobe has two software boundaries: **Core** and **Enterprise**.
 
 `LICENSE.md` is the controlling legal text for Woobe Core. This document explains the intended boundary in practical terms and does not replace the license.
 
@@ -16,51 +14,51 @@ Core includes the first-party product packages:
 - `packages/woobe-frontend`
 - `packages/woobe-embed`
 
-Core is intended for real production use. A person or company may self-host it, run it internally, modify it privately and use it as infrastructure behind a separate commercial product.
+Core is source-available and self-hostable. A person or company may run it internally, use it in production, maintain private modifications and use it as infrastructure behind a separate commercial product.
 
-Examples of permitted Core use include operating Agents and Agent Networks for an internal product, exposing product functionality through Runtime APIs, embedding ChatSurface inside a separate application, maintaining a private fork for internal needs, and charging for consulting or implementation around a customer's own permitted deployment.
+Examples include operating Agents and Agent Networks for an internal product, exposing functionality through Runtime APIs, embedding ChatSurface inside a separate application, and charging for consulting or implementation around a customer's own permitted Core deployment.
 
 ## The commercial boundary
 
-The central rule is that Woobe Core may power your product, but Woobe itself may not be repackaged as the product you sell without a separate written commercial agreement.
+Woobe Core may power your product, but the Woobe system itself may not become the product or service you commercially supply without a separate written agreement.
 
 | Scenario | Core license intent |
 | --- | --- |
 | Internal company deployment | Permitted |
 | Private modified fork used internally | Permitted |
-| Woobe Core powers a separate SaaS feature or product outcome | Permitted when customers are buying the separate product/outcome |
+| Core powers a separate SaaS feature or product outcome | Permitted when customers buy the separate product/outcome |
 | Customer-facing application uses Runtime APIs or ChatSurface | Permitted under the license conditions |
 | Consultant installs or supports Core for the customer's own deployment | Permitted; professional services may be charged |
 | Fork is renamed and sold as an AI-agent/control-plane product | Separate written commercial agreement required |
 | Fork is white-labeled or OEM-resold | Separate written commercial agreement required |
 | Customers pay for hosted access to the Woobe control plane itself | Separate written commercial agreement required |
-| Woobe Core is commercially redistributed as the supplied product, image, package or appliance | Separate written commercial agreement required |
+| Core is commercially redistributed as the supplied product, image, package or appliance | Separate written commercial agreement required |
 
-Changing the name, logo, colors, interface, packaging, domain or hosting model does not change this boundary. A rebranded copy is still subject to the Core software license.
+Changing the name, logo, colors, interface, packaging, domain or hosting model does not change this boundary. A rebranded copy remains subject to the Core software license.
 
 ## Brand and trademark boundary
 
 The software license and trademark policy are separate.
 
-The Woobe name, logo and distinctive brand assets identify the official Woobe product. The Core license does not grant the right to market a commercial hosted service, managed service, fork or derivative product under the Woobe name.
+The Woobe name, logo and distinctive brand assets identify official Woobe products and authorized services. The Core license does not grant the right to market a commercial hosted service, managed service, fork or derivative product under the Woobe brand.
 
-Accurate nominative references such as “built with Woobe”, “compatible with Woobe” or “forked from Woobe” are allowed when truthful and when they do not imply sponsorship or official status.
+Accurate nominative references such as “built with Woobe”, “compatible with Woobe” or “forked from Woobe” are permitted when truthful and when they do not imply sponsorship or official status.
 
 See `TRADEMARKS.md`.
 
 ## Enterprise
 
-`packages/woobe-ee` is the Enterprise boundary. It is not part of the Core license grant.
+`packages/woobe-ee` is the Enterprise boundary and is not part of the Core license grant.
 
-At the current project stage the package is only a reserved boundary and contains no Enterprise feature implementation. Future Enterprise implementation requires a valid Enterprise license or other written agreement from Woobe. See `LICENSE_EE.md`.
+At the current project stage the package is a reserved boundary. Enterprise implementation requires a valid Enterprise license or other written agreement from Woobe. See `LICENSE_EE.md`.
 
 ## Third-party software
 
-Third-party dependencies remain governed by their original licenses. Woobe's Core or Enterprise terms do not replace third-party obligations. See `THIRD_PARTY_NOTICES.md` and `NOTICE.md`.
+Third-party dependencies remain governed by their original licenses. Woobe's software terms do not replace third-party obligations. See `THIRD_PARTY_NOTICES.md` and `NOTICE.md`.
 
 ## Contributions
 
-External contributions are accepted under `CONTRIBUTOR_LICENSE_AGREEMENT.md`. The CLA allows Woobe to use and relicense contributed code so Core can remain source-available while Enterprise can remain separately licensed.
+External contributions are accepted under `CONTRIBUTOR_LICENSE_AGREEMENT.md`. The CLA allows Woobe to use and relicense contributed code across Core and separately licensed Enterprise distributions.
 
 ## Release status
 

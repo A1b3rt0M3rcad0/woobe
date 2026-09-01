@@ -1,6 +1,6 @@
 # Woobe Trademark Policy
 
-The **Woobe** name, Woobe logo, product marks, visual identity and other distinctive brand assets identify the official Woobe product and services authorized by Woobe.
+The **Woobe** name, Woobe logo, product marks, visual identity and other distinctive brand assets identify official Woobe products and services authorized by Woobe.
 
 The Core software license does **not** grant a general trademark, service-mark or branding license.
 
@@ -21,7 +21,7 @@ Without written authorization from Woobe, you may not:
 
 - use **Woobe** or a confusingly similar name as the name or primary branding of a commercial hosted service, managed service, fork, derivative platform or competing control plane;
 - use the Woobe logo or distinctive Woobe visual identity as the primary identity of a third-party product or service;
-- advertise a service as “Woobe Cloud”, “Woobe Hosted”, “Woobe Enterprise”, “Official Woobe” or another formulation that implies the service is operated, licensed or endorsed by Woobe;
+- advertise a service as “Official Woobe”, “Woobe Hosted”, “Managed Woobe” or another formulation that implies the service is operated, licensed or endorsed by Woobe;
 - use Woobe branding in a domain name, package name, container image namespace, marketplace listing or social account in a way that implies official ownership or sponsorship;
 - present a modified build or fork as an official Woobe distribution;
 - remove or alter attribution in a way that misrepresents the origin of the software.
@@ -34,7 +34,7 @@ Trademark permission and software permission are independent.
 
 Using your own name or logo does **not** authorize commercial resale, white-labeling, OEM supply or hosted sale of the Woobe system when that activity is restricted by `LICENSE.md`. A rebranded Woobe control plane remains subject to the Core software license.
 
-Likewise, permission to use Woobe software does not grant permission to market your own service under the Woobe brand.
+Likewise, permission to use Woobe Core does not grant permission to market a third-party commercial service under the Woobe brand.
 
 ## Enterprise
 

@@ -1,11 +1,11 @@
 # GitHub repository automation
 
-`.github/` contains GitHub-specific repository metadata and automation. Changes here can alter pull-request policy, CI behavior, security validation and release mechanics even though this directory contains no product runtime code.
+`.github/` contains GitHub-specific repository metadata and automation. Changes here can alter pull-request policy, CI behavior, security validation, contribution acceptance and release mechanics even though this directory contains no product runtime code.
 
 ## Contents
 
-- `workflows/` — GitHub Actions workflows for backend tests, Acceptance, Quality Gate, Container Quality, Security, CLA validation and Community image release.
+- `workflows/` — GitHub Actions workflows for backend tests, Acceptance, Quality Gate, Container Quality, Security, CLA validation and Core image release.
 - `ISSUE_TEMPLATE/` — structured issue templates.
-- `PULL_REQUEST_TEMPLATE.md` — canonical pull-request checklist and contribution metadata.
+- `PULL_REQUEST_TEMPLATE.md` — canonical pull-request checklist, product/license impact and contribution metadata.
 
-Workflows should invoke repository-owned scripts and documented validation contracts rather than embedding a second implementation of those contracts. CI changes must preserve branch, security and release invariants explicitly.
+Workflows should invoke repository-owned scripts and documented validation contracts rather than embedding a second implementation of those contracts. CI changes must preserve branch, security, licensing and release invariants explicitly.

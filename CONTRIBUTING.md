@@ -16,12 +16,10 @@ Recommended branch prefixes: `feature/`, `fix/`, `chore/`, `docs/` and `ci/`.
 
 ## Product boundaries
 
-Woobe has two product boundaries:
+Woobe has two software boundaries:
 
 - **Core** — source-available product code under `packages/woobe-core`, `packages/woobe-api`, `packages/woobe-workers`, `packages/woobe-frontend` and `packages/woobe-embed`.
 - **Enterprise** — separately licensed boundary under `packages/woobe-ee`.
-
-There is no Community/Cloud edition split in the current product model.
 
 External contributions should target Core unless a maintainer explicitly requests an Enterprise-boundary change. Do not add Enterprise implementation to Core packages or make Core depend on Enterprise code.
 
@@ -29,7 +27,7 @@ See `LICENSE.md`, `LICENSE_EE.md` and `LICENSING.md` before changing edition bou
 
 ## Repository architecture
 
-The commercial account boundary is Organization. Project is the primary technical isolation boundary. Production runtime must use immutable Agent Releases or Network Releases rather than mutable Draft state.
+Organization is the commercial account boundary. Project is the primary technical isolation boundary. Production runtime must use immutable Agent Releases or Network Releases rather than mutable Draft state.
 
 The repository has three main code/validation concerns:
 
@@ -49,13 +47,13 @@ Do not combine unrelated refactors with a feature or fix. Avoid helpers, reexpor
 
 Critical rules belong in the backend. Frontend checks must not be the only barrier for ownership, permissions, release immutability, rollback, document uniqueness, credential security or runtime authorization.
 
-## Licensing and brand changes
+## Licensing, brand and third-party changes
 
 Changes that touch licensing, Enterprise boundaries, notices, container distribution, package metadata, repository branding or Woobe trademarks require explicit review.
 
 Do not add third-party code, assets, images or generated material without clear provenance and license compatibility. Update `THIRD_PARTY_NOTICES.md` when a distributed dependency creates attribution or notice obligations.
 
-Do not place Woobe logos or brand assets under a permissive software license by implication. Brand use is governed separately by `TRADEMARKS.md`.
+Brand assets are governed separately by `TRADEMARKS.md`; do not assume the software license grants rights to reuse Woobe branding.
 
 ## Quality
 

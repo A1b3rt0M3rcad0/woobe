@@ -2,7 +2,7 @@
 
 **Build, deploy and operate AI agents like production software.**
 
-Woobe is an **API-first, source-available platform for building and operating Agents and Agent Networks in production**. Version prompts, models, tools and knowledge; promote changes through controlled environments; publish immutable releases; execute through a production runtime; and trace exactly what happened.
+Woobe is an **API-first, source-available control plane and runtime for building and operating Agents and Agent Networks in production**. Version prompts, models, tools and knowledge; validate changes through controlled environments; publish immutable releases; execute through a production runtime; and trace exactly what happened.
 
 Woobe sits between your application and the AI execution layer so your product does not have to become its own agent platform.
 
@@ -18,7 +18,7 @@ Woobe sits between your application and the AI execution layer so your product d
 - **Knowledge / RAG** — Organize Project knowledge with Collections and Documents and preserve exact indexed knowledge state through Vector Snapshots.
 - **Tools & Providers** — Connect external capabilities through HTTP and MCP while keeping credentials and execution policy server-side.
 - **ChatSurface** — Publish released Agents and Networks through an independently deployable browser-facing conversational surface.
-- **Self-Hostable** — Run Woobe Community on your own infrastructure without requiring a Woobe Cloud account.
+- **Self-Hostable Core** — Run Woobe Core on your own infrastructure.
 
 ## From Draft to Production
 
@@ -61,7 +61,7 @@ Production execution is release-based. Mutable Draft configuration should never 
 
 ## Quick Start
 
-Woobe Community's supported self-host topology is the root `compose.yaml`.
+Woobe Core's supported self-host topology is the root `compose.yaml`.
 
 Requirements:
 
@@ -85,8 +85,6 @@ For public exposure, TLS, secrets, backup, restore and upgrade requirements, see
 
 ## Repository
 
-Woobe separates production artifacts from engineering tooling and system-level validation:
-
 ```text
 packages/   product and distributable artifacts
 tooling/    development and architecture tooling
@@ -98,7 +96,7 @@ deploy/     optional deployment overlays
 .github/    GitHub workflows and repository automation
 ```
 
-Product packages currently include:
+Product packages:
 
 ```text
 packages/
@@ -112,7 +110,7 @@ packages/
 
 `woobe-core` is the product Core. API and Workers may depend on Core; Core must not depend on API, Workers, Enterprise implementation or engineering tooling.
 
-See [`packages/README.md`](packages/README.md), [`tooling/README.md`](tooling/README.md), [`tests/README.md`](tests/README.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the detailed boundaries.
+See [`packages/README.md`](packages/README.md), [`tooling/README.md`](tooling/README.md), [`tests/README.md`](tests/README.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
 ## Resources
 
@@ -123,56 +121,41 @@ See [`packages/README.md`](packages/README.md), [`tooling/README.md`](tooling/RE
 - [Architecture Decision Records](docs/adr/)
 - [Security](SECURITY.md)
 - [Contributing](CONTRIBUTING.md)
+- [Licensing model](LICENSING.md)
 - [Public release checklist](docs/PUBLIC_RELEASE_CHECKLIST.md)
-
-## Project Status
-
-Woobe is currently pre-release. The repository architecture, self-host contract and product boundaries are being stabilized before the first public Community release.
-
-The integration branch is `master`. Feature and fix branches should start from `master` and target `master` through focused pull requests.
 
 ## Licensing
 
-Woobe uses explicit product boundaries. **Do not assume that every current or future Woobe edition is covered by the same license.**
+Woobe has two explicit software boundaries: **Core** and **Enterprise**.
 
-### Community / Core packages
+### Core
 
-The following product packages are part of the Woobe Community/Core distribution and are governed by the **Woobe Sustainable Use License 1.0** in [`LICENSE.md`](LICENSE.md), except for any individual third-party component or file that carries its own license notice:
+The following packages are licensed under the **Woobe Core Sustainable Use License 1.0** in [`LICENSE.md`](LICENSE.md), except third-party components or files carrying their own license notice:
 
-| Package | Product role | License |
+| Package | Role | License |
 | --- | --- | --- |
-| `packages/woobe-core` | Community/Core bounded contexts, runtime contracts, shared infrastructure and migrations | **Woobe Sustainable Use License 1.0** |
-| `packages/woobe-api` | Community HTTP/API process | **Woobe Sustainable Use License 1.0** |
-| `packages/woobe-workers` | Community worker process | **Woobe Sustainable Use License 1.0** |
-| `packages/woobe-frontend` | Community administrative control-plane frontend | **Woobe Sustainable Use License 1.0** |
-| `packages/woobe-embed` | Community ChatSurface browser artifact | **Woobe Sustainable Use License 1.0** |
+| `packages/woobe-core` | Product Core, bounded contexts, runtime contracts and migrations | **Woobe Core Sustainable Use License 1.0** |
+| `packages/woobe-api` | API process | **Woobe Core Sustainable Use License 1.0** |
+| `packages/woobe-workers` | Worker process | **Woobe Core Sustainable Use License 1.0** |
+| `packages/woobe-frontend` | Administrative control-plane frontend | **Woobe Core Sustainable Use License 1.0** |
+| `packages/woobe-embed` | ChatSurface browser artifact | **Woobe Core Sustainable Use License 1.0** |
 
-The Woobe Sustainable Use License is **source-available, not OSI Open Source**. It permits self-hosting, internal production use, permitted private modifications, use as infrastructure behind a separate commercial product, and other uses expressly granted by the license. It restricts commercial resale, white-label/OEM supply, or hosted/managed access where the primary or substantial value being sold is the Woobe control plane itself, unless Woobe grants a separate written commercial agreement.
+Core is source-available and self-hostable. It may be used internally and may power a separate commercial product. The license does **not** allow Woobe itself, a rebranded fork, or substantially equivalent Woobe control-plane functionality to be commercially resold, white-labeled, OEM-supplied or offered as the product/service being sold without a separate written agreement.
 
-[`LICENSE.md`](LICENSE.md) is the controlling legal text for those Community/Core packages. [`LICENSING.md`](LICENSING.md) is an explanatory guide and does not replace the license.
+### Enterprise
 
-### Enterprise boundary — `packages/woobe-ee`
+`packages/woobe-ee` is the separately licensed Enterprise boundary. It is not covered by the Core license grant. See [`LICENSE_EE.md`](LICENSE_EE.md).
 
-`packages/woobe-ee` is currently a **reserved product boundary only**. Woobe Enterprise is not currently implemented or distributed, and **there is no Enterprise source license defined at this time**.
+### Brand and third-party software
 
-Do not interpret the presence of `packages/woobe-ee` as granting rights to any future Enterprise implementation. If Enterprise capabilities are introduced, their source, distribution and commercial terms must be defined explicitly and separately at that time.
+The software license does not grant a general right to use the Woobe name, logo or brand for a third-party commercial service. See [`TRADEMARKS.md`](TRADEMARKS.md).
 
-### Woobe Cloud
+Third-party software remains governed by its original licenses. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and [`NOTICE.md`](NOTICE.md).
 
-Woobe Cloud is a **proprietary Woobe-managed product**. Proprietary Cloud implementation is not distributed in this repository or in the Community build context, and the Community/Core license grants no rights to proprietary Woobe Cloud implementation.
-
-### Third-party software, notices and trademarks
-
-Third-party dependencies remain governed by their own licenses; the Woobe Sustainable Use License does not replace or modify those terms. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and [`NOTICE.md`](NOTICE.md) for applicable notices.
-
-No trademark license is granted beyond the rights expressly described by the project terms. See [`TRADEMARKS.md`](TRADEMARKS.md).
-
-For the practical distinction between permitted internal/commercial-product use and restricted resale of the Woobe control plane, read [`LICENSING.md`](LICENSING.md).
-
-> **Pre-release legal status:** `LICENSE.md` is the active Community/Core license text in this repository, but the public release remains subject to the legal and release gates documented in [`docs/PUBLIC_RELEASE_CHECKLIST.md`](docs/PUBLIC_RELEASE_CHECKLIST.md). Qualified legal review is still required before public or commercial reliance.
+[`LICENSING.md`](LICENSING.md) explains the practical boundary between using Core to power your own product and reselling the Woobe system itself.
 
 ## Contributing
 
-Found a bug, want to improve the product, or want to propose a change? Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request.
+The integration branch is `master`. Feature and fix branches should start from `master` and target `master` through focused pull requests.
 
-Changes should preserve Woobe's package boundaries, backend ownership of critical rules, immutable Production release model and Source-Available distribution constraints.
+External contributors must accept the [`Woobe Contributor License Agreement`](CONTRIBUTOR_LICENSE_AGREEMENT.md). Read [`CONTRIBUTING.md`](CONTRIBUTING.md) before opening a pull request.
