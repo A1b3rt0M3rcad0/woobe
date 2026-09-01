@@ -12,7 +12,10 @@ import pytest
 import yaml
 
 
-SHARED_MESSAGING_DIR = Path("src/shared/messaging")
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
+MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-db" / "migrations"
+SHARED_MESSAGING_DIR = CORE_SRC / "shared" / "messaging"
 
 MODULES = ["agent", "billing", "core", "identity", "metering", "observability"]
 
@@ -560,7 +563,7 @@ def test_settings_has_required_fields():
 
 def test_alembic_env_imports_canonical_modules():
     """Spec 098: env.py must import from canonical module paths."""
-    env_text = Path("migrations/env.py").read_text(encoding="utf-8")
+    env_text = (MIGRATIONS_DIR / "env.py").read_text(encoding="utf-8")
     for mod in MODULES:
         assert f"modules.{mod}.infra.database.models" in env_text, (
             f"env.py missing {mod}"
@@ -569,7 +572,7 @@ def test_alembic_env_imports_canonical_modules():
 
 def test_alembic_env_no_legacy_schemas():
     """Spec 098: env.py must not import legacy ai/knowledge/runtime."""
-    env_text = Path("migrations/env.py").read_text(encoding="utf-8")
+    env_text = (MIGRATIONS_DIR / "env.py").read_text(encoding="utf-8")
     for legacy in ("modules.ai", "modules.knowledge", "modules.runtime"):
         assert legacy not in env_text, (
             f"env.py still references {legacy}"
@@ -578,7 +581,7 @@ def test_alembic_env_no_legacy_schemas():
 
 def test_alembic_versions_have_upgrade_downgrade():
     """Spec 098: all migration versions define upgrade() and downgrade()."""
-    versions = sorted(Path("migrations/versions").glob("[0-9]*.py"))
+    versions = sorted((MIGRATIONS_DIR / "versions").glob("[0-9]*.py"))
     assert len(versions) > 0
     for v in versions:
         text = v.read_text(encoding="utf-8")
@@ -588,7 +591,7 @@ def test_alembic_versions_have_upgrade_downgrade():
 
 def test_alembic_no_destructive_rename():
     """Spec 098: no destructive rename_table in migrations."""
-    for v in Path("migrations/versions").glob("*.py"):
+    for v in (MIGRATIONS_DIR / "versions").glob("*.py"):
         if v.name == "__init__.py":
             continue
         text = v.read_text(encoding="utf-8")
@@ -600,9 +603,9 @@ def test_alembic_no_destructive_rename():
 
 def test_no_legacy_ai_schema_in_agent_models():
     """Spec 099: agent models must not reference legacy ai schema."""
-    text = Path("src/modules/agent/infra/database/models.py").read_text(
-        encoding="utf-8"
-    )
+    text = (
+        CORE_SRC / "modules" / "agent" / "infra" / "database" / "models.py"
+    ).read_text(encoding="utf-8")
     assert '"ai.' not in text, "agent models still reference ai schema"
     assert '"knowledge.' not in text, "agent models still reference knowledge schema"
     assert '"runtime.' not in text, "agent models still reference runtime schema"
@@ -615,13 +618,13 @@ def test_all_modules_have_canonical_layers():
     """Spec 100: every module must have domain, application, infra, presentation dirs."""
     required = {"domain", "application", "infra", "presentation"}
     for mod in MODULES:
-        module_path = Path(f"src/modules/{mod}")
+        module_path = CORE_SRC / "modules" / mod
         present = {d.name for d in module_path.iterdir() if d.is_dir() and not d.name.startswith("_")}
         missing = required - present
         assert not missing, f"{mod}: missing canonical layer(s): {missing}"
 
 
-PROJECT_ROOT_SPEC100 = Path(__file__).resolve().parents[2]
+PROJECT_ROOT_SPEC100 = PROJECT_ROOT
 ALLOWLIST_FILE_SPEC100 = Path(__file__).resolve().parent / "legacy_import_allowlist.yaml"
 
 
@@ -646,16 +649,14 @@ def _load_allowlist_spec100(scope: str) -> set[tuple[str, str]]:
 
 
 FORBIDDEN_WORKER_PATHS = [
-    "src/shared/workers",
-    "src/workers",
-    "src/modules/shared/workers",
+    CORE_SRC / "shared" / "workers",
+    PROJECT_ROOT / "packages" / "woobe-workers" / "src",
 ]
 
 
 def test_no_concrete_workers_outside_modules():
     """Spec 100: concrete workers must only live in modules/*/infra/workers/."""
-    for wp in FORBIDDEN_WORKER_PATHS:
-        p = Path(wp)
+    for p in FORBIDDEN_WORKER_PATHS:
         if not p.exists():
             continue
         for py_file in p.rglob("*.py"):
@@ -669,7 +670,7 @@ def test_no_concrete_workers_outside_modules():
 
 def test_shared_infra_does_not_import_modules():
     """Spec 100: shared/ infra must not import from any module."""
-    shared_infra = Path("src/shared/infra")
+    shared_infra = CORE_SRC / "shared" / "infra"
     for py_file in shared_infra.rglob("*.py"):
         text = py_file.read_text(encoding="utf-8")
         if "from modules" in text or "import modules" in text:
@@ -678,8 +679,7 @@ def test_shared_infra_does_not_import_modules():
 
 def test_shared_messaging_does_not_import_modules():
     """Spec 100: shared/ messaging must not import from any module."""
-    shared_messaging = Path("src/shared/messaging")
-    for py_file in shared_messaging.rglob("*.py"):
+    for py_file in SHARED_MESSAGING_DIR.rglob("*.py"):
         text = py_file.read_text(encoding="utf-8")
         if "from modules" in text or "import modules" in text:
             pytest.fail(f"{_relative_posix(py_file)} imports from a module")
@@ -697,7 +697,7 @@ def test_all_layers_follow_dependency_direction():
     violations = []
 
     for mod in MODULES:
-        module_path = Path(f"src/modules/{mod}")
+        module_path = CORE_SRC / "modules" / mod
         for py_file in module_path.rglob("*.py"):
             rel = _relative_posix(py_file)
             try:
