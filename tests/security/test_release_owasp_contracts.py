@@ -20,7 +20,9 @@ def manifest_keys(environment: str) -> set[str]:
 
 
 def settings_environment_keys() -> set[str]:
-    tree = ast.parse(read("src/shared/infra/config/config.py"))
+    tree = ast.parse(
+        read("packages/woobe-core/src/shared/infra/config/config.py")
+    )
     settings_class = next(
         node
         for node in tree.body
@@ -36,7 +38,7 @@ def settings_environment_keys() -> set[str]:
 
 
 def test_production_frontend_has_required_browser_security_headers() -> None:
-    nginx = read("web/nginx.conf")
+    nginx = read("packages/woobe-frontend/nginx.conf")
     for header in (
         "X-Content-Type-Options",
         "X-Frame-Options",
@@ -137,7 +139,7 @@ def test_default_compose_uses_the_environment_manifest_explicitly() -> None:
 
 
 def test_frontend_build_contract_includes_api_chat_surface_and_edition() -> None:
-    dockerfile = read("web/Dockerfile")
+    dockerfile = read("packages/woobe-frontend/Dockerfile")
     assert "VITE_API_URL" in dockerfile
     assert "VITE_CHAT_EMBED_URL" in dockerfile
     assert "VITE_WOOBE_EDITION" in dockerfile

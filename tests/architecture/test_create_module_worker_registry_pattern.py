@@ -3,15 +3,26 @@ import ast
 import pathlib
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
-AGENT_WORKERS = ROOT / "src" / "modules" / "agent" / "infra" / "workers"
+AGENT_WORKERS = (
+    ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "agent"
+    / "infra"
+    / "workers"
+)
 
 
 def test_create_module_worker_registry_pattern_success():
     """Verify agent module exposes a WorkerRegistryProtocol-conformant registry."""
     registry_file = AGENT_WORKERS / "registry.py"
-    assert registry_file.exists(), "src/modules/agent/infra/workers/registry.py must exist"
+    assert registry_file.exists(), (
+        "packages/woobe-core/src/modules/agent/infra/workers/registry.py must exist"
+    )
 
-    from modules.agent.composition.worker_runtime.registry import AgentWorkerRegistry
+    from modules.agent.infra.workers.registry import AgentWorkerRegistry
     from shared.workers.contracts import WorkerRegistryProtocol, WorkerProtocol
 
     assert isinstance(AgentWorkerRegistry(), WorkerRegistryProtocol)
@@ -54,7 +65,7 @@ def test_create_module_worker_registry_pattern_rejects_forbidden_dependency():
 
 def test_create_module_worker_registry_pattern_keeps_legacy_compatibility():
     """Verify the registry pattern is protocol-compatible and extensible."""
-    from modules.agent.composition.worker_runtime.registry import AgentWorkerRegistry
+    from modules.agent.infra.workers.registry import AgentWorkerRegistry
     from shared.workers.contracts import WorkerRegistryProtocol
 
     registry = AgentWorkerRegistry()
