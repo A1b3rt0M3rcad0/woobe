@@ -98,7 +98,7 @@ services:
       - .env
     environment:
       WOOBE_POSTGRES_URL: postgresql://${POSTGRES_USER:?Run scripts/generate_self_host_env.py}:${POSTGRES_PASSWORD:?Run scripts/generate_self_host_env.py}@db:5432/${POSTGRES_DB:-woobe}
-    command: ["alembic", "-c", "packages/woobe-db/alembic.ini", "upgrade", "head"]
+    command: ["alembic", "-c", "packages/woobe-core/alembic.ini", "upgrade", "head"]
     depends_on:
       db:
         condition: service_healthy
