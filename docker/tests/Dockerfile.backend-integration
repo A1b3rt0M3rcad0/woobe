@@ -11,7 +11,6 @@ ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PROJECT_ENVIRONMENT=/opt/venv \
     PATH="/opt/venv/bin:$PATH" \
-    PYTHONPATH="/app/packages/woobe-core/src:/app/packages/woobe-api/src:/app/packages/woobe-workers/src:/app/packages/woobe-testkit/src:/app/packages/woobe-mock/src:/app" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -20,11 +19,25 @@ COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --all-groups --extra test --no-install-project
 
+COPY packages/woobe-core/pyproject.toml packages/woobe-core/pyproject.toml
 COPY packages/woobe-core/src/ packages/woobe-core/src/
+COPY packages/woobe-api/pyproject.toml packages/woobe-api/pyproject.toml
 COPY packages/woobe-api/src/ packages/woobe-api/src/
+COPY packages/woobe-workers/pyproject.toml packages/woobe-workers/pyproject.toml
 COPY packages/woobe-workers/src/ packages/woobe-workers/src/
-COPY packages/woobe-testkit/ packages/woobe-testkit/
-COPY packages/woobe-mock/ packages/woobe-mock/
+COPY packages/woobe-testkit/pyproject.toml packages/woobe-testkit/pyproject.toml
+COPY packages/woobe-testkit/src/ packages/woobe-testkit/src/
+COPY packages/woobe-mock/pyproject.toml packages/woobe-mock/pyproject.toml
+COPY packages/woobe-mock/src/ packages/woobe-mock/src/
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python --no-deps \
+    --editable packages/woobe-core \
+    --editable packages/woobe-api \
+    --editable packages/woobe-workers \
+    --editable packages/woobe-testkit \
+    --editable packages/woobe-mock \
+    && uv pip check --python /opt/venv/bin/python
+
 COPY packages/woobe-db/ packages/woobe-db/
 COPY tests/ tests/
 COPY scripts/ scripts/

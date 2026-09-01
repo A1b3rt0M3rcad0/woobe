@@ -20,14 +20,25 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/venv/bin/python \
     "python-multipart>=0.0.20" \
     "boto3>=1.35.0" \
-    "pypdf>=6.0.0" \
-    && uv pip check --python /opt/venv/bin/python
+    "pypdf>=6.0.0"
 RUN /opt/venv/bin/python -c "from pypdf import PdfReader; print('pypdf runtime dependency available')"
+
+COPY packages/woobe-core/pyproject.toml packages/woobe-core/pyproject.toml
+COPY packages/woobe-core/src/ packages/woobe-core/src/
+COPY packages/woobe-api/pyproject.toml packages/woobe-api/pyproject.toml
+COPY packages/woobe-api/src/ packages/woobe-api/src/
+COPY packages/woobe-workers/pyproject.toml packages/woobe-workers/pyproject.toml
+COPY packages/woobe-workers/src/ packages/woobe-workers/src/
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python --no-deps \
+    --editable packages/woobe-core \
+    --editable packages/woobe-api \
+    --editable packages/woobe-workers \
+    && uv pip check --python /opt/venv/bin/python
 
 FROM python:${PYTHON_VERSION}-slim AS runtime
 
 ENV PATH="/opt/venv/bin:$PATH" \
-    PYTHONPATH="/app/packages/woobe-core/src:/app/packages/woobe-api/src:/app/packages/woobe-workers/src" \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 

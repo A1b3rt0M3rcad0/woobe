@@ -17,6 +17,13 @@ PACKAGE_ROOTS = {
     "woobe-mock",
     "woobe-e2e",
 }
+PYTHON_PACKAGE_ROOTS = {
+    "woobe-core",
+    "woobe-api",
+    "woobe-workers",
+    "woobe-testkit",
+    "woobe-mock",
+}
 
 
 def test_internal_workspace_artifacts_are_not_part_of_public_head() -> None:
@@ -40,6 +47,15 @@ def test_package_workspace_is_the_public_source_surface() -> None:
 
     for removed_root in ("src", "web", "embed", "migrations"):
         assert not (ROOT / removed_root).exists(), removed_root
+
+
+def test_python_process_boundaries_have_install_metadata() -> None:
+    for package in PYTHON_PACKAGE_ROOTS:
+        pyproject = ROOT / "packages" / package / "pyproject.toml"
+        assert pyproject.is_file(), f"{package} must define package installation metadata"
+        content = pyproject.read_text(encoding="utf-8")
+        assert "[build-system]" in content
+        assert "[project]" in content
 
 
 def test_enterprise_boundary_contains_no_proprietary_runtime_code() -> None:
@@ -108,6 +124,13 @@ def test_test_topology_is_backend_only_and_shell_independent() -> None:
     assert "scripts/test.sh" not in workflow
 
 
+def test_runtime_python_packages_are_installed_without_pythonpath() -> None:
+    dockerfile = (ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert "PYTHONPATH=" not in dockerfile
+    for package in ("woobe-core", "woobe-api", "woobe-workers"):
+        assert f"--editable packages/{package}" in dockerfile
+
+
 def test_backend_test_images_are_explicit_and_package_aware() -> None:
     mocked = ROOT / "docker/tests/Dockerfile.backend-mocked"
     integration = ROOT / "docker/tests/Dockerfile.backend-integration"
@@ -123,6 +146,9 @@ def test_backend_test_images_are_explicit_and_package_aware() -> None:
     assert "packages/woobe-core/src" in mocked_text
     assert "packages/woobe-api/src" in mocked_text
     assert "packages/woobe-workers/src" in mocked_text
+    assert "PYTHONPATH=" not in mocked_text
+    for package in ("woobe-core", "woobe-api", "woobe-workers", "woobe-testkit", "woobe-mock"):
+        assert f"--editable packages/{package}" in mocked_text
     assert "test_billing" not in mocked_text
     for excluded in (
         "tests/modules",
@@ -136,6 +162,9 @@ def test_backend_test_images_are_explicit_and_package_aware() -> None:
     integration_text = integration.read_text(encoding="utf-8")
     assert "alembic -c packages/woobe-db/alembic.ini upgrade head" in integration_text
     assert "python -m pytest -q tests/integration" in integration_text
+    assert "PYTHONPATH=" not in integration_text
+    for package in ("woobe-core", "woobe-api", "woobe-workers", "woobe-testkit", "woobe-mock"):
+        assert f"--editable packages/{package}" in integration_text
     assert "tests/integration/billing" not in integration_text
     assert "tests/editions" not in integration_text
     assert "tests/migrations" not in integration_text
