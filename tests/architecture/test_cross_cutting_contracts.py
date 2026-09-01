@@ -14,7 +14,7 @@ import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
-MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-db" / "migrations"
+MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "migrations"
 SHARED_MESSAGING_DIR = CORE_SRC / "shared" / "messaging"
 
 MODULES = ["agent", "billing", "core", "identity", "metering", "observability"]
