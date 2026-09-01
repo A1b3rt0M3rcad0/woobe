@@ -51,10 +51,9 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY --from=builder --chown=woobe:woobe /opt/venv /opt/venv
-COPY --chown=woobe:woobe packages/woobe-core/src/ packages/woobe-core/src/
+COPY --chown=woobe:woobe packages/woobe-core/ packages/woobe-core/
 COPY --chown=woobe:woobe packages/woobe-api/src/ packages/woobe-api/src/
 COPY --chown=woobe:woobe packages/woobe-workers/src/ packages/woobe-workers/src/
-COPY --chown=woobe:woobe packages/woobe-db/ packages/woobe-db/
 COPY --chown=woobe:woobe scripts/docker-entrypoint.sh /usr/local/bin/woobe-entrypoint
 
 RUN sed -i 's/\r$//' /usr/local/bin/woobe-entrypoint \
