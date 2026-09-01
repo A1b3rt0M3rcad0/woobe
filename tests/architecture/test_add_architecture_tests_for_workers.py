@@ -1,8 +1,4 @@
-"""Tests for spec 113 — add architecture tests for workers.
-
-Validates worker placement, worker registry contracts, BaseWorker inheritance,
-and cross-module import restrictions for concrete workers.
-"""
+"""Package-aware architecture guards for workers."""
 from __future__ import annotations
 
 import ast
@@ -11,272 +7,171 @@ from pathlib import Path
 import yaml
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-SRC_MODULES = PROJECT_ROOT / "src" / "modules"
-SRC_WORKERS = PROJECT_ROOT / "src" / "workers"
-SHARED_WORKERS = PROJECT_ROOT / "src" / "shared" / "workers"
+CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
+SRC_MODULES = CORE_SRC / "modules"
+WORKER_PROCESS = PROJECT_ROOT / "packages" / "woobe-workers" / "src"
+SHARED_WORKERS = CORE_SRC / "shared" / "workers"
 ALLOWLIST_FILE = Path(__file__).resolve().parent / "legacy_import_allowlist.yaml"
 
 KNOWN_MODULES = {
-    d.name
-    for d in SRC_MODULES.iterdir()
-    if d.is_dir() and not d.name.startswith("_")
+    path.name
+    for path in SRC_MODULES.iterdir()
+    if path.is_dir() and not path.name.startswith("_")
 }
 
-LEGACY_MODULES = {"ai", "knowledge", "runtime"}
 
-
-def _load_allowlist(scope: str) -> set[str]:
+def _allowlist(scope: str) -> set[str]:
     if not ALLOWLIST_FILE.exists():
         return set()
-    with open(ALLOWLIST_FILE, encoding="utf-8") as f:
-        data = yaml.safe_load(f)
-    entries = data.get("entries") or []
+    with open(ALLOWLIST_FILE, encoding="utf-8") as stream:
+        data = yaml.safe_load(stream) or {}
     return {
-        e["file"].replace("\\", "/")
-        for e in entries
-        if e.get("scope") == scope
+        entry["file"].replace("\\", "/")
+        for entry in data.get("entries") or []
+        if entry.get("scope") == scope
     }
 
 
-def _relative_posix(path: Path) -> str:
+def _relative(path: Path) -> str:
     return path.relative_to(PROJECT_ROOT).as_posix()
 
 
-def _src_files_under(root: Path) -> list[Path]:
+def _python_files(root: Path) -> tuple[Path, ...]:
     if not root.is_dir():
-        return []
-    return sorted(p for p in root.rglob("*.py") if p.is_file())
+        return ()
+    return tuple(sorted(path for path in root.rglob("*.py") if path.is_file()))
+
+
+def _imports(path: Path) -> tuple[str, ...]:
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    except (SyntaxError, UnicodeDecodeError):
+        return ()
+    values: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module:
+            values.append(node.module)
+        elif isinstance(node, ast.Import):
+            values.extend(alias.name for alias in node.names)
+    return tuple(values)
 
 
 class TestAddArchitectureTestsForWorkers:
-    """Worker architecture tests for spec 113."""
-
-    def test_add_architecture_tests_for_workers(self):
+    def test_concrete_workers_do_not_cross_bounded_contexts(self):
         violations = []
-
-        for mdir in sorted(SRC_MODULES.iterdir()):
-            if not mdir.is_dir() or mdir.name.startswith("_"):
+        for module_dir in sorted(SRC_MODULES.iterdir()):
+            if not module_dir.is_dir() or module_dir.name.startswith("_"):
                 continue
-            module_name = mdir.name
-            workers_dir = mdir / "infra" / "workers"
-
-            if not workers_dir.is_dir():
-                continue
-
-            for py_file in _src_files_under(workers_dir):
-                rel = _relative_posix(py_file)
-                try:
-                    source = py_file.read_text(encoding="utf-8")
-                    tree = ast.parse(source, filename=str(py_file))
-                except (SyntaxError, UnicodeDecodeError):
-                    continue
-
-                for node in ast.walk(tree):
-                    if isinstance(node, ast.ImportFrom) and node.module:
-                        parts = str(node.module).split(".")
-                        if len(parts) >= 2 and parts[0] == "modules":
-                            target = parts[1]
-                            if target != module_name and target in KNOWN_MODULES:
-                                allowlist = _load_allowlist("module_boundaries")
-                                if rel not in allowlist and rel.replace("\\", "/") not in allowlist:
-                                    violations.append(
-                                        f"{rel} (module={module_name}) imports {target}"
-                                    )
-
+            workers_dir = module_dir / "infra" / "workers"
+            for py_file in _python_files(workers_dir):
+                rel = _relative(py_file)
+                for imported in _imports(py_file):
+                    parts = imported.split(".")
+                    if (
+                        len(parts) >= 2
+                        and parts[0] == "modules"
+                        and parts[1] in KNOWN_MODULES
+                        and parts[1] != module_dir.name
+                    ):
+                        violations.append(
+                            f"{rel} ({module_dir.name}) imports {imported}"
+                        )
         assert not violations, (
-            f"Found {len(violations)} worker cross-module import(s):\n"
-            + "\n".join(violations[:20])
+            "Concrete workers cross bounded-context boundaries:\n"
+            + "\n".join(violations[:30])
         )
 
-    def test_worker_registry_satisfies_protocol(self):
-        for mdir in sorted(SRC_MODULES.iterdir()):
-            if not mdir.is_dir() or mdir.name.startswith("_"):
+    def test_worker_registries_expose_expected_protocol(self):
+        for module_dir in sorted(SRC_MODULES.iterdir()):
+            if not module_dir.is_dir() or module_dir.name.startswith("_"):
                 continue
-            registry_file = mdir / "infra" / "workers" / "registry.py"
-            if not registry_file.is_file():
+            registry = module_dir / "infra" / "workers" / "registry.py"
+            if not registry.is_file():
                 continue
-
-            source = registry_file.read_text(encoding="utf-8")
-            tree = ast.parse(source, filename=str(registry_file))
-
-            registry_class = None
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ClassDef):
-                    registry_class = node
-                    break
-
-            if registry_class is None:
+            tree = ast.parse(registry.read_text(encoding="utf-8"), filename=str(registry))
+            classes = [node for node in tree.body if isinstance(node, ast.ClassDef)]
+            if not classes:
                 continue
+            methods = {
+                child.name
+                for klass in classes
+                for child in klass.body
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef))
+            }
+            assert "iter_workers" in methods, f"{_relative(registry)} missing iter_workers"
+            assert "register" in methods, f"{_relative(registry)} missing register"
 
-            has_iter = any(
-                isinstance(node, ast.FunctionDef) and node.name == "iter_workers"
-                for node in ast.walk(registry_class)
-            )
-            has_register = any(
-                isinstance(node, ast.FunctionDef) and node.name == "register"
-                for node in ast.walk(registry_class)
-            )
-
-            assert has_iter, (
-                f"{_relative_posix(registry_file)}: registry class "
-                f"'{registry_class.name}' missing iter_workers method"
-            )
-            assert has_register, (
-                f"{_relative_posix(registry_file)}: registry class "
-                f"'{registry_class.name}' missing register method"
-            )
-
-    def test_worker_classes_inherit_base_worker(self):
-        worker_base_classes = {
+    def test_worker_base_contract_is_used(self):
+        worker_bases = {
             "BaseWorker", "BaseInboxConsumer", "BaseInboxProcessor",
             "BaseOutboxDispatcher", "InboxConsumerWorker",
             "OutboxPublisherWorker", "InboxDispatcherWorker",
         }
-        base_worker_subclasses = 0
-        working_workers = []
-
-        for mdir in sorted(SRC_MODULES.iterdir()):
-            if not mdir.is_dir() or mdir.name.startswith("_"):
+        subclasses = []
+        for module_dir in sorted(SRC_MODULES.iterdir()):
+            if not module_dir.is_dir() or module_dir.name.startswith("_"):
                 continue
-            workers_dir = mdir / "infra" / "workers"
-            if not workers_dir.is_dir():
-                continue
-
-            for py_file in _src_files_under(workers_dir):
-                if py_file.name == "registry.py" or py_file.name == "__init__.py":
-                    continue
+            for py_file in _python_files(module_dir / "infra" / "workers"):
                 try:
-                    source = py_file.read_text(encoding="utf-8")
-                except UnicodeDecodeError:
+                    tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
+                except SyntaxError:
                     continue
-
-                tree = ast.parse(source, filename=str(py_file))
                 for node in ast.walk(tree):
-                    if isinstance(node, ast.ClassDef):
-                        for base in node.bases:
-                            base_name = None
-                            if isinstance(base, ast.Name):
-                                base_name = base.id
-                            elif isinstance(base, ast.Attribute):
-                                base_name = base.attr
+                    if not isinstance(node, ast.ClassDef):
+                        continue
+                    for base in node.bases:
+                        name = base.id if isinstance(base, ast.Name) else base.attr if isinstance(base, ast.Attribute) else None
+                        if name in worker_bases:
+                            subclasses.append(f"{_relative(py_file)}:{node.name}({name})")
+        assert subclasses, "At least one concrete worker must implement the shared worker contract"
 
-                            if base_name and base_name in worker_base_classes:
-                                base_worker_subclasses += 1
-                                working_workers.append(
-                                    f"{_relative_posix(py_file)}: {node.name}({base_name})"
-                                )
-
-        assert base_worker_subclasses > 0, (
-            f"Expected at least one worker class inheriting from a worker base class. "
-            f"Found: {working_workers if working_workers else 'none'}"
+    def test_worker_process_package_is_bootstrap_only(self):
+        assert WORKER_PROCESS.is_dir(), "packages/woobe-workers/src must exist"
+        assert (WORKER_PROCESS / "worker_main.py").is_file()
+        violations = []
+        for py_file in _python_files(WORKER_PROCESS):
+            try:
+                tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
+            except SyntaxError:
+                continue
+            for node in tree.body:
+                if isinstance(node, ast.ClassDef) and "worker" in node.name.lower():
+                    violations.append(f"{_relative(py_file)}: {node.name}")
+        assert not violations, (
+            "woobe-workers must compose concrete Core workers, not own them:\n"
+            + "\n".join(violations)
         )
 
-    def test_src_workers_no_concrete_implementation(self):
-        if not SRC_WORKERS.is_dir():
-            return
-
-        allowlist = _load_allowlist("worker_locations")
+    def test_shared_workers_do_not_import_concrete_modules(self):
+        allowlist = _allowlist("shared_boundaries")
         violations = []
-
-        for py_file in _src_files_under(SRC_WORKERS):
-            rel = _relative_posix(py_file)
-            try:
-                source = py_file.read_text(encoding="utf-8")
-                tree = ast.parse(source, filename=str(py_file))
-            except (SyntaxError, UnicodeDecodeError):
+        for py_file in _python_files(SHARED_WORKERS):
+            rel = _relative(py_file)
+            if rel in allowlist:
                 continue
-
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    parts = str(node.module).split(".")
-                    if len(parts) >= 2 and parts[0] == "modules":
-                        target = parts[1]
-                        if rel not in allowlist and rel.replace("\\", "/") not in allowlist:
-                            violations.append(
-                                f"{rel} imports module {target} (unlisted)"
-                            )
-
+            for imported in _imports(py_file):
+                if imported.startswith("modules."):
+                    violations.append(f"{rel} imports {imported}")
         assert not violations, (
-            f"src/workers has {len(violations)} unlisted module import(s):\n"
-            + "\n".join(violations[:20])
-        )
-
-    def test_workers_only_in_module_infra_workers(self):
-        for mdir in sorted(SRC_MODULES.iterdir()):
-            if not mdir.is_dir() or mdir.name.startswith("_"):
-                continue
-            workers_dir = mdir / "infra" / "workers"
-            if workers_dir.is_dir():
-                for py_file in _src_files_under(workers_dir):
-                    rel = _relative_posix(py_file)
-                    assert "modules" in rel, (
-                        f"Worker file outside expected module path: {rel}"
-                    )
-
-    def test_shared_workers_no_concrete_module_imports(self):
-        if not SHARED_WORKERS.is_dir():
-            return
-
-        allowlist = _load_allowlist("shared_boundaries")
-        violations = []
-
-        for py_file in _src_files_under(SHARED_WORKERS):
-            rel = _relative_posix(py_file)
-
-            if rel in allowlist or rel.replace("\\", "/") in allowlist:
-                continue
-
-            try:
-                source = py_file.read_text(encoding="utf-8")
-                tree = ast.parse(source, filename=str(py_file))
-            except (SyntaxError, UnicodeDecodeError):
-                continue
-
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom) and node.module:
-                    parts = str(node.module).split(".")
-                    if len(parts) >= 2 and parts[0] == "modules":
-                        violations.append(
-                            f"{rel} imports {node.module}"
-                        )
-                elif isinstance(node, ast.Import):
-                    for alias in node.names:
-                        if alias.name.startswith("modules."):
-                            violations.append(
-                                f"{rel} imports {alias.name}"
-                            )
-
-        assert not violations, (
-            f"shared/workers has {len(violations)} unlisted module import(s):\n"
-            + "\n".join(violations[:20])
+            "shared/workers imports concrete bounded contexts:\n"
+            + "\n".join(violations[:30])
         )
 
 
 class TestAddArchitectureTestsForWorkersRejectsForbidden:
-    """Regression: forbidden worker patterns are detected."""
-
-    def test_detects_worker_outside_module_infra_workers(self):
-        assert SRC_WORKERS.is_dir() or True
-
-        worker_dirs = []
-        for mdir in SRC_MODULES.iterdir():
-            if not mdir.is_dir() or mdir.name.startswith("_"):
+    def test_detects_worker_outside_module_ownership(self):
+        for module_dir in SRC_MODULES.iterdir():
+            if not module_dir.is_dir() or module_dir.name.startswith("_"):
                 continue
-            workers_dir = mdir / "infra" / "workers"
+            workers_dir = module_dir / "infra" / "workers"
             if workers_dir.is_dir():
-                worker_dirs.append(str(workers_dir.relative_to(PROJECT_ROOT)))
-
-        for wd in worker_dirs:
-            assert "infra/workers" in wd or "infra\\workers" in wd, (
-                f"Worker directory at wrong path: {wd}"
-            )
+                assert "infra/workers" in workers_dir.as_posix()
 
     def test_detects_shared_worker_with_module_import(self):
-        code = "from modules.agent.domain.entities import Agent\n"
-        tree = ast.parse(code)
-        found = False
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                if node.module.startswith("modules."):
-                    found = True
-        assert found
+        tree = ast.parse("from modules.agent.domain.entities import Agent\n")
+        assert any(
+            isinstance(node, ast.ImportFrom)
+            and node.module
+            and node.module.startswith("modules.")
+            for node in ast.walk(tree)
+        )
