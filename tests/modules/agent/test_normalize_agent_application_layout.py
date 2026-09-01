@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-AGENT_APP = PROJECT_ROOT / "src" / "modules" / "agent" / "application"
+AGENT_APP = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent" / "application"
 
 REQUIRED_APP_DIRS = ["composers", "dtos", "handlers", "use_cases"]
 

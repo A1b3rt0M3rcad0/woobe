@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-AGENT_INFRA_DB = PROJECT_ROOT / "src" / "modules" / "agent" / "infra" / "database"
+AGENT_INFRA_DB = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent" / "infra" / "database"
 
 REQUIRED_DB_FILES = ["mappers.py", "models.py", "repositories.py", "unit_of_work.py", "__init__.py"]
 

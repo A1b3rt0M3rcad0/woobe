@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
-PRESENTATION_DIR = PROJECT_ROOT / "src" / "modules" / "agent" / "presentation"
+PRESENTATION_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent" / "presentation"
 CONTROLLERS_DIR = PRESENTATION_DIR / "controllers"
 ROUTES_FILE = PRESENTATION_DIR / "routes.py"
 SCHEMAS_FILE = PRESENTATION_DIR / "schemas.py"
