@@ -9,7 +9,6 @@ on:
       - "packages/woobe-core/**"
       - "packages/woobe-api/**"
       - "packages/woobe-workers/**"
-      - "packages/woobe-db/**"
       - "quality_gate/**"
       - "tests/quality_gate/**"
       - "tests/architecture/**"
