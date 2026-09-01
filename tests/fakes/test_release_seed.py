@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-RELEASE_SEED = ROOT / "packages" / "woobe-e2e" / "fixtures" / "release-seed.json"
+RELEASE_SEED = ROOT / "tests" / "e2e" / "fixtures" / "release-seed.json"
 
 
 def test_release_seed_contains_two_disjoint_tenant_graphs() -> None:
