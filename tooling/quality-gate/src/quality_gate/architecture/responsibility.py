@@ -15,11 +15,6 @@ def _load_config(
     project_root: Path,
     policy: ArchitecturePolicy,
 ) -> dict[str, object] | None:
-    package_path = (
-        Path(__file__).resolve().parent
-        / "responsibilities"
-        / f"{policy.name}.toml"
-    )
     fixture_path = (
         project_root
         / "quality_gate"
@@ -27,8 +22,13 @@ def _load_config(
         / "responsibilities"
         / f"{policy.name}.toml"
     )
+    package_path = (
+        Path(__file__).resolve().parent
+        / "responsibilities"
+        / f"{policy.name}.toml"
+    )
 
-    path = package_path if package_path.is_file() else fixture_path
+    path = fixture_path if fixture_path.is_file() else package_path
     if not path.is_file():
         return None
 

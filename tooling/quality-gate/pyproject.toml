@@ -10,7 +10,15 @@ requires-python = ">=3.14"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+include-package-data = true
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = ["quality_gate*"]
+
+[tool.setuptools.package-data]
+quality_gate = [
+    "architecture/policies/*.toml",
+    "architecture/policies/contracts/*.toml",
+    "architecture/responsibilities/*.toml",
+]
