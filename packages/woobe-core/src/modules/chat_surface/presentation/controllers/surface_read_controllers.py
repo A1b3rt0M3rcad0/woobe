@@ -6,9 +6,16 @@ from modules.chat_surface.application.dtos.surface_read import (
 )
 from modules.chat_surface.application.interfaces.use_case import UseCase
 from modules.chat_surface.presentation.mappers import chat_surface_payload
+from shared.contracts.errors import AuthorizationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
+from shared.security.principal import AuthenticatedPrincipal
+
+
+def _require_authenticated_user(request: Request) -> None:
+    if not isinstance(request.principal, AuthenticatedPrincipal):
+        raise AuthorizationError("User authentication required")
 
 
 class ListChatSurfacesController(Controller):
@@ -16,6 +23,7 @@ class ListChatSurfacesController(Controller):
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
+        _require_authenticated_user(request)
         result = await self._use_case.execute(
             ListChatSurfacesInput(
                 project_id=UUID(str(request.path_params["project_id"])),
@@ -35,6 +43,7 @@ class GetChatSurfaceController(Controller):
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
+        _require_authenticated_user(request)
         result = await self._use_case.execute(
             GetChatSurfaceInput(
                 surface_id=UUID(str(request.path_params["surface_id"])),
