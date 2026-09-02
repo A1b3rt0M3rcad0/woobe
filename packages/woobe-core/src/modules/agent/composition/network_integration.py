@@ -20,6 +20,9 @@ from modules.agent.domain.release_snapshot import (
 from modules.agent.domain.release_versioning import calculate_next_release_version
 from modules.agent.infra.database.mappers import agent_release_model_to_entity
 from modules.agent.infra.database.models import AgentModel, AgentReleaseModel
+from modules.agent.infra.database.network_promotion_gateway import (
+    NetworkAgentPromotionGateway,
+)
 from modules.agent.infra.database.repositories import (
     SQLAlchemyAgentReleaseRepository,
     SQLAlchemyAgentRepository,
@@ -55,6 +58,7 @@ __all__ = [
     "AgentRelease",
     "AgentReleaseModel",
     "NetworkAgentAvailabilityReader",
+    "NetworkAgentPromotionGateway",
     "NetworkAgentSnapshotLifecycle",
     "SQLAlchemyAgentReleaseRepository",
     "agent_release_model_to_entity",
