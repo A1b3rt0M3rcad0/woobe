@@ -2,16 +2,16 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request as FastAPIRequest
 
+from modules.identity.application.composers.get_user_composer import get_user_composer
 from modules.identity.application.composers.get_workspace_composer import (
     get_workspace_composer,
 )
-from modules.identity.application.composers.get_user_composer import get_user_composer
 from modules.identity.application.composers.update_workspace_composer import (
     update_workspace_composer,
 )
 from modules.identity.application.instance_service import InstanceService
 from modules.identity.domain.enums import MemberRole
-from modules.identity.presentation.auth_endpoints import (
+from modules.identity.presentation.http.auth_endpoints import (
     authentication_service,
     create_workspace_endpoint,
     csrf_endpoint,
@@ -19,11 +19,16 @@ from modules.identity.presentation.auth_endpoints import (
     list_workspaces_endpoint,
     login_endpoint,
     logout_endpoint,
-    workspace_payload,
     refresh_endpoint,
     register_endpoint,
+    workspace_payload,
 )
-from shared.infra.errors import AuthenticationError, AuthorizationError, NotFoundError, ValidationError
+from shared.infra.errors import (
+    AuthenticationError,
+    AuthorizationError,
+    NotFoundError,
+    ValidationError,
+)
 from shared.presentation.http.adapter import request_adapter, response_adapter
 from shared.security.workspace_access import WorkspaceAccessService
 

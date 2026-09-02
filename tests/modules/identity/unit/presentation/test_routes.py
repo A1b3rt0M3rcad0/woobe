@@ -1,8 +1,11 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[5]
-ROUTES_FILE = PROJECT_ROOT / "src" / "modules" / "identity" / "presentation" / "routes.py"
-CONTROLLERS_DIR = PROJECT_ROOT / "src" / "modules" / "identity" / "presentation" / "controllers"
+IDENTITY_ROOT = (
+    PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "identity"
+)
+ROUTES_FILE = IDENTITY_ROOT / "presentation" / "http" / "routes.py"
+CONTROLLERS_DIR = IDENTITY_ROOT / "presentation" / "controllers"
 
 
 class TestIdentityRoutes:

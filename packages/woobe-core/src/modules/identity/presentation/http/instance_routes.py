@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request as FastAPIRequest
 
 from modules.identity.application.dtos import RegisterInput
 from modules.identity.application.instance_service import InstanceService
-from modules.identity.presentation.auth_endpoints import authentication_response
+from modules.identity.presentation.http.auth_endpoints import authentication_response
 
 
 router = APIRouter(prefix="/identity/instance", tags=["instance"])
