@@ -1,8 +1,11 @@
 from datetime import UTC, datetime
+from hmac import compare_digest
 from uuid import uuid4
 
 from modules.core.application.dtos.chat_surface_access_key import (
+    AuthenticateChatSurfaceAccessKeyInput,
     ChatSurfaceAccessKeyMutationResult,
+    ChatSurfaceAccessKeyState,
     CreateChatSurfaceAccessKeyInput,
     ListChatSurfaceAccessKeysInput,
     PersistChatSurfaceAccessKeyInput,
@@ -14,7 +17,54 @@ from modules.core.application.interfaces.chat_surface_access_key_repository impo
     ChatSurfaceAccessKeyRepository,
 )
 from shared.contracts.chat_surface_access import CHAT_SURFACE_ACCESS_KEY_SCOPE_ORDER
-from shared.contracts.errors import ConflictError, NotFoundError
+from shared.contracts.errors import AuthenticationError, ConflictError, NotFoundError
+from shared.security.api_keys import hash_api_key, parse_project_api_key
+
+
+class AuthenticateChatSurfaceAccessKeyUseCase:
+    def __init__(self, repository: ChatSurfaceAccessKeyRepository) -> None:
+        self._repository = repository
+
+    async def execute(
+        self,
+        input_dto: AuthenticateChatSurfaceAccessKeyInput,
+    ) -> ChatSurfaceAccessKeyState:
+        parsed = parse_project_api_key(input_dto.credentials)
+        if (
+            parsed is None
+            or parsed.kind != "chat_surface"
+            or parsed.environment is not None
+        ):
+            raise AuthenticationError("Invalid ChatSurface Access Key")
+
+        supplied_digest = hash_api_key(input_dto.credentials)
+        candidates = await self._repository.find_authentication_candidates(
+            chat_surface_id=input_dto.chat_surface_id,
+            key_prefix=parsed.public_prefix,
+            key_version=parsed.key_version,
+        )
+        matched = next(
+            (
+                candidate.key
+                for candidate in candidates
+                if compare_digest(candidate.key_hash, supplied_digest)
+            ),
+            None,
+        )
+        if matched is None:
+            raise AuthenticationError("Invalid ChatSurface Access Key")
+
+        now = datetime.now(UTC)
+        expires_at = matched.expires_at
+        if expires_at is not None and expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=UTC)
+        if (
+            matched.status != "active"
+            or matched.revoked_at is not None
+            or (expires_at is not None and expires_at <= now)
+        ):
+            raise AuthenticationError("ChatSurface Access Key is inactive")
+        return await self._repository.mark_used(matched.id, used_at=now)
 
 
 class CreateChatSurfaceAccessKeyUseCase:
@@ -126,6 +176,7 @@ class RotateChatSurfaceAccessKeyUseCase:
 
 
 __all__ = [
+    "AuthenticateChatSurfaceAccessKeyUseCase",
     "CreateChatSurfaceAccessKeyUseCase",
     "ListChatSurfaceAccessKeysUseCase",
     "RevokeChatSurfaceAccessKeyUseCase",

@@ -3,6 +3,7 @@ from datetime import datetime
 from uuid import UUID
 
 from modules.core.application.dtos.chat_surface_access_key import (
+    ChatSurfaceAccessKeyAuthenticationCandidate,
     ChatSurfaceAccessKeyState,
     PersistChatSurfaceAccessKeyInput,
 )
@@ -26,6 +27,23 @@ class ChatSurfaceAccessKeyRepository(ABC):
         self,
         api_key_id: UUID,
     ) -> ChatSurfaceAccessKeyState | None: ...
+
+    @abstractmethod
+    async def find_authentication_candidates(
+        self,
+        *,
+        chat_surface_id: UUID,
+        key_prefix: str,
+        key_version: int,
+    ) -> list[ChatSurfaceAccessKeyAuthenticationCandidate]: ...
+
+    @abstractmethod
+    async def mark_used(
+        self,
+        api_key_id: UUID,
+        *,
+        used_at: datetime,
+    ) -> ChatSurfaceAccessKeyState: ...
 
     @abstractmethod
     async def revoke(

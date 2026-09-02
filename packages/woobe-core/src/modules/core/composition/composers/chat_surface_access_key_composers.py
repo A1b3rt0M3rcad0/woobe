@@ -1,4 +1,5 @@
 from modules.core.application.use_cases.chat_surface_access_key import (
+    AuthenticateChatSurfaceAccessKeyUseCase,
     CreateChatSurfaceAccessKeyUseCase,
     ListChatSurfaceAccessKeysUseCase,
     RevokeChatSurfaceAccessKeyUseCase,
@@ -11,12 +12,21 @@ from modules.core.infra.database.chat_surface_access_key_repository import (
 from modules.core.infra.database.unit_of_work import CoreUnitOfWork
 from modules.core.infra.security.api_key_issuer import SharedApiKeyIssuer
 from modules.core.presentation.controllers.chat_surface_access_key_controllers import (
+    AuthenticateChatSurfaceAccessKeyController,
     CreateChatSurfaceAccessKeyController,
     ListChatSurfaceAccessKeysController,
     RevokeChatSurfaceAccessKeyController,
     RotateChatSurfaceAccessKeyController,
 )
 from shared.infra.transactional_handler import TransactionalHandler
+
+
+def authenticate_chat_surface_access_key_composer() -> TransactionalHandler:
+    uow = CoreUnitOfWork(DATABASE_ENGINE)
+    repository = SQLAlchemyChatSurfaceAccessKeyRepository(uow)
+    use_case = AuthenticateChatSurfaceAccessKeyUseCase(repository)
+    controller = AuthenticateChatSurfaceAccessKeyController(use_case)
+    return TransactionalHandler(uow, controller.handle)
 
 
 def create_chat_surface_access_key_composer() -> TransactionalHandler:
@@ -52,6 +62,7 @@ def rotate_chat_surface_access_key_composer() -> TransactionalHandler:
 
 
 __all__ = [
+    "authenticate_chat_surface_access_key_composer",
     "create_chat_surface_access_key_composer",
     "list_chat_surface_access_keys_composer",
     "revoke_chat_surface_access_key_composer",

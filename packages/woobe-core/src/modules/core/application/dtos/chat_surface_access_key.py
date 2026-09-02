@@ -21,6 +21,16 @@ class ChatSurfaceAccessKeyState(BaseModel):
     rotated_from_id: UUID | None = None
 
 
+class ChatSurfaceAccessKeyAuthenticationCandidate(BaseModel):
+    key: ChatSurfaceAccessKeyState
+    key_hash: bytes
+
+
+class AuthenticateChatSurfaceAccessKeyInput(BaseModel):
+    chat_surface_id: UUID
+    credentials: str
+
+
 class PersistChatSurfaceAccessKeyInput(BaseModel):
     project_id: UUID
     credential_id: UUID

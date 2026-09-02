@@ -9,6 +9,10 @@ from modules.agent.composition.chat_surface_runtime import (
     AgentChatSurfaceRuntime,
     build_agent_chat_surface_runtime,
 )
+from modules.agent.composition.composers.chat_surface_session_composers import (
+    close_agent_chat_surface_session_composer,
+    create_agent_chat_surface_session_composer,
+)
 from modules.agent.composition.factories.chat_surface_target_release import (
     build_agent_chat_surface_target_release_reader,
 )
@@ -88,8 +92,10 @@ __all__ = [
     "build_internal_agent_runtime",
     "calculate_next_release_version",
     "classify_release_change",
+    "close_agent_chat_surface_session_composer",
     "close_http_tool_executor",
     "commit_safe_stream",
+    "create_agent_chat_surface_session_composer",
     "current_execution",
     "current_runtime_stream",
     "get_http_tool_executor",

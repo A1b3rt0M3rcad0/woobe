@@ -7,6 +7,7 @@ class CreateAgentChatSurfaceSessionInput(BaseModel):
     project_id: UUID
     agent_id: UUID
     agent_release_id: UUID
+    release_version: str
     chat_surface_id: UUID
 
 

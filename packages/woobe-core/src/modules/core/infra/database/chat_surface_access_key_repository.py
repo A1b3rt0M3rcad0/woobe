@@ -4,6 +4,7 @@ from uuid import UUID
 from sqlalchemy import select
 
 from modules.core.application.dtos.chat_surface_access_key import (
+    ChatSurfaceAccessKeyAuthenticationCandidate,
     ChatSurfaceAccessKeyState,
     PersistChatSurfaceAccessKeyInput,
 )
@@ -94,6 +95,47 @@ class SQLAlchemyChatSurfaceAccessKeyRepository(ChatSurfaceAccessKeyRepository):
         )
         if model is None or model.kind != "chat_surface":
             return None
+        return self._state(model)
+
+    async def find_authentication_candidates(
+        self,
+        *,
+        chat_surface_id: UUID,
+        key_prefix: str,
+        key_version: int,
+    ) -> list[ChatSurfaceAccessKeyAuthenticationCandidate]:
+        result = await self._uow.session.execute(
+            select(ApiKeyModel).where(
+                ApiKeyModel.key_prefix == key_prefix,
+                ApiKeyModel.key_version == key_version,
+                ApiKeyModel.chat_surface_id == chat_surface_id,
+                ApiKeyModel.kind == "chat_surface",
+            )
+        )
+        return [
+            ChatSurfaceAccessKeyAuthenticationCandidate(
+                key=self._state(model),
+                key_hash=bytes(model.key_hash),
+            )
+            for model in result.scalars().all()
+        ]
+
+    async def mark_used(
+        self,
+        api_key_id: UUID,
+        *,
+        used_at: datetime,
+    ) -> ChatSurfaceAccessKeyState:
+        model = await self._uow.session.get(
+            ApiKeyModel,
+            api_key_id,
+            with_for_update=True,
+        )
+        if model is None or model.kind != "chat_surface":
+            raise LookupError("ChatSurface Access Key does not exist")
+        model.last_used_at = used_at
+        await self._uow.session.flush()
+        await self._uow.session.refresh(model)
         return self._state(model)
 
     async def revoke(

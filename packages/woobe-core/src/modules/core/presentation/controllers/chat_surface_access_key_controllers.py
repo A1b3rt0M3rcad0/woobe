@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from modules.core.application.dtos.chat_surface_access_key import (
+    AuthenticateChatSurfaceAccessKeyInput,
     ChatSurfaceAccessKeyMutationResult,
     ChatSurfaceAccessKeyState,
     CreateChatSurfaceAccessKeyInput,
@@ -32,6 +33,7 @@ def _key_payload(
     payload = {
         "id": str(key.id),
         "credential_id": str(key.credential_id),
+        "project_id": str(key.project_id),
         "chat_surface_id": str(key.chat_surface_id),
         "name": key.name,
         "description": key.description,
@@ -53,6 +55,24 @@ def _mutation_payload(result: ChatSurfaceAccessKeyMutationResult) -> dict:
         secret=result.secret,
         display_prefix=result.display_prefix,
     )
+
+
+class AuthenticateChatSurfaceAccessKeyController(Controller):
+    def __init__(self, use_case: UseCase) -> None:
+        self._use_case = use_case
+
+    async def handle(self, request: Request) -> Response:
+        body = dict(request.body or {})
+        result = await self._use_case.execute(
+            AuthenticateChatSurfaceAccessKeyInput(
+                chat_surface_id=UUID(str(request.path_params["surface_id"])),
+                credentials=str(body["credentials"]),
+            )
+        )
+        return Response(
+            status_code=200,
+            body={"success": True, "data": _key_payload(result)},
+        )
 
 
 class CreateChatSurfaceAccessKeyController(Controller):
@@ -132,3 +152,12 @@ class RotateChatSurfaceAccessKeyController(Controller):
             status_code=201,
             body={"success": True, "data": _mutation_payload(result)},
         )
+
+
+__all__ = [
+    "AuthenticateChatSurfaceAccessKeyController",
+    "CreateChatSurfaceAccessKeyController",
+    "ListChatSurfaceAccessKeysController",
+    "RevokeChatSurfaceAccessKeyController",
+    "RotateChatSurfaceAccessKeyController",
+]

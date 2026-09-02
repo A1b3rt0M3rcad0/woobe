@@ -1,3 +1,7 @@
+from modules.network.composition.composers.chat_surface_session_composers import (
+    close_network_chat_surface_session_composer,
+    create_network_chat_surface_session_composer,
+)
 from modules.network.composition.composers.execution_control_composers import (
     cancel_runtime_network_execution_composer,
 )
@@ -43,6 +47,8 @@ __all__ = [
     "build_network_chat_surface_runtime",
     "build_network_chat_surface_target_release_reader",
     "cancel_runtime_network_execution_composer",
+    "close_network_chat_surface_session_composer",
+    "create_network_chat_surface_session_composer",
     "register_network_workers",
     "submit_public_network_run_composer",
     "wait_network_run_composer",

@@ -1,4 +1,5 @@
 from modules.core.composition.composers.chat_surface_access_key_composers import (
+    authenticate_chat_surface_access_key_composer,
     create_chat_surface_access_key_composer,
     list_chat_surface_access_keys_composer,
     revoke_chat_surface_access_key_composer,
@@ -18,6 +19,7 @@ __all__ = [
     "CORE_HTTP_ROUTERS",
     "CoreProjectLookup",
     "CoreWorkerRegistry",
+    "authenticate_chat_surface_access_key_composer",
     "create_chat_surface_access_key_composer",
     "get_chat_surface_credential_composer",
     "list_chat_surface_access_keys_composer",
