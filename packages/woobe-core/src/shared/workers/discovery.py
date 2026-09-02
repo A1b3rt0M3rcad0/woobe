@@ -20,6 +20,8 @@ CORE_MODULE_WORKER_REGISTRIES: tuple[str, ...] = (
     "observability",
 )
 
+PUBLIC_WORKER_ENTRYPOINTS = frozenset({"agent", "metering"})
+
 
 class ModuleWorkerEntry:
     def __init__(
@@ -37,9 +39,11 @@ def discover_module_entries() -> list[ModuleWorkerEntry]:
     module_paths = [
         (
             module_name,
-            "modules.agent.entrypoint"
-            if module_name == "agent"
-            else f"modules.{module_name}.infra.workers.registry",
+            (
+                f"modules.{module_name}.entrypoint"
+                if module_name in PUBLIC_WORKER_ENTRYPOINTS
+                else f"modules.{module_name}.infra.workers.registry"
+            ),
         )
         for module_name in CORE_MODULE_WORKER_REGISTRIES
     ]

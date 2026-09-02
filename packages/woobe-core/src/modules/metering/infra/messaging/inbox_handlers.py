@@ -6,11 +6,11 @@ from typing import Any, Callable, Coroutine
 from uuid import UUID
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from modules.metering.domain.entities import UsageEvent
 from modules.metering.domain.enums import UsageEventType, UsageUnit
 from modules.metering.infra.database.repositories import SQLAlchemyUsageEventRepository
+from modules.metering.infra.database.unit_of_work import MeteringUnitOfWork
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ def _cost_request_deltas(cost_status: str | None) -> tuple[int, int, int]:
 
 
 async def _increment_daily(
-    session: AsyncSession,
+    uow: MeteringUnitOfWork,
     *,
     project_id: UUID,
     agent_id: UUID | None,
@@ -84,6 +84,7 @@ async def _increment_daily(
     partial_cost_requests: int = 0,
     unpriced_requests: int = 0,
 ) -> None:
+    session = uow.session
     params = {
         "project_id": project_id,
         "agent_id": agent_id,
@@ -186,7 +187,7 @@ async def _increment_daily(
 async def handle_noop(
     event_type: str,
     payload: dict[str, Any],
-    session: AsyncSession | None = None,
+    uow: MeteringUnitOfWork | None = None,
     **kwargs: Any,
 ) -> None:
     logger.debug("No-op handler for event_type=%s", event_type)
@@ -195,11 +196,11 @@ async def handle_noop(
 async def handle_llm_request(
     event_type: str,
     payload: dict[str, Any],
-    session: AsyncSession | None = None,
+    uow: MeteringUnitOfWork | None = None,
     **kwargs: Any,
 ) -> None:
-    if session is None:
-        raise RuntimeError("Metering session is required")
+    if uow is None:
+        raise RuntimeError("Metering UnitOfWork is required")
     project_id = _required_uuid(payload, "project_id")
     agent_id = _uuid(payload.get("agent_id"))
     trace_id = _required_uuid(payload, "trace_id")
@@ -209,7 +210,7 @@ async def handle_llm_request(
     cost = _float_or_none(payload.get("cost_usd"))
     source_event_id = _uuid(kwargs.get("source_event_id"))
 
-    await SQLAlchemyUsageEventRepository(session).save(
+    await SQLAlchemyUsageEventRepository(uow).save(
         UsageEvent(
             project_id=project_id,
             agent_id=agent_id,
@@ -237,7 +238,7 @@ async def handle_llm_request(
         )
     )
     await _increment_daily(
-        session,
+        uow,
         project_id=project_id,
         agent_id=agent_id,
         day=occurred_at.date(),
@@ -252,23 +253,27 @@ async def handle_llm_request(
 async def handle_tool_execution(
     event_type: str,
     payload: dict[str, Any],
-    session: AsyncSession | None = None,
+    uow: MeteringUnitOfWork | None = None,
     **kwargs: Any,
 ) -> None:
-    if session is None:
-        raise RuntimeError("Metering session is required")
+    if uow is None:
+        raise RuntimeError("Metering UnitOfWork is required")
     project_id = _required_uuid(payload, "project_id")
     agent_id = _uuid(payload.get("agent_id"))
     trace_id = _required_uuid(payload, "trace_id")
     occurred_at = _occurred_at(payload)
-    await SQLAlchemyUsageEventRepository(session).save(
+    await SQLAlchemyUsageEventRepository(uow).save(
         UsageEvent(
             project_id=project_id,
             agent_id=agent_id,
             source_event_id=_uuid(kwargs.get("source_event_id")),
             occurred_at=occurred_at,
             trace_id=trace_id,
-            call_id=str(payload.get("tool_call_id")) if payload.get("tool_call_id") else None,
+            call_id=(
+                str(payload.get("tool_call_id"))
+                if payload.get("tool_call_id")
+                else None
+            ),
             environment=payload.get("execution_context") or payload.get("environment"),
             agent_release_id=_uuid(payload.get("agent_release_id")),
             agent_release_version=payload.get("agent_release_version"),
@@ -279,7 +284,7 @@ async def handle_tool_execution(
         )
     )
     await _increment_daily(
-        session,
+        uow,
         project_id=project_id,
         agent_id=agent_id,
         day=occurred_at.date(),
@@ -290,7 +295,7 @@ async def handle_tool_execution(
 
 async def _handle_terminal_request(
     payload: dict[str, Any],
-    session: AsyncSession,
+    uow: MeteringUnitOfWork,
     *,
     source_event_id: UUID | None,
     status: str,
@@ -301,7 +306,7 @@ async def _handle_terminal_request(
     occurred_at = _occurred_at(payload)
     cost_status = str(payload.get("cost_status") or "unknown")
     priced, partial, unpriced = _cost_request_deltas(cost_status)
-    await SQLAlchemyUsageEventRepository(session).save(
+    await SQLAlchemyUsageEventRepository(uow).save(
         UsageEvent(
             project_id=project_id,
             agent_id=agent_id,
@@ -328,7 +333,7 @@ async def _handle_terminal_request(
         )
     )
     await _increment_daily(
-        session,
+        uow,
         project_id=project_id,
         agent_id=agent_id,
         day=occurred_at.date(),
@@ -346,14 +351,14 @@ async def _handle_terminal_request(
 async def handle_execution_completed(
     event_type: str,
     payload: dict[str, Any],
-    session: AsyncSession | None = None,
+    uow: MeteringUnitOfWork | None = None,
     **kwargs: Any,
 ) -> None:
-    if session is None:
-        raise RuntimeError("Metering session is required")
+    if uow is None:
+        raise RuntimeError("Metering UnitOfWork is required")
     await _handle_terminal_request(
         payload,
-        session,
+        uow,
         source_event_id=_uuid(kwargs.get("source_event_id")),
         status="completed",
     )
@@ -362,15 +367,15 @@ async def handle_execution_completed(
 async def handle_execution_failed(
     event_type: str,
     payload: dict[str, Any],
-    session: AsyncSession | None = None,
+    uow: MeteringUnitOfWork | None = None,
     **kwargs: Any,
 ) -> None:
-    if session is None:
-        raise RuntimeError("Metering session is required")
+    if uow is None:
+        raise RuntimeError("Metering UnitOfWork is required")
     terminal_status = "cancelled" if payload.get("status") == "cancelled" else "failed"
     await _handle_terminal_request(
         payload,
-        session,
+        uow,
         source_event_id=_uuid(kwargs.get("source_event_id")),
         status=terminal_status,
     )
@@ -379,14 +384,14 @@ async def handle_execution_failed(
 async def handle_fallback(
     event_type: str,
     payload: dict[str, Any],
-    session: AsyncSession | None = None,
+    uow: MeteringUnitOfWork | None = None,
     **kwargs: Any,
 ) -> None:
-    if session is None:
-        raise RuntimeError("Metering session is required")
+    if uow is None:
+        raise RuntimeError("Metering UnitOfWork is required")
     project_id = _required_uuid(payload, "project_id")
     occurred_at = _occurred_at(payload)
-    await SQLAlchemyUsageEventRepository(session).save(
+    await SQLAlchemyUsageEventRepository(uow).save(
         UsageEvent(
             project_id=project_id,
             agent_id=_uuid(payload.get("agent_id")),

@@ -26,7 +26,7 @@ from modules.chat_surface.security import ChatSessionTokenCodec
 from modules.core.presentation.routes import router as core_router
 from modules.identity.presentation.instance_routes import router as instance_router
 from modules.identity.presentation.routes import router as identity_router
-from modules.metering.presentation.routes import router as metering_router
+from modules.metering.entrypoint import METERING_HTTP_ROUTERS
 from modules.network.presentation import router as network_router
 from modules.observability.presentation.routes import router as observability_router
 from public_runtime_routes import router as public_runtime_router
@@ -267,7 +267,8 @@ def create_app() -> FastAPI:
         for agent_http_router in AGENT_HTTP_ROUTERS:
             app.include_router(agent_http_router)
         app.include_router(runtime_environment_router)
-        app.include_router(metering_router)
+        for metering_http_router in METERING_HTTP_ROUTERS:
+            app.include_router(metering_http_router)
         app.include_router(observability_router)
         app.include_router(network_router)
     finally:

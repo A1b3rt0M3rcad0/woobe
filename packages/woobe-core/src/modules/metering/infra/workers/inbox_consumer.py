@@ -5,9 +5,10 @@ import os
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine
 
-from modules.metering.infra.database.repositories import SQLAlchemyMeteringInboxRepository
+from modules.metering.infra.database.repositories import SQLAlchemyMeteringInboxStore
+from modules.metering.infra.database.unit_of_work import MeteringUnitOfWork
 from modules.metering.infra.messaging.event_mappers import rabbit_message_to_inbox
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.inbox_consumer_base import BaseInboxConsumer, InboxRecord
@@ -57,36 +58,33 @@ class MeteringInboxConsumerWorker(BaseInboxConsumer):
             await self.reject(message, str(exc))
 
     async def _persist_and_ack(self, message: Any, inbox_model: Any) -> None:
-        async with AsyncSession(self._async_engine) as session:
-            async with session.begin():
-                repo = SQLAlchemyMeteringInboxRepository(session)
-                try:
-                    await repo.save_received(inbox_model)
-                except IntegrityError:
-                    await session.rollback()
-                    logger.debug(
-                        "Duplicate message acknowledged (idempotency_key=%s)",
-                        getattr(inbox_model, "idempotency_key", "unknown"),
-                    )
+        try:
+            async with MeteringUnitOfWork(self._async_engine) as uow:
+                repo = SQLAlchemyMeteringInboxStore(uow)
+                await repo.save_received(inbox_model)
+        except IntegrityError:
+            logger.debug(
+                "Duplicate message acknowledged (idempotency_key=%s)",
+                getattr(inbox_model, "idempotency_key", "unknown"),
+            )
         await self.acknowledge(message)
 
     async def persist_inbox(self, record: InboxRecord) -> None:
-        async with AsyncSession(self._async_engine) as session:
-            async with session.begin():
-                repo = SQLAlchemyMeteringInboxRepository(session)
-                from modules.metering.infra.database.models import InboxEventModel
+        from modules.metering.infra.database.models import InboxEventModel
 
-                model = InboxEventModel()
-                model.event_type = record.event_type
-                model.event_version = record.event_version
-                model.payload = record.payload
-                model.correlation_id = record.correlation_id
-                model.causation_id = record.causation_id
-                model.outbox_origin_id = record.outbox_origin_id
-                model.aggregate_type = record.aggregate_type
-                model.status = "received"
-                model.attempts = 0
-                await repo.save_received(model)
+        async with MeteringUnitOfWork(self._async_engine) as uow:
+            repo = SQLAlchemyMeteringInboxStore(uow)
+            model = InboxEventModel()
+            model.event_type = record.event_type
+            model.event_version = record.event_version
+            model.payload = record.payload
+            model.correlation_id = record.correlation_id
+            model.causation_id = record.causation_id
+            model.outbox_origin_id = record.outbox_origin_id
+            model.aggregate_type = record.aggregate_type
+            model.status = "received"
+            model.attempts = 0
+            await repo.save_received(model)
 
     async def acknowledge(self, message: Any) -> None:
         if hasattr(message, "ack"):

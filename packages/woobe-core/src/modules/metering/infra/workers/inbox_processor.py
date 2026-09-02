@@ -5,13 +5,14 @@ import os
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.metering.infra.database.models import InboxEventModel
 from modules.metering.infra.database.repositories import (
     METERING_DEFAULT_BATCH_SIZE,
-    SQLAlchemyMeteringInboxRepository,
+    SQLAlchemyMeteringInboxStore,
 )
+from modules.metering.infra.database.unit_of_work import MeteringUnitOfWork
 from modules.metering.infra.messaging.inbox_handlers import MeteringInboxEventRouter
 from shared.workers.inbox_processor_base import BaseInboxProcessor, InboxProcessingRecord
 
@@ -33,8 +34,8 @@ class MeteringInboxProcessorWorker(BaseInboxProcessor):
         super().__init__(async_engine)
         self._handler = handler
         self._worker_id = worker_id or f"inbox-processor-{os.getpid()}"
-        self._session: AsyncSession | None = None
-        self._repo: SQLAlchemyMeteringInboxRepository | None = None
+        self._uow: MeteringUnitOfWork | None = None
+        self._repo: SQLAlchemyMeteringInboxStore | None = None
         self._event_map: dict[UUID, InboxEventModel] = {}
 
     async def run(self) -> None:
@@ -57,51 +58,49 @@ class MeteringInboxProcessorWorker(BaseInboxProcessor):
                     )
 
     async def _claim_records(self) -> list[InboxProcessingRecord]:
-        async with AsyncSession(self._async_engine) as session:
-            async with session.begin():
-                self._bind_session(session)
-                try:
-                    return await self.claim_pending(limit=self.BATCH_SIZE)
-                finally:
-                    self._clear_session()
+        async with MeteringUnitOfWork(self._async_engine) as uow:
+            self._bind_uow(uow)
+            try:
+                return await self.claim_pending(limit=self.BATCH_SIZE)
+            finally:
+                self._clear_uow()
 
     async def _process_record(self, record: InboxProcessingRecord) -> None:
-        async with AsyncSession(self._async_engine) as session:
-            async with session.begin():
-                self._bind_session(session)
-                try:
-                    await self.process(record)
-                    await self.mark_processed(record)
-                finally:
-                    self._clear_session()
+        async with MeteringUnitOfWork(self._async_engine) as uow:
+            self._bind_uow(uow)
+            try:
+                await self.process(record)
+                await self.mark_processed(record)
+            finally:
+                self._clear_uow()
 
     async def _persist_failure(
         self,
         record: InboxProcessingRecord,
         error: str,
     ) -> None:
-        async with AsyncSession(self._async_engine) as session:
-            async with session.begin():
-                self._bind_session(session)
-                try:
-                    await self.mark_failed(record, error)
-                finally:
-                    self._clear_session()
+        async with MeteringUnitOfWork(self._async_engine) as uow:
+            self._bind_uow(uow)
+            try:
+                await self.mark_failed(record, error)
+            finally:
+                self._clear_uow()
 
-    def _bind_session(self, session: AsyncSession) -> None:
-        self._session = session
-        self._repo = SQLAlchemyMeteringInboxRepository(session)
+    def _bind_uow(self, uow: MeteringUnitOfWork) -> None:
+        self._uow = uow
+        self._repo = SQLAlchemyMeteringInboxStore(uow)
         self._event_map = {}
 
-    def _clear_session(self) -> None:
-        self._session = None
+    def _clear_uow(self) -> None:
+        self._uow = None
         self._repo = None
         self._event_map = {}
 
     async def claim_pending(self, limit: int) -> list[InboxProcessingRecord]:
         assert self._repo is not None
         events = await self._repo.claim_batch(
-            batch_size=limit, locked_by=self._worker_id
+            batch_size=limit,
+            locked_by=self._worker_id,
         )
         records: list[InboxProcessingRecord] = []
         for event in events:
@@ -122,7 +121,7 @@ class MeteringInboxProcessorWorker(BaseInboxProcessor):
         return records
 
     async def process(self, record: InboxProcessingRecord) -> None:
-        assert self._session is not None
+        assert self._uow is not None
         source_event_id = None
         try:
             source_event_id = UUID(str(record.outbox_origin_id))
@@ -138,7 +137,7 @@ class MeteringInboxProcessorWorker(BaseInboxProcessor):
             correlation_id=record.correlation_id,
             causation_id=record.causation_id,
             event_version=record.event_version,
-            session=self._session,
+            uow=self._uow,
         )
 
     async def mark_processed(self, record: InboxProcessingRecord) -> None:
@@ -154,5 +153,7 @@ class MeteringInboxProcessorWorker(BaseInboxProcessor):
         backoff = timedelta(seconds=RETRY_BACKOFF_BASE_SECONDS * (record.attempts + 1))
         available_at = datetime.now(timezone.utc) + backoff
         await self._repo.mark_retryable(
-            record.id, record.error or "transient failure", available_at
+            record.id,
+            record.error or "transient failure",
+            available_at,
         )

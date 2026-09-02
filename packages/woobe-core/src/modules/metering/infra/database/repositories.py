@@ -3,16 +3,14 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select, text
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.infra.config.interface.unit_of_work import UnitOfWork
-
-from modules.metering.domain.entities import UsageDailyAgent, UsageDailyProject, UsageEvent
-from modules.metering.domain.repositories import (
+from modules.metering.application.interfaces.outbox import OutboxEventWriter
+from modules.metering.application.interfaces.repositories import (
     UsageDailyAgentRepository,
     UsageDailyProjectRepository,
     UsageEventRepository,
 )
+from modules.metering.domain.entities import UsageDailyAgent, UsageDailyProject, UsageEvent
 from modules.metering.infra.database.mappers import (
     usage_daily_agent_entity_to_model,
     usage_daily_agent_model_to_entity,
@@ -28,18 +26,20 @@ from modules.metering.infra.database.models import (
     UsageDailyProjectModel,
     UsageEventModel,
 )
-from shared.messaging.outbox_writer import OutboxEventWriter
-from shared.infra.objects import CursorPage
+from modules.metering.infra.database.unit_of_work import MeteringUnitOfWork
+from shared.contracts.pagination import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 METERING_DEFAULT_BATCH_SIZE: int = 50
 METERING_INBOX_LOCK_TIMEOUT_SECONDS: int = 60
 
 
-class SQLAlchemyUsageEventRepository(BaseSQLAlchemyRepository[UsageEventModel], UsageEventRepository):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, UsageEventModel)
+class SQLAlchemyUsageEventRepository(
+    BaseSQLAlchemyRepository[UsageEventModel],
+    UsageEventRepository,
+):
+    def __init__(self, uow: MeteringUnitOfWork) -> None:
+        super().__init__(uow, UsageEventModel)
 
     async def save(self, event: UsageEvent) -> UsageEvent:
         model = usage_event_entity_to_model(event)
@@ -91,19 +91,12 @@ class SQLAlchemyUsageEventRepository(BaseSQLAlchemyRepository[UsageEventModel], 
 
 
 class SQLAlchemyUsageDailyProjectRepository(UsageDailyProjectRepository):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        self._session_or_uow: AsyncSession | UnitOfWork = session
-
-    @property
-    def _session(self) -> AsyncSession:
-        if isinstance(self._session_or_uow, UnitOfWork):
-            return self._session_or_uow.session
-        return self._session_or_uow
+    def __init__(self, uow: MeteringUnitOfWork) -> None:
+        self._uow = uow
 
     async def save(self, daily: UsageDailyProject) -> UsageDailyProject:
         model = usage_daily_project_entity_to_model(daily)
-        merged = await self._session.merge(model)
+        merged = await self._uow.session.merge(model)
         return usage_daily_project_model_to_entity(merged)
 
     async def get_by_project_and_day(
@@ -113,7 +106,7 @@ class SQLAlchemyUsageDailyProjectRepository(UsageDailyProjectRepository):
             UsageDailyProjectModel.project_id == project_id,
             UsageDailyProjectModel.day == day,
         )
-        result = await self._session.execute(stmt)
+        result = await self._uow.session.execute(stmt)
         model = result.scalar_one_or_none()
         if model is None:
             return None
@@ -129,13 +122,14 @@ class SQLAlchemyUsageDailyProjectRepository(UsageDailyProjectRepository):
             .offset(offset)
             .limit(limit)
         )
-        result = await self._session.execute(stmt)
+        result = await self._uow.session.execute(stmt)
         return [usage_daily_project_model_to_entity(m) for m in result.scalars().all()]
 
     async def paginate_by_project(
         self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[UsageDailyProject]:
         from datetime import date as _date
+
         stmt = (
             select(UsageDailyProjectModel)
             .where(UsageDailyProjectModel.project_id == project_id)
@@ -151,7 +145,7 @@ class SQLAlchemyUsageDailyProjectRepository(UsageDailyProjectRepository):
 
         fetch_limit = limit + 1
         stmt = stmt.limit(fetch_limit)
-        result = await self._session.execute(stmt)
+        result = await self._uow.session.execute(stmt)
         rows = list(result.scalars().all())
 
         has_next = len(rows) > limit
@@ -167,19 +161,12 @@ class SQLAlchemyUsageDailyProjectRepository(UsageDailyProjectRepository):
 
 
 class SQLAlchemyUsageDailyAgentRepository(UsageDailyAgentRepository):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        self._session_or_uow: AsyncSession | UnitOfWork = session
-
-    @property
-    def _session(self) -> AsyncSession:
-        if isinstance(self._session_or_uow, UnitOfWork):
-            return self._session_or_uow.session
-        return self._session_or_uow
+    def __init__(self, uow: MeteringUnitOfWork) -> None:
+        self._uow = uow
 
     async def save(self, daily: UsageDailyAgent) -> UsageDailyAgent:
         model = usage_daily_agent_entity_to_model(daily)
-        merged = await self._session.merge(model)
+        merged = await self._uow.session.merge(model)
         return usage_daily_agent_model_to_entity(merged)
 
     async def get_by_agent_and_day(
@@ -189,7 +176,7 @@ class SQLAlchemyUsageDailyAgentRepository(UsageDailyAgentRepository):
             UsageDailyAgentModel.agent_id == agent_id,
             UsageDailyAgentModel.day == day,
         )
-        result = await self._session.execute(stmt)
+        result = await self._uow.session.execute(stmt)
         model = result.scalar_one_or_none()
         if model is None:
             return None
@@ -205,13 +192,14 @@ class SQLAlchemyUsageDailyAgentRepository(UsageDailyAgentRepository):
             .offset(offset)
             .limit(limit)
         )
-        result = await self._session.execute(stmt)
+        result = await self._uow.session.execute(stmt)
         return [usage_daily_agent_model_to_entity(m) for m in result.scalars().all()]
 
     async def paginate_by_agent(
         self, agent_id: UUID, *, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[UsageDailyAgent]:
         from datetime import date as _date
+
         stmt = (
             select(UsageDailyAgentModel)
             .where(UsageDailyAgentModel.agent_id == agent_id)
@@ -227,7 +215,7 @@ class SQLAlchemyUsageDailyAgentRepository(UsageDailyAgentRepository):
 
         fetch_limit = limit + 1
         stmt = stmt.limit(fetch_limit)
-        result = await self._session.execute(stmt)
+        result = await self._uow.session.execute(stmt)
         rows = list(result.scalars().all())
 
         has_next = len(rows) > limit
@@ -243,15 +231,8 @@ class SQLAlchemyUsageDailyAgentRepository(UsageDailyAgentRepository):
 
 
 class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        self._session_or_uow: AsyncSession | UnitOfWork = session
-
-    @property
-    def _session(self) -> AsyncSession:
-        if isinstance(self._session_or_uow, UnitOfWork):
-            return self._session_or_uow.session
-        return self._session_or_uow
+    def __init__(self, uow: MeteringUnitOfWork) -> None:
+        self._uow = uow
 
     async def write(
         self,
@@ -276,22 +257,16 @@ class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
             correlation_id=correlation_id,
             causation_id=causation_id,
         )
-        self._session.add(event)
+        self._uow.session.add(event)
 
 
-class SQLAlchemyMeteringInboxRepository:
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        self._session_or_uow: AsyncSession | UnitOfWork = session
-
-    @property
-    def _session(self) -> AsyncSession:
-        if isinstance(self._session_or_uow, UnitOfWork):
-            return self._session_or_uow.session
-        return self._session_or_uow
+class SQLAlchemyMeteringInboxStore:
+    def __init__(self, uow: MeteringUnitOfWork) -> None:
+        self._uow = uow
 
     async def save_received(self, event: InboxEventModel) -> InboxEventModel:
-        self._session.add(event)
-        await self._session.flush()
+        self._uow.session.add(event)
+        await self._uow.session.flush()
         return event
 
     async def claim_batch(
@@ -316,7 +291,7 @@ class SQLAlchemyMeteringInboxRepository:
             .limit(batch_size)
             .with_for_update(skip_locked=True)
         )
-        result = await self._session.execute(stmt)
+        result = await self._uow.session.execute(stmt)
         events = list(result.scalars().all())
         for event in events:
             event.locked_at = now
@@ -325,7 +300,7 @@ class SQLAlchemyMeteringInboxRepository:
 
     async def mark_processed(self, event_id: UUID) -> None:
         stmt = select(InboxEventModel).where(InboxEventModel.id == event_id)
-        result = await self._session.execute(stmt)
+        result = await self._uow.session.execute(stmt)
         event = result.scalar_one_or_none()
         if event:
             event.status = "processed"
@@ -335,7 +310,7 @@ class SQLAlchemyMeteringInboxRepository:
 
     async def mark_failed(self, event_id: UUID, error: str) -> None:
         stmt = select(InboxEventModel).where(InboxEventModel.id == event_id)
-        result = await self._session.execute(stmt)
+        result = await self._uow.session.execute(stmt)
         event = result.scalar_one_or_none()
         if event:
             event.status = "failed"
@@ -345,7 +320,7 @@ class SQLAlchemyMeteringInboxRepository:
 
     async def mark_dead(self, event_id: UUID, error: str) -> None:
         stmt = select(InboxEventModel).where(InboxEventModel.id == event_id)
-        result = await self._session.execute(stmt)
+        result = await self._uow.session.execute(stmt)
         event = result.scalar_one_or_none()
         if event:
             event.status = "dead"
@@ -353,9 +328,14 @@ class SQLAlchemyMeteringInboxRepository:
             event.locked_at = None
             event.locked_by = None
 
-    async def mark_retryable(self, event_id: UUID, error: str, available_at: datetime) -> None:
+    async def mark_retryable(
+        self,
+        event_id: UUID,
+        error: str,
+        available_at: datetime,
+    ) -> None:
         stmt = select(InboxEventModel).where(InboxEventModel.id == event_id)
-        result = await self._session.execute(stmt)
+        result = await self._uow.session.execute(stmt)
         event = result.scalar_one_or_none()
         if event:
             event.status = "retryable"
