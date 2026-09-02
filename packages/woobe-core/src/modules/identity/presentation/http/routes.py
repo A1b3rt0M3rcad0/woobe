@@ -2,14 +2,14 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request as FastAPIRequest
 
-from modules.identity.application.composers.get_user_composer import get_user_composer
-from modules.identity.application.composers.get_workspace_composer import (
+from modules.identity.application.instance_service import InstanceService
+from modules.identity.composition.composers.get_user_composer import get_user_composer
+from modules.identity.composition.composers.get_workspace_composer import (
     get_workspace_composer,
 )
-from modules.identity.application.composers.update_workspace_composer import (
+from modules.identity.composition.composers.update_workspace_composer import (
     update_workspace_composer,
 )
-from modules.identity.application.instance_service import InstanceService
 from modules.identity.domain.enums import MemberRole
 from modules.identity.presentation.http.auth_endpoints import (
     authentication_service,
@@ -149,7 +149,7 @@ async def add_member(request: FastAPIRequest, workspace_id: str):
 @router.get("/workspaces/{workspace_id}")
 async def get_workspace(request: FastAPIRequest, workspace_id: str):
     del workspace_id
-    handler = get_workspace_composer(request.app.state.session_factory)
+    handler = get_workspace_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
@@ -160,7 +160,7 @@ async def update_workspace(request: FastAPIRequest, workspace_id: str):
         _principal_user_id(request),
         _uuid(workspace_id, "workspace id"),
     )
-    handler = update_workspace_composer(request.app.state.session_factory)
+    handler = update_workspace_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
@@ -259,6 +259,6 @@ async def get_user(request: FastAPIRequest, user_id: str):
     target_user_id = _uuid(user_id, "user id")
     if _principal_user_id(request) != target_user_id:
         raise NotFoundError("User not found")
-    handler = get_user_composer(request.app.state.session_factory)
+    handler = get_user_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)

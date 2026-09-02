@@ -3,23 +3,32 @@ from __future__ import annotations
 from typing import Any
 
 from sqlalchemy.exc import PendingRollbackError
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-from shared.infra.config.interface.unit_of_work import UnitOfWork
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from modules.identity.infra.database.repositories import (
-    SQLAlchemyWorkspaceInviteRepository,
-    SQLAlchemyWorkspaceMemberRepository,
-    SQLAlchemyWorkspaceRepository,
     SQLAlchemyOutboxEventWriter,
     SQLAlchemyUserRepository,
     SQLAlchemyUserSessionRepository,
+    SQLAlchemyWorkspaceInviteRepository,
+    SQLAlchemyWorkspaceMemberRepository,
+    SQLAlchemyWorkspaceRepository,
 )
+from shared.infra.config.interface.unit_of_work import UnitOfWork
 
 
 class IdentityUnitOfWork(UnitOfWork):
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
-        self._session_factory = session_factory
+    def __init__(
+        self,
+        engine: AsyncEngine | async_sessionmaker[AsyncSession],
+    ) -> None:
+        if isinstance(engine, async_sessionmaker):
+            self._session_factory = engine
+        else:
+            self._session_factory = async_sessionmaker(
+                bind=engine,
+                class_=AsyncSession,
+                expire_on_commit=False,
+            )
         self._session: AsyncSession | None = None
         self._users: SQLAlchemyUserRepository | None = None
         self._workspaces: SQLAlchemyWorkspaceRepository | None = None

@@ -16,9 +16,11 @@ class TestIdentityRoutes:
         content = ROUTES_FILE.read_text(encoding="utf-8")
         assert "router" in content
 
-    def test_routes_imports_composers(self):
+    def test_routes_imports_zero_argument_composers(self):
         source = ROUTES_FILE.read_text(encoding="utf-8")
-        assert "_composer" in source, "Routes must import composer functions"
+        assert "get_workspace_composer()" in source
+        assert "update_workspace_composer()" in source
+        assert "get_user_composer()" in source
 
     def test_all_controllers_import_use_cases(self):
         for py_file in CONTROLLERS_DIR.iterdir():

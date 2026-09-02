@@ -29,9 +29,11 @@ class TestIdentityRoutes:
             for marker in ("@router.get", "@router.post", "@router.patch")
         )
 
-    def test_routes_delegate_to_composers(self):
+    def test_routes_delegate_to_zero_argument_composers(self):
         source = IDENTITY_ROUTES.read_text(encoding="utf-8")
-        assert "_composer(" in source or "composer(" in source
+        assert "get_workspace_composer()" in source
+        assert "update_workspace_composer()" in source
+        assert "get_user_composer()" in source
 
     def test_routes_import_no_repository(self):
         source = IDENTITY_ROUTES.read_text(encoding="utf-8")
