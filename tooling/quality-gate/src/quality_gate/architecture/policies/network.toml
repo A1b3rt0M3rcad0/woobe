@@ -21,7 +21,11 @@ streaming_handler = "StreamingTransactionalHandler"
 uow_types = ["NetworkUnitOfWork"]
 uow_factory_functions = ["build_network_read_uow"]
 long_lived_handler = "Callable"
-long_lived_functions = ["active_network_run_composer", "attach_network_run_composer"]
+long_lived_functions = [
+  "active_network_run_composer",
+  "attach_network_run_composer",
+  "wait_network_run_composer",
+]
 forbidden_parameter_types = ["AsyncSession", "AsyncEngine", "async_sessionmaker"]
 forbidden_parameter_names = ["session", "session_factory", "async_engine", "engine"]
 forbidden_calls = ["Settings", "Settings.model_validate", "create_engine", "create_session_factory"]

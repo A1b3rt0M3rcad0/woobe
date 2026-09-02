@@ -11,6 +11,7 @@ long_lived_composer_sources = [
 long_lived_composer_functions = [
   "active_network_run_composer",
   "attach_network_run_composer",
+  "wait_network_run_composer",
 ]
 forbidden_database_types = ["AsyncEngine", "AsyncSession", "async_sessionmaker"]
 framework_forbidden_scopes = [
