@@ -1,3 +1,9 @@
+from modules.core.composition.composers.chat_surface_access_key_composers import (
+    create_chat_surface_access_key_composer,
+    list_chat_surface_access_keys_composer,
+    revoke_chat_surface_access_key_composer,
+    rotate_chat_surface_access_key_composer,
+)
 from modules.core.composition.composers.get_chat_surface_credential_composer import (
     get_chat_surface_credential_composer,
 )
@@ -12,6 +18,10 @@ __all__ = [
     "CORE_HTTP_ROUTERS",
     "CoreProjectLookup",
     "CoreWorkerRegistry",
+    "create_chat_surface_access_key_composer",
     "get_chat_surface_credential_composer",
+    "list_chat_surface_access_keys_composer",
     "register_core_workers",
+    "revoke_chat_surface_access_key_composer",
+    "rotate_chat_surface_access_key_composer",
 ]
