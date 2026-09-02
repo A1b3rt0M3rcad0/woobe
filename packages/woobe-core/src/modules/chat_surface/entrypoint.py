@@ -11,12 +11,15 @@ from modules.chat_surface.composition.module import (
     MessageRequestState,
     StreamChatMessageRequest,
     TargetSessionAuthorizationInput,
+    activate_chat_surface_composer,
     begin_chat_surface_message_runtime_composer,
     build_chat_surface_session_authorization_handler,
+    create_chat_surface_composer,
     latest_chat_surface_message_composer,
     mark_chat_surface_message_composer,
     mark_chat_surface_message_runtime_composer,
     normalize_appearance_config,
+    refresh_chat_surface_release_composer,
 )
 
 
@@ -30,11 +33,14 @@ __all__ = [
     "MessageRequestState",
     "StreamChatMessageRequest",
     "TargetSessionAuthorizationInput",
+    "activate_chat_surface_composer",
     "begin_chat_surface_message_runtime_composer",
     "build_chat_surface_session_authorization_handler",
+    "create_chat_surface_composer",
     "get_chat_surface_composer",
     "latest_chat_surface_message_composer",
     "mark_chat_surface_message_composer",
     "mark_chat_surface_message_runtime_composer",
     "normalize_appearance_config",
+    "refresh_chat_surface_release_composer",
 ]

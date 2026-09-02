@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy.exc import IntegrityError
 
+from modules.chat_surface.application.dtos.surface_mutation import CreateChatSurfaceInput
 from modules.chat_surface.application.dtos.surface_read import ChatSurfaceState
 from modules.chat_surface.application.interfaces.surface_mutation_repository import (
     ChatSurfaceMutationRepository,
@@ -16,6 +17,43 @@ from shared.contracts.errors import ConflictError, NotFoundError
 class SQLAlchemyChatSurfaceMutationRepository(ChatSurfaceMutationRepository):
     def __init__(self, uow: ChatSurfaceUnitOfWork) -> None:
         self._uow = uow
+
+    async def create(
+        self,
+        input_dto: CreateChatSurfaceInput,
+        *,
+        public_id: str,
+        normalized_name: str,
+        allowed_origins: list[str],
+    ) -> ChatSurfaceState:
+        model = ChatSurfaceModel(
+            public_id=public_id,
+            project_id=input_dto.project_id,
+            name=" ".join(input_dto.name.split()),
+            normalized_name=normalized_name,
+            description=input_dto.description,
+            target_type=input_dto.target_type,
+            target_id=input_dto.target_id,
+            target_release_id=input_dto.target_release_id,
+            environment="production",
+            status="draft",
+            access_mode="backend_managed",
+            allowed_origins=allowed_origins,
+            appearance_config=input_dto.appearance_config,
+            requests_per_minute=input_dto.requests_per_minute,
+            max_concurrent_runs=input_dto.max_concurrent_runs,
+            session_token_ttl_seconds=input_dto.session_token_ttl_seconds,
+            token_epoch=1,
+            created_by=input_dto.actor_id,
+        )
+        self._uow.session.add(model)
+        try:
+            await self._uow.session.flush()
+        except IntegrityError as exc:
+            raise ConflictError(
+                "A ChatSurface with this name already exists in the Project"
+            ) from exc
+        return self._state(model)
 
     async def get_for_update(self, surface_id: UUID) -> ChatSurfaceState | None:
         model = await self._uow.session.get(
@@ -61,12 +99,29 @@ class SQLAlchemyChatSurfaceMutationRepository(ChatSurfaceMutationRepository):
             ) from exc
         return self._state(model)
 
+    async def set_target_release(
+        self,
+        surface_id: UUID,
+        target_release_id: UUID,
+    ) -> ChatSurfaceState:
+        model = await self._uow.session.get(
+            ChatSurfaceModel,
+            surface_id,
+            with_for_update=True,
+        )
+        if model is None:
+            raise NotFoundError("ChatSurface not found")
+        model.target_release_id = target_release_id
+        await self._uow.session.flush()
+        return self._state(model)
+
     async def set_status(
         self,
         surface_id: UUID,
         *,
         status: str,
         token_epoch: int,
+        activated_at: datetime | None,
         archived_at: datetime | None,
     ) -> ChatSurfaceState:
         model = await self._uow.session.get(
@@ -78,6 +133,7 @@ class SQLAlchemyChatSurfaceMutationRepository(ChatSurfaceMutationRepository):
             raise NotFoundError("ChatSurface not found")
         model.status = status
         model.token_epoch = token_epoch
+        model.activated_at = activated_at
         model.archived_at = archived_at
         await self._uow.session.flush()
         return self._state(model)

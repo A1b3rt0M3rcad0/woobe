@@ -9,6 +9,9 @@ from modules.agent.composition.chat_surface_runtime import (
     AgentChatSurfaceRuntime,
     build_agent_chat_surface_runtime,
 )
+from modules.agent.composition.factories.chat_surface_target_release import (
+    build_agent_chat_surface_target_release_reader,
+)
 from modules.agent.composition.module import (
     AGENT_HTTP_ROUTERS,
     SETTINGS,
@@ -79,6 +82,7 @@ __all__ = [
     "agent_release_model_to_entity",
     "build_agent_chat_surface_history_reader",
     "build_agent_chat_surface_runtime",
+    "build_agent_chat_surface_target_release_reader",
     "build_agent_stream_service",
     "build_http_tool_executor",
     "build_internal_agent_runtime",

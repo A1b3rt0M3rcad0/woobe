@@ -9,6 +9,9 @@ from modules.network.composition.composers.run_reattach_composer import (
     attach_network_run_composer,
     wait_network_run_composer,
 )
+from modules.network.composition.factories.chat_surface_target_release import (
+    build_network_chat_surface_target_release_reader,
+)
 from modules.network.composition.integrations.chat_surface_history import (
     NetworkChatSurfaceHistoryReader,
     NetworkChatSurfaceMessage,
@@ -38,6 +41,7 @@ __all__ = [
     "attach_network_run_composer",
     "build_network_chat_surface_history_reader",
     "build_network_chat_surface_runtime",
+    "build_network_chat_surface_target_release_reader",
     "cancel_runtime_network_execution_composer",
     "register_network_workers",
     "submit_public_network_run_composer",

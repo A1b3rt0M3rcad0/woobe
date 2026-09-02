@@ -26,9 +26,12 @@ _EXTERNAL_RUNTIME_PATHS = {
     "/v1/chat/sessions/{session_id}/messages:stream",
 }
 _MIGRATED_CONTROL_PLANE_ROUTES = {
+    ("POST", "/chat-surfaces/projects/{project_id}"),
     ("GET", "/chat-surfaces/projects/{project_id}"),
     ("GET", "/chat-surfaces/{surface_id}"),
     ("PATCH", "/chat-surfaces/{surface_id}"),
+    ("POST", "/chat-surfaces/{surface_id}/release"),
+    ("POST", "/chat-surfaces/{surface_id}/activate"),
     ("POST", "/chat-surfaces/{surface_id}/disable"),
     ("POST", "/chat-surfaces/{surface_id}/archive"),
     ("GET", "/chat-surfaces/{surface_id}/sessions"),

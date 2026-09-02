@@ -14,6 +14,11 @@ from modules.chat_surface.composition.composers.message_lifecycle_composers impo
     mark_chat_surface_message_composer,
     mark_chat_surface_message_runtime_composer,
 )
+from modules.chat_surface.composition.composers.surface_mutation_composers import (
+    activate_chat_surface_composer,
+    create_chat_surface_composer,
+    refresh_chat_surface_release_composer,
+)
 from modules.chat_surface.composition.factories.session_authorization import (
     build_chat_surface_session_authorization_handler,
 )
@@ -38,10 +43,13 @@ __all__ = [
     "MessageRequestState",
     "StreamChatMessageRequest",
     "TargetSessionAuthorizationInput",
+    "activate_chat_surface_composer",
     "begin_chat_surface_message_runtime_composer",
     "build_chat_surface_session_authorization_handler",
+    "create_chat_surface_composer",
     "latest_chat_surface_message_composer",
     "mark_chat_surface_message_composer",
     "mark_chat_surface_message_runtime_composer",
     "normalize_appearance_config",
+    "refresh_chat_surface_release_composer",
 ]
