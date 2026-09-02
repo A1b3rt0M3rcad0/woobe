@@ -33,11 +33,14 @@ class SQLAlchemyChatSurfaceSessionAuthorizationRepository(
         surface = (
             ChatSurfaceAuthorizationState(
                 id=surface_model.id,
+                public_id=surface_model.public_id,
                 project_id=surface_model.project_id,
+                name=surface_model.name,
                 target_type=surface_model.target_type,
                 target_id=surface_model.target_id,
                 status=surface_model.status,
                 allowed_origins=list(surface_model.allowed_origins or []),
+                appearance_config=dict(surface_model.appearance_config or {}),
                 token_epoch=surface_model.token_epoch,
             )
             if surface_model is not None

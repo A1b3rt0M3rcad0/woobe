@@ -14,7 +14,10 @@ from modules.chat_surface.presentation.http.message_lifecycle import (
     mark_message_request,
 )
 from modules.chat_surface.presentation.http.session_authorization import authorize_session
-from modules.chat_surface.presentation.schemas import StreamChatMessageRequest
+from modules.chat_surface.presentation.schemas import (
+    StreamChatMessageRequest,
+    normalize_appearance_config,
+)
 from modules.network.entrypoint import (
     NetworkChatSurfaceRun,
     build_network_chat_surface_runtime,
@@ -24,10 +27,11 @@ from shared.contracts.errors import AuthorizationError, ConflictError
 
 CONTROL_PLANE_TEST_SOURCE = "control_plane_test"
 _STREAM_PATH = "/v1/chat/sessions/{session_id}/messages:stream"
+_SURFACE_PATH = "/v1/chat/sessions/{session_id}/surface"
 
 router = APIRouter(tags=["chat-surfaces"])
 for route in _legacy.router.routes:
-    if getattr(route, "path", None) != _STREAM_PATH:
+    if getattr(route, "path", None) not in {_STREAM_PATH, _SURFACE_PATH}:
         router.routes.append(route)
 
 
@@ -131,6 +135,31 @@ async def _network_stream(
         raise
 
 
+@router.get(_SURFACE_PATH)
+async def get_public_surface_configuration(
+    session_id: UUID,
+    request: Request,
+    host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
+):
+    authorized = await authorize_session(
+        request,
+        session_id,
+        permission="chat:history",
+        host_origin=host_origin,
+    )
+    return {
+        "success": True,
+        "data": {
+            "surface_id": authorized.surface.public_id,
+            "name": authorized.surface.name,
+            "appearance": normalize_appearance_config(
+                dict(authorized.surface.appearance_config or {})
+            ),
+            "protocol_version": 1,
+        },
+    }
+
+
 @router.post(_STREAM_PATH)
 async def stream_public_message(
     session_id: UUID,
@@ -229,4 +258,8 @@ def __getattr__(name: str):
     return getattr(_legacy, name)
 
 
-__all__ = ["router", "stream_public_message"]
+__all__ = [
+    "get_public_surface_configuration",
+    "router",
+    "stream_public_message",
+]

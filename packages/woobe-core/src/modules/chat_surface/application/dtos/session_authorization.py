@@ -33,11 +33,14 @@ class AuthorizeChatSurfaceSessionInput(BaseModel):
 
 class ChatSurfaceAuthorizationState(BaseModel):
     id: UUID
+    public_id: str
     project_id: UUID
+    name: str
     target_type: str
     target_id: UUID
     status: str
     allowed_origins: list[str]
+    appearance_config: dict[str, Any]
     token_epoch: int
 
 
