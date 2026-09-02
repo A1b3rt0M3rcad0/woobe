@@ -7,6 +7,8 @@ from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipa
 
 def project_id_from_request(request: Request) -> UUID:
     value = request.path_params.get("project_id") or request.query_params.get("project_id")
+    if value is None and isinstance(request.body, dict):
+        value = request.body.get("project_id")
     if value is None:
         raise AuthorizationError("Project context is required")
     return UUID(str(value))
@@ -21,3 +23,8 @@ def authorize_project(request: Request, project_id: UUID) -> None:
     if isinstance(principal, AuthenticatedPrincipal):
         return
     raise AuthorizationError("Authentication required")
+
+
+def actor_user_id(request: Request) -> UUID | None:
+    principal = request.principal
+    return principal.user_id if isinstance(principal, AuthenticatedPrincipal) else None
