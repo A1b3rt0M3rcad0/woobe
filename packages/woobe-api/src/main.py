@@ -12,6 +12,7 @@ from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ExceptionHandler
 
+from chat_surface_control_plane_routes import router as chat_surface_control_plane_router
 from modules.agent.entrypoint import (
     AGENT_HTTP_ROUTERS,
     SETTINGS,
@@ -264,6 +265,7 @@ def create_app() -> FastAPI:
             app.include_router(core_http_router)
         for chat_surface_http_router in CHAT_SURFACE_HTTP_ROUTERS:
             app.include_router(chat_surface_http_router)
+        app.include_router(chat_surface_control_plane_router)
         app.include_router(public_runtime_router)
         for agent_http_router in AGENT_HTTP_ROUTERS:
             app.include_router(agent_http_router)
