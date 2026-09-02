@@ -3,93 +3,58 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[5]
 IDENTITY_DIR = PROJECT_ROOT / "src" / "modules" / "identity"
 UOW_FILE = IDENTITY_DIR / "infra" / "database" / "unit_of_work.py"
-COMPOSERS_DIR = IDENTITY_DIR / "application" / "composers"
+COMPOSERS_DIR = IDENTITY_DIR / "composition" / "composers"
 
 
 class TestIdentityUnitOfWork:
     def test_uow_file_exists(self):
         assert UOW_FILE.is_file(), f"IdentityUnitOfWork file missing: {UOW_FILE}"
 
-    def test_uow_class_name(self):
+    def test_uow_owns_session_lifecycle(self):
         content = UOW_FILE.read_text(encoding="utf-8")
         assert "class IdentityUnitOfWork" in content
-
-    def test_uow_extends_unit_of_work(self):
-        content = UOW_FILE.read_text(encoding="utf-8")
-        assert "UnitOfWork" in content
-
-    def test_uow_has_users_property(self):
-        content = UOW_FILE.read_text(encoding="utf-8")
-        assert "def users" in content
-        assert "SQLAlchemyUserRepository" in content
-
-    def test_uow_has_workspaces_property(self):
-        content = UOW_FILE.read_text(encoding="utf-8")
-        assert "def workspaces" in content
-        assert "SQLAlchemyWorkspaceRepository" in content
-
-    def test_uow_has_members_property(self):
-        content = UOW_FILE.read_text(encoding="utf-8")
-        assert "def members" in content
-        assert "SQLAlchemyWorkspaceMemberRepository" in content
-
-    def test_uow_has_invites_property(self):
-        content = UOW_FILE.read_text(encoding="utf-8")
-        assert "def invites" in content
-        assert "SQLAlchemyWorkspaceInviteRepository" in content
-
-    def test_uow_has_user_sessions_property(self):
-        content = UOW_FILE.read_text(encoding="utf-8")
-        assert "def user_sessions" in content
-        assert "SQLAlchemyUserSessionRepository" in content
-
-    def test_uow_has_outbox_property(self):
-        content = UOW_FILE.read_text(encoding="utf-8")
-        assert "def outbox" in content
-        assert "SQLAlchemyOutboxEventWriter" in content
-
-    def test_uow_has_commit_and_rollback(self):
-        content = UOW_FILE.read_text(encoding="utf-8")
+        assert "def __init__(self, engine: AsyncEngine)" in content
+        assert "async_sessionmaker(" in content
+        assert "def session" in content
+        assert "async def __aenter__" in content
+        assert "async def __aexit__" in content
         assert "async def commit" in content
         assert "async def rollback" in content
 
-    def test_uow_has_aenter_aexit(self):
+    def test_uow_is_not_repository_locator(self):
         content = UOW_FILE.read_text(encoding="utf-8")
-        assert "__aenter__" in content
-        assert "__aexit__" in content
+        forbidden = (
+            "def users",
+            "def workspaces",
+            "def members",
+            "def invites",
+            "def user_sessions",
+            "def outbox",
+            "SQLAlchemyUserRepository",
+            "SQLAlchemyWorkspaceRepository",
+            "SQLAlchemyWorkspaceMemberRepository",
+            "SQLAlchemyWorkspaceInviteRepository",
+            "SQLAlchemyUserSessionRepository",
+            "SQLAlchemyOutboxEventWriter",
+        )
+        violations = [marker for marker in forbidden if marker in content]
+        assert not violations, f"UoW still exposes repositories: {violations}"
 
-    def test_uow_reinitializes_none_on_exit(self):
-        content = UOW_FILE.read_text(encoding="utf-8")
-        assert "self._users = None" in content
-        assert "self._workspaces = None" in content
-        assert "self._outbox = None" in content
-
-    def test_no_composer_imports_postgres_unit_of_work(self):
-        for py_file in sorted(COMPOSERS_DIR.iterdir()):
-            if py_file.suffix != ".py" or py_file.name.startswith("__"):
-                continue
+    def test_composers_use_canonical_engine_owned_uow(self):
+        py_files = sorted(
+            path
+            for path in COMPOSERS_DIR.glob("*.py")
+            if not path.name.startswith("__")
+        )
+        assert py_files, "Identity composition must contain composers"
+        violations = []
+        for py_file in py_files:
             source = py_file.read_text(encoding="utf-8")
-            assert "PostgresUnitOfWork" not in source, (
-                f"{py_file.name} still imports PostgresUnitOfWork"
-            )
-
-    def test_all_composers_import_identity_unit_of_work(self):
-        for py_file in sorted(COMPOSERS_DIR.iterdir()):
-            if py_file.suffix != ".py" or py_file.name.startswith("__"):
-                continue
-            source = py_file.read_text(encoding="utf-8")
-            assert "IdentityUnitOfWork" in source, (
-                f"{py_file.name} does not import IdentityUnitOfWork"
-            )
-
-    def test_all_composers_use_uow_dot_property_pattern(self):
-        skip = {"get_current_user_composer.py"}
-        for py_file in sorted(COMPOSERS_DIR.iterdir()):
-            if py_file.suffix != ".py" or py_file.name.startswith("__"):
-                continue
-            if py_file.name in skip:
-                continue
-            source = py_file.read_text(encoding="utf-8")
-            assert "uow." in source, (
-                f"{py_file.name} does not use uow.property pattern"
-            )
+            if "IdentityUnitOfWork" not in source:
+                violations.append(f"{py_file.name}: missing IdentityUnitOfWork")
+            if "IdentityUnitOfWork(DATABASE_ENGINE)" not in source:
+                violations.append(f"{py_file.name}: UoW not built from DATABASE_ENGINE")
+            for locator in ("uow.users", "uow.workspaces", "uow.members", "uow.invites", "uow.user_sessions", "uow.outbox"):
+                if locator in source:
+                    violations.append(f"{py_file.name}: repository locator {locator}")
+        assert not violations, "\n".join(violations)
