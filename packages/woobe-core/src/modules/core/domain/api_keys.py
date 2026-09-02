@@ -1,0 +1,3 @@
+API_KEY_SCOPE_RUNTIME_EXECUTE = "runtime:execute"
+
+__all__ = ["API_KEY_SCOPE_RUNTIME_EXECUTE"]

@@ -1,9 +1,7 @@
+from modules.core.application.interfaces.use_case import UseCase
 from modules.core.application.dtos.runtime_api_key_dtos import CreateRuntimeApiKeyInput
-from modules.core.application.use_cases.create_runtime_api_key_use_case import (
-    CreateRuntimeApiKeyUseCase,
-)
 from modules.core.presentation.schemas import CreatedApiKeyResponse
-from shared.infra.errors import AuthenticationError
+from shared.contracts.errors import AuthenticationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
@@ -11,7 +9,7 @@ from shared.security.principal import AuthenticatedPrincipal
 
 
 class CreateRuntimeApiKeyController(Controller):
-    def __init__(self, use_case: CreateRuntimeApiKeyUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

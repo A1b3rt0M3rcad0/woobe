@@ -1,9 +1,9 @@
 from datetime import UTC, datetime
 
 from modules.core.domain.errors import ProjectNotFoundError
-from modules.core.domain.repositories import ProjectRepository
+from modules.core.application.interfaces.repositories import ProjectRepository
 from modules.core.application.dtos.update_project_dtos import UpdateProjectInput, UpdateProjectOutput
-from shared.messaging.outbox_writer import OutboxEventWriter
+from modules.core.application.interfaces.outbox import OutboxEventWriter
 
 
 class UpdateProjectUseCase:

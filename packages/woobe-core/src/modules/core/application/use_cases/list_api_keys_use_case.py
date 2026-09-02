@@ -5,8 +5,8 @@ from modules.core.application.dtos.list_api_keys_dtos import (
     ListApiKeysOutput,
 )
 from modules.core.domain.enums import ApiKeyStatus
-from modules.core.domain.repositories import ApiKeyRepository
-from shared.security.api_keys import format_api_key_prefix
+from modules.core.application.interfaces.api_key_issuer import ApiKeyIssuer
+from modules.core.application.interfaces.repositories import ApiKeyRepository
 
 
 def _effective_status(key, now: datetime) -> ApiKeyStatus:
@@ -23,8 +23,13 @@ def _effective_status(key, now: datetime) -> ApiKeyStatus:
 
 
 class ListApiKeysByProjectUseCase:
-    def __init__(self, api_key_repo: ApiKeyRepository) -> None:
+    def __init__(
+        self,
+        api_key_repo: ApiKeyRepository,
+        api_key_issuer: ApiKeyIssuer,
+    ) -> None:
         self._api_key_repo = api_key_repo
+        self._api_key_issuer = api_key_issuer
 
     async def execute(self, input_dto: ListApiKeysInput) -> list[ListApiKeysOutput]:
         keys = await self._api_key_repo.list_by_project(input_dto.project_id)
@@ -36,7 +41,7 @@ class ListApiKeysByProjectUseCase:
                 project_id=key.project_id,
                 name=key.name,
                 description=key.description,
-                key_prefix=format_api_key_prefix(
+                key_prefix=self._api_key_issuer.format_prefix(
                     key.key_prefix,
                     key_version=key.key_version,
                     kind=key.kind.value,

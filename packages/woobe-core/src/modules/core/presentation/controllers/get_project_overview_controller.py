@@ -1,16 +1,14 @@
+from modules.core.application.interfaces.use_case import UseCase
 from __future__ import annotations
 
 from modules.core.application.dtos.project_overview import ProjectOverviewQuery
-from modules.core.application.use_cases.get_project_overview import (
-    GetProjectOverviewUseCase,
-)
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
 
 
 class GetProjectOverviewController(Controller):
-    def __init__(self, use_case: GetProjectOverviewUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

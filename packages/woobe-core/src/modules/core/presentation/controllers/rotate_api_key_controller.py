@@ -1,7 +1,7 @@
+from modules.core.application.interfaces.use_case import UseCase
 from modules.core.application.dtos import RotateApiKeyInput
-from modules.core.application.use_cases import RotateApiKeyUseCase
 from modules.core.presentation.schemas import CreatedApiKeyResponse
-from shared.infra.errors import AuthenticationError
+from shared.contracts.errors import AuthenticationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
@@ -9,7 +9,7 @@ from shared.security.principal import AuthenticatedPrincipal
 
 
 class RotateApiKeyController(Controller):
-    def __init__(self, use_case: RotateApiKeyUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

@@ -11,15 +11,10 @@ from modules.core.application.dtos.api_key_lifecycle_dtos import (
 from modules.core.domain.entities import ApiKey
 from modules.core.domain.enums import ApiKeyKind, ApiKeyStatus
 from modules.core.domain.errors import ApiKeyNotActiveError, ApiKeyNotFoundError
-from modules.core.domain.repositories import ApiKeyRepository
-from shared.infra.errors import ValidationError
-from shared.messaging.outbox_writer import OutboxEventWriter
-from shared.security.api_keys import (
-    issue_project_api_key,
-    issue_runtime_api_key,
-    normalize_project_api_key_scopes,
-)
-
+from modules.core.application.interfaces.api_key_issuer import ApiKeyIssuer
+from modules.core.application.interfaces.outbox import OutboxEventWriter
+from modules.core.application.interfaces.repositories import ApiKeyRepository
+from shared.contracts.errors import ValidationError
 
 class RevokeApiKeyUseCase:
     def __init__(
@@ -68,9 +63,11 @@ class RotateApiKeyUseCase:
         self,
         api_key_repo: ApiKeyRepository,
         outbox: OutboxEventWriter,
+        api_key_issuer: ApiKeyIssuer,
     ) -> None:
         self._api_key_repo = api_key_repo
         self._outbox = outbox
+        self._api_key_issuer = api_key_issuer
 
     async def execute(self, input_dto: RotateApiKeyInput) -> RotateApiKeyOutput:
         current = await self._api_key_repo.get_by_id(input_dto.api_key_id)
@@ -91,16 +88,16 @@ class RotateApiKeyUseCase:
             else current.scopes
         )
         try:
-            scopes = normalize_project_api_key_scopes(requested_scopes)
+            scopes = self._api_key_issuer.normalize_project_scopes(requested_scopes)
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
         if current.kind == ApiKeyKind.runtime:
             if current.environment is None:
                 raise ValidationError("Runtime API key environment is missing")
-            issued = issue_runtime_api_key(current.environment.value)
+            issued = self._api_key_issuer.issue_runtime(current.environment.value)
         else:
-            issued = issue_project_api_key()
+            issued = self._api_key_issuer.issue_project()
 
         now = datetime.now(UTC)
         current.status = ApiKeyStatus.revoked

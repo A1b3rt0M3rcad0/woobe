@@ -10,6 +10,7 @@ class CreateProjectInput(BaseModel):
     workspace_id: UUID
     name: str
     slug: str
+    actor_user_id: UUID | None = None
 
 
 class CreateProjectOutput(BaseModel):

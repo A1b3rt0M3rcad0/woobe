@@ -1,4 +1,4 @@
-from modules.core.application.use_cases import GetProjectByIdUseCase
+from modules.core.application.interfaces.use_case import UseCase
 from modules.core.application.dtos import GetProjectInput
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
@@ -6,7 +6,7 @@ from shared.presentation.http.response import Response
 
 
 class GetProjectController(Controller):
-    def __init__(self, use_case: GetProjectByIdUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

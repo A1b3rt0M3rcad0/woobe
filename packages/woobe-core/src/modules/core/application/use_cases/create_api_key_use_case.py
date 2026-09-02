@@ -4,14 +4,10 @@ from modules.core.application.dtos.create_api_key_dtos import (
 )
 from modules.core.domain.entities import ApiKey
 from modules.core.domain.errors import ProjectNotFoundError
-from modules.core.domain.repositories import ApiKeyRepository, ProjectRepository
-from shared.infra.errors import ValidationError
-from shared.messaging.outbox_writer import OutboxEventWriter
-from shared.security.api_keys import (
-    issue_project_api_key,
-    normalize_project_api_key_scopes,
-)
-
+from modules.core.application.interfaces.api_key_issuer import ApiKeyIssuer
+from modules.core.application.interfaces.outbox import OutboxEventWriter
+from modules.core.application.interfaces.repositories import ApiKeyRepository, ProjectRepository
+from shared.contracts.errors import ValidationError
 
 class CreateApiKeyUseCase:
     def __init__(
@@ -19,10 +15,12 @@ class CreateApiKeyUseCase:
         project_repo: ProjectRepository,
         api_key_repo: ApiKeyRepository,
         outbox: OutboxEventWriter,
+        api_key_issuer: ApiKeyIssuer,
     ) -> None:
         self._project_repo = project_repo
         self._api_key_repo = api_key_repo
         self._outbox = outbox
+        self._api_key_issuer = api_key_issuer
 
     async def execute(self, input_dto: CreateApiKeyInput) -> CreateApiKeyOutput:
         project = await self._project_repo.get_by_id(input_dto.project_id)
@@ -30,11 +28,11 @@ class CreateApiKeyUseCase:
             raise ProjectNotFoundError(input_dto.project_id)
 
         try:
-            scopes = normalize_project_api_key_scopes(input_dto.scopes)
+            scopes = self._api_key_issuer.normalize_project_scopes(input_dto.scopes)
         except ValueError as exc:
             raise ValidationError(str(exc)) from exc
 
-        issued = issue_project_api_key()
+        issued = self._api_key_issuer.issue_project()
         api_key = ApiKey(
             project_id=input_dto.project_id,
             name=input_dto.name,

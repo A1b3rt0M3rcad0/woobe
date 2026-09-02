@@ -6,7 +6,7 @@ from modules.core.application.dtos.project_overview import (
     ProjectOverviewOutput,
     ProjectOverviewQuery,
 )
-from modules.core.application.ports.project_overview_reader import ProjectOverviewReader
+from modules.core.application.interfaces.project_overview_reader import ProjectOverviewReader
 
 
 class GetProjectOverviewUseCase:

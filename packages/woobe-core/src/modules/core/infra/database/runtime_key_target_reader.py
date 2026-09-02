@@ -2,11 +2,14 @@ from uuid import UUID
 
 from sqlalchemy import text
 
+from modules.core.application.interfaces.runtime_key_target_reader import (
+    RuntimeKeyTargetReader as RuntimeKeyTargetReaderPort,
+)
 from modules.core.domain.enums import RuntimeTargetType
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 
 
-class RuntimeKeyTargetReader:
+class RuntimeKeyTargetReader(RuntimeKeyTargetReaderPort):
     def __init__(self, uow: UnitOfWork) -> None:
         self._uow = uow
 

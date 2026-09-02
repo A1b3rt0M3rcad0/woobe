@@ -18,6 +18,15 @@ from modules.core.application.use_cases.list_api_keys_use_case import (
 from modules.core.application.use_cases.list_projects_use_case import (
     ListProjectsUseCase,
 )
+from modules.core.application.use_cases.project_access_use_cases import (
+    GrantProjectAccessUseCase,
+    GrantProjectSubjectAccessUseCase,
+    ListAccessibleProjectsUseCase,
+    ListProjectMembersUseCase,
+    ListProjectsForAccessManagementUseCase,
+    RevokeProjectAccessUseCase,
+    RevokeProjectSubjectAccessUseCase,
+)
 from modules.core.application.use_cases.update_project_use_case import (
     UpdateProjectUseCase,
 )
@@ -32,4 +41,11 @@ __all__ = [
     "GetProjectByIdUseCase",
     "UpdateProjectUseCase",
     "ListApiKeysByProjectUseCase",
+    "GrantProjectAccessUseCase",
+    "GrantProjectSubjectAccessUseCase",
+    "ListAccessibleProjectsUseCase",
+    "ListProjectMembersUseCase",
+    "ListProjectsForAccessManagementUseCase",
+    "RevokeProjectAccessUseCase",
+    "RevokeProjectSubjectAccessUseCase",
 ]

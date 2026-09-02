@@ -1,4 +1,3 @@
-from typing import Protocol
 from uuid import UUID
 
 from modules.core.application.dtos.runtime_api_key_dtos import (
@@ -8,21 +7,12 @@ from modules.core.application.dtos.runtime_api_key_dtos import (
 from modules.core.domain.entities import ApiKey
 from modules.core.domain.enums import ApiKeyKind, RuntimeTargetType
 from modules.core.domain.errors import ProjectNotFoundError
-from modules.core.domain.repositories import ApiKeyRepository, ProjectRepository
-from shared.infra.errors import NotFoundError
-from shared.messaging.outbox_writer import OutboxEventWriter
-from shared.security.api_keys import (
-    API_KEY_SCOPE_RUNTIME_EXECUTE,
-    issue_runtime_api_key,
-)
-
-
-class RuntimeKeyTargetReader(Protocol):
-    async def get_target_project_id(
-        self,
-        target_type: RuntimeTargetType,
-        target_id: UUID,
-    ) -> UUID | None: ...
+from modules.core.application.interfaces.api_key_issuer import ApiKeyIssuer
+from modules.core.application.interfaces.outbox import OutboxEventWriter
+from modules.core.application.interfaces.repositories import ApiKeyRepository, ProjectRepository
+from modules.core.application.interfaces.runtime_key_target_reader import RuntimeKeyTargetReader
+from shared.contracts.errors import NotFoundError
+from modules.core.domain.api_keys import API_KEY_SCOPE_RUNTIME_EXECUTE
 
 
 class CreateRuntimeApiKeyUseCase:
@@ -32,11 +22,13 @@ class CreateRuntimeApiKeyUseCase:
         target_reader: RuntimeKeyTargetReader,
         api_key_repo: ApiKeyRepository,
         outbox: OutboxEventWriter,
+        api_key_issuer: ApiKeyIssuer,
     ) -> None:
         self._project_repo = project_repo
         self._target_reader = target_reader
         self._api_key_repo = api_key_repo
         self._outbox = outbox
+        self._api_key_issuer = api_key_issuer
 
     async def execute(
         self, input_dto: CreateRuntimeApiKeyInput
@@ -57,7 +49,7 @@ class CreateRuntimeApiKeyUseCase:
                 f"{input_dto.target_type.value.title()} not found: {target_id}"
             )
 
-        issued = issue_runtime_api_key(input_dto.environment.value)
+        issued = self._api_key_issuer.issue_runtime(input_dto.environment.value)
         interfaces = [interface.value for interface in input_dto.interfaces]
         api_key = ApiKey(
             project_id=input_dto.project_id,

@@ -2,10 +2,8 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from modules.core.domain.entities import ApiKey, Project
-from modules.core.domain.repositories import (
+from modules.core.application.interfaces.repositories import (
     ApiKeyRepository as ApiKeyRepositoryInterface,
     ProjectRepository as ProjectRepositoryInterface,
 )
@@ -15,22 +13,22 @@ from modules.core.infra.database.mappers import (
     project_entity_to_model,
     project_model_to_entity,
 )
+from modules.core.infra.database.unit_of_work import CoreUnitOfWork
 from modules.core.infra.database.models import (
     ApiKeyModel,
     OutboxEventModel,
     ProjectModel,
 )
-from shared.infra.config.interface.unit_of_work import UnitOfWork
-from shared.infra.objects import CursorPage
+from shared.contracts.pagination import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
-from shared.messaging.outbox_writer import OutboxEventWriter
+from modules.core.application.interfaces.outbox import OutboxEventWriter
 
 
 class SQLAlchemyProjectRepository(
     BaseSQLAlchemyRepository[ProjectModel], ProjectRepositoryInterface
 ):
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, ProjectModel)
+    def __init__(self, uow: CoreUnitOfWork) -> None:
+        super().__init__(uow, ProjectModel)
 
     async def save(self, project: Project) -> Project:
         model = project_entity_to_model(project)
@@ -87,8 +85,8 @@ class SQLAlchemyProjectRepository(
 class SQLAlchemyApiKeyRepository(
     BaseSQLAlchemyRepository[ApiKeyModel], ApiKeyRepositoryInterface
 ):
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, ApiKeyModel)
+    def __init__(self, uow: CoreUnitOfWork) -> None:
+        super().__init__(uow, ApiKeyModel)
 
     async def save(self, api_key: ApiKey) -> ApiKey:
         model = api_key_entity_to_model(api_key)
@@ -197,14 +195,12 @@ class SQLAlchemyApiKeyRepository(
 
 
 class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        self._session_or_uow: AsyncSession | UnitOfWork = session
+    def __init__(self, uow: CoreUnitOfWork) -> None:
+        self._uow = uow
 
     @property
-    def _session(self) -> AsyncSession:
-        if isinstance(self._session_or_uow, UnitOfWork):
-            return self._session_or_uow.session
-        return self._session_or_uow
+    def _session(self):
+        return self._uow.session
 
     async def write(
         self,

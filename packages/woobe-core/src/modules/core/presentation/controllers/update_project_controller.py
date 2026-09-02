@@ -1,4 +1,4 @@
-from modules.core.application.use_cases import UpdateProjectUseCase
+from modules.core.application.interfaces.use_case import UseCase
 from modules.core.application.dtos import UpdateProjectInput
 from modules.core.presentation.schemas import ProjectResponse
 from shared.presentation.interface.controller import Controller
@@ -7,7 +7,7 @@ from shared.presentation.http.response import Response
 
 
 class UpdateProjectController(Controller):
-    def __init__(self, use_case: UpdateProjectUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

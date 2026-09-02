@@ -20,7 +20,7 @@ CORE_MODULE_WORKER_REGISTRIES: tuple[str, ...] = (
     "observability",
 )
 
-PUBLIC_WORKER_ENTRYPOINTS = frozenset({"agent", "metering", "observability"})
+PUBLIC_WORKER_ENTRYPOINTS = frozenset({"agent", "core", "metering", "observability"})
 
 
 class ModuleWorkerEntry:

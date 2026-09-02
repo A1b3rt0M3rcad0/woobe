@@ -1,4 +1,4 @@
-from modules.core.domain.repositories import ProjectRepository
+from modules.core.application.interfaces.repositories import ProjectRepository
 from modules.core.application.dtos.list_projects_dtos import ListProjectsInput, ListProjectsOutput
 
 
