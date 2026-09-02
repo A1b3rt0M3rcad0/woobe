@@ -33,11 +33,15 @@ from modules.agent.composition.network_integration import (
     release_snapshot_hash,
     release_snapshots_equal,
 )
+from modules.agent.composition.network_runtime_materializer import (
+    AgentNetworkRunMaterializer,
+)
 from modules.agent.composition.workers import AgentWorkerRegistry, register_agent_workers
 
 __all__ = [
     "AGENT_HTTP_ROUTERS",
     "AgentModel",
+    "AgentNetworkRunMaterializer",
     "AgentRelease",
     "AgentReleaseModel",
     "AgentToolRuntimeGateway",

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from modules.agent.entrypoint import get_http_tool_executor
+from modules.agent.entrypoint import AgentNetworkRunMaterializer, get_http_tool_executor
 from modules.network.infra.database.unit_of_work import NetworkUnitOfWork
 from modules.network.infra.runtime.finalizer import NetworkRuntimeFinalizer
 from modules.network.infra.runtime.loader import NetworkRuntimeLoader
@@ -13,7 +13,7 @@ from modules.network.infra.workers.execution_worker import (
     NetworkLeaseRecoveryWorker,
 )
 from modules.network.infra.workers.outbox_dispatcher import NetworkOutboxDispatcherWorker
-from shared.composition_resources import EXECUTION_STATE_STORE, SESSION_FACTORY
+from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.config import Settings
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
@@ -41,7 +41,10 @@ def register_network_workers(
 
     uow_factory = lambda: NetworkUnitOfWork(engine)
     loader = NetworkRuntimeLoader(uow_factory)
-    finalizer = NetworkRuntimeFinalizer(SESSION_FACTORY)
+    finalizer = NetworkRuntimeFinalizer(
+        uow_factory,
+        AgentNetworkRunMaterializer(),
+    )
     state_store = RedisNetworkExecutionStore(EXECUTION_STATE_STORE)
     processor = NetworkExecutionProcessor(
         loader=loader,
