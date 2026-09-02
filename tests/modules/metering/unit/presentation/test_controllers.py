@@ -2,31 +2,41 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[5]
-METERING_CONTROLLERS_DIR = ROOT / "src" / "modules" / "metering" / "presentation" / "controllers"
+METERING_CONTROLLERS_DIR = (
+    ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "metering"
+    / "presentation"
+    / "controllers"
+)
 
 
 class TestMeteringControllers:
     def _controller_py_files(self) -> list[Path]:
         return [
-            p for p in METERING_CONTROLLERS_DIR.rglob("*.py")
-            if p.name != "__init__.py"
+            path
+            for path in METERING_CONTROLLERS_DIR.rglob("*.py")
+            if path.name != "__init__.py"
         ]
 
     def test_controller_files_exist(self):
         files = self._controller_py_files()
-        assert len(files) > 0, "controller .py files must exist"
+        assert files, "controller .py files must exist"
 
-    def test_controllers_import_from_application_use_cases(self):
+    def test_controllers_depend_on_application_interfaces(self):
         for filepath in self._controller_py_files():
-            source = filepath.read_text(encoding="utf-8")
-            tree = ast.parse(source)
-            imports_app_use_cases = False
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom):
-                    if node.module and "application.use_cases" in node.module:
-                        imports_app_use_cases = True
-            assert imports_app_use_cases, (
-                f"{filepath.name} must import from application.use_cases"
+            tree = ast.parse(filepath.read_text(encoding="utf-8"))
+            imports_application_interface = any(
+                isinstance(node, ast.ImportFrom)
+                and node.module
+                and node.module.startswith("modules.metering.application.interfaces")
+                for node in ast.walk(tree)
+            )
+            assert imports_application_interface, (
+                f"{filepath.name} must depend on application interfaces"
             )
 
     def test_controllers_implement_handle_method(self):
@@ -35,6 +45,11 @@ class TestMeteringControllers:
             assert "async def handle" in source or "def handle" in source, (
                 f"{filepath.name} must implement handle() method"
             )
+
+    def test_controllers_do_not_import_use_cases_directly(self):
+        for filepath in self._controller_py_files():
+            source = filepath.read_text(encoding="utf-8")
+            assert "modules.metering.application.use_cases" not in source
 
     def test_controllers_do_not_import_service(self):
         for filepath in self._controller_py_files():

@@ -1,25 +1,26 @@
-import pytest
-from uuid import UUID
 from datetime import date
+from uuid import UUID
 
-from modules.metering.domain.entities import UsageDailyProject, UsageDailyAgent
-from modules.metering.service.dtos import (
+import pytest
+
+from modules.metering.application.dtos import (
+    DailyUsageResponse,
     RecordUsageInput,
     RecordUsageOutput,
-    DailyUsageResponse,
 )
-from modules.metering.service.use_cases import (
-    RecordUsageUseCase,
-    GetProjectDailyUsageUseCase,
-    GetAgentDailyUsageUseCase,
-)
-from modules.metering.domain.repositories import (
-    UsageEventRepository,
-    UsageDailyProjectRepository,
+from modules.metering.application.interfaces.outbox import OutboxEventWriter
+from modules.metering.application.interfaces.repositories import (
     UsageDailyAgentRepository,
+    UsageDailyProjectRepository,
+    UsageEventRepository,
 )
-from shared.messaging.outbox_writer import OutboxEventWriter
-from tests.helpers import make_usage_event, fake_uuid
+from modules.metering.application.use_cases import (
+    GetAgentDailyUsageUseCase,
+    GetProjectDailyUsageUseCase,
+    RecordUsageUseCase,
+)
+from modules.metering.domain.entities import UsageDailyAgent, UsageDailyProject
+from tests.helpers import fake_uuid, make_usage_event
 
 
 class TestRecordUsageUseCase:

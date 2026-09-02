@@ -1,12 +1,22 @@
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[4]
-METERING_ROUTES = ROOT / "src" / "modules" / "metering" / "presentation" / "routes.py"
+METERING_ROUTES = (
+    ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "metering"
+    / "presentation"
+    / "http"
+    / "routes.py"
+)
 
 
 class TestMeteringRoutes:
     def test_routes_file_exists(self):
-        assert METERING_ROUTES.is_file(), "metering/presentation/routes.py must exist"
+        assert METERING_ROUTES.is_file(), "metering/presentation/http/routes.py must exist"
 
     def test_routes_has_metering_prefix(self):
         source = METERING_ROUTES.read_text(encoding="utf-8")
@@ -22,8 +32,8 @@ class TestMeteringRoutes:
 
     def test_routes_delegate_to_composers(self):
         source = METERING_ROUTES.read_text(encoding="utf-8")
-        assert "_composer(" in source, (
-            "Routes must delegate to composer functions"
+        assert "_composer()" in source, (
+            "Routes must delegate to zero-argument composer functions"
         )
 
     def test_routes_import_no_repository(self):
@@ -43,3 +53,7 @@ class TestMeteringRoutes:
         assert "from modules.metering.service" not in source, (
             "Routes must not import from legacy service/"
         )
+
+    def test_routes_do_not_use_app_state_for_dependency_injection(self):
+        source = METERING_ROUTES.read_text(encoding="utf-8")
+        assert "request.app.state" not in source

@@ -1,10 +1,14 @@
-from uuid import UUID
 from datetime import date
+from uuid import UUID
 
-from pydantic import ValidationError
 import pytest
+from pydantic import ValidationError
 
-from modules.metering.service.dtos import RecordUsageInput, RecordUsageOutput, DailyUsageResponse
+from modules.metering.application.dtos import (
+    DailyUsageResponse,
+    RecordUsageInput,
+    RecordUsageOutput,
+)
 
 
 class TestRecordUsageInput:

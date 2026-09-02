@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from modules.metering.infra.database.unit_of_work import MeteringUnitOfWork
 from modules.metering.infra.messaging.inbox_handlers import (
     HANDLER_MAP,
     MeteringInboxEventRouter,
@@ -37,6 +38,13 @@ def mock_session():
 
 
 @pytest.fixture
+def mock_uow(mock_session):
+    uow = MagicMock(spec=MeteringUnitOfWork)
+    uow.session = mock_session
+    return uow
+
+
+@pytest.fixture
 def router():
     return MeteringInboxEventRouter()
 
@@ -57,27 +65,37 @@ def execution_payload():
 
 class TestAtomicEffect:
     @pytest.mark.asyncio
-    async def test_requested_handler_is_noop(self, mock_session, execution_payload):
+    async def test_requested_handler_is_noop(self, mock_uow, mock_session, execution_payload):
         await handle_noop(
             event_type="agent.execution.requested.v1",
             payload=execution_payload,
-            session=mock_session,
+            uow=mock_uow,
         )
         assert not mock_session.add.called
 
     @pytest.mark.asyncio
-    async def test_llm_completed_records_one_llm_call(self, mock_session, execution_payload):
+    async def test_llm_completed_records_one_llm_call(
+        self,
+        mock_uow,
+        mock_session,
+        execution_payload,
+    ):
         await handle_llm_request(
             event_type="agent.execution.llm_completed.v1",
             payload={**execution_payload, "call_id": str(uuid4())},
-            session=mock_session,
+            uow=mock_uow,
             source_event_id=uuid4(),
         )
         assert mock_session.add.called
         assert mock_session.execute.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_tool_execution_records_call(self, mock_session, execution_payload):
+    async def test_tool_execution_records_call(
+        self,
+        mock_uow,
+        mock_session,
+        execution_payload,
+    ):
         await handle_tool_execution(
             event_type="agent.execution.tool_completed.v1",
             payload={
@@ -86,39 +104,54 @@ class TestAtomicEffect:
                 "tool_id": str(uuid4()),
                 "tool_name": "calculator",
             },
-            session=mock_session,
+            uow=mock_uow,
             source_event_id=uuid4(),
         )
         assert mock_session.add.called
         assert mock_session.execute.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_fallback_records_metadata_event(self, mock_session, execution_payload):
+    async def test_fallback_records_metadata_event(
+        self,
+        mock_uow,
+        mock_session,
+        execution_payload,
+    ):
         await handle_fallback(
             event_type="agent.execution.fallback_triggered.v1",
             payload=execution_payload,
-            session=mock_session,
+            uow=mock_uow,
             source_event_id=uuid4(),
         )
         assert mock_session.add.called
 
     @pytest.mark.asyncio
-    async def test_completed_handler_records_runtime_request(self, mock_session, execution_payload):
+    async def test_completed_handler_records_runtime_request(
+        self,
+        mock_uow,
+        mock_session,
+        execution_payload,
+    ):
         await handle_execution_completed(
             event_type="agent.execution.completed.v1",
             payload=execution_payload,
-            session=mock_session,
+            uow=mock_uow,
             source_event_id=uuid4(),
         )
         assert mock_session.add.called
         assert mock_session.execute.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_failed_handler_records_failed_runtime_request(self, mock_session, execution_payload):
+    async def test_failed_handler_records_failed_runtime_request(
+        self,
+        mock_uow,
+        mock_session,
+        execution_payload,
+    ):
         await handle_execution_failed(
             event_type="agent.execution.failed.v1",
             payload=execution_payload,
-            session=mock_session,
+            uow=mock_uow,
             source_event_id=uuid4(),
         )
         assert mock_session.add.called
@@ -158,7 +191,7 @@ class TestRouterDispatch:
 
 class TestProcessorIntegration:
     @pytest.mark.asyncio
-    async def test_processor_passes_session_and_source_identity_to_handler(self):
+    async def test_processor_passes_uow_and_source_identity_to_handler(self, mock_uow):
         mock_engine = AsyncMock()
         handler = MeteringInboxEventRouter()
         processor = MeteringInboxProcessorWorker(
@@ -171,7 +204,7 @@ class TestProcessorIntegration:
             call_kwargs.update(kwargs)
 
         handler.register("agent.execution.requested.v1", capture_handler)
-        processor._session = AsyncMock()
+        processor._uow = mock_uow
         processor._repo = AsyncMock()
         processor._event_map = {}
         source_event_id = uuid4()
@@ -186,7 +219,7 @@ class TestProcessorIntegration:
             causation_id=uuid4(),
         )
         await processor.process(record)
-        assert call_kwargs.get("session") is processor._session
+        assert call_kwargs.get("uow") is mock_uow
         assert call_kwargs.get("source_event_id") == source_event_id
 
 

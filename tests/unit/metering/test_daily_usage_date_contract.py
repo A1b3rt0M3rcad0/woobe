@@ -15,14 +15,14 @@ async def test_llm_handler_passes_event_day_to_atomic_projection(monkeypatch) ->
     captured: dict[str, object] = {}
 
     class EventRepository:
-        def __init__(self, session) -> None:
+        def __init__(self, uow) -> None:
             pass
 
         async def save(self, event):
             captured["event"] = event
             return event
 
-    async def capture_increment(session, **kwargs):
+    async def capture_increment(uow, **kwargs):
         captured.update(kwargs)
 
     monkeypatch.setattr(inbox_handlers, "SQLAlchemyUsageEventRepository", EventRepository)
@@ -41,7 +41,7 @@ async def test_llm_handler_passes_event_day_to_atomic_projection(monkeypatch) ->
             "cost_usd": 0.01,
             "cost_status": "known",
         },
-        session=object(),
+        uow=object(),
         source_event_id=uuid4(),
     )
 
@@ -55,4 +55,5 @@ def test_metering_processor_uses_separate_failure_transaction() -> None:
 
     assert "await self._process_record(record)" in source
     assert "await self._persist_failure(record, str(exc))" in source
-    assert source.count("async with AsyncSession(self._async_engine) as session") >= 3
+    assert source.count("async with MeteringUnitOfWork(self._async_engine) as uow") >= 3
+    assert "AsyncSession(self._async_engine)" not in source

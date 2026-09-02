@@ -1,9 +1,12 @@
 import ast
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-METERING_COMPOSERS_DIR = PROJECT_ROOT / "src" / "modules" / "metering" / "application" / "composers"
-METERING_CONTROLLERS_DIR = PROJECT_ROOT / "src" / "modules" / "metering" / "presentation" / "controllers"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+METERING_ROOT = (
+    PROJECT_ROOT / "packages" / "woobe-core" / "src" / "modules" / "metering"
+)
+METERING_COMPOSERS_DIR = METERING_ROOT / "composition" / "composers"
+METERING_CONTROLLERS_DIR = METERING_ROOT / "presentation" / "controllers"
 
 FORBIDDEN_IMPORT_PREFIXES = ("modules.metering.service",)
 
@@ -16,16 +19,15 @@ def _get_import_strings_from_file(filepath: Path) -> list[str]:
         if isinstance(node, ast.Import):
             for alias in node.names:
                 imports.append(alias.name)
-        elif isinstance(node, ast.ImportFrom):
-            if node.module:
-                imports.append(node.module)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.append(node.module)
     return imports
 
 
 class TestNoNewMeteringServiceImports:
     def test_composers_do_not_import_service(self):
         py_files = list(METERING_COMPOSERS_DIR.rglob("*.py"))
-        assert len(py_files) > 0, "Composers directory must exist"
+        assert py_files, "Composers directory must exist"
 
         violations = []
         for filepath in sorted(py_files):
@@ -35,13 +37,11 @@ class TestNoNewMeteringServiceImports:
                     if imp.startswith(forbidden):
                         violations.append(f"{filepath.name}: imports '{imp}'")
 
-        assert not violations, (
-            f"Composers must not import service/: {violations}"
-        )
+        assert not violations, f"Composers must not import service/: {violations}"
 
     def test_controllers_do_not_import_service(self):
         py_files = list(METERING_CONTROLLERS_DIR.rglob("*.py"))
-        assert len(py_files) > 0, "Controllers directory must exist"
+        assert py_files, "Controllers directory must exist"
 
         violations = []
         for filepath in sorted(py_files):
@@ -51,6 +51,4 @@ class TestNoNewMeteringServiceImports:
                     if imp.startswith(forbidden):
                         violations.append(f"{filepath.name}: imports '{imp}'")
 
-        assert not violations, (
-            f"Controllers must not import service/: {violations}"
-        )
+        assert not violations, f"Controllers must not import service/: {violations}"
