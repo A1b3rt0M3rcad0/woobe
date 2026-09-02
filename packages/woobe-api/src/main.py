@@ -24,8 +24,10 @@ from modules.chat_surface.presentation.reattach_routes import (
 from modules.chat_surface.presentation.routes import router as chat_surface_router
 from modules.chat_surface.security import ChatSessionTokenCodec
 from modules.core.entrypoint import CORE_HTTP_ROUTERS
-from modules.identity.presentation.instance_routes import router as instance_router
-from modules.identity.presentation.routes import router as identity_router
+from modules.identity.entrypoint import (
+    IDENTITY_HTTP_ROUTERS,
+    IDENTITY_PUBLIC_HTTP_ROUTERS,
+)
 from modules.metering.entrypoint import METERING_HTTP_ROUTERS
 from modules.network.presentation import router as network_router
 from modules.observability.entrypoint import OBSERVABILITY_HTTP_ROUTERS
@@ -254,11 +256,13 @@ def create_app() -> FastAPI:
         cast(ExceptionHandler, unhandled_exception_handler),
     )
 
-    app.include_router(instance_router)
+    for public_identity_router in IDENTITY_PUBLIC_HTTP_ROUTERS:
+        app.include_router(public_identity_router)
     security_dependency = Depends(enforce_request_security)
     app.router.dependencies.append(security_dependency)
     try:
-        app.include_router(identity_router)
+        for identity_http_router in IDENTITY_HTTP_ROUTERS:
+            app.include_router(identity_http_router)
         for core_http_router in CORE_HTTP_ROUTERS:
             app.include_router(core_http_router)
         app.include_router(chat_surface_router)
