@@ -30,6 +30,7 @@ from modules.network.infra.database.runtime_transaction_runner import (
 )
 from modules.network.infra.database.session_repository import (
     SQLAlchemyNetworkRuntimeEnvironmentRepository,
+    SQLAlchemyNetworkSessionRepository,
 )
 from modules.network.infra.database.unit_of_work import NetworkUnitOfWork
 from modules.network.infra.execution.network_run_reattach_service import (
@@ -136,6 +137,31 @@ class NetworkChatSurfaceRuntime:
             environment="production",
         )
         return self._view(run)
+
+    async def validate_session(
+        self,
+        *,
+        project_id: UUID,
+        network_id: UUID,
+        network_session_id: UUID,
+        network_version_id: UUID,
+        chat_surface_id: UUID,
+    ) -> bool:
+        async with NetworkUnitOfWork(DATABASE_ENGINE).mark_read_only() as uow:
+            environment_repository = SQLAlchemyNetworkRuntimeEnvironmentRepository(uow)
+            await environment_repository.require_enabled(
+                network_id=network_id,
+                project_id=project_id,
+                environment="production",
+            )
+            repository = SQLAlchemyNetworkSessionRepository(uow)
+            return await repository.is_chat_surface_bound(
+                session_id=network_session_id,
+                project_id=project_id,
+                network_id=network_id,
+                network_version_id=network_version_id,
+                chat_surface_id=chat_surface_id,
+            )
 
     async def find_active(
         self,

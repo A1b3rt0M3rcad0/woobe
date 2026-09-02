@@ -13,6 +13,7 @@ from modules.chat_surface.presentation.http.message_lifecycle import (
     begin_message_request,
     mark_message_request,
 )
+from modules.chat_surface.presentation.http.session_authorization import authorize_session
 from modules.chat_surface.presentation.schemas import StreamChatMessageRequest
 from modules.network.entrypoint import (
     NetworkChatSurfaceRun,
@@ -30,10 +31,6 @@ for route in _legacy.router.routes:
         router.routes.append(route)
 
 
-_service = _legacy._service
-_authorized_session = _legacy._authorized_session
-
-
 async def _agent_stream(
     request: Request,
     *,
@@ -45,7 +42,7 @@ async def _agent_stream(
     try:
         await mark_message_request(message_request_id, status="streaming")
         session_source = str(
-            (authorized.binding.metadata_ or {}).get("source") or "chat_surface"
+            (authorized.binding.metadata or {}).get("source") or "chat_surface"
         )
         input_dto = AskInput(
             project_id=authorized.surface.project_id,
@@ -146,7 +143,7 @@ async def stream_public_message(
     del last_event_id
     if idempotency_key is None:
         raise ConflictError("Idempotency-Key is required")
-    authorized = await _authorized_session(
+    authorized = await authorize_session(
         request,
         session_id,
         permission="chat:send",

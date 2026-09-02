@@ -1,5 +1,7 @@
 from uuid import UUID
 
+from sqlalchemy import select
+
 from modules.network.application.interfaces.session_repository import (
     NetworkRuntimeEnvironmentRepository,
     NetworkSessionRepository,
@@ -44,6 +46,27 @@ class SQLAlchemyNetworkSessionRepository(NetworkSessionRepository):
             created_at=model.created_at,
             updated_at=model.updated_at,
         )
+
+    async def is_chat_surface_bound(
+        self,
+        *,
+        session_id: UUID,
+        project_id: UUID,
+        network_id: UUID,
+        network_version_id: UUID,
+        chat_surface_id: UUID,
+    ) -> bool:
+        statement = select(NetworkSessionModel.id).where(
+            NetworkSessionModel.id == session_id,
+            NetworkSessionModel.project_id == project_id,
+            NetworkSessionModel.network_id == network_id,
+            NetworkSessionModel.environment == "production",
+            NetworkSessionModel.network_version_id == network_version_id,
+            NetworkSessionModel.chat_surface_id == chat_surface_id,
+            NetworkSessionModel.origin == "chat_surface",
+            NetworkSessionModel.status == "active",
+        )
+        return await self._uow.session.scalar(statement) is not None
 
 
 class SQLAlchemyNetworkRuntimeEnvironmentRepository(

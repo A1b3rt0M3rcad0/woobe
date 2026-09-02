@@ -43,6 +43,27 @@ class SQLAlchemyRuntimeSessionRepository(SQLAlchemySessionRepository):
             raise SessionNotFoundError(session_id)
         return self._to_entity(model)
 
+    async def is_chat_surface_bound(
+        self,
+        *,
+        session_id: UUID,
+        project_id: UUID,
+        agent_id: UUID,
+        agent_release_id: UUID,
+        chat_surface_id: UUID,
+    ) -> bool:
+        statement = select(SessionModel.id).where(
+            SessionModel.id == session_id,
+            SessionModel.project_id == project_id,
+            SessionModel.agent_id == agent_id,
+            SessionModel.runtime_environment == "production",
+            SessionModel.opened_release_id == agent_release_id,
+            SessionModel.chat_surface_id == chat_surface_id,
+            SessionModel.origin == "chat_surface",
+            SessionModel.status == "active",
+        )
+        return await self._session.scalar(statement) is not None
+
     async def get_by_external_id(
         self,
         project_id: UUID,

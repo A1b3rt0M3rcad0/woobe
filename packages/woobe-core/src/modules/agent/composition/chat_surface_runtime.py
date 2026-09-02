@@ -139,6 +139,31 @@ class AgentChatSurfaceRuntime:
         )
         return self._summary(run)
 
+    async def validate_session(
+        self,
+        *,
+        project_id: UUID,
+        agent_id: UUID,
+        session_id: UUID,
+        agent_release_id: UUID,
+        chat_surface_id: UUID,
+    ) -> bool:
+        async def read_session(repositories: AgentRuntimeRepositories, _outbox):
+            await repositories.environment.assert_enabled(
+                agent_id=agent_id,
+                project_id=project_id,
+                environment="production",
+            )
+            return await repositories.sessions.is_chat_surface_bound(
+                session_id=session_id,
+                project_id=project_id,
+                agent_id=agent_id,
+                agent_release_id=agent_release_id,
+                chat_surface_id=chat_surface_id,
+            )
+
+        return bool(await self._transactions.read(read_session))
+
     async def find_active(
         self,
         *,
