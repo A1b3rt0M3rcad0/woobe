@@ -3,6 +3,8 @@ from modules.identity.application.use_cases import (
     ListWorkspaceInvitesAccessUseCase,
     ListWorkspaceMembersAccessUseCase,
     RemoveWorkspaceMemberUseCase,
+    RequireWorkspaceRoleAssignmentUseCase,
+    ValidateWorkspaceInviteAcceptanceUseCase,
 )
 from modules.identity.composition.resources import DATABASE_ENGINE
 from modules.identity.infra.database.unit_of_work import IdentityUnitOfWork
@@ -14,8 +16,28 @@ from modules.identity.presentation.controllers.workspace_access_controllers impo
     ListWorkspaceInvitesAccessController,
     ListWorkspaceMembersAccessController,
     RemoveWorkspaceMemberController,
+    RequireWorkspaceRoleAssignmentController,
+    ValidateWorkspaceInviteAcceptanceController,
 )
 from shared.infra.transactional_handler import TransactionalHandler
+
+
+def require_workspace_role_assignment_composer() -> TransactionalHandler:
+    uow = IdentityUnitOfWork(DATABASE_ENGINE)
+    use_case = RequireWorkspaceRoleAssignmentUseCase(
+        SQLAlchemyWorkspaceAccessRepository(uow)
+    )
+    controller = RequireWorkspaceRoleAssignmentController(use_case)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def validate_workspace_invite_acceptance_composer() -> TransactionalHandler:
+    uow = IdentityUnitOfWork(DATABASE_ENGINE)
+    use_case = ValidateWorkspaceInviteAcceptanceUseCase(
+        SQLAlchemyWorkspaceAccessRepository(uow)
+    )
+    controller = ValidateWorkspaceInviteAcceptanceController(use_case)
+    return TransactionalHandler(uow, controller.handle)
 
 
 def list_workspace_members_access_composer() -> TransactionalHandler:

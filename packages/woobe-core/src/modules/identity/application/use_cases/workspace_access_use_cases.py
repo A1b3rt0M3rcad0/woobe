@@ -61,6 +61,35 @@ class UpdateWorkspaceAsAdminUseCase:
         )
 
 
+class RequireWorkspaceRoleAssignmentUseCase:
+    def __init__(self, access_repo: WorkspaceAccessRepository) -> None:
+        self._access_repo = access_repo
+
+    async def execute(
+        self,
+        *,
+        actor_user_id: UUID,
+        workspace_id: UUID,
+        target_role: str,
+    ) -> str:
+        return await self._access_repo.require_role_assignment(
+            actor_user_id=actor_user_id,
+            workspace_id=workspace_id,
+            target_role=target_role,
+        )
+
+
+class ValidateWorkspaceInviteAcceptanceUseCase:
+    def __init__(self, access_repo: WorkspaceAccessRepository) -> None:
+        self._access_repo = access_repo
+
+    async def execute(self, *, user_id: UUID, invite_id: UUID) -> None:
+        await self._access_repo.require_valid_invite_acceptance(
+            user_id=user_id,
+            invite_id=invite_id,
+        )
+
+
 class ListWorkspaceMembersAccessUseCase:
     def __init__(self, access_repo: WorkspaceAccessRepository) -> None:
         self._access_repo = access_repo

@@ -20,6 +20,86 @@ class SQLAlchemyWorkspaceAccessRepository(WorkspaceAccessRepository):
             raise AuthorizationError("Workspace owner or admin access is required")
         return role
 
+    async def require_role_assignment(
+        self,
+        *,
+        actor_user_id: UUID,
+        workspace_id: UUID,
+        target_role: str,
+    ) -> str:
+        actor_role = await self.require_admin(actor_user_id, workspace_id)
+        normalized_target = target_role.strip().lower()
+        if normalized_target == "owner":
+            raise AuthorizationError(
+                "Workspace ownership cannot be granted through membership or invite"
+            )
+        if actor_role == "admin" and normalized_target not in {"member", "viewer"}:
+            raise AuthorizationError(
+                "Workspace admins cannot grant administrative roles"
+            )
+        if normalized_target not in {"admin", "member", "viewer"}:
+            raise AuthorizationError("Unsupported workspace member role")
+        return actor_role
+
+    async def require_valid_invite_acceptance(
+        self,
+        *,
+        user_id: UUID,
+        invite_id: UUID,
+    ) -> None:
+        result = await self._uow.session.execute(
+            text(
+                """
+                SELECT i.workspace_id, i.email, i.role, i.invited_by_user_id,
+                       i.status, u.email AS user_email
+                FROM identity.workspace_invites AS i
+                JOIN identity.users AS u ON u.id = :user_id
+                WHERE i.id = :invite_id
+                """
+            ),
+            {"user_id": user_id, "invite_id": invite_id},
+        )
+        invite = result.mappings().first()
+        if invite is None:
+            raise NotFoundError("Invite not found")
+        if str(invite["email"]).strip().lower() != str(invite["user_email"]).strip().lower():
+            raise NotFoundError("Invite not found")
+
+        target_role = str(invite["role"]).strip().lower()
+        if target_role == "owner":
+            raise AuthorizationError(
+                "Workspace ownership cannot be granted through an invitation"
+            )
+        if target_role not in {"admin", "member", "viewer"}:
+            raise AuthorizationError("Unsupported workspace invite role")
+
+        inviter_role_result = await self._uow.session.execute(
+            text(
+                """
+                SELECT role
+                FROM identity.workspace_members
+                WHERE workspace_id = :workspace_id
+                  AND user_id = :invited_by_user_id
+                  AND status = 'active'
+                """
+            ),
+            {
+                "workspace_id": invite["workspace_id"],
+                "invited_by_user_id": invite["invited_by_user_id"],
+            },
+        )
+        inviter_role = inviter_role_result.scalar_one_or_none()
+        inviter_role = str(inviter_role) if inviter_role is not None else None
+        if target_role == "admin" and inviter_role != "owner":
+            raise AuthorizationError(
+                "Only a Workspace owner can grant admin membership"
+            )
+        if target_role in {"member", "viewer"} and inviter_role not in {
+            "owner",
+            "admin",
+        }:
+            raise AuthorizationError("Invite issuer is no longer authorized")
+
     async def list_members(
         self,
         *,
@@ -76,7 +156,9 @@ class SQLAlchemyWorkspaceAccessRepository(WorkspaceAccessRepository):
     ) -> dict[str, object]:
         actor_role = await self.require_admin(actor_user_id, workspace_id)
         if actor_user_id == target_user_id:
-            raise ConflictError("Use a dedicated leave flow to remove your own membership")
+            raise ConflictError(
+                "Use a dedicated leave flow to remove your own membership"
+            )
 
         target_result = await self._uow.session.execute(
             text(

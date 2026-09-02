@@ -15,6 +15,8 @@ from modules.identity.composition.composers.workspace_access_composers import (
     list_workspace_invites_access_composer,
     list_workspace_members_access_composer,
     remove_workspace_member_composer,
+    require_workspace_role_assignment_composer,
+    validate_workspace_invite_acceptance_composer,
 )
 from modules.identity.domain.enums import MemberRole
 from modules.identity.presentation.http.auth_endpoints import (
@@ -36,7 +38,6 @@ from shared.contracts.errors import (
     ValidationError,
 )
 from shared.presentation.http.adapter import request_adapter, response_adapter
-from shared.security.workspace_access import WorkspaceAccessService
 
 
 router = APIRouter(prefix="/identity", tags=["identity"])
@@ -53,10 +54,6 @@ def _principal_user_id(request: FastAPIRequest) -> UUID:
     if user_id is None:
         raise AuthenticationError("Authentication required")
     return UUID(str(user_id))
-
-
-def _workspace_access(request: FastAPIRequest) -> WorkspaceAccessService:
-    return WorkspaceAccessService(request.app.state.session_factory)
 
 
 def _instance_service(request: FastAPIRequest) -> InstanceService:
@@ -89,14 +86,12 @@ async def list_pending_invites(request: FastAPIRequest):
 
 @router.post("/invites/{invite_id}/accept")
 async def accept_invite(request: FastAPIRequest, invite_id: UUID):
+    del invite_id
+    await request_adapter(request, validate_workspace_invite_acceptance_composer())
     user_id = _principal_user_id(request)
-    await _workspace_access(request).require_valid_invite_acceptance(
-        user_id=user_id,
-        invite_id=invite_id,
-    )
     workspace = await authentication_service(request).accept_invite(
         user_id=user_id,
-        invite_id=invite_id,
+        invite_id=UUID(str(request.path_params["invite_id"])),
     )
     return {
         "success": True,
@@ -187,8 +182,8 @@ async def remove_member(
 
 @router.post("/workspaces/{workspace_id}/invites", status_code=201)
 async def create_invite(request: FastAPIRequest, workspace_id: str):
+    del workspace_id
     principal_user_id = _principal_user_id(request)
-    workspace_id = _uuid(workspace_id, "workspace id")
     payload = dict(await request.json())
     role_value = payload.get("role", "member")
     email = payload.get("email")
@@ -209,14 +204,11 @@ async def create_invite(request: FastAPIRequest, workspace_id: str):
             "Only member and admin invitation roles are supported in the MVP"
         )
 
-    await _workspace_access(request).require_role_assignment(
-        actor_user_id=principal_user_id,
-        workspace_id=workspace_id,
-        target_role=role.value,
-    )
+    await request_adapter(request, require_workspace_role_assignment_composer())
+    workspace_id_value = UUID(str(request.path_params["workspace_id"]))
     invite = await authentication_service(request).create_invite(
         actor_user_id=principal_user_id,
-        workspace_id=workspace_id,
+        workspace_id=workspace_id_value,
         email=email,
         role=role,
         project_ids=project_ids,

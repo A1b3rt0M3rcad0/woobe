@@ -18,7 +18,9 @@ from modules.identity.application.use_cases.workspace_access_use_cases import (
     ListWorkspaceInvitesAccessUseCase,
     ListWorkspaceMembersAccessUseCase,
     RemoveWorkspaceMemberUseCase,
+    RequireWorkspaceRoleAssignmentUseCase,
     UpdateWorkspaceAsAdminUseCase,
+    ValidateWorkspaceInviteAcceptanceUseCase,
 )
 
 __all__ = [
@@ -38,6 +40,8 @@ __all__ = [
     "LoginUseCase",
     "RegisterUseCase",
     "RemoveWorkspaceMemberUseCase",
+    "RequireWorkspaceRoleAssignmentUseCase",
     "UpdateWorkspaceAsAdminUseCase",
     "UpdateWorkspaceUseCase",
+    "ValidateWorkspaceInviteAcceptanceUseCase",
 ]
