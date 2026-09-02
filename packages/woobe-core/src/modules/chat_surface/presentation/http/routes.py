@@ -7,7 +7,12 @@ from uuid import UUID
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
 
-from modules.agent.entrypoint import AskInput, build_agent_stream_service, commit_safe_stream
+from modules.agent.entrypoint import (
+    AskInput,
+    build_agent_chat_surface_history_reader,
+    build_agent_stream_service,
+    commit_safe_stream,
+)
 from modules.chat_surface.presentation.http import legacy_routes as _legacy
 from modules.chat_surface.presentation.http.message_lifecycle import (
     begin_message_request,
@@ -20,6 +25,7 @@ from modules.chat_surface.presentation.schemas import (
 )
 from modules.network.entrypoint import (
     NetworkChatSurfaceRun,
+    build_network_chat_surface_history_reader,
     build_network_chat_surface_runtime,
 )
 from shared.contracts.errors import AuthorizationError, ConflictError
@@ -28,10 +34,15 @@ from shared.contracts.errors import AuthorizationError, ConflictError
 CONTROL_PLANE_TEST_SOURCE = "control_plane_test"
 _STREAM_PATH = "/v1/chat/sessions/{session_id}/messages:stream"
 _SURFACE_PATH = "/v1/chat/sessions/{session_id}/surface"
+_MESSAGES_PATH = "/v1/chat/sessions/{session_id}/messages"
 
 router = APIRouter(tags=["chat-surfaces"])
 for route in _legacy.router.routes:
-    if getattr(route, "path", None) not in {_STREAM_PATH, _SURFACE_PATH}:
+    if getattr(route, "path", None) not in {
+        _STREAM_PATH,
+        _SURFACE_PATH,
+        _MESSAGES_PATH,
+    }:
         router.routes.append(route)
 
 
@@ -160,6 +171,59 @@ async def get_public_surface_configuration(
     }
 
 
+@router.get(_MESSAGES_PATH)
+async def list_public_messages(
+    session_id: UUID,
+    request: Request,
+    limit: int = 50,
+    cursor: UUID | None = None,
+    host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
+):
+    authorized = await authorize_session(
+        request,
+        session_id,
+        permission="chat:history",
+        host_origin=host_origin,
+    )
+    if authorized.surface.target_type == "agent":
+        page = await build_agent_chat_surface_history_reader().list_messages(
+            project_id=authorized.surface.project_id,
+            agent_id=authorized.surface.target_id,
+            session_id=authorized.binding.session_id,
+            agent_release_id=authorized.binding.target_release_id,
+            chat_surface_id=authorized.surface.id,
+            limit=limit,
+            cursor=cursor,
+        )
+    else:
+        page = await build_network_chat_surface_history_reader().list_messages(
+            project_id=authorized.surface.project_id,
+            network_id=authorized.surface.target_id,
+            network_session_id=authorized.binding.session_id,
+            network_version_id=authorized.binding.target_release_id,
+            chat_surface_id=authorized.surface.id,
+            limit=limit,
+            cursor=cursor,
+        )
+    return {
+        "success": True,
+        "data": {
+            "items": [
+                {
+                    "id": str(message.id),
+                    "role": message.role,
+                    "content": message.content,
+                    "data": message.data,
+                    "created_at": message.created_at,
+                }
+                for message in page.items
+            ],
+            "next_cursor": page.next_cursor,
+            "has_next": page.has_next,
+        },
+    }
+
+
 @router.post(_STREAM_PATH)
 async def stream_public_message(
     session_id: UUID,
@@ -260,6 +324,7 @@ def __getattr__(name: str):
 
 __all__ = [
     "get_public_surface_configuration",
+    "list_public_messages",
     "router",
     "stream_public_message",
 ]

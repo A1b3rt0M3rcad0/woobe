@@ -9,6 +9,12 @@ from modules.network.composition.composers.run_reattach_composer import (
     attach_network_run_composer,
     wait_network_run_composer,
 )
+from modules.network.composition.integrations.chat_surface_history import (
+    NetworkChatSurfaceHistoryReader,
+    NetworkChatSurfaceMessage,
+    NetworkChatSurfaceMessagePage,
+    build_network_chat_surface_history_reader,
+)
 from modules.network.composition.integrations.chat_surface_runtime import (
     NetworkChatSurfaceRun,
     NetworkChatSurfaceRuntime,
@@ -22,11 +28,15 @@ from modules.network.composition.workers import (
 
 __all__ = [
     "NETWORK_HTTP_ROUTERS",
+    "NetworkChatSurfaceHistoryReader",
+    "NetworkChatSurfaceMessage",
+    "NetworkChatSurfaceMessagePage",
     "NetworkChatSurfaceRun",
     "NetworkChatSurfaceRuntime",
     "NetworkWorkerRegistry",
     "active_network_run_composer",
     "attach_network_run_composer",
+    "build_network_chat_surface_history_reader",
     "build_network_chat_surface_runtime",
     "cancel_runtime_network_execution_composer",
     "register_network_workers",

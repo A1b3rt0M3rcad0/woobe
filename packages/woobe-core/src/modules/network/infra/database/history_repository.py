@@ -183,6 +183,45 @@ class SQLAlchemyNetworkHistoryRepository(NetworkHistoryRepository):
             )
         return output
 
+    async def list_chat_surface_messages(
+        self,
+        *,
+        network_session_id: UUID,
+        project_id: UUID,
+        limit: int,
+        cursor: UUID | None,
+    ) -> tuple[list[NetworkMessageHistoryOutput], str | None, bool]:
+        statement = select(NetworkMessageModel).where(
+            NetworkMessageModel.network_session_id == network_session_id,
+            NetworkMessageModel.project_id == project_id,
+        )
+        if cursor is not None:
+            statement = statement.where(NetworkMessageModel.id < cursor)
+        result = await self._uow.session.scalars(
+            statement.order_by(NetworkMessageModel.id.desc()).limit(limit + 1)
+        )
+        rows = list(result.all())
+        has_next = len(rows) > limit
+        visible = rows[:limit]
+        next_cursor = str(visible[-1].id) if visible and has_next else None
+        visible.reverse()
+        return (
+            [
+                NetworkMessageHistoryOutput(
+                    id=message.id,
+                    network_execution_id=message.network_execution_id,
+                    role=message.role,
+                    content=message.content,
+                    data=message.data,
+                    created_at=message.created_at,
+                    execution=None,
+                )
+                for message in visible
+            ],
+            next_cursor,
+            has_next,
+        )
+
     async def has_active_execution(self, network_session_id: UUID) -> bool:
         execution_id = await self._uow.session.scalar(
             select(NetworkExecutionModel.id).where(
