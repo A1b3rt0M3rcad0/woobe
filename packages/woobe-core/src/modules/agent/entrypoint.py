@@ -1,3 +1,8 @@
+from modules.agent.composition.chat_surface_runtime import (
+    AgentChatSurfaceRun,
+    AgentChatSurfaceRuntime,
+    build_agent_chat_surface_runtime,
+)
 from modules.agent.composition.module import (
     AGENT_HTTP_ROUTERS,
     SETTINGS,
@@ -42,6 +47,8 @@ from modules.agent.composition.workers import AgentWorkerRegistry, register_agen
 
 __all__ = [
     "AGENT_HTTP_ROUTERS",
+    "AgentChatSurfaceRun",
+    "AgentChatSurfaceRuntime",
     "AgentModel",
     "AgentNetworkRunMaterializer",
     "AgentRelease",
@@ -61,6 +68,7 @@ __all__ = [
     "SQLAlchemyAgentReleaseRepository",
     "StructuredOutputAskAgentUseCase",
     "agent_release_model_to_entity",
+    "build_agent_chat_surface_runtime",
     "build_agent_stream_service",
     "build_http_tool_executor",
     "build_internal_agent_runtime",
