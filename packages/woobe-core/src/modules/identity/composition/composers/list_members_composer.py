@@ -8,7 +8,7 @@ from shared.infra.transactional_handler import TransactionalHandler
 
 def list_members_composer() -> TransactionalHandler:
     uow = IdentityUnitOfWork(DATABASE_ENGINE)
-    controller = ListMembersController(
-        ListMembersUseCase(SQLAlchemyWorkspaceMemberRepository(uow))
-    )
+    member_repo = SQLAlchemyWorkspaceMemberRepository(uow)
+    use_case = ListMembersUseCase(member_repo)
+    controller = ListMembersController(use_case)
     return TransactionalHandler(uow, controller.handle)

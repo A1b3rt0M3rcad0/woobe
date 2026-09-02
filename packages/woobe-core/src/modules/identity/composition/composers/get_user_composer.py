@@ -8,5 +8,7 @@ from shared.infra.transactional_handler import TransactionalHandler
 
 def get_user_composer() -> TransactionalHandler:
     uow = IdentityUnitOfWork(DATABASE_ENGINE)
-    controller = GetUserController(GetUserUseCase(SQLAlchemyUserRepository(uow)))
+    user_repo = SQLAlchemyUserRepository(uow)
+    use_case = GetUserUseCase(user_repo)
+    controller = GetUserController(use_case)
     return TransactionalHandler(uow, controller.handle)

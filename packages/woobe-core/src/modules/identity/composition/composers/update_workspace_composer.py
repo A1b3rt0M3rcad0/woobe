@@ -16,10 +16,9 @@ from shared.infra.transactional_handler import TransactionalHandler
 
 def update_workspace_composer() -> TransactionalHandler:
     uow = IdentityUnitOfWork(DATABASE_ENGINE)
-    use_case = UpdateWorkspaceAsAdminUseCase(
-        SQLAlchemyWorkspaceRepository(uow),
-        SQLAlchemyWorkspaceAccessRepository(uow),
-        SQLAlchemyOutboxEventWriter(uow),
-    )
+    workspace_repo = SQLAlchemyWorkspaceRepository(uow)
+    access_repo = SQLAlchemyWorkspaceAccessRepository(uow)
+    outbox = SQLAlchemyOutboxEventWriter(uow)
+    use_case = UpdateWorkspaceAsAdminUseCase(workspace_repo, access_repo, outbox)
     controller = UpdateWorkspaceController(use_case)
     return TransactionalHandler(uow, controller.handle)

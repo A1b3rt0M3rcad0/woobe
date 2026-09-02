@@ -11,9 +11,8 @@ from shared.infra.transactional_handler import TransactionalHandler
 
 def create_user_composer() -> TransactionalHandler:
     uow = IdentityUnitOfWork(DATABASE_ENGINE)
-    use_case = CreateUserUseCase(
-        SQLAlchemyUserRepository(uow),
-        SQLAlchemyOutboxEventWriter(uow),
-    )
+    user_repo = SQLAlchemyUserRepository(uow)
+    outbox = SQLAlchemyOutboxEventWriter(uow)
+    use_case = CreateUserUseCase(user_repo, outbox)
     controller = CreateUserController(use_case)
     return TransactionalHandler(uow, controller.handle)

@@ -13,11 +13,15 @@ from shared.infra.transactional_handler import TransactionalHandler
 
 def add_member_composer() -> TransactionalHandler:
     uow = IdentityUnitOfWork(DATABASE_ENGINE)
+    workspace_repo = SQLAlchemyWorkspaceRepository(uow)
+    user_repo = SQLAlchemyUserRepository(uow)
+    member_repo = SQLAlchemyWorkspaceMemberRepository(uow)
+    outbox = SQLAlchemyOutboxEventWriter(uow)
     use_case = AddMemberToWorkspaceUseCase(
-        SQLAlchemyWorkspaceRepository(uow),
-        SQLAlchemyUserRepository(uow),
-        SQLAlchemyWorkspaceMemberRepository(uow),
-        SQLAlchemyOutboxEventWriter(uow),
+        workspace_repo,
+        user_repo,
+        member_repo,
+        outbox,
     )
     controller = AddMemberController(use_case)
     return TransactionalHandler(uow, controller.handle)
