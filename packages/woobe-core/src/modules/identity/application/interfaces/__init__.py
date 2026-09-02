@@ -3,6 +3,7 @@ from modules.identity.application.interfaces.authentication import (
     AuthenticationRepository,
     AuthenticationSessionRepository,
 )
+from modules.identity.application.interfaces.instance import InstanceRepository
 from modules.identity.application.interfaces.outbox import OutboxEventWriter
 from modules.identity.application.interfaces.repositories import (
     UserRepository,
@@ -18,6 +19,7 @@ __all__ = [
     "AccessTokenIssuer",
     "AuthenticationRepository",
     "AuthenticationSessionRepository",
+    "InstanceRepository",
     "OutboxEventWriter",
     "UseCase",
     "UserRepository",

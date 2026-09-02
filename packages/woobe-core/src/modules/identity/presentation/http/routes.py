@@ -1,6 +1,5 @@
 from fastapi import APIRouter, Request as FastAPIRequest
 
-from modules.identity.application.instance_service import InstanceService
 from modules.identity.composition.composers.authentication_composers import (
     accept_workspace_invite_composer,
     create_owned_workspace_composer,
@@ -23,7 +22,7 @@ from modules.identity.composition.composers.workspace_access_composers import (
     list_workspace_members_access_composer,
     remove_workspace_member_composer,
 )
-from shared.contracts.errors import AuthorizationError, ValidationError
+from shared.contracts.errors import AuthorizationError
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 
@@ -33,14 +32,6 @@ router = APIRouter(prefix="/identity", tags=["identity"])
 async def _handle(request: FastAPIRequest, handler):
     response = await request_adapter(request, handler)
     return response_adapter(response)
-
-
-def _instance_service(request: FastAPIRequest) -> InstanceService:
-    return InstanceService(
-        request.app.state.session_factory,
-        request.app.state.access_token_codec,
-        request.app.state.settings,
-    )
 
 
 @router.get("/workspaces")
@@ -75,11 +66,6 @@ async def login(request: FastAPIRequest):
 
 @router.post("/auth/register")
 async def register(request: FastAPIRequest):
-    payload = dict(await request.json())
-    email = payload.get("email")
-    if not isinstance(email, str) or not email.strip():
-        raise ValidationError("Registration email is required")
-    await _instance_service(request).ensure_registration_allowed(email)
     return await _handle(request, register_authentication_composer())
 
 

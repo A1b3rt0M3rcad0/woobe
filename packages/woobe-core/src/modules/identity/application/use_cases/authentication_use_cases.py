@@ -13,6 +13,7 @@ from modules.identity.application.interfaces.authentication import (
     AuthenticationRepository,
     AuthenticationSessionRepository,
 )
+from modules.identity.application.interfaces.instance import InstanceRepository
 from modules.identity.application.interfaces.outbox import OutboxEventWriter
 from modules.identity.application.interfaces.repositories import (
     UserRepository,
@@ -23,7 +24,12 @@ from modules.identity.application.interfaces.workspace_access import WorkspaceAc
 from modules.identity.domain.entities import User, Workspace, WorkspaceMember
 from modules.identity.domain.enums import MemberRole, UserStatus
 from modules.identity.domain.errors import EmailAlreadyExistsError, InvalidCredentialsError
-from shared.contracts.errors import AuthenticationError, ConflictError, NotFoundError
+from shared.contracts.errors import (
+    AuthenticationError,
+    AuthorizationError,
+    ConflictError,
+    NotFoundError,
+)
 from shared.contracts.time import utc_now
 from shared.security.crypto import hash_password, verify_password
 
@@ -31,7 +37,7 @@ from shared.security.crypto import hash_password, verify_password
 DEFAULT_WORKSPACE_NAME = "My Workspace"
 
 
-def _authentication_result(
+def build_issued_authentication(
     user: User,
     session: IssuedSession,
     token_issuer: AccessTokenIssuer,
@@ -101,6 +107,25 @@ async def _create_owned_workspace(
     return workspace
 
 
+async def _ensure_registration_allowed(
+    email: str,
+    instance_repo: InstanceRepository,
+) -> None:
+    state = await instance_repo.get_state()
+    if not state.initialized:
+        raise ConflictError(
+            "Woobe Core is not initialized. Bootstrap the instance before registration."
+        )
+    if state.signup_mode == "open":
+        return
+    if state.signup_mode == "disabled":
+        raise AuthorizationError("Registration is disabled for this Woobe instance")
+    if not await instance_repo.has_active_invite(email):
+        raise AuthorizationError(
+            "Public registration is disabled. An active Workspace invite is required."
+        )
+
+
 class LoginAuthenticationUseCase:
     def __init__(self, user_repo: UserRepository, session_repo: AuthenticationSessionRepository, token_issuer: AccessTokenIssuer) -> None:
         self._user_repo = user_repo
@@ -112,11 +137,12 @@ class LoginAuthenticationUseCase:
         if user is None or user.status != UserStatus.active or not verify_password(password, user.password):
             raise InvalidCredentialsError("Invalid credentials")
         session = await self._session_repo.issue(user_id=user.id, user_agent=user_agent, ip_address=ip_address)
-        return _authentication_result(user, session, self._token_issuer)
+        return build_issued_authentication(user, session, self._token_issuer)
 
 
 class RegisterAuthenticationUseCase:
-    def __init__(self, user_repo: UserRepository, workspace_repo: WorkspaceRepository, member_repo: WorkspaceMemberRepository, outbox: OutboxEventWriter, session_repo: AuthenticationSessionRepository, token_issuer: AccessTokenIssuer) -> None:
+    def __init__(self, instance_repo: InstanceRepository, user_repo: UserRepository, workspace_repo: WorkspaceRepository, member_repo: WorkspaceMemberRepository, outbox: OutboxEventWriter, session_repo: AuthenticationSessionRepository, token_issuer: AccessTokenIssuer) -> None:
+        self._instance_repo = instance_repo
         self._user_repo = user_repo
         self._workspace_repo = workspace_repo
         self._member_repo = member_repo
@@ -126,13 +152,14 @@ class RegisterAuthenticationUseCase:
 
     async def execute(self, *, email: str, password: str, user_agent: str | None, ip_address: str | None) -> IssuedAuthentication:
         normalized_email = email.strip().lower()
+        await _ensure_registration_allowed(normalized_email, self._instance_repo)
         if await self._user_repo.get_by_email(normalized_email):
             raise EmailAlreadyExistsError(normalized_email)
         user = await self._user_repo.save(User(email=normalized_email, password=hash_password(password)))
         await self._outbox.write(aggregate_type="user", aggregate_id=user.id, event_type="user.created.v1", payload={"email": user.email}, routing_key="user.created.v1", idempotency_key=f"identity:user.created.v1:{user.id}")
         workspace = await _create_owned_workspace(user_id=user.id, name=DEFAULT_WORKSPACE_NAME, slug=f"workspace-{str(user.id)[:8]}", workspace_repo=self._workspace_repo, member_repo=self._member_repo, outbox=self._outbox)
         session = await self._session_repo.issue(user_id=user.id, user_agent=user_agent, ip_address=ip_address)
-        return _authentication_result(user, session, self._token_issuer, workspace=workspace)
+        return build_issued_authentication(user, session, self._token_issuer, workspace=workspace)
 
 
 class CreateOwnedWorkspaceUseCase:
@@ -163,7 +190,7 @@ class RefreshAuthenticationUseCase:
         if user is None or user.status != UserStatus.active:
             await self._session_repo.revoke_all(rotation.session.user_id)
             return AuthenticationAttempt(error="Invalid refresh session")
-        return AuthenticationAttempt(authentication=_authentication_result(user, rotation.session, self._token_issuer))
+        return AuthenticationAttempt(authentication=build_issued_authentication(user, rotation.session, self._token_issuer))
 
 
 class LogoutAuthenticationUseCase:

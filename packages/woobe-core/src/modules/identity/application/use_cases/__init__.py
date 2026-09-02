@@ -25,6 +25,11 @@ from modules.identity.application.use_cases.identity_use_cases import (
     RegisterUseCase,
     UpdateWorkspaceUseCase,
 )
+from modules.identity.application.use_cases.instance_use_cases import (
+    BootstrapExistingOwnerUseCase,
+    BootstrapInstanceUseCase,
+    InstanceStatusUseCase,
+)
 from modules.identity.application.use_cases.workspace_access_use_cases import (
     CancelWorkspaceInviteUseCase,
     GetWorkspaceForMemberUseCase,
@@ -39,6 +44,8 @@ from modules.identity.application.use_cases.workspace_access_use_cases import (
 __all__ = [
     "AcceptWorkspaceInviteUseCase",
     "AddMemberToWorkspaceUseCase",
+    "BootstrapExistingOwnerUseCase",
+    "BootstrapInstanceUseCase",
     "CancelWorkspaceInviteUseCase",
     "CreateOwnedWorkspaceUseCase",
     "CreateWorkspaceInviteUseCase",
@@ -49,6 +56,7 @@ __all__ = [
     "GetWorkspaceForMemberUseCase",
     "GetWorkspaceUseCase",
     "GetUserUseCase",
+    "InstanceStatusUseCase",
     "InviteUserUseCase",
     "ListAuthenticatedWorkspacesUseCase",
     "ListInvitesUseCase",
