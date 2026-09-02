@@ -62,5 +62,4 @@ class CancelNetworkExecutionUseCase:
         state = await self._runtime_control.snapshot(execution.id)
         if state and not _runtime_is_terminal(state):
             await self._runtime_control.request_cancel(execution.id)
-            return durable.model_copy(update={"status": "cancel_requested"})
         return durable
