@@ -14,6 +14,9 @@ class SQLAlchemyWorkspaceAccessRepository(WorkspaceAccessRepository):
     def __init__(self, uow: IdentityUnitOfWork) -> None:
         self._uow = uow
 
+    async def require_member(self, user_id: UUID, workspace_id: UUID) -> str:
+        return await self._role(user_id, workspace_id)
+
     async def require_admin(self, user_id: UUID, workspace_id: UUID) -> str:
         role = await self._role(user_id, workspace_id)
         if role not in {"owner", "admin"}:

@@ -3,6 +3,8 @@ from uuid import UUID
 
 
 class WorkspaceAccessRepository(Protocol):
+    async def require_member(self, user_id: UUID, workspace_id: UUID) -> str: ...
+
     async def require_admin(self, user_id: UUID, workspace_id: UUID) -> str: ...
 
     async def require_role_assignment(

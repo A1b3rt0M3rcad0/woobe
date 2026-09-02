@@ -1,9 +1,13 @@
+from uuid import UUID
+
 from modules.identity.application.dtos import GetWorkspaceInput
 from modules.identity.application.interfaces.use_case import UseCase
 from modules.identity.presentation.schemas import WorkspaceResponse
+from shared.contracts.errors import AuthenticationError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
+from shared.security.principal import AuthenticatedPrincipal
 
 
 class GetWorkspaceController(Controller):
@@ -11,8 +15,13 @@ class GetWorkspaceController(Controller):
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
-        workspace_id = request.path_params["workspace_id"]
-        result = await self._use_case.execute(GetWorkspaceInput(workspace_id=workspace_id))
+        if not isinstance(request.principal, AuthenticatedPrincipal):
+            raise AuthenticationError("Authentication required")
+        workspace_id = UUID(str(request.path_params["workspace_id"]))
+        result = await self._use_case.execute(
+            request.principal.user_id,
+            GetWorkspaceInput(workspace_id=workspace_id),
+        )
         if result is None:
             return Response(
                 status_code=404,

@@ -31,12 +31,7 @@ from modules.identity.presentation.http.auth_endpoints import (
     register_endpoint,
     workspace_payload,
 )
-from shared.contracts.errors import (
-    AuthenticationError,
-    AuthorizationError,
-    NotFoundError,
-    ValidationError,
-)
+from shared.contracts.errors import AuthenticationError, AuthorizationError, ValidationError
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 
@@ -62,13 +57,6 @@ def _instance_service(request: FastAPIRequest) -> InstanceService:
         request.app.state.access_token_codec,
         request.app.state.settings,
     )
-
-
-def _uuid(value: str, field: str) -> UUID:
-    try:
-        return UUID(value)
-    except ValueError as exc:
-        raise ValidationError(f"Invalid {field}") from exc
 
 
 @router.get("/workspaces")
@@ -248,7 +236,5 @@ async def cancel_invite(
 
 @router.get("/users/{user_id}")
 async def get_user(request: FastAPIRequest, user_id: str):
-    target_user_id = _uuid(user_id, "user id")
-    if _principal_user_id(request) != target_user_id:
-        raise NotFoundError("User not found")
+    del user_id
     return await _handle(request, get_user_composer())

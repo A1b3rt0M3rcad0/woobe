@@ -15,6 +15,7 @@ from modules.identity.application.use_cases.identity_use_cases import (
 )
 from modules.identity.application.use_cases.workspace_access_use_cases import (
     CancelWorkspaceInviteUseCase,
+    GetWorkspaceForMemberUseCase,
     ListWorkspaceInvitesAccessUseCase,
     ListWorkspaceMembersAccessUseCase,
     RemoveWorkspaceMemberUseCase,
@@ -29,6 +30,7 @@ __all__ = [
     "CreateWorkspaceUseCase",
     "CreateUserUseCase",
     "GetCurrentUserUseCase",
+    "GetWorkspaceForMemberUseCase",
     "GetWorkspaceUseCase",
     "GetUserUseCase",
     "InviteUserUseCase",

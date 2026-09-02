@@ -1,12 +1,44 @@
 from uuid import UUID
 
-from modules.identity.application.dtos import UpdateWorkspaceInput, UpdateWorkspaceOutput
+from modules.identity.application.dtos import (
+    GetWorkspaceInput,
+    GetWorkspaceOutput,
+    UpdateWorkspaceInput,
+    UpdateWorkspaceOutput,
+)
 from modules.identity.application.interfaces.outbox import OutboxEventWriter
 from modules.identity.application.interfaces.repositories import WorkspaceRepository
 from modules.identity.application.interfaces.workspace_access import WorkspaceAccessRepository
 from modules.identity.domain.errors import WorkspaceNotFoundError
 from shared.contracts.errors import ConflictError
 from shared.contracts.time import utc_now
+
+
+class GetWorkspaceForMemberUseCase:
+    def __init__(
+        self,
+        workspace_repo: WorkspaceRepository,
+        access_repo: WorkspaceAccessRepository,
+    ) -> None:
+        self._workspace_repo = workspace_repo
+        self._access_repo = access_repo
+
+    async def execute(
+        self,
+        actor_user_id: UUID,
+        input_dto: GetWorkspaceInput,
+    ) -> GetWorkspaceOutput | None:
+        await self._access_repo.require_member(actor_user_id, input_dto.workspace_id)
+        workspace = await self._workspace_repo.get_by_id(input_dto.workspace_id)
+        if workspace is None:
+            return None
+        return GetWorkspaceOutput(
+            id=workspace.id,
+            name=workspace.name,
+            slug=workspace.slug,
+            status=workspace.status,
+            created_at=workspace.created_at,
+        )
 
 
 class UpdateWorkspaceAsAdminUseCase:
