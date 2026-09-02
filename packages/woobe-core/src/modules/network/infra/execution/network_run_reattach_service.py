@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
 from collections.abc import AsyncIterator
 from uuid import UUID
 
@@ -11,7 +12,12 @@ from modules.network.infra.database.runtime_repositories import NetworkRuntimeRe
 from modules.network.infra.database.runtime_transaction_runner import (
     NetworkRuntimeTransactionRunner,
 )
-from shared.contracts.errors import AuthorizationError, NotFoundError, ValidationError
+from shared.contracts.errors import (
+    AuthorizationError,
+    NotFoundError,
+    RuntimeTimeoutError,
+    ValidationError,
+)
 from shared.contracts.execution_state import ExecutionStateStore
 from shared.runtime_reattach import RuntimeStreamFrame, RuntimeStreamGapError, RuntimeStreamReader
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
@@ -24,8 +30,8 @@ _VALID_ENVIRONMENTS = {"draft", "staging", "production"}
 class NetworkRunReattachService:
     """Observe Network Runs through short SQL reads plus the hot execution store.
 
-    No database transaction survives beyond one read callback. The SSE lifetime owns
-    only the runtime state reader and repeatedly reacquires durable state when needed.
+    No database transaction survives beyond one read callback. Long-lived waiting
+    and SSE observation repeatedly reacquire durable state through read-only UoWs.
     """
 
     def __init__(
@@ -206,6 +212,24 @@ class NetworkRunReattachService:
             }
 
         return await self._transactions.read(read_active)
+
+    async def wait_terminal(
+        self,
+        *,
+        run_id: UUID,
+        principal: object | None,
+        timeout_seconds: float,
+    ) -> NetworkRunObservation:
+        deadline = time.monotonic() + timeout_seconds
+        while True:
+            run = await self._load_run(run_id, principal)
+            if run.status in _TERMINAL_STATUSES:
+                return run
+            if time.monotonic() >= deadline:
+                raise RuntimeTimeoutError(
+                    "Network execution exceeded the HTTP response timeout"
+                )
+            await asyncio.sleep(0.25)
 
     async def stream_sse(
         self,

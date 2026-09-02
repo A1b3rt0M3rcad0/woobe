@@ -4,6 +4,8 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Protocol
 from uuid import UUID
 
+from modules.network.application.dtos.observation import NetworkRunObservation
+
 DisconnectCheck = Callable[[], Awaitable[bool]]
 
 
@@ -23,6 +25,14 @@ class NetworkRunReattachOperations(Protocol):
         network_id: UUID | None = None,
         environment: str | None = None,
     ) -> dict | None: ...
+
+    async def wait_terminal(
+        self,
+        *,
+        run_id: UUID,
+        principal: object | None,
+        timeout_seconds: float,
+    ) -> NetworkRunObservation: ...
 
     def stream_sse(
         self,

@@ -5,7 +5,7 @@ from modules.network.infra.runtime.agent_invoker import (
     _caused_by_empty_model_output,
     _is_public_runtime_token,
 )
-from modules.network.presentation.public_runtime import _public_failure_message
+from modules.network.presentation.mappers import public_network_failure_message
 
 
 def _wrapped_empty_output_error() -> Exception:
@@ -31,7 +31,7 @@ def test_unrelated_error_is_not_classified_as_empty_output() -> None:
 
 
 def test_public_network_failure_message_is_explicit() -> None:
-    assert _public_failure_message("empty_model_output") == (
+    assert public_network_failure_message("empty_model_output") == (
         "The Agent completed without producing a public result."
     )
 

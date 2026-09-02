@@ -11,6 +11,9 @@ from modules.network.application.interfaces.agent_runtime_binding import (
 from modules.network.application.interfaces.execution_repository import (
     NetworkExecutionAcceptanceRepository,
 )
+from modules.network.application.interfaces.session_repository import (
+    NetworkRuntimeEnvironmentRepository,
+)
 from modules.network.domain.entities import NetworkDefinition
 from modules.network.domain.enums import NetworkEnvironment
 from modules.network.domain.graph import composition_hash, validate_network_definition
@@ -22,6 +25,7 @@ class AcceptNetworkExecutionUseCase:
         self,
         repository: NetworkExecutionAcceptanceRepository,
         agent_gateway: AgentRuntimeBindingGateway,
+        environment_repository: NetworkRuntimeEnvironmentRepository,
         *,
         hard_max_depth: int,
         hard_max_invocations: int,
@@ -29,6 +33,7 @@ class AcceptNetworkExecutionUseCase:
     ) -> None:
         self._repository = repository
         self._agent_gateway = agent_gateway
+        self._environment_repository = environment_repository
         self._hard_max_depth = hard_max_depth
         self._hard_max_invocations = hard_max_invocations
         self._hard_timeout_seconds = hard_timeout_seconds
@@ -41,6 +46,28 @@ class AcceptNetworkExecutionUseCase:
         if not message:
             raise ValidationError("Network message cannot be blank")
 
+        if input_dto.idempotency_key:
+            existing = await self._repository.find_idempotent(
+                network_id=input_dto.network_id,
+                idempotency_key=input_dto.idempotency_key,
+            )
+            if existing is not None:
+                if existing.project_id != input_dto.project_id:
+                    raise NotFoundError("Network execution not found")
+                if input_dto.expected_environment is not None:
+                    existing_session = await self._repository.get_session(
+                        network_id=input_dto.network_id,
+                        project_id=input_dto.project_id,
+                        network_session_id=existing.network_session_id,
+                        lock=False,
+                    )
+                    if (
+                        existing_session is None
+                        or existing_session.environment != input_dto.expected_environment
+                    ):
+                        raise NotFoundError("Network execution not found")
+                return existing
+
         network_session = await self._repository.get_session(
             network_id=input_dto.network_id,
             project_id=input_dto.project_id,
@@ -49,14 +76,17 @@ class AcceptNetworkExecutionUseCase:
         )
         if network_session is None or network_session.status != "active":
             raise NotFoundError("Network Session not found")
+        if (
+            input_dto.expected_environment is not None
+            and network_session.environment != input_dto.expected_environment
+        ):
+            raise NotFoundError("Network Session not found")
 
-        if input_dto.idempotency_key:
-            existing = await self._repository.find_idempotent(
-                network_id=input_dto.network_id,
-                idempotency_key=input_dto.idempotency_key,
-            )
-            if existing is not None:
-                return existing
+        await self._environment_repository.require_enabled(
+            network_id=input_dto.network_id,
+            project_id=input_dto.project_id,
+            environment=network_session.environment,
+        )
 
         active = await self._repository.find_active(input_dto.network_session_id)
         if active is not None:

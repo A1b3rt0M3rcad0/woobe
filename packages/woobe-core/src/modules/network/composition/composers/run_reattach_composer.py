@@ -10,27 +10,44 @@ from modules.network.infra.database.runtime_transaction_runner import (
 from modules.network.infra.execution.network_run_reattach_service import (
     NetworkRunReattachService,
 )
+from modules.network.presentation.http.controllers.public_runtime_wait_controller import (
+    PublicNetworkRunWaitController,
+)
 from modules.network.presentation.http.controllers.run_reattach_controller import (
     NetworkRunReattachController,
 )
 
 
-def _build_controller() -> NetworkRunReattachController:
+def _build_service() -> NetworkRunReattachService:
     transactions = NetworkRuntimeTransactionRunner(build_network_read_uow)
-    service = NetworkRunReattachService(
+    return NetworkRunReattachService(
         transactions=transactions,
         state_store=EXECUTION_STATE_STORE,
         heartbeat_seconds=SETTINGS.network_stream_heartbeat_seconds,
     )
-    return NetworkRunReattachController(service)
 
 
 def active_network_run_composer() -> Callable:
-    return _build_controller().active
+    return NetworkRunReattachController(_build_service()).active
 
 
 def attach_network_run_composer() -> Callable:
-    return _build_controller().attach
+    return NetworkRunReattachController(_build_service()).attach
 
 
-__all__ = ["active_network_run_composer", "attach_network_run_composer"]
+def wait_network_run_composer() -> Callable:
+    controller = PublicNetworkRunWaitController(
+        _build_service(),
+        timeout_seconds=min(
+            SETTINGS.runtime_total_timeout_seconds,
+            SETTINGS.network_timeout_hard_seconds,
+        ),
+    )
+    return controller.wait
+
+
+__all__ = [
+    "active_network_run_composer",
+    "attach_network_run_composer",
+    "wait_network_run_composer",
+]

@@ -12,6 +12,7 @@ class AcceptNetworkExecutionInput(BaseModel):
     message: str = Field(min_length=1, max_length=32768)
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=255)
     expected_draft_revision: int | None = Field(default=None, ge=0)
+    expected_environment: str | None = None
 
 
 class NetworkSessionAcceptanceState(BaseModel):

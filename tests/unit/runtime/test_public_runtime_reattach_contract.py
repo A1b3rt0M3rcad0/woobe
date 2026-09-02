@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from modules.network.presentation import public_runtime
+import public_runtime_routes
 from shared.security.http_guard import (
     is_runtime_execution_request,
     is_runtime_path,
@@ -46,18 +46,27 @@ def test_public_runtime_reattach_does_not_consume_execution_concurrency() -> Non
 @pytest.mark.asyncio
 async def test_public_network_stream_uses_same_canonical_reattach_path(monkeypatch) -> None:
     execution_id = uuid4()
-    execution = SimpleNamespace(id=execution_id)
     sentinel = object()
 
-    async def submit(request):
-        return SimpleNamespace(), SimpleNamespace(), execution
+    monkeypatch.setattr(
+        public_runtime_routes,
+        "_is_network_runtime_request",
+        lambda _request: True,
+    )
 
-    async def reattach(value, request):
+    async def submit(_request):
+        return execution_id
+
+    async def reattach(value, _request):
         assert value == execution_id
         return sentinel
 
-    monkeypatch.setattr(public_runtime, "_submit", submit)
-    monkeypatch.setattr(public_runtime, "reattach_network_execution", reattach)
+    monkeypatch.setattr(public_runtime_routes, "_submit_network_run", submit)
+    monkeypatch.setattr(
+        public_runtime_routes,
+        "attach_network_run_composer",
+        lambda: reattach,
+    )
 
-    result = await public_runtime.stream_network_http(SimpleNamespace())
+    result = await public_runtime_routes.run_stream(SimpleNamespace())
     assert result is sentinel

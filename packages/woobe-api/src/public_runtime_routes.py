@@ -12,14 +12,8 @@ from modules.network.entrypoint import (
     active_network_run_composer,
     attach_network_run_composer,
     cancel_runtime_network_execution_composer,
-)
-from modules.network.presentation.public_runtime import (
-    is_network_runtime_request,
-    run_network_http,
-    stream_network_http,
-)
-from modules.network.presentation.runtime_environment_dependency import (
-    enforce_public_network_runtime_environment,
+    submit_public_network_run_composer,
+    wait_network_run_composer,
 )
 from shared.infra.errors import AuthorizationError
 from shared.presentation.http.adapter import request_adapter, response_adapter
@@ -37,11 +31,25 @@ def _runtime_principal(request: FastAPIRequest) -> ProjectApiPrincipal:
     return principal
 
 
+def _is_network_runtime_request(request: FastAPIRequest) -> bool:
+    principal = getattr(request.state, "principal", None)
+    return (
+        isinstance(principal, ProjectApiPrincipal)
+        and principal.kind == "runtime"
+        and principal.target_type == "network"
+    )
+
+
+async def _submit_network_run(request: FastAPIRequest) -> UUID:
+    accepted = await request_adapter(request, submit_public_network_run_composer())
+    return UUID(str(accepted.body["data"]["execution_id"]))
+
+
 @router.post("/run")
 async def run(request: FastAPIRequest):
-    if is_network_runtime_request(request):
-        await enforce_public_network_runtime_environment(request)
-        return await run_network_http(request)
+    if _is_network_runtime_request(request):
+        run_id = await _submit_network_run(request)
+        return await wait_network_run_composer()(run_id, request)
     handler = public_run_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
@@ -49,9 +57,9 @@ async def run(request: FastAPIRequest):
 
 @router.post("/run/stream")
 async def run_stream(request: FastAPIRequest):
-    if is_network_runtime_request(request):
-        await enforce_public_network_runtime_environment(request)
-        return await stream_network_http(request)
+    if _is_network_runtime_request(request):
+        run_id = await _submit_network_run(request)
+        return await attach_network_run_composer()(run_id, request)
     handler = public_stream_composer()
     return await handler(request)
 
