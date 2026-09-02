@@ -10,3 +10,6 @@ class ChatSurfaceReadRepository(ABC):
 
     @abstractmethod
     async def get_by_id(self, surface_id: UUID) -> ChatSurfaceState | None: ...
+
+    @abstractmethod
+    async def get_by_public_id(self, public_id: str) -> ChatSurfaceState | None: ...

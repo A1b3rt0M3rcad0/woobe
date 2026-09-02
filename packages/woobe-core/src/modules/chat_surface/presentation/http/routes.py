@@ -15,46 +15,11 @@ from modules.chat_surface.composition.composers.surface_read_composers import (
     get_chat_surface_composer,
     list_chat_surfaces_composer,
 )
-from modules.chat_surface.presentation.http import legacy_routes as _legacy
 from modules.chat_surface.presentation.schemas import UpdateChatSurfaceRequest
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 
-_EXTERNAL_RUNTIME_PATHS = {
-    "/v1/chat/sessions/{session_id}/surface",
-    "/v1/chat/sessions/{session_id}/messages",
-    "/v1/chat/sessions/{session_id}/messages:stream",
-}
-_MIGRATED_CONTROL_PLANE_ROUTES = {
-    ("POST", "/chat-surfaces/projects/{project_id}"),
-    ("GET", "/chat-surfaces/projects/{project_id}"),
-    ("GET", "/chat-surfaces/{surface_id}"),
-    ("PATCH", "/chat-surfaces/{surface_id}"),
-    ("POST", "/chat-surfaces/{surface_id}/release"),
-    ("POST", "/chat-surfaces/{surface_id}/activate"),
-    ("POST", "/chat-surfaces/{surface_id}/disable"),
-    ("POST", "/chat-surfaces/{surface_id}/archive"),
-    ("GET", "/chat-surfaces/{surface_id}/sessions"),
-    ("GET", "/chat-surfaces/{surface_id}/activity"),
-    ("POST", "/chat-surfaces/{surface_id}/access-keys"),
-    ("GET", "/chat-surfaces/{surface_id}/access-keys"),
-    ("POST", "/chat-surfaces/{surface_id}/access-keys/{api_key_id}/rotate"),
-    ("POST", "/chat-surfaces/{surface_id}/access-keys/{api_key_id}/revoke"),
-}
-
-
-def _legacy_route_is_excluded(route) -> bool:
-    path = getattr(route, "path", None)
-    if path in _EXTERNAL_RUNTIME_PATHS:
-        return True
-    methods = getattr(route, "methods", None) or set()
-    return any((str(method), path) in _MIGRATED_CONTROL_PLANE_ROUTES for method in methods)
-
-
 router = APIRouter(tags=["chat-surfaces"])
-for route in _legacy.router.routes:
-    if not _legacy_route_is_excluded(route):
-        router.routes.append(route)
 
 
 @router.get("/chat-surfaces/projects/{project_id}")
@@ -115,10 +80,6 @@ async def get_surface_activity(
     del surface_id
     response = await request_adapter(request, get_chat_surface_activity_composer())
     return response_adapter(response)
-
-
-def __getattr__(name: str):
-    return getattr(_legacy, name)
 
 
 __all__ = ["router"]

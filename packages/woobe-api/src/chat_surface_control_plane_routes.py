@@ -1,14 +1,20 @@
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Header, Request
 from pydantic import BaseModel, Field, field_validator
 
+from chat_surface_session_orchestration import (
+    archive_bound_target_session,
+    create_bound_target_session,
+)
 from modules.agent.entrypoint import build_agent_chat_surface_target_release_reader
 from modules.chat_surface.entrypoint import (
+    CONTROL_PLANE_TEST_SOURCE,
     activate_chat_surface_composer,
     create_chat_surface_composer,
     get_chat_surface_composer,
+    issue_chat_surface_session_token_composer,
     normalize_appearance_config,
     refresh_chat_surface_release_composer,
 )
@@ -19,7 +25,7 @@ from modules.core.entrypoint import (
     rotate_chat_surface_access_key_composer,
 )
 from modules.network.entrypoint import build_network_chat_surface_target_release_reader
-from shared.contracts.errors import AuthenticationError, ConflictError
+from shared.contracts.errors import AuthenticationError, AuthorizationError, ConflictError
 from shared.presentation.http.adapter import request_adapter, response_adapter
 from shared.presentation.http.request import Request as InternalRequest
 from shared.security.principal import AuthenticatedPrincipal
@@ -205,6 +211,67 @@ async def revoke_access_key(
         revoke_chat_surface_access_key_composer(),
     )
     return response_adapter(response)
+
+
+@router.post("/chat-surfaces/{surface_id}/test-sessions", status_code=201)
+async def create_test_session(
+    surface_id: UUID,
+    request: Request,
+    origin: str | None = Header(default=None, alias="Origin"),
+):
+    if origin is None or not origin.strip():
+        raise AuthorizationError("Control Plane Origin header is required")
+    principal = _principal(request)
+    surface = await _surface_data(request)
+    if surface["status"] != "active":
+        raise ConflictError("ChatSurface must be active before it can be tested")
+
+    release_id = UUID(str(surface["target_release_id"]))
+    await _target_release_reader(surface["target_type"]).validate(
+        project_id=UUID(str(surface["project_id"])),
+        target_id=UUID(str(surface["target_id"])),
+        release_id=release_id,
+    )
+
+    synthetic_credential_id = uuid4()
+    binding = await create_bound_target_session(
+        surface=surface,
+        surface_credential_id=synthetic_credential_id,
+        idempotency_key=f"control-plane-test:{uuid4()}",
+        external_reference=None,
+        metadata={
+            "source": CONTROL_PLANE_TEST_SOURCE,
+            "actor_id": str(principal.user_id),
+        },
+    )
+    try:
+        token_response = await issue_chat_surface_session_token_composer()(
+            InternalRequest(
+                path_params={
+                    "surface_id": str(surface_id),
+                    "session_id": str(binding["session_id"]),
+                },
+                body={
+                    "surface_credential_id": str(synthetic_credential_id),
+                    "origin": origin,
+                },
+            )
+        )
+    except Exception:
+        await archive_bound_target_session(surface=surface, binding=binding)
+        raise
+
+    token_data = token_response.body["data"]
+    return {
+        "success": True,
+        "data": {
+            "session_id": str(binding["session_id"]),
+            "target_release_id": str(binding["target_release_id"]),
+            "session_token": token_data["session_token"],
+            "expires_in": token_data["expires_in"],
+            "source": CONTROL_PLANE_TEST_SOURCE,
+        },
+    }
 
 
 __all__ = ["router"]

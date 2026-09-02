@@ -14,6 +14,24 @@ class ChatSessionTokenDecoder(ABC):
     def decode(self, token: str) -> ChatSessionClaims: ...
 
 
+class ChatSessionTokenIssuer(ABC):
+    @abstractmethod
+    def issue(
+        self,
+        *,
+        project_id: UUID,
+        chat_surface_id: UUID,
+        target_type: str,
+        target_id: UUID,
+        target_release_id: UUID,
+        session_id: UUID,
+        origin: str,
+        surface_credential_id: UUID,
+        token_epoch: int,
+        ttl_seconds: int | None = None,
+    ) -> str: ...
+
+
 class ChatSurfaceSessionAuthorizationRepository(ABC):
     @abstractmethod
     async def load(

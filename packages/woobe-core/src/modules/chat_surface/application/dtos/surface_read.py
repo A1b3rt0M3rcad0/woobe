@@ -35,3 +35,7 @@ class ListChatSurfacesInput(BaseModel):
 
 class GetChatSurfaceInput(BaseModel):
     surface_id: UUID
+
+
+class GetPublicChatSurfaceInput(BaseModel):
+    public_id: str

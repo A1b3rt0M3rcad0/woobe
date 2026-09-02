@@ -13,6 +13,7 @@ from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ExceptionHandler
 
 from chat_surface_control_plane_routes import router as chat_surface_control_plane_router
+from chat_surface_public_session_routes import router as chat_surface_public_session_router
 from modules.agent.entrypoint import (
     AGENT_HTTP_ROUTERS,
     SETTINGS,
@@ -20,7 +21,6 @@ from modules.agent.entrypoint import (
     close_http_tool_executor,
 )
 from modules.chat_surface.entrypoint import CHAT_SURFACE_HTTP_ROUTERS
-from modules.chat_surface.security import ChatSessionTokenCodec
 from modules.core.entrypoint import CORE_HTTP_ROUTERS
 from modules.identity.entrypoint import (
     IDENTITY_HTTP_ROUTERS,
@@ -117,13 +117,6 @@ def create_app() -> FastAPI:
         issuer=settings.auth_issuer,
         audience=settings.auth_audience,
         ttl_seconds=settings.access_token_ttl_seconds,
-        leeway_seconds=settings.auth_clock_skew_seconds,
-    )
-    app.state.chat_session_token_codec = ChatSessionTokenCodec(
-        signing_key=settings.chat_token_signing_key or settings.secret_key,
-        issuer=settings.chat_token_issuer,
-        audience=settings.chat_token_audience,
-        ttl_seconds=settings.chat_token_ttl_seconds,
         leeway_seconds=settings.auth_clock_skew_seconds,
     )
     app.state.http_tool_executor = build_http_tool_executor()
@@ -266,6 +259,7 @@ def create_app() -> FastAPI:
         for chat_surface_http_router in CHAT_SURFACE_HTTP_ROUTERS:
             app.include_router(chat_surface_http_router)
         app.include_router(chat_surface_control_plane_router)
+        app.include_router(chat_surface_public_session_router)
         app.include_router(public_runtime_router)
         for agent_http_router in AGENT_HTTP_ROUTERS:
             app.include_router(agent_http_router)

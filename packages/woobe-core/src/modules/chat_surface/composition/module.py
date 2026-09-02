@@ -8,11 +8,21 @@ from modules.chat_surface.application.interfaces.session_authorization import (
     ChatSurfaceCredentialReader,
     ChatSurfaceTargetSessionAuthorizer,
 )
+from modules.chat_surface.application.use_cases.session_authorization import (
+    CONTROL_PLANE_TEST_SOURCE,
+)
 from modules.chat_surface.composition.composers.message_lifecycle_composers import (
     begin_chat_surface_message_runtime_composer,
     latest_chat_surface_message_composer,
     mark_chat_surface_message_composer,
     mark_chat_surface_message_runtime_composer,
+)
+from modules.chat_surface.composition.composers.public_session_composers import (
+    archive_chat_surface_session_binding_composer,
+    create_chat_surface_session_binding_composer,
+    get_chat_surface_session_binding_composer,
+    get_chat_surface_session_by_idempotency_composer,
+    issue_chat_surface_session_token_composer,
 )
 from modules.chat_surface.composition.composers.surface_mutation_composers import (
     activate_chat_surface_composer,
@@ -36,6 +46,7 @@ CHAT_SURFACE_HTTP_ROUTERS = (chat_surface_router,)
 __all__ = [
     "AuthorizedChatSession",
     "CHAT_SURFACE_HTTP_ROUTERS",
+    "CONTROL_PLANE_TEST_SOURCE",
     "ChatSessionTokenCodec",
     "ChatSurfaceCredentialAuthorizationState",
     "ChatSurfaceCredentialReader",
@@ -44,9 +55,14 @@ __all__ = [
     "StreamChatMessageRequest",
     "TargetSessionAuthorizationInput",
     "activate_chat_surface_composer",
+    "archive_chat_surface_session_binding_composer",
     "begin_chat_surface_message_runtime_composer",
     "build_chat_surface_session_authorization_handler",
     "create_chat_surface_composer",
+    "create_chat_surface_session_binding_composer",
+    "get_chat_surface_session_binding_composer",
+    "get_chat_surface_session_by_idempotency_composer",
+    "issue_chat_surface_session_token_composer",
     "latest_chat_surface_message_composer",
     "mark_chat_surface_message_composer",
     "mark_chat_surface_message_runtime_composer",

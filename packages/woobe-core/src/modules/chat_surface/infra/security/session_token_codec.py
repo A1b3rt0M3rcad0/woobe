@@ -12,6 +12,7 @@ from uuid import UUID, uuid4
 from modules.chat_surface.application.dtos.session_authorization import ChatSessionClaims
 from modules.chat_surface.application.interfaces.session_authorization import (
     ChatSessionTokenDecoder,
+    ChatSessionTokenIssuer,
 )
 from shared.contracts.errors import AuthenticationError
 
@@ -31,7 +32,7 @@ def _decode_segment(value: str) -> bytes:
     return decoded
 
 
-class ChatSessionTokenCodec(ChatSessionTokenDecoder):
+class ChatSessionTokenCodec(ChatSessionTokenDecoder, ChatSessionTokenIssuer):
     algorithm = "HS256"
 
     def __init__(

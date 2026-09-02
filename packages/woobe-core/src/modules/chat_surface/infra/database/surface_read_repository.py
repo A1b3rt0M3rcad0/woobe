@@ -26,6 +26,12 @@ class SQLAlchemyChatSurfaceReadRepository(ChatSurfaceReadRepository):
         model = await self._uow.session.get(ChatSurfaceModel, surface_id)
         return self._state(model) if model is not None else None
 
+    async def get_by_public_id(self, public_id: str) -> ChatSurfaceState | None:
+        model = await self._uow.session.scalar(
+            select(ChatSurfaceModel).where(ChatSurfaceModel.public_id == public_id)
+        )
+        return self._state(model) if model is not None else None
+
     @staticmethod
     def _state(model: ChatSurfaceModel) -> ChatSurfaceState:
         return ChatSurfaceState(

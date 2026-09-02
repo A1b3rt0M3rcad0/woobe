@@ -2,6 +2,7 @@ from uuid import UUID
 
 from modules.chat_surface.application.dtos.surface_read import (
     GetChatSurfaceInput,
+    GetPublicChatSurfaceInput,
     ListChatSurfacesInput,
 )
 from modules.chat_surface.application.interfaces.use_case import UseCase
@@ -53,3 +54,26 @@ class GetChatSurfaceController(Controller):
             status_code=200,
             body={"success": True, "data": chat_surface_payload(result)},
         )
+
+
+class GetPublicChatSurfaceController(Controller):
+    def __init__(self, use_case: UseCase) -> None:
+        self._use_case = use_case
+
+    async def handle(self, request: Request) -> Response:
+        result = await self._use_case.execute(
+            GetPublicChatSurfaceInput(
+                public_id=str(request.path_params["public_id"]),
+            )
+        )
+        return Response(
+            status_code=200,
+            body={"success": True, "data": chat_surface_payload(result)},
+        )
+
+
+__all__ = [
+    "GetChatSurfaceController",
+    "GetPublicChatSurfaceController",
+    "ListChatSurfacesController",
+]

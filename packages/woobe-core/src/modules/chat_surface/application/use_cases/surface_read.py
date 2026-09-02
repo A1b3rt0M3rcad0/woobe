@@ -1,6 +1,7 @@
 from modules.chat_surface.application.dtos.surface_read import (
     ChatSurfaceState,
     GetChatSurfaceInput,
+    GetPublicChatSurfaceInput,
     ListChatSurfacesInput,
 )
 from modules.chat_surface.application.interfaces.surface_read_repository import (
@@ -26,3 +27,21 @@ class GetChatSurfaceUseCase:
         if surface is None:
             raise NotFoundError("ChatSurface not found")
         return surface
+
+
+class GetPublicChatSurfaceUseCase:
+    def __init__(self, repository: ChatSurfaceReadRepository) -> None:
+        self._repository = repository
+
+    async def execute(self, input_dto: GetPublicChatSurfaceInput) -> ChatSurfaceState:
+        surface = await self._repository.get_by_public_id(input_dto.public_id)
+        if surface is None:
+            raise NotFoundError("ChatSurface not found")
+        return surface
+
+
+__all__ = [
+    "GetChatSurfaceUseCase",
+    "GetPublicChatSurfaceUseCase",
+    "ListChatSurfacesUseCase",
+]
