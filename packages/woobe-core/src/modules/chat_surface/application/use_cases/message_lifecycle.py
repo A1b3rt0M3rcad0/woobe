@@ -56,7 +56,7 @@ class BeginChatSurfaceMessageUseCase:
             raise ConflictError("ChatSurface is not active")
 
         await self._repository.expire_stale(
-            session_binding_id=input_dto.session_binding_id,
+            surface_id=input_dto.surface_id,
             stale_before=now - timedelta(minutes=10),
             completed_at=now,
         )

@@ -1,25 +1,30 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime, timedelta
-from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 
-from modules.chat_surface.control_plane_service import ControlPlaneChatSurfaceService
+from modules.chat_surface.application.dtos.message_request import BeginMessageRequestInput
+from modules.chat_surface.application.use_cases.message_lifecycle import (
+    BeginChatSurfaceMessageUseCase,
+)
+from modules.chat_surface.infra.database.message_request_repository import (
+    SQLAlchemyChatSurfaceMessageRequestRepository,
+)
 from modules.chat_surface.infra.database.models import (
     ChatSurfaceMessageRequestModel,
     ChatSurfaceModel,
     ChatSurfaceSessionBindingModel,
 )
+from modules.chat_surface.infra.database.unit_of_work import ChatSurfaceUnitOfWork
 from modules.core.infra.database.models import ProjectModel
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 
 
 @pytest.mark.asyncio
-async def test_orphaned_previous_session_does_not_consume_surface_concurrency_forever() -> None:
-    """Regression for Live Test sessions stuck behind an old orphan MessageRequest."""
+async def test_stale_request_from_previous_session_does_not_consume_surface_concurrency_forever() -> None:
     settings = Settings.model_validate({})
     engine = create_engine(settings)
     session_factory = create_session_factory(engine)
@@ -34,7 +39,7 @@ async def test_orphaned_previous_session_does_not_consume_surface_concurrency_fo
     current_session_id = uuid4()
     stale_request_id = uuid4()
     now = datetime.now(UTC)
-    stale_at = now - timedelta(seconds=30)
+    stale_at = now - timedelta(minutes=11)
 
     try:
         async with session_factory() as session, session.begin():
@@ -77,38 +82,41 @@ async def test_orphaned_previous_session_does_not_consume_surface_concurrency_fo
             )
             await session.flush()
 
-            stale_binding = ChatSurfaceSessionBindingModel(
-                id=stale_binding_id,
-                chat_surface_id=surface_id,
-                project_id=project_id,
-                target_type="agent",
-                target_id=agent_id,
-                target_release_id=release_id,
-                session_id=stale_session_id,
-                surface_credential_id=uuid4(),
-                idempotency_key=f"session-{stale_binding_id}",
-                external_reference=None,
-                metadata_=None,
-                status="active",
+            session.add_all(
+                [
+                    ChatSurfaceSessionBindingModel(
+                        id=stale_binding_id,
+                        chat_surface_id=surface_id,
+                        project_id=project_id,
+                        target_type="agent",
+                        target_id=agent_id,
+                        target_release_id=release_id,
+                        session_id=stale_session_id,
+                        surface_credential_id=uuid4(),
+                        idempotency_key=f"session-{stale_binding_id}",
+                        external_reference=None,
+                        metadata_=None,
+                        status="active",
+                    ),
+                    ChatSurfaceSessionBindingModel(
+                        id=current_binding_id,
+                        chat_surface_id=surface_id,
+                        project_id=project_id,
+                        target_type="agent",
+                        target_id=agent_id,
+                        target_release_id=release_id,
+                        session_id=current_session_id,
+                        surface_credential_id=uuid4(),
+                        idempotency_key=f"session-{current_binding_id}",
+                        external_reference=None,
+                        metadata_=None,
+                        status="active",
+                    ),
+                ]
             )
-            current_binding = ChatSurfaceSessionBindingModel(
-                id=current_binding_id,
-                chat_surface_id=surface_id,
-                project_id=project_id,
-                target_type="agent",
-                target_id=agent_id,
-                target_release_id=release_id,
-                session_id=current_session_id,
-                surface_credential_id=uuid4(),
-                idempotency_key=f"session-{current_binding_id}",
-                external_reference=None,
-                metadata_=None,
-                status="active",
-            )
-            session.add_all([stale_binding, current_binding])
             await session.flush()
 
-            orphan = ChatSurfaceMessageRequestModel(
+            stale_request = ChatSurfaceMessageRequestModel(
                 id=stale_request_id,
                 session_binding_id=stale_binding_id,
                 idempotency_key=f"message-{stale_request_id}",
@@ -117,44 +125,41 @@ async def test_orphaned_previous_session_does_not_consume_surface_concurrency_fo
                 error_code=None,
                 completed_at=None,
             )
-            session.add(orphan)
+            session.add(stale_request)
             await session.flush()
-            orphan.created_at = stale_at
-            orphan.updated_at = stale_at
+            stale_request.created_at = stale_at
+            stale_request.updated_at = stale_at
 
-        service = ControlPlaneChatSurfaceService(session_factory, SimpleNamespace())
-        authorized = SimpleNamespace(
-            surface=SimpleNamespace(id=surface_id),
-            binding=SimpleNamespace(
-                id=current_binding_id,
-                project_id=project_id,
-                target_type="agent",
-                target_id=agent_id,
-                target_release_id=release_id,
-                session_id=current_session_id,
-            ),
-        )
-
-        created, was_created = await service.begin_message(
-            authorized,
-            "new-session-message",
-        )
+        uow = ChatSurfaceUnitOfWork(engine)
+        async with uow:
+            repository = SQLAlchemyChatSurfaceMessageRequestRepository(uow)
+            use_case = BeginChatSurfaceMessageUseCase(
+                repository,
+                max_metadata_bytes=settings.runtime_max_metadata_bytes,
+            )
+            result = await use_case.execute(
+                BeginMessageRequestInput(
+                    surface_id=surface_id,
+                    session_binding_id=current_binding_id,
+                    idempotency_key="new-session-message",
+                )
+            )
 
         async with session_factory() as session:
-            orphan_after = await session.get(
+            stale_after = await session.get(
                 ChatSurfaceMessageRequestModel,
                 stale_request_id,
             )
             created_after = await session.get(
                 ChatSurfaceMessageRequestModel,
-                created.id,
+                result.request.id,
             )
 
-        assert was_created is True
-        assert orphan_after is not None
-        assert orphan_after.status == "failed"
-        assert orphan_after.error_code == "run_acceptance_missing"
-        assert orphan_after.completed_at is not None
+        assert result.created is True
+        assert stale_after is not None
+        assert stale_after.status == "failed"
+        assert stale_after.error_code == "runtime_lease_expired"
+        assert stale_after.completed_at is not None
         assert created_after is not None
         assert created_after.session_binding_id == current_binding_id
         assert created_after.status == "accepted"

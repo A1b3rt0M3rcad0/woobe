@@ -3,7 +3,8 @@ from uuid import uuid4
 
 import pytest
 
-from modules.chat_surface.security import ChatSessionTokenCodec, normalize_origin
+from modules.chat_surface.domain.origin import normalize_origin
+from modules.chat_surface.infra.security.session_token_codec import ChatSessionTokenCodec
 from shared.infra.errors import AuthenticationError, ValidationError
 
 

@@ -53,7 +53,7 @@ class ChatSurfaceMessageRequestRepository(ABC):
     async def expire_stale(
         self,
         *,
-        session_binding_id: UUID,
+        surface_id: UUID,
         stale_before: datetime,
         completed_at: datetime,
     ) -> None: ...

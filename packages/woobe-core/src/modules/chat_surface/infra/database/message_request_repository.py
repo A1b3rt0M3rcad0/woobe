@@ -195,14 +195,17 @@ class SQLAlchemyChatSurfaceMessageRequestRepository(ChatSurfaceMessageRequestRep
     async def expire_stale(
         self,
         *,
-        session_binding_id: UUID,
+        surface_id: UUID,
         stale_before: datetime,
         completed_at: datetime,
     ) -> None:
+        binding_ids = select(ChatSurfaceSessionBindingModel.id).where(
+            ChatSurfaceSessionBindingModel.chat_surface_id == surface_id
+        )
         await self._uow.session.execute(
             update(ChatSurfaceMessageRequestModel)
             .where(
-                ChatSurfaceMessageRequestModel.session_binding_id == session_binding_id,
+                ChatSurfaceMessageRequestModel.session_binding_id.in_(binding_ids),
                 ChatSurfaceMessageRequestModel.status.in_(_ACTIVE_STATUSES),
                 ChatSurfaceMessageRequestModel.updated_at < stale_before,
             )
