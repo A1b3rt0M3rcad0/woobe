@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Protocol
 from uuid import UUID
 
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from modules.agent.entrypoint import AgentNetworkRunMaterializer
 from modules.network.application.dtos.runtime import NetworkVersionSnapshot
 from modules.network.infra.database.models import (
     NetworkAgentContextModel,
@@ -21,6 +21,14 @@ from modules.network.infra.database.unit_of_work import NetworkUnitOfWork
 
 
 NetworkUnitOfWorkFactory = Callable[[], NetworkUnitOfWork]
+
+
+class AgentRunMaterializer(Protocol):
+    async def materialize(
+        self,
+        session: AsyncSession,
+        **kwargs: Any,
+    ) -> None: ...
 
 
 def _uuid(value: Any) -> UUID | None:
@@ -71,15 +79,16 @@ def _invocation_failure(
 class NetworkRuntimeFinalizer:
     """Materialize one Network execution in one short UnitOfWork.
 
-    Network owns its durable execution state. Agent Run/session/message evidence is
-    delegated through the Agent public entrypoint while sharing the same SQL
-    transaction, so terminal persistence is atomic without cross-context ORM imports.
+    Network owns its durable execution state. Agent evidence is delegated through an
+    injected materialization port so Network does not import another bounded context.
+    The materializer still receives the Network SQL session to preserve the current
+    atomic terminal-write contract; splitting that transaction is a later boundary.
     """
 
     def __init__(
         self,
         uow_factory: NetworkUnitOfWorkFactory,
-        agent_materializer: AgentNetworkRunMaterializer,
+        agent_materializer: AgentRunMaterializer,
     ) -> None:
         self._uow_factory = uow_factory
         self._agent_materializer = agent_materializer
