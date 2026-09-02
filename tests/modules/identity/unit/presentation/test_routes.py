@@ -22,11 +22,11 @@ class TestIdentityRoutes:
         assert "update_workspace_composer()" in source
         assert "get_user_composer()" in source
 
-    def test_all_controllers_import_use_cases(self):
+    def test_all_controllers_depend_on_application_interface(self):
         for py_file in CONTROLLERS_DIR.iterdir():
             if py_file.suffix != ".py" or py_file.name.startswith("__"):
                 continue
             source = py_file.read_text(encoding="utf-8")
-            assert "from modules.identity.application.use_cases" in source, (
-                f"{py_file.name} must import from application/use_cases"
+            assert "from modules.identity.application.interfaces.use_case import UseCase" in source, (
+                f"{py_file.name} must depend on the application UseCase interface"
             )

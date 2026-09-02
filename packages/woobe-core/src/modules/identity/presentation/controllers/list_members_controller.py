@@ -1,13 +1,13 @@
-from modules.identity.application.use_cases import ListMembersUseCase
 from modules.identity.application.dtos import ListMembersInput
+from modules.identity.application.interfaces.use_case import UseCase
 from modules.identity.presentation.schemas import MemberResponse
-from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
+from shared.presentation.interface.controller import Controller
 
 
 class ListMembersController(Controller):
-    def __init__(self, use_case: ListMembersUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
@@ -18,12 +18,15 @@ class ListMembersController(Controller):
             body={
                 "success": True,
                 "message": "ok",
-                "data": [MemberResponse(
-                    id=m.id,
-                    user_id=m.user_id,
-                    workspace_id=m.workspace_id,
-                    role=m.role.value if hasattr(m.role, "value") else m.role,
-                    status=m.status.value if hasattr(m.status, "value") else m.status,
-                ).model_dump() for m in result],
+                "data": [
+                    MemberResponse(
+                        id=member.id,
+                        user_id=member.user_id,
+                        workspace_id=member.workspace_id,
+                        role=member.role.value if hasattr(member.role, "value") else member.role,
+                        status=member.status.value if hasattr(member.status, "value") else member.status,
+                    ).model_dump()
+                    for member in result
+                ],
             },
         )

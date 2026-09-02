@@ -1,12 +1,12 @@
-from modules.identity.application.use_cases import RegisterUseCase
 from modules.identity.application.dtos import RegisterInput
-from shared.presentation.interface.controller import Controller
+from modules.identity.application.interfaces.use_case import UseCase
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
+from shared.presentation.interface.controller import Controller
 
 
 class RegisterController(Controller):
-    def __init__(self, use_case: RegisterUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

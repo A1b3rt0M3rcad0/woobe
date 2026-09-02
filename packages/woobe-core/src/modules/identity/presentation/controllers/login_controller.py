@@ -1,13 +1,13 @@
-from modules.identity.application.use_cases import LoginUseCase
 from modules.identity.application.dtos import LoginInput
-from shared.presentation.interface.controller import Controller
+from modules.identity.application.interfaces.use_case import UseCase
+from modules.identity.domain.errors import InvalidCredentialsError
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
-from modules.identity.domain.errors import InvalidCredentialsError
+from shared.presentation.interface.controller import Controller
 
 
 class LoginController(Controller):
-    def __init__(self, use_case: LoginUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

@@ -1,13 +1,13 @@
-from modules.identity.application.use_cases import AddMemberToWorkspaceUseCase
 from modules.identity.application.dtos import AddMemberInput
+from modules.identity.application.interfaces.use_case import UseCase
 from modules.identity.presentation.schemas import MemberResponse
-from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
+from shared.presentation.interface.controller import Controller
 
 
 class AddMemberController(Controller):
-    def __init__(self, use_case: AddMemberToWorkspaceUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

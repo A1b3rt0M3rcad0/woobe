@@ -1,13 +1,13 @@
-from modules.identity.application.use_cases import GetUserUseCase
 from modules.identity.application.dtos import GetUserInput
+from modules.identity.application.interfaces.use_case import UseCase
 from modules.identity.presentation.schemas import UserResponse
-from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
+from shared.presentation.interface.controller import Controller
 
 
 class GetUserController(Controller):
-    def __init__(self, use_case: GetUserUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
@@ -20,5 +20,9 @@ class GetUserController(Controller):
             )
         return Response(
             status_code=200,
-            body={"success": True, "message": "ok", "data": UserResponse(**result.model_dump()).model_dump()},
+            body={
+                "success": True,
+                "message": "ok",
+                "data": UserResponse(**result.model_dump()).model_dump(),
+            },
         )

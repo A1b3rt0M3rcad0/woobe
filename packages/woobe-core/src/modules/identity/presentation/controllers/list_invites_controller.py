@@ -1,13 +1,13 @@
-from modules.identity.application.use_cases import ListInvitesUseCase
 from modules.identity.application.dtos import ListInvitesInput
+from modules.identity.application.interfaces.use_case import UseCase
 from modules.identity.presentation.schemas import InviteResponse
-from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
+from shared.presentation.interface.controller import Controller
 
 
 class ListInvitesController(Controller):
-    def __init__(self, use_case: ListInvitesUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
@@ -18,14 +18,17 @@ class ListInvitesController(Controller):
             body={
                 "success": True,
                 "message": "ok",
-                "data": [InviteResponse(
-                    id=i.id,
-                    workspace_id=i.workspace_id,
-                    email=i.email,
-                    role=i.role.value if hasattr(i.role, "value") else i.role,
-                    status=i.status.value if hasattr(i.status, "value") else i.status,
-                    expires_at=i.expires_at,
-                    created_at=i.created_at,
-                ).model_dump() for i in result],
+                "data": [
+                    InviteResponse(
+                        id=item.id,
+                        workspace_id=item.workspace_id,
+                        email=item.email,
+                        role=item.role.value if hasattr(item.role, "value") else item.role,
+                        status=item.status.value if hasattr(item.status, "value") else item.status,
+                        expires_at=item.expires_at,
+                        created_at=item.created_at,
+                    ).model_dump()
+                    for item in result
+                ],
             },
         )
