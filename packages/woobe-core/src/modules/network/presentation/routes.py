@@ -13,11 +13,7 @@ from modules.network.presentation.reattach_routes import (
     network_runtime_sse,
     reattach_network_execution,
 )
-from modules.network.presentation.schemas import (
-    PromotionRequest,
-    RollbackNetworkRequest,
-    RunNetworkRequest,
-)
+from modules.network.presentation.schemas import RollbackNetworkRequest, RunNetworkRequest
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, NotFoundError
 from shared.runtime_reattach import RuntimeStreamFrame, RuntimeStreamGapError, RuntimeStreamReader
@@ -47,50 +43,6 @@ def _authorize_project(request: Request, project_id: UUID) -> UUID | None:
     if isinstance(principal, AuthenticatedPrincipal):
         return principal.user_id
     raise AuthorizationError("Authentication required")
-
-
-@router.post("/{network_id}/promotions/preview")
-async def preview_promotion(
-    network_id: UUID,
-    payload: PromotionRequest,
-    request: Request,
-):
-    _authorize_project(request, payload.project_id)
-    result = await _service(request).preview_promotion(
-        network_id=network_id,
-        project_id=payload.project_id,
-        environment=payload.environment,
-    )
-    return {"success": True, "data": result}
-
-
-@router.post("/{network_id}/promotions", status_code=201)
-async def promote_network(
-    network_id: UUID,
-    payload: PromotionRequest,
-    request: Request,
-):
-    user_id = _authorize_project(request, payload.project_id)
-    version = await _service(request).promote(
-        network_id=network_id,
-        project_id=payload.project_id,
-        environment=payload.environment,
-        created_by=user_id,
-        expected_revision=payload.expected_revision,
-        expected_network_version_id=payload.expected_network_version_id,
-        approved_action_ids=payload.approved_action_ids,
-    )
-    return {
-        "success": True,
-        "data": {
-            "id": str(version.id),
-            "kind": version.kind,
-            "version": version.version,
-            "composition_hash": version.composition_hash,
-            "definition": version.definition,
-            "resolved_bindings": version.resolved_bindings,
-        },
-    }
 
 
 @router.post("/{network_id}/rollback", status_code=201)
