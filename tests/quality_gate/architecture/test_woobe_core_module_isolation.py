@@ -35,3 +35,32 @@ def test_woobe_core_module_policies_forbid_cross_module_imports() -> None:
         "woobe-core modules are service boundaries and cannot import another "
         f"module; cross-module imports were relaxed for: {', '.join(relaxed)}"
     )
+
+
+def test_woobe_core_policies_do_not_whitelist_other_module_entrypoints() -> None:
+    violations: list[str] = []
+
+    for policy_file in sorted(POLICIES_ROOT.glob("*.toml")):
+        with policy_file.open("rb") as handle:
+            policy = tomllib.load(handle)
+
+        module = policy.get("module") or {}
+        module_name = str(module.get("name") or policy_file.stem)
+        module_root = str(module.get("root") or "")
+        if not module_root.startswith(WOOBE_CORE_MODULES_ROOT):
+            continue
+
+        for rule in policy.get("rules") or []:
+            for allowed in rule.get("allow") or []:
+                if not allowed.startswith("modules."):
+                    continue
+                parts = allowed.split(".")
+                if len(parts) >= 2 and parts[1] != module_name:
+                    violations.append(
+                        f"{module_name}:{rule.get('id', 'unknown')} -> {allowed}"
+                    )
+
+    assert not violations, (
+        "woobe-core module policies cannot whitelist another module, including "
+        f"entrypoints: {', '.join(violations)}"
+    )
