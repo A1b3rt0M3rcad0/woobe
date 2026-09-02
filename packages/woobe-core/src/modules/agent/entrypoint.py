@@ -20,10 +20,25 @@ from modules.agent.composition.module import (
     public_run_composer,
     public_stream_composer,
 )
+from modules.agent.composition.network_integration import (
+    AgentModel,
+    AgentRelease,
+    AgentReleaseModel,
+    NetworkAgentSnapshotLifecycle,
+    SQLAlchemyAgentReleaseRepository,
+    agent_release_model_to_entity,
+    calculate_next_release_version,
+    classify_release_change,
+    release_snapshot_hash,
+    release_snapshots_equal,
+)
 from modules.agent.composition.workers import AgentWorkerRegistry, register_agent_workers
 
 __all__ = [
     "AGENT_HTTP_ROUTERS",
+    "AgentModel",
+    "AgentRelease",
+    "AgentReleaseModel",
     "AgentToolRuntimeGateway",
     "AgentWorkerRegistry",
     "AskInput",
@@ -31,12 +46,17 @@ __all__ = [
     "HttpToolExecutor",
     "LangchainEmbeddingFactory",
     "LangchainLLMFactory",
+    "NetworkAgentSnapshotLifecycle",
     "RuntimeStreamChannel",
     "SETTINGS",
+    "SQLAlchemyAgentReleaseRepository",
     "StructuredOutputAskAgentUseCase",
+    "agent_release_model_to_entity",
     "build_agent_stream_service",
     "build_http_tool_executor",
     "build_internal_agent_runtime",
+    "calculate_next_release_version",
+    "classify_release_change",
     "close_http_tool_executor",
     "commit_safe_stream",
     "current_execution",
@@ -45,4 +65,6 @@ __all__ = [
     "public_run_composer",
     "public_stream_composer",
     "register_agent_workers",
+    "release_snapshot_hash",
+    "release_snapshots_equal",
 ]
