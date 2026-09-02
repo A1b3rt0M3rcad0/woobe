@@ -4,16 +4,14 @@ import asyncio
 from collections.abc import AsyncIterator
 from uuid import UUID
 
-from fastapi import APIRouter, Header, Request
+from fastapi import APIRouter, Request
 
 from modules.network.application.service import NetworkApplicationService
 from modules.network.infra.database.models import NetworkExecutionModel
 from modules.network.presentation.reattach_routes import (
     _durable_state as _network_durable_state,
     network_runtime_sse,
-    reattach_network_execution,
 )
-from modules.network.presentation.schemas import RunNetworkRequest
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, NotFoundError
 from shared.runtime_reattach import RuntimeStreamFrame, RuntimeStreamGapError, RuntimeStreamReader
@@ -51,8 +49,7 @@ async def _execution_stream(
     project_id: UUID,
     start_sequence: int,
 ) -> AsyncIterator[str]:
-    # This compatibility helper is still used by ChatSurface, but realtime events
-    # now live in the canonical Redis Run stream. PostgreSQL is terminal history.
+    # Compatibility helper used by ChatSurface until that bounded context migrates.
     del start_sequence
     async with request.app.state.session_factory() as session:
         initial = await session.get(NetworkExecutionModel, execution_id)
@@ -137,29 +134,6 @@ async def _execution_stream(
             RuntimeStreamFrame("run.state", degraded, sequence=0),
             execution_id,
         )
-
-
-@router.post("/{network_id}/executions/stream")
-async def run_network_stream(
-    network_id: UUID,
-    payload: RunNetworkRequest,
-    request: Request,
-    last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
-):
-    _authorize_project(request, payload.project_id)
-    execution = await _service(request).submit_execution(
-        network_id=network_id,
-        project_id=payload.project_id,
-        network_session_id=payload.network_session_id,
-        message=payload.message,
-        idempotency_key=payload.idempotency_key,
-        expected_draft_revision=payload.expected_draft_revision,
-    )
-    # The POST is only create+observe convenience. From Acceptance onward the
-    # canonical Redis-backed Run stream owns realtime delivery; Last-Event-ID is
-    # replaced by current-state reconciliation plus a live tail.
-    del last_event_id
-    return await reattach_network_execution(execution.id, request)
 
 
 @router.post("/executions/{execution_id}/cancel", status_code=202)

@@ -2,6 +2,7 @@ from modules.network.presentation import router as legacy_network_router
 from modules.network.presentation.http.compatibility_routes import router as compatibility_router
 from modules.network.presentation.http.diagnostics_routes import router as diagnostics_router
 from modules.network.presentation.http.draft_routes import router as draft_router
+from modules.network.presentation.http.execution_routes import router as execution_router
 from modules.network.presentation.http.history_routes import router as history_router
 from modules.network.presentation.http.legacy_version_routes import router as legacy_version_router
 from modules.network.presentation.http.management_routes import router as management_router
@@ -22,6 +23,7 @@ NETWORK_HTTP_ROUTERS = (
     management_router,
     history_router,
     session_router,
+    execution_router,
     legacy_network_router,
 )
 
