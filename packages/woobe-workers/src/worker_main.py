@@ -10,6 +10,7 @@ from modules.agent.infra.adapters.http_tool_runtime import (
     configure_http_tool_executor,
 )
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
+from network_worker_composition import build_network_worker_entry
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine
 from shared.infra.rabbitmq import RabbitMQManager
@@ -86,7 +87,12 @@ async def run_workers(
 
         await rabbitmq_manager.connect()
 
-        entries = discover_module_entries()
+        entries = [
+            entry
+            for entry in discover_module_entries()
+            if entry.module_name != "network"
+        ]
+        entries.append(build_network_worker_entry())
         entries.extend(extra_entries)
         registries = build_registries(
             entries,
