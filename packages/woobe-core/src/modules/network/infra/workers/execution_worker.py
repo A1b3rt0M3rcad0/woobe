@@ -9,18 +9,16 @@ from uuid import UUID
 
 from aio_pika import IncomingMessage
 
-from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.network.application.runtime import (
+    AgentInvoker,
     NetworkBudgetExceeded,
     NetworkExecutionCancelled,
     NetworkExecutor,
 )
 from modules.network.application.runtime_failures import NetworkRuntimeFailure
-from modules.network.infra.runtime.agent_invoker import ProjectRAIAgentInvoker
 from modules.network.infra.runtime.finalizer import NetworkRuntimeFinalizer
 from modules.network.infra.runtime.loader import NetworkRuntimeLoader
 from modules.network.infra.runtime.redis_store import RedisNetworkExecutionStore
-from shared.infra.config import Settings
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.inbox_consumer_base import BaseInboxConsumer, InboxRecord
 
@@ -101,8 +99,7 @@ class NetworkExecutionProcessor:
         loader: NetworkRuntimeLoader,
         store: RedisNetworkExecutionStore,
         finalizer: NetworkRuntimeFinalizer,
-        settings: Settings,
-        http_executor: HttpToolExecutor,
+        agent_invoker: AgentInvoker,
         lease_ttl_seconds: int,
         heartbeat_seconds: int,
         worker_id: str | None = None,
@@ -110,11 +107,10 @@ class NetworkExecutionProcessor:
         self._loader = loader
         self._store = store
         self._finalizer = finalizer
-        self._settings = settings
         self._lease_ttl_seconds = lease_ttl_seconds
         self._heartbeat_seconds = heartbeat_seconds
         self._worker_id = worker_id or f"network-worker-{os.getpid()}"
-        self._agent_invoker = ProjectRAIAgentInvoker(settings, http_executor)
+        self._agent_invoker = agent_invoker
 
     async def process(self, execution_id: UUID) -> None:
         loaded = await self._loader.load(execution_id)
