@@ -13,7 +13,6 @@ from modules.chat_surface.presentation.schemas import (
     CreateSurfaceAccessKeyRequest,
     CreateSurfaceSessionRequest,
     IssueSessionTokenRequest,
-    UpdateChatSurfaceRequest,
 )
 from modules.chat_surface.service import surface_payload
 from shared.infra.errors import (
@@ -116,31 +115,6 @@ async def create_surface(
     return {"success": True, "data": surface_payload(surface)}
 
 
-@router.get("/chat-surfaces/projects/{project_id}")
-async def list_surfaces(project_id: UUID, request: Request):
-    _authenticated_user(request)
-    surfaces = await _service(request).list_surfaces(project_id)
-    return {"success": True, "data": [surface_payload(item) for item in surfaces]}
-
-
-@router.get("/chat-surfaces/{surface_id}")
-async def get_surface(surface_id: UUID, request: Request):
-    _authenticated_user(request)
-    surface = await _service(request).get_surface(surface_id)
-    return {"success": True, "data": surface_payload(surface)}
-
-
-@router.patch("/chat-surfaces/{surface_id}")
-async def update_surface(
-    surface_id: UUID,
-    payload: UpdateChatSurfaceRequest,
-    request: Request,
-):
-    _authenticated_user(request)
-    surface = await _service(request).update_surface(surface_id, payload)
-    return {"success": True, "data": surface_payload(surface)}
-
-
 @router.post("/chat-surfaces/{surface_id}/release")
 async def refresh_surface_release(surface_id: UUID, request: Request):
     _authenticated_user(request)
@@ -157,16 +131,6 @@ async def _set_surface_status(surface_id: UUID, request: Request, status: str):
 @router.post("/chat-surfaces/{surface_id}/activate")
 async def activate_surface(surface_id: UUID, request: Request):
     return await _set_surface_status(surface_id, request, "active")
-
-
-@router.post("/chat-surfaces/{surface_id}/disable")
-async def disable_surface(surface_id: UUID, request: Request):
-    return await _set_surface_status(surface_id, request, "disabled")
-
-
-@router.post("/chat-surfaces/{surface_id}/archive")
-async def archive_surface(surface_id: UUID, request: Request):
-    return await _set_surface_status(surface_id, request, "archived")
 
 
 @router.post("/chat-surfaces/{surface_id}/access-keys", status_code=201)
@@ -230,24 +194,6 @@ async def revoke_access_key(
     _authenticated_user(request)
     api_key = await _service(request).revoke_access_key(surface_id, api_key_id)
     return {"success": True, "data": _key_payload(api_key)}
-
-
-@router.get("/chat-surfaces/{surface_id}/sessions")
-async def list_surface_sessions(
-    surface_id: UUID,
-    request: Request,
-    limit: int = 50,
-):
-    _authenticated_user(request)
-    bindings = await _service(request).list_sessions(surface_id, limit=limit)
-    return {"success": True, "data": [_binding_payload(item) for item in bindings]}
-
-
-@router.get("/chat-surfaces/{surface_id}/activity")
-async def get_surface_activity(surface_id: UUID, request: Request):
-    _authenticated_user(request)
-    activity = await _service(request).surface_activity(surface_id)
-    return {"success": True, "data": activity}
 
 
 @router.post("/chat-surfaces/{surface_id}/test-sessions", status_code=201)
