@@ -29,6 +29,7 @@ from modules.identity.entrypoint import (
 from modules.metering.entrypoint import METERING_HTTP_ROUTERS
 from modules.network.entrypoint import NETWORK_HTTP_ROUTERS
 from modules.observability.entrypoint import OBSERVABILITY_HTTP_ROUTERS
+from network_control_plane_routes import router as network_control_plane_router
 from public_runtime_routes import router as public_runtime_router
 from shared.composition_resources import DATABASE_ENGINE
 from shared.infra.database.session import create_session_factory
@@ -270,6 +271,7 @@ def create_app() -> FastAPI:
             app.include_router(observability_http_router)
         for network_http_router in NETWORK_HTTP_ROUTERS:
             app.include_router(network_http_router)
+        app.include_router(network_control_plane_router)
     finally:
         app.router.dependencies.remove(security_dependency)
 
