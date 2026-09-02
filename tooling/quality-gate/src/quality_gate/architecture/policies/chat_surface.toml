@@ -5,7 +5,7 @@ package = "modules.chat_surface"
 required_layers = ["domain", "application", "infra", "presentation", "composition"]
 
 [constraints]
-forbid_cross_module_imports = false
+forbid_cross_module_imports = true
 forbid_dynamic_imports = true
 forbid_wildcard_imports = true
 forbid_cycles = true
