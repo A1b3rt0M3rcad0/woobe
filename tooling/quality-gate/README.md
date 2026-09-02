@@ -48,7 +48,17 @@ modules/<module>/
 
 FastAPI remains module-local during this refactor, but it is constrained to `presentation/http/**`. HTTP is a transport adapter, not a composition root.
 
-`composition` is the only module layer allowed to wire concrete implementations. `presentation`, `application`, `infra` and `domain` must never import `composition`. Cross-bounded-context imports are forbidden unless the module policy explicitly allows another bounded context's public `entrypoint`.
+`composition` is the only module layer allowed to wire concrete implementations. `presentation`, `application`, `infra` and `domain` must never import `composition`.
+
+## Woobe Core service isolation
+
+Every bounded context under `packages/woobe-core/src/modules/` is an independent service boundary.
+
+A module must not import another module. This includes imports through another module's `entrypoint.py`: entrypoints are public surfaces for consumers outside that service boundary, not an exception that allows in-process coupling between Woobe Core services.
+
+Cross-service orchestration must live outside `packages/woobe-core/src/modules/`, such as in `woobe-api`, `woobe-workers`, or another explicit external composition root. Modules may depend on approved `shared.*` contracts and infrastructure according to their own policy, but communication with another service must happen through explicit contracts/transports rather than direct Python imports of that service implementation.
+
+`ARCH008` enforces the source-level rule. Repository self-tests also ratchet every Woobe Core module policy so `forbid_cross_module_imports` cannot be disabled and another module cannot be reintroduced through an allowlist exception.
 
 ## Transactional composer contract
 
