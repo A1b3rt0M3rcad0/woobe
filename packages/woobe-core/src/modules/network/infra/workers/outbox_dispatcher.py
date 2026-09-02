@@ -8,9 +8,10 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import or_, select, update
-from sqlalchemy.ext.asyncio import AsyncEngine, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.network.infra.database.models import NetworkOutboxEventModel
+from modules.network.infra.database.unit_of_work import NetworkUnitOfWork
 from shared.infra.rabbitmq import RabbitMQManager
 
 logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ class _ClaimedNetworkOutbox:
 
 
 class NetworkOutboxDispatcherWorker:
-    """Publishes Network outbox events without holding database locks during broker I/O."""
+    """Publish broker I/O outside short Network database transactions."""
 
     def __init__(
         self,
@@ -39,7 +40,7 @@ class NetworkOutboxDispatcherWorker:
         *,
         batch_size: int = _NETWORK_OUTBOX_BATCH_SIZE,
     ) -> None:
-        self._session_factory = async_sessionmaker(engine, expire_on_commit=False)
+        self._engine = engine
         self._manager = manager
         self._worker_id = f"network-outbox-{os.getpid()}"
         self._batch_size = max(1, batch_size)
@@ -61,7 +62,8 @@ class NetworkOutboxDispatcherWorker:
                 results.append((record, None))
             except Exception as exc:
                 logger.exception(
-                    "Network outbox publish failed event_id=%s", record.id
+                    "Network outbox publish failed event_id=%s",
+                    record.id,
                 )
                 results.append((record, exc))
 
@@ -72,8 +74,8 @@ class NetworkOutboxDispatcherWorker:
         stale_before = now - timedelta(
             seconds=_NETWORK_OUTBOX_LOCK_TIMEOUT_SECONDS
         )
-        async with self._session_factory() as session, session.begin():
-            result = await session.execute(
+        async with NetworkUnitOfWork(self._engine) as uow:
+            result = await uow.session.execute(
                 select(NetworkOutboxEventModel)
                 .where(
                     NetworkOutboxEventModel.status.in_(["pending", "retryable"]),
@@ -91,7 +93,6 @@ class NetworkOutboxDispatcherWorker:
             for event in events:
                 event.locked_at = now
                 event.locked_by = self._worker_id
-
             return [
                 _ClaimedNetworkOutbox(
                     id=event.id,
@@ -108,10 +109,10 @@ class NetworkOutboxDispatcherWorker:
         results: list[tuple[_ClaimedNetworkOutbox, Exception | None]],
     ) -> None:
         now = datetime.now(timezone.utc)
-        async with self._session_factory() as session, session.begin():
+        async with NetworkUnitOfWork(self._engine) as uow:
             for record, error in results:
                 if error is None:
-                    await session.execute(
+                    await uow.session.execute(
                         update(NetworkOutboxEventModel)
                         .where(
                             NetworkOutboxEventModel.id == record.id,
@@ -128,7 +129,7 @@ class NetworkOutboxDispatcherWorker:
                     continue
 
                 attempts = record.attempts + 1
-                await session.execute(
+                await uow.session.execute(
                     update(NetworkOutboxEventModel)
                     .where(
                         NetworkOutboxEventModel.id == record.id,
@@ -136,9 +137,11 @@ class NetworkOutboxDispatcherWorker:
                     )
                     .values(
                         attempts=attempts,
-                        status="dead"
-                        if attempts >= _NETWORK_OUTBOX_MAX_ATTEMPTS
-                        else "retryable",
+                        status=(
+                            "dead"
+                            if attempts >= _NETWORK_OUTBOX_MAX_ATTEMPTS
+                            else "retryable"
+                        ),
                         error=str(error)[:4000],
                         available_at=now
                         + timedelta(seconds=min(300, 2**attempts)),
