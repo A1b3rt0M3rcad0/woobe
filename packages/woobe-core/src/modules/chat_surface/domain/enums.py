@@ -1,7 +1,4 @@
-CHAT_SURFACE_KEY_SCOPES = frozenset(
-    {
-        "surface:sessions:create",
-        "surface:sessions:token:issue",
-        "surface:sessions:archive",
-    }
-)
+from shared.contracts.chat_surface_access import CHAT_SURFACE_ACCESS_KEY_SCOPES
+
+
+CHAT_SURFACE_KEY_SCOPES = CHAT_SURFACE_ACCESS_KEY_SCOPES
