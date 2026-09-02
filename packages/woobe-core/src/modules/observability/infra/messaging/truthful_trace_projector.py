@@ -3,14 +3,13 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from modules.observability.domain.entities import Trace
 from modules.observability.domain.enums import TraceEventType, TraceStatus
 from modules.observability.infra.database.repositories import (
     SQLAlchemyTraceEventRepository,
     SQLAlchemyTraceRepository,
 )
+from modules.observability.infra.database.unit_of_work import ObservabilityUnitOfWork
 from modules.observability.infra.messaging.diagnostics_v2 import build
 from modules.observability.infra.messaging.trace_projector import (
     _event_id,
@@ -108,15 +107,14 @@ def _apply_runtime_dimensions(trace: Trace, payload: dict[str, Any]) -> None:
 async def _project_cancelled(
     *,
     payload: dict[str, Any],
-    session: AsyncSession,
+    uow: ObservabilityUnitOfWork,
 ) -> None:
     trace_id = _uuid(payload.get("trace_id") or payload.get("execution_id"))
     project_id = _uuid(payload.get("project_id"))
     if trace_id is None:
         return
-
-    trace_repo = SQLAlchemyTraceRepository(session)
-    event_repo = SQLAlchemyTraceEventRepository(session)
+    trace_repo = SQLAlchemyTraceRepository(uow)
+    event_repo = SQLAlchemyTraceEventRepository(uow)
     trace = await trace_repo.get_by_id(trace_id)
     if trace is None:
         if project_id is None:
@@ -129,7 +127,6 @@ async def _project_cancelled(
             status=TraceStatus.cancelled,
             data={},
         )
-
     now = datetime.now(timezone.utc)
     trace.status = TraceStatus.cancelled
     trace.started_at = trace.started_at or now
@@ -161,22 +158,23 @@ async def _project_cancelled(
 
 
 async def project_agent_event(
-    *, event_type: str, payload: dict[str, Any], session: AsyncSession
+    *,
+    event_type: str,
+    payload: dict[str, Any],
+    uow: ObservabilityUnitOfWork,
 ) -> None:
     if event_type == "agent.execution.cancelled.v1":
-        await _project_cancelled(payload=payload, session=session)
+        await _project_cancelled(payload=payload, uow=uow)
         return
-
-    await legacy_project(event_type=event_type, payload=payload, session=session)
+    await legacy_project(event_type=event_type, payload=payload, uow=uow)
     trace_id = _uuid(payload.get("trace_id") or payload.get("execution_id"))
     if trace_id is None:
         return
-    trace_repo = SQLAlchemyTraceRepository(session)
-    event_repo = SQLAlchemyTraceEventRepository(session)
+    trace_repo = SQLAlchemyTraceRepository(uow)
+    event_repo = SQLAlchemyTraceEventRepository(uow)
     trace = await trace_repo.get_by_id(trace_id)
     if trace is None:
         return
-
     _apply_provider_model_refs(trace, payload)
     _apply_runtime_dimensions(trace, payload)
 
@@ -206,16 +204,37 @@ async def project_agent_event(
     diagnostics = build(payload)
     data = dict(trace.data or {})
     for field in (
-        "message_id", "answer_length", "input_tokens", "output_tokens",
-        "total_tokens", "sources", "tool_calls", "llm_calls",
-        "parsed_output", "output_parse_error", "fallback_used",
-        "fallback_info", "model", "provider", "cost_status",
-        "cost_reason", "pricing_id", "pricing_snapshot",
-        "usage_complete", "execution_events", "timeline_complete",
-        "provider_model_id", "provider_credential_id",
-        "fallback_provider_model_id", "fallback_credential_id",
-        "model_binding", "fallback_model_binding", "execution_context",
-        "agent_release_id", "agent_release_version", "llm_call_count",
+        "message_id",
+        "answer_length",
+        "input_tokens",
+        "output_tokens",
+        "total_tokens",
+        "sources",
+        "tool_calls",
+        "llm_calls",
+        "parsed_output",
+        "output_parse_error",
+        "fallback_used",
+        "fallback_info",
+        "model",
+        "provider",
+        "cost_status",
+        "cost_reason",
+        "pricing_id",
+        "pricing_snapshot",
+        "usage_complete",
+        "execution_events",
+        "timeline_complete",
+        "provider_model_id",
+        "provider_credential_id",
+        "fallback_provider_model_id",
+        "fallback_credential_id",
+        "model_binding",
+        "fallback_model_binding",
+        "execution_context",
+        "agent_release_id",
+        "agent_release_version",
+        "llm_call_count",
         "tool_call_count",
     ):
         value = payload.get(field)
@@ -226,13 +245,10 @@ async def project_agent_event(
     data["diagnostics"] = diagnostics
     trace.data = data
     trace.total_cost_usd = (
-        payload.get("cost_usd")
-        if payload.get("cost_status") == "known"
-        else None
+        payload.get("cost_usd") if payload.get("cost_status") == "known" else None
     )
     trace.total_latency_ms = payload.get("total_latency_ms") or payload.get("latency_ms")
     await trace_repo.save(trace)
-
     await _save_event(
         event_repo,
         trace_id=trace_id,

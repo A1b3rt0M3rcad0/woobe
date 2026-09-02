@@ -3,15 +3,13 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, inspect, select, text
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.infra.config.interface.unit_of_work import UnitOfWork
-from shared.messaging.outbox_writer import OutboxEventWriter
-from shared.infra.objects import CursorPage
-from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
-
+from modules.observability.application.interfaces.outbox import OutboxEventWriter
+from modules.observability.application.interfaces.repositories import (
+    TraceEventRepository,
+    TraceRepository,
+)
 from modules.observability.domain.entities import Trace, TraceEvent
-from modules.observability.domain.repositories import TraceEventRepository, TraceRepository
 from modules.observability.infra.database.mappers import (
     trace_entity_to_model,
     trace_event_entity_to_model,
@@ -24,22 +22,27 @@ from modules.observability.infra.database.models import (
     TraceEventModel,
     TraceModel,
 )
+from modules.observability.infra.database.unit_of_work import ObservabilityUnitOfWork
+from shared.contracts.pagination import CursorPage
+from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
 OBSERVABILITY_DEFAULT_BATCH_SIZE: int = 50
 OBSERVABILITY_INBOX_LOCK_TIMEOUT_SECONDS: int = 60
 
 
-class SQLAlchemyTraceRepository(BaseSQLAlchemyRepository[TraceModel], TraceRepository):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, TraceModel)
+class SQLAlchemyTraceRepository(
+    BaseSQLAlchemyRepository[TraceModel],
+    TraceRepository,
+):
+    def __init__(self, uow: ObservabilityUnitOfWork) -> None:
+        super().__init__(uow, TraceModel)
 
     async def save(self, trace: Trace) -> Trace:
         model = trace_entity_to_model(trace)
         existing = await self._get_model_by_id(trace.id)
         if existing is not None:
-            insp = inspect(existing)
-            for key in insp.mapper.columns.keys():
+            mapper = inspect(existing)
+            for key in mapper.mapper.columns.keys():
                 if key in ("id", "created_at", "updated_at"):
                     continue
                 setattr(existing, key, getattr(model, key))
@@ -60,15 +63,15 @@ class SQLAlchemyTraceRepository(BaseSQLAlchemyRepository[TraceModel], TraceRepos
     async def list_by_project(
         self, project_id: UUID, limit: int = 100, offset: int = 0
     ) -> list[Trace]:
-        stmt = (
+        statement = (
             select(TraceModel)
             .where(TraceModel.project_id == project_id)
             .order_by(TraceModel.created_at.desc())
             .offset(offset)
             .limit(limit)
         )
-        result = await self._session.execute(stmt)
-        return [trace_model_to_entity(m) for m in result.scalars().all()]
+        result = await self._session.execute(statement)
+        return [trace_model_to_entity(model) for model in result.scalars().all()]
 
     async def list_by_project_and_network(
         self,
@@ -77,7 +80,7 @@ class SQLAlchemyTraceRepository(BaseSQLAlchemyRepository[TraceModel], TraceRepos
         limit: int = 100,
         offset: int = 0,
     ) -> list[Trace]:
-        stmt = (
+        statement = (
             select(TraceModel)
             .where(
                 TraceModel.project_id == project_id,
@@ -87,46 +90,46 @@ class SQLAlchemyTraceRepository(BaseSQLAlchemyRepository[TraceModel], TraceRepos
             .offset(offset)
             .limit(limit)
         )
-        result = await self._session.execute(stmt)
-        return [trace_model_to_entity(m) for m in result.scalars().all()]
+        result = await self._session.execute(statement)
+        return [trace_model_to_entity(model) for model in result.scalars().all()]
 
     async def list_by_session(
         self, session_id: UUID, limit: int = 100, offset: int = 0
     ) -> list[Trace]:
-        stmt = (
+        statement = (
             select(TraceModel)
             .where(TraceModel.session_id == session_id)
             .order_by(TraceModel.created_at.desc())
             .offset(offset)
             .limit(limit)
         )
-        result = await self._session.execute(stmt)
-        return [trace_model_to_entity(m) for m in result.scalars().all()]
+        result = await self._session.execute(statement)
+        return [trace_model_to_entity(model) for model in result.scalars().all()]
 
     async def list_by_project_and_agent(
         self, project_id: UUID, agent_id: UUID, limit: int = 100, offset: int = 0
     ) -> list[Trace]:
-        stmt = (
+        statement = (
             select(TraceModel)
             .where(TraceModel.project_id == project_id, TraceModel.agent_id == agent_id)
             .order_by(TraceModel.created_at.desc())
             .offset(offset)
             .limit(limit)
         )
-        result = await self._session.execute(stmt)
-        return [trace_model_to_entity(m) for m in result.scalars().all()]
+        result = await self._session.execute(statement)
+        return [trace_model_to_entity(model) for model in result.scalars().all()]
 
     async def paginate_by_project(
         self, project_id: UUID, *, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[Trace]:
-        stmt = (
+        statement = (
             select(TraceModel)
             .where(TraceModel.project_id == project_id)
             .order_by(TraceModel.id.desc())
         )
-        page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
+        page = await self._paginate_models(statement, limit=limit, cursor=cursor)
         return CursorPage(
-            items=[trace_model_to_entity(m) for m in page.items],
+            items=[trace_model_to_entity(model) for model in page.items],
             cursor=page.cursor,
             next_cursor=page.next_cursor,
             has_next=page.has_next,
@@ -136,14 +139,14 @@ class SQLAlchemyTraceRepository(BaseSQLAlchemyRepository[TraceModel], TraceRepos
     async def paginate_by_session(
         self, session_id: UUID, *, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[Trace]:
-        stmt = (
+        statement = (
             select(TraceModel)
             .where(TraceModel.session_id == session_id)
             .order_by(TraceModel.id.desc())
         )
-        page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
+        page = await self._paginate_models(statement, limit=limit, cursor=cursor)
         return CursorPage(
-            items=[trace_model_to_entity(m) for m in page.items],
+            items=[trace_model_to_entity(model) for model in page.items],
             cursor=page.cursor,
             next_cursor=page.next_cursor,
             has_next=page.has_next,
@@ -157,18 +160,18 @@ class SQLAlchemyTraceRepository(BaseSQLAlchemyRepository[TraceModel], TraceRepos
 
 
 class SQLAlchemyTraceEventRepository(
-    BaseSQLAlchemyRepository[TraceEventModel], TraceEventRepository
+    BaseSQLAlchemyRepository[TraceEventModel],
+    TraceEventRepository,
 ):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, TraceEventModel)
+    def __init__(self, uow: ObservabilityUnitOfWork) -> None:
+        super().__init__(uow, TraceEventModel)
 
     async def save(self, event: TraceEvent) -> TraceEvent:
         model = trace_event_entity_to_model(event)
         existing = await self._get_model_by_id(event.id)
         if existing is not None:
-            insp = inspect(existing)
-            for key in insp.mapper.columns.keys():
+            mapper = inspect(existing)
+            for key in mapper.mapper.columns.keys():
                 if key in ("id", "created_at", "updated_at"):
                     continue
                 setattr(existing, key, getattr(model, key))
@@ -189,27 +192,29 @@ class SQLAlchemyTraceEventRepository(
     async def list_by_trace(
         self, trace_id: UUID, limit: int = 100, offset: int = 0
     ) -> list[TraceEvent]:
-        stmt = (
+        statement = (
             select(TraceEventModel)
             .where(TraceEventModel.trace_id == trace_id)
             .order_by(TraceEventModel.created_at.asc())
             .offset(offset)
             .limit(limit)
         )
-        result = await self._session.execute(stmt)
-        return [trace_event_model_to_entity(m) for m in result.scalars().all()]
+        result = await self._session.execute(statement)
+        return [
+            trace_event_model_to_entity(model) for model in result.scalars().all()
+        ]
 
     async def paginate_by_trace(
         self, trace_id: UUID, *, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[TraceEvent]:
-        stmt = (
+        statement = (
             select(TraceEventModel)
             .where(TraceEventModel.trace_id == trace_id)
             .order_by(TraceEventModel.id.desc())
         )
-        page = await self._paginate_models(stmt, limit=limit, cursor=cursor)
+        page = await self._paginate_models(statement, limit=limit, cursor=cursor)
         return CursorPage(
-            items=[trace_event_model_to_entity(m) for m in page.items],
+            items=[trace_event_model_to_entity(model) for model in page.items],
             cursor=page.cursor,
             next_cursor=page.next_cursor,
             has_next=page.has_next,
@@ -223,15 +228,8 @@ class SQLAlchemyTraceEventRepository(
 
 
 class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        self._session_or_uow: AsyncSession | UnitOfWork = session
-
-    @property
-    def _session(self) -> AsyncSession:
-        if isinstance(self._session_or_uow, UnitOfWork):
-            return self._session_or_uow.session
-        return self._session_or_uow
+    def __init__(self, uow: ObservabilityUnitOfWork) -> None:
+        self._uow = uow
 
     async def write(
         self,
@@ -245,33 +243,28 @@ class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
         correlation_id: UUID | None = None,
         causation_id: UUID | None = None,
     ) -> None:
-        event = OutboxEventModel(
-            aggregate_type=aggregate_type,
-            aggregate_id=aggregate_id,
-            event_type=event_type,
-            event_version=event_version,
-            routing_key=routing_key,
-            payload=payload,
-            idempotency_key=idempotency_key,
-            correlation_id=correlation_id,
-            causation_id=causation_id,
+        self._uow.session.add(
+            OutboxEventModel(
+                aggregate_type=aggregate_type,
+                aggregate_id=aggregate_id,
+                event_type=event_type,
+                event_version=event_version,
+                routing_key=routing_key,
+                payload=payload,
+                idempotency_key=idempotency_key,
+                correlation_id=correlation_id,
+                causation_id=causation_id,
+            )
         )
-        self._session.add(event)
 
 
-class SQLAlchemyObservabilityInboxRepository:
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        self._session_or_uow: AsyncSession | UnitOfWork = session
-
-    @property
-    def _session(self) -> AsyncSession:
-        if isinstance(self._session_or_uow, UnitOfWork):
-            return self._session_or_uow.session
-        return self._session_or_uow
+class ObservabilityInboxStore:
+    def __init__(self, uow: ObservabilityUnitOfWork) -> None:
+        self._uow = uow
 
     async def save_received(self, event: InboxEventModel) -> InboxEventModel:
-        self._session.add(event)
-        await self._session.flush()
+        self._uow.session.add(event)
+        await self._uow.session.flush()
         return event
 
     async def claim_batch(
@@ -281,7 +274,7 @@ class SQLAlchemyObservabilityInboxRepository:
         lock_timeout_seconds: int = OBSERVABILITY_INBOX_LOCK_TIMEOUT_SECONDS,
     ) -> list[InboxEventModel]:
         now = datetime.now(timezone.utc)
-        stmt = (
+        statement = (
             select(InboxEventModel)
             .where(InboxEventModel.status.in_(["received", "retryable"]))
             .where(InboxEventModel.available_at <= func.now())
@@ -296,7 +289,7 @@ class SQLAlchemyObservabilityInboxRepository:
             .limit(batch_size)
             .with_for_update(skip_locked=True)
         )
-        result = await self._session.execute(stmt)
+        result = await self._uow.session.execute(statement)
         events = list(result.scalars().all())
         for event in events:
             event.locked_at = now
@@ -304,9 +297,7 @@ class SQLAlchemyObservabilityInboxRepository:
         return events
 
     async def mark_processed(self, event_id: UUID) -> None:
-        stmt = select(InboxEventModel).where(InboxEventModel.id == event_id)
-        result = await self._session.execute(stmt)
-        event = result.scalar_one_or_none()
+        event = await self._event(event_id)
         if event:
             event.status = "processed"
             event.processed_at = datetime.now(timezone.utc)
@@ -314,9 +305,7 @@ class SQLAlchemyObservabilityInboxRepository:
             event.locked_by = None
 
     async def mark_failed(self, event_id: UUID, error: str) -> None:
-        stmt = select(InboxEventModel).where(InboxEventModel.id == event_id)
-        result = await self._session.execute(stmt)
-        event = result.scalar_one_or_none()
+        event = await self._event(event_id)
         if event:
             event.status = "failed"
             event.error = error
@@ -324,19 +313,17 @@ class SQLAlchemyObservabilityInboxRepository:
             event.locked_by = None
 
     async def mark_dead(self, event_id: UUID, error: str) -> None:
-        stmt = select(InboxEventModel).where(InboxEventModel.id == event_id)
-        result = await self._session.execute(stmt)
-        event = result.scalar_one_or_none()
+        event = await self._event(event_id)
         if event:
             event.status = "dead"
             event.error = error
             event.locked_at = None
             event.locked_by = None
 
-    async def mark_retryable(self, event_id: UUID, error: str, available_at: datetime) -> None:
-        stmt = select(InboxEventModel).where(InboxEventModel.id == event_id)
-        result = await self._session.execute(stmt)
-        event = result.scalar_one_or_none()
+    async def mark_retryable(
+        self, event_id: UUID, error: str, available_at: datetime
+    ) -> None:
+        event = await self._event(event_id)
         if event:
             event.status = "retryable"
             event.error = error
@@ -344,3 +331,9 @@ class SQLAlchemyObservabilityInboxRepository:
             event.attempts = (event.attempts or 0) + 1
             event.locked_at = None
             event.locked_by = None
+
+    async def _event(self, event_id: UUID) -> InboxEventModel | None:
+        result = await self._uow.session.execute(
+            select(InboxEventModel).where(InboxEventModel.id == event_id)
+        )
+        return result.scalar_one_or_none()

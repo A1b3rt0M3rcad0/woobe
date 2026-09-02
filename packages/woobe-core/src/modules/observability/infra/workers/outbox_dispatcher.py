@@ -7,9 +7,10 @@ from typing import Protocol
 from uuid import UUID
 
 from sqlalchemy import func, or_, select, update
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.observability.infra.database.models import OutboxEventModel
+from modules.observability.infra.database.unit_of_work import ObservabilityUnitOfWork
 from modules.observability.infra.messaging.event_mappers import (
     RabbitMQMessageEnvelope,
     outbox_to_rabbit_message,
@@ -65,13 +66,11 @@ class ObservabilityOutboxDispatcherWorker(BaseOutboxDispatcher):
                 record.error = str(exc)
                 failed.append(record)
 
-        async with AsyncSession(self._async_engine) as session:
-            async with session.begin():
-                for record in published:
-                    await self._mark_published(session, record)
-                for record in failed:
-                    await self._mark_failed(session, record)
-
+        async with ObservabilityUnitOfWork(self._async_engine) as uow:
+            for record in published:
+                await self._mark_published(uow, record)
+            for record in failed:
+                await self._mark_failed(uow, record)
         self._envelope_map = {}
 
     async def claim_pending(self, limit: int) -> list[OutboxRecord]:
@@ -82,30 +81,29 @@ class ObservabilityOutboxDispatcherWorker(BaseOutboxDispatcher):
         records: list[OutboxRecord] = []
         envelope_map: dict[UUID, RabbitMQMessageEnvelope] = {}
 
-        async with AsyncSession(self._async_engine) as session:
-            async with session.begin():
-                stmt = (
-                    select(OutboxEventModel)
-                    .where(
-                        OutboxEventModel.status == "pending",
-                        OutboxEventModel.attempts < self.MAX_ATTEMPTS,
-                        OutboxEventModel.available_at <= func.now(),
-                        or_(
-                            OutboxEventModel.locked_at.is_(None),
-                            OutboxEventModel.locked_at < stale_before,
-                        ),
-                    )
-                    .order_by(OutboxEventModel.available_at.asc())
-                    .limit(limit)
-                    .with_for_update(skip_locked=True)
+        async with ObservabilityUnitOfWork(self._async_engine) as uow:
+            statement = (
+                select(OutboxEventModel)
+                .where(
+                    OutboxEventModel.status == "pending",
+                    OutboxEventModel.attempts < self.MAX_ATTEMPTS,
+                    OutboxEventModel.available_at <= func.now(),
+                    or_(
+                        OutboxEventModel.locked_at.is_(None),
+                        OutboxEventModel.locked_at < stale_before,
+                    ),
                 )
-                result = await session.execute(stmt)
-                models = list(result.scalars().all())
-                for model in models:
-                    model.locked_at = now
-                    model.locked_by = self._worker_id
-                    records.append(self._record(model))
-                    envelope_map[model.id] = outbox_to_rabbit_message(model)
+                .order_by(OutboxEventModel.available_at.asc())
+                .limit(limit)
+                .with_for_update(skip_locked=True)
+            )
+            result = await uow.session.execute(statement)
+            models = list(result.scalars().all())
+            for model in models:
+                model.locked_at = now
+                model.locked_by = self._worker_id
+                records.append(self._record(model))
+                envelope_map[model.id] = outbox_to_rabbit_message(model)
 
         self._envelope_map = envelope_map
         return records
@@ -132,9 +130,11 @@ class ObservabilityOutboxDispatcherWorker(BaseOutboxDispatcher):
         await self._publisher.publish(envelope)
 
     async def _mark_published(
-        self, session: AsyncSession, record: OutboxRecord
+        self,
+        uow: ObservabilityUnitOfWork,
+        record: OutboxRecord,
     ) -> None:
-        await session.execute(
+        await uow.session.execute(
             update(OutboxEventModel)
             .where(
                 OutboxEventModel.id == record.id,
@@ -151,11 +151,13 @@ class ObservabilityOutboxDispatcherWorker(BaseOutboxDispatcher):
         )
 
     async def _mark_failed(
-        self, session: AsyncSession, record: OutboxRecord
+        self,
+        uow: ObservabilityUnitOfWork,
+        record: OutboxRecord,
     ) -> None:
         backoff = RETRY_BACKOFF_BASE_SECONDS * (2**record.attempts)
         terminal = record.attempts + 1 >= self.MAX_ATTEMPTS
-        await session.execute(
+        await uow.session.execute(
             update(OutboxEventModel)
             .where(
                 OutboxEventModel.id == record.id,
@@ -173,17 +175,17 @@ class ObservabilityOutboxDispatcherWorker(BaseOutboxDispatcher):
         )
 
     async def mark_published(self, record: OutboxRecord) -> None:
-        async with AsyncSession(self._async_engine) as session, session.begin():
-            await self._mark_published(session, record)
+        async with ObservabilityUnitOfWork(self._async_engine) as uow:
+            await self._mark_published(uow, record)
 
     async def mark_failed(self, record: OutboxRecord, error: str) -> None:
         record.error = error
-        async with AsyncSession(self._async_engine) as session, session.begin():
-            await self._mark_failed(session, record)
+        async with ObservabilityUnitOfWork(self._async_engine) as uow:
+            await self._mark_failed(uow, record)
 
     async def mark_dead(self, record: OutboxRecord) -> None:
-        async with AsyncSession(self._async_engine) as session, session.begin():
-            await session.execute(
+        async with ObservabilityUnitOfWork(self._async_engine) as uow:
+            await uow.session.execute(
                 update(OutboxEventModel)
                 .where(
                     OutboxEventModel.id == record.id,
@@ -199,5 +201,5 @@ class ObservabilityOutboxDispatcherWorker(BaseOutboxDispatcher):
             )
 
     async def mark_retryable(self, record: OutboxRecord) -> None:
-        async with AsyncSession(self._async_engine) as session, session.begin():
-            await self._mark_failed(session, record)
+        async with ObservabilityUnitOfWork(self._async_engine) as uow:
+            await self._mark_failed(uow, record)

@@ -5,9 +5,10 @@ import os
 from typing import Any
 
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
+from sqlalchemy.ext.asyncio import AsyncEngine
 
-from modules.observability.infra.database.repositories import SQLAlchemyObservabilityInboxRepository
+from modules.observability.infra.database.repositories import ObservabilityInboxStore
+from modules.observability.infra.database.unit_of_work import ObservabilityUnitOfWork
 from modules.observability.infra.messaging.event_mappers import rabbit_message_to_inbox
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.inbox_consumer_base import BaseInboxConsumer, InboxRecord
@@ -63,52 +64,44 @@ class ObservabilityInboxConsumerWorker(BaseInboxConsumer):
                 raise
 
     async def _persist_and_ack(self, message: Any, inbox_model: Any) -> None:
-        # SQLAlchemy expires ORM attributes on commit by default. Capture the
-        # logging fields before the transaction closes so logging does not try
-        # to lazy-refresh a detached InboxEventModel instance.
-        event_type_snapshot = getattr(inbox_model, "event_type", "unknown")
-        message_id_snapshot = getattr(inbox_model, "message_id", "unknown")
-        idempotency_key_snapshot = getattr(inbox_model, "idempotency_key", "unknown")
+        event_type = getattr(inbox_model, "event_type", "unknown")
+        message_id = getattr(inbox_model, "message_id", "unknown")
+        idempotency_key = getattr(inbox_model, "idempotency_key", "unknown")
         duplicate = False
-        async with AsyncSession(self._async_engine) as session:
-            try:
-                async with session.begin():
-                    repo = SQLAlchemyObservabilityInboxRepository(session)
-                    await repo.save_received(inbox_model)
-            except IntegrityError:
-                duplicate = True
-                await session.rollback()
+        try:
+            async with ObservabilityUnitOfWork(self._async_engine) as uow:
+                await ObservabilityInboxStore(uow).save_received(inbox_model)
+        except IntegrityError:
+            duplicate = True
 
         if duplicate:
             logger.info(
                 "Duplicate observability message acknowledged idempotency_key=%s",
-                idempotency_key_snapshot,
+                idempotency_key,
             )
         else:
             logger.info(
                 "Persisted Observability Inbox event_type=%s message_id=%s",
-                event_type_snapshot,
-                message_id_snapshot,
+                event_type,
+                message_id,
             )
         await self.acknowledge(message)
 
     async def persist_inbox(self, record: InboxRecord) -> None:
-        async with AsyncSession(self._async_engine) as session:
-            async with session.begin():
-                repo = SQLAlchemyObservabilityInboxRepository(session)
-                from modules.observability.infra.database.models import InboxEventModel
+        from modules.observability.infra.database.models import InboxEventModel
 
-                model = InboxEventModel()
-                model.event_type = record.event_type
-                model.event_version = record.event_version
-                model.payload = record.payload
-                model.correlation_id = record.correlation_id
-                model.causation_id = record.causation_id
-                model.outbox_origin_id = record.outbox_origin_id
-                model.aggregate_type = record.aggregate_type
-                model.status = "received"
-                model.attempts = 0
-                await repo.save_received(model)
+        model = InboxEventModel()
+        model.event_type = record.event_type
+        model.event_version = record.event_version
+        model.payload = record.payload
+        model.correlation_id = record.correlation_id
+        model.causation_id = record.causation_id
+        model.outbox_origin_id = record.outbox_origin_id
+        model.aggregate_type = record.aggregate_type
+        model.status = "received"
+        model.attempts = 0
+        async with ObservabilityUnitOfWork(self._async_engine) as uow:
+            await ObservabilityInboxStore(uow).save_received(model)
 
     async def acknowledge(self, message: Any) -> None:
         if hasattr(message, "ack"):

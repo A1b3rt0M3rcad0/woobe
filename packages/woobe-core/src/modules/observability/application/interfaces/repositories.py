@@ -4,11 +4,10 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from modules.observability.domain.entities import Trace, TraceEvent
-from shared.infra.objects import CursorPage
+from shared.contracts.pagination import CursorPage
 
 
 class TraceRepository(ABC):
-
     @abstractmethod
     async def save(self, trace: Trace) -> Trace: ...
 
@@ -18,7 +17,7 @@ class TraceRepository(ABC):
     @abstractmethod
     async def list_by_project(
         self, project_id: UUID, limit: int = 100, offset: int = 0
-    ) -> list[Trace]: ...  # TODO: Remove after pagination migration
+    ) -> list[Trace]: ...
 
     @abstractmethod
     async def list_by_project_and_network(
@@ -32,12 +31,12 @@ class TraceRepository(ABC):
     @abstractmethod
     async def list_by_session(
         self, session_id: UUID, limit: int = 100, offset: int = 0
-    ) -> list[Trace]: ...  # TODO: Remove after pagination migration
+    ) -> list[Trace]: ...
 
     @abstractmethod
     async def list_by_project_and_agent(
         self, project_id: UUID, agent_id: UUID, limit: int = 100, offset: int = 0
-    ) -> list[Trace]: ...  # TODO: Remove after pagination migration
+    ) -> list[Trace]: ...
 
     @abstractmethod
     async def paginate_by_project(
@@ -54,7 +53,6 @@ class TraceRepository(ABC):
 
 
 class TraceEventRepository(ABC):
-
     @abstractmethod
     async def save(self, event: TraceEvent) -> TraceEvent: ...
 
@@ -64,7 +62,7 @@ class TraceEventRepository(ABC):
     @abstractmethod
     async def list_by_trace(
         self, trace_id: UUID, limit: int = 100, offset: int = 0
-    ) -> list[TraceEvent]: ...  # TODO: Remove after pagination migration
+    ) -> list[TraceEvent]: ...
 
     @abstractmethod
     async def paginate_by_trace(

@@ -28,7 +28,7 @@ from modules.identity.presentation.instance_routes import router as instance_rou
 from modules.identity.presentation.routes import router as identity_router
 from modules.metering.entrypoint import METERING_HTTP_ROUTERS
 from modules.network.presentation import router as network_router
-from modules.observability.presentation.routes import router as observability_router
+from modules.observability.entrypoint import OBSERVABILITY_HTTP_ROUTERS
 from public_runtime_routes import router as public_runtime_router
 from shared.composition_resources import DATABASE_ENGINE
 from shared.infra.database.session import create_session_factory
@@ -255,7 +255,6 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(instance_router)
-
     security_dependency = Depends(enforce_request_security)
     app.router.dependencies.append(security_dependency)
     try:
@@ -269,7 +268,8 @@ def create_app() -> FastAPI:
         app.include_router(runtime_environment_router)
         for metering_http_router in METERING_HTTP_ROUTERS:
             app.include_router(metering_http_router)
-        app.include_router(observability_router)
+        for observability_http_router in OBSERVABILITY_HTTP_ROUTERS:
+            app.include_router(observability_http_router)
         app.include_router(network_router)
     finally:
         app.router.dependencies.remove(security_dependency)

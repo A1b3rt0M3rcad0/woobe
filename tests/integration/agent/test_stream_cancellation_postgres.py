@@ -13,6 +13,7 @@ from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.execution.ask_agent_stream_service import AskAgentStreamService
 from modules.agent.infra.execution.runtime_streaming import RuntimeStreamChannel
 from modules.observability.infra.database.models import TraceEventModel, TraceModel
+from modules.observability.infra.database.unit_of_work import ObservabilityUnitOfWork
 from modules.observability.infra.messaging.truthful_trace_projector import project_agent_event
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
@@ -24,7 +25,6 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
     settings = Settings.model_validate({})
     engine = create_engine(settings)
     session_factory = create_session_factory(engine)
-
     project_id = uuid4()
     agent_id = uuid4()
     trace_id = uuid4()
@@ -54,12 +54,7 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
         channel="final",
         phase="response_generation",
     )
-
-    persisted = await service._persist_cancelled(
-        channel,
-        input_dto,
-        "cancel_requested",
-    )
+    persisted = await service._persist_cancelled(channel, input_dto, "cancel_requested")
     assert persisted is True
 
     cancellation_filter = (
@@ -79,13 +74,11 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
             assert outbox.payload["request_id"]
             assert outbox.payload["reason"] == "cancel_requested"
             assert outbox.payload["partial"] is True
+            event_type = outbox.event_type
+            payload = dict(outbox.payload)
 
-            await project_agent_event(
-                event_type=outbox.event_type,
-                payload=outbox.payload,
-                session=session,
-            )
-            await session.commit()
+        async with ObservabilityUnitOfWork(engine) as uow:
+            await project_agent_event(event_type=event_type, payload=payload, uow=uow)
 
         async with session_factory() as session:
             trace = await session.get(TraceModel, trace_id)
@@ -94,13 +87,10 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
             assert trace.ended_at is not None
             assert trace.data["last_event_type"] == "agent.execution.cancelled.v1"
             assert trace.data["cancellation_reason"] == "cancel_requested"
-
             events = list(
                 (
                     await session.scalars(
-                        select(TraceEventModel).where(
-                            TraceEventModel.trace_id == trace_id
-                        )
+                        select(TraceEventModel).where(TraceEventModel.trace_id == trace_id)
                     )
                 ).all()
             )
@@ -117,12 +107,8 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
             )
     finally:
         async with session_factory() as session:
-            await session.execute(
-                delete(TraceEventModel).where(TraceEventModel.trace_id == trace_id)
-            )
+            await session.execute(delete(TraceEventModel).where(TraceEventModel.trace_id == trace_id))
             await session.execute(delete(TraceModel).where(TraceModel.id == trace_id))
-            await session.execute(
-                delete(AgentOutboxEventModel).where(*cancellation_filter)
-            )
+            await session.execute(delete(AgentOutboxEventModel).where(*cancellation_filter))
             await session.commit()
         await engine.dispose()

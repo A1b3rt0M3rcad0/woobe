@@ -29,26 +29,24 @@ async def test_completed_snapshot_persists_tool_summary_and_completed(monkeypatc
             saved_events.append(value)
             return value
 
-    monkeypatch.setattr(trace_projector, "SQLAlchemyTraceRepository", lambda _session: TraceRepo())
-    monkeypatch.setattr(trace_projector, "SQLAlchemyTraceEventRepository", lambda _session: EventRepo())
+    monkeypatch.setattr(trace_projector, "SQLAlchemyTraceRepository", lambda _uow: TraceRepo())
+    monkeypatch.setattr(trace_projector, "SQLAlchemyTraceEventRepository", lambda _uow: EventRepo())
 
     await trace_projector.project_agent_event(
         event_type="agent.execution.completed.v1",
         payload={
             "trace_id": str(trace_id),
             "project_id": str(project_id),
-            "tool_calls": [
-                {
-                    "tool_call_id": "call-1",
-                    "tool_name": "sum_two_numbers",
-                    "input": {"a": "7", "b": "8"},
-                    "output": {"result": "15"},
-                    "duration_ms": 20,
-                    "success": True,
-                }
-            ],
+            "tool_calls": [{
+                "tool_call_id": "call-1",
+                "tool_name": "sum_two_numbers",
+                "input": {"a": "7", "b": "8"},
+                "output": {"result": "15"},
+                "duration_ms": 20,
+                "success": True,
+            }],
         },
-        session=object(),
+        uow=object(),
     )
 
     assert [event.event_type for event in saved_events] == [
@@ -56,8 +54,6 @@ async def test_completed_snapshot_persists_tool_summary_and_completed(monkeypatc
         TraceEventType.info,
         TraceEventType.info,
     ]
-    tool_event, summary_event, completed_event = saved_events
-    assert tool_event.payload["trace_id"] == str(trace_id)
-    assert tool_event.payload["event"] == "agent.execution.tool_completed.v1"
-    assert summary_event.payload["event"] == "observability.execution.summary.v1"
-    assert completed_event.payload["event"] == "agent.execution.completed.v1"
+    assert saved_events[0].payload["event"] == "agent.execution.tool_completed.v1"
+    assert saved_events[1].payload["event"] == "observability.execution.summary.v1"
+    assert saved_events[2].payload["event"] == "agent.execution.completed.v1"

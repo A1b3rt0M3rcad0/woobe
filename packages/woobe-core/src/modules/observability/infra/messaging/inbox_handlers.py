@@ -3,18 +3,23 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable, Coroutine
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
+from modules.observability.infra.database.unit_of_work import ObservabilityUnitOfWork
 from modules.observability.infra.messaging.truthful_trace_projector import project_agent_event
 
 logger = logging.getLogger(__name__)
 EventHandler = Callable[..., Coroutine[Any, Any, None]]
 
 
-async def _project(event_type: str, payload: dict[str, Any], session: AsyncSession | None = None, **kwargs: Any) -> None:
-    if session is None:
-        raise RuntimeError("Observability Inbox handler requires a database session")
-    await project_agent_event(event_type=event_type, payload=payload, session=session)
+async def _project(
+    event_type: str,
+    payload: dict[str, Any],
+    uow: ObservabilityUnitOfWork | None = None,
+    **kwargs: Any,
+) -> None:
+    del kwargs
+    if uow is None:
+        raise RuntimeError("Observability Inbox handler requires a UnitOfWork")
+    await project_agent_event(event_type=event_type, payload=payload, uow=uow)
 
 
 handle_trace_requested = _project

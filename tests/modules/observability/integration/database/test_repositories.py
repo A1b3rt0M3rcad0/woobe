@@ -20,6 +20,6 @@ def test_observability_repository_contracts():
     assert TraceEventModel.__tablename__ == "trace_events"
     assert OutboxEventModel.__tablename__ == "outbox_events"
     assert InboxEventModel.__tablename__ == "inbox_events"
-    assert "session" in inspect.signature(SQLAlchemyTraceRepository.__init__).parameters
-    assert "session" in inspect.signature(SQLAlchemyTraceEventRepository.__init__).parameters
-    assert SQLAlchemyOutboxEventWriter is not None
+    assert "uow" in inspect.signature(SQLAlchemyTraceRepository.__init__).parameters
+    assert "uow" in inspect.signature(SQLAlchemyTraceEventRepository.__init__).parameters
+    assert "uow" in inspect.signature(SQLAlchemyOutboxEventWriter.__init__).parameters

@@ -6,14 +6,13 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from modules.observability.domain.entities import Trace, TraceEvent
 from modules.observability.domain.enums import TraceEventType, TraceStatus
 from modules.observability.infra.database.repositories import (
     SQLAlchemyTraceEventRepository,
     SQLAlchemyTraceRepository,
 )
+from modules.observability.infra.database.unit_of_work import ObservabilityUnitOfWork
 from modules.observability.infra.messaging.diagnostics_v2 import (
     build as build_execution_diagnostics,
 )
@@ -90,19 +89,10 @@ def _merge_data(trace: Trace, payload: dict[str, Any], event_type: str) -> None:
 
 
 def _apply_provider_model_refs(trace: Trace, payload: dict[str, Any]) -> None:
-    trace.provider_model_id = (
-        _uuid(payload.get("provider_model_id")) or trace.provider_model_id
-    )
-    trace.provider_credential_id = (
-        _uuid(payload.get("provider_credential_id")) or trace.provider_credential_id
-    )
-    trace.fallback_provider_model_id = (
-        _uuid(payload.get("fallback_provider_model_id"))
-        or trace.fallback_provider_model_id
-    )
-    trace.fallback_credential_id = (
-        _uuid(payload.get("fallback_credential_id")) or trace.fallback_credential_id
-    )
+    trace.provider_model_id = _uuid(payload.get("provider_model_id")) or trace.provider_model_id
+    trace.provider_credential_id = _uuid(payload.get("provider_credential_id")) or trace.provider_credential_id
+    trace.fallback_provider_model_id = _uuid(payload.get("fallback_provider_model_id")) or trace.fallback_provider_model_id
+    trace.fallback_credential_id = _uuid(payload.get("fallback_credential_id")) or trace.fallback_credential_id
 
 
 def _apply_cost(trace: Trace, payload: dict[str, Any]) -> None:
@@ -143,8 +133,6 @@ async def _save_tool_snapshot_if_missing(
     discriminator: str,
     tool: dict[str, Any],
 ) -> None:
-    """Use completed Run snapshots only as fallback, never as a destructive update."""
-
     event_discriminator = f"tool_completed:{discriminator}"
     event_id = _event_id(trace_id, event_discriminator)
     if await repo.get_by_id(event_id) is not None:
@@ -192,14 +180,14 @@ async def project_agent_event(
     *,
     event_type: str,
     payload: dict[str, Any],
-    session: AsyncSession,
+    uow: ObservabilityUnitOfWork,
 ) -> None:
     trace_id = _uuid(payload.get("trace_id") or payload.get("execution_id"))
     if trace_id is None:
         raise ValueError(f"{event_type} requires trace_id")
 
-    trace_repo = SQLAlchemyTraceRepository(session)
-    event_repo = SQLAlchemyTraceEventRepository(session)
+    trace_repo = SQLAlchemyTraceRepository(uow)
+    event_repo = SQLAlchemyTraceEventRepository(uow)
     trace = await trace_repo.get_by_id(trace_id)
     project_id = _uuid(payload.get("project_id"))
 
@@ -334,7 +322,6 @@ async def project_agent_event(
 
     diagnostics = build_execution_diagnostics(_diagnostics_source(payload))
     payload_with_diagnostics = {**payload, "diagnostics": diagnostics}
-
     trace.status = TraceStatus.completed
     trace.started_at = trace.started_at or datetime.now(timezone.utc)
     trace.ended_at = datetime.now(timezone.utc)
@@ -354,12 +341,11 @@ async def project_agent_event(
     if isinstance(tool_calls, list):
         for index, raw in enumerate(tool_calls):
             tool = raw if isinstance(raw, dict) else {}
-            discriminator = _tool_discriminator(tool, str(index))
             await _save_tool_snapshot_if_missing(
                 event_repo,
                 trace_id=trace_id,
                 project_id=project_id,
-                discriminator=discriminator,
+                discriminator=_tool_discriminator(tool, str(index)),
                 tool=tool,
             )
 
@@ -377,7 +363,6 @@ async def project_agent_event(
             **diagnostics,
         },
     )
-
     await _save_event(
         event_repo,
         trace_id=trace_id,
@@ -388,7 +373,6 @@ async def project_agent_event(
         cost_usd=trace.total_cost_usd,
         payload={"event": event_type, **payload_with_diagnostics},
     )
-
     logger.info(
         "Trace projection completed trace_id=%s runtime_ms=%s tool_wall_ms=%s tool_work_ms=%s tool_calls=%s provider_model_id=%s cost_status=%s",
         trace_id,

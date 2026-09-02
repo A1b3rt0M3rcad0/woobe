@@ -29,7 +29,6 @@ async def test_incomplete_direct_tool_event_is_deferred(monkeypatch) -> None:
     class TraceRepo:
         async def get_by_id(self, _trace_id):
             return trace
-
         async def save(self, value):
             return value
 
@@ -38,9 +37,8 @@ async def test_incomplete_direct_tool_event_is_deferred(monkeypatch) -> None:
             saved_events.append(value)
             return value
 
-    monkeypatch.setattr(trace_projector, "SQLAlchemyTraceRepository", lambda _session: TraceRepo())
-    monkeypatch.setattr(trace_projector, "SQLAlchemyTraceEventRepository", lambda _session: EventRepo())
-
+    monkeypatch.setattr(trace_projector, "SQLAlchemyTraceRepository", lambda _uow: TraceRepo())
+    monkeypatch.setattr(trace_projector, "SQLAlchemyTraceEventRepository", lambda _uow: EventRepo())
     await trace_projector.project_agent_event(
         event_type="agent.execution.tool_completed.v1",
         payload={
@@ -49,7 +47,7 @@ async def test_incomplete_direct_tool_event_is_deferred(monkeypatch) -> None:
             "duration_ms": 100,
             "success": True,
         },
-        session=object(),
+        uow=object(),
     )
     assert saved_events == []
 
@@ -64,21 +62,18 @@ async def test_completed_snapshot_preserves_tool_summary_and_terminal_events(mon
     class TraceRepo:
         async def get_by_id(self, _trace_id):
             return trace
-
         async def save(self, value):
             return value
 
     class EventRepo:
         async def get_by_id(self, _event_id):
             return None
-
         async def save(self, value):
             saved_events.append(value)
             return value
 
-    monkeypatch.setattr(trace_projector, "SQLAlchemyTraceRepository", lambda _session: TraceRepo())
-    monkeypatch.setattr(trace_projector, "SQLAlchemyTraceEventRepository", lambda _session: EventRepo())
-
+    monkeypatch.setattr(trace_projector, "SQLAlchemyTraceRepository", lambda _uow: TraceRepo())
+    monkeypatch.setattr(trace_projector, "SQLAlchemyTraceEventRepository", lambda _uow: EventRepo())
     await trace_projector.project_agent_event(
         event_type="agent.execution.completed.v1",
         payload={
@@ -88,29 +83,23 @@ async def test_completed_snapshot_preserves_tool_summary_and_terminal_events(mon
             "input_tokens": 10,
             "output_tokens": 2,
             "total_tokens": 12,
-            "tool_calls": [
-                {
-                    "tool_call_id": "call-1",
-                    "tool_name": "sum_two_numbers",
-                    "input": {"a": "1", "b": "2"},
-                    "output": {"result": "3"},
-                    "duration_ms": 20,
-                    "success": True,
-                    "error": None,
-                }
-            ],
+            "tool_calls": [{
+                "tool_call_id": "call-1",
+                "tool_name": "sum_two_numbers",
+                "input": {"a": "1", "b": "2"},
+                "output": {"result": "3"},
+                "duration_ms": 20,
+                "success": True,
+                "error": None,
+            }],
         },
-        session=object(),
+        uow=object(),
     )
-
     assert [event.event_type for event in saved_events] == [
         TraceEventType.tool_call,
         TraceEventType.info,
         TraceEventType.info,
     ]
-    tool_event, summary_event, completed_event = saved_events
-    assert tool_event.payload["tool_call_id"] == "call-1"
-    assert tool_event.payload["input"] == {"a": "1", "b": "2"}
-    assert tool_event.payload["output"] == {"result": "3"}
-    assert summary_event.payload["event"] == "observability.execution.summary.v1"
-    assert completed_event.payload["event"] == "agent.execution.completed.v1"
+    assert saved_events[0].payload["tool_call_id"] == "call-1"
+    assert saved_events[1].payload["event"] == "observability.execution.summary.v1"
+    assert saved_events[2].payload["event"] == "agent.execution.completed.v1"

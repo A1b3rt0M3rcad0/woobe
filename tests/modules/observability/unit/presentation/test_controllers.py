@@ -2,50 +2,46 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[5]
-OBSERVABILITY_CONTROLLERS_DIR = ROOT / "src" / "modules" / "observability" / "presentation" / "controllers"
+OBSERVABILITY_CONTROLLERS_DIR = (
+    ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "observability"
+    / "presentation"
+    / "controllers"
+)
 
 
 class TestObservabilityControllers:
     def _controller_py_files(self) -> list[Path]:
         return [
-            p for p in OBSERVABILITY_CONTROLLERS_DIR.rglob("*.py")
-            if p.name != "__init__.py"
+            path
+            for path in OBSERVABILITY_CONTROLLERS_DIR.rglob("*.py")
+            if path.name != "__init__.py"
         ]
 
     def test_controller_files_exist(self):
-        files = self._controller_py_files()
-        assert len(files) > 0, "controller .py files must exist"
+        assert self._controller_py_files()
 
-    def test_controllers_import_from_application_use_cases(self):
+    def test_controllers_depend_on_application_interfaces(self):
         for filepath in self._controller_py_files():
-            source = filepath.read_text(encoding="utf-8")
-            tree = ast.parse(source)
-            imports_app_use_cases = False
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ImportFrom):
-                    if node.module and "application.use_cases" in node.module:
-                        imports_app_use_cases = True
-            assert imports_app_use_cases, (
-                f"{filepath.name} must import from application.use_cases"
-            )
+            tree = ast.parse(filepath.read_text(encoding="utf-8"))
+            assert any(
+                isinstance(node, ast.ImportFrom)
+                and node.module
+                and node.module.startswith("modules.observability.application.interfaces")
+                for node in ast.walk(tree)
+            ), f"{filepath.name} must depend on application interfaces"
 
     def test_controllers_implement_handle_method(self):
         for filepath in self._controller_py_files():
             source = filepath.read_text(encoding="utf-8")
-            assert "async def handle" in source or "def handle" in source, (
-                f"{filepath.name} must implement handle() method"
-            )
+            assert "async def handle" in source or "def handle" in source
 
-    def test_controllers_do_not_import_service(self):
+    def test_controllers_do_not_import_concrete_use_cases_or_repositories(self):
         for filepath in self._controller_py_files():
             source = filepath.read_text(encoding="utf-8")
-            assert "from modules.observability.service" not in source, (
-                f"{filepath.name} must not import from service/"
-            )
-
-    def test_controllers_do_not_import_repositories(self):
-        for filepath in self._controller_py_files():
-            source = filepath.read_text(encoding="utf-8")
-            assert "repository" not in source.lower(), (
-                f"{filepath.name} must not import repositories"
-            )
+            assert "modules.observability.application.use_cases" not in source
+            assert "repository" not in source.lower()

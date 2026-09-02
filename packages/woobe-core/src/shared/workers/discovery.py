@@ -20,7 +20,7 @@ CORE_MODULE_WORKER_REGISTRIES: tuple[str, ...] = (
     "observability",
 )
 
-PUBLIC_WORKER_ENTRYPOINTS = frozenset({"agent", "metering"})
+PUBLIC_WORKER_ENTRYPOINTS = frozenset({"agent", "metering", "observability"})
 
 
 class ModuleWorkerEntry:
@@ -64,7 +64,6 @@ def discover_module_entries() -> list[ModuleWorkerEntry]:
         if registry_cls is None:
             logger.warning("Module %s has no %s", module_name, cls_name)
             continue
-
         if register_func is None:
             logger.warning("Module %s has no %s", module_name, func_name)
             continue
