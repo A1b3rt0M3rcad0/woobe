@@ -4,6 +4,7 @@ from modules.network.presentation.http.history_routes import router as history_r
 from modules.network.presentation.http.management_routes import router as management_router
 from modules.network.presentation.http.rerun_routes import router as rerun_router
 from modules.network.presentation.http.resource_routes import router as resource_router
+from modules.network.presentation.http.session_routes import router as session_router
 
 
 NETWORK_HTTP_ROUTERS = (
@@ -12,6 +13,7 @@ NETWORK_HTTP_ROUTERS = (
     diagnostics_router,
     management_router,
     history_router,
+    session_router,
     legacy_network_router,
 )
 

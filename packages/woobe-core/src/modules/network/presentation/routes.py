@@ -14,7 +14,6 @@ from modules.network.presentation.reattach_routes import (
     reattach_network_execution,
 )
 from modules.network.presentation.schemas import (
-    CreateNetworkSessionRequest,
     EnsureNetworkRequest,
     PromotionRequest,
     RollbackNetworkRequest,
@@ -197,47 +196,6 @@ async def rollback_network_production(
             "definition": version.definition,
             "resolved_bindings": version.resolved_bindings,
             "created_at": version.created_at,
-        },
-    }
-
-
-@router.post("/{network_id}/sessions", status_code=201)
-async def create_network_session(
-    network_id: UUID,
-    payload: CreateNetworkSessionRequest,
-    request: Request,
-):
-    user_id = _authorize_project(request, payload.project_id)
-    principal = request.state.principal
-    tenant_id = (
-        str(principal.project_id)
-        if isinstance(principal, ProjectApiPrincipal)
-        else None
-    )
-    session = await _service(request).create_session(
-        network_id=network_id,
-        project_id=payload.project_id,
-        environment=payload.environment,
-        title=payload.title,
-        tenant_id=tenant_id,
-        user_id=str(user_id) if user_id else None,
-        external_session_id=payload.external_session_id,
-    )
-    return {
-        "success": True,
-        "data": {
-            "id": str(session.id),
-            "network_id": str(session.network_id),
-            "network_version_id": str(session.network_version_id)
-            if session.network_version_id
-            else None,
-            "environment": session.environment,
-            "title": session.title,
-            "status": session.status,
-            "last_message_at": session.last_message_at,
-            "message_count": 0,
-            "trace_count": 0,
-            "created_at": session.created_at,
         },
     }
 
