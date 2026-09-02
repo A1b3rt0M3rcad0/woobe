@@ -37,14 +37,16 @@ async def test_completed_snapshot_persists_tool_summary_and_completed(monkeypatc
         payload={
             "trace_id": str(trace_id),
             "project_id": str(project_id),
-            "tool_calls": [{
-                "tool_call_id": "call-1",
-                "tool_name": "sum_two_numbers",
-                "input": {"a": "7", "b": "8"},
-                "output": {"result": "15"},
-                "duration_ms": 20,
-                "success": True,
-            }],
+            "tool_calls": [
+                {
+                    "tool_call_id": "call-1",
+                    "tool_name": "sum_two_numbers",
+                    "input": {"a": "7", "b": "8"},
+                    "output": {"result": "15"},
+                    "duration_ms": 20,
+                    "success": True,
+                }
+            ],
         },
         uow=object(),
     )
@@ -54,6 +56,8 @@ async def test_completed_snapshot_persists_tool_summary_and_completed(monkeypatc
         TraceEventType.info,
         TraceEventType.info,
     ]
-    assert saved_events[0].payload["event"] == "agent.execution.tool_completed.v1"
-    assert saved_events[1].payload["event"] == "observability.execution.summary.v1"
-    assert saved_events[2].payload["event"] == "agent.execution.completed.v1"
+    tool_event, summary_event, completed_event = saved_events
+    assert tool_event.payload["trace_id"] == str(trace_id)
+    assert tool_event.payload["event"] == "agent.execution.tool_completed.v1"
+    assert summary_event.payload["event"] == "observability.execution.summary.v1"
+    assert completed_event.payload["event"] == "agent.execution.completed.v1"
