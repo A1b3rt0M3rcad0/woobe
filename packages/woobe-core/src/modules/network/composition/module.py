@@ -1,4 +1,3 @@
-from modules.network.presentation import router as legacy_network_router
 from modules.network.presentation.http.compatibility_routes import router as compatibility_router
 from modules.network.presentation.http.diagnostics_routes import router as diagnostics_router
 from modules.network.presentation.http.draft_routes import router as draft_router
@@ -9,6 +8,7 @@ from modules.network.presentation.http.management_routes import router as manage
 from modules.network.presentation.http.promotion_routes import router as promotion_router
 from modules.network.presentation.http.rerun_routes import router as rerun_router
 from modules.network.presentation.http.resource_routes import router as resource_router
+from modules.network.presentation.http.run_control_routes import router as run_control_router
 from modules.network.presentation.http.session_routes import router as session_router
 
 
@@ -24,7 +24,7 @@ NETWORK_HTTP_ROUTERS = (
     history_router,
     session_router,
     execution_router,
-    legacy_network_router,
+    run_control_router,
 )
 
 __all__ = ["NETWORK_HTTP_ROUTERS"]
