@@ -1,6 +1,7 @@
 from modules.network.presentation import router as legacy_network_router
 from modules.network.presentation.http.compatibility_routes import router as compatibility_router
 from modules.network.presentation.http.diagnostics_routes import router as diagnostics_router
+from modules.network.presentation.http.draft_routes import router as draft_router
 from modules.network.presentation.http.history_routes import router as history_router
 from modules.network.presentation.http.management_routes import router as management_router
 from modules.network.presentation.http.rerun_routes import router as rerun_router
@@ -11,6 +12,7 @@ from modules.network.presentation.http.session_routes import router as session_r
 NETWORK_HTTP_ROUTERS = (
     resource_router,
     compatibility_router,
+    draft_router,
     rerun_router,
     diagnostics_router,
     management_router,

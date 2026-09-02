@@ -17,7 +17,6 @@ from modules.network.presentation.schemas import (
     PromotionRequest,
     RollbackNetworkRequest,
     RunNetworkRequest,
-    SaveNetworkDraftRequest,
 )
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, NotFoundError
@@ -48,47 +47,6 @@ def _authorize_project(request: Request, project_id: UUID) -> UUID | None:
     if isinstance(principal, AuthenticatedPrincipal):
         return principal.user_id
     raise AuthorizationError("Authentication required")
-
-
-def _network_payload(network) -> dict:
-    return {
-        "id": str(network.id),
-        "project_id": str(network.project_id),
-        "name": network.name,
-        "description": network.description,
-        "draft_definition": network.draft_definition,
-        "draft_revision": network.draft_revision,
-        "staging_version_id": str(network.staging_version_id)
-        if network.staging_version_id
-        else None,
-        "production_version_id": str(network.production_version_id)
-        if network.production_version_id
-        else None,
-        "created_at": network.created_at,
-        "updated_at": network.updated_at,
-    }
-
-
-@router.patch("/{network_id}/draft")
-async def save_network_draft(
-    network_id: UUID,
-    payload: SaveNetworkDraftRequest,
-    request: Request,
-):
-    _authorize_project(request, payload.project_id)
-    network = await _service(request).save_draft(
-        network_id=network_id,
-        project_id=payload.project_id,
-        expected_revision=payload.expected_revision,
-        name=payload.name,
-        description=payload.description,
-        definition=payload.definition,
-    )
-    return {
-        "success": True,
-        "data": _network_payload(network),
-        "revision": network.draft_revision,
-    }
 
 
 @router.post("/{network_id}/promotions/preview")
