@@ -6,41 +6,18 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request
 
-from modules.network.application.service import NetworkApplicationService
 from modules.network.infra.database.models import NetworkExecutionModel
 from modules.network.presentation.reattach_routes import (
     _durable_state as _network_durable_state,
     network_runtime_sse,
 )
 from shared.composition_resources import EXECUTION_STATE_STORE
-from shared.infra.errors import AuthorizationError, NotFoundError
+from shared.infra.errors import NotFoundError
 from shared.runtime_reattach import RuntimeStreamFrame, RuntimeStreamGapError, RuntimeStreamReader
-from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
 
 
 router = APIRouter(prefix="/network", tags=["network"])
 TERMINAL_STATUSES = {"completed", "failed", "cancelled", "timed_out", "uncertain"}
-
-
-def _service(request: Request) -> NetworkApplicationService:
-    settings = request.app.state.settings
-    return NetworkApplicationService(
-        request.app.state.session_factory,
-        hard_max_depth=settings.network_max_depth_hard,
-        hard_max_invocations=settings.network_max_invocations_hard,
-        hard_timeout_seconds=settings.network_timeout_hard_seconds,
-    )
-
-
-def _authorize_project(request: Request, project_id: UUID) -> UUID | None:
-    principal = getattr(request.state, "principal", None)
-    if isinstance(principal, ProjectApiPrincipal):
-        if principal.project_id != project_id:
-            raise AuthorizationError("Runtime key does not belong to this Project")
-        return None
-    if isinstance(principal, AuthenticatedPrincipal):
-        return principal.user_id
-    raise AuthorizationError("Authentication required")
 
 
 async def _execution_stream(
@@ -134,10 +111,3 @@ async def _execution_stream(
             RuntimeStreamFrame("run.state", degraded, sequence=0),
             execution_id,
         )
-
-
-@router.post("/executions/{execution_id}/cancel", status_code=202)
-async def cancel_execution(execution_id: UUID, project_id: UUID, request: Request):
-    _authorize_project(request, project_id)
-    await _service(request).request_cancellation(execution_id, project_id)
-    return {"success": True, "data": {"execution_id": str(execution_id)}}

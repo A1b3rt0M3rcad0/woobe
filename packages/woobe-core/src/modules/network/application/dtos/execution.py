@@ -61,3 +61,17 @@ class AcceptedNetworkExecution(BaseModel):
     project_id: UUID
     status: str
     created_at: datetime | None = None
+
+
+class CancelNetworkExecutionInput(BaseModel):
+    execution_id: UUID
+    project_id: UUID
+
+
+class NetworkExecutionControlState(BaseModel):
+    id: UUID
+    network_id: UUID
+    network_session_id: UUID
+    project_id: UUID
+    status: str
+    created_at: datetime | None = None
