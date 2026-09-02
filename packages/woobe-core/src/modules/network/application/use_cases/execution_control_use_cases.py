@@ -40,6 +40,16 @@ class CancelNetworkExecutionUseCase:
         )
         if execution is None:
             raise NotFoundError("Network execution not found")
+        if (
+            input_dto.expected_network_id is not None
+            and execution.network_id != input_dto.expected_network_id
+        ):
+            raise NotFoundError("Network execution not found")
+        if (
+            input_dto.expected_environment is not None
+            and execution.environment != input_dto.expected_environment
+        ):
+            raise NotFoundError("Network execution not found")
         if execution.status in _TERMINAL_STATUSES:
             return execution
 

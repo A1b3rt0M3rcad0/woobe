@@ -5,8 +5,13 @@ resources_file = "packages/woobe-core/src/modules/network/composition/resources.
 uow_type = "NetworkUnitOfWork"
 engine_resource = "DATABASE_ENGINE"
 long_lived_annotation = "Callable"
-long_lived_composer_sources = []
-long_lived_composer_functions = []
+long_lived_composer_sources = [
+  "composition/composers/run_reattach_composer.py",
+]
+long_lived_composer_functions = [
+  "active_network_run_composer",
+  "attach_network_run_composer",
+]
 forbidden_database_types = ["AsyncEngine", "AsyncSession", "async_sessionmaker"]
 framework_forbidden_scopes = [
   "application",
@@ -25,7 +30,7 @@ uow_constructor_forbidden_scopes = [
 engine_allowed_consumers = ["NetworkUnitOfWork"]
 engine_allowed_paths = [
   "composition/composers/**",
-  "composition/factories/**",
+  "composition/factories/network_uow_factory.py",
 ]
 forbidden_runtime_markers = ["WorkflowHandler"]
 forbidden_runtime_paths = ["composition/workflows/**"]

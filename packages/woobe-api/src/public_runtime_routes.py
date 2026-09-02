@@ -8,15 +8,15 @@ from modules.agent.presentation.http.run_routes import (
     attach_agent_run,
     cancel_agent_run,
 )
+from modules.network.entrypoint import (
+    active_network_run_composer,
+    attach_network_run_composer,
+    cancel_runtime_network_execution_composer,
+)
 from modules.network.presentation.public_runtime import (
     is_network_runtime_request,
     run_network_http,
     stream_network_http,
-)
-from modules.network.presentation.reattach_routes import (
-    active_network_execution,
-    cancel_network_run,
-    reattach_network_execution,
 )
 from modules.network.presentation.runtime_environment_dependency import (
     enforce_public_network_runtime_environment,
@@ -60,7 +60,7 @@ async def run_stream(request: FastAPIRequest):
 async def reattach_run(run_id: UUID, request: FastAPIRequest):
     principal = _runtime_principal(request)
     if principal.target_type == "network":
-        return await reattach_network_execution(run_id, request)
+        return await attach_network_run_composer()(run_id, request)
     return await attach_agent_run(run_id, request)
 
 
@@ -68,7 +68,11 @@ async def reattach_run(run_id: UUID, request: FastAPIRequest):
 async def cancel_run(run_id: UUID, request: FastAPIRequest):
     principal = _runtime_principal(request)
     if principal.target_type == "network":
-        return await cancel_network_run(run_id, request)
+        response = await request_adapter(
+            request,
+            cancel_runtime_network_execution_composer(),
+        )
+        return response_adapter(response)
     return await cancel_agent_run(run_id, request)
 
 
@@ -76,7 +80,7 @@ async def cancel_run(run_id: UUID, request: FastAPIRequest):
 async def active_session_run(session_id: UUID, request: FastAPIRequest):
     principal = _runtime_principal(request)
     if principal.target_type == "network":
-        return await active_network_execution(
+        return await active_network_run_composer()(
             request,
             network_session_id=session_id,
         )

@@ -8,6 +8,7 @@ from modules.network.application.interfaces.execution_control import (
 from modules.network.infra.database.models import (
     NetworkExecutionEventModel,
     NetworkExecutionModel,
+    NetworkSessionModel,
 )
 from modules.network.infra.database.unit_of_work import NetworkUnitOfWork
 
@@ -16,13 +17,22 @@ class SQLAlchemyNetworkExecutionControlRepository(NetworkExecutionControlReposit
     def __init__(self, uow: NetworkUnitOfWork) -> None:
         self._uow = uow
 
-    @staticmethod
-    def _state(model: NetworkExecutionModel) -> NetworkExecutionControlState:
+    async def _state(
+        self,
+        model: NetworkExecutionModel,
+    ) -> NetworkExecutionControlState | None:
+        network_session = await self._uow.session.get(
+            NetworkSessionModel,
+            model.network_session_id,
+        )
+        if network_session is None:
+            return None
         return NetworkExecutionControlState(
             id=model.id,
             network_id=model.network_id,
             network_session_id=model.network_session_id,
             project_id=model.project_id,
+            environment=network_session.environment,
             status=str(model.status),
             created_at=model.created_at,
         )
@@ -36,7 +46,7 @@ class SQLAlchemyNetworkExecutionControlRepository(NetworkExecutionControlReposit
         model = await self._uow.session.get(NetworkExecutionModel, execution_id)
         if model is None or model.project_id != project_id:
             return None
-        return self._state(model)
+        return await self._state(model)
 
     async def request_durable_cancellation(
         self,
@@ -52,7 +62,7 @@ class SQLAlchemyNetworkExecutionControlRepository(NetworkExecutionControlReposit
         if model is None or model.project_id != project_id:
             return None
         if str(model.status) not in {"queued", "running"}:
-            return self._state(model)
+            return await self._state(model)
 
         now = datetime.now(timezone.utc)
         model.cancel_requested_at = now
@@ -72,4 +82,4 @@ class SQLAlchemyNetworkExecutionControlRepository(NetworkExecutionControlReposit
         else:
             model.status = "cancel_requested"
         await self._uow.session.flush()
-        return self._state(model)
+        return await self._state(model)
