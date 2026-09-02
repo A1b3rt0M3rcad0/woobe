@@ -18,10 +18,7 @@ from modules.agent.entrypoint import (
     build_http_tool_executor,
     close_http_tool_executor,
 )
-from modules.chat_surface.presentation.reattach_routes import (
-    router as chat_surface_reattach_router,
-)
-from modules.chat_surface.presentation.routes import router as chat_surface_router
+from modules.chat_surface.entrypoint import CHAT_SURFACE_HTTP_ROUTERS
 from modules.chat_surface.security import ChatSessionTokenCodec
 from modules.core.entrypoint import CORE_HTTP_ROUTERS
 from modules.identity.entrypoint import (
@@ -265,8 +262,8 @@ def create_app() -> FastAPI:
             app.include_router(identity_http_router)
         for core_http_router in CORE_HTTP_ROUTERS:
             app.include_router(core_http_router)
-        app.include_router(chat_surface_router)
-        app.include_router(chat_surface_reattach_router)
+        for chat_surface_http_router in CHAT_SURFACE_HTTP_ROUTERS:
+            app.include_router(chat_surface_http_router)
         app.include_router(public_runtime_router)
         for agent_http_router in AGENT_HTTP_ROUTERS:
             app.include_router(agent_http_router)
