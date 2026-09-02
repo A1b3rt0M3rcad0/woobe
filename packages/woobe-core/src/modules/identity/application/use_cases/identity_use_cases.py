@@ -2,35 +2,19 @@ import base64
 from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from modules.identity.domain.entities import (
-    Workspace,
-    WorkspaceInvite,
-    WorkspaceMember,
-    User,
-)
-from modules.identity.domain.enums import InviteStatus, MemberRole
-from modules.identity.domain.errors import (
-    EmailAlreadyExistsError,
-    WorkspaceNotFoundError,
-    UserNotFoundError,
-)
-from modules.identity.domain.repositories import (
-    WorkspaceInviteRepository,
-    WorkspaceMemberRepository,
-    WorkspaceRepository,
-    UserRepository,
-)
 from modules.identity.application.dtos import (
     AddMemberInput,
     AddMemberOutput,
+    CreateUserInput,
+    CreateUserOutput,
     CreateWorkspaceInput,
     CreateWorkspaceOutput,
     GetCurrentUserInput,
     GetCurrentUserOutput,
-    GetWorkspaceInput,
-    GetWorkspaceOutput,
     GetUserInput,
     GetUserOutput,
+    GetWorkspaceInput,
+    GetWorkspaceOutput,
     InviteUserInput,
     InviteUserOutput,
     ListInvitesInput,
@@ -45,16 +29,31 @@ from modules.identity.application.dtos import (
     RegisterOutput,
     UpdateWorkspaceInput,
     UpdateWorkspaceOutput,
-    CreateUserInput,
-    CreateUserOutput,
 )
-from shared.infra.errors import ConflictError
-from shared.messaging.outbox_writer import OutboxEventWriter
-from shared.infra.crypto import hash_password, verify_password
+from modules.identity.application.interfaces.outbox import OutboxEventWriter
+from modules.identity.application.interfaces.repositories import (
+    UserRepository,
+    WorkspaceInviteRepository,
+    WorkspaceMemberRepository,
+    WorkspaceRepository,
+)
+from modules.identity.domain.entities import (
+    User,
+    Workspace,
+    WorkspaceInvite,
+    WorkspaceMember,
+)
+from modules.identity.domain.enums import InviteStatus, MemberRole
+from modules.identity.domain.errors import (
+    EmailAlreadyExistsError,
+    UserNotFoundError,
+    WorkspaceNotFoundError,
+)
+from shared.contracts.errors import ConflictError
+from shared.security.crypto import hash_password, verify_password
 
 
 class CreateUserUseCase:
-
     def __init__(
         self,
         user_repo: UserRepository,
@@ -90,7 +89,6 @@ class CreateUserUseCase:
 
 
 class CreateWorkspaceUseCase:
-
     def __init__(
         self,
         workspace_repo: WorkspaceRepository,
@@ -128,7 +126,6 @@ class CreateWorkspaceUseCase:
 
 
 class AddMemberToWorkspaceUseCase:
-
     def __init__(
         self,
         workspace_repo: WorkspaceRepository,
@@ -188,7 +185,6 @@ class AddMemberToWorkspaceUseCase:
 
 
 class UpdateWorkspaceUseCase:
-
     def __init__(
         self,
         workspace_repo: WorkspaceRepository,
@@ -209,7 +205,6 @@ class UpdateWorkspaceUseCase:
         if input_dto.slug is not None:
             existing = await self._workspace_repo.get_by_slug(input_dto.slug)
             if existing and existing.id != workspace_id:
-                from shared.infra.errors import ConflictError
                 raise ConflictError(f"Workspace with slug '{input_dto.slug}' already exists")
             workspace.slug = input_dto.slug
 
@@ -236,7 +231,6 @@ class UpdateWorkspaceUseCase:
 
 
 class InviteUserUseCase:
-
     def __init__(
         self,
         workspace_repo: WorkspaceRepository,
@@ -294,23 +288,24 @@ class InviteUserUseCase:
 
 
 class ListWorkspacesUseCase:
-
     def __init__(self, workspace_repo: WorkspaceRepository) -> None:
         self._workspace_repo = workspace_repo
 
     async def execute(self, input_dto: ListWorkspacesInput) -> list[ListWorkspacesOutput]:
         workspaces = await self._workspace_repo.list_all()
-        return [ListWorkspacesOutput(
-            id=workspace.id,
-            name=workspace.name,
-            slug=workspace.slug,
-            status=workspace.status,
-            created_at=workspace.created_at,
-        ) for workspace in workspaces]
+        return [
+            ListWorkspacesOutput(
+                id=workspace.id,
+                name=workspace.name,
+                slug=workspace.slug,
+                status=workspace.status,
+                created_at=workspace.created_at,
+            )
+            for workspace in workspaces
+        ]
 
 
 class LoginUseCase:
-
     def __init__(self, user_repo: UserRepository) -> None:
         self._user_repo = user_repo
 
@@ -318,6 +313,7 @@ class LoginUseCase:
         user = await self._user_repo.get_by_email(input_dto.email)
         if not user or not verify_password(input_dto.password, user.password):
             from modules.identity.domain.errors import InvalidCredentialsError
+
             raise InvalidCredentialsError("Invalid credentials")
 
         token = base64.b64encode(str(user.id).encode()).decode()
@@ -328,7 +324,6 @@ class LoginUseCase:
 
 
 class RegisterUseCase:
-
     def __init__(
         self,
         user_repo: UserRepository,
@@ -399,7 +394,6 @@ class RegisterUseCase:
 
 
 class GetWorkspaceUseCase:
-
     def __init__(self, workspace_repo: WorkspaceRepository) -> None:
         self._workspace_repo = workspace_repo
 
@@ -417,42 +411,45 @@ class GetWorkspaceUseCase:
 
 
 class ListMembersUseCase:
-
     def __init__(self, member_repo: WorkspaceMemberRepository) -> None:
         self._member_repo = member_repo
 
     async def execute(self, input_dto: ListMembersInput) -> list[ListMembersOutput]:
         members = await self._member_repo.list_by_workspace(input_dto.workspace_id)
-        return [ListMembersOutput(
-            id=m.id,
-            user_id=m.user_id,
-            workspace_id=m.workspace_id,
-            role=m.role,
-            status=m.status,
-            joined_at=m.joined_at,
-        ) for m in members]
+        return [
+            ListMembersOutput(
+                id=m.id,
+                user_id=m.user_id,
+                workspace_id=m.workspace_id,
+                role=m.role,
+                status=m.status,
+                joined_at=m.joined_at,
+            )
+            for m in members
+        ]
 
 
 class ListInvitesUseCase:
-
     def __init__(self, invite_repo: WorkspaceInviteRepository) -> None:
         self._invite_repo = invite_repo
 
     async def execute(self, input_dto: ListInvitesInput) -> list[ListInvitesOutput]:
         invites = await self._invite_repo.list_by_workspace(input_dto.workspace_id)
-        return [ListInvitesOutput(
-            id=i.id,
-            workspace_id=i.workspace_id,
-            email=i.email,
-            role=i.role,
-            status=i.status,
-            expires_at=i.expires_at,
-            created_at=i.created_at,
-        ) for i in invites]
+        return [
+            ListInvitesOutput(
+                id=i.id,
+                workspace_id=i.workspace_id,
+                email=i.email,
+                role=i.role,
+                status=i.status,
+                expires_at=i.expires_at,
+                created_at=i.created_at,
+            )
+            for i in invites
+        ]
 
 
 class GetUserUseCase:
-
     def __init__(self, user_repo: UserRepository) -> None:
         self._user_repo = user_repo
 
@@ -469,6 +466,5 @@ class GetUserUseCase:
 
 
 class GetCurrentUserUseCase:
-
     async def execute(self, input_dto: GetCurrentUserInput) -> GetCurrentUserOutput:
         return GetCurrentUserOutput(email="customer@gmail.com", name=None)

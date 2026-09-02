@@ -2,17 +2,16 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from modules.identity.domain.entities import (
+    User,
+    UserSession,
     Workspace,
     WorkspaceInvite,
     WorkspaceMember,
-    User,
-    UserSession,
 )
-from shared.infra.objects import CursorPage
+from shared.contracts.pagination import CursorPage
 
 
 class UserRepository(ABC):
-
     @abstractmethod
     async def save(self, user: User) -> User: ...
 
@@ -27,7 +26,6 @@ class UserRepository(ABC):
 
 
 class WorkspaceRepository(ABC):
-
     @abstractmethod
     async def save(self, workspace: Workspace) -> Workspace: ...
 
@@ -45,7 +43,6 @@ class WorkspaceRepository(ABC):
 
 
 class WorkspaceMemberRepository(ABC):
-
     @abstractmethod
     async def save(self, member: WorkspaceMember) -> WorkspaceMember: ...
 
@@ -60,10 +57,10 @@ class WorkspaceMemberRepository(ABC):
     @abstractmethod
     async def list_by_workspace(
         self, workspace_id: UUID
-    ) -> list[WorkspaceMember]: ...  # TODO: Remove after pagination migration
+    ) -> list[WorkspaceMember]: ...
 
     @abstractmethod
-    async def list_by_user(self, user_id: UUID) -> list[WorkspaceMember]: ...  # TODO: Remove after pagination migration
+    async def list_by_user(self, user_id: UUID) -> list[WorkspaceMember]: ...
 
     @abstractmethod
     async def paginate_by_workspace(
@@ -80,7 +77,6 @@ class WorkspaceMemberRepository(ABC):
 
 
 class WorkspaceInviteRepository(ABC):
-
     @abstractmethod
     async def save(self, invite: WorkspaceInvite) -> WorkspaceInvite: ...
 
@@ -95,7 +91,7 @@ class WorkspaceInviteRepository(ABC):
     @abstractmethod
     async def list_by_workspace(
         self, workspace_id: UUID
-    ) -> list[WorkspaceInvite]: ...  # TODO: Remove after pagination migration
+    ) -> list[WorkspaceInvite]: ...
 
     @abstractmethod
     async def paginate_by_workspace(
@@ -107,7 +103,6 @@ class WorkspaceInviteRepository(ABC):
 
 
 class UserSessionRepository(ABC):
-
     @abstractmethod
     async def save(self, session: UserSession) -> UserSession: ...
 
@@ -115,7 +110,7 @@ class UserSessionRepository(ABC):
     async def get_by_id(self, session_id: UUID) -> UserSession | None: ...
 
     @abstractmethod
-    async def list_by_user(self, user_id: UUID) -> list[UserSession]: ...  # TODO: Remove after pagination migration
+    async def list_by_user(self, user_id: UUID) -> list[UserSession]: ...
 
     @abstractmethod
     async def paginate_by_user(

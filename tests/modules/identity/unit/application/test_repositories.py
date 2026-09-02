@@ -1,11 +1,11 @@
 from abc import ABC
 
-from modules.identity.domain.repositories import (
+from modules.identity.application.interfaces.repositories import (
+    UserRepository,
+    UserSessionRepository,
     WorkspaceInviteRepository,
     WorkspaceMemberRepository,
     WorkspaceRepository,
-    UserRepository,
-    UserSessionRepository,
 )
 
 
@@ -53,7 +53,9 @@ class TestWorkspaceMemberRepository:
 
     def test_has_get_by_workspace_and_user_abstract(self):
         assert getattr(
-            WorkspaceMemberRepository.get_by_workspace_and_user, "__isabstractmethod__", False
+            WorkspaceMemberRepository.get_by_workspace_and_user,
+            "__isabstractmethod__",
+            False,
         )
 
 

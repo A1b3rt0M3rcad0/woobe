@@ -1,54 +1,57 @@
-from typing import Any
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from shared.infra.config.interface.unit_of_work import UnitOfWork
-
-from modules.identity.domain.entities import (
-    Workspace,
-    WorkspaceInvite,
-    WorkspaceMember,
-    User,
-    UserSession,
-)
-from modules.identity.domain.repositories import (
+from modules.identity.application.interfaces.outbox import OutboxEventWriter
+from modules.identity.application.interfaces.repositories import (
+    UserRepository as UserRepositoryInterface,
+    UserSessionRepository as UserSessionRepositoryInterface,
     WorkspaceInviteRepository as WorkspaceInviteRepositoryInterface,
     WorkspaceMemberRepository as WorkspaceMemberRepositoryInterface,
     WorkspaceRepository as WorkspaceRepositoryInterface,
-    UserRepository as UserRepositoryInterface,
-    UserSessionRepository as UserSessionRepositoryInterface,
+)
+from modules.identity.domain.entities import (
+    User,
+    UserSession,
+    Workspace,
+    WorkspaceInvite,
+    WorkspaceMember,
 )
 from modules.identity.infra.database.mappers import (
-    workspace_invite_entity_to_model,
-    workspace_invite_model_to_entity,
-    workspace_member_entity_to_model,
-    workspace_member_model_to_entity,
-    workspace_entity_to_model,
-    workspace_model_to_entity,
     user_entity_to_model,
     user_model_to_entity,
     user_session_entity_to_model,
     user_session_model_to_entity,
+    workspace_entity_to_model,
+    workspace_invite_entity_to_model,
+    workspace_invite_model_to_entity,
+    workspace_member_entity_to_model,
+    workspace_member_model_to_entity,
+    workspace_model_to_entity,
 )
 from modules.identity.infra.database.models import (
-    WorkspaceInviteModel,
-    WorkspaceMemberModel,
-    WorkspaceModel,
     OutboxEventModel,
     UserModel,
     UserSessionModel,
+    WorkspaceInviteModel,
+    WorkspaceMemberModel,
+    WorkspaceModel,
 )
-from shared.messaging.outbox_writer import OutboxEventWriter
-from shared.infra.objects import CursorPage
+from shared.contracts.pagination import CursorPage
 from shared.infra.repositories.base_repository import BaseSQLAlchemyRepository
 
+if TYPE_CHECKING:
+    from modules.identity.infra.database.unit_of_work import IdentityUnitOfWork
 
-class SQLAlchemyUserRepository(BaseSQLAlchemyRepository[UserModel], UserRepositoryInterface):
 
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, UserModel)
+class SQLAlchemyUserRepository(
+    BaseSQLAlchemyRepository[UserModel], UserRepositoryInterface
+):
+    def __init__(self, uow: IdentityUnitOfWork) -> None:
+        super().__init__(uow, UserModel)
 
     async def save(self, user: User) -> User:
         model = user_entity_to_model(user)
@@ -77,9 +80,8 @@ class SQLAlchemyUserRepository(BaseSQLAlchemyRepository[UserModel], UserReposito
 class SQLAlchemyWorkspaceRepository(
     BaseSQLAlchemyRepository[WorkspaceModel], WorkspaceRepositoryInterface
 ):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, WorkspaceModel)
+    def __init__(self, uow: IdentityUnitOfWork) -> None:
+        super().__init__(uow, WorkspaceModel)
 
     async def save(self, workspace: Workspace) -> Workspace:
         model = workspace_entity_to_model(workspace)
@@ -100,10 +102,10 @@ class SQLAlchemyWorkspaceRepository(
         return workspace_model_to_entity(model) if model else None
 
     async def list_all(self) -> list[Workspace]:
-        from sqlalchemy import select as sa_select
-        stmt = sa_select(WorkspaceModel).order_by(WorkspaceModel.created_at.desc())
-        result = await self._session.execute(stmt)
-        return [workspace_model_to_entity(workspace) for workspace in result.scalars().all()]
+        result = await self._session.execute(
+            select(WorkspaceModel).order_by(WorkspaceModel.created_at.desc())
+        )
+        return [workspace_model_to_entity(item) for item in result.scalars().all()]
 
     async def delete(self, workspace_id: UUID) -> None:
         model = await self._get_model_by_id(workspace_id)
@@ -112,12 +114,10 @@ class SQLAlchemyWorkspaceRepository(
 
 
 class SQLAlchemyWorkspaceMemberRepository(
-    BaseSQLAlchemyRepository[WorkspaceMemberModel],
-    WorkspaceMemberRepositoryInterface,
+    BaseSQLAlchemyRepository[WorkspaceMemberModel], WorkspaceMemberRepositoryInterface
 ):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, WorkspaceMemberModel)
+    def __init__(self, uow: IdentityUnitOfWork) -> None:
+        super().__init__(uow, WorkspaceMemberModel)
 
     async def save(self, member: WorkspaceMember) -> WorkspaceMember:
         model = workspace_member_entity_to_model(member)
@@ -142,9 +142,7 @@ class SQLAlchemyWorkspaceMemberRepository(
         model = result.scalar_one_or_none()
         return workspace_member_model_to_entity(model) if model else None
 
-    async def list_by_workspace(
-        self, workspace_id: UUID
-    ) -> list[WorkspaceMember]:
+    async def list_by_workspace(self, workspace_id: UUID) -> list[WorkspaceMember]:
         result = await self._session.execute(
             select(WorkspaceMemberModel).where(
                 WorkspaceMemberModel.workspace_id == workspace_id
@@ -201,12 +199,10 @@ class SQLAlchemyWorkspaceMemberRepository(
 
 
 class SQLAlchemyWorkspaceInviteRepository(
-    BaseSQLAlchemyRepository[WorkspaceInviteModel],
-    WorkspaceInviteRepositoryInterface,
+    BaseSQLAlchemyRepository[WorkspaceInviteModel], WorkspaceInviteRepositoryInterface
 ):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, WorkspaceInviteModel)
+    def __init__(self, uow: IdentityUnitOfWork) -> None:
+        super().__init__(uow, WorkspaceInviteModel)
 
     async def save(self, invite: WorkspaceInvite) -> WorkspaceInvite:
         model = workspace_invite_entity_to_model(invite)
@@ -231,17 +227,13 @@ class SQLAlchemyWorkspaceInviteRepository(
         model = result.scalar_one_or_none()
         return workspace_invite_model_to_entity(model) if model else None
 
-    async def list_by_workspace(
-        self, workspace_id: UUID
-    ) -> list[WorkspaceInvite]:
+    async def list_by_workspace(self, workspace_id: UUID) -> list[WorkspaceInvite]:
         result = await self._session.execute(
             select(WorkspaceInviteModel).where(
                 WorkspaceInviteModel.workspace_id == workspace_id
             )
         )
-        return [
-            workspace_invite_model_to_entity(i) for i in result.scalars().all()
-        ]
+        return [workspace_invite_model_to_entity(i) for i in result.scalars().all()]
 
     async def paginate_by_workspace(
         self, workspace_id: UUID, *, limit: int = 50, cursor: str | None = None
@@ -269,9 +261,8 @@ class SQLAlchemyWorkspaceInviteRepository(
 class SQLAlchemyUserSessionRepository(
     BaseSQLAlchemyRepository[UserSessionModel], UserSessionRepositoryInterface
 ):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        super().__init__(session, UserSessionModel)
+    def __init__(self, uow: IdentityUnitOfWork) -> None:
+        super().__init__(uow, UserSessionModel)
 
     async def save(self, session: UserSession) -> UserSession:
         model = user_session_entity_to_model(session)
@@ -314,15 +305,8 @@ class SQLAlchemyUserSessionRepository(
 
 
 class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
-
-    def __init__(self, session: AsyncSession | UnitOfWork) -> None:
-        self._session_or_uow: AsyncSession | UnitOfWork = session
-
-    @property
-    def _session(self) -> AsyncSession:
-        if isinstance(self._session_or_uow, UnitOfWork):
-            return self._session_or_uow.session
-        return self._session_or_uow
+    def __init__(self, uow: IdentityUnitOfWork) -> None:
+        self._uow = uow
 
     async def write(
         self,
@@ -347,4 +331,4 @@ class SQLAlchemyOutboxEventWriter(OutboxEventWriter):
             correlation_id=correlation_id,
             causation_id=causation_id,
         )
-        self._session.add(event)
+        self._uow.session.add(event)
