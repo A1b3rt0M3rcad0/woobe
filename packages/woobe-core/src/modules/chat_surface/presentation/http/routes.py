@@ -33,6 +33,10 @@ _MIGRATED_CONTROL_PLANE_ROUTES = {
     ("POST", "/chat-surfaces/{surface_id}/archive"),
     ("GET", "/chat-surfaces/{surface_id}/sessions"),
     ("GET", "/chat-surfaces/{surface_id}/activity"),
+    ("POST", "/chat-surfaces/{surface_id}/access-keys"),
+    ("GET", "/chat-surfaces/{surface_id}/access-keys"),
+    ("POST", "/chat-surfaces/{surface_id}/access-keys/{api_key_id}/rotate"),
+    ("POST", "/chat-surfaces/{surface_id}/access-keys/{api_key_id}/revoke"),
 }
 
 
