@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 from modules.metering.application.dtos.project_usage import ProjectUsageQuery
-from modules.metering.application.use_cases.get_project_usage import GetProjectUsageUseCase
+from modules.metering.application.interfaces.use_case import UseCase
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
 
 
 class GetProjectUsageController(Controller):
-    def __init__(self, use_case: GetProjectUsageUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:

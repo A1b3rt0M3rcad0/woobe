@@ -4,7 +4,7 @@ from modules.metering.application.dtos.project_usage import (
     ProjectUsageOutput,
     ProjectUsageQuery,
 )
-from modules.metering.application.ports.project_usage_reader import ProjectUsageReader
+from modules.metering.application.interfaces.project_usage_reader import ProjectUsageReader
 
 
 class GetProjectUsageUseCase:

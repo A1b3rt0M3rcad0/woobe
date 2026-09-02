@@ -1,22 +1,21 @@
 from uuid import UUID
 
-from modules.metering.domain.entities import UsageEvent
-from modules.metering.domain.enums import UsageEventType, UsageUnit
-from modules.metering.domain.repositories import (
-    UsageDailyAgentRepository,
-    UsageDailyProjectRepository,
-    UsageEventRepository,
-)
 from modules.metering.application.dtos.metering_dtos import (
     DailyUsageResponse,
     RecordUsageInput,
     RecordUsageOutput,
 )
-from shared.messaging.outbox_writer import OutboxEventWriter
+from modules.metering.application.interfaces.outbox import OutboxEventWriter
+from modules.metering.application.interfaces.repositories import (
+    UsageDailyAgentRepository,
+    UsageDailyProjectRepository,
+    UsageEventRepository,
+)
+from modules.metering.domain.entities import UsageEvent
+from modules.metering.domain.enums import UsageEventType, UsageUnit
 
 
 class RecordUsageUseCase:
-
     def __init__(
         self,
         repo: UsageEventRepository,
@@ -56,7 +55,6 @@ class RecordUsageUseCase:
 
 
 class GetProjectDailyUsageUseCase:
-
     def __init__(self, repo: UsageDailyProjectRepository) -> None:
         self._repo = repo
 
@@ -85,7 +83,6 @@ class GetProjectDailyUsageUseCase:
 
 
 class GetAgentDailyUsageUseCase:
-
     def __init__(self, repo: UsageDailyAgentRepository) -> None:
         self._repo = repo
 

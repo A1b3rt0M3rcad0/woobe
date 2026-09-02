@@ -1,11 +1,11 @@
-from modules.metering.application.use_cases import GetProjectDailyUsageUseCase
+from modules.metering.application.interfaces.use_case import UseCase
 from shared.presentation.interface.controller import Controller
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 
 
 class GetProjectDailyUsageController(Controller):
-    def __init__(self, use_case: GetProjectDailyUsageUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
