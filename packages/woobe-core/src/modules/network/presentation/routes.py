@@ -14,7 +14,6 @@ from modules.network.presentation.reattach_routes import (
     reattach_network_execution,
 )
 from modules.network.presentation.schemas import (
-    EnsureNetworkRequest,
     PromotionRequest,
     RollbackNetworkRequest,
     RunNetworkRequest,
@@ -68,22 +67,6 @@ def _network_payload(network) -> dict:
         "created_at": network.created_at,
         "updated_at": network.updated_at,
     }
-
-
-@router.put("/projects/{project_id}")
-async def ensure_network(
-    project_id: UUID, payload: EnsureNetworkRequest, request: Request
-):
-    _authorize_project(request, project_id)
-    network = await _service(request).ensure_network(project_id, payload.name)
-    return {"success": True, "data": _network_payload(network)}
-
-
-@router.get("/projects/{project_id}")
-async def get_network(project_id: UUID, request: Request):
-    _authorize_project(request, project_id)
-    network = await _service(request).get_network(project_id)
-    return {"success": True, "data": _network_payload(network)}
 
 
 @router.patch("/{network_id}/draft")
