@@ -5,6 +5,7 @@ import pytest
 from modules.core.domain.errors import DuplicateSlugError, ProjectNotFoundError
 from modules.core.application.dtos import CreateApiKeyInput, CreateProjectInput
 from modules.core.application.use_cases import CreateApiKeyUseCase, CreateProjectUseCase
+from modules.core.infra.security.api_key_issuer import SharedApiKeyIssuer
 from tests.helpers import make_api_key, make_project
 
 
@@ -69,6 +70,7 @@ class TestCreateApiKeyUseCase:
             project_repo=mock_project_repo,
             api_key_repo=mock_api_key_repo,
             outbox=mock_outbox,
+            api_key_issuer=SharedApiKeyIssuer(),
         )
         result = await uc.execute(
             CreateApiKeyInput(
@@ -92,6 +94,7 @@ class TestCreateApiKeyUseCase:
             project_repo=mock_project_repo,
             api_key_repo=mocker.AsyncMock(),
             outbox=mocker.AsyncMock(),
+            api_key_issuer=SharedApiKeyIssuer(),
         )
         with pytest.raises(ProjectNotFoundError):
             await uc.execute(

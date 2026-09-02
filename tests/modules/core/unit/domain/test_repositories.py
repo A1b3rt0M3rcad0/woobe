@@ -1,6 +1,6 @@
 from abc import ABC
 
-from modules.core.domain.repositories import ApiKeyRepository, ProjectRepository
+from modules.core.application.interfaces.repositories import ApiKeyRepository, ProjectRepository
 
 
 class TestProjectRepository:

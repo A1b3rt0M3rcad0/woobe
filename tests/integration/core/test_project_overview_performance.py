@@ -8,6 +8,9 @@ import pytest
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
+from modules.core.infra.database.contextual_project_overview_reader import (
+    ContextualProjectOverviewReader,
+)
 from modules.core.infra.database.unit_of_work import CoreUnitOfWork
 from shared.infra.config import Settings
 
@@ -57,11 +60,12 @@ async def test_project_overview_query_budget_and_index() -> None:
 
         event.listen(engine.sync_engine, "before_cursor_execute", capture_statement)
         try:
-            uow = CoreUnitOfWork(session_factory)
+            uow = CoreUnitOfWork(engine)
+            reader = ContextualProjectOverviewReader(uow)
             async with uow:
-                expected_query_count = uow.project_overview.query_count
+                expected_query_count = reader.query_count
                 statements.clear()
-                result = await uow.project_overview.fetch(
+                result = await reader.fetch(
                     project_id=project_id,
                     start=start,
                     end=end,

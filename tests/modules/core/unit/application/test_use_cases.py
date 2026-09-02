@@ -38,6 +38,7 @@ from modules.core.application.use_cases.api_key_lifecycle_use_cases import (
 )
 from modules.core.domain.entities import ApiKey, Project
 from modules.core.domain.enums import ApiKeyKind, ApiKeyStatus, RuntimeEnvironment
+from modules.core.infra.security.api_key_issuer import SharedApiKeyIssuer
 
 NOW = datetime.now(timezone.utc)
 
@@ -122,7 +123,9 @@ class TestCreateApiKeyUseCase:
         )
         outbox = AsyncMock()
         outbox.write = AsyncMock()
-        use_case = CreateApiKeyUseCase(project_repo, api_key_repo, outbox)
+        use_case = CreateApiKeyUseCase(
+            project_repo, api_key_repo, outbox, SharedApiKeyIssuer()
+        )
         result = await use_case.execute(
             CreateApiKeyInput(
                 project_id=UUID(int=0),
@@ -141,7 +144,7 @@ class TestListApiKeysByProjectUseCase:
         repo.list_by_project = AsyncMock(
             return_value=[ApiKey(id=UUID(int=0), name="key")]
         )
-        use_case = ListApiKeysByProjectUseCase(repo)
+        use_case = ListApiKeysByProjectUseCase(repo, SharedApiKeyIssuer())
         result = await use_case.execute(ListApiKeysInput(project_id=UUID(int=0)))
         assert len(result) == 1
         assert result[0].credential_id == UUID(int=0)
@@ -221,7 +224,7 @@ class TestRotateApiKeyCredential:
         repo.save = AsyncMock(side_effect=save_replacement)
         outbox = AsyncMock()
         outbox.write = AsyncMock()
-        use_case = RotateApiKeyUseCase(repo, outbox)
+        use_case = RotateApiKeyUseCase(repo, outbox, SharedApiKeyIssuer())
 
         result = await use_case.execute(
             RotateApiKeyInput(
@@ -235,3 +238,34 @@ class TestRotateApiKeyCredential:
         assert result.name == "Checkout backend"
         assert result.description == "Production checkout integration"
         assert result.rotated_from_id == current.id
+
+
+class TestCreateProjectAccessAtomicity:
+    @pytest.mark.asyncio
+    async def test_checks_admin_and_grants_creator_in_same_use_case(self, project):
+        actor_user_id = UUID("40000000-0000-0000-0000-000000000001")
+        repo = AsyncMock()
+        repo.get_by_workspace_and_slug = AsyncMock(return_value=None)
+        repo.save = AsyncMock(return_value=project)
+        outbox = AsyncMock()
+        access_repo = AsyncMock()
+        use_case = CreateProjectUseCase(repo, outbox, access_repo)
+
+        await use_case.execute(
+            CreateProjectInput(
+                workspace_id=project.workspace_id,
+                name=project.name,
+                slug=project.slug,
+                actor_user_id=actor_user_id,
+            )
+        )
+
+        access_repo.require_workspace_admin.assert_awaited_once_with(
+            actor_user_id,
+            project.workspace_id,
+        )
+        access_repo.ensure_creator_access.assert_awaited_once_with(
+            actor_user_id=actor_user_id,
+            project_id=project.id,
+        )
+        outbox.write.assert_awaited_once()

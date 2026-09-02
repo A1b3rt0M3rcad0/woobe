@@ -4,10 +4,7 @@ Covers: no consumer registration, outbox dispatcher only.
 """
 from unittest.mock import MagicMock
 
-from modules.core.infra.workers.registry import (
-    CoreWorkerRegistry,
-    register_core_workers,
-)
+from modules.core.entrypoint import CoreWorkerRegistry, register_core_workers
 
 
 class TestConsumerRegistration:

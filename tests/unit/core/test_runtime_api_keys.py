@@ -16,6 +16,7 @@ from modules.core.application.use_cases.list_api_keys_use_case import (
     ListApiKeysByProjectUseCase,
 )
 from modules.core.domain.entities import ApiKey
+from modules.core.infra.security.api_key_issuer import SharedApiKeyIssuer
 from modules.core.domain.enums import (
     ApiKeyKind,
     ApiKeyStatus,
@@ -45,6 +46,7 @@ async def test_create_runtime_key_binds_agent_environment_and_interfaces() -> No
         target_reader,
         api_key_repo,
         outbox,
+        SharedApiKeyIssuer(),
     )
 
     result = await use_case.execute(
@@ -85,6 +87,7 @@ async def test_create_runtime_key_rejects_agent_from_another_project() -> None:
         target_reader,
         api_key_repo,
         outbox,
+        SharedApiKeyIssuer(),
     )
 
     with pytest.raises(NotFoundError, match="Agent not found"):
@@ -120,7 +123,7 @@ async def test_rotation_preserves_binding_and_upgrades_legacy_runtime_key_format
     repo.update = AsyncMock(side_effect=lambda key: key)
     repo.save = AsyncMock(side_effect=lambda key: key)
     outbox = SimpleNamespace(write=AsyncMock())
-    use_case = RotateApiKeyUseCase(repo, outbox)
+    use_case = RotateApiKeyUseCase(repo, outbox, SharedApiKeyIssuer())
 
     result = await use_case.execute(
         RotateApiKeyInput(
@@ -161,7 +164,7 @@ async def test_list_api_keys_exposes_expired_status_from_expiration_timestamp() 
         created_by_user_id=uuid4(),
     )
     repo = SimpleNamespace(list_by_project=AsyncMock(return_value=[api_key]))
-    use_case = ListApiKeysByProjectUseCase(repo)
+    use_case = ListApiKeysByProjectUseCase(repo, SharedApiKeyIssuer())
 
     result = await use_case.execute(ListApiKeysInput(project_id=project_id))
 
@@ -184,7 +187,7 @@ async def test_list_api_keys_preserves_legacy_display_prefix() -> None:
         created_by_user_id=uuid4(),
     )
     repo = SimpleNamespace(list_by_project=AsyncMock(return_value=[api_key]))
-    use_case = ListApiKeysByProjectUseCase(repo)
+    use_case = ListApiKeysByProjectUseCase(repo, SharedApiKeyIssuer())
 
     result = await use_case.execute(ListApiKeysInput(project_id=project_id))
 

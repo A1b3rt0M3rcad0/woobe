@@ -1,45 +1,44 @@
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[4]
-CORE_ROUTES = ROOT / "src" / "modules" / "core" / "presentation" / "routes.py"
+PROJECT_ROOT = Path(__file__).resolve().parents[4]
+CORE_ROUTES = (
+    PROJECT_ROOT
+    / "packages"
+    / "woobe-core"
+    / "src"
+    / "modules"
+    / "core"
+    / "presentation"
+    / "http"
+    / "routes.py"
+)
 
 
 class TestCoreRoutes:
     def test_routes_file_exists(self):
-        assert CORE_ROUTES.is_file(), "core/presentation/routes.py must exist"
+        assert CORE_ROUTES.is_file(), "core/presentation/http/routes.py must exist"
 
     def test_routes_has_core_prefix(self):
         source = CORE_ROUTES.read_text(encoding="utf-8")
-        assert 'prefix="/core"' in source, (
-            "Core routes must use prefix /core"
+        assert 'prefix="/core"' in source
+
+    def test_routes_register_handlers(self):
+        source = CORE_ROUTES.read_text(encoding="utf-8")
+        assert any(
+            marker in source
+            for marker in ("@router.get", "@router.post", "@router.patch")
         )
 
-    def test_routes_register_composers(self):
+    def test_routes_delegate_to_zero_argument_composers(self):
         source = CORE_ROUTES.read_text(encoding="utf-8")
-        assert "@router.get" in source or "@router.post" in source or "@router.patch" in source, (
-            "Routes must register HTTP handlers"
-        )
+        assert "_composer()" in source
+        assert "request.app.state" not in source
 
-    def test_routes_delegate_to_composers(self):
+    def test_routes_import_no_repository_or_domain(self):
         source = CORE_ROUTES.read_text(encoding="utf-8")
-        assert "_composer(" in source or "composer(" in source, (
-            "Routes must delegate to composer functions"
-        )
-
-    def test_routes_import_no_repository(self):
-        source = CORE_ROUTES.read_text(encoding="utf-8")
-        assert "repository" not in source.lower(), (
-            "Routes must not import repositories directly"
-        )
-
-    def test_routes_import_no_domain(self):
-        source = CORE_ROUTES.read_text(encoding="utf-8")
-        assert "from modules.core.domain" not in source, (
-            "Routes must not import domain directly"
-        )
+        assert "repository" not in source.lower()
+        assert "from modules.core.domain" not in source
 
     def test_routes_import_no_service(self):
         source = CORE_ROUTES.read_text(encoding="utf-8")
-        assert "from modules.core.service" not in source, (
-            "Routes must not import from legacy service/"
-        )
+        assert "from modules.core.service" not in source
