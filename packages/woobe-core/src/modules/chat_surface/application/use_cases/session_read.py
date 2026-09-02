@@ -17,9 +17,10 @@ class ListChatSurfaceSessionsUseCase:
         self,
         input_dto: ListChatSurfaceSessionsInput,
     ) -> list[ChatSurfaceSessionState]:
+        safe_limit = min(100, max(1, input_dto.limit))
         return await self._repository.list_by_surface(
             input_dto.surface_id,
-            limit=input_dto.limit,
+            limit=safe_limit,
         )
 
 

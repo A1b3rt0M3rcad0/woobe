@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class ChatSurfaceSessionState(BaseModel):
@@ -20,7 +20,7 @@ class ChatSurfaceSessionState(BaseModel):
 
 class ListChatSurfaceSessionsInput(BaseModel):
     surface_id: UUID
-    limit: int = Field(default=50, ge=1, le=100)
+    limit: int = 50
 
 
 class GetChatSurfaceActivityInput(BaseModel):

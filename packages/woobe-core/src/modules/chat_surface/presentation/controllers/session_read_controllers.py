@@ -25,7 +25,21 @@ class ListChatSurfaceSessionsController(Controller):
             status_code=200,
             body={
                 "success": True,
-                "data": [item.model_dump(mode="json") for item in result],
+                "data": [
+                    {
+                        "id": str(item.id),
+                        "chat_surface_id": str(item.chat_surface_id),
+                        "session_id": str(item.session_id),
+                        "target_type": item.target_type,
+                        "target_id": str(item.target_id),
+                        "target_release_id": str(item.target_release_id),
+                        "external_reference": item.external_reference,
+                        "status": item.status,
+                        "created_at": item.created_at,
+                        "updated_at": item.updated_at,
+                    }
+                    for item in result
+                ],
             },
         )
 
