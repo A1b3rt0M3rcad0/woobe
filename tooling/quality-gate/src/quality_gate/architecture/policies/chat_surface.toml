@@ -70,7 +70,7 @@ forbid_untyped_dependencies = true
 id = "ARCH026"
 description = "composers are pure composition roots: they may wire concrete implementations but cannot depend directly on frameworks, transport primitives or configuration loaders"
 source = ["composition/composers/**"]
-allow = ["modules.chat_surface.composition", "modules.chat_surface.domain", "modules.chat_surface.application", "modules.chat_surface.infra", "modules.chat_surface.presentation.controllers", "modules.chat_surface.presentation.http.controllers", "modules.chat_surface.presentation.interfaces", "modules.chat_surface.presentation.schemas", "shared.contracts", "shared.security", "shared.infra.crypto", "shared.infra.transactional_handler", "shared.infra.streaming_transactional_handler", "modules.agent.entrypoint", "modules.network.entrypoint", "modules.core.entrypoint", "modules.identity.entrypoint"]
+allow = ["modules.chat_surface.composition", "modules.chat_surface.domain", "modules.chat_surface.application", "modules.chat_surface.infra", "modules.chat_surface.presentation.controllers", "modules.chat_surface.presentation.http.controllers", "modules.chat_surface.presentation.interfaces", "modules.chat_surface.presentation.schemas", "shared.contracts", "shared.security", "shared.infra.crypto", "shared.infra.transactional_handler", "shared.infra.streaming_transactional_handler"]
 deny = ["modules.chat_surface.presentation.http.routes", "shared.infra.config", "shared.presentation", "sqlalchemy", "alembic", "asyncpg", "psycopg2", "pgvector", "fastapi", "starlette", "aio_pika", "boto3", "langchain", "langchain_core", "langchain_openai", "httpx", "uvicorn"]
 
 [[rules]]
@@ -82,9 +82,9 @@ deny = ["modules.chat_surface.application.use_cases", "modules.chat_surface.infr
 
 [[rules]]
 id = "ARCH006H"
-description = "HTTP routes are transport adapters and may invoke zero-argument module composers and public bounded-context entrypoints, but cannot own infrastructure or application use cases"
+description = "HTTP routes are transport adapters and may invoke zero-argument module composers, but cannot own infrastructure or application use cases"
 source = ["presentation/http/**"]
-allow = ["shared.contracts", "shared.security.principal", "modules.chat_surface.presentation", "modules.chat_surface.application.interfaces", "modules.chat_surface.application.dtos", "modules.chat_surface.domain", "modules.chat_surface.composition.composers", "modules.agent.entrypoint", "modules.network.entrypoint", "shared.presentation", "shared.security"]
+allow = ["shared.contracts", "shared.security.principal", "modules.chat_surface.presentation", "modules.chat_surface.application.interfaces", "modules.chat_surface.application.dtos", "modules.chat_surface.domain", "modules.chat_surface.composition.composers", "shared.presentation", "shared.security"]
 deny = ["modules.chat_surface.application.use_cases", "modules.chat_surface.infra", "modules.chat_surface.composition.resources", "shared.infra", "shared.messaging", "shared.workers", "sqlalchemy"]
 
 [[rules]]
@@ -105,7 +105,7 @@ deny = ["modules.chat_surface.presentation", "modules.chat_surface.composition"]
 id = "ARCH019"
 description = "composition is the outer module layer and may wire application, infrastructure and presentation without being imported back by them"
 source = ["composition/**"]
-allow = ["modules.chat_surface.composition", "modules.chat_surface.domain", "modules.chat_surface.application", "modules.chat_surface.infra", "modules.chat_surface.presentation", "shared", "modules.agent.entrypoint", "modules.network.entrypoint", "modules.core.entrypoint", "modules.identity.entrypoint"]
+allow = ["modules.chat_surface.composition", "modules.chat_surface.domain", "modules.chat_surface.application", "modules.chat_surface.infra", "modules.chat_surface.presentation", "shared"]
 deny = []
 
 [[rules]]
