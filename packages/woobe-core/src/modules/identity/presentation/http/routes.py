@@ -10,6 +10,12 @@ from modules.identity.composition.composers.get_workspace_composer import (
 from modules.identity.composition.composers.update_workspace_composer import (
     update_workspace_composer,
 )
+from modules.identity.composition.composers.workspace_access_composers import (
+    cancel_workspace_invite_composer,
+    list_workspace_invites_access_composer,
+    list_workspace_members_access_composer,
+    remove_workspace_member_composer,
+)
 from modules.identity.domain.enums import MemberRole
 from modules.identity.presentation.http.auth_endpoints import (
     authentication_service,
@@ -23,7 +29,7 @@ from modules.identity.presentation.http.auth_endpoints import (
     register_endpoint,
     workspace_payload,
 )
-from shared.infra.errors import (
+from shared.contracts.errors import (
     AuthenticationError,
     AuthorizationError,
     NotFoundError,
@@ -34,6 +40,11 @@ from shared.security.workspace_access import WorkspaceAccessService
 
 
 router = APIRouter(prefix="/identity", tags=["identity"])
+
+
+async def _handle(request: FastAPIRequest, handler):
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
 
 
 def _principal_user_id(request: FastAPIRequest) -> UUID:
@@ -149,39 +160,29 @@ async def add_member(request: FastAPIRequest, workspace_id: str):
 @router.get("/workspaces/{workspace_id}")
 async def get_workspace(request: FastAPIRequest, workspace_id: str):
     del workspace_id
-    handler = get_workspace_composer()
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
+    return await _handle(request, get_workspace_composer())
 
 
 @router.patch("/workspaces/{workspace_id}")
 async def update_workspace(request: FastAPIRequest, workspace_id: str):
-    await _workspace_access(request).require_admin(
-        _principal_user_id(request),
-        _uuid(workspace_id, "workspace id"),
-    )
-    handler = update_workspace_composer()
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
+    del workspace_id
+    return await _handle(request, update_workspace_composer())
 
 
 @router.get("/workspaces/{workspace_id}/members")
 async def list_members(request: FastAPIRequest, workspace_id: str):
-    data = await _workspace_access(request).list_members(
-        actor_user_id=_principal_user_id(request),
-        workspace_id=_uuid(workspace_id, "workspace id"),
-    )
-    return {"success": True, "message": "ok", "data": data}
+    del workspace_id
+    return await _handle(request, list_workspace_members_access_composer())
 
 
 @router.delete("/workspaces/{workspace_id}/members/{target_user_id}")
-async def remove_member(request: FastAPIRequest, workspace_id: str, target_user_id: UUID):
-    data = await _workspace_access(request).remove_member(
-        actor_user_id=_principal_user_id(request),
-        workspace_id=_uuid(workspace_id, "workspace id"),
-        target_user_id=target_user_id,
-    )
-    return {"success": True, "message": "removed", "data": data}
+async def remove_member(
+    request: FastAPIRequest,
+    workspace_id: str,
+    target_user_id: UUID,
+):
+    del workspace_id, target_user_id
+    return await _handle(request, remove_workspace_member_composer())
 
 
 @router.post("/workspaces/{workspace_id}/invites", status_code=201)
@@ -204,7 +205,9 @@ async def create_invite(request: FastAPIRequest, workspace_id: str):
     except (ValueError, TypeError) as exc:
         raise ValidationError("Invalid invite role or Project id") from exc
     if role not in {MemberRole.member, MemberRole.admin}:
-        raise ValidationError("Only member and admin invitation roles are supported in the MVP")
+        raise ValidationError(
+            "Only member and admin invitation roles are supported in the MVP"
+        )
 
     await _workspace_access(request).require_role_assignment(
         actor_user_id=principal_user_id,
@@ -237,21 +240,18 @@ async def create_invite(request: FastAPIRequest, workspace_id: str):
 
 @router.get("/workspaces/{workspace_id}/invites")
 async def list_invites(request: FastAPIRequest, workspace_id: str):
-    data = await _workspace_access(request).list_invites(
-        actor_user_id=_principal_user_id(request),
-        workspace_id=_uuid(workspace_id, "workspace id"),
-    )
-    return {"success": True, "message": "ok", "data": data}
+    del workspace_id
+    return await _handle(request, list_workspace_invites_access_composer())
 
 
 @router.delete("/workspaces/{workspace_id}/invites/{invite_id}")
-async def cancel_invite(request: FastAPIRequest, workspace_id: str, invite_id: UUID):
-    data = await _workspace_access(request).cancel_invite(
-        actor_user_id=_principal_user_id(request),
-        workspace_id=_uuid(workspace_id, "workspace id"),
-        invite_id=invite_id,
-    )
-    return {"success": True, "message": "cancelled", "data": data}
+async def cancel_invite(
+    request: FastAPIRequest,
+    workspace_id: str,
+    invite_id: UUID,
+):
+    del workspace_id, invite_id
+    return await _handle(request, cancel_workspace_invite_composer())
 
 
 @router.get("/users/{user_id}")
@@ -259,6 +259,4 @@ async def get_user(request: FastAPIRequest, user_id: str):
     target_user_id = _uuid(user_id, "user id")
     if _principal_user_id(request) != target_user_id:
         raise NotFoundError("User not found")
-    handler = get_user_composer()
-    response = await request_adapter(request, handler)
-    return response_adapter(response)
+    return await _handle(request, get_user_composer())
