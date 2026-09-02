@@ -93,27 +93,6 @@ async def promote_network(
     }
 
 
-@router.get("/{network_id}/versions")
-async def list_network_versions(network_id: UUID, project_id: UUID, request: Request):
-    _authorize_project(request, project_id)
-    versions = await _service(request).list_versions(network_id, project_id)
-    return {
-        "success": True,
-        "data": [
-            {
-                "id": str(item.id),
-                "kind": item.kind,
-                "version": item.version,
-                "composition_hash": item.composition_hash,
-                "definition": item.definition,
-                "resolved_bindings": item.resolved_bindings,
-                "created_at": item.created_at,
-            }
-            for item in versions
-        ],
-    }
-
-
 @router.post("/{network_id}/rollback", status_code=201)
 async def rollback_network_production(
     network_id: UUID,
