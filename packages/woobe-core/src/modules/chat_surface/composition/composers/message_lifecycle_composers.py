@@ -48,6 +48,11 @@ def mark_chat_surface_message_composer() -> TransactionalHandler:
     return TransactionalHandler(uow, controller.handle)
 
 
+def begin_chat_surface_message_runtime_composer() -> Callable:
+    runtime = ChatSurfaceMessageRuntime()
+    return runtime.begin
+
+
 def mark_chat_surface_message_runtime_composer() -> Callable:
     runtime = ChatSurfaceMessageRuntime()
     return runtime.mark
@@ -55,6 +60,7 @@ def mark_chat_surface_message_runtime_composer() -> Callable:
 
 __all__ = [
     "begin_chat_surface_message_composer",
+    "begin_chat_surface_message_runtime_composer",
     "latest_chat_surface_message_composer",
     "mark_chat_surface_message_composer",
     "mark_chat_surface_message_runtime_composer",

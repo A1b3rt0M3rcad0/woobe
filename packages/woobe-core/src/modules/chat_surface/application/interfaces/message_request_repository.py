@@ -5,6 +5,7 @@ from uuid import UUID
 from modules.chat_surface.application.dtos.message_request import (
     MarkMessageRequestInput,
     MessageAdmissionSurfaceState,
+    MessageBindingRuntimeContext,
     MessageRequestRuntimeContext,
     MessageRequestState,
 )
@@ -15,10 +16,24 @@ class ChatSurfaceMessageRequestRepository(ABC):
     async def get(self, request_id: UUID) -> MessageRequestState | None: ...
 
     @abstractmethod
+    async def get_binding_runtime_context(
+        self,
+        *,
+        surface_id: UUID,
+        session_binding_id: UUID,
+    ) -> MessageBindingRuntimeContext | None: ...
+
+    @abstractmethod
     async def get_runtime_context(
         self,
         request_id: UUID,
     ) -> MessageRequestRuntimeContext | None: ...
+
+    @abstractmethod
+    async def list_active_runtime_contexts(
+        self,
+        surface_id: UUID,
+    ) -> list[MessageRequestRuntimeContext]: ...
 
     @abstractmethod
     async def latest_for_binding(

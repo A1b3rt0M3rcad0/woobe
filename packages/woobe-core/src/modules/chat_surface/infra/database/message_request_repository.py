@@ -2,10 +2,12 @@ from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select, update
+from sqlalchemy.exc import IntegrityError
 
 from modules.chat_surface.application.dtos.message_request import (
     MarkMessageRequestInput,
     MessageAdmissionSurfaceState,
+    MessageBindingRuntimeContext,
     MessageRequestRuntimeContext,
     MessageRequestState,
 )
@@ -18,6 +20,7 @@ from modules.chat_surface.infra.database.models import (
     ChatSurfaceSessionBindingModel,
 )
 from modules.chat_surface.infra.database.unit_of_work import ChatSurfaceUnitOfWork
+from shared.contracts.errors import ConflictError
 
 
 _ACTIVE_STATUSES = {"accepted", "streaming"}
@@ -41,9 +44,51 @@ class SQLAlchemyChatSurfaceMessageRequestRepository(ChatSurfaceMessageRequestRep
             updated_at=model.updated_at,
         )
 
+    @staticmethod
+    def _binding_context(
+        binding: ChatSurfaceSessionBindingModel,
+    ) -> MessageBindingRuntimeContext:
+        return MessageBindingRuntimeContext(
+            surface_id=binding.chat_surface_id,
+            project_id=binding.project_id,
+            target_type=str(binding.target_type),
+            target_id=binding.target_id,
+            target_release_id=binding.target_release_id,
+            session_id=binding.session_id,
+        )
+
+    @classmethod
+    def _runtime_context(
+        cls,
+        model: ChatSurfaceMessageRequestModel,
+        binding: ChatSurfaceSessionBindingModel,
+    ) -> MessageRequestRuntimeContext:
+        return MessageRequestRuntimeContext(
+            request=cls._state(model),
+            **cls._binding_context(binding).model_dump(),
+        )
+
     async def get(self, request_id: UUID) -> MessageRequestState | None:
         model = await self._uow.session.get(ChatSurfaceMessageRequestModel, request_id)
         return self._state(model) if model is not None else None
+
+    async def get_binding_runtime_context(
+        self,
+        *,
+        surface_id: UUID,
+        session_binding_id: UUID,
+    ) -> MessageBindingRuntimeContext | None:
+        binding = await self._uow.session.get(
+            ChatSurfaceSessionBindingModel,
+            session_binding_id,
+        )
+        if (
+            binding is None
+            or binding.chat_surface_id != surface_id
+            or binding.status != "active"
+        ):
+            return None
+        return self._binding_context(binding)
 
     async def get_runtime_context(
         self,
@@ -58,15 +103,35 @@ class SQLAlchemyChatSurfaceMessageRequestRepository(ChatSurfaceMessageRequestRep
         )
         if binding is None:
             return None
-        return MessageRequestRuntimeContext(
-            request=self._state(model),
-            surface_id=binding.chat_surface_id,
-            project_id=binding.project_id,
-            target_type=str(binding.target_type),
-            target_id=binding.target_id,
-            target_release_id=binding.target_release_id,
-            session_id=binding.session_id,
+        return self._runtime_context(model, binding)
+
+    async def list_active_runtime_contexts(
+        self,
+        surface_id: UUID,
+    ) -> list[MessageRequestRuntimeContext]:
+        result = await self._uow.session.execute(
+            select(
+                ChatSurfaceMessageRequestModel,
+                ChatSurfaceSessionBindingModel,
+            )
+            .join(
+                ChatSurfaceSessionBindingModel,
+                ChatSurfaceSessionBindingModel.id
+                == ChatSurfaceMessageRequestModel.session_binding_id,
+            )
+            .where(
+                ChatSurfaceSessionBindingModel.chat_surface_id == surface_id,
+                ChatSurfaceMessageRequestModel.status.in_(_ACTIVE_STATUSES),
+            )
+            .order_by(
+                ChatSurfaceMessageRequestModel.created_at.asc(),
+                ChatSurfaceMessageRequestModel.id.asc(),
+            )
         )
+        return [
+            self._runtime_context(model, binding)
+            for model, binding in result.all()
+        ]
 
     async def latest_for_binding(
         self,
@@ -223,7 +288,12 @@ class SQLAlchemyChatSurfaceMessageRequestRepository(ChatSurfaceMessageRequestRep
             status="accepted",
         )
         self._uow.session.add(model)
-        await self._uow.session.flush()
+        try:
+            await self._uow.session.flush()
+        except IntegrityError as exc:
+            raise ConflictError(
+                "ChatSurface Session already has an active Run"
+            ) from exc
         return self._state(model)
 
     async def mark(

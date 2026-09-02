@@ -42,14 +42,17 @@ class MessageAdmissionSurfaceState(BaseModel):
     max_concurrent_runs: int
 
 
-class MessageRequestRuntimeContext(BaseModel):
-    request: MessageRequestState
+class MessageBindingRuntimeContext(BaseModel):
     surface_id: UUID
     project_id: UUID
     target_type: str
     target_id: UUID
     target_release_id: UUID
     session_id: UUID
+
+
+class MessageRequestRuntimeContext(MessageBindingRuntimeContext):
+    request: MessageRequestState
 
 
 class CanonicalRunState(BaseModel):

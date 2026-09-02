@@ -2,7 +2,7 @@ from uuid import UUID
 
 from modules.chat_surface.application.dtos.message_request import MessageRequestState
 from modules.chat_surface.composition.composers.message_lifecycle_composers import (
-    begin_chat_surface_message_composer,
+    begin_chat_surface_message_runtime_composer,
     latest_chat_surface_message_composer,
     mark_chat_surface_message_runtime_composer,
 )
@@ -16,18 +16,14 @@ async def begin_message_request(
     idempotency_key: str,
     metadata: dict | None = None,
 ) -> tuple[MessageRequestState, bool]:
-    response = await begin_chat_surface_message_composer()(
-        InternalRequest(
-            body={
-                "surface_id": str(surface_id),
-                "session_binding_id": str(session_binding_id),
-                "idempotency_key": idempotency_key,
-                "metadata": metadata,
-            }
-        )
+    handler = begin_chat_surface_message_runtime_composer()
+    result = await handler(
+        surface_id=surface_id,
+        session_binding_id=session_binding_id,
+        idempotency_key=idempotency_key,
+        metadata=metadata,
     )
-    data = response.body["data"]
-    return MessageRequestState.model_validate(data["request"]), bool(data["created"])
+    return result.request, result.created
 
 
 async def latest_message_request(
