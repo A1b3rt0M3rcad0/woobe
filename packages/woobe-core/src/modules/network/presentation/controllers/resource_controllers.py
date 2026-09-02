@@ -7,26 +7,13 @@ from modules.network.application.dtos.resources import (
     UpdateProjectNetworkInput,
 )
 from modules.network.application.interfaces.use_case import UseCase
-from shared.contracts.errors import AuthorizationError
+from modules.network.presentation.controllers.project_authorization import (
+    authorize_project,
+    project_id_from_request,
+)
 from shared.presentation.http.request import Request
 from shared.presentation.http.response import Response
 from shared.presentation.interface.controller import Controller
-from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
-
-
-def _project_id(request: Request) -> UUID:
-    return UUID(str(request.path_params["project_id"]))
-
-
-def _authorize_project(request: Request, project_id: UUID) -> None:
-    principal = request.principal
-    if isinstance(principal, ProjectApiPrincipal):
-        if principal.project_id != project_id:
-            raise AuthorizationError("Runtime key does not belong to this Project")
-        return
-    if isinstance(principal, AuthenticatedPrincipal):
-        return
-    raise AuthorizationError("Authentication required")
 
 
 class ListProjectNetworksController(Controller):
@@ -34,8 +21,8 @@ class ListProjectNetworksController(Controller):
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
-        project_id = _project_id(request)
-        _authorize_project(request, project_id)
+        project_id = project_id_from_request(request)
+        authorize_project(request, project_id)
         result = await self._use_case.execute(
             ListProjectNetworksInput(project_id=project_id)
         )
@@ -53,11 +40,15 @@ class CreateProjectNetworkController(Controller):
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
-        project_id = _project_id(request)
-        _authorize_project(request, project_id)
+        project_id = project_id_from_request(request)
+        authorize_project(request, project_id)
         body = dict(request.body or {})
         result = await self._use_case.execute(
-            CreateProjectNetworkInput(project_id=project_id, **body)
+            CreateProjectNetworkInput(
+                project_id=project_id,
+                name=body.get("name", ""),
+                description=body.get("description", ""),
+            )
         )
         return Response(
             status_code=201,
@@ -70,8 +61,8 @@ class GetProjectNetworkController(Controller):
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
-        project_id = _project_id(request)
-        _authorize_project(request, project_id)
+        project_id = project_id_from_request(request)
+        authorize_project(request, project_id)
         result = await self._use_case.execute(
             GetProjectNetworkInput(
                 project_id=project_id,
@@ -89,14 +80,15 @@ class UpdateProjectNetworkController(Controller):
         self._use_case = use_case
 
     async def handle(self, request: Request) -> Response:
-        project_id = _project_id(request)
-        _authorize_project(request, project_id)
+        project_id = project_id_from_request(request)
+        authorize_project(request, project_id)
         body = dict(request.body or {})
         result = await self._use_case.execute(
             UpdateProjectNetworkInput(
                 project_id=project_id,
                 network_id=UUID(str(request.path_params["network_id"])),
-                **body,
+                name=body.get("name"),
+                description=body.get("description"),
             )
         )
         return Response(
