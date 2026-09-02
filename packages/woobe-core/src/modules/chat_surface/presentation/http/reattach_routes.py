@@ -9,7 +9,7 @@ from sqlalchemy import select
 
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.chat_surface.infra.database.models import ChatSurfaceMessageRequestModel
-from modules.chat_surface.presentation.routes import _authorized_session, _service
+from modules.chat_surface.presentation.http.routes import _authorized_session, _service
 from modules.network.entrypoint import build_network_chat_surface_runtime
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
@@ -172,15 +172,10 @@ async def _authorized_active_request(
         message_request,
     )
 
-    # Admission and recovery must agree on the canonical Run even when the
-    # MessageRequest bookkeeping row is missing or temporarily uncorrelated.
     canonical_resolver = getattr(lifecycle, "_active_run_for_binding", None)
     if run_id is None and callable(canonical_resolver):
         run_id, run_status = await canonical_resolver(authorized.binding)
 
-    # Agent Acceptance and ChatSurface bookkeeping use separate transactions.
-    # Keep the bounded server-side grace period for a MessageRequest whose Run has
-    # not become queryable yet; the browser should perform only one recovery request.
     if message_request is not None and run_id is None:
         for _ in range(20):
             await asyncio.sleep(0.05)
@@ -205,8 +200,6 @@ async def _authorized_active_request(
             or message_request.target_run_id != run_id
         )
     ):
-        # Restore the operational gate if the previous observer disconnected after
-        # the Run had already been accepted. The Run, not that observer, owns life.
         await lifecycle.mark_message(
             message_request.id,
             status="streaming",

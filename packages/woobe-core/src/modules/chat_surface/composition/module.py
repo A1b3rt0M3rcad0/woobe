@@ -1,5 +1,5 @@
-from modules.chat_surface.presentation.reattach_routes import router as reattach_router
-from modules.chat_surface.presentation.routes import router as chat_surface_router
+from modules.chat_surface.presentation.http.reattach_routes import router as reattach_router
+from modules.chat_surface.presentation.http.routes import router as chat_surface_router
 
 
 CHAT_SURFACE_HTTP_ROUTERS = (
