@@ -21,9 +21,10 @@ from modules.chat_surface.presentation.schemas import (
     UpdateChatSurfaceRequest,
 )
 from modules.chat_surface.service import surface_payload
-from modules.network.application.service import NetworkApplicationService
-from modules.network.infra.database.models import NetworkExecutionModel
-from modules.network.presentation.routes import _execution_stream
+from modules.network.entrypoint import (
+    NetworkChatSurfaceRun,
+    build_network_chat_surface_runtime,
+)
 from shared.infra.errors import (
     AuthenticationError,
     AuthorizationError,
@@ -54,16 +55,6 @@ def _service(request: Request) -> ControlPlaneChatSurfaceService:
             settings.chat_surface_allow_insecure_origins or local_environment
         ),
         max_metadata_bytes=settings.runtime_max_metadata_bytes,
-    )
-
-
-def _network_service(request: Request) -> NetworkApplicationService:
-    settings = request.app.state.settings
-    return NetworkApplicationService(
-        request.app.state.session_factory,
-        hard_max_depth=settings.network_max_depth_hard,
-        hard_max_invocations=settings.network_max_invocations_hard,
-        hard_timeout_seconds=settings.network_timeout_hard_seconds,
     )
 
 
@@ -514,27 +505,34 @@ async def _network_stream(
     request: Request,
     *,
     message_request_id: UUID,
-    execution: NetworkExecutionModel,
-    project_id: UUID,
-    start_sequence: int,
+    execution: NetworkChatSurfaceRun,
+    authorized,
 ) -> AsyncIterator[str]:
     service = _service(request)
+    runtime = build_network_chat_surface_runtime()
     await service.mark_message(
         message_request_id,
         status="streaming",
         target_run_id=execution.id,
     )
     try:
-        async for chunk in _execution_stream(
-            request,
-            execution.id,
-            project_id,
-            start_sequence,
+        async for chunk in runtime.stream(
+            run_id=execution.id,
+            project_id=authorized.surface.project_id,
+            network_id=authorized.surface.target_id,
+            network_session_id=authorized.binding.session_id,
+            network_version_id=authorized.binding.target_release_id,
+            is_disconnected=request.is_disconnected,
         ):
             yield chunk
-        async with request.app.state.session_factory() as session:
-            finished = await session.get(NetworkExecutionModel, execution.id)
-        succeeded = finished is not None and finished.status == "completed"
+        finished = await runtime.get(
+            run_id=execution.id,
+            project_id=authorized.surface.project_id,
+            network_id=authorized.surface.target_id,
+            network_session_id=authorized.binding.session_id,
+            network_version_id=authorized.binding.target_release_id,
+        )
+        succeeded = finished.status == "completed"
         await service.mark_message(
             message_request_id,
             status="completed" if succeeded else "failed",
@@ -558,6 +556,7 @@ async def stream_public_message(
     last_event_id: str | None = Header(default=None, alias="Last-Event-ID"),
     host_origin: str | None = Header(default=None, alias="X-Woobe-Host-Origin"),
 ):
+    del last_event_id
     if idempotency_key is None:
         raise ConflictError("Idempotency-Key is required")
     authorized = await _authorized_session(
@@ -592,12 +591,14 @@ async def stream_public_message(
             payload=payload,
         )
     else:
+        runtime = build_network_chat_surface_runtime()
         if created:
             try:
-                execution = await _network_service(request).submit_execution(
+                execution = await runtime.submit(
                     network_id=authorized.surface.target_id,
                     project_id=authorized.surface.project_id,
                     network_session_id=authorized.binding.session_id,
+                    network_version_id=authorized.binding.target_release_id,
                     message=payload.message,
                     idempotency_key=f"chat:{message_request.id}",
                 )
@@ -614,36 +615,23 @@ async def stream_public_message(
                 )
                 raise
         elif message_request.target_run_id is not None:
-            async with request.app.state.session_factory() as session:
-                execution = await session.get(
-                    NetworkExecutionModel,
-                    message_request.target_run_id,
-                )
-            if (
-                execution is None
-                or execution.project_id != authorized.surface.project_id
-                or execution.network_id != authorized.surface.target_id
-                or execution.network_version_id
-                != authorized.binding.target_release_id
-                or execution.network_session_id != authorized.binding.session_id
-            ):
-                raise NotFoundError("Network execution not found")
+            execution = await runtime.get(
+                run_id=message_request.target_run_id,
+                project_id=authorized.surface.project_id,
+                network_id=authorized.surface.target_id,
+                network_session_id=authorized.binding.session_id,
+                network_version_id=authorized.binding.target_release_id,
+            )
         else:
             raise ConflictError(
                 "Network message request is accepted but its execution is not ready"
             )
         headers["X-Network-Execution-ID"] = str(execution.id)
-        start_sequence = (
-            int(last_event_id)
-            if last_event_id is not None and last_event_id.isdigit()
-            else 0
-        )
         stream = _network_stream(
             request,
             message_request_id=message_request.id,
             execution=execution,
-            project_id=authorized.surface.project_id,
-            start_sequence=start_sequence,
+            authorized=authorized,
         )
     return StreamingResponse(
         stream,

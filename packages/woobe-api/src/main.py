@@ -29,7 +29,7 @@ from modules.identity.entrypoint import (
     IDENTITY_PUBLIC_HTTP_ROUTERS,
 )
 from modules.metering.entrypoint import METERING_HTTP_ROUTERS
-from modules.network.presentation import router as network_router
+from modules.network.entrypoint import NETWORK_HTTP_ROUTERS
 from modules.observability.entrypoint import OBSERVABILITY_HTTP_ROUTERS
 from public_runtime_routes import router as public_runtime_router
 from shared.composition_resources import DATABASE_ENGINE
@@ -275,7 +275,8 @@ def create_app() -> FastAPI:
             app.include_router(metering_http_router)
         for observability_http_router in OBSERVABILITY_HTTP_ROUTERS:
             app.include_router(observability_http_router)
-        app.include_router(network_router)
+        for network_http_router in NETWORK_HTTP_ROUTERS:
+            app.include_router(network_http_router)
     finally:
         app.router.dependencies.remove(security_dependency)
 

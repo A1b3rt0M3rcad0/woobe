@@ -10,12 +10,7 @@ from sqlalchemy import select
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.chat_surface.infra.database.models import ChatSurfaceMessageRequestModel
 from modules.chat_surface.presentation.routes import _authorized_session, _service
-from modules.network.application.service import NetworkApplicationService
-from modules.network.infra.database.models import NetworkExecutionModel
-from modules.network.presentation.reattach_routes import (
-    _durable_state as network_durable_state,
-    network_runtime_sse,
-)
+from modules.network.entrypoint import build_network_chat_surface_runtime
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
 from shared.runtime_reattach import (
@@ -32,16 +27,6 @@ _NETWORK_TERMINAL = {"completed", "failed", "cancelled", "timed_out", "uncertain
 _AGENT_ACTIVE = {"running"}
 _NETWORK_ACTIVE = {"queued", "running", "cancel_requested"}
 _MESSAGE_ACTIVE = {"accepted", "streaming"}
-
-
-def _network_service(request: Request) -> NetworkApplicationService:
-    settings = request.app.state.settings
-    return NetworkApplicationService(
-        request.app.state.session_factory,
-        hard_max_depth=settings.network_max_depth_hard,
-        hard_max_invocations=settings.network_max_invocations_hard,
-        hard_timeout_seconds=settings.network_timeout_hard_seconds,
-    )
 
 
 def _agent_state(run: AgentRunModel) -> dict:
@@ -72,16 +57,6 @@ def _valid_agent_run(run: AgentRunModel | None, authorized) -> bool:
         and run.session_id == authorized.binding.session_id
         and run.agent_release_id == authorized.binding.target_release_id
         and run.network_execution_id is None
-    )
-
-
-def _valid_network_run(execution: NetworkExecutionModel | None, authorized) -> bool:
-    return bool(
-        execution is not None
-        and execution.project_id == authorized.binding.project_id
-        and execution.network_id == authorized.binding.target_id
-        and execution.network_session_id == authorized.binding.session_id
-        and execution.network_version_id == authorized.binding.target_release_id
     )
 
 
@@ -116,8 +91,8 @@ async def _resolve_run_identity(request: Request, authorized, message_request):
     if message_request is None:
         return None, None
 
-    async with request.app.state.session_factory() as session:
-        if authorized.binding.target_type == "agent":
+    if authorized.binding.target_type == "agent":
+        async with request.app.state.session_factory() as session:
             if message_request.target_run_id is not None:
                 candidate = await session.get(AgentRunModel, message_request.target_run_id)
                 if _valid_agent_run(candidate, authorized) and (
@@ -139,40 +114,37 @@ async def _resolve_run_identity(request: Request, authorized, message_request):
                 .order_by(AgentRunModel.created_at.desc(), AgentRunModel.id.desc())
                 .limit(1)
             )
-            if _valid_agent_run(candidate, authorized):
-                return candidate.id, str(candidate.status)
-            return None, None
-
-        if message_request.target_run_id is not None:
-            candidate = await session.get(
-                NetworkExecutionModel,
-                message_request.target_run_id,
-            )
-            if _valid_network_run(candidate, authorized) and (
-                str(candidate.status) in _NETWORK_ACTIVE
-                or message_request.status in _MESSAGE_ACTIVE
-            ):
-                return candidate.id, str(candidate.status)
-
-        candidate = await session.scalar(
-            select(NetworkExecutionModel)
-            .where(
-                NetworkExecutionModel.project_id == authorized.binding.project_id,
-                NetworkExecutionModel.network_id == authorized.binding.target_id,
-                NetworkExecutionModel.network_session_id == authorized.binding.session_id,
-                NetworkExecutionModel.network_version_id
-                == authorized.binding.target_release_id,
-                NetworkExecutionModel.status.in_(_NETWORK_ACTIVE),
-            )
-            .order_by(
-                NetworkExecutionModel.created_at.desc(),
-                NetworkExecutionModel.id.desc(),
-            )
-            .limit(1)
-        )
-        if _valid_network_run(candidate, authorized):
+        if _valid_agent_run(candidate, authorized):
             return candidate.id, str(candidate.status)
         return None, None
+
+    runtime = build_network_chat_surface_runtime()
+    if message_request.target_run_id is not None:
+        try:
+            candidate = await runtime.get(
+                run_id=message_request.target_run_id,
+                project_id=authorized.binding.project_id,
+                network_id=authorized.binding.target_id,
+                network_session_id=authorized.binding.session_id,
+                network_version_id=authorized.binding.target_release_id,
+            )
+        except NotFoundError:
+            candidate = None
+        if candidate is not None and (
+            candidate.status in _NETWORK_ACTIVE
+            or message_request.status in _MESSAGE_ACTIVE
+        ):
+            return candidate.id, candidate.status
+
+    candidate = await runtime.find_active(
+        project_id=authorized.binding.project_id,
+        network_id=authorized.binding.target_id,
+        network_session_id=authorized.binding.session_id,
+        network_version_id=authorized.binding.target_release_id,
+    )
+    if candidate is not None:
+        return candidate.id, candidate.status
+    return None, None
 
 
 async def _authorized_active_request(
@@ -336,19 +308,15 @@ async def cancel_chat_active_run(
                 ) from exc
             status = "cancel_requested"
     else:
-        async with request.app.state.session_factory() as session:
-            execution = await session.get(NetworkExecutionModel, run_id)
-        if not _valid_network_run(execution, authorized):
-            raise NotFoundError("Network execution not found")
-        await _network_service(request).request_cancellation(
-            execution.id,
-            execution.project_id,
+        runtime = build_network_chat_surface_runtime()
+        execution = await runtime.cancel(
+            run_id=run_id,
+            project_id=authorized.binding.project_id,
+            network_id=authorized.binding.target_id,
+            network_session_id=authorized.binding.session_id,
+            network_version_id=authorized.binding.target_release_id,
         )
-        status = (
-            str(execution.status)
-            if str(execution.status) in _NETWORK_TERMINAL
-            else "cancel_requested"
-        )
+        status = execution.status
 
     return {
         "success": True,
@@ -374,13 +342,12 @@ async def stream_chat_active_run(
     if run_id is None:
         raise NotFoundError("ChatSurface Session has no active Run")
 
-    reader = RuntimeStreamReader(
-        EXECUTION_STATE_STORE,
-        heartbeat_seconds=request.app.state.settings.network_stream_heartbeat_seconds,
-        block_ms=500,
-    )
-
     if authorized.binding.target_type == "agent":
+        reader = RuntimeStreamReader(
+            EXECUTION_STATE_STORE,
+            heartbeat_seconds=request.app.state.settings.network_stream_heartbeat_seconds,
+            block_ms=500,
+        )
 
         async def durable_fallback() -> dict | None:
             async with request.app.state.session_factory() as session:
@@ -389,80 +356,108 @@ async def stream_chat_active_run(
                 raise NotFoundError("Agent Run not found")
             return _agent_state(run)
 
-        formatter = format_sse_frame
-        kind = "agent"
-        terminal_statuses = _AGENT_TERMINAL
+        async def generate():
+            terminal_status: str | None = None
+            try:
+                async for frame in reader.stream(
+                    run_id,
+                    "agent",
+                    durable_fallback=durable_fallback,
+                ):
+                    if await request.is_disconnected():
+                        return
+                    if frame.event_type == "run.state":
+                        status = str(frame.data.get("status") or "")
+                        if status in _AGENT_TERMINAL:
+                            terminal_status = status
+                    elif frame.event_type in {"done", "execution_completed"}:
+                        terminal_status = "completed"
+                    elif frame.event_type in {"cancelled", "execution_cancelled"}:
+                        terminal_status = "cancelled"
+                    elif frame.event_type in {"error", "execution_failed"}:
+                        terminal_status = "failed"
+                    yield format_sse_frame(frame)
+            except RuntimeStreamGapError:
+                durable = await durable_fallback()
+                if durable is None:
+                    raise
+                status = str(durable.get("status") or "")
+                if status in _AGENT_TERMINAL:
+                    terminal_status = status
+                degraded = {
+                    **durable,
+                    "run_id": str(run_id),
+                    "kind": "AGENT",
+                    "sequence": None,
+                    "realtime_available": False,
+                    "degraded_reason": "runtime_event_gap",
+                }
+                yield format_sse_frame(
+                    RuntimeStreamFrame("run.state", degraded, sequence=None)
+                )
+            finally:
+                if terminal_status is not None and message_request is not None:
+                    message_status = (
+                        "completed"
+                        if terminal_status == "completed"
+                        else "cancelled"
+                        if terminal_status == "cancelled"
+                        else "failed"
+                    )
+                    await _service(request).mark_message(
+                        message_request.id,
+                        status=message_status,
+                        target_run_id=run_id,
+                        error_code=(
+                            None
+                            if message_status in {"completed", "cancelled"}
+                            else "runtime_failed"
+                        ),
+                    )
+
     else:
+        runtime = build_network_chat_surface_runtime()
 
-        async def durable_fallback() -> dict | None:
-            async with request.app.state.session_factory() as session:
-                execution = await session.get(NetworkExecutionModel, run_id)
-            if not _valid_network_run(execution, authorized):
-                raise NotFoundError("Network execution not found")
-            return network_durable_state(execution)
-
-        formatter = lambda frame: network_runtime_sse(frame, run_id)
-        kind = "network"
-        terminal_statuses = _NETWORK_TERMINAL
-
-    async def generate():
-        terminal_status: str | None = None
-        try:
-            async for frame in reader.stream(
-                run_id,
-                kind,
-                durable_fallback=durable_fallback,
-            ):
-                if await request.is_disconnected():
-                    return
-                if frame.event_type == "run.state":
-                    status = str(frame.data.get("status") or "")
-                    if status in terminal_statuses:
-                        terminal_status = status
-                elif frame.event_type in {"done", "execution_completed"}:
-                    terminal_status = "completed"
-                elif frame.event_type in {"cancelled", "execution_cancelled"}:
-                    terminal_status = "cancelled"
-                elif frame.event_type in {"error", "execution_failed"}:
-                    terminal_status = "failed"
-                yield formatter(frame)
-        except RuntimeStreamGapError:
-            durable = await durable_fallback()
-            if durable is None:
-                raise
-            status = str(durable.get("status") or "")
-            if status in terminal_statuses:
-                terminal_status = status
-            degraded = {
-                **durable,
-                "run_id": str(run_id),
-                "kind": kind.upper(),
-                "sequence": None,
-                "realtime_available": False,
-                "degraded_reason": "runtime_event_gap",
-            }
-            yield formatter(RuntimeStreamFrame("run.state", degraded, sequence=None))
-        finally:
-            # Observer loss leaves the message request active. Only durable terminal
-            # state may close it, preserving reload/reattach semantics.
-            if terminal_status is not None and message_request is not None:
-                message_status = (
-                    "completed"
-                    if terminal_status == "completed"
-                    else "cancelled"
-                    if terminal_status == "cancelled"
-                    else "failed"
+        async def generate():
+            terminal_status: str | None = None
+            try:
+                async for chunk in runtime.stream(
+                    run_id=run_id,
+                    project_id=authorized.binding.project_id,
+                    network_id=authorized.binding.target_id,
+                    network_session_id=authorized.binding.session_id,
+                    network_version_id=authorized.binding.target_release_id,
+                    is_disconnected=request.is_disconnected,
+                ):
+                    yield chunk
+                latest = await runtime.get(
+                    run_id=run_id,
+                    project_id=authorized.binding.project_id,
+                    network_id=authorized.binding.target_id,
+                    network_session_id=authorized.binding.session_id,
+                    network_version_id=authorized.binding.target_release_id,
                 )
-                await _service(request).mark_message(
-                    message_request.id,
-                    status=message_status,
-                    target_run_id=run_id,
-                    error_code=(
-                        None
-                        if message_status in {"completed", "cancelled"}
-                        else "runtime_failed"
-                    ),
-                )
+                if latest.status in _NETWORK_TERMINAL:
+                    terminal_status = latest.status
+            finally:
+                if terminal_status is not None and message_request is not None:
+                    message_status = (
+                        "completed"
+                        if terminal_status == "completed"
+                        else "cancelled"
+                        if terminal_status == "cancelled"
+                        else "failed"
+                    )
+                    await _service(request).mark_message(
+                        message_request.id,
+                        status=message_status,
+                        target_run_id=run_id,
+                        error_code=(
+                            None
+                            if message_status in {"completed", "cancelled"}
+                            else "runtime_failed"
+                        ),
+                    )
 
     headers = {
         "Cache-Control": "no-cache, no-transform",
