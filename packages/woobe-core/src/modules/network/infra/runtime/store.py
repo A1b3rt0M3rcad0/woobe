@@ -1,17 +1,22 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-from modules.network.application.runtime import AgentInvocationResult
+from modules.network.application.dtos.runtime import (
+    AgentInvocationResult,
+    NetworkExecutionSnapshot,
+)
 from modules.network.infra.database.models import (
-    NetworkAgentContextModel,
     NetworkExecutionModel,
     NetworkInvocationModel,
 )
 from modules.network.infra.database.repositories import NetworkRuntimeRepository
+from modules.network.infra.database.unit_of_work import NetworkUnitOfWork
+
+
+NetworkUnitOfWorkFactory = Callable[[], NetworkUnitOfWork]
 
 
 def should_persist_agent_context(
@@ -23,23 +28,23 @@ def should_persist_agent_context(
 
 
 class SQLNetworkExecutionStore:
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
-        self._session_factory = session_factory
+    """Persistence adapter using one short NetworkUnitOfWork per operation."""
+
+    def __init__(self, uow_factory: NetworkUnitOfWorkFactory) -> None:
+        self._uow_factory = uow_factory
 
     async def is_cancel_requested(self, execution_id: UUID) -> bool:
-        async with self._session_factory() as session:
-            execution = await session.get(NetworkExecutionModel, execution_id)
+        uow = self._uow_factory().mark_read_only()
+        async with uow:
+            execution = await uow.session.get(NetworkExecutionModel, execution_id)
             return execution is None or execution.status in {
                 "cancel_requested",
                 "cancelled",
             }
 
     @staticmethod
-    async def _resolve_agent_session_mode(
-        session: AsyncSession,
+    def _resolve_agent_session_mode(
         *,
-        project_id: UUID,
-        agent_id: UUID,
         release_id: UUID | None,
         snapshot_override: dict[str, Any] | None,
         binding_session_mode: str | None = None,
@@ -49,26 +54,16 @@ class SQLNetworkExecutionStore:
                 return binding_session_mode
             raise RuntimeError("Pinned Agent binding has no valid session_mode")
 
-        if release_id is not None:
-            from modules.agent.infra.database.models import AgentReleaseModel
-
-            release = await session.get(AgentReleaseModel, release_id)
-            if release is None:
-                raise RuntimeError("Pinned Agent release was not found")
-            if release.project_id != project_id or release.agent_id != agent_id:
-                raise RuntimeError(
-                    "Pinned Agent release does not belong to this Network node"
-                )
-            if release.session_mode not in {"stateful", "stateless"}:
-                raise RuntimeError("Pinned Agent release has no valid session_mode")
-            return str(release.session_mode)
-
         if isinstance(snapshot_override, dict):
             session_mode = snapshot_override.get("session_mode")
             if session_mode in {"stateful", "stateless"}:
                 return str(session_mode)
             raise RuntimeError("Agent Draft snapshot has no valid session_mode")
 
+        if release_id is not None:
+            raise RuntimeError(
+                "Pinned Agent release is missing the frozen session_mode binding"
+            )
         raise RuntimeError("Agent runtime binding has no release or Draft snapshot")
 
     async def resolve_agent_session_mode(
@@ -80,20 +75,17 @@ class SQLNetworkExecutionStore:
         snapshot_override: dict[str, Any] | None,
         binding_session_mode: str | None = None,
     ) -> str:
-        async with self._session_factory() as session:
-            return await self._resolve_agent_session_mode(
-                session,
-                project_id=project_id,
-                agent_id=agent_id,
-                release_id=release_id,
-                snapshot_override=snapshot_override,
-                binding_session_mode=binding_session_mode,
-            )
+        del project_id, agent_id
+        return self._resolve_agent_session_mode(
+            release_id=release_id,
+            snapshot_override=snapshot_override,
+            binding_session_mode=binding_session_mode,
+        )
 
     async def start_invocation(
         self,
         *,
-        execution: NetworkExecutionModel,
+        execution: NetworkExecutionSnapshot,
         node_id: UUID,
         agent_id: UUID,
         depth: int,
@@ -101,12 +93,15 @@ class SQLNetworkExecutionStore:
         parent_invocation_id: UUID | None,
         persist_context: bool,
     ) -> NetworkInvocationModel:
-        async with self._session_factory() as session, session.begin():
-            persisted_execution = await session.get(NetworkExecutionModel, execution.id)
+        async with self._uow_factory() as uow:
+            persisted_execution = await uow.session.get(
+                NetworkExecutionModel,
+                execution.id,
+            )
             if persisted_execution is None:
                 raise RuntimeError("Network execution was not found")
 
-            repository = NetworkRuntimeRepository(session)
+            repository = NetworkRuntimeRepository(uow.session)
             context = (
                 await repository.get_or_create_agent_context(
                     network_session_id=persisted_execution.network_session_id,
@@ -133,8 +128,8 @@ class SQLNetworkExecutionStore:
         result: AgentInvocationResult,
         persist_context: bool,
     ) -> None:
-        async with self._session_factory() as session, session.begin():
-            invocation = await session.get(NetworkInvocationModel, invocation_id)
+        async with self._uow_factory() as uow:
+            invocation = await uow.session.get(NetworkInvocationModel, invocation_id)
             if invocation is None:
                 return
             invocation.status = "completed"
@@ -145,25 +140,22 @@ class SQLNetworkExecutionStore:
             if result.session_id:
                 invocation.agent_session_id = result.session_id
             if result.session_id and persist_context:
-                from sqlalchemy import select
-
-                context = await session.scalar(
-                    select(NetworkAgentContextModel).where(
-                        NetworkAgentContextModel.network_session_id
-                        == invocation.network_session_id,
-                        NetworkAgentContextModel.network_node_id == invocation.node_id,
-                    )
+                context = await NetworkRuntimeRepository(
+                    uow.session
+                ).get_or_create_agent_context(
+                    network_session_id=invocation.network_session_id,
+                    node_id=invocation.node_id,
+                    agent_id=invocation.agent_id,
                 )
-                if context is not None:
-                    context.agent_session_id = result.session_id
+                context.agent_session_id = result.session_id
 
     async def persist_execution_output(
         self,
         execution_id: UUID,
         result: AgentInvocationResult,
     ) -> None:
-        async with self._session_factory() as session, session.begin():
-            execution = await session.get(
+        async with self._uow_factory() as uow:
+            execution = await uow.session.get(
                 NetworkExecutionModel,
                 execution_id,
                 with_for_update=True,
@@ -172,19 +164,21 @@ class SQLNetworkExecutionStore:
                 return
             setattr(execution, "parsed_output", result.parsed_output)
             setattr(execution, "output_parse_error", result.output_parse_error)
-            await NetworkRuntimeRepository(session).append_event(
+            await NetworkRuntimeRepository(uow.session).append_event(
                 execution,
                 "network_result",
                 {
                     "answer": result.answer,
-                    "result": result.parsed_output
-                    if result.parsed_output is not None
-                    else result.answer,
+                    "result": (
+                        result.parsed_output
+                        if result.parsed_output is not None
+                        else result.answer
+                    ),
                     "parsed_output": result.parsed_output,
                     "output_parse_error": result.output_parse_error,
-                    "result_type": "structured"
-                    if result.parsed_output is not None
-                    else "text",
+                    "result_type": (
+                        "structured" if result.parsed_output is not None else "text"
+                    ),
                     "trace_id": str(result.trace_id) if result.trace_id else None,
                 },
             )
@@ -198,28 +192,25 @@ class SQLNetworkExecutionStore:
         agent_session_id: UUID | None = None,
         persist_context: bool = False,
     ) -> None:
-        async with self._session_factory() as session, session.begin():
-            invocation = await session.get(NetworkInvocationModel, invocation_id)
-            if invocation is not None:
-                invocation.status = "failed"
-                invocation.error = error[:4000]
-                if trace_id is not None:
-                    invocation.trace_id = trace_id
-                if agent_session_id is not None:
-                    invocation.agent_session_id = agent_session_id
-                if agent_session_id is not None and persist_context:
-                    from sqlalchemy import select
-
-                    context = await session.scalar(
-                        select(NetworkAgentContextModel).where(
-                            NetworkAgentContextModel.network_session_id
-                            == invocation.network_session_id,
-                            NetworkAgentContextModel.network_node_id
-                            == invocation.node_id,
-                        )
-                    )
-                    if context is not None:
-                        context.agent_session_id = agent_session_id
+        async with self._uow_factory() as uow:
+            invocation = await uow.session.get(NetworkInvocationModel, invocation_id)
+            if invocation is None:
+                return
+            invocation.status = "failed"
+            invocation.error = error[:4000]
+            if trace_id is not None:
+                invocation.trace_id = trace_id
+            if agent_session_id is not None:
+                invocation.agent_session_id = agent_session_id
+            if agent_session_id is not None and persist_context:
+                context = await NetworkRuntimeRepository(
+                    uow.session
+                ).get_or_create_agent_context(
+                    network_session_id=invocation.network_session_id,
+                    node_id=invocation.node_id,
+                    agent_id=invocation.agent_id,
+                )
+                context.agent_session_id = agent_session_id
 
     async def emit(
         self,
@@ -229,8 +220,8 @@ class SQLNetworkExecutionStore:
         *,
         invocation_id: UUID | None = None,
     ) -> None:
-        async with self._session_factory() as session, session.begin():
-            execution = await session.get(
+        async with self._uow_factory() as uow:
+            execution = await uow.session.get(
                 NetworkExecutionModel,
                 execution_id,
                 with_for_update=True,
@@ -238,11 +229,11 @@ class SQLNetworkExecutionStore:
             if execution is None:
                 return
             invocation = (
-                await session.get(NetworkInvocationModel, invocation_id)
+                await uow.session.get(NetworkInvocationModel, invocation_id)
                 if invocation_id
                 else None
             )
-            await NetworkRuntimeRepository(session).append_event(
+            await NetworkRuntimeRepository(uow.session).append_event(
                 execution,
                 event_type,
                 payload,

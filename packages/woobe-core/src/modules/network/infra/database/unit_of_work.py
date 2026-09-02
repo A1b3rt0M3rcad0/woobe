@@ -4,7 +4,7 @@ from typing import Self
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from shared.infra.config.interface.unit_of_work import UnitOfWork
+from shared.contracts.unit_of_work import UnitOfWork
 
 
 class NetworkUnitOfWork(UnitOfWork):
@@ -15,6 +15,11 @@ class NetworkUnitOfWork(UnitOfWork):
             expire_on_commit=False,
         )
         self._session: AsyncSession | None = None
+        self._read_only = False
+
+    def mark_read_only(self) -> Self:
+        self._read_only = True
+        return self
 
     @property
     def session(self) -> AsyncSession:
@@ -31,7 +36,7 @@ class NetworkUnitOfWork(UnitOfWork):
         try:
             if session is None:
                 return
-            if exc_type is not None:
+            if exc_type is not None or self._read_only:
                 await session.rollback()
             else:
                 await session.commit()
@@ -39,6 +44,7 @@ class NetworkUnitOfWork(UnitOfWork):
             if session is not None:
                 await session.close()
             self._session = None
+            self._read_only = False
 
     async def commit(self) -> None:
         await self.session.commit()

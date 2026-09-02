@@ -1,14 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.network.application.runtime import (
+from modules.network.application.dtos.runtime import (
     NetworkExecutionSnapshot,
     NetworkVersionSnapshot,
 )
@@ -17,6 +17,10 @@ from modules.network.infra.database.models import (
     NetworkExecutionModel,
     NetworkVersionModel,
 )
+from modules.network.infra.database.unit_of_work import NetworkUnitOfWork
+
+
+NetworkUnitOfWorkFactory = Callable[[], NetworkUnitOfWork]
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,10 +31,10 @@ class LoadedNetworkExecution:
 
 
 class NetworkRuntimeLoader:
-    """Load detached immutable runtime snapshots in one short read-only scope."""
+    """Load detached runtime snapshots inside short-lived UoW scopes."""
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
-        self._session_factory = session_factory
+    def __init__(self, uow_factory: NetworkUnitOfWorkFactory) -> None:
+        self._uow_factory = uow_factory
 
     @staticmethod
     def _execution_snapshot(model: NetworkExecutionModel) -> NetworkExecutionSnapshot:
@@ -58,7 +62,9 @@ class NetworkRuntimeLoader:
         )
 
     async def load(self, execution_id: UUID) -> LoadedNetworkExecution | None:
-        async with self._session_factory() as session:
+        uow = self._uow_factory().mark_read_only()
+        async with uow:
+            session = uow.session
             execution = await session.get(NetworkExecutionModel, execution_id)
             if execution is None:
                 return None
@@ -92,15 +98,14 @@ class NetworkRuntimeLoader:
         limit: int = 50,
     ) -> list[UUID]:
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=older_than_seconds)
-        async with self._session_factory() as session:
-            result = await session.execute(
+        uow = self._uow_factory().mark_read_only()
+        async with uow:
+            result = await uow.session.execute(
                 select(NetworkExecutionModel.id)
                 .where(
-                    NetworkExecutionModel.status.in_([
-                        "queued",
-                        "running",
-                        "cancel_requested",
-                    ]),
+                    NetworkExecutionModel.status.in_(
+                        ["queued", "running", "cancel_requested"]
+                    ),
                     NetworkExecutionModel.created_at < cutoff,
                 )
                 .order_by(NetworkExecutionModel.created_at.asc())

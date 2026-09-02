@@ -113,6 +113,7 @@ __all__ = [
     "commit_safe_stream",
     "current_execution",
     "current_runtime_stream",
+    "get_http_tool_executor",
     "new_execution_context",
     "public_run_composer",
     "public_stream_composer",
