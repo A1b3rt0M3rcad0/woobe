@@ -42,6 +42,27 @@ class MessageAdmissionSurfaceState(BaseModel):
     max_concurrent_runs: int
 
 
+class MessageRequestRuntimeContext(BaseModel):
+    request: MessageRequestState
+    surface_id: UUID
+    project_id: UUID
+    target_type: str
+    target_id: UUID
+    target_release_id: UUID
+    session_id: UUID
+
+
+class CanonicalRunState(BaseModel):
+    id: UUID
+    status: str
+
+
+class MessageTransitionDecision(BaseModel):
+    status: str
+    target_run_id: UUID | None = None
+    error_code: str | None = None
+
+
 class BeginMessageRequestResult(BaseModel):
     request: MessageRequestState
     created: bool

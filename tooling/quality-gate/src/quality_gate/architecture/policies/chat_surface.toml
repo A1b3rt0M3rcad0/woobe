@@ -21,7 +21,7 @@ streaming_handler = "StreamingTransactionalHandler"
 uow_types = ["ChatSurfaceUnitOfWork"]
 uow_factory_functions = []
 long_lived_handler = "Callable"
-long_lived_functions = []
+long_lived_functions = ["mark_chat_surface_message_runtime_composer"]
 forbidden_parameter_types = ["AsyncSession", "AsyncEngine", "async_sessionmaker"]
 forbidden_parameter_names = ["session", "session_factory", "async_engine", "engine"]
 forbidden_calls = ["Settings", "Settings.model_validate", "create_engine", "create_session_factory"]
@@ -82,9 +82,9 @@ deny = ["modules.chat_surface.application.use_cases", "modules.chat_surface.infr
 
 [[rules]]
 id = "ARCH006H"
-description = "HTTP routes are transport adapters and may invoke zero-argument module composers, but cannot own infrastructure or application use cases"
+description = "HTTP routes are transport adapters and may invoke zero-argument module composers and public bounded-context entrypoints, but cannot own infrastructure or application use cases"
 source = ["presentation/http/**"]
-allow = ["shared.contracts", "shared.security.principal", "modules.chat_surface.presentation", "modules.chat_surface.application.interfaces", "modules.chat_surface.application.dtos", "modules.chat_surface.domain", "modules.chat_surface.composition.composers", "shared.presentation", "shared.security"]
+allow = ["shared.contracts", "shared.security.principal", "modules.chat_surface.presentation", "modules.chat_surface.application.interfaces", "modules.chat_surface.application.dtos", "modules.chat_surface.domain", "modules.chat_surface.composition.composers", "modules.agent.entrypoint", "modules.network.entrypoint", "shared.presentation", "shared.security"]
 deny = ["modules.chat_surface.application.use_cases", "modules.chat_surface.infra", "modules.chat_surface.composition.resources", "shared.infra", "shared.messaging", "shared.workers", "sqlalchemy"]
 
 [[rules]]

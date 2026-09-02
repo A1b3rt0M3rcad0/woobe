@@ -163,6 +163,43 @@ class AgentChatSurfaceRuntime:
 
         return await self._transactions.read(read_active)
 
+    async def find_latest(
+        self,
+        *,
+        project_id: UUID,
+        agent_id: UUID,
+        session_id: UUID,
+        agent_release_id: UUID,
+        created_after: datetime | None = None,
+    ) -> AgentChatSurfaceRun | None:
+        async def read_latest(repositories: AgentRuntimeRepositories, _outbox):
+            runs = await repositories.runs.list_direct(
+                project_id=project_id,
+                agent_id=agent_id,
+                session_id=session_id,
+                environment="production",
+                limit=20,
+            )
+            for run in runs:
+                if not self._matches(
+                    run,
+                    project_id=project_id,
+                    agent_id=agent_id,
+                    session_id=session_id,
+                    agent_release_id=agent_release_id,
+                ):
+                    continue
+                if (
+                    created_after is not None
+                    and run.created_at is not None
+                    and run.created_at < created_after
+                ):
+                    continue
+                return self._summary(run)
+            return None
+
+        return await self._transactions.read(read_latest)
+
     async def cancel(
         self,
         *,

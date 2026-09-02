@@ -6,6 +6,7 @@ from sqlalchemy import func, select, update
 from modules.chat_surface.application.dtos.message_request import (
     MarkMessageRequestInput,
     MessageAdmissionSurfaceState,
+    MessageRequestRuntimeContext,
     MessageRequestState,
 )
 from modules.chat_surface.application.interfaces.message_request_repository import (
@@ -43,6 +44,29 @@ class SQLAlchemyChatSurfaceMessageRequestRepository(ChatSurfaceMessageRequestRep
     async def get(self, request_id: UUID) -> MessageRequestState | None:
         model = await self._uow.session.get(ChatSurfaceMessageRequestModel, request_id)
         return self._state(model) if model is not None else None
+
+    async def get_runtime_context(
+        self,
+        request_id: UUID,
+    ) -> MessageRequestRuntimeContext | None:
+        model = await self._uow.session.get(ChatSurfaceMessageRequestModel, request_id)
+        if model is None:
+            return None
+        binding = await self._uow.session.get(
+            ChatSurfaceSessionBindingModel,
+            model.session_binding_id,
+        )
+        if binding is None:
+            return None
+        return MessageRequestRuntimeContext(
+            request=self._state(model),
+            surface_id=binding.chat_surface_id,
+            project_id=binding.project_id,
+            target_type=str(binding.target_type),
+            target_id=binding.target_id,
+            target_release_id=binding.target_release_id,
+            session_id=binding.session_id,
+        )
 
     async def latest_for_binding(
         self,

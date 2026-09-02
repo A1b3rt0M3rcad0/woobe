@@ -1,7 +1,12 @@
+from collections.abc import Callable
+
 from modules.chat_surface.application.use_cases.message_lifecycle import (
     BeginChatSurfaceMessageUseCase,
     LatestChatSurfaceMessageUseCase,
     MarkChatSurfaceMessageUseCase,
+)
+from modules.chat_surface.composition.integrations.message_runtime import (
+    ChatSurfaceMessageRuntime,
 )
 from modules.chat_surface.composition.resources import DATABASE_ENGINE, SETTINGS
 from modules.chat_surface.infra.database.message_request_repository import (
@@ -43,8 +48,14 @@ def mark_chat_surface_message_composer() -> TransactionalHandler:
     return TransactionalHandler(uow, controller.handle)
 
 
+def mark_chat_surface_message_runtime_composer() -> Callable:
+    runtime = ChatSurfaceMessageRuntime()
+    return runtime.mark
+
+
 __all__ = [
     "begin_chat_surface_message_composer",
     "latest_chat_surface_message_composer",
     "mark_chat_surface_message_composer",
+    "mark_chat_surface_message_runtime_composer",
 ]

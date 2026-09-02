@@ -4,7 +4,7 @@ from modules.chat_surface.application.dtos.message_request import MessageRequest
 from modules.chat_surface.composition.composers.message_lifecycle_composers import (
     begin_chat_surface_message_composer,
     latest_chat_surface_message_composer,
-    mark_chat_surface_message_composer,
+    mark_chat_surface_message_runtime_composer,
 )
 from shared.presentation.http.request import Request as InternalRequest
 
@@ -49,20 +49,13 @@ async def mark_message_request(
     target_run_id: UUID | None = None,
     error_code: str | None = None,
 ) -> MessageRequestState | None:
-    response = await mark_chat_surface_message_composer()(
-        InternalRequest(
-            path_params={"request_id": str(request_id)},
-            body={
-                "status": status,
-                "target_run_id": (
-                    str(target_run_id) if target_run_id is not None else None
-                ),
-                "error_code": error_code,
-            },
-        )
+    handler = mark_chat_surface_message_runtime_composer()
+    return await handler(
+        request_id,
+        status=status,
+        target_run_id=target_run_id,
+        error_code=error_code,
     )
-    data = response.body["data"]
-    return MessageRequestState.model_validate(data) if data is not None else None
 
 
 __all__ = [
