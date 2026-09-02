@@ -11,7 +11,7 @@ from modules.chat_surface.presentation.http.message_lifecycle import (
     latest_message_request,
     mark_message_request,
 )
-from modules.chat_surface.presentation.http.routes import _authorized_session
+from modules.chat_surface.presentation.http.session_authorization import authorize_session
 from modules.network.entrypoint import build_network_chat_surface_runtime
 from shared.contracts.errors import AuthorizationError, NotFoundError
 
@@ -91,7 +91,7 @@ async def _authorized_active_request(
     permission: str = "chat:history",
     require_stream: bool = True,
 ):
-    authorized = await _authorized_session(
+    authorized = await authorize_session(
         request,
         session_id,
         permission=permission,
