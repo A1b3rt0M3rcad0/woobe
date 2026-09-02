@@ -1,9 +1,9 @@
+from modules.chat_surface.application.interfaces.session_authorization import (
+    ChatSurfaceCredentialReader,
+    ChatSurfaceTargetSessionAuthorizer,
+)
 from modules.chat_surface.application.use_cases.session_authorization import (
     AuthorizeChatSurfaceSessionUseCase,
-)
-from modules.chat_surface.composition.integrations.session_authorization import (
-    CoreChatSurfaceCredentialReader,
-    PublicTargetSessionAuthorizer,
 )
 from modules.chat_surface.composition.resources import DATABASE_ENGINE, SETTINGS
 from modules.chat_surface.infra.database.session_authorization_repository import (
@@ -17,7 +17,10 @@ from modules.chat_surface.presentation.controllers.session_authorization_control
 from shared.infra.transactional_handler import TransactionalHandler
 
 
-def authorize_chat_surface_session_composer() -> TransactionalHandler:
+def build_chat_surface_session_authorization_handler(
+    credential_reader: ChatSurfaceCredentialReader,
+    target_authorizer: ChatSurfaceTargetSessionAuthorizer,
+) -> TransactionalHandler:
     uow = ChatSurfaceUnitOfWork(DATABASE_ENGINE).mark_read_only()
     repository = SQLAlchemyChatSurfaceSessionAuthorizationRepository(uow)
     token_decoder = ChatSessionTokenCodec(
@@ -27,8 +30,6 @@ def authorize_chat_surface_session_composer() -> TransactionalHandler:
         ttl_seconds=SETTINGS.chat_token_ttl_seconds,
         leeway_seconds=SETTINGS.auth_clock_skew_seconds,
     )
-    credential_reader = CoreChatSurfaceCredentialReader()
-    target_authorizer = PublicTargetSessionAuthorizer()
     use_case = AuthorizeChatSurfaceSessionUseCase(
         repository,
         token_decoder,
@@ -41,4 +42,4 @@ def authorize_chat_surface_session_composer() -> TransactionalHandler:
     return TransactionalHandler(uow, controller.handle)
 
 
-__all__ = ["authorize_chat_surface_session_composer"]
+__all__ = ["build_chat_surface_session_authorization_handler"]

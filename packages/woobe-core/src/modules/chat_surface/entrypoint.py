@@ -1,9 +1,36 @@
-from modules.chat_surface.composition.composers.message_lifecycle_composers import (
+from modules.chat_surface.composition.module import (
+    CHAT_SURFACE_HTTP_ROUTERS,
+    AuthorizedChatSession,
+    ChatSessionTokenCodec,
+    ChatSurfaceCredentialAuthorizationState,
+    ChatSurfaceCredentialReader,
+    ChatSurfaceTargetSessionAuthorizer,
+    MessageRequestState,
+    StreamChatMessageRequest,
+    TargetSessionAuthorizationInput,
+    begin_chat_surface_message_runtime_composer,
+    build_chat_surface_session_authorization_handler,
+    latest_chat_surface_message_composer,
     mark_chat_surface_message_composer,
+    mark_chat_surface_message_runtime_composer,
+    normalize_appearance_config,
 )
-from modules.chat_surface.composition.module import CHAT_SURFACE_HTTP_ROUTERS
+
 
 __all__ = [
+    "AuthorizedChatSession",
     "CHAT_SURFACE_HTTP_ROUTERS",
+    "ChatSessionTokenCodec",
+    "ChatSurfaceCredentialAuthorizationState",
+    "ChatSurfaceCredentialReader",
+    "ChatSurfaceTargetSessionAuthorizer",
+    "MessageRequestState",
+    "StreamChatMessageRequest",
+    "TargetSessionAuthorizationInput",
+    "begin_chat_surface_message_runtime_composer",
+    "build_chat_surface_session_authorization_handler",
+    "latest_chat_surface_message_composer",
     "mark_chat_surface_message_composer",
+    "mark_chat_surface_message_runtime_composer",
+    "normalize_appearance_config",
 ]

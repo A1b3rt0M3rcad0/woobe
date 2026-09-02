@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request as FastAPIRequest
 
+from chat_surface_runtime_routes import router as chat_surface_runtime_router
 from modules.agent.entrypoint import public_run_composer, public_stream_composer
 from modules.agent.presentation.http.run_routes import (
     active_agent_run,
@@ -20,6 +21,7 @@ from shared.presentation.http.adapter import request_adapter, response_adapter
 from shared.security.principal import ProjectApiPrincipal
 
 router = APIRouter(prefix="/v1", tags=["public-runtime"])
+router.include_router(chat_surface_runtime_router)
 
 
 def _runtime_principal(request: FastAPIRequest) -> ProjectApiPrincipal:
