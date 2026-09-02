@@ -8,6 +8,7 @@ import pytest
 
 import public_runtime_routes
 from shared.infra.errors import AuthorizationError
+from shared.presentation.http.response import Response
 from shared.security.principal import ProjectApiPrincipal
 
 
@@ -37,25 +38,29 @@ async def test_public_cancel_dispatches_agent_run_without_network_call(monkeypat
     run_id = uuid4()
     principal = _runtime_principal("agent")
     agent_calls = []
-    network_calls = []
+    network_composer_calls = []
 
     async def cancel_agent(actual_run_id, request):
         agent_calls.append((actual_run_id, request))
         return {"run_id": str(actual_run_id), "status": "cancel_requested"}
 
-    async def cancel_network(actual_run_id, request):
-        network_calls.append((actual_run_id, request))
-        return {"execution_id": str(actual_run_id)}
+    def cancel_network_composer():
+        network_composer_calls.append(True)
+        return object()
 
     monkeypatch.setattr(public_runtime_routes, "cancel_agent_run", cancel_agent)
-    monkeypatch.setattr(public_runtime_routes, "cancel_network_run", cancel_network)
+    monkeypatch.setattr(
+        public_runtime_routes,
+        "cancel_runtime_network_execution_composer",
+        cancel_network_composer,
+    )
     request = _request(principal)
 
     response = await public_runtime_routes.cancel_run(run_id, request)
 
     assert response == {"run_id": str(run_id), "status": "cancel_requested"}
     assert agent_calls == [(run_id, request)]
-    assert network_calls == []
+    assert network_composer_calls == []
 
 
 @pytest.mark.asyncio
@@ -63,24 +68,38 @@ async def test_public_cancel_dispatches_network_run_without_agent_call(monkeypat
     run_id = uuid4()
     principal = _runtime_principal("network")
     agent_calls = []
-    network_calls = []
+    handler = object()
+    adapter_calls = []
 
     async def cancel_agent(actual_run_id, request):
         agent_calls.append((actual_run_id, request))
         return {"run_id": str(actual_run_id)}
 
-    async def cancel_network(actual_run_id, request):
-        network_calls.append((actual_run_id, request))
-        return {"execution_id": str(actual_run_id), "status": "cancel_requested"}
+    async def adapt(request, actual_handler):
+        adapter_calls.append((request, actual_handler))
+        return Response(
+            status_code=202,
+            body={
+                "success": True,
+                "data": {"run_id": str(run_id), "status": "cancel_requested"},
+            },
+        )
 
     monkeypatch.setattr(public_runtime_routes, "cancel_agent_run", cancel_agent)
-    monkeypatch.setattr(public_runtime_routes, "cancel_network_run", cancel_network)
+    monkeypatch.setattr(
+        public_runtime_routes,
+        "cancel_runtime_network_execution_composer",
+        lambda: handler,
+    )
+    monkeypatch.setattr(public_runtime_routes, "request_adapter", adapt)
+    monkeypatch.setattr(public_runtime_routes, "response_adapter", lambda response: response.body)
     request = _request(principal)
 
     response = await public_runtime_routes.cancel_run(run_id, request)
 
-    assert response == {"execution_id": str(run_id), "status": "cancel_requested"}
-    assert network_calls == [(run_id, request)]
+    assert response["data"]["run_id"] == str(run_id)
+    assert response["data"]["status"] == "cancel_requested"
+    assert adapter_calls == [(request, handler)]
     assert agent_calls == []
 
 
@@ -131,7 +150,11 @@ async def test_public_reattach_dispatch_matches_same_runtime_target_contract(mon
         return "network-stream"
 
     monkeypatch.setattr(public_runtime_routes, "attach_agent_run", attach_agent)
-    monkeypatch.setattr(public_runtime_routes, "reattach_network_execution", attach_network)
+    monkeypatch.setattr(
+        public_runtime_routes,
+        "attach_network_run_composer",
+        lambda: attach_network,
+    )
 
     assert await public_runtime_routes.reattach_run(run_id, _request(agent_principal)) == "agent-stream"
     assert await public_runtime_routes.reattach_run(run_id, _request(network_principal)) == "network-stream"
@@ -149,12 +172,16 @@ async def test_public_active_run_dispatch_matches_runtime_target(monkeypatch) ->
         calls.append(("agent", session_id, request))
         return "agent-active"
 
-    async def active_network(request, *, network_session_id):
+    async def active_network(request, *, network_session_id, **_kwargs):
         calls.append(("network", network_session_id, request))
         return "network-active"
 
     monkeypatch.setattr(public_runtime_routes, "active_agent_run", active_agent)
-    monkeypatch.setattr(public_runtime_routes, "active_network_execution", active_network)
+    monkeypatch.setattr(
+        public_runtime_routes,
+        "active_network_run_composer",
+        lambda: active_network,
+    )
 
     assert await public_runtime_routes.active_session_run(session_id, _request(agent_principal)) == "agent-active"
     assert await public_runtime_routes.active_session_run(session_id, _request(network_principal)) == "network-active"

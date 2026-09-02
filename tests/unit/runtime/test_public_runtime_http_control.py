@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import FastAPI, Request
@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 from httpx import ASGITransport, AsyncClient
 
 import public_runtime_routes
+from shared.presentation.http.response import Response
 from shared.security.principal import ProjectApiPrincipal
 
 
@@ -43,6 +44,18 @@ def _app() -> FastAPI:
     return app
 
 
+def _network_cancel_composer(cancel):
+    def composer():
+        async def handler(request):
+            run_id = UUID(str(request.path_params["run_id"]))
+            payload = await cancel(run_id)
+            return Response(status_code=202, body=payload)
+
+        return handler
+
+    return composer
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target_type", ["agent", "network"])
 async def test_public_cancel_route_dispatches_over_real_asgi_boundary(
@@ -56,12 +69,16 @@ async def test_public_cancel_route_dispatches_over_real_asgi_boundary(
         calls.append(("agent", actual_run_id))
         return {"success": True, "data": {"run_id": str(actual_run_id), "status": "cancel_requested"}}
 
-    async def cancel_network(actual_run_id, _request):
+    async def cancel_network(actual_run_id):
         calls.append(("network", actual_run_id))
         return {"success": True, "data": {"run_id": str(actual_run_id), "status": "cancel_requested"}}
 
     monkeypatch.setattr(public_runtime_routes, "cancel_agent_run", cancel_agent)
-    monkeypatch.setattr(public_runtime_routes, "cancel_network_run", cancel_network)
+    monkeypatch.setattr(
+        public_runtime_routes,
+        "cancel_runtime_network_execution_composer",
+        _network_cancel_composer(cancel_network),
+    )
 
     transport = ASGITransport(app=_app())
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -84,7 +101,19 @@ async def test_public_cancel_route_allows_idempotent_retry_over_asgi_boundary(
     run_id = uuid4()
     dispatches = 0
 
-    async def cancel(actual_run_id, _request):
+    async def cancel_agent(actual_run_id, _request):
+        nonlocal dispatches
+        assert actual_run_id == run_id
+        dispatches += 1
+        return {
+            "success": True,
+            "data": {
+                "run_id": str(actual_run_id),
+                "status": "cancel_requested",
+            },
+        }
+
+    async def cancel_network(actual_run_id):
         nonlocal dispatches
         assert actual_run_id == run_id
         dispatches += 1
@@ -97,9 +126,13 @@ async def test_public_cancel_route_allows_idempotent_retry_over_asgi_boundary(
         }
 
     if target_type == "agent":
-        monkeypatch.setattr(public_runtime_routes, "cancel_agent_run", cancel)
+        monkeypatch.setattr(public_runtime_routes, "cancel_agent_run", cancel_agent)
     else:
-        monkeypatch.setattr(public_runtime_routes, "cancel_network_run", cancel)
+        monkeypatch.setattr(
+            public_runtime_routes,
+            "cancel_runtime_network_execution_composer",
+            _network_cancel_composer(cancel_network),
+        )
 
     transport = ASGITransport(app=_app())
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -152,7 +185,11 @@ async def test_public_reattach_route_keeps_target_specific_sse_contract(
         )
 
     monkeypatch.setattr(public_runtime_routes, "attach_agent_run", attach_agent)
-    monkeypatch.setattr(public_runtime_routes, "reattach_network_execution", attach_network)
+    monkeypatch.setattr(
+        public_runtime_routes,
+        "attach_network_run_composer",
+        lambda: attach_network,
+    )
 
     transport = ASGITransport(app=_app())
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -194,7 +231,18 @@ async def test_public_observer_remains_attached_while_second_client_cancels(
             headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
         )
 
-    async def cancel(actual_run_id, _request):
+    async def cancel_agent(actual_run_id, _request):
+        assert actual_run_id == run_id
+        cancel_requested.set()
+        return {
+            "success": True,
+            "data": {
+                "run_id": str(actual_run_id),
+                "status": "cancel_requested",
+            },
+        }
+
+    async def cancel_network(actual_run_id):
         assert actual_run_id == run_id
         cancel_requested.set()
         return {
@@ -207,10 +255,18 @@ async def test_public_observer_remains_attached_while_second_client_cancels(
 
     if target_type == "agent":
         monkeypatch.setattr(public_runtime_routes, "attach_agent_run", attach)
-        monkeypatch.setattr(public_runtime_routes, "cancel_agent_run", cancel)
+        monkeypatch.setattr(public_runtime_routes, "cancel_agent_run", cancel_agent)
     else:
-        monkeypatch.setattr(public_runtime_routes, "reattach_network_execution", attach)
-        monkeypatch.setattr(public_runtime_routes, "cancel_network_run", cancel)
+        monkeypatch.setattr(
+            public_runtime_routes,
+            "attach_network_run_composer",
+            lambda: attach,
+        )
+        monkeypatch.setattr(
+            public_runtime_routes,
+            "cancel_runtime_network_execution_composer",
+            _network_cancel_composer(cancel_network),
+        )
 
     app = _app()
     observer_transport = ASGITransport(app=app)

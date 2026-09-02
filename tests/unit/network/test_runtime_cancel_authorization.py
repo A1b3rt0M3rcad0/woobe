@@ -1,108 +1,119 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
 
-from modules.network.presentation.reattach_routes import _authorize_execution
-from shared.infra.errors import AuthorizationError, NotFoundError
-from shared.security.principal import ProjectApiPrincipal
+from modules.network.application.dtos.execution import (
+    CancelNetworkExecutionInput,
+    NetworkExecutionControlState,
+)
+from modules.network.application.use_cases.execution_control_use_cases import (
+    CancelNetworkExecutionUseCase,
+)
+from shared.contracts.errors import NotFoundError
 
 
-def _execution():
-    return SimpleNamespace(
+class _Repository:
+    def __init__(self, execution: NetworkExecutionControlState) -> None:
+        self.execution = execution
+
+    async def get_execution(self, *, execution_id, project_id):
+        if execution_id != self.execution.id or project_id != self.execution.project_id:
+            return None
+        return self.execution
+
+    async def request_durable_cancellation(self, *, execution_id, project_id):
+        if execution_id != self.execution.id or project_id != self.execution.project_id:
+            return None
+        return self.execution.model_copy(update={"status": "cancelled"})
+
+
+class _RuntimeControl:
+    def __init__(self) -> None:
+        self.state = {"status": "running", "phase": "network_execution"}
+        self.requested: list[object] = []
+
+    async def snapshot(self, _execution_id):
+        return dict(self.state)
+
+    async def request_cancel(self, execution_id):
+        self.requested.append(execution_id)
+
+
+def _execution() -> NetworkExecutionControlState:
+    return NetworkExecutionControlState(
         id=uuid4(),
-        project_id=uuid4(),
         network_id=uuid4(),
         network_session_id=uuid4(),
+        project_id=uuid4(),
+        environment="production",
         status="running",
     )
-
-
-def _network_session(execution, *, environment="production"):
-    return SimpleNamespace(
-        id=execution.network_session_id,
-        environment=environment,
-    )
-
-
-def _principal(execution, **overrides):
-    values = {
-        "api_key_id": uuid4(),
-        "project_id": execution.project_id,
-        "key_prefix": "rai_live_network",
-        "scopes": frozenset({"runtime:execute"}),
-        "kind": "runtime",
-        "target_type": "network",
-        "target_id": execution.network_id,
-        "environment": "production",
-        "interfaces": frozenset({"http", "stream"}),
-        "authenticated_at": datetime.now(UTC),
-    }
-    values.update(overrides)
-    return ProjectApiPrincipal(**values)
-
-
-def _request(principal):
-    return SimpleNamespace(state=SimpleNamespace(principal=principal))
 
 
 @pytest.mark.asyncio
 async def test_network_runtime_cancel_authorizes_exact_target_and_environment() -> None:
     execution = _execution()
+    runtime = _RuntimeControl()
+    use_case = CancelNetworkExecutionUseCase(_Repository(execution), runtime)
 
-    await _authorize_execution(
-        _request(_principal(execution)),
-        execution,
-        _network_session(execution),
+    result = await use_case.execute(
+        CancelNetworkExecutionInput(
+            execution_id=execution.id,
+            project_id=execution.project_id,
+            expected_network_id=execution.network_id,
+            expected_environment=execution.environment,
+        )
     )
+
+    assert result.status == "cancel_requested"
+    assert runtime.requested == [execution.id]
 
 
 @pytest.mark.asyncio
-async def test_network_runtime_cancel_rejects_runtime_key_from_another_project() -> None:
+async def test_network_runtime_cancel_rejects_execution_from_another_project() -> None:
     execution = _execution()
+    use_case = CancelNetworkExecutionUseCase(_Repository(execution), _RuntimeControl())
 
-    with pytest.raises(AuthorizationError):
-        await _authorize_execution(
-            _request(_principal(execution, project_id=uuid4())),
-            execution,
-            _network_session(execution),
+    with pytest.raises(NotFoundError):
+        await use_case.execute(
+            CancelNetworkExecutionInput(
+                execution_id=execution.id,
+                project_id=uuid4(),
+                expected_network_id=execution.network_id,
+                expected_environment=execution.environment,
+            )
         )
 
 
 @pytest.mark.asyncio
 async def test_network_runtime_cancel_hides_execution_from_wrong_target() -> None:
     execution = _execution()
+    use_case = CancelNetworkExecutionUseCase(_Repository(execution), _RuntimeControl())
 
     with pytest.raises(NotFoundError):
-        await _authorize_execution(
-            _request(_principal(execution, target_id=uuid4())),
-            execution,
-            _network_session(execution),
+        await use_case.execute(
+            CancelNetworkExecutionInput(
+                execution_id=execution.id,
+                project_id=execution.project_id,
+                expected_network_id=uuid4(),
+                expected_environment=execution.environment,
+            )
         )
 
 
 @pytest.mark.asyncio
 async def test_network_runtime_cancel_hides_execution_from_wrong_environment() -> None:
     execution = _execution()
+    use_case = CancelNetworkExecutionUseCase(_Repository(execution), _RuntimeControl())
 
     with pytest.raises(NotFoundError):
-        await _authorize_execution(
-            _request(_principal(execution, environment="staging")),
-            execution,
-            _network_session(execution, environment="production"),
-        )
-
-
-@pytest.mark.asyncio
-async def test_network_runtime_cancel_requires_authentication() -> None:
-    execution = _execution()
-
-    with pytest.raises(AuthorizationError):
-        await _authorize_execution(
-            _request(None),
-            execution,
-            _network_session(execution),
+        await use_case.execute(
+            CancelNetworkExecutionInput(
+                execution_id=execution.id,
+                project_id=execution.project_id,
+                expected_network_id=execution.network_id,
+                expected_environment="staging",
+            )
         )

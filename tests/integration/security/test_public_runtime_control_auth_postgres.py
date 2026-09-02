@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from unittest.mock import MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi import Depends, FastAPI
@@ -18,6 +18,7 @@ from modules.core.infra.database.models import (
 )
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
+from shared.presentation.http.response import Response
 from shared.security.api_keys import issue_runtime_api_key
 from shared.security.dependency import enforce_request_security
 from shared.security.http_guard import HttpSecurityGuard
@@ -157,15 +158,29 @@ async def test_public_cancel_uses_real_runtime_key_auth_without_execution_lease(
                 "data": {"run_id": str(actual_run_id), "status": "cancel_requested"},
             }
 
-        async def cancel_network(actual_run_id, request):
-            calls.append(("network", actual_run_id, request.state.principal))
-            return {
-                "success": True,
-                "data": {"run_id": str(actual_run_id), "status": "cancel_requested"},
-            }
+        def cancel_network_composer():
+            async def handler(request):
+                actual_run_id = UUID(str(request.path_params["run_id"]))
+                calls.append(("network", actual_run_id, request.principal))
+                return Response(
+                    status_code=202,
+                    body={
+                        "success": True,
+                        "data": {
+                            "run_id": str(actual_run_id),
+                            "status": "cancel_requested",
+                        },
+                    },
+                )
+
+            return handler
 
         monkeypatch.setattr(public_runtime_routes, "cancel_agent_run", cancel_agent)
-        monkeypatch.setattr(public_runtime_routes, "cancel_network_run", cancel_network)
+        monkeypatch.setattr(
+            public_runtime_routes,
+            "cancel_runtime_network_execution_composer",
+            cancel_network_composer,
+        )
 
         transport = ASGITransport(app=_secured_app(session_factory, settings))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -231,8 +246,8 @@ async def test_public_reattach_uses_real_runtime_key_auth_without_execution_leas
         else:
             monkeypatch.setattr(
                 public_runtime_routes,
-                "reattach_network_execution",
-                attach,
+                "attach_network_run_composer",
+                lambda: attach,
             )
 
         transport = ASGITransport(app=_secured_app(session_factory, settings))
