@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from sqlalchemy.ext.asyncio import AsyncEngine
 
-from modules.agent.entrypoint import AgentNetworkRunMaterializer, get_http_tool_executor
+from modules.network.application.runtime import AgentInvoker
 from modules.network.infra.database.unit_of_work import NetworkUnitOfWork
-from modules.network.infra.runtime.finalizer import NetworkRuntimeFinalizer
+from modules.network.infra.runtime.finalizer import (
+    AgentRunMaterializer,
+    NetworkRuntimeFinalizer,
+)
 from modules.network.infra.runtime.loader import NetworkRuntimeLoader
 from modules.network.infra.runtime.redis_store import RedisNetworkExecutionStore
 from modules.network.infra.workers.execution_worker import (
@@ -35,6 +38,9 @@ def register_network_workers(
     settings: Settings,
     engine: AsyncEngine,
     rabbitmq_manager: RabbitMQManager | None = None,
+    *,
+    agent_invoker: AgentInvoker,
+    agent_materializer: AgentRunMaterializer,
 ) -> None:
     if rabbitmq_manager is None or not settings.network_runtime_enabled:
         return
@@ -43,15 +49,14 @@ def register_network_workers(
     loader = NetworkRuntimeLoader(uow_factory)
     finalizer = NetworkRuntimeFinalizer(
         uow_factory,
-        AgentNetworkRunMaterializer(),
+        agent_materializer,
     )
     state_store = RedisNetworkExecutionStore(EXECUTION_STATE_STORE)
     processor = NetworkExecutionProcessor(
         loader=loader,
         store=state_store,
         finalizer=finalizer,
-        settings=settings,
-        http_executor=get_http_tool_executor(),
+        agent_invoker=agent_invoker,
         lease_ttl_seconds=settings.network_execution_lease_ttl_seconds,
         heartbeat_seconds=settings.network_execution_lease_heartbeat_seconds,
     )
