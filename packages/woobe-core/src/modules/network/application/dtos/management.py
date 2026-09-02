@@ -29,6 +29,13 @@ class ActivateNetworkProductionInput(BaseModel):
     created_by: UUID | None = None
 
 
+class RollbackNetworkProductionInput(BaseModel):
+    network_id: UUID
+    project_id: UUID
+    target_version_id: UUID
+    created_by: UUID | None = None
+
+
 class ManagedNetworkVersion(BaseModel):
     id: UUID
     network_id: UUID

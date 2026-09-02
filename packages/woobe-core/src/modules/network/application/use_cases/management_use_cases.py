@@ -6,6 +6,7 @@ from modules.network.application.dtos.management import (
     ListNetworkActivationsInput,
     ManagedNetworkVersion,
     NetworkProductionActivation,
+    RollbackNetworkProductionInput,
 )
 from modules.network.application.interfaces.management_repository import (
     NetworkManagementRepository,
@@ -139,3 +140,44 @@ class ActivateNetworkProductionUseCase:
             version=source,
             activation=activation,
         )
+
+
+class RollbackNetworkProductionUseCase:
+    def __init__(self, repository: NetworkManagementRepository) -> None:
+        self._repository = repository
+
+    async def execute(
+        self,
+        input_dto: RollbackNetworkProductionInput,
+    ) -> ManagedNetworkVersion:
+        state = await self._repository.get_production_state(
+            input_dto.network_id,
+            input_dto.project_id,
+            lock=True,
+        )
+        if state is None:
+            raise NotFoundError("Network not found")
+
+        target = await self._repository.get_version(
+            input_dto.target_version_id,
+            input_dto.project_id,
+        )
+        if (
+            target is None
+            or target.network_id != input_dto.network_id
+            or target.kind != "release"
+        ):
+            raise NotFoundError("Historical Network Production version not found")
+        if target.id == state.production_version_id:
+            raise ConflictError("Selected Network version is already in Production")
+
+        await self._repository.activate_production(
+            network_id=input_dto.network_id,
+            project_id=input_dto.project_id,
+            version_id=target.id,
+            previous_version_id=state.production_version_id,
+            activation_kind="rollback",
+            change_description=f"Rolled back Production to Network Release {target.version}.",
+            created_by=input_dto.created_by,
+        )
+        return target

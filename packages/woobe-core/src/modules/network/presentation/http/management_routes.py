@@ -7,8 +7,12 @@ from modules.network.composition.composers.management_composers import (
     get_network_execution_snapshot_composer,
     list_managed_network_versions_composer,
     list_network_activations_composer,
+    rollback_network_production_composer,
 )
-from modules.network.presentation.schemas import ActivateProductionRequest
+from modules.network.presentation.schemas import (
+    ActivateProductionRequest,
+    RollbackNetworkRequest,
+)
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
 
@@ -61,3 +65,13 @@ async def activate_network_production(
 ):
     del network_id, payload
     return await _handle(request, activate_network_production_composer())
+
+
+@router.post("/{network_id}/rollback", status_code=status.HTTP_201_CREATED)
+async def rollback_network_production(
+    network_id: UUID,
+    payload: RollbackNetworkRequest,
+    request: FastAPIRequest,
+):
+    del network_id, payload
+    return await _handle(request, rollback_network_production_composer())

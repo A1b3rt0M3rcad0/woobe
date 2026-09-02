@@ -5,6 +5,7 @@ from modules.network.application.dtos.management import (
     GetNetworkExecutionSnapshotInput,
     ListManagedNetworkVersionsInput,
     ListNetworkActivationsInput,
+    RollbackNetworkProductionInput,
 )
 from modules.network.application.interfaces.use_case import UseCase
 from modules.network.presentation.controllers.project_authorization import (
@@ -119,6 +120,39 @@ class ActivateNetworkProductionController(Controller):
                 "data": {
                     "version": version_payload,
                     "activation": result.activation.model_dump(),
+                },
+            },
+        )
+
+
+class RollbackNetworkProductionController(Controller):
+    def __init__(self, use_case: UseCase) -> None:
+        self._use_case = use_case
+
+    async def handle(self, request: Request) -> Response:
+        project_id = project_id_from_request(request)
+        authorize_project(request, project_id)
+        body = dict(request.body or {})
+        version = await self._use_case.execute(
+            RollbackNetworkProductionInput(
+                network_id=UUID(str(request.path_params["network_id"])),
+                project_id=project_id,
+                target_version_id=UUID(str(body["target_version_id"])),
+                created_by=actor_user_id(request),
+            )
+        )
+        return Response(
+            status_code=201,
+            body={
+                "success": True,
+                "data": {
+                    "id": version.id,
+                    "kind": version.kind,
+                    "version": version.version,
+                    "composition_hash": version.composition_hash,
+                    "definition": version.definition,
+                    "resolved_bindings": version.resolved_bindings,
+                    "created_at": version.created_at,
                 },
             },
         )

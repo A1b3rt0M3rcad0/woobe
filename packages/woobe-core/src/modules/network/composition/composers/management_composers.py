@@ -3,6 +3,7 @@ from modules.network.application.use_cases.management_use_cases import (
     GetNetworkExecutionSnapshotUseCase,
     ListManagedNetworkVersionsUseCase,
     ListNetworkActivationsUseCase,
+    RollbackNetworkProductionUseCase,
 )
 from modules.network.composition.resources import DATABASE_ENGINE
 from modules.network.infra.database.management_repository import (
@@ -14,6 +15,7 @@ from modules.network.presentation.controllers.management_controllers import (
     GetNetworkExecutionSnapshotController,
     ListManagedNetworkVersionsController,
     ListNetworkActivationsController,
+    RollbackNetworkProductionController,
 )
 from shared.infra.transactional_handler import TransactionalHandler
 
@@ -47,4 +49,12 @@ def activate_network_production_composer() -> TransactionalHandler:
     repository = SQLAlchemyNetworkManagementRepository(uow)
     use_case = ActivateNetworkProductionUseCase(repository)
     controller = ActivateNetworkProductionController(use_case)
+    return TransactionalHandler(uow, controller.handle)
+
+
+def rollback_network_production_composer() -> TransactionalHandler:
+    uow = NetworkUnitOfWork(DATABASE_ENGINE)
+    repository = SQLAlchemyNetworkManagementRepository(uow)
+    use_case = RollbackNetworkProductionUseCase(repository)
+    controller = RollbackNetworkProductionController(use_case)
     return TransactionalHandler(uow, controller.handle)
