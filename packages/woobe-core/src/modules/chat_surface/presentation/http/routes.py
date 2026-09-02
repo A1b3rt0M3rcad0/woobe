@@ -6,6 +6,10 @@ from modules.chat_surface.composition.composers.session_read_composers import (
     get_chat_surface_activity_composer,
     list_chat_surface_sessions_composer,
 )
+from modules.chat_surface.composition.composers.surface_read_composers import (
+    get_chat_surface_composer,
+    list_chat_surfaces_composer,
+)
 from modules.chat_surface.presentation.http import legacy_routes as _legacy
 from shared.presentation.http.adapter import request_adapter, response_adapter
 
@@ -15,16 +19,40 @@ _EXTERNAL_RUNTIME_PATHS = {
     "/v1/chat/sessions/{session_id}/messages",
     "/v1/chat/sessions/{session_id}/messages:stream",
 }
-_MIGRATED_CONTROL_PLANE_PATHS = {
-    "/chat-surfaces/{surface_id}/sessions",
-    "/chat-surfaces/{surface_id}/activity",
+_MIGRATED_CONTROL_PLANE_ROUTES = {
+    ("GET", "/chat-surfaces/projects/{project_id}"),
+    ("GET", "/chat-surfaces/{surface_id}"),
+    ("GET", "/chat-surfaces/{surface_id}/sessions"),
+    ("GET", "/chat-surfaces/{surface_id}/activity"),
 }
-_EXCLUDED_LEGACY_PATHS = _EXTERNAL_RUNTIME_PATHS | _MIGRATED_CONTROL_PLANE_PATHS
+
+
+def _legacy_route_is_excluded(route) -> bool:
+    path = getattr(route, "path", None)
+    if path in _EXTERNAL_RUNTIME_PATHS:
+        return True
+    methods = getattr(route, "methods", None) or set()
+    return any((str(method), path) in _MIGRATED_CONTROL_PLANE_ROUTES for method in methods)
+
 
 router = APIRouter(tags=["chat-surfaces"])
 for route in _legacy.router.routes:
-    if getattr(route, "path", None) not in _EXCLUDED_LEGACY_PATHS:
+    if not _legacy_route_is_excluded(route):
         router.routes.append(route)
+
+
+@router.get("/chat-surfaces/projects/{project_id}")
+async def list_surfaces(project_id: UUID, request: FastAPIRequest):
+    del project_id
+    response = await request_adapter(request, list_chat_surfaces_composer())
+    return response_adapter(response)
+
+
+@router.get("/chat-surfaces/{surface_id}")
+async def get_surface(surface_id: UUID, request: FastAPIRequest):
+    del surface_id
+    response = await request_adapter(request, get_chat_surface_composer())
+    return response_adapter(response)
 
 
 @router.get("/chat-surfaces/{surface_id}/sessions")
