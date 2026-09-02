@@ -36,8 +36,27 @@ async def request_adapter(fastapi_request: FastAPIRequest, handler: Any) -> Resp
 
 
 def response_adapter(response: Response) -> JSONResponse:
-    return JSONResponse(
+    http_response = JSONResponse(
         content=jsonable_encoder(response.body),
         status_code=response.status_code,
         headers=response.headers,
     )
+    for cookie in response.cookies:
+        http_response.set_cookie(
+            key=cookie.key,
+            value=cookie.value,
+            max_age=cookie.max_age,
+            httponly=cookie.httponly,
+            secure=cookie.secure,
+            samesite=cookie.samesite,
+            path=cookie.path,
+        )
+    for cookie in response.delete_cookies:
+        http_response.delete_cookie(
+            key=cookie.key,
+            httponly=cookie.httponly,
+            secure=cookie.secure,
+            samesite=cookie.samesite,
+            path=cookie.path,
+        )
+    return http_response

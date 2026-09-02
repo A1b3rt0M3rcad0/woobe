@@ -19,6 +19,7 @@ from modules.identity.application.interfaces.repositories import (
     WorkspaceMemberRepository,
     WorkspaceRepository,
 )
+from modules.identity.application.interfaces.workspace_access import WorkspaceAccessRepository
 from modules.identity.domain.entities import User, Workspace, WorkspaceMember
 from modules.identity.domain.enums import MemberRole, UserStatus
 from modules.identity.domain.errors import EmailAlreadyExistsError, InvalidCredentialsError
@@ -38,19 +39,12 @@ def _authentication_result(
     workspace: Workspace | None = None,
 ) -> IssuedAuthentication:
     return IssuedAuthentication(
-        access_token=token_issuer.issue(
-            user_id=user.id,
-            session_id=session.id,
-        ),
+        access_token=token_issuer.issue(user_id=user.id, session_id=session.id),
         refresh_token=session.secret,
         session_id=session.id,
         token_type="Bearer",
         expires_in=token_issuer.ttl_seconds,
-        user=AuthenticatedUser(
-            id=user.id,
-            email=user.email,
-            status=user.status.value,
-        ),
+        user=AuthenticatedUser(id=user.id, email=user.email, status=user.status.value),
         workspace=(
             AuthenticatedWorkspace(
                 id=workspace.id,
@@ -108,49 +102,21 @@ async def _create_owned_workspace(
 
 
 class LoginAuthenticationUseCase:
-    def __init__(
-        self,
-        user_repo: UserRepository,
-        session_repo: AuthenticationSessionRepository,
-        token_issuer: AccessTokenIssuer,
-    ) -> None:
+    def __init__(self, user_repo: UserRepository, session_repo: AuthenticationSessionRepository, token_issuer: AccessTokenIssuer) -> None:
         self._user_repo = user_repo
         self._session_repo = session_repo
         self._token_issuer = token_issuer
 
-    async def execute(
-        self,
-        *,
-        email: str,
-        password: str,
-        user_agent: str | None,
-        ip_address: str | None,
-    ) -> IssuedAuthentication:
+    async def execute(self, *, email: str, password: str, user_agent: str | None, ip_address: str | None) -> IssuedAuthentication:
         user = await self._user_repo.get_by_email(email.strip().lower())
-        if (
-            user is None
-            or user.status != UserStatus.active
-            or not verify_password(password, user.password)
-        ):
+        if user is None or user.status != UserStatus.active or not verify_password(password, user.password):
             raise InvalidCredentialsError("Invalid credentials")
-        session = await self._session_repo.issue(
-            user_id=user.id,
-            user_agent=user_agent,
-            ip_address=ip_address,
-        )
+        session = await self._session_repo.issue(user_id=user.id, user_agent=user_agent, ip_address=ip_address)
         return _authentication_result(user, session, self._token_issuer)
 
 
 class RegisterAuthenticationUseCase:
-    def __init__(
-        self,
-        user_repo: UserRepository,
-        workspace_repo: WorkspaceRepository,
-        member_repo: WorkspaceMemberRepository,
-        outbox: OutboxEventWriter,
-        session_repo: AuthenticationSessionRepository,
-        token_issuer: AccessTokenIssuer,
-    ) -> None:
+    def __init__(self, user_repo: UserRepository, workspace_repo: WorkspaceRepository, member_repo: WorkspaceMemberRepository, outbox: OutboxEventWriter, session_repo: AuthenticationSessionRepository, token_issuer: AccessTokenIssuer) -> None:
         self._user_repo = user_repo
         self._workspace_repo = workspace_repo
         self._member_repo = member_repo
@@ -158,57 +124,19 @@ class RegisterAuthenticationUseCase:
         self._session_repo = session_repo
         self._token_issuer = token_issuer
 
-    async def execute(
-        self,
-        *,
-        email: str,
-        password: str,
-        user_agent: str | None,
-        ip_address: str | None,
-    ) -> IssuedAuthentication:
+    async def execute(self, *, email: str, password: str, user_agent: str | None, ip_address: str | None) -> IssuedAuthentication:
         normalized_email = email.strip().lower()
         if await self._user_repo.get_by_email(normalized_email):
             raise EmailAlreadyExistsError(normalized_email)
-        user = await self._user_repo.save(
-            User(email=normalized_email, password=hash_password(password))
-        )
-        await self._outbox.write(
-            aggregate_type="user",
-            aggregate_id=user.id,
-            event_type="user.created.v1",
-            payload={"email": user.email},
-            routing_key="user.created.v1",
-            idempotency_key=f"identity:user.created.v1:{user.id}",
-        )
-        workspace = await _create_owned_workspace(
-            user_id=user.id,
-            name=DEFAULT_WORKSPACE_NAME,
-            slug=f"workspace-{str(user.id)[:8]}",
-            workspace_repo=self._workspace_repo,
-            member_repo=self._member_repo,
-            outbox=self._outbox,
-        )
-        session = await self._session_repo.issue(
-            user_id=user.id,
-            user_agent=user_agent,
-            ip_address=ip_address,
-        )
-        return _authentication_result(
-            user,
-            session,
-            self._token_issuer,
-            workspace=workspace,
-        )
+        user = await self._user_repo.save(User(email=normalized_email, password=hash_password(password)))
+        await self._outbox.write(aggregate_type="user", aggregate_id=user.id, event_type="user.created.v1", payload={"email": user.email}, routing_key="user.created.v1", idempotency_key=f"identity:user.created.v1:{user.id}")
+        workspace = await _create_owned_workspace(user_id=user.id, name=DEFAULT_WORKSPACE_NAME, slug=f"workspace-{str(user.id)[:8]}", workspace_repo=self._workspace_repo, member_repo=self._member_repo, outbox=self._outbox)
+        session = await self._session_repo.issue(user_id=user.id, user_agent=user_agent, ip_address=ip_address)
+        return _authentication_result(user, session, self._token_issuer, workspace=workspace)
 
 
 class CreateOwnedWorkspaceUseCase:
-    def __init__(
-        self,
-        user_repo: UserRepository,
-        workspace_repo: WorkspaceRepository,
-        member_repo: WorkspaceMemberRepository,
-        outbox: OutboxEventWriter,
-    ) -> None:
+    def __init__(self, user_repo: UserRepository, workspace_repo: WorkspaceRepository, member_repo: WorkspaceMemberRepository, outbox: OutboxEventWriter) -> None:
         self._user_repo = user_repo
         self._workspace_repo = workspace_repo
         self._member_repo = member_repo
@@ -218,66 +146,31 @@ class CreateOwnedWorkspaceUseCase:
         user = await self._user_repo.get_by_id(user_id)
         if user is None or user.status != UserStatus.active:
             raise AuthenticationError("Authentication required")
-        return await _create_owned_workspace(
-            user_id=user.id,
-            name=name.strip(),
-            slug=slug.strip().lower(),
-            workspace_repo=self._workspace_repo,
-            member_repo=self._member_repo,
-            outbox=self._outbox,
-        )
+        return await _create_owned_workspace(user_id=user.id, name=name.strip(), slug=slug.strip().lower(), workspace_repo=self._workspace_repo, member_repo=self._member_repo, outbox=self._outbox)
 
 
 class RefreshAuthenticationUseCase:
-    def __init__(
-        self,
-        user_repo: UserRepository,
-        session_repo: AuthenticationSessionRepository,
-        token_issuer: AccessTokenIssuer,
-    ) -> None:
+    def __init__(self, user_repo: UserRepository, session_repo: AuthenticationSessionRepository, token_issuer: AccessTokenIssuer) -> None:
         self._user_repo = user_repo
         self._session_repo = session_repo
         self._token_issuer = token_issuer
 
-    async def execute(
-        self,
-        *,
-        session_id: UUID,
-        secret: str,
-        user_agent: str | None,
-        ip_address: str | None,
-    ) -> AuthenticationAttempt:
-        rotation = await self._session_repo.rotate(
-            session_id=session_id,
-            secret=secret,
-            user_agent=user_agent,
-            ip_address=ip_address,
-        )
+    async def execute(self, *, session_id: UUID, secret: str, user_agent: str | None, ip_address: str | None) -> AuthenticationAttempt:
+        rotation = await self._session_repo.rotate(session_id=session_id, secret=secret, user_agent=user_agent, ip_address=ip_address)
         if rotation.session is None:
             return AuthenticationAttempt(error=rotation.error or "Invalid refresh session")
         user = await self._user_repo.get_by_id(rotation.session.user_id)
         if user is None or user.status != UserStatus.active:
             await self._session_repo.revoke_all(rotation.session.user_id)
             return AuthenticationAttempt(error="Invalid refresh session")
-        return AuthenticationAttempt(
-            authentication=_authentication_result(
-                user,
-                rotation.session,
-                self._token_issuer,
-            )
-        )
+        return AuthenticationAttempt(authentication=_authentication_result(user, rotation.session, self._token_issuer))
 
 
 class LogoutAuthenticationUseCase:
     def __init__(self, session_repo: AuthenticationSessionRepository) -> None:
         self._session_repo = session_repo
 
-    async def execute(
-        self,
-        *,
-        session_id: UUID | None,
-        secret: str | None,
-    ) -> None:
+    async def execute(self, *, session_id: UUID | None, secret: str | None) -> None:
         await self._session_repo.revoke(session_id=session_id, secret=secret)
 
 
@@ -289,11 +182,7 @@ class GetAuthenticatedUserUseCase:
         user = await self._user_repo.get_by_id(user_id)
         if user is None or user.status != UserStatus.active:
             raise AuthenticationError("Authentication required")
-        return AuthenticatedUser(
-            id=user.id,
-            email=user.email,
-            status=user.status.value,
-        )
+        return AuthenticatedUser(id=user.id, email=user.email, status=user.status.value)
 
 
 class ListAuthenticatedWorkspacesUseCase:
@@ -305,11 +194,7 @@ class ListAuthenticatedWorkspacesUseCase:
 
 
 class ListPendingWorkspaceInvitesUseCase:
-    def __init__(
-        self,
-        user_repo: UserRepository,
-        auth_repo: AuthenticationRepository,
-    ) -> None:
+    def __init__(self, user_repo: UserRepository, auth_repo: AuthenticationRepository) -> None:
         self._user_repo = user_repo
         self._auth_repo = auth_repo
 
@@ -321,91 +206,38 @@ class ListPendingWorkspaceInvitesUseCase:
 
 
 class CreateWorkspaceInviteUseCase:
-    def __init__(
-        self,
-        workspace_repo: WorkspaceRepository,
-        auth_repo: AuthenticationRepository,
-        outbox: OutboxEventWriter,
-    ) -> None:
+    def __init__(self, workspace_repo: WorkspaceRepository, auth_repo: AuthenticationRepository, access_repo: WorkspaceAccessRepository, outbox: OutboxEventWriter) -> None:
         self._workspace_repo = workspace_repo
         self._auth_repo = auth_repo
+        self._access_repo = access_repo
         self._outbox = outbox
 
-    async def execute(
-        self,
-        *,
-        actor_user_id: UUID,
-        workspace_id: UUID,
-        email: str,
-        role: MemberRole,
-        project_ids: list[UUID],
-    ):
+    async def execute(self, *, actor_user_id: UUID, workspace_id: UUID, email: str, role: MemberRole, project_ids: list[UUID]) -> object:
         normalized_email = email.strip().lower()
         if not normalized_email:
             raise ConflictError("Invite email is required")
+        await self._access_repo.require_role_assignment(actor_user_id=actor_user_id, workspace_id=workspace_id, target_role=role.value)
         if await self._workspace_repo.get_by_id(workspace_id) is None:
             raise NotFoundError("Workspace not found")
         now = utc_now()
-        invite = await self._auth_repo.create_invite(
-            actor_user_id=actor_user_id,
-            workspace_id=workspace_id,
-            email=normalized_email,
-            role=role,
-            project_ids=project_ids,
-            expires_at=now + timedelta(days=7),
-            now=now,
-        )
-        await self._outbox.write(
-            aggregate_type="workspace_invite",
-            aggregate_id=invite.id,
-            event_type="workspace.invite_created.v1",
-            payload={
-                "workspace_id": str(workspace_id),
-                "email": normalized_email,
-                "role": role.value,
-                "project_ids": [str(project_id) for project_id in dict.fromkeys(project_ids)],
-            },
-            routing_key="workspace.invite_created.v1",
-            idempotency_key=(
-                f"identity:workspace.invite_created.v1:{invite.id}:{int(now.timestamp())}"
-            ),
-        )
+        invite = await self._auth_repo.create_invite(actor_user_id=actor_user_id, workspace_id=workspace_id, email=normalized_email, role=role, project_ids=project_ids, expires_at=now + timedelta(days=7), now=now)
+        await self._outbox.write(aggregate_type="workspace_invite", aggregate_id=invite.id, event_type="workspace.invite_created.v1", payload={"workspace_id": str(workspace_id), "email": normalized_email, "role": role.value, "project_ids": [str(project_id) for project_id in dict.fromkeys(project_ids)]}, routing_key="workspace.invite_created.v1", idempotency_key=f"identity:workspace.invite_created.v1:{invite.id}:{int(now.timestamp())}")
         return invite
 
 
 class AcceptWorkspaceInviteUseCase:
-    def __init__(
-        self,
-        user_repo: UserRepository,
-        auth_repo: AuthenticationRepository,
-        outbox: OutboxEventWriter,
-    ) -> None:
+    def __init__(self, user_repo: UserRepository, auth_repo: AuthenticationRepository, access_repo: WorkspaceAccessRepository, outbox: OutboxEventWriter) -> None:
         self._user_repo = user_repo
         self._auth_repo = auth_repo
+        self._access_repo = access_repo
         self._outbox = outbox
 
     async def execute(self, *, user_id: UUID, invite_id: UUID) -> Workspace:
         user = await self._user_repo.get_by_id(user_id)
         if user is None or user.status != UserStatus.active:
             raise AuthenticationError("Authentication required")
-        accepted = await self._auth_repo.accept_invite(
-            user=user,
-            invite_id=invite_id,
-            now=utc_now(),
-        )
+        await self._access_repo.require_valid_invite_acceptance(user_id=user_id, invite_id=invite_id)
+        accepted = await self._auth_repo.accept_invite(user=user, invite_id=invite_id, now=utc_now())
         if accepted.membership_changed:
-            await self._outbox.write(
-                aggregate_type="workspace_member",
-                aggregate_id=accepted.member_id,
-                event_type="workspace.member_added.v1",
-                payload={
-                    "user_id": str(user.id),
-                    "workspace_id": str(accepted.workspace.id),
-                    "role": accepted.role.value,
-                },
-                routing_key="workspace.member_added.v1",
-                idempotency_key=(
-                    f"identity:workspace.member_added.v1:{accepted.member_id}"
-                ),
-            )
+            await self._outbox.write(aggregate_type="workspace_member", aggregate_id=accepted.member_id, event_type="workspace.member_added.v1", payload={"user_id": str(user.id), "workspace_id": str(accepted.workspace.id), "role": accepted.role.value}, routing_key="workspace.member_added.v1", idempotency_key=f"identity:workspace.member_added.v1:{accepted.member_id}")
         return accepted.workspace

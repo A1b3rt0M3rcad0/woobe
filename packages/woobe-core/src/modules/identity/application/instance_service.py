@@ -11,8 +11,8 @@ from modules.identity.application.auth_types import (
     AuthenticatedUser,
     IssuedAuthentication,
 )
-from modules.identity.application.authentication_service import DEFAULT_WORKSPACE_NAME
 from modules.identity.application.session_lifecycle import SessionLifecycle
+from modules.identity.application.use_cases.authentication_use_cases import DEFAULT_WORKSPACE_NAME
 from modules.identity.domain.entities import Workspace, WorkspaceMember, User
 from modules.identity.domain.enums import MemberRole
 from modules.identity.domain.errors import EmailAlreadyExistsError
@@ -49,11 +49,7 @@ class InstanceService:
                 )
             ).mappings().one_or_none()
             user_count = int(
-                (
-                    await session.execute(
-                        text("SELECT count(*) FROM identity.users")
-                    )
-                ).scalar_one()
+                (await session.execute(text("SELECT count(*) FROM identity.users"))).scalar_one()
                 or 0
             )
 
@@ -84,11 +80,7 @@ class InstanceService:
                     )
                 )
             ).mappings().one_or_none()
-            if (
-                row is None
-                or row["owner_user_id"] is None
-                or row["initialized_at"] is None
-            ):
+            if row is None or row["owner_user_id"] is None or row["initialized_at"] is None:
                 raise ConflictError(
                     "Woobe Core is not initialized. Bootstrap the instance before registration."
                 )
@@ -151,9 +143,7 @@ class InstanceService:
                 raise ConflictError("Woobe instance is already initialized or being initialized")
 
             user_count = int(
-                (
-                    await uow.session.execute(text("SELECT count(*) FROM identity.users"))
-                ).scalar_one()
+                (await uow.session.execute(text("SELECT count(*) FROM identity.users"))).scalar_one()
                 or 0
             )
             if user_count > 0:
@@ -163,9 +153,7 @@ class InstanceService:
             if await uow.users.get_by_email(normalized_email):
                 raise EmailAlreadyExistsError(normalized_email)
 
-            user = await uow.users.save(
-                User(email=normalized_email, password=hash_password(password))
-            )
+            user = await uow.users.save(User(email=normalized_email, password=hash_password(password)))
             await uow.outbox.write(
                 aggregate_type="user",
                 aggregate_id=user.id,
@@ -176,10 +164,7 @@ class InstanceService:
             )
 
             workspace = await uow.workspaces.save(
-                Workspace(
-                    name=DEFAULT_WORKSPACE_NAME,
-                    slug=f"workspace-{str(user.id)[:8]}",
-                )
+                Workspace(name=DEFAULT_WORKSPACE_NAME, slug=f"workspace-{str(user.id)[:8]}")
             )
             await uow.outbox.write(
                 aggregate_type="workspace",
@@ -231,19 +216,12 @@ class InstanceService:
             )
 
             return IssuedAuthentication(
-                access_token=self._token_codec.issue(
-                    user_id=user.id,
-                    session_id=session.id,
-                ),
+                access_token=self._token_codec.issue(user_id=user.id, session_id=session.id),
                 refresh_token=session.secret,
                 session_id=session.id,
                 token_type="Bearer",
                 expires_in=self._token_codec.ttl_seconds,
-                user=AuthenticatedUser(
-                    id=user.id,
-                    email=user.email,
-                    status=user.status.value,
-                ),
+                user=AuthenticatedUser(id=user.id, email=user.email, status=user.status.value),
                 workspace=AuthenticatedWorkspace(
                     id=workspace.id,
                     name=workspace.name,
@@ -278,9 +256,7 @@ class InstanceService:
                 )
             ).scalar_one_or_none()
             if owner is None:
-                raise NotFoundError(
-                    "No active Workspace owner exists with the supplied email"
-                )
+                raise NotFoundError("No active Workspace owner exists with the supplied email")
 
             inserted = await uow.session.execute(
                 text(
