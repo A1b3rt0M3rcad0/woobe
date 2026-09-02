@@ -54,16 +54,31 @@ class AcceptNetworkExecutionUseCase:
             if existing is not None:
                 if existing.project_id != input_dto.project_id:
                     raise NotFoundError("Network execution not found")
-                if input_dto.expected_environment is not None:
+                if existing.network_session_id != input_dto.network_session_id:
+                    raise ConflictError(
+                        "Idempotency-Key already belongs to another Network Session"
+                    )
+                if (
+                    input_dto.expected_environment is not None
+                    or input_dto.expected_network_version_id is not None
+                ):
                     existing_session = await self._repository.get_session(
                         network_id=input_dto.network_id,
                         project_id=input_dto.project_id,
                         network_session_id=existing.network_session_id,
                         lock=False,
                     )
+                    if existing_session is None:
+                        raise NotFoundError("Network execution not found")
                     if (
-                        existing_session is None
-                        or existing_session.environment != input_dto.expected_environment
+                        input_dto.expected_environment is not None
+                        and existing_session.environment != input_dto.expected_environment
+                    ):
+                        raise NotFoundError("Network execution not found")
+                    if (
+                        input_dto.expected_network_version_id is not None
+                        and existing_session.network_version_id
+                        != input_dto.expected_network_version_id
                     ):
                         raise NotFoundError("Network execution not found")
                 return existing
@@ -79,6 +94,12 @@ class AcceptNetworkExecutionUseCase:
         if (
             input_dto.expected_environment is not None
             and network_session.environment != input_dto.expected_environment
+        ):
+            raise NotFoundError("Network Session not found")
+        if (
+            input_dto.expected_network_version_id is not None
+            and network_session.network_version_id
+            != input_dto.expected_network_version_id
         ):
             raise NotFoundError("Network Session not found")
 

@@ -3,7 +3,8 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
+from datetime import datetime
 from uuid import UUID
 
 from modules.network.application.dtos.observation import NetworkRunObservation
@@ -25,6 +26,7 @@ from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipa
 
 _TERMINAL_STATUSES = {"completed", "failed", "cancelled", "timed_out", "uncertain"}
 _VALID_ENVIRONMENTS = {"draft", "staging", "production"}
+RunLoader = Callable[[], Awaitable[NetworkRunObservation]]
 
 
 class NetworkRunReattachService:
@@ -86,6 +88,27 @@ class NetworkRunReattachService:
 
         raise AuthorizationError("Authentication required")
 
+    @staticmethod
+    def _require_bound_run(
+        run: NetworkRunObservation | None,
+        *,
+        project_id: UUID,
+        network_id: UUID,
+        network_session_id: UUID,
+        network_version_id: UUID,
+        environment: str,
+    ) -> NetworkRunObservation:
+        if (
+            run is None
+            or run.project_id != project_id
+            or run.network_id != network_id
+            or run.network_session_id != network_session_id
+            or run.network_version_id != network_version_id
+            or run.environment != environment
+        ):
+            raise NotFoundError("Network execution not found")
+        return run
+
     async def _load_run(
         self,
         run_id: UUID,
@@ -99,6 +122,93 @@ class NetworkRunReattachService:
                 raise NotFoundError("Network execution not found")
             await self._authorize_run(repositories, principal, run)
             return run
+
+        return await self._transactions.read(read_run)
+
+    async def get_bound_run(
+        self,
+        *,
+        run_id: UUID,
+        project_id: UUID,
+        network_id: UUID,
+        network_session_id: UUID,
+        network_version_id: UUID,
+        environment: str = "production",
+    ) -> NetworkRunObservation:
+        async def read_run(
+            repositories: NetworkRuntimeRepositories,
+        ) -> NetworkRunObservation:
+            return self._require_bound_run(
+                await repositories.runs.get(run_id),
+                project_id=project_id,
+                network_id=network_id,
+                network_session_id=network_session_id,
+                network_version_id=network_version_id,
+                environment=environment,
+            )
+
+        return await self._transactions.read(read_run)
+
+    async def find_active_bound_run(
+        self,
+        *,
+        project_id: UUID,
+        network_id: UUID,
+        network_session_id: UUID,
+        network_version_id: UUID,
+        environment: str = "production",
+    ) -> NetworkRunObservation | None:
+        async def read_run(
+            repositories: NetworkRuntimeRepositories,
+        ) -> NetworkRunObservation | None:
+            run = await repositories.runs.find_active(
+                network_session_id=network_session_id,
+                network_id=network_id,
+                environment=environment,
+            )
+            if run is None:
+                return None
+            return self._require_bound_run(
+                run,
+                project_id=project_id,
+                network_id=network_id,
+                network_session_id=network_session_id,
+                network_version_id=network_version_id,
+                environment=environment,
+            )
+
+        return await self._transactions.read(read_run)
+
+    async def find_latest_bound_run(
+        self,
+        *,
+        project_id: UUID,
+        network_id: UUID,
+        network_session_id: UUID,
+        network_version_id: UUID,
+        created_after: datetime | None = None,
+        environment: str = "production",
+    ) -> NetworkRunObservation | None:
+        async def read_run(
+            repositories: NetworkRuntimeRepositories,
+        ) -> NetworkRunObservation | None:
+            run = await repositories.runs.find_latest(
+                network_session_id=network_session_id,
+                network_id=network_id,
+                project_id=project_id,
+                network_version_id=network_version_id,
+                created_after=created_after,
+            )
+            if run is None:
+                return None
+            return self._require_bound_run(
+                run,
+                project_id=project_id,
+                network_id=network_id,
+                network_session_id=network_session_id,
+                network_version_id=network_version_id,
+                environment=environment,
+            )
 
         return await self._transactions.read(read_run)
 
@@ -231,14 +341,14 @@ class NetworkRunReattachService:
                 )
             await asyncio.sleep(0.25)
 
-    async def stream_sse(
+    async def _stream_from_loader(
         self,
         *,
         run_id: UUID,
-        principal: object | None,
-        is_disconnected: DisconnectCheck | None = None,
+        load_run: RunLoader,
+        is_disconnected: DisconnectCheck | None,
     ) -> AsyncIterator[str]:
-        initial = await self._load_run(run_id, principal)
+        initial = await load_run()
         reader = RuntimeStreamReader(
             self._state_store,
             heartbeat_seconds=self._heartbeat_seconds,
@@ -246,7 +356,7 @@ class NetworkRunReattachService:
         )
 
         async def durable_fallback() -> dict | None:
-            latest = await self._load_run(run_id, principal)
+            latest = await load_run()
             return self._durable_state(latest)
 
         hot = await self._state_store.get(run_id)
@@ -269,7 +379,7 @@ class NetworkRunReattachService:
                 if is_disconnected is not None and await is_disconnected():
                     return
                 await asyncio.sleep(0.25)
-                latest = await self._load_run(run_id, principal)
+                latest = await load_run()
                 if latest.status in _TERMINAL_STATUSES:
                     terminal = self._durable_state(latest)
                     terminal.update(
@@ -297,7 +407,7 @@ class NetworkRunReattachService:
                     return
                 yield self._format_sse(frame, run_id)
         except RuntimeStreamGapError:
-            latest = await self._load_run(run_id, principal)
+            latest = await load_run()
             state = self._durable_state(latest)
             state.update(
                 {
@@ -312,3 +422,48 @@ class NetworkRunReattachService:
                 RuntimeStreamFrame("run.state", state, sequence=None),
                 run_id,
             )
+
+    async def stream_sse(
+        self,
+        *,
+        run_id: UUID,
+        principal: object | None,
+        is_disconnected: DisconnectCheck | None = None,
+    ) -> AsyncIterator[str]:
+        async def load_run() -> NetworkRunObservation:
+            return await self._load_run(run_id, principal)
+
+        async for chunk in self._stream_from_loader(
+            run_id=run_id,
+            load_run=load_run,
+            is_disconnected=is_disconnected,
+        ):
+            yield chunk
+
+    async def stream_bound_sse(
+        self,
+        *,
+        run_id: UUID,
+        project_id: UUID,
+        network_id: UUID,
+        network_session_id: UUID,
+        network_version_id: UUID,
+        environment: str = "production",
+        is_disconnected: DisconnectCheck | None = None,
+    ) -> AsyncIterator[str]:
+        async def load_run() -> NetworkRunObservation:
+            return await self.get_bound_run(
+                run_id=run_id,
+                project_id=project_id,
+                network_id=network_id,
+                network_session_id=network_session_id,
+                network_version_id=network_version_id,
+                environment=environment,
+            )
+
+        async for chunk in self._stream_from_loader(
+            run_id=run_id,
+            load_run=load_run,
+            is_disconnected=is_disconnected,
+        ):
+            yield chunk

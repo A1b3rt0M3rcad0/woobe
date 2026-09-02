@@ -1,3 +1,4 @@
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -81,6 +82,45 @@ class SQLAlchemyNetworkRunObservationRepository(NetworkRunObservationRepository)
             statement = statement.where(NetworkExecutionModel.network_id == network_id)
         if environment is not None:
             statement = statement.where(NetworkSessionModel.environment == environment)
+        row = (
+            await self._uow.session.execute(
+                statement
+                .order_by(
+                    NetworkExecutionModel.created_at.desc(),
+                    NetworkExecutionModel.id.desc(),
+                )
+                .limit(1)
+            )
+        ).first()
+        if row is None:
+            return None
+        execution, network_session = row
+        return self._observation(execution, network_session)
+
+    async def find_latest(
+        self,
+        *,
+        network_session_id: UUID,
+        network_id: UUID,
+        project_id: UUID,
+        network_version_id: UUID | None,
+        created_after: datetime | None = None,
+    ) -> NetworkRunObservation | None:
+        statement = (
+            select(NetworkExecutionModel, NetworkSessionModel)
+            .join(
+                NetworkSessionModel,
+                NetworkSessionModel.id == NetworkExecutionModel.network_session_id,
+            )
+            .where(
+                NetworkExecutionModel.network_session_id == network_session_id,
+                NetworkExecutionModel.network_id == network_id,
+                NetworkExecutionModel.project_id == project_id,
+                NetworkExecutionModel.network_version_id == network_version_id,
+            )
+        )
+        if created_after is not None:
+            statement = statement.where(NetworkExecutionModel.created_at >= created_after)
         row = (
             await self._uow.session.execute(
                 statement
