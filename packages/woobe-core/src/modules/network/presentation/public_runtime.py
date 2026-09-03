@@ -17,12 +17,12 @@ from modules.network.infra.database.models import (
     NetworkSessionModel,
 )
 from modules.network.presentation.reattach_routes import reattach_network_execution
-from modules.network.presentation.routes import TERMINAL_STATUSES
 from shared.infra.errors import (
     AuthorizationError,
     NotFoundError,
     RuntimeTimeoutError,
 )
+from shared.runtime import TERMINAL_RUN_STATUSES
 from shared.security.principal import ProjectApiPrincipal
 
 
@@ -218,7 +218,7 @@ async def run_network_http(request: Request):
                 "message": "ok",
                 "data": _execution_payload(execution, network_session),
             }
-        if execution.status in TERMINAL_STATUSES:
+        if execution.status in TERMINAL_RUN_STATUSES:
             status_code = 409 if execution.status == "cancelled" else 503
             return JSONResponse(
                 status_code=status_code,
