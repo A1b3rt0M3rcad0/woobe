@@ -44,24 +44,18 @@ class SQLNetworkExecutionStore:
         snapshot_override: dict[str, Any] | None,
         binding_session_mode: str | None = None,
     ) -> str:
+        # Runtime execution must consume the session mode frozen into the Network
+        # binding. Looking up an Agent Release here would make a Network Run depend
+        # on mutable cross-context infrastructure after its execution snapshot was
+        # accepted.
+        del session, project_id, agent_id
         if binding_session_mode is not None:
             if binding_session_mode in {"stateful", "stateless"}:
                 return binding_session_mode
             raise RuntimeError("Pinned Agent binding has no valid session_mode")
 
         if release_id is not None:
-            from modules.agent.infra.database.models import AgentReleaseModel
-
-            release = await session.get(AgentReleaseModel, release_id)
-            if release is None:
-                raise RuntimeError("Pinned Agent release was not found")
-            if release.project_id != project_id or release.agent_id != agent_id:
-                raise RuntimeError(
-                    "Pinned Agent release does not belong to this Network node"
-                )
-            if release.session_mode not in {"stateful", "stateless"}:
-                raise RuntimeError("Pinned Agent release has no valid session_mode")
-            return str(release.session_mode)
+            raise RuntimeError("Pinned Agent binding has no frozen session_mode")
 
         if isinstance(snapshot_override, dict):
             session_mode = snapshot_override.get("session_mode")
