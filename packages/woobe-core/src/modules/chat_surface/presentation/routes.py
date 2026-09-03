@@ -50,6 +50,7 @@ def _service(request: Request) -> ControlPlaneChatSurfaceService:
     return ControlPlaneChatSurfaceService(
         request.app.state.session_factory,
         request.app.state.chat_session_token_codec,
+        runtime_gateway=_runtime_gateway(request),
         allow_insecure_origins=(
             settings.chat_surface_allow_insecure_origins or local_environment
         ),
