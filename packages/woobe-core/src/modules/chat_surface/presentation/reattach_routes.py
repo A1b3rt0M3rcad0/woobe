@@ -114,12 +114,22 @@ async def _authorized_active_request(
         message_request,
     )
 
-    if run_id is None and message_request is None:
+    # Message bookkeeping may be stale, terminal or temporarily uncorrelated while
+    # the canonical Run is still active. Always perform one target-wide active lookup
+    # before concluding that the Session has no active execution.
+    if run_id is None:
         identity = await _runtime_gateway(request).resolve_run(_target(authorized))
         if identity is not None:
             run_id, run_status = identity.run_id, identity.status
 
-    if message_request is not None and run_id is None:
+    # The bounded Acceptance grace exists only for an operationally active
+    # MessageRequest. Historical terminal bookkeeping must return immediately rather
+    # than adding one second of artificial latency to every active-run probe.
+    if (
+        message_request is not None
+        and message_request.status in _MESSAGE_ACTIVE
+        and run_id is None
+    ):
         for _ in range(20):
             await asyncio.sleep(0.05)
             message_request = await _latest_message_request(
