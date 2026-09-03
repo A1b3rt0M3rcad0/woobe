@@ -4,6 +4,12 @@ import {
   getCsrfHeaders,
   refreshAuthSession,
 } from '@/lib/api/client'
+import {
+  acceptRuntimeFrameSequence,
+  runtimeTerminalStatus,
+  type ParsedRuntimeFrame,
+  type RuntimeSequenceState,
+} from '@/lib/runtime-stream'
 import { createUuid } from '@/lib/uuid'
 
 import type { NetworkRuntimeEvent } from './types'
@@ -35,9 +41,8 @@ interface ParsedSseEvent {
   data: string
 }
 
-interface NetworkStreamState {
+interface NetworkStreamState extends RuntimeSequenceState {
   output: string
-  sequence: number | null
 }
 
 const TERMINAL_NETWORK_EVENTS = new Set([
@@ -45,7 +50,6 @@ const TERMINAL_NETWORK_EVENTS = new Set([
   'execution_failed',
   'execution_cancelled',
 ])
-const TERMINAL_RUN_STATUSES = new Set(['completed', 'failed', 'cancelled', 'timed_out', 'uncertain'])
 
 export function isTerminalNetworkEvent(eventType: string) {
   return TERMINAL_NETWORK_EVENTS.has(eventType)
@@ -251,36 +255,31 @@ function eventSequence(parsed: ParsedSseEvent, event: NetworkRuntimeEvent): numb
   return null
 }
 
+function runtimeFrame(
+  parsed: ParsedSseEvent,
+  event: NetworkRuntimeEvent,
+): ParsedRuntimeFrame {
+  return {
+    eventType: parsed.event,
+    data: event as unknown as Record<string, unknown>,
+    payload: eventData(event),
+    sequence: eventSequence(parsed, event),
+  }
+}
+
 function acceptSequence(
   parsed: ParsedSseEvent,
   event: NetworkRuntimeEvent,
   streamState: NetworkStreamState,
 ): boolean {
-  const data = eventData(event)
-  if (parsed.event === 'run.state' && data.realtime_available === false) return true
-
-  const sequence = eventSequence(parsed, event)
-  if (sequence === null) return true
-  event.sequence = sequence
-
-  if (parsed.event === 'run.state') {
-    if (streamState.sequence !== null && sequence < streamState.sequence) return false
-    streamState.sequence = sequence
-    return true
-  }
-
-  if (streamState.sequence !== null) {
-    if (sequence <= streamState.sequence) return false
-    const expected = streamState.sequence + 1
-    if (sequence !== expected) {
-      throw new Error(`Network stream sequence gap: expected ${expected}, received ${sequence}`)
-    }
-  }
-  streamState.sequence = sequence
-  return true
+  const frame = runtimeFrame(parsed, event)
+  const accepted = acceptRuntimeFrameSequence(frame, streamState)
+  if (frame.sequence !== null) event.sequence = frame.sequence
+  return accepted
 }
 
 function applyRunState(
+  parsed: ParsedSseEvent,
   event: NetworkRuntimeEvent,
   callbacks: NetworkStreamCallbacks,
   streamState: NetworkStreamState,
@@ -321,8 +320,8 @@ function applyRunState(
   hydrateDelegationSnapshot(event, data, callbacks)
   hydrateToolSnapshot(event, data, callbacks)
   callbacks.onEvent('run.state', event)
-  const status = typeof data.status === 'string' ? data.status : ''
-  if (!TERMINAL_RUN_STATUSES.has(status)) return false
+  const status = runtimeTerminalStatus(runtimeFrame(parsed, event))
+  if (status === null) return false
 
   if (status === 'completed') {
     callbacks.onEvent('execution_completed', syntheticEvent(event, {
@@ -381,7 +380,9 @@ async function consumeResponse(
       return false
     }
     if (!acceptSequence(parsed, event, streamState)) return false
-    if (parsed.event === 'run.state') return applyRunState(event, callbacks, streamState)
+    if (parsed.event === 'run.state') {
+      return applyRunState(parsed, event, callbacks, streamState)
+    }
 
     if (parsed.event === 'token') {
       const content = eventData(event).content
@@ -389,7 +390,10 @@ async function consumeResponse(
     } else if (parsed.event === 'token_retract') {
       const length = eventData(event).content_length
       if (typeof length === 'number' && length > 0) {
-        streamState.output = streamState.output.slice(0, Math.max(0, streamState.output.length - length))
+        streamState.output = streamState.output.slice(
+          0,
+          Math.max(0, streamState.output.length - length),
+        )
       }
     }
 
