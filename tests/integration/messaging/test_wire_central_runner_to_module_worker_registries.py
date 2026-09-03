@@ -1,9 +1,9 @@
 from unittest.mock import MagicMock
 
+from module_registry_composition import build_registries, discover_module_entries
 from modules.agent.infra.workers.run_recovery_worker import AgentRunRecoveryWorker
 from modules.agent.infra.workers.vector_snapshot_worker import VectorSnapshotWorker
 from shared.infra.rabbitmq import RabbitMQManager
-from shared.workers.discovery import build_registries, discover_module_entries
 
 
 def test_agent_registry_includes_vector_snapshot_and_run_recovery_workers():
