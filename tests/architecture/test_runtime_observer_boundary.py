@@ -30,13 +30,45 @@ def test_runtime_consumers_do_not_construct_legacy_stream_readers() -> None:
     )
 
 
+def test_runtime_consumers_do_not_import_legacy_reattach_module() -> None:
+    violations: list[str] = []
+    for module_root in RUNTIME_CONSUMERS:
+        for path in _python_files(module_root):
+            source = path.read_text(encoding="utf-8")
+            if "shared.runtime_reattach" in source:
+                violations.append(path.relative_to(ROOT).as_posix())
+    assert not violations, (
+        "Runtime consumers must import canonical shared.runtime primitives; "
+        "legacy runtime_reattach imports found in:\n"
+        + "\n".join(violations)
+    )
+
+
+def test_legacy_runtime_reattach_module_is_removed() -> None:
+    assert not (CORE / "shared" / "runtime_reattach.py").exists()
+
+
+def test_network_presentation_does_not_reimplement_acceptance_hot_wait() -> None:
+    network_presentation = CORE / "modules" / "network" / "presentation"
+    violations: list[str] = []
+    for filename in ("routes.py", "reattach_routes.py"):
+        path = network_presentation / filename
+        source = path.read_text(encoding="utf-8")
+        if "while hot is None" in source or "await asyncio.sleep(0.25)" in source:
+            violations.append(path.relative_to(ROOT).as_posix())
+    assert not violations, (
+        "Acceptance -> hot-state waiting belongs to RuntimeObserver, not Network "
+        "presentation:\n" + "\n".join(violations)
+    )
+
+
 def test_public_runtime_dispatch_lives_in_api_composition_root() -> None:
     routes = (ROOT / "packages" / "woobe-api" / "src" / "public_runtime_routes.py").read_text(
         encoding="utf-8"
     )
     assert "from modules.agent" not in routes
     assert "from modules.network" not in routes
-    assert "from composition.runtime import RUNTIME_HTTP" in routes
+    assert "from runtime_composition import RUNTIME_HTTP" in routes
 
 
 def test_canonical_runtime_observer_is_single_shared_boundary() -> None:
