@@ -42,7 +42,8 @@ jobs:
       - name: Build and push Core Web reference image
         uses: docker/build-push-action@v6
         with:
-          context: packages/woobe-frontend
+          context: .
+          file: packages/woobe-frontend/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           build-args: |
@@ -53,7 +54,8 @@ jobs:
       - name: Build and push Core ChatSurface
         uses: docker/build-push-action@v6
         with:
-          context: packages/woobe-embed
+          context: .
+          file: packages/woobe-embed/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/${{ github.repository_owner }}/woobe-chat-embed:${{ inputs.version }}
