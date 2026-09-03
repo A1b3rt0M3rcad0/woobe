@@ -15,8 +15,8 @@ from modules.metering.infra.messaging.inbox_handlers import (
     handle_noop,
     handle_tool_execution,
 )
-from modules.metering.infra.workers.inbox_processor import MeteringInboxProcessorWorker
-from shared.workers.inbox_processor_base import InboxProcessingRecord
+from woobe_workers.consumers.metering.inbox_processor import MeteringInboxProcessorWorker
+from woobe_workers.runtime.inbox_processor_base import InboxProcessingRecord
 
 
 def _make_model_mock(**kwargs):

@@ -165,15 +165,12 @@ class TestGlobalModuleBoundaries:
         assert (WORKER_PROCESS / "worker_main.py").is_file()
         assert not (PROJECT_ROOT / "src" / "workers").exists()
 
-    def test_concrete_worker_directories_are_module_owned(self):
-        for module_dir in sorted(SRC_MODULES.iterdir()):
-            if not module_dir.is_dir() or module_dir.name.startswith("_"):
-                continue
-            workers_dir = module_dir / "infra" / "workers"
-            for py_file in _python_files(workers_dir):
-                assert py_file.is_relative_to(SRC_MODULES), (
-                    f"Worker outside Core module ownership: {_relative(py_file)}"
-                )
+    def test_concrete_workers_are_owned_by_worker_process(self):
+        assert not list(SRC_MODULES.glob("*/infra/workers"))
+        consumers = WORKER_PROCESS / "woobe_workers" / "consumers"
+        assert consumers.is_dir()
+        for module_name in ("agent", "core", "identity", "metering", "network", "observability"):
+            assert (consumers / module_name / "registry.py").is_file()
 
     def test_module_boundary_allowlist_is_empty(self):
         entries = _allowlist_entries()

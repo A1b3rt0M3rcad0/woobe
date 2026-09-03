@@ -7,9 +7,9 @@ from uuid import uuid4
 
 import pytest
 
-from modules.agent.infra.workers import run_recovery_worker as recovery_module
-from modules.agent.infra.workers.registry import AgentWorkerRegistry, register_agent_workers
-from modules.agent.infra.workers.run_recovery_worker import AgentRunRecoveryWorker
+from woobe_workers.consumers.agent import run_recovery_worker as recovery_module
+from woobe_workers.consumers.agent.registry import AgentWorkerRegistry, register_agent_workers
+from woobe_workers.consumers.agent.run_recovery_worker import AgentRunRecoveryWorker
 
 
 class _ScalarResult:

@@ -50,10 +50,10 @@ class TestCreateAgentInfraLayerSkeleton:
             "modules.agent.infra.messaging.publishers",
             "modules.agent.infra.messaging.consumers",
             "modules.agent.infra.messaging.event_mappers",
-            "modules.agent.infra.workers",
-            "modules.agent.infra.workers.outbox_dispatcher",
-            "modules.agent.infra.workers.inbox_consumer",
-            "modules.agent.infra.workers.inbox_processor",
+            "woobe_workers.consumers.agent",
+            "woobe_workers.consumers.agent.outbox_dispatcher",
+            "woobe_workers.consumers.agent.inbox_consumer",
+            "woobe_workers.consumers.agent.inbox_processor",
             "modules.agent.composition.worker_runtime.registry",
         ]:
             sub = importlib.import_module(name)

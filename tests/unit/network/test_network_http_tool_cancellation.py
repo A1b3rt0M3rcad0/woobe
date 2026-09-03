@@ -9,7 +9,7 @@ from modules.agent.infra.adapters import tool_executor as tool_executor_module
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.network.application.runtime import NetworkExecutionCancelled, NetworkExecutionSnapshot
 from modules.network.infra.runtime.redis_store import RedisNetworkExecutionStore
-from modules.network.infra.workers.execution_worker import NetworkExecutionProcessor
+from woobe_workers.consumers.network.execution_worker import NetworkExecutionProcessor
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 
 

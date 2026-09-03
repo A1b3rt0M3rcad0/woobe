@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import inspect
 
-from modules.observability.infra.workers.inbox_consumer import ObservabilityInboxConsumerWorker
+from woobe_workers.consumers.observability.inbox_consumer import ObservabilityInboxConsumerWorker
 
 
 def test_persist_and_ack_snapshots_log_fields_before_session_closes() -> None:

@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from shared.observability.context import correlation_id_context, request_id_context
 from shared.observability.logging_config import JsonFormatter, RequestContextFilter
 from shared.observability.metrics import RuntimeMetrics
-from shared.observability.worker_health import check_worker_health, write_worker_health
+from woobe_workers.runtime.health import check_worker_health, write_worker_health
 
 
 def test_json_formatter_includes_context_and_redacts_sensitive_headers() -> None:

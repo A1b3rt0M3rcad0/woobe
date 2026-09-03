@@ -21,8 +21,8 @@ from modules.network.infra.database.models import (
 from modules.network.infra.runtime.finalizer import NetworkRuntimeFinalizer
 from modules.network.infra.runtime.loader import NetworkRuntimeLoader
 from modules.network.infra.runtime.redis_store import RedisNetworkExecutionStore
-from modules.network.infra.workers.execution_worker import NetworkExecutionProcessor
-from network_agent_runtime_composition import ProjectRAIAgentInvoker
+from woobe_workers.consumers.network.execution_worker import NetworkExecutionProcessor
+from woobe_workers.composition.network_agent_runtime import ProjectRAIAgentInvoker
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory

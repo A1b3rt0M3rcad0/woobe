@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 
 from modules.network.infra.runtime.finalizer import NetworkRuntimeFinalizer
-from network_agent_persistence_composition import (
+from woobe_workers.composition.network_agent_persistence import (
     ProjectRAIAgentInvocationArtifactMaterializer,
 )
 

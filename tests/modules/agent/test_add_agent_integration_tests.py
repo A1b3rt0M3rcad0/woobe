@@ -27,21 +27,21 @@ from modules.agent.domain.events import (
     AgentKnowledgeDocumentIndexedV1,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
-from modules.agent.infra.workers.outbox_dispatcher import (
+from woobe_workers.consumers.agent.outbox_dispatcher import (
     RETRY_BACKOFF_BASE_SECONDS,
     AgentOutboxDispatcherWorker,
 )
-from modules.agent.infra.workers.inbox_consumer import AgentInboxConsumerWorker
-from modules.agent.infra.workers.inbox_processor import AgentInboxProcessorWorker
+from woobe_workers.consumers.agent.inbox_consumer import AgentInboxConsumerWorker
+from woobe_workers.consumers.agent.inbox_processor import AgentInboxProcessorWorker
 from modules.agent.infra.messaging.event_mappers import (
     outbox_to_rabbit_message,
 )
 from modules.agent.infra.database.models import AgentOutboxEventModel
 from shared.infra.config.interface.unit_of_work import UnitOfWork
-from shared.workers.outbox_dispatcher_base import BaseOutboxDispatcher
-from shared.workers.inbox_consumer_base import BaseInboxConsumer
-from shared.workers.inbox_processor_base import BaseInboxProcessor
-from shared.workers.base_worker import BaseWorker
+from woobe_workers.runtime.outbox_dispatcher_base import BaseOutboxDispatcher
+from woobe_workers.runtime.inbox_consumer_base import BaseInboxConsumer
+from woobe_workers.runtime.inbox_processor_base import BaseInboxProcessor
+from woobe_workers.runtime.base_worker import BaseWorker
 
 
 class OutboxStatus(str, Enum):

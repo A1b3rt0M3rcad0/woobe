@@ -7,12 +7,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from modules.metering.infra.workers.outbox_dispatcher import (
+from woobe_workers.consumers.metering.outbox_dispatcher import (
     METERING_OUTBOX_MAX_ATTEMPTS,
     RETRY_BACKOFF_BASE_SECONDS,
     MeteringOutboxDispatcherWorker,
 )
-from modules.metering.infra.workers.registry import (
+from woobe_workers.consumers.metering.registry import (
     MeteringWorkerRegistry,
     register_metering_workers,
 )
@@ -70,7 +70,7 @@ class TestMaxAttempts:
         )
         dispatcher._session = AsyncMock()
 
-        from shared.workers.outbox_dispatcher_base import OutboxRecord
+        from woobe_workers.runtime.outbox_dispatcher_base import OutboxRecord
         record = OutboxRecord(
             id=MagicMock(),
             aggregate_type="agent",

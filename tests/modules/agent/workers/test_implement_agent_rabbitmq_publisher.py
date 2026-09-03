@@ -3,7 +3,7 @@ import ast
 import inspect
 
 from modules.agent.infra.messaging.publishers import AgentRabbitMQPublisher
-from modules.agent.infra.workers.outbox_dispatcher import AgentOutboxPublisherProtocol
+from woobe_workers.consumers.agent.outbox_dispatcher import AgentOutboxPublisherProtocol
 
 
 class TestRabbitMQPublisherStructure:

@@ -7,7 +7,9 @@ from pathlib import Path
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 CORE_ROOT = PROJECT_ROOT / "packages/woobe-core/src"
 WORKERS_ROOT = PROJECT_ROOT / "packages/woobe-workers/src"
-INVOKER_FILE = WORKERS_ROOT / "network_agent_runtime_composition.py"
+INVOKER_FILE = (
+    WORKERS_ROOT / "woobe_workers" / "composition" / "network_agent_runtime.py"
+)
 APPLICATION_RUNTIME_FILE = CORE_ROOT / "modules/network/application/runtime.py"
 REDIS_STORE_FILE = CORE_ROOT / "modules/network/infra/runtime/redis_store.py"
 NETWORK_ROOT = CORE_ROOT / "modules/network"
@@ -93,7 +95,7 @@ def test_network_core_does_not_own_agent_runtime_adapter() -> None:
     # release/catalog coupling is removed by the broader module-boundary phase.
     runtime_violations = [
         path for path in violations
-        if "/infra/runtime/" in path or "/infra/workers/" in path
+        if "/infra/runtime/" in path
     ]
     assert not runtime_violations, "Network runtime imports Agent directly:\n" + "\n".join(runtime_violations)
 

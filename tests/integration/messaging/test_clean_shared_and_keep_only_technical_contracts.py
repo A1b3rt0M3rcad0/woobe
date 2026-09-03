@@ -26,28 +26,24 @@ def test_shared_application_directory_removed():
     )
 
 
-def test_shared_workers_has_no_concrete_workers():
-    """shared/workers/ must not contain concrete worker implementations."""
-    concrete = {"inbox_consumer.py", "inbox_dispatcher.py", "outbox_publisher.py"}
-    if (SHARED_DIR / "workers").is_dir():
-        existing = {p.name for p in (SHARED_DIR / "workers").iterdir() if p.suffix == ".py"}
-        found = concrete & existing
-        assert not found, (
-            f"Concrete workers still in shared/workers/: {found}"
-        )
+def test_core_shared_workers_package_is_removed():
+    """Worker process primitives belong to woobe-workers, not Core shared."""
+    assert not (SHARED_DIR / "workers").exists()
 
 
-def test_shared_workers_keeps_abstract_bases():
-    """shared/workers/ must retain abstract base contracts."""
-    bases = {"base_worker.py", "contracts.py", "inbox_consumer_base.py",
-             "inbox_processor_base.py", "outbox_dispatcher_base.py",
-             "runner.py"}
-    if (SHARED_DIR / "workers").is_dir():
-        existing = {p.name for p in (SHARED_DIR / "workers").iterdir() if p.suffix == ".py"}
-        missing = bases - existing
-        assert not missing, (
-            f"Missing abstract base in shared/workers/: {missing}"
-        )
+def test_worker_host_keeps_runtime_bases():
+    worker_runtime = (
+        ROOT / "packages" / "woobe-workers" / "src"
+        / "woobe_workers" / "runtime"
+    )
+    bases = {
+        "base_worker.py",
+        "inbox_consumer_base.py",
+        "inbox_processor_base.py",
+        "outbox_dispatcher_base.py",
+        "runner.py",
+    }
+    assert bases.issubset({path.name for path in worker_runtime.glob("*.py")})
 
 
 def test_shared_infra_has_errors():

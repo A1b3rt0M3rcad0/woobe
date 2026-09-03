@@ -19,7 +19,7 @@ from modules.observability.infra.messaging.event_mappers import (
     rabbit_message_to_inbox,
 )
 from modules.observability.infra.messaging.inbox_handlers import HANDLER_MAP
-from modules.observability.infra.workers.inbox_consumer import (
+from woobe_workers.consumers.observability.inbox_consumer import (
     OBSERVABILITY_INBOX_ROUTING_KEYS,
 )
 

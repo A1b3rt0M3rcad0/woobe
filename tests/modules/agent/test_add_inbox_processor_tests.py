@@ -12,13 +12,13 @@ import inspect
 from enum import Enum
 from uuid import uuid4
 
-from modules.agent.infra.workers.inbox_processor import (
+from woobe_workers.consumers.agent.inbox_processor import (
     RETRY_BACKOFF_BASE_SECONDS,
     AgentInboxHandlerProtocol,
     AgentInboxProcessorWorker,
 )
-from shared.workers.inbox_processor_base import BaseInboxProcessor, InboxProcessingRecord
-from shared.workers.base_worker import BaseWorker
+from woobe_workers.runtime.inbox_processor_base import BaseInboxProcessor, InboxProcessingRecord
+from woobe_workers.runtime.base_worker import BaseWorker
 
 
 class InboxStatus(str, Enum):

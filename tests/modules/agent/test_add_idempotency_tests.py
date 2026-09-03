@@ -24,7 +24,7 @@ from modules.agent.infra.database.models import (
     AgentInboxEventModel,
     AgentOutboxEventModel,
 )
-from modules.agent.infra.workers.inbox_consumer import AgentInboxConsumerWorker
+from woobe_workers.consumers.agent.inbox_consumer import AgentInboxConsumerWorker
 from shared.messaging.idempotency_contracts import (
     DUPLICATE_OUTCOMES,
     DUPLICATE_OUTBOX_OUTCOMES,
