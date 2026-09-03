@@ -2,7 +2,9 @@ import { ensureCsrfToken, getCsrfHeaders, refreshAuthSession } from '@/lib/api/c
 import {
   RUNTIME_STREAM_MAX_ATTEMPTS,
   RuntimeStreamGapError,
+  RuntimeStreamProtocolError,
   acceptRuntimeFrameSequence,
+  parseRuntimeFrame,
   reconcileRuntimeOutput,
   runtimeRetryDelayMs,
   runtimeTerminalStatus,
@@ -24,7 +26,6 @@ import type {
 } from './types'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-const PROTOCOL_VERSION = 1
 const FINAL_PHASES = new Set([
   'response_generation',
   'capability_response_generation',
@@ -77,37 +78,22 @@ function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-function logicalSequence(frame: SseFrame, item: Record<string, unknown>): number | null {
-  const payloadSequence = numberOrNull(item.sequence)
-  if (payloadSequence !== null && Number.isInteger(payloadSequence) && payloadSequence >= 0) {
-    return payloadSequence
-  }
-  if (frame.id && /^\d+$/.test(frame.id)) return Number(frame.id)
-  return null
-}
-
-function runtimeFrame(
-  frame: SseFrame,
-  item: Record<string, unknown>,
-  type: string,
-): ParsedRuntimeFrame {
-  return {
-    eventType: type,
-    data: item,
-    payload: item,
-    sequence: logicalSequence(frame, item),
-  }
+function canonicalRuntimeFrame(frame: SseFrame): ParsedRuntimeFrame | null {
+  const lines: string[] = []
+  if (frame.id) lines.push(`id: ${frame.id}`)
+  if (frame.event) lines.push(`event: ${frame.event}`)
+  for (const line of frame.data.split('\n')) lines.push(`data: ${line}`)
+  return parseRuntimeFrame(lines.join('\n'))
 }
 
 function acceptSequence(
+  runtime: ParsedRuntimeFrame,
   frame: SseFrame,
-  item: Record<string, unknown>,
-  type: string,
   callbacks: StreamCallbacks,
   state: RuntimeClientState,
 ): boolean {
   try {
-    return acceptRuntimeFrameSequence(runtimeFrame(frame, item, type), state)
+    return acceptRuntimeFrameSequence(runtime, state)
   } catch (error) {
     if (error instanceof RuntimeStreamGapError) {
       callbacks.onProtocolError?.(error.message, frame)
@@ -304,7 +290,7 @@ function waitForBrowserPaint(signal: AbortSignal | undefined): Promise<void> {
 }
 
 function reconcileRunState(
-  frame: SseFrame,
+  runtime: ParsedRuntimeFrame,
   item: Record<string, unknown>,
   callbacks: StreamCallbacks,
   state: RuntimeClientState,
@@ -341,7 +327,7 @@ function reconcileRunState(
     state.output = reconciliation.output
   }
 
-  const status = runtimeTerminalStatus(runtimeFrame(frame, item, 'run.state'))
+  const status = runtimeTerminalStatus(runtime)
   if (status === null) return false
   if (status === 'completed') {
     const result = item.result && typeof item.result === 'object' && !Array.isArray(item.result)
@@ -368,18 +354,24 @@ function reconcileRunState(
 }
 
 function dispatch(frame: SseFrame, callbacks: StreamCallbacks, state: RuntimeClientState): boolean {
-  const item = parseSseJson(frame)
-  if (!item) {
+  let runtime: ParsedRuntimeFrame | null
+  try {
+    runtime = canonicalRuntimeFrame(frame)
+  } catch (error) {
+    if (error instanceof RuntimeStreamProtocolError) {
+      callbacks.onProtocolError?.(error.message, frame)
+    }
+    throw error
+  }
+  if (!runtime) {
     callbacks.onProtocolError?.('Invalid JSON in SSE data field', frame)
     return false
   }
-  if (item.protocol_version != null && item.protocol_version !== PROTOCOL_VERSION) {
-    callbacks.onProtocolError?.(`Unsupported SSE protocol version: ${String(item.protocol_version)}`, frame)
-  }
 
-  const type = typeof item.type === 'string' ? item.type : frame.event || 'unknown'
-  if (!acceptSequence(frame, item, type, callbacks, state)) return false
-  if (type === 'run.state') return reconcileRunState(frame, item, callbacks, state)
+  const item = runtime.data
+  const type = runtime.eventType
+  if (!acceptSequence(runtime, frame, callbacks, state)) return false
+  if (type === 'run.state') return reconcileRunState(runtime, item, callbacks, state)
   if (type === 'run.progress') return false
   if (type === 'run.realtime_unavailable') {
     callbacks.onUnknownEvent?.(type, item)
