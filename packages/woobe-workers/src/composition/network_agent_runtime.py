@@ -37,8 +37,6 @@ def _caused_by_empty_model_output(exception: Exception) -> bool:
 
 
 def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
-    # Capability-aware model invocations are buffered by the Agent runtime until
-    # they are known to be terminal. Once emitted, they are committed user output.
     phase = payload.get("phase")
     return (
         payload.get("visibility") == "assistant"
@@ -55,14 +53,15 @@ def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
 
 
 class ProjectRAIAgentInvoker:
-    """Invoke an Agent inside a Network without child PostgreSQL persistence."""
+    """Outer adapter that lets Network consume the Agent runtime in-process.
+
+    Network owns the AgentInvoker protocol. Cross-bounded-context composition is
+    intentionally outside woobe-core, so Network never imports Agent internals.
+    """
 
     def __init__(self, settings: Settings, http_executor: HttpToolExecutor) -> None:
         self._settings = settings
         self._http_executor = http_executor
-        # The Agent runtime is process-scoped. Per-invocation delegation handlers
-        # live in RequestExecutionContext so building a child Run does not rebuild
-        # the complete Agent runtime graph.
         self._use_case = build_internal_agent_runtime(
             self._settings,
             self._http_executor,
@@ -150,8 +149,6 @@ class ProjectRAIAgentInvoker:
                             if not _is_public_runtime_token(payload):
                                 continue
                             streamed_output = True
-                            # Preserve Agent Runtime token granularity. Network transport
-                            # owns ordering and reattach, not presentation batching.
                             await stream_handler("token", payload)
                             continue
 
@@ -176,9 +173,6 @@ class ProjectRAIAgentInvoker:
                 )
                 raise failure from exc
 
-            # Usage and v5 telemetry are owned by the Agent runtime. The Network
-            # bridge transports them unchanged instead of reconstructing them from
-            # RequestExecutionContext internals.
             usage = output.usage.model_dump() if output.usage else None
             result = AgentInvocationResult(
                 answer=output.answer,

@@ -5,11 +5,13 @@ import logging
 import signal
 from collections.abc import Sequence
 
+from composition.network_agent_runtime import ProjectRAIAgentInvoker
 from modules.agent.infra.adapters.http_tool_runtime import (
     close_http_tool_executor,
     configure_http_tool_executor,
 )
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
+from modules.network.infra.workers.registry import configure_network_agent_invoker_factory
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine
 from shared.infra.rabbitmq import RabbitMQManager
@@ -80,7 +82,13 @@ async def run_workers(
     loop, installed_signals = _install_shutdown_handlers(stop_event)
 
     try:
-        _configure_http_tool_runtime(runtime_settings)
+        http_executor = _configure_http_tool_runtime(runtime_settings)
+        configure_network_agent_invoker_factory(
+            lambda worker_settings: ProjectRAIAgentInvoker(
+                worker_settings,
+                http_executor,
+            )
+        )
         async with engine.begin() as conn:
             await conn.run_sync(lambda _: None)
 
@@ -105,6 +113,7 @@ async def run_workers(
         )
         await stop_event.wait()
     finally:
+        configure_network_agent_invoker_factory(None)
         if runner is not None:
             await runner.stop()
         await rabbitmq_manager.close()

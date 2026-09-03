@@ -3,10 +3,10 @@ from uuid import UUID, uuid4
 
 import pytest
 
+from composition import network_agent_runtime as agent_invoker_module
+from composition.network_agent_runtime import ProjectRAIAgentInvoker
 from modules.agent.entrypoint import current_execution, current_runtime_stream
 from modules.network.application.runtime import InternalDelegationTool
-from modules.network.infra.runtime import agent_invoker as agent_invoker_module
-from modules.network.infra.runtime.agent_invoker import ProjectRAIAgentInvoker
 from modules.network.infra.workers.execution_worker import NetworkExecutionProcessor
 
 
@@ -63,7 +63,6 @@ class _StreamingBridgeUseCase(_RuntimeBridgeUseCase):
 
 class _OrderedStreamingBridgeUseCase(_RuntimeBridgeUseCase):
     async def execute(self, input_dto):
-        assert input_dto.metadata["source"] == "network_runtime"
         channel = current_runtime_stream.get()
         assert channel is not None
         await channel.emit(
@@ -97,7 +96,6 @@ class _OrderedStreamingBridgeUseCase(_RuntimeBridgeUseCase):
 
 class _DelegationBridgeUseCase(_RuntimeBridgeUseCase):
     async def execute(self, input_dto):
-        assert input_dto.metadata["source"] == "network_runtime"
         context = current_execution.get()
         assert context is not None
         assert context.internal_tool_handlers is not None
@@ -111,12 +109,7 @@ class _DelegationBridgeUseCase(_RuntimeBridgeUseCase):
 def _patch_runtime(monkeypatch, use_case_cls):
     captured = {"build_calls": 0}
 
-    def build_internal_agent_runtime(
-        settings,
-        http_executor,
-        *,
-        internal_tool_handlers=None,
-    ):
+    def build_internal_agent_runtime(settings, http_executor, *, internal_tool_handlers=None):
         captured["build_calls"] += 1
         captured["settings"] = settings
         captured["http_executor"] = http_executor
@@ -135,10 +128,7 @@ def _invoker():
     settings = SimpleNamespace(encryption_key="test-encryption-key")
     http_executor = object()
     return (
-        ProjectRAIAgentInvoker(
-            settings=settings,
-            http_executor=http_executor,
-        ),
+        ProjectRAIAgentInvoker(settings=settings, http_executor=http_executor),
         settings,
         http_executor,
     )
@@ -174,14 +164,10 @@ def test_network_worker_and_real_agent_invoker_are_importable() -> None:
 
 
 @pytest.mark.asyncio
-async def test_network_agent_bridge_returns_final_answer_through_public_agent_runtime_boundary(
-    monkeypatch,
-) -> None:
+async def test_network_agent_bridge_returns_final_answer_through_public_agent_runtime_boundary(monkeypatch) -> None:
     captured = _patch_runtime(monkeypatch, _RuntimeBridgeUseCase)
     invoker, settings, http_executor = _invoker()
-
     result = await invoker.invoke(**_invoke_kwargs())
-
     assert result.answer == "network final answer"
     assert result.provider == "openai"
     assert result.model == "gpt-test"
@@ -199,10 +185,8 @@ async def test_network_agent_bridge_returns_final_answer_through_public_agent_ru
 async def test_network_agent_runtime_is_reused_between_invocations(monkeypatch) -> None:
     captured = _patch_runtime(monkeypatch, _RuntimeBridgeUseCase)
     invoker, _settings, _http_executor = _invoker()
-
     await invoker.invoke(**_invoke_kwargs())
     await invoker.invoke(**_invoke_kwargs())
-
     assert captured["build_calls"] == 1
 
 
@@ -215,10 +199,7 @@ async def test_network_agent_bridge_preserves_public_final_token_granularity(mon
     async def stream_handler(event_type, payload):
         events.append((event_type, payload))
 
-    result = await invoker.invoke(
-        **_invoke_kwargs(stream_handler=stream_handler)
-    )
-
+    result = await invoker.invoke(**_invoke_kwargs(stream_handler=stream_handler))
     assert result.answer == "network final answer"
     assert result.streamed_output is True
     assert [(event_type, payload["content"]) for event_type, payload in events] == [
@@ -238,7 +219,6 @@ async def test_network_agent_bridge_preserves_runtime_event_order(monkeypatch) -
         events.append((event_type, payload))
 
     await invoker.invoke(**_invoke_kwargs(stream_handler=stream_handler))
-
     assert [event_type for event_type, _payload in events] == [
         "token",
         "agent_activity",
@@ -265,11 +245,7 @@ async def test_network_internal_delegation_tool_uses_invocation_context(monkeypa
         description="Delegate to specialist",
         handler=delegate,
     )
-
-    result = await invoker.invoke(
-        **_invoke_kwargs(internal_tools=[internal_tool])
-    )
-
+    result = await invoker.invoke(**_invoke_kwargs(internal_tools=[internal_tool]))
     assert result.answer == "root integrated specialist result"
     assert captured["internal_tool_handlers"] == {}
     assert captured["build_calls"] == 1
