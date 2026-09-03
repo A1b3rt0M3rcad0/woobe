@@ -17,7 +17,7 @@ class TestOutboxDispatcherStructure:
         import woobe_workers.consumers.agent.outbox_dispatcher as mod
 
         assert mod.__file__ is not None
-        assert "modules/agent/infra/workers" in mod.__file__.replace("\\", "/")
+        assert "packages/woobe-workers/src/woobe_workers/consumers/agent" in mod.__file__.replace("\\", "/")
 
     def test_inherits_from_base_outbox_dispatcher(self):
         assert issubclass(AgentOutboxDispatcherWorker, BaseOutboxDispatcher)

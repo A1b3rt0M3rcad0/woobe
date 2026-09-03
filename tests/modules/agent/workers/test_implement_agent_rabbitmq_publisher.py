@@ -114,7 +114,7 @@ class TestRabbitMQPublisherNoCrossModuleImports:
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
                 if node.module and "shared" in node.module:
-                    assert "shared.infra" in node.module or "shared.workers" in node.module
+                    assert "shared.infra" in node.module
 
 
 class TestRabbitMQPublisherConfirms:
