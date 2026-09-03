@@ -33,7 +33,7 @@ def test_core_shared_workers_package_is_removed():
 
 def test_worker_host_keeps_runtime_bases():
     worker_runtime = (
-        ROOT / "packages" / "woobe-workers" / "src"
+        PROJECT_ROOT / "packages" / "woobe-workers" / "src"
         / "woobe_workers" / "runtime"
     )
     bases = {
