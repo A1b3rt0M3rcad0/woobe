@@ -7,18 +7,22 @@ import test from "node:test";
 import ts from "typescript";
 
 async function loadRuntimeModule() {
-  const source = await readFile(new URL("../src/runtime-stream.ts", import.meta.url), "utf8");
-  const output = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.ES2022,
-      target: ts.ScriptTarget.ES2022,
-      strict: true,
-    },
-  }).outputText;
-  const directory = await mkdtemp(join(tmpdir(), "woobe-runtime-stream-"));
-  const file = join(directory, "runtime-stream.mjs");
-  await writeFile(file, output, "utf8");
-  return import(pathToFileURL(file).href);
+  const directory = await mkdtemp(join(tmpdir(), "woobe-runtime-client-"));
+  const sourceRoot = new URL("../../woobe-runtime-client/src/", import.meta.url);
+  for (const moduleName of ["types", "protocol", "sse", "observer", "index"]) {
+    const source = await readFile(new URL(`${moduleName}.ts`, sourceRoot), "utf8");
+    let output = ts.transpileModule(source, {
+      compilerOptions: {
+        module: ts.ModuleKind.ES2022,
+        target: ts.ScriptTarget.ES2022,
+        strict: true,
+      },
+    }).outputText;
+    output = output.replace(/from ['"]\.\/([^'"]+)['"]/g, "from './$1.mjs'");
+    output = output.replace(/export \* from ['"]\.\/([^'"]+)['"]/g, "export * from './$1.mjs'");
+    await writeFile(join(directory, `${moduleName}.mjs`), output, "utf8");
+  }
+  return import(pathToFileURL(join(directory, "index.mjs")).href);
 }
 
 const runtime = await loadRuntimeModule();
@@ -123,7 +127,6 @@ test("malformed SSE data is ignored instead of crashing the observer", () => {
   const malformed = runtime.parseRuntimeFrame(
     'id: 21\nevent: token\ndata: {"protocol_version":1,"sequence":21,"content":',
   );
-
   assert.equal(malformed, null);
 });
 
