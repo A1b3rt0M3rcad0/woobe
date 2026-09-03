@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  RUNTIME_STREAM_MAX_ATTEMPTS,
   RuntimeStreamGapError,
   RuntimeStreamProtocolError,
   acceptRuntimeFrameSequence,
   parseRuntimeFrame,
+  reconcileRuntimeOutput,
+  runtimeRetryDelayMs,
   runtimeTerminalStatus,
 } from './runtime-stream'
 
@@ -54,6 +57,32 @@ describe('canonical runtime stream protocol', () => {
     expect(acceptRuntimeFrameSequence(durable!, state)).toBe(true)
     expect(state.sequence).toBe(20)
     expect(runtimeTerminalStatus(durable!)).toBe('cancelled')
+  })
+
+  it('reconciles append and replacement snapshots with one policy', () => {
+    expect(reconcileRuntimeOutput('Hello', 'Hello world')).toEqual({
+      output: 'Hello world',
+      append: ' world',
+      retract: 0,
+      changed: true,
+    })
+    expect(reconcileRuntimeOutput('old', 'new')).toEqual({
+      output: 'new',
+      append: 'new',
+      retract: 3,
+      changed: true,
+    })
+    expect(reconcileRuntimeOutput('same', 'same')).toEqual({
+      output: 'same',
+      append: '',
+      retract: 0,
+      changed: false,
+    })
+  })
+
+  it('exposes one retry budget and deterministic backoff', () => {
+    expect(RUNTIME_STREAM_MAX_ATTEMPTS).toBe(4)
+    expect([0, 1, 2, 3].map(runtimeRetryDelayMs)).toEqual([250, 500, 750, 1000])
   })
 
   it('rejects unsupported declared protocol versions explicitly', () => {
