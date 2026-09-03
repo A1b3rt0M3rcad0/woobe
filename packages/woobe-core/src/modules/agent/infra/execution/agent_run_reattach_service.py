@@ -10,10 +10,11 @@ from modules.agent.infra.database.runtime_transaction_runner import (
 )
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError
 from shared.contracts.execution_state import ExecutionStateStore
-from shared.runtime_reattach import (
-    RuntimeStreamFrame,
+from shared.runtime import (
+    RunReference,
+    RuntimeFrame,
+    RuntimeObserver,
     RuntimeStreamGapError,
-    RuntimeStreamReader,
     format_sse_frame,
 )
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
@@ -23,10 +24,11 @@ _TERMINAL_STATUSES = {"completed", "failed", "cancelled", "timed_out", "uncertai
 
 
 class AgentRunReattachService:
-    """Own Agent Run discovery, authorization and hot-stream recovery.
+    """Own Agent Run discovery, authorization and canonical runtime observation.
 
     Database work is always executed through short Agent UnitOfWork scopes owned by
-    AgentRuntimeTransactionRunner. The SSE observer never owns a database session.
+    AgentRuntimeTransactionRunner. The observer never owns a database session or the
+    execution lifecycle it is watching.
     """
 
     def __init__(
@@ -37,6 +39,7 @@ class AgentRunReattachService:
     ) -> None:
         self._transactions = transactions
         self._state_store = state_store
+        self._observer = RuntimeObserver(state_store)
 
     @staticmethod
     def _runtime_target(
@@ -146,16 +149,13 @@ class AgentRunReattachService:
         run_id: UUID,
         principal: object | None,
     ) -> AsyncIterator[str]:
-        reader = RuntimeStreamReader(self._state_store)
-
         async def durable_fallback() -> dict | None:
             latest = await self._load_run(run_id, principal)
             return self._durable_state(latest)
 
         try:
-            async for frame in reader.stream(
-                run_id,
-                "agent",
+            async for frame in self._observer.observe(
+                RunReference.agent(run_id),
                 durable_fallback=durable_fallback,
             ):
                 yield format_sse_frame(frame)
@@ -172,7 +172,7 @@ class AgentRunReattachService:
                 }
             )
             yield format_sse_frame(
-                RuntimeStreamFrame("run.state", state, sequence=None)
+                RuntimeFrame("run.state", state, sequence=None)
             )
 
     async def cancel(
@@ -188,9 +188,6 @@ class AgentRunReattachService:
         try:
             state = await self._state_store.get(run_id)
         except Exception as exc:
-            # Cancellation is a control command that requires the live execution
-            # owner. Do not pretend it was accepted when the hot control plane cannot
-            # be read; the durable Run remains authoritative and active.
             raise ConflictError(
                 "Agent Run runtime control state is temporarily unavailable; "
                 "cancellation was not requested"

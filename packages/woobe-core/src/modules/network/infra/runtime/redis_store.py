@@ -14,7 +14,7 @@ from modules.network.application.runtime import (
     NetworkInvocationState,
 )
 from shared.contracts.execution_state import ExecutionLease, ExecutionStateStore
-from shared.runtime_reattach import RuntimeEventPublisher
+from shared.runtime import RuntimeEventPublisher
 
 logger = logging.getLogger(__name__)
 

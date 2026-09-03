@@ -1,4 +1,4 @@
-"""Package-aware architecture guards for bounded-context module boundaries."""
+"""Workspace-wide architecture guards for bounded-context module boundaries."""
 from __future__ import annotations
 
 import ast
@@ -10,29 +10,15 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
 SRC_MODULES = CORE_SRC / "modules"
 SHARED = CORE_SRC / "shared"
+API_PROCESS = PROJECT_ROOT / "packages" / "woobe-api" / "src"
 WORKER_PROCESS = PROJECT_ROOT / "packages" / "woobe-workers" / "src"
 ALLOWLIST_FILE = Path(__file__).resolve().parent / "legacy_import_allowlist.yaml"
 
-KNOWN_MODULES = {
+KNOWN_MODULES = frozenset(
     path.name
     for path in SRC_MODULES.iterdir()
     if path.is_dir() and not path.name.startswith("_")
-}
-LEGACY_MODULES = {"ai", "knowledge", "runtime"}
-AGENT_FORBIDDEN_TARGETS = KNOWN_MODULES - {"agent", *LEGACY_MODULES}
-
-
-def _load_module_allowlist() -> set[tuple[str, str]]:
-    if not ALLOWLIST_FILE.exists():
-        return set()
-    with open(ALLOWLIST_FILE, encoding="utf-8") as stream:
-        data = yaml.safe_load(stream) or {}
-    entries = data.get("entries") or []
-    return {
-        (entry["file"].replace("\\", "/"), entry["target_module"])
-        for entry in entries
-        if entry.get("scope") == "module_boundaries" and entry.get("target_module")
-    }
+)
 
 
 def _relative(path: Path) -> str:
@@ -45,63 +31,136 @@ def _python_files(root: Path) -> tuple[Path, ...]:
     return tuple(sorted(path for path in root.rglob("*.py") if path.is_file()))
 
 
-def _cross_module_imports(path: Path, source_module: str) -> tuple[tuple[str, str], ...]:
+def _source_module(path: Path) -> str | None:
+    try:
+        relative = path.relative_to(SRC_MODULES)
+    except ValueError:
+        return None
+    return relative.parts[0] if relative.parts else None
+
+
+def _absolute_import_from(path: Path, node: ast.ImportFrom) -> str | None:
+    if node.level == 0:
+        return node.module
+
+    try:
+        relative = path.relative_to(CORE_SRC)
+    except ValueError:
+        return node.module
+
+    package_parts = list(relative.with_suffix("").parts[:-1])
+    ascend = max(node.level - 1, 0)
+    if ascend > len(package_parts):
+        return node.module
+    base = package_parts[: len(package_parts) - ascend]
+    if node.module:
+        base.extend(node.module.split("."))
+    return ".".join(base)
+
+
+def _literal_dynamic_import(node: ast.Call) -> str | None:
+    if not node.args:
+        return None
+    first = node.args[0]
+    if not isinstance(first, ast.Constant) or not isinstance(first.value, str):
+        return None
+
+    if isinstance(node.func, ast.Name) and node.func.id == "__import__":
+        return first.value
+    if (
+        isinstance(node.func, ast.Attribute)
+        and node.func.attr == "import_module"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "importlib"
+    ):
+        return first.value
+    return None
+
+
+def _import_targets(path: Path) -> tuple[str, ...]:
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except (SyntaxError, UnicodeDecodeError):
         return ()
-    values: list[tuple[str, str]] = []
+
+    targets: list[str] = []
     for node in ast.walk(tree):
-        targets: list[str] = []
-        if isinstance(node, ast.ImportFrom) and node.module:
-            targets.append(node.module)
+        if isinstance(node, ast.ImportFrom):
+            imported = _absolute_import_from(path, node)
+            if imported:
+                targets.append(imported)
         elif isinstance(node, ast.Import):
             targets.extend(alias.name for alias in node.names)
-        for imported in targets:
-            parts = imported.split(".")
-            if (
-                len(parts) >= 2
-                and parts[0] == "modules"
-                and parts[1] in KNOWN_MODULES
-                and parts[1] != source_module
-            ):
-                values.append((parts[1], imported))
+        elif isinstance(node, ast.Call):
+            imported = _literal_dynamic_import(node)
+            if imported:
+                targets.append(imported)
+    return tuple(targets)
+
+
+def _cross_module_imports(path: Path) -> tuple[tuple[str, str], ...]:
+    source_module = _source_module(path)
+    if source_module is None:
+        return ()
+    values: list[tuple[str, str]] = []
+    for imported in _import_targets(path):
+        parts = imported.split(".")
+        if (
+            len(parts) >= 2
+            and parts[0] == "modules"
+            and parts[1] in KNOWN_MODULES
+            and parts[1] != source_module
+        ):
+            values.append((parts[1], imported))
     return tuple(values)
 
 
-class TestAddArchitectureTestsForModuleBoundaries:
-    def test_cross_module_imports_are_explicitly_allowlisted(self):
-        allowlist = _load_module_allowlist()
+def _allowlist_entries() -> list[dict]:
+    if not ALLOWLIST_FILE.exists():
+        return []
+    with open(ALLOWLIST_FILE, encoding="utf-8") as stream:
+        data = yaml.safe_load(stream) or {}
+    entries = data.get("entries") or []
+    return list(entries) if isinstance(entries, list) else []
+
+
+class TestGlobalModuleBoundaries:
+    def test_every_core_bounded_context_is_auto_discovered(self):
+        assert KNOWN_MODULES == frozenset(
+            path.name
+            for path in SRC_MODULES.iterdir()
+            if path.is_dir() and not path.name.startswith("_")
+        )
+
+    def test_bounded_contexts_do_not_import_other_bounded_contexts(self):
         violations = []
         for module_dir in sorted(SRC_MODULES.iterdir()):
             if not module_dir.is_dir() or module_dir.name.startswith("_"):
                 continue
             for py_file in _python_files(module_dir):
-                rel = _relative(py_file)
-                for target, imported in _cross_module_imports(py_file, module_dir.name):
-                    if (rel, target) not in allowlist:
-                        violations.append(f"{rel} imports {target} via {imported}")
+                for target, imported in _cross_module_imports(py_file):
+                    violations.append(
+                        f"{_relative(py_file)} imports {target} via {imported}"
+                    )
         assert not violations, (
-            "Unlisted cross-module imports:\n" + "\n".join(violations[:40])
+            "Cross-bounded-context imports are forbidden. Compose through "
+            "woobe-api/woobe-workers or an owning module port:\n"
+            + "\n".join(violations[:80])
         )
 
-    def test_shared_does_not_import_bounded_context_domain(self):
+    def test_shared_does_not_import_any_bounded_context(self):
         violations = []
         for py_file in _python_files(SHARED):
-            try:
-                tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
-            except (SyntaxError, UnicodeDecodeError):
-                continue
-            for node in ast.walk(tree):
-                imported = node.module if isinstance(node, ast.ImportFrom) else None
-                if imported and imported.startswith("modules."):
+            for imported in _import_targets(py_file):
+                parts = imported.split(".")
+                if len(parts) >= 2 and parts[0] == "modules" and parts[1] in KNOWN_MODULES:
                     violations.append(f"{_relative(py_file)} imports {imported}")
         assert not violations, (
-            "Shared must not statically import bounded contexts:\n"
-            + "\n".join(violations[:30])
+            "shared must remain module-neutral:\n" + "\n".join(violations[:80])
         )
 
-    def test_worker_process_is_separate_from_core_modules(self):
+    def test_process_composition_roots_exist_outside_core(self):
+        assert API_PROCESS.is_dir(), "packages/woobe-api/src must exist"
         assert WORKER_PROCESS.is_dir(), "packages/woobe-workers/src must exist"
         assert (WORKER_PROCESS / "worker_main.py").is_file()
         assert not (PROJECT_ROOT / "src" / "workers").exists()
@@ -116,45 +175,49 @@ class TestAddArchitectureTestsForModuleBoundaries:
                     f"Worker outside Core module ownership: {_relative(py_file)}"
                 )
 
-    def test_agent_does_not_import_non_agent_bounded_contexts(self):
-        agent_dir = SRC_MODULES / "agent"
-        violations = []
-        for py_file in _python_files(agent_dir):
-            for target, imported in _cross_module_imports(py_file, "agent"):
-                if target in AGENT_FORBIDDEN_TARGETS:
-                    violations.append(f"{_relative(py_file)} imports {imported}")
-        assert not violations, (
-            "Agent imports non-Agent bounded contexts:\n"
-            + "\n".join(violations[:30])
+    def test_module_boundary_allowlist_is_empty(self):
+        entries = _allowlist_entries()
+        assert not entries, (
+            "Architecture allowlists are migration debt and must be empty at the "
+            f"runtime-boundary DoD: {entries}"
         )
 
-    def test_allowlist_entries_are_well_formed_and_reference_live_files(self):
-        if not ALLOWLIST_FILE.exists():
-            return
-        with open(ALLOWLIST_FILE, encoding="utf-8") as stream:
-            data = yaml.safe_load(stream) or {}
-        for entry in data.get("entries") or []:
-            assert entry.get("scope"), f"Allowlist entry missing scope: {entry}"
-            assert entry.get("removal_spec"), f"Allowlist entry missing removal_spec: {entry}"
-            path = PROJECT_ROOT.joinpath(*entry["file"].replace("\\", "/").split("/"))
-            assert path.exists(), f"Allowlist references non-existent file: {entry['file']}"
 
-
-class TestAddArchitectureTestsForModuleBoundariesRejectsForbidden:
-    def test_detects_forbidden_cross_module_import(self):
-        tree = ast.parse("from modules.core.infra.database.repositories import ProjectRepository\n")
+class TestGlobalModuleBoundariesRejectForbidden:
+    def test_detects_static_cross_module_import(self, tmp_path: Path):
+        module_dir = tmp_path / "modules" / "agent"
+        module_dir.mkdir(parents=True)
+        path = module_dir / "sample.py"
+        path.write_text(
+            "from modules.network.infra.database.models import NetworkModel\n",
+            encoding="utf-8",
+        )
+        tree = ast.parse(path.read_text(encoding="utf-8"))
         assert any(
             isinstance(node, ast.ImportFrom)
-            and node.module
-            and node.module.startswith("modules.core")
+            and node.module == "modules.network.infra.database.models"
             for node in ast.walk(tree)
         )
 
-    def test_detects_shared_containing_module_domain(self):
-        tree = ast.parse("from modules.agent.domain.entities import Agent\n")
-        assert any(
-            isinstance(node, ast.ImportFrom)
-            and node.module
-            and node.module.startswith("modules.agent.domain")
-            for node in ast.walk(tree)
+    def test_detects_dynamic_import_literals(self):
+        tree = ast.parse(
+            'import importlib\n'
+            'a = importlib.import_module("modules.network.application.runtime")\n'
+            'b = __import__("modules.agent.entrypoint")\n'
         )
+        values = {
+            value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            if (value := _literal_dynamic_import(node)) is not None
+        }
+        assert values == {
+            "modules.network.application.runtime",
+            "modules.agent.entrypoint",
+        }
+
+    def test_resolves_relative_imports_before_boundary_classification(self):
+        path = SRC_MODULES / "agent" / "application" / "sample.py"
+        node = ast.parse("from ...network.application import runtime\n").body[0]
+        assert isinstance(node, ast.ImportFrom)
+        assert _absolute_import_from(path, node) == "modules.network.application"

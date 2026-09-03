@@ -1,7 +1,7 @@
 import json
 from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Protocol
 
 from fastapi import Request as FastAPIRequest
 from fastapi.responses import StreamingResponse
@@ -16,6 +16,10 @@ _PUBLIC_TOKEN_PHASES = {
     "capability_response_generation",
     "final_response_generation",
 }
+
+
+class DisconnectAwareRequest(Protocol):
+    async def is_disconnected(self) -> bool: ...
 
 
 def _sse_payload(chunk: str) -> dict[str, Any] | None:
@@ -63,7 +67,7 @@ def _is_public_stream_chunk(chunk: str) -> bool:
 async def commit_safe_stream(
     service: Any,
     input_dto: Any,
-    fastapi_request: FastAPIRequest | None = None,
+    fastapi_request: DisconnectAwareRequest | None = None,
 ) -> AsyncGenerator[str, None]:
     pending_terminal: str | None = None
     source = (

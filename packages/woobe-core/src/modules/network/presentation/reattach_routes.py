@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 from uuid import UUID
 
@@ -12,7 +11,12 @@ from modules.network.application.service import NetworkApplicationService
 from modules.network.infra.database.models import NetworkExecutionModel, NetworkSessionModel
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, NotFoundError, ValidationError
-from shared.runtime_reattach import RuntimeStreamFrame, RuntimeStreamGapError, RuntimeStreamReader
+from shared.runtime import (
+    RunReference,
+    RuntimeFrame,
+    RuntimeObserver,
+    RuntimeStreamGapError,
+)
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
 from shared.security.tenancy import TenantAuthorizer
 
@@ -158,7 +162,7 @@ def _durable_state(execution: NetworkExecutionModel) -> dict:
     }
 
 
-def network_runtime_sse(frame: RuntimeStreamFrame, execution_id: UUID) -> str:
+def network_runtime_sse(frame: RuntimeFrame, execution_id: UUID) -> str:
     payload = dict(frame.data)
     if frame.event_type == "run.state":
         envelope = {
@@ -258,8 +262,8 @@ async def reattach_network_execution(
     execution_id: UUID,
     request: Request,
 ) -> StreamingResponse:
-    initial = await _load_execution(request, execution_id)
-    reader = RuntimeStreamReader(
+    await _load_execution(request, execution_id)
+    observer = RuntimeObserver(
         EXECUTION_STATE_STORE,
         heartbeat_seconds=request.app.state.settings.network_stream_heartbeat_seconds,
         block_ms=500,
@@ -270,54 +274,12 @@ async def reattach_network_execution(
         return _durable_state(latest)
 
     async def generate():
-        hot = await EXECUTION_STATE_STORE.get(execution_id)
-        if hot is None and str(initial.status) not in _TERMINAL_STATUSES:
-            queued = _durable_state(initial)
-            queued.update(
-                {
-                    "run_id": str(execution_id),
-                    "kind": "NETWORK",
-                    "sequence": None,
-                    "realtime_available": False,
-                }
-            )
-            yield network_runtime_sse(
-                RuntimeStreamFrame("run.state", queued, sequence=None),
-                execution_id,
-            )
-
-            # Acceptance may precede worker/Redis initialization. Keep the same
-            # observer attached to the canonical Run instead of submitting again.
-            while hot is None:
-                if await request.is_disconnected():
-                    return
-                await asyncio.sleep(0.25)
-                latest = await _load_execution(request, execution_id)
-                if str(latest.status) in _TERMINAL_STATUSES:
-                    terminal = _durable_state(latest)
-                    terminal.update(
-                        {
-                            "run_id": str(execution_id),
-                            "kind": "NETWORK",
-                            "sequence": None,
-                            "realtime_available": False,
-                        }
-                    )
-                    yield network_runtime_sse(
-                        RuntimeStreamFrame("run.state", terminal, sequence=None),
-                        execution_id,
-                    )
-                    return
-                hot = await EXECUTION_STATE_STORE.get(execution_id)
-
         try:
-            async for frame in reader.stream(
-                execution_id,
-                "network",
+            async for frame in observer.observe(
+                RunReference.network(execution_id),
                 durable_fallback=durable_fallback,
+                disconnect_check=request.is_disconnected,
             ):
-                if await request.is_disconnected():
-                    return
                 yield network_runtime_sse(frame, execution_id)
         except RuntimeStreamGapError:
             latest = await _load_execution(request, execution_id)
@@ -332,7 +294,7 @@ async def reattach_network_execution(
                 }
             )
             yield network_runtime_sse(
-                RuntimeStreamFrame("run.state", state, sequence=None),
+                RuntimeFrame("run.state", state, sequence=None),
                 execution_id,
             )
 

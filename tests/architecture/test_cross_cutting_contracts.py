@@ -16,8 +16,12 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
 MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "migrations"
 SHARED_MESSAGING_DIR = CORE_SRC / "shared" / "messaging"
+WORKER_COMPOSITION = (
+    PROJECT_ROOT / "packages" / "woobe-workers" / "src" / "module_registry_composition.py"
+)
 
 MODULES = ["agent", "billing", "core", "identity", "metering", "observability"]
+
 
 def test_event_envelope_module_exists():
     """Spec 090: shared.messaging.event_envelope must exist."""
@@ -431,47 +435,38 @@ def test_dead_letter_policy_has_record():
 # --- Spec 095: Wire central runner to module worker registries ---
 
 
-def test_worker_discovery_module_exists():
-    """Spec 095: shared.workers.discovery must exist."""
-    from shared.workers import discovery
-    assert hasattr(discovery, "ModuleWorkerEntry")
-    assert hasattr(discovery, "discover_module_entries")
-    assert hasattr(discovery, "build_registries")
+def test_worker_discovery_lives_in_process_composition_root():
+    """Spec 095: concrete module discovery belongs to the worker process root."""
+    shared_discovery = CORE_SRC / "shared" / "workers" / "discovery.py"
+    assert not shared_discovery.exists(), (
+        "shared.workers must not know concrete bounded-context module names"
+    )
+    assert WORKER_COMPOSITION.is_file()
+    source = WORKER_COMPOSITION.read_text(encoding="utf-8")
+    assert "CORE_MODULE_WORKER_REGISTRIES" in source
+    assert "def discover_module_entries" in source
+    assert "def build_registries" in source
+    for module_name in ("agent", "core", "identity", "metering", "network", "observability"):
+        assert f'"{module_name}"' in source
 
 
-def test_worker_discovery_has_constant():
-    """Spec 095: MODULE_WORKER_REGISTRIES must list all 7 modules."""
-    from shared.workers.discovery import MODULE_WORKER_REGISTRIES
-    assert "agent" in MODULE_WORKER_REGISTRIES
-    assert "billing" in MODULE_WORKER_REGISTRIES
-    assert "core" in MODULE_WORKER_REGISTRIES
-    assert "identity" in MODULE_WORKER_REGISTRIES
-    assert "metering" in MODULE_WORKER_REGISTRIES
-    assert "observability" in MODULE_WORKER_REGISTRIES
+def test_module_worker_entry_is_neutral_shared_contract():
+    """Spec 095: shared owns only the process-neutral worker contract."""
+    from shared.workers.contracts import ModuleWorkerEntry
+
+    contract_path = CORE_SRC / "shared" / "workers" / "contracts.py"
+    source = contract_path.read_text(encoding="utf-8")
+    assert not hasattr(ModuleWorkerEntry, "event_type")
+    assert not hasattr(ModuleWorkerEntry, "routing_key")
+    assert "modules." not in source
+    assert "importlib" not in source
 
 
-def test_worker_discovery_entries():
-    """Spec 095: discover_module_entries must return ModuleWorkerEntry list."""
-    from shared.workers.discovery import ModuleWorkerEntry, discover_module_entries
-    entries = discover_module_entries()
-    assert len(entries) == 6
-    for entry in entries:
-        assert isinstance(entry, ModuleWorkerEntry)
-        assert isinstance(entry.module_name, str)
-        assert isinstance(entry.registry_class, type)
-        assert callable(entry.register_func)
-
-
-def test_worker_discovery_build_registries():
-    """Spec 095: build_registries must create registries list."""
-    from unittest.mock import MagicMock
-    from shared.workers.discovery import build_registries, discover_module_entries
-    entries = discover_module_entries()
-    registries = build_registries(entries, engine=MagicMock(), settings=MagicMock())
-    assert len(registries) == 6
-    from shared.workers.contracts import WorkerRegistryProtocol
-    for registry in registries:
-        assert isinstance(registry, WorkerRegistryProtocol)
+def test_worker_process_composition_imports_shared_contract_only():
+    """Spec 095: process composition may discover modules through the neutral contract."""
+    source = WORKER_COMPOSITION.read_text(encoding="utf-8")
+    assert "from shared.workers.contracts import ModuleWorkerEntry" in source
+    assert "importlib" in source
 
 
 def test_worker_runner_module_exists():
@@ -479,13 +474,6 @@ def test_worker_runner_module_exists():
     from shared.workers.runner import WorkerRunner
     assert callable(WorkerRunner.from_registries)
     assert callable(WorkerRunner)
-
-
-def test_module_worker_entry_is_domain_agnostic():
-    """Spec 095: ModuleWorkerEntry must not reference domain concepts."""
-    from shared.workers.discovery import ModuleWorkerEntry
-    assert not hasattr(ModuleWorkerEntry, "event_type")
-    assert not hasattr(ModuleWorkerEntry, "routing_key")
 
 
 # --- Spec 096: Clean shared — keep only technical contracts ---
@@ -503,7 +491,7 @@ def test_shared_application_removed():
 
 def test_shared_workers_no_concrete():
     """Spec 096: shared/workers/ has no concrete worker implementations."""
-    concrete = {"inbox_consumer.py", "inbox_dispatcher.py", "outbox_publisher.py"}
+    concrete = {"inbox_consumer.py", "inbox_dispatcher.py", "outbox_publisher.py", "discovery.py"}
     wdir = SHARED_MESSAGING_DIR.parent.joinpath("workers")
     if wdir.is_dir():
         existing = {p.name for p in wdir.iterdir() if p.suffix == ".py"}

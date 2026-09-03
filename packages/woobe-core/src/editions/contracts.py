@@ -21,7 +21,7 @@ from dataclasses import dataclass
 
 from fastapi import APIRouter
 
-from shared.workers.discovery import ModuleWorkerEntry
+from shared.workers.contracts import ModuleWorkerEntry
 
 
 @dataclass(frozen=True, slots=True)

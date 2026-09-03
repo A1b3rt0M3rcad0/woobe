@@ -7,7 +7,7 @@ import pytest
 from redis.asyncio import Redis
 
 from shared.infra.redis_execution_state import RedisExecutionStateStore
-from shared.runtime_reattach import RuntimeStreamReader
+from shared.runtime import RuntimeStreamReader
 
 
 @pytest.mark.asyncio

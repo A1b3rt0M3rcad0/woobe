@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
-from shared.runtime_reattach import RuntimeEventPublisher, RuntimeStreamReader
+from shared.runtime import RuntimeEventPublisher, RuntimeStreamReader
 
 
 async def _unused_fallback():

@@ -1,5 +1,1 @@
-entries:
-  - scope: shared_boundaries
-    file: packages/woobe-core/src/shared/workers/discovery.py
-    reason: Generic worker plugin discovery intentionally resolves module registries by name without static module imports.
-    removal_spec: specs/execution/runtime-boundary-cleanup.md
+entries: []

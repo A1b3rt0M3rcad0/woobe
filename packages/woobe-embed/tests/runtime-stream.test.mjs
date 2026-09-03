@@ -7,18 +7,21 @@ import test from "node:test";
 import ts from "typescript";
 
 async function loadRuntimeModule() {
-  const source = await readFile(new URL("../src/runtime-stream.ts", import.meta.url), "utf8");
-  const output = ts.transpileModule(source, {
-    compilerOptions: {
-      module: ts.ModuleKind.ES2022,
-      target: ts.ScriptTarget.ES2022,
-      strict: true,
-    },
-  }).outputText;
-  const directory = await mkdtemp(join(tmpdir(), "woobe-runtime-stream-"));
-  const file = join(directory, "runtime-stream.mjs");
-  await writeFile(file, output, "utf8");
-  return import(pathToFileURL(file).href);
+  const directory = await mkdtemp(join(tmpdir(), "woobe-runtime-client-"));
+  const sourceRoot = new URL("../../woobe-runtime-client/src/", import.meta.url);
+  for (const moduleName of ["types", "protocol", "sse", "observer", "index"]) {
+    const source = await readFile(new URL(`${moduleName}.ts`, sourceRoot), "utf8");
+    let output = ts.transpileModule(source, {
+      compilerOptions: {
+        module: ts.ModuleKind.ES2022,
+        target: ts.ScriptTarget.ES2022,
+        strict: true,
+      },
+    }).outputText;
+    output = output.replace(/from ['"]\.\/([^'"]+?)(?:\.(?:js|ts|mjs))?['"]/g, "from './$1.mjs'");
+    await writeFile(join(directory, `${moduleName}.mjs`), output, "utf8");
+  }
+  return import(pathToFileURL(join(directory, "index.mjs")).href);
 }
 
 const runtime = await loadRuntimeModule();
@@ -83,11 +86,46 @@ test("stale replacement state is ignored without rewinding sequence", () => {
   assert.equal(state.sequence, 20);
 });
 
+test("durable state is accepted without rewinding the hot sequence", () => {
+  const state = { sequence: 20 };
+  const durable = runtime.parseRuntimeFrame(
+    'event: run.state\ndata: {"type":"run.state","status":"cancelled","output":"partial","realtime_available":false}',
+  );
+  assert.ok(durable);
+  assert.equal(runtime.acceptRuntimeFrameSequence(durable, state), true);
+  assert.equal(state.sequence, 20);
+});
+
+test("snapshot output reconciliation is shared and deterministic", () => {
+  assert.deepEqual(runtime.reconcileRuntimeOutput("Hello", "Hello world"), {
+    output: "Hello world",
+    append: " world",
+    retract: 0,
+    changed: true,
+  });
+  assert.deepEqual(runtime.reconcileRuntimeOutput("old", "new"), {
+    output: "new",
+    append: "new",
+    retract: 3,
+    changed: true,
+  });
+  assert.deepEqual(runtime.reconcileRuntimeOutput("same", "same"), {
+    output: "same",
+    append: "",
+    retract: 0,
+    changed: false,
+  });
+});
+
+test("retry policy exposes one attempt budget and deterministic backoff", () => {
+  assert.equal(runtime.RUNTIME_STREAM_MAX_ATTEMPTS, 4);
+  assert.deepEqual([0, 1, 2, 3].map(runtime.runtimeRetryDelayMs), [250, 500, 750, 1000]);
+});
+
 test("malformed SSE data is ignored instead of crashing the observer", () => {
   const malformed = runtime.parseRuntimeFrame(
     'id: 21\nevent: token\ndata: {"protocol_version":1,"sequence":21,"content":',
   );
-
   assert.equal(malformed, null);
 });
 

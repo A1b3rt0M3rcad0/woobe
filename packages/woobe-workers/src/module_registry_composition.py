@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from shared.infra.rabbitmq import RabbitMQManager
-from shared.workers.contracts import WorkerRegistryProtocol
+from shared.workers.contracts import ModuleWorkerEntry, WorkerRegistryProtocol
 
 logger = logging.getLogger(__name__)
 
@@ -21,54 +21,39 @@ CORE_MODULE_WORKER_REGISTRIES: tuple[str, ...] = (
 )
 
 
-class ModuleWorkerEntry:
-    def __init__(
-        self,
-        module_name: str,
-        registry_class: type[WorkerRegistryProtocol],
-        register_func: Any,
-    ) -> None:
-        self.module_name = module_name
-        self.registry_class = registry_class
-        self.register_func = register_func
-
-
 def discover_module_entries() -> list[ModuleWorkerEntry]:
-    module_paths = [
-        (
-            module_name,
+    entries: list[ModuleWorkerEntry] = []
+    for module_name in CORE_MODULE_WORKER_REGISTRIES:
+        module_path = (
             "modules.agent.entrypoint"
             if module_name == "agent"
-            else f"modules.{module_name}.infra.workers.registry",
+            else f"modules.{module_name}.infra.workers.registry"
         )
-        for module_name in CORE_MODULE_WORKER_REGISTRIES
-    ]
-
-    entries: list[ModuleWorkerEntry] = []
-    for module_name, module_path in module_paths:
         try:
-            mod = importlib.import_module(module_path)
+            module = importlib.import_module(module_path)
         except ImportError as exc:
-            logger.warning("Could not import registry for module %s: %s", module_name, exc)
+            logger.warning(
+                "Could not import registry for module %s: %s",
+                module_name,
+                exc,
+            )
             continue
 
-        cls_name = f"{module_name.capitalize()}WorkerRegistry"
-        registry_cls = getattr(mod, cls_name, None)
-        func_name = f"register_{module_name}_workers"
-        register_func = getattr(mod, func_name, None)
-
-        if registry_cls is None:
-            logger.warning("Module %s has no %s", module_name, cls_name)
+        registry_name = f"{module_name.capitalize()}WorkerRegistry"
+        registry_class = getattr(module, registry_name, None)
+        register_name = f"register_{module_name}_workers"
+        register_func = getattr(module, register_name, None)
+        if registry_class is None:
+            logger.warning("Module %s has no %s", module_name, registry_name)
             continue
-
         if register_func is None:
-            logger.warning("Module %s has no %s", module_name, func_name)
+            logger.warning("Module %s has no %s", module_name, register_name)
             continue
 
         entries.append(
             ModuleWorkerEntry(
                 module_name=module_name,
-                registry_class=registry_cls,
+                registry_class=registry_class,
                 register_func=register_func,
             )
         )

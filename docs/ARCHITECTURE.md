@@ -23,6 +23,7 @@ packages/                         # product / distributable artifacts
 ├── woobe-core/                   # Core bounded contexts, runtime contracts, shared infrastructure + migrations
 ├── woobe-api/                    # HTTP process composition root
 ├── woobe-workers/                # worker process composition root
+├── woobe-runtime-client/         # shared browser Runtime protocol/observer primitives
 ├── woobe-frontend/               # administrative control-plane frontend
 ├── woobe-embed/                  # independently deployable ChatSurface embed
 └── woobe-ee/                     # separately licensed Enterprise boundary
@@ -44,7 +45,7 @@ tests/                            # repository and cross-system validation
 
 `woobe-api` owns process-level HTTP composition. `woobe-workers` owns process-level worker composition. API and Workers may depend on Core; Core must not import either process package.
 
-`woobe-frontend` and `woobe-embed` are separate product artifacts. The former is the administrative control plane; the latter is the browser-facing ChatSurface artifact.
+`woobe-runtime-client` owns transport-neutral browser-side Runtime protocol semantics such as SSE frame parsing, sequence/gap handling, replacement snapshots, terminal classification and retry policy. It does not own execution. `woobe-frontend` and `woobe-embed` consume it through their own transport/rendering adapters and remain independently deployable product artifacts.
 
 `tooling/` is never part of the production dependency graph. `tests/` owns validation that spans package/repository/system boundaries.
 
@@ -58,7 +59,7 @@ PostgreSQL is the durable source of application state. RabbitMQ supports asynchr
 
 ## Core / Enterprise boundary
 
-Core comprises `woobe-core`, `woobe-api`, `woobe-workers`, `woobe-frontend` and `woobe-embed` and is governed by repository-root `LICENSE.md`.
+Core comprises `woobe-core`, `woobe-api`, `woobe-workers`, `woobe-runtime-client`, `woobe-frontend` and `woobe-embed` and is governed by repository-root `LICENSE.md`.
 
 Enterprise is a separately licensed implementation boundary under `packages/woobe-ee`. Core must remain fully runnable without Enterprise implementation. The Core-side contract under `packages/woobe-core/src/editions/` is an interoperability seam, not a license switch.
 

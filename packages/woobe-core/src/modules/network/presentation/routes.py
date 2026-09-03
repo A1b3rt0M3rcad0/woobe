@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from uuid import UUID
@@ -32,12 +31,16 @@ from modules.network.presentation.schemas import (
 )
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, NotFoundError
-from shared.runtime_reattach import RuntimeStreamFrame, RuntimeStreamGapError, RuntimeStreamReader
+from shared.runtime import (
+    RunReference,
+    RuntimeFrame,
+    RuntimeObserver,
+    RuntimeStreamGapError,
+)
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
 
 
 router = APIRouter(prefix="/network", tags=["network"])
-TERMINAL_STATUSES = {"completed", "failed", "cancelled", "timed_out", "uncertain"}
 
 
 def _service(request: Request) -> NetworkApplicationService:
@@ -466,15 +469,13 @@ async def _execution_stream(
     project_id: UUID,
     start_sequence: int,
 ) -> AsyncIterator[str]:
-    # This compatibility helper is still used by ChatSurface, but realtime events
-    # now live in the canonical Redis Run stream. PostgreSQL is terminal history.
     del start_sequence
     async with request.app.state.session_factory() as session:
         initial = await session.get(NetworkExecutionModel, execution_id)
     if initial is None or initial.project_id != project_id:
         raise NotFoundError("Network execution not found")
 
-    reader = RuntimeStreamReader(
+    observer = RuntimeObserver(
         EXECUTION_STATE_STORE,
         heartbeat_seconds=request.app.state.settings.network_stream_heartbeat_seconds,
         block_ms=500,
@@ -487,54 +488,12 @@ async def _execution_stream(
             raise NotFoundError("Network execution not found")
         return _network_durable_state(execution)
 
-    hot = await EXECUTION_STATE_STORE.get(execution_id)
-    if hot is None and str(initial.status) not in TERMINAL_STATUSES:
-        queued = _network_durable_state(initial)
-        queued.update(
-            {
-                "run_id": str(execution_id),
-                "kind": "NETWORK",
-                "sequence": 0,
-                "realtime_available": False,
-            }
-        )
-        yield network_runtime_sse(
-            RuntimeStreamFrame("run.state", queued, sequence=0),
-            execution_id,
-        )
-        while hot is None:
-            if await request.is_disconnected():
-                return
-            await asyncio.sleep(0.25)
-            async with request.app.state.session_factory() as session:
-                latest = await session.get(NetworkExecutionModel, execution_id)
-            if latest is None or latest.project_id != project_id:
-                raise NotFoundError("Network execution not found")
-            if str(latest.status) in TERMINAL_STATUSES:
-                terminal = _network_durable_state(latest)
-                terminal.update(
-                    {
-                        "run_id": str(execution_id),
-                        "kind": "NETWORK",
-                        "sequence": 0,
-                        "realtime_available": False,
-                    }
-                )
-                yield network_runtime_sse(
-                    RuntimeStreamFrame("run.state", terminal, sequence=0),
-                    execution_id,
-                )
-                return
-            hot = await EXECUTION_STATE_STORE.get(execution_id)
-
     try:
-        async for frame in reader.stream(
-            execution_id,
-            "network",
+        async for frame in observer.observe(
+            RunReference.network(execution_id),
             durable_fallback=durable_fallback,
+            disconnect_check=request.is_disconnected,
         ):
-            if await request.is_disconnected():
-                return
             yield network_runtime_sse(frame, execution_id)
     except RuntimeStreamGapError:
         durable = await durable_fallback()
@@ -544,12 +503,12 @@ async def _execution_stream(
             **durable,
             "run_id": str(execution_id),
             "kind": "NETWORK",
-            "sequence": 0,
+            "sequence": None,
             "realtime_available": False,
             "degraded_reason": "runtime_event_gap",
         }
         yield network_runtime_sse(
-            RuntimeStreamFrame("run.state", degraded, sequence=0),
+            RuntimeFrame("run.state", degraded, sequence=None),
             execution_id,
         )
 
@@ -570,9 +529,6 @@ async def run_network_stream(
         idempotency_key=payload.idempotency_key,
         expected_draft_revision=payload.expected_draft_revision,
     )
-    # The POST is only create+observe convenience. From Acceptance onward the
-    # canonical Redis-backed Run stream owns realtime delivery; Last-Event-ID is
-    # replaced by current-state reconciliation plus a live tail.
     del last_event_id
     return await reattach_network_execution(execution.id, request)
 

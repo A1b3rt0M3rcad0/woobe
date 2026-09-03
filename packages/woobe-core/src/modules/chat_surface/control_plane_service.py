@@ -7,7 +7,10 @@ from uuid import UUID, uuid4
 from sqlalchemy import select
 
 from modules.agent.infra.database.models import SessionModel
-from modules.agent.infra.database.run_models import AgentRunModel
+from modules.chat_surface.application.runtime_gateway import (
+    ChatRuntimeGateway,
+    ChatRuntimeTarget,
+)
 from modules.chat_surface.infra.database.models import (
     ChatSurfaceMessageRequestModel,
     ChatSurfaceModel,
@@ -21,10 +24,7 @@ from modules.chat_surface.service import (
     SurfaceCredential,
 )
 from modules.core.infra.database.models import ApiKeyModel
-from modules.network.infra.database.models import (
-    NetworkExecutionModel,
-    NetworkSessionModel,
-)
+from modules.network.infra.database.models import NetworkSessionModel
 from shared.infra.errors import (
     AuthenticationError,
     AuthorizationError,
@@ -45,6 +45,40 @@ _RUN_ACCEPTANCE_GRACE = timedelta(seconds=5)
 
 class ControlPlaneChatSurfaceService(ChatSurfaceService):
     """Adds authenticated Control Plane testing and truthful Run observation."""
+
+    def __init__(
+        self,
+        session_factory,
+        token_codec,
+        *,
+        runtime_gateway: ChatRuntimeGateway | None = None,
+        allow_insecure_origins: bool = False,
+        max_metadata_bytes: int = 16_384,
+    ) -> None:
+        super().__init__(
+            session_factory,
+            token_codec,
+            allow_insecure_origins=allow_insecure_origins,
+            max_metadata_bytes=max_metadata_bytes,
+        )
+        self._runtime_gateway = runtime_gateway
+
+    def _runtime(self) -> ChatRuntimeGateway:
+        if self._runtime_gateway is None:
+            raise RuntimeError("ChatSurface runtime gateway is not configured")
+        return self._runtime_gateway
+
+    @staticmethod
+    def _runtime_target(
+        binding: ChatSurfaceSessionBindingModel,
+    ) -> ChatRuntimeTarget:
+        return ChatRuntimeTarget(
+            project_id=binding.project_id,
+            target_type=binding.target_type,
+            target_id=binding.target_id,
+            target_release_id=binding.target_release_id,
+            session_id=binding.session_id,
+        )
 
     async def create_test_session(
         self,
@@ -207,117 +241,28 @@ class ControlPlaneChatSurfaceService(ChatSurfaceService):
         self,
         binding: ChatSurfaceSessionBindingModel,
     ) -> tuple[UUID | None, str | None]:
-        async with self._session_factory() as session:
-            if binding.target_type == "agent":
-                run = await session.scalar(
-                    select(AgentRunModel)
-                    .where(
-                        AgentRunModel.session_id == binding.session_id,
-                        AgentRunModel.agent_id == binding.target_id,
-                        AgentRunModel.project_id == binding.project_id,
-                        AgentRunModel.agent_release_id == binding.target_release_id,
-                        AgentRunModel.network_execution_id.is_(None),
-                        AgentRunModel.status.in_(_AGENT_ACTIVE),
-                    )
-                    .order_by(
-                        AgentRunModel.created_at.desc(),
-                        AgentRunModel.id.desc(),
-                    )
-                    .limit(1)
-                )
-                return (run.id, str(run.status)) if run is not None else (None, None)
-
-            execution = await session.scalar(
-                select(NetworkExecutionModel)
-                .where(
-                    NetworkExecutionModel.network_session_id == binding.session_id,
-                    NetworkExecutionModel.network_id == binding.target_id,
-                    NetworkExecutionModel.project_id == binding.project_id,
-                    NetworkExecutionModel.network_version_id == binding.target_release_id,
-                    NetworkExecutionModel.status.in_(_NETWORK_ACTIVE),
-                )
-                .order_by(
-                    NetworkExecutionModel.created_at.desc(),
-                    NetworkExecutionModel.id.desc(),
-                )
-                .limit(1)
-            )
-            return (
-                (execution.id, str(execution.status))
-                if execution is not None
-                else (None, None)
-            )
+        identity = await self._runtime().resolve_run(
+            self._runtime_target(binding),
+        )
+        if identity is None:
+            return None, None
+        return identity.run_id, identity.status
 
     async def _resolve_request_run(
         self,
         request: ChatSurfaceMessageRequestModel,
         binding: ChatSurfaceSessionBindingModel,
     ) -> tuple[UUID | None, str | None]:
-        async with self._session_factory() as session:
-            if binding.target_type == "agent":
-                if request.target_run_id is not None:
-                    run = await session.get(AgentRunModel, request.target_run_id)
-                else:
-                    run = await session.scalar(
-                        select(AgentRunModel)
-                        .where(
-                            AgentRunModel.session_id == binding.session_id,
-                            AgentRunModel.agent_id == binding.target_id,
-                            AgentRunModel.project_id == binding.project_id,
-                            AgentRunModel.agent_release_id == binding.target_release_id,
-                            AgentRunModel.network_execution_id.is_(None),
-                            AgentRunModel.created_at >= request.created_at,
-                        )
-                        .order_by(
-                            AgentRunModel.created_at.desc(),
-                            AgentRunModel.id.desc(),
-                        )
-                        .limit(1)
-                    )
-                if run is None:
-                    return request.target_run_id, None
-                if (
-                    run.session_id != binding.session_id
-                    or run.agent_id != binding.target_id
-                    or run.project_id != binding.project_id
-                    or run.agent_release_id != binding.target_release_id
-                    or run.network_execution_id is not None
-                ):
-                    return None, None
-                return run.id, str(run.status)
-
-            if request.target_run_id is not None:
-                execution = await session.get(
-                    NetworkExecutionModel,
-                    request.target_run_id,
-                )
-            else:
-                execution = await session.scalar(
-                    select(NetworkExecutionModel)
-                    .where(
-                        NetworkExecutionModel.network_session_id == binding.session_id,
-                        NetworkExecutionModel.network_id == binding.target_id,
-                        NetworkExecutionModel.project_id == binding.project_id,
-                        NetworkExecutionModel.network_version_id
-                        == binding.target_release_id,
-                        NetworkExecutionModel.created_at >= request.created_at,
-                    )
-                    .order_by(
-                        NetworkExecutionModel.created_at.desc(),
-                        NetworkExecutionModel.id.desc(),
-                    )
-                    .limit(1)
-                )
-            if execution is None:
-                return request.target_run_id, None
-            if (
-                execution.network_session_id != binding.session_id
-                or execution.network_id != binding.target_id
-                or execution.project_id != binding.project_id
-                or execution.network_version_id != binding.target_release_id
-            ):
-                return None, None
-            return execution.id, str(execution.status)
+        identity = await self._runtime().resolve_run(
+            self._runtime_target(binding),
+            preferred_run_id=request.target_run_id,
+            created_after=(
+                None if request.target_run_id is not None else request.created_at
+            ),
+        )
+        if identity is None:
+            return None, None
+        return identity.run_id, identity.status
 
     async def _reconcile_surface_active_messages(self, surface_id: UUID) -> None:
         """Release stale ChatSurface admission leases across all Sessions."""

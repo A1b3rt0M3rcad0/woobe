@@ -154,7 +154,8 @@ services:
 
   web:
     build:
-      context: packages/woobe-frontend
+      context: .
+      dockerfile: packages/woobe-frontend/Dockerfile
       args:
         VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
         VITE_CHAT_EMBED_URL: ${VITE_CHAT_EMBED_URL:-http://localhost:8081}
@@ -170,7 +171,8 @@ services:
 
   chat-embed:
     build:
-      context: packages/woobe-embed
+      context: .
+      dockerfile: packages/woobe-embed/Dockerfile
     ports:
       - "${WOOBE_CHAT_EMBED_PORT:-8081}:8080"
     restart: unless-stopped

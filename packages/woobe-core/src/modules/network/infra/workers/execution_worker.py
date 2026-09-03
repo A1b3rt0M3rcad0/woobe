@@ -9,18 +9,16 @@ from uuid import UUID
 
 from aio_pika import IncomingMessage
 
-from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.network.application.runtime import (
+    AgentInvoker,
     NetworkBudgetExceeded,
     NetworkExecutionCancelled,
     NetworkExecutor,
 )
 from modules.network.application.runtime_failures import NetworkRuntimeFailure
-from modules.network.infra.runtime.agent_invoker import ProjectRAIAgentInvoker
 from modules.network.infra.runtime.finalizer import NetworkRuntimeFinalizer
 from modules.network.infra.runtime.loader import NetworkRuntimeLoader
 from modules.network.infra.runtime.redis_store import RedisNetworkExecutionStore
-from shared.infra.config import Settings
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.inbox_consumer_base import BaseInboxConsumer, InboxRecord
 
@@ -52,8 +50,6 @@ async def _cancel_task_with_grace(task: asyncio.Task[Any]) -> bool:
     except asyncio.TimeoutError:
         return False
     except Exception:
-        # The Run cancellation command remains authoritative even when provider work
-        # exits through a provider/runtime exception after interruption.
         return True
     return True
 
@@ -101,8 +97,7 @@ class NetworkExecutionProcessor:
         loader: NetworkRuntimeLoader,
         store: RedisNetworkExecutionStore,
         finalizer: NetworkRuntimeFinalizer,
-        settings: Settings,
-        http_executor: HttpToolExecutor,
+        agent_invoker: AgentInvoker,
         lease_ttl_seconds: int,
         heartbeat_seconds: int,
         worker_id: str | None = None,
@@ -110,11 +105,10 @@ class NetworkExecutionProcessor:
         self._loader = loader
         self._store = store
         self._finalizer = finalizer
-        self._settings = settings
         self._lease_ttl_seconds = lease_ttl_seconds
         self._heartbeat_seconds = heartbeat_seconds
         self._worker_id = worker_id or f"network-worker-{os.getpid()}"
-        self._agent_invoker = ProjectRAIAgentInvoker(settings, http_executor)
+        self._agent_invoker = agent_invoker
 
     async def process(self, execution_id: UUID) -> None:
         loaded = await self._loader.load(execution_id)
@@ -248,7 +242,6 @@ class NetworkExecutionProcessor:
             await heartbeat_task
 
     async def _execute_with_cancellation(self, execution_id: UUID, execution_coro):
-        """Interrupt active work without letting a non-cooperative provider block Stop."""
         execution_task = asyncio.create_task(execution_coro)
         detached = False
         try:
@@ -259,9 +252,6 @@ class NetworkExecutionProcessor:
                 if not await self._store.is_cancel_requested(execution_id):
                     continue
 
-                # Fence canonical state before interruption. A provider/library that
-                # swallows CancelledError may continue running in the background, but
-                # it can no longer append tokens, complete invocations or delegate.
                 self._store.fence_execution(execution_id)
                 drained = await _cancel_task_with_grace(execution_task)
                 try:

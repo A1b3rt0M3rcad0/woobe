@@ -4,12 +4,13 @@ ARG NODE_VERSION=22
 ARG NGINX_VERSION=1.29.4
 
 FROM node:${NODE_VERSION}-alpine AS builder
-WORKDIR /app
+WORKDIR /workspace/packages/woobe-embed
 
-COPY package.json package-lock.json ./
+COPY packages/woobe-embed/package.json packages/woobe-embed/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 
-COPY . .
+COPY packages/woobe-embed ./
+COPY packages/woobe-runtime-client ../woobe-runtime-client
 RUN npm run test && npm run typecheck && npm run build
 
 FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine AS runtime
@@ -21,8 +22,8 @@ LABEL org.opencontainers.image.title="Woobe Core ChatSurface" \
 
 USER root
 RUN apk upgrade --no-cache
-COPY nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY packages/woobe-embed/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /workspace/packages/woobe-embed/dist /usr/share/nginx/html
 
 USER 101:101
 EXPOSE 8080

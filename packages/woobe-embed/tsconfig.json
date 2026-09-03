@@ -6,7 +6,11 @@
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "strict": true,
     "noEmit": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "paths": {
+      "@woobe/runtime-client": ["../woobe-runtime-client/src/index.ts"]
+    }
   },
   "include": ["src/**/*.ts", "vite.config.ts"]
 }

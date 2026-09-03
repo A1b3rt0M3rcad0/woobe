@@ -12,6 +12,7 @@ from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 from starlette.types import ExceptionHandler
 
+from chat_runtime_composition import ApiChatRuntimeGateway
 from modules.agent.entrypoint import (
     AGENT_HTTP_ROUTERS,
     SETTINGS,
@@ -127,6 +128,11 @@ def create_app() -> FastAPI:
         leeway_seconds=settings.auth_clock_skew_seconds,
     )
     app.state.http_tool_executor = build_http_tool_executor()
+    app.state.chat_surface_runtime_gateway = ApiChatRuntimeGateway(
+        session_factory=security_session_factory,
+        settings=settings,
+        app_state=app.state,
+    )
     app.state.security_guard = HttpSecurityGuard(
         session_factory=app.state.session_factory,
         token_codec=app.state.access_token_codec,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Protocol, runtime_checkable
+from dataclasses import dataclass
+from typing import Any, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -11,3 +12,10 @@ class WorkerProtocol(Protocol):
 @runtime_checkable
 class WorkerRegistryProtocol(Protocol):
     def iter_workers(self) -> list[WorkerProtocol]: ...
+
+
+@dataclass(frozen=True, slots=True)
+class ModuleWorkerEntry:
+    module_name: str
+    registry_class: type[WorkerRegistryProtocol]
+    register_func: Any

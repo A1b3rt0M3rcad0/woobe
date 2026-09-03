@@ -39,6 +39,13 @@ jobs:
         run: uv sync --frozen --all-groups --extra test
       - name: Quality gate self-tests
         run: uv run pytest -q tests/quality_gate
+      - name: Runtime architecture gates
+        run: >-
+          uv run pytest -q
+          tests/architecture/test_chat_surface_runtime_boundary.py
+          tests/architecture/test_runtime_client_boundary.py
+          tests/architecture/test_runtime_observer_boundary.py
+          tests/architecture/test_runtime_process_composition_packaging.py
       - name: Agent architecture policy
         run: >-
           PYTHONPATH=tooling/quality-gate/src

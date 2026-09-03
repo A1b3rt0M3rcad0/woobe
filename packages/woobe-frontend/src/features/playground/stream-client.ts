@@ -1,4 +1,16 @@
 import { ensureCsrfToken, getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
+import {
+  RUNTIME_STREAM_MAX_ATTEMPTS,
+  RuntimeStreamGapError,
+  RuntimeStreamProtocolError,
+  acceptRuntimeFrameSequence,
+  parseRuntimeFrame,
+  reconcileRuntimeOutput,
+  runtimeRetryDelayMs,
+  runtimeTerminalStatus,
+  type ParsedRuntimeFrame,
+  type RuntimeSequenceState,
+} from '@/lib/runtime-stream'
 import { SseFrameParser, parseSseJson, type SseFrame } from './sse'
 import type {
   AgentActivityInfo,
@@ -14,14 +26,12 @@ import type {
 } from './types'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-const PROTOCOL_VERSION = 1
 const FINAL_PHASES = new Set([
   'response_generation',
   'capability_response_generation',
   'final_response_generation',
 ])
 const PROVIDER_CONTROL_TOKENS = ['<｜end▁of▁sentence｜>', '<|endoftext|>', '<|eot_id|>']
-const TERMINAL_RUN_STATUSES = new Set(['completed', 'failed', 'cancelled', 'timed_out', 'uncertain'])
 const TERMINAL_STREAM_EVENTS = new Set(['done', 'error', 'cancelled'])
 const MAX_VISUAL_FRAMES_PER_PAINT = 6
 
@@ -55,10 +65,9 @@ export interface StreamCallbacks {
   onProtocolError?: (message: string, frame?: SseFrame) => void
 }
 
-interface RuntimeClientState {
+interface RuntimeClientState extends RuntimeSequenceState {
   runId: string | null
   output: string
-  sequence: number | null
 }
 
 function stringOrNull(value: unknown): string | null {
@@ -69,42 +78,28 @@ function numberOrNull(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
 
-function logicalSequence(frame: SseFrame, item: Record<string, unknown>): number | null {
-  const payloadSequence = numberOrNull(item.sequence)
-  if (payloadSequence !== null && Number.isInteger(payloadSequence) && payloadSequence >= 0) {
-    return payloadSequence
-  }
-  if (frame.id && /^\d+$/.test(frame.id)) return Number(frame.id)
-  return null
+function canonicalRuntimeFrame(frame: SseFrame): ParsedRuntimeFrame | null {
+  const lines: string[] = []
+  if (frame.id) lines.push(`id: ${frame.id}`)
+  if (frame.event) lines.push(`event: ${frame.event}`)
+  for (const line of frame.data.split('\n')) lines.push(`data: ${line}`)
+  return parseRuntimeFrame(lines.join('\n'))
 }
 
 function acceptSequence(
+  runtime: ParsedRuntimeFrame,
   frame: SseFrame,
-  item: Record<string, unknown>,
-  type: string,
   callbacks: StreamCallbacks,
   state: RuntimeClientState,
 ): boolean {
-  const sequence = logicalSequence(frame, item)
-  if (sequence === null) return true
-
-  if (type === 'run.state') {
-    if (state.sequence !== null && sequence < state.sequence) return false
-    state.sequence = sequence
-    return true
-  }
-
-  if (state.sequence !== null) {
-    if (sequence <= state.sequence) return false
-    const expected = state.sequence + 1
-    if (sequence !== expected) {
-      const message = `Runtime stream sequence gap: expected ${expected}, received ${sequence}`
-      callbacks.onProtocolError?.(message, frame)
-      throw new Error(message)
+  try {
+    return acceptRuntimeFrameSequence(runtime, state)
+  } catch (error) {
+    if (error instanceof RuntimeStreamGapError) {
+      callbacks.onProtocolError?.(error.message, frame)
     }
+    throw error
   }
-  state.sequence = sequence
-  return true
 }
 
 function sanitizeAssistantContent(value: string): string {
@@ -295,6 +290,7 @@ function waitForBrowserPaint(signal: AbortSignal | undefined): Promise<void> {
 }
 
 function reconcileRunState(
+  runtime: ParsedRuntimeFrame,
   item: Record<string, unknown>,
   callbacks: StreamCallbacks,
   state: RuntimeClientState,
@@ -309,25 +305,17 @@ function reconcileRunState(
   callbacks.onRunState?.(item)
 
   const output = typeof item.output === 'string' ? sanitizeAssistantContent(item.output) : ''
-  if (output !== state.output) {
-    if (output.startsWith(state.output)) {
-      const suffix = output.slice(state.output.length)
-      if (suffix) callbacks.onToken({
-        content: suffix,
-        visibility: 'assistant',
-        channel: 'final',
-        phase: 'final_response_generation',
-        provider: null,
-        model: null,
-        redacted: null,
-      })
-    } else {
-      if (state.output.length) callbacks.onTokenRetract?.({
-        content_length: state.output.length,
+  const reconciliation = reconcileRuntimeOutput(state.output, output)
+  if (reconciliation.changed) {
+    if (reconciliation.retract > 0) {
+      callbacks.onTokenRetract?.({
+        content_length: reconciliation.retract,
         reason: 'reattach_state_replace',
       })
-      if (output) callbacks.onToken({
-        content: output,
+    }
+    if (reconciliation.append) {
+      callbacks.onToken({
+        content: reconciliation.append,
         visibility: 'assistant',
         channel: 'final',
         phase: 'final_response_generation',
@@ -336,11 +324,11 @@ function reconcileRunState(
         redacted: null,
       })
     }
-    state.output = output
+    state.output = reconciliation.output
   }
 
-  const status = stringOrNull(item.status) ?? ''
-  if (!TERMINAL_RUN_STATUSES.has(status)) return false
+  const status = runtimeTerminalStatus(runtime)
+  if (status === null) return false
   if (status === 'completed') {
     const result = item.result && typeof item.result === 'object' && !Array.isArray(item.result)
       ? item.result as Record<string, unknown>
@@ -366,18 +354,24 @@ function reconcileRunState(
 }
 
 function dispatch(frame: SseFrame, callbacks: StreamCallbacks, state: RuntimeClientState): boolean {
-  const item = parseSseJson(frame)
-  if (!item) {
+  let runtime: ParsedRuntimeFrame | null
+  try {
+    runtime = canonicalRuntimeFrame(frame)
+  } catch (error) {
+    if (error instanceof RuntimeStreamProtocolError) {
+      callbacks.onProtocolError?.(error.message, frame)
+    }
+    throw error
+  }
+  if (!runtime) {
     callbacks.onProtocolError?.('Invalid JSON in SSE data field', frame)
     return false
   }
-  if (item.protocol_version != null && item.protocol_version !== PROTOCOL_VERSION) {
-    callbacks.onProtocolError?.(`Unsupported SSE protocol version: ${String(item.protocol_version)}`, frame)
-  }
 
-  const type = typeof item.type === 'string' ? item.type : frame.event || 'unknown'
-  if (!acceptSequence(frame, item, type, callbacks, state)) return false
-  if (type === 'run.state') return reconcileRunState(item, callbacks, state)
+  const item = runtime.data
+  const type = runtime.eventType
+  if (!acceptSequence(runtime, frame, callbacks, state)) return false
+  if (type === 'run.state') return reconcileRunState(runtime, item, callbacks, state)
   if (type === 'run.progress') return false
   if (type === 'run.realtime_unavailable') {
     callbacks.onUnknownEvent?.(type, item)
@@ -392,7 +386,9 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks, state: RuntimeCli
   } else if (type === 'internal_token') callbacks.onInternalToken?.(streamTextOf(item))
   else if (type === 'token_retract') {
     const retract = retractOf(item)
-    if (retract.content_length > 0) state.output = state.output.slice(0, Math.max(0, state.output.length - retract.content_length))
+    if (retract.content_length > 0) {
+      state.output = state.output.slice(0, Math.max(0, state.output.length - retract.content_length))
+    }
     callbacks.onTokenRetract?.(retract)
   }
   else if (type === 'agent_activity') callbacks.onAgentActivity?.(activityOf(item))
@@ -544,15 +540,17 @@ export async function reattachAgentRunV1(
   signal?: AbortSignal,
 ): Promise<void> {
   const state: RuntimeClientState = { runId, output: '', sequence: null }
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < RUNTIME_STREAM_MAX_ATTEMPTS; attempt += 1) {
     if (signal?.aborted) throw new DOMException('Agent stream aborted', 'AbortError')
     try {
       const terminal = await requestReattach(runId, callbacks, state, signal, false)
       if (terminal) return
     } catch (error) {
-      if (signal?.aborted || attempt === 3) throw error
+      if (signal?.aborted || attempt === RUNTIME_STREAM_MAX_ATTEMPTS - 1) throw error
     }
-    if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
+    if (attempt < RUNTIME_STREAM_MAX_ATTEMPTS - 1) {
+      await new Promise((resolve) => setTimeout(resolve, runtimeRetryDelayMs(attempt)))
+    }
   }
   throw new Error('Run reattach ended without a terminal event')
 }
@@ -563,7 +561,7 @@ export async function askStreamV1(
   signal?: AbortSignal,
 ): Promise<void> {
   const state: RuntimeClientState = { runId: null, output: '', sequence: null }
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < RUNTIME_STREAM_MAX_ATTEMPTS; attempt += 1) {
     if (signal?.aborted) throw new DOMException('Agent stream aborted', 'AbortError')
     try {
       const terminal = state.runId
@@ -572,12 +570,12 @@ export async function askStreamV1(
       if (terminal) return
       if (!state.runId) throw new Error('Stream ended before the canonical Run id was observed')
     } catch (error) {
-      if (signal?.aborted || attempt === 3) throw error
+      if (signal?.aborted || attempt === RUNTIME_STREAM_MAX_ATTEMPTS - 1) throw error
       // Once a Run id exists, all retries are GET observers. Never POST another
       // logical execution to recover a transport failure.
       if (!state.runId) throw error
     }
-    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
+    await new Promise((resolve) => setTimeout(resolve, runtimeRetryDelayMs(attempt)))
   }
   throw new Error('Stream ended without a terminal event')
 }

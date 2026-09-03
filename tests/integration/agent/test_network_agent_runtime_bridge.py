@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from network_agent_runtime_composition import ProjectRAIAgentInvoker
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.composition.factories import ask_agent_runtime_factory
 from modules.agent.domain.entities import Tool
@@ -12,7 +13,6 @@ from modules.agent.domain.enums import ToolStatus, ToolType
 from modules.agent.infra.execution import agent_tool_runtime_gateway
 from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
 from modules.network.application.runtime import InternalDelegationTool
-from modules.network.infra.runtime.agent_invoker import ProjectRAIAgentInvoker
 
 
 @pytest.mark.anyio
@@ -61,14 +61,7 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
             )
 
     class FakeTransactionBoundedRuntime:
-        def __init__(
-            self,
-            *,
-            transactions,
-            llm_factory,
-            encryption_key,
-            tool_executor_factory,
-        ) -> None:
+        def __init__(self, *, transactions, llm_factory, encryption_key, tool_executor_factory) -> None:
             self._tool_executor_factory = tool_executor_factory
             self._runtime_tool_reader = None
             self._embedding_factory = None
@@ -188,9 +181,7 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
     assert result.model == "deepseek-v4-flash"
     assert result.streamed_output is True
     assert delegated == [{"task": "answer the delegated task"}]
-    assert executed_agent_tools == [
-        (prepared_agent_tool, {"query": "customer"})
-    ]
+    assert executed_agent_tools == [(prepared_agent_tool, {"query": "customer"})]
     assert any(
         event_type == "token" and payload.get("content") == "network-ok"
         for event_type, payload in streamed_events

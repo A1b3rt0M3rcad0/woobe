@@ -2,14 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID, NAMESPACE_URL, uuid5
+from uuid import UUID
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.infra.database.context_evidence_store import ContextEvidenceStore
-from modules.agent.infra.database.models import MessageModel, SessionModel
-from modules.agent.infra.database.run_models import AgentRunModel
 from modules.network.application.runtime import NetworkVersionSnapshot
 from modules.network.infra.database.models import (
     NetworkAgentContextModel,
@@ -19,6 +16,10 @@ from modules.network.infra.database.models import (
     NetworkMessageModel,
 )
 from modules.network.infra.database.repositories import NetworkRuntimeRepository
+from modules.network.infra.runtime.agent_artifacts import (
+    AgentInvocationArtifact,
+    AgentInvocationArtifactMaterializer,
+)
 
 
 def _uuid(value: Any) -> UUID | None:
@@ -37,10 +38,6 @@ def _datetime(value: Any, *, fallback: datetime) -> datetime:
         except ValueError:
             pass
     return fallback
-
-
-def _message_id(invocation_id: UUID, role: str) -> UUID:
-    return uuid5(NAMESPACE_URL, f"woobe:network-invocation:{invocation_id}:{role}")
 
 
 def _invocation_failure(
@@ -92,8 +89,14 @@ def _invocation_failure(
 class NetworkRuntimeFinalizer:
     """Materialize one complete Network execution in one PostgreSQL transaction."""
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        *,
+        agent_artifact_materializer: AgentInvocationArtifactMaterializer | None = None,
+    ) -> None:
         self._session_factory = session_factory
+        self._agent_artifact_materializer = agent_artifact_materializer
 
     @staticmethod
     def _environment(version: NetworkVersionSnapshot | None) -> str:
@@ -153,7 +156,6 @@ class NetworkRuntimeFinalizer:
             environment = self._environment(version)
             bindings = self._bindings(version, execution)
             repository = NetworkRuntimeRepository(session)
-            context_evidence = ContextEvidenceStore(session)
             durable_invocation_events: list[
                 tuple[datetime, int, str, dict[str, Any], dict[str, Any]]
             ] = []
@@ -214,6 +216,16 @@ class NetworkRuntimeFinalizer:
                     if isinstance(item.get("llm_calls"), list)
                     else []
                 )
+                tool_calls = (
+                    item.get("tool_calls")
+                    if isinstance(item.get("tool_calls"), list)
+                    else []
+                )
+                sources = (
+                    item.get("sources")
+                    if isinstance(item.get("sources"), list)
+                    else []
+                )
                 result_payload = {
                     "answer": item.get("output_message"),
                     "provider": item.get("provider"),
@@ -221,8 +233,8 @@ class NetworkRuntimeFinalizer:
                     "usage": usage,
                     "diagnostics": diagnostics,
                     "llm_calls": llm_calls,
-                    "tool_calls": item.get("tool_calls") or [],
-                    "sources": item.get("sources") or [],
+                    "tool_calls": tool_calls,
+                    "sources": sources,
                     "parsed_output": item.get("parsed_output"),
                     "output_parse_error": item.get("output_parse_error"),
                     "fallback_used": bool((diagnostics or {}).get("fallback_used")),
@@ -233,132 +245,44 @@ class NetworkRuntimeFinalizer:
                     "failure": failure,
                 }
 
-                user_message_id = None
-                assistant_message_id = None
-                if session_id is not None:
-                    agent_session = await session.get(SessionModel, session_id)
-                    if agent_session is None:
-                        agent_session = SessionModel(
-                            id=session_id,
+                if self._agent_artifact_materializer is not None:
+                    await self._agent_artifact_materializer.materialize(
+                        session,
+                        AgentInvocationArtifact(
+                            invocation_id=invocation_id,
                             project_id=execution.project_id,
                             agent_id=agent_id,
-                            runtime_environment=environment,
-                            opened_release_id=release_id,
-                            status="active",
-                            mode="chat",
-                            data={},
-                            last_message_at=completed_at,
-                        )
-                        session.add(agent_session)
-                    else:
-                        agent_session.last_message_at = completed_at
-
-                    user_message_id = _message_id(invocation_id, "user")
-                    if await session.get(MessageModel, user_message_id) is None:
-                        session.add(
-                            MessageModel(
-                                id=user_message_id,
-                                project_id=execution.project_id,
-                                agent_id=agent_id,
-                                session_id=session_id,
-                                role="user",
-                                content=str(item.get("input_message") or ""),
-                                data={
-                                    "network_execution_id": str(execution.id),
-                                    "network_invocation_id": str(invocation_id),
-                                },
-                            )
-                        )
-                    if item.get("output_message"):
-                        assistant_message_id = _message_id(invocation_id, "assistant")
-                        if await session.get(MessageModel, assistant_message_id) is None:
-                            session.add(
-                                MessageModel(
-                                    id=assistant_message_id,
-                                    project_id=execution.project_id,
-                                    agent_id=agent_id,
-                                    session_id=session_id,
-                                    role="assistant",
-                                    content=str(item.get("output_message") or ""),
-                                    input_tokens=(usage or {}).get("input_tokens"),
-                                    output_tokens=(usage or {}).get("output_tokens"),
-                                    cost_usd=(usage or {}).get("cost_usd"),
-                                    data={
-                                        "network_execution_id": str(execution.id),
-                                        "network_invocation_id": str(invocation_id),
-                                        "trace_id": (
-                                            str(invocation_trace_id)
-                                            if invocation_trace_id
-                                            else None
-                                        ),
-                                        "provider": item.get("provider"),
-                                        "model": item.get("model"),
-                                        "latency_ms": (diagnostics or {}).get(
-                                            "agent_runtime_latency_ms"
-                                        ),
-                                        "tool_calls": item.get("tool_calls") or [],
-                                        "sources": item.get("sources") or [],
-                                        "parsed_output": item.get("parsed_output"),
-                                        "output_parse_error": item.get("output_parse_error"),
-                                        "cancelled": status == "cancelled",
-                                        "partial": status != "completed",
-                                    },
-                                )
-                            )
-
-                run = await session.get(AgentRunModel, invocation_id)
-                if run is None:
-                    run = AgentRunModel(
-                        id=invocation_id,
-                        project_id=execution.project_id,
-                        agent_id=agent_id,
-                        session_id=session_id,
-                        agent_release_id=release_id,
-                        input_message_id=user_message_id,
-                        output_message_id=assistant_message_id,
-                        trace_id=invocation_trace_id
-                        or uuid5(
-                            NAMESPACE_URL,
-                            f"woobe:network-invocation-trace:{invocation_id}",
+                            session_id=session_id,
+                            release_id=release_id,
+                            parent_run_id=parent_id,
+                            trace_id=invocation_trace_id,
+                            network_execution_id=execution.id,
+                            environment=environment,
+                            status=status,
+                            input_message=str(item.get("input_message") or ""),
+                            output_message=(
+                                str(item.get("output_message"))
+                                if item.get("output_message") is not None
+                                else None
+                            ),
+                            execution_snapshot=execution_snapshot,
+                            usage=usage,
+                            result=result_payload,
+                            failure=failure,
+                            diagnostics=diagnostics,
+                            llm_calls=llm_calls,
+                            tool_calls=tool_calls,
+                            sources=sources,
+                            parsed_output=item.get("parsed_output"),
+                            output_parse_error=(
+                                str(item.get("output_parse_error"))
+                                if item.get("output_parse_error") is not None
+                                else None
+                            ),
+                            started_at=started_at,
+                            completed_at=completed_at,
                         ),
-                        environment=environment,
-                        origin="network_runtime",
-                        status=status,
-                        input_message=str(item.get("input_message") or ""),
-                        execution_snapshot=execution_snapshot,
-                        usage=usage,
-                        result=result_payload,
-                        failure_code=(
-                            None
-                            if failure is None
-                            else str(failure.get("code") or "network_agent_failure")
-                        ),
-                        failure_detail=(
-                            None
-                            if failure is None
-                            else str(
-                                failure.get("internal_detail")
-                                or failure.get("message")
-                                or "Agent invocation failed"
-                            )
-                        ),
-                        network_execution_id=execution.id,
-                        network_invocation_id=invocation_id,
-                        parent_run_id=parent_id,
-                        started_at=started_at,
-                        completed_at=completed_at,
                     )
-                    session.add(run)
-
-                await context_evidence.persist_from_calls(
-                    agent_run_id=invocation_id,
-                    project_id=execution.project_id,
-                    agent_id=agent_id,
-                    trace_id=run.trace_id,
-                    network_execution_id=execution.id,
-                    network_invocation_id=invocation_id,
-                    calls=llm_calls,
-                )
 
                 invocation = await session.get(NetworkInvocationModel, invocation_id)
                 if invocation is None:
@@ -449,8 +373,8 @@ class NetworkRuntimeFinalizer:
                         "model": item.get("model"),
                         "usage": usage,
                         "diagnostics": diagnostics,
-                        "tool_calls": item.get("tool_calls") or [],
-                        "sources": item.get("sources") or [],
+                        "tool_calls": tool_calls,
+                        "sources": sources,
                         "parsed_output": item.get("parsed_output"),
                         "output_parse_error": item.get("output_parse_error"),
                         "output": item.get("output_message"),
@@ -460,6 +384,7 @@ class NetworkRuntimeFinalizer:
                         "completed_at": completed_at.isoformat(),
                     }
                 else:
+                    assert failure is not None
                     terminal_payload = {
                         "code": str(failure.get("code") or "network_agent_failure"),
                         "stage": str(failure.get("stage") or "network_runtime"),

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import time
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
@@ -31,10 +30,12 @@ from modules.agent.infra.execution.structured_output_ask_use_case import (
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.contracts.execution_state import ExecutionStateStore
 from shared.contracts.time import utc_now
-from shared.runtime_reattach import (
+from shared.runtime import (
+    RunKind,
+    RunReference,
     RuntimeEventPublisher,
-    RuntimeStreamFrame,
-    RuntimeStreamReader,
+    RuntimeFrame,
+    RuntimeObserver,
     format_sse_frame,
 )
 from shared.security.redaction import redact_text
@@ -74,8 +75,6 @@ def _track(task: asyncio.Task[Any], registry: set[asyncio.Task[Any]]) -> None:
         except Exception:
             logger.exception("Detached Agent runtime task completion could not be inspected")
             return
-        # Agent execution errors are already durably finalized and projected into the
-        # Run stream. Background infrastructure failures must remain visible.
         if error is not None and registry is not _DETACHED_AGENT_EXECUTIONS:
             logger.error(
                 "Detached Agent runtime background task failed",
@@ -96,10 +95,11 @@ class AskAgentStreamService:
         self._transactions = transactions
         self._state_store = state_store or EXECUTION_STATE_STORE
         self._publisher = RuntimeEventPublisher(self._state_store)
-        self._reader = RuntimeStreamReader(
+        self._observer = RuntimeObserver(
             self._state_store,
             heartbeat_seconds=RUNTIME_STREAM_HEARTBEAT_SECONDS,
             block_ms=500,
+            local_poll_seconds=_INITIAL_OBSERVER_POLL_SECONDS,
         )
 
     async def _run_execution(
@@ -111,9 +111,6 @@ class AskAgentStreamService:
         try:
             result = await self._use_case.execute(input_dto)
 
-            # The provider result is not allowed to overwrite a terminal lifecycle
-            # fact that another racing finalizer already committed. Repository-level
-            # immutability protects PostgreSQL; this projection guard protects SSE.
             run_id = getattr(channel, "run_id", None)
             if run_id is not None:
                 durable = await self._durable_fallback(run_id)
@@ -163,10 +160,6 @@ class AskAgentStreamService:
             )
             raise
         except Exception as exc:
-            # Finalizers may deliberately abort their UoW when another terminal writer
-            # won first. More generally, a provider failure may already have been
-            # persisted before it propagates here. Durable state is authoritative over
-            # the exception object and over any stale hot terminal_pending projection.
             run_id = getattr(channel, "run_id", None)
             if run_id is not None:
                 durable = await self._durable_fallback(run_id)
@@ -203,8 +196,6 @@ class AskAgentStreamService:
             await self._state_store.update(run_id, payload)
             await self._state_store.expire(run_id, ttl_seconds=900)
         except Exception as exc:
-            # PostgreSQL remains the source of truth. Hot-state restoration is best
-            # effort so a stale terminal_pending projection cannot become authoritative.
             logger.debug("Could not restore authoritative Agent Run hot terminal: %s", exc)
 
     async def _emit_durable_terminal_after_race(
@@ -386,7 +377,6 @@ class AskAgentStreamService:
                     for item in snapshot_execution.tool_calls
                 ]
             except Exception as exc:
-                # Cancellation must remain durable even if telemetry enrichment degrades.
                 logger.warning("Could not build cancelled Agent telemetry snapshot: %s", exc)
 
         result = {
@@ -525,9 +515,6 @@ class AskAgentStreamService:
                     await asyncio.sleep(_CANCEL_POLL_SECONDS)
                     continue
 
-                # Do not interrupt before the canonical durable identity is complete.
-                # Once the request is visible, cancellation persistence wins first;
-                # provider interruption is a consequence, not the source of truth.
                 if channel.trace_id is None:
                     await asyncio.sleep(_CANCEL_POLL_SECONDS)
                     continue
@@ -539,11 +526,6 @@ class AskAgentStreamService:
                         "cancel_requested",
                     )
 
-                # Once PostgreSQL has accepted CANCELLED, the public Run lifecycle is
-                # terminal independently of whether a provider cooperates with task
-                # cancellation. Project that durable fact immediately; late provider
-                # tokens are ignored by the terminal channel and late finalizers lose
-                # against repository terminal immutability.
                 if cancellation_persisted and not terminal_projected:
                     terminal_projected = await self._emit_durable_terminal_after_race(
                         channel
@@ -551,9 +533,6 @@ class AskAgentStreamService:
 
                 if not execution_task.done():
                     execution_task.cancel()
-                    # Keep applying cooperative cancellation without a hot spin. A
-                    # misbehaving provider may swallow CancelledError, but it no longer
-                    # controls the observer lifecycle after durable cancellation.
                     await asyncio.sleep(_CANCEL_POLL_SECONDS)
                 continue
             except Exception as exc:
@@ -616,8 +595,6 @@ class AskAgentStreamService:
                     return
 
             if execution_task.done() and not terminal_seen and event is None:
-                # _run_execution always attempts to enqueue a terminal event. Give
-                # the queue one final scheduling turn before abandoning the pump.
                 await asyncio.sleep(0)
                 if channel.queue.empty():
                     return
@@ -657,13 +634,11 @@ class AskAgentStreamService:
         run_id: UUID,
         disconnect_check: DisconnectCheck | None = None,
     ) -> AsyncGenerator[str, None]:
-        async for frame in self._reader.stream(
-            run_id,
-            "agent",
+        async for frame in self._observer.observe(
+            RunReference.agent(run_id),
             durable_fallback=lambda: self._durable_fallback(run_id),
+            disconnect_check=disconnect_check,
         ):
-            if disconnect_check is not None and await disconnect_check():
-                return
             yield format_sse_frame(frame)
 
     async def stream(
@@ -672,7 +647,12 @@ class AskAgentStreamService:
         disconnect_check: DisconnectCheck | None = None,
     ) -> AsyncGenerator[str, None]:
         channel = RuntimeStreamChannel()
-        initial_observer_queue = channel.subscribe()
+        subscription = self._observer.subscribe_local(
+            channel,
+            run_kind=RunKind.AGENT,
+            run_id_resolver=lambda: getattr(channel, "run_id", None),
+            heartbeat_data=lambda: {"request_id": str(channel.request_id)},
+        )
         execution_task = asyncio.create_task(self._run_execution(input_dto, channel))
         _track(execution_task, _DETACHED_AGENT_EXECUTIONS)
         pump_task = asyncio.create_task(
@@ -684,68 +664,23 @@ class AskAgentStreamService:
         )
         _track(cancellation_task, _DETACHED_AGENT_CANCEL_WATCHERS)
 
-        # POST observes the active channel directly. The persistence pump consumes its
-        # own queue and writes the same events to hot state for GET reattach. A slow or
-        # batching Redis path therefore cannot delay already-produced tokens or Stop.
-        last_heartbeat = time.monotonic()
-        try:
-            while True:
-                if disconnect_check is not None and await disconnect_check():
-                    return
-                try:
-                    event = await asyncio.wait_for(
-                        initial_observer_queue.get(),
-                        timeout=_INITIAL_OBSERVER_POLL_SECONDS,
-                    )
-                except asyncio.TimeoutError:
-                    now = time.monotonic()
-                    if now - last_heartbeat >= RUNTIME_STREAM_HEARTBEAT_SECONDS:
-                        last_heartbeat = now
-                        yield format_sse_frame(
-                            RuntimeStreamFrame(
-                                "heartbeat",
-                                {
-                                    "request_id": str(channel.request_id),
-                                    "run_id": (
-                                        str(getattr(channel, "run_id"))
-                                        if getattr(channel, "run_id", None) is not None
-                                        else None
-                                    ),
-                                    "ts": _now_iso(),
-                                },
-                            )
-                        )
-                    if execution_task.done() and pump_task.done() and initial_observer_queue.empty():
-                        if execution_task.cancelled():
-                            return
-                        error = execution_task.exception()
-                        if error is not None:
-                            yield self._format_early_error(error)
-                        return
-                    continue
+        def source_done() -> bool:
+            return execution_task.done() and pump_task.done()
 
-                event = self._event_for_run(
-                    event,
-                    getattr(channel, "run_id", None),
-                )
-                last_heartbeat = time.monotonic()
-                yield format_sse_frame(
-                    RuntimeStreamFrame(
-                        event.event_type,
-                        dict(event.payload),
-                    )
-                )
-                if event.event_type in _TERMINAL_STREAM_EVENTS:
-                    return
-        finally:
-            channel.unsubscribe(initial_observer_queue)
+        def early_error_frame() -> RuntimeFrame | None:
+            if execution_task.cancelled():
+                return None
+            error = execution_task.exception()
+            if error is None:
+                return None
+            return RuntimeFrame("error", {"message": redact_text(str(error))})
 
-    @staticmethod
-    def _format_early_error(exc: Exception) -> str:
-        payload = {"type": "error", "message": redact_text(str(exc))}
-        import json
-
-        return f"event: error\ndata: {json.dumps(payload, default=str)}\n\n"
+        async for frame in subscription.stream(
+            disconnect_check=disconnect_check,
+            source_done=source_done,
+            early_error_frame=early_error_frame,
+        ):
+            yield format_sse_frame(frame)
 
 
 def _now_iso() -> str:

@@ -150,22 +150,19 @@ async def test_public_cancel_uses_real_runtime_key_auth_without_execution_lease(
             target_type=target_type,
         )
 
-        async def cancel_agent(actual_run_id, request):
-            calls.append(("agent", actual_run_id, request.state.principal))
+        async def cancel(actual_target_type, actual_run_id, request):
+            calls.append(
+                (actual_target_type, actual_run_id, request.state.principal)
+            )
             return {
                 "success": True,
-                "data": {"run_id": str(actual_run_id), "status": "cancel_requested"},
+                "data": {
+                    "run_id": str(actual_run_id),
+                    "status": "cancel_requested",
+                },
             }
 
-        async def cancel_network(actual_run_id, request):
-            calls.append(("network", actual_run_id, request.state.principal))
-            return {
-                "success": True,
-                "data": {"run_id": str(actual_run_id), "status": "cancel_requested"},
-            }
-
-        monkeypatch.setattr(public_runtime_routes, "cancel_agent_run", cancel_agent)
-        monkeypatch.setattr(public_runtime_routes, "cancel_network_run", cancel_network)
+        monkeypatch.setattr(public_runtime_routes.RUNTIME_HTTP, "cancel", cancel)
 
         transport = ASGITransport(app=_secured_app(session_factory, settings))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -211,8 +208,10 @@ async def test_public_reattach_uses_real_runtime_key_auth_without_execution_leas
             target_type=target_type,
         )
 
-        async def attach(actual_run_id, request):
-            calls.append((actual_run_id, request.state.principal))
+        async def reattach(actual_target_type, actual_run_id, request):
+            calls.append(
+                (actual_target_type, actual_run_id, request.state.principal)
+            )
 
             async def generate():
                 yield 'event: run.state\ndata: {"status":"cancelled","output":"partial"}\n\n'
@@ -226,14 +225,7 @@ async def test_public_reattach_uses_real_runtime_key_auth_without_execution_leas
                 },
             )
 
-        if target_type == "agent":
-            monkeypatch.setattr(public_runtime_routes, "attach_agent_run", attach)
-        else:
-            monkeypatch.setattr(
-                public_runtime_routes,
-                "reattach_network_execution",
-                attach,
-            )
+        monkeypatch.setattr(public_runtime_routes.RUNTIME_HTTP, "reattach", reattach)
 
         transport = ASGITransport(app=_secured_app(session_factory, settings))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -246,7 +238,8 @@ async def test_public_reattach_uses_real_runtime_key_auth_without_execution_leas
         assert response.headers["content-type"].startswith("text/event-stream")
         assert '"status":"cancelled"' in response.text
         assert len(calls) == 1
-        called_run_id, principal = calls[0]
+        called_target, called_run_id, principal = calls[0]
+        assert called_target == target_type
         assert called_run_id == run_id
         assert principal.api_key_id == api_key_id
         assert principal.project_id == project_id
