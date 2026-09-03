@@ -45,6 +45,7 @@ def test_frontend_agent_and_network_consume_the_canonical_runtime_protocol() -> 
     for path in (FRONTEND_AGENT, FRONTEND_NETWORK):
         source = _source(path)
         assert "@/lib/runtime-stream" in source
+        assert "parseRuntimeFrame" in source
         assert "acceptRuntimeFrameSequence" in source
         assert "reconcileRuntimeOutput" in source
         assert "runtimeRetryDelayMs" in source
