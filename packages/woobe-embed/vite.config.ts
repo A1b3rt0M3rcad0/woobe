@@ -6,6 +6,11 @@ const root = fileURLToPath(new URL(".", import.meta.url));
 
 export default defineConfig({
   base: "./",
+  resolve: {
+    alias: {
+      "@woobe/runtime-client": resolve(root, "../woobe-runtime-client/src/index.ts"),
+    },
+  },
   build: {
     rollupOptions: {
       input: {
