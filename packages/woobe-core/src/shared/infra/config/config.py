@@ -108,8 +108,6 @@ class Settings(BaseSettings):
     network_timeout_hard_seconds: int = Field(default=300, ge=1, le=600)
     network_execution_lease_ttl_seconds: int = Field(default=30, ge=15, le=300)
     network_execution_lease_heartbeat_seconds: int = Field(default=10, ge=5, le=60)
-    network_worker_prefetch: int = Field(default=4, ge=1, le=100)
-    network_worker_slots: int = Field(default=4, ge=1, le=100)
     http_tool_timeout_max_ms: int = Field(default=30000, gt=0, le=120000)
     http_tool_response_max_bytes: int = Field(default=1048576, gt=0, le=16777216)
     http_tool_allow_local_networks: bool = False
@@ -128,10 +126,6 @@ class Settings(BaseSettings):
     readiness_timeout_seconds: float = Field(default=3.0, gt=0, le=30)
     host: str = "0.0.0.0"
     port: int = 8000
-    worker_interval: float = 5.0
-    worker_health_file: str = "/tmp/woobe/worker-health.json"
-    worker_heartbeat_interval_seconds: float = Field(default=10.0, gt=0, le=60)
-    worker_health_max_age_seconds: float = Field(default=45.0, gt=5, le=300)
     rabbitmq_url: str = "amqp://woobe:woobe@localhost:5672/"
     rabbitmq_exchange: str = "woobe.events"
     redis_url: str | None = None

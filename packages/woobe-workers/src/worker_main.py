@@ -5,38 +5,38 @@ import logging
 import signal
 from collections.abc import Sequence
 
-from module_registry_composition import (
+from woobe_workers.composition.registries import (
     build_registries,
     discover_module_entries,
 )
-from modules.agent.infra.adapters.http_tool_runtime import (
+from modules.agent.background_boundary import (
     close_http_tool_executor,
     configure_http_tool_executor,
 )
-from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.network.infra.workers.registry import (
+from modules.agent.background_boundary import HttpToolExecutor
+from woobe_workers.consumers.network.registry import (
     configure_network_agent_artifact_materializer_factory,
     configure_network_agent_invoker_factory,
 )
-from network_agent_persistence_composition import (
+from woobe_workers.composition.network_agent_persistence import (
     ProjectRAIAgentInvocationArtifactMaterializer,
 )
-from network_agent_runtime_composition import ProjectRAIAgentInvoker
-from shared.infra.config import Settings
+from woobe_workers.composition.network_agent_runtime import ProjectRAIAgentInvoker
+from woobe_workers.settings import WorkerSettings
 from shared.infra.database.session import create_engine
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.observability.logging_config import configure_logging
-from shared.workers.contracts import ModuleWorkerEntry
-from shared.workers.runner import WorkerRunner
+from woobe_workers.contracts import ModuleWorkerEntry
+from woobe_workers.runtime.runner import WorkerRunner
 
 logger = logging.getLogger(__name__)
 
 
-def _configure_logging(settings: Settings) -> None:
+def _configure_logging(settings: WorkerSettings) -> None:
     configure_logging(level=settings.log_level, json_logs=settings.json_logs)
 
 
-def _configure_http_tool_runtime(settings: Settings) -> HttpToolExecutor:
+def _configure_http_tool_runtime(settings: WorkerSettings) -> HttpToolExecutor:
     executor = HttpToolExecutor(
         default_timeout_ms=settings.http_tool_timeout_max_ms,
         max_timeout_ms=settings.http_tool_timeout_max_ms,
@@ -75,11 +75,11 @@ def _install_shutdown_handlers(
 
 
 async def run_workers(
-    settings: Settings | None = None,
+    settings: WorkerSettings | None = None,
     *,
     extra_entries: Sequence[ModuleWorkerEntry] = (),
 ) -> None:
-    runtime_settings = settings or Settings(service_role="worker")
+    runtime_settings = settings or WorkerSettings()
     _configure_logging(runtime_settings)
 
     engine = create_engine(runtime_settings)

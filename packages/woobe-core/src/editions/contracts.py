@@ -21,8 +21,6 @@ from dataclasses import dataclass
 
 from fastapi import APIRouter
 
-from shared.workers.contracts import ModuleWorkerEntry
-
 
 @dataclass(frozen=True, slots=True)
 class EditionIntegration:
@@ -34,4 +32,3 @@ class EditionIntegration:
 
     name: str = "core"
     api_routers: tuple[APIRouter, ...] = ()
-    worker_entries: tuple[ModuleWorkerEntry, ...] = ()

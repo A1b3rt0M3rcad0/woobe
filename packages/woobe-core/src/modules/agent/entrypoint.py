@@ -20,12 +20,10 @@ from modules.agent.composition.module import (
     public_run_composer,
     public_stream_composer,
 )
-from modules.agent.composition.workers import AgentWorkerRegistry, register_agent_workers
 
 __all__ = [
     "AGENT_HTTP_ROUTERS",
     "AgentToolRuntimeGateway",
-    "AgentWorkerRegistry",
     "AskInput",
     "EmptyModelOutputError",
     "HttpToolExecutor",
@@ -44,5 +42,4 @@ __all__ = [
     "new_execution_context",
     "public_run_composer",
     "public_stream_composer",
-    "register_agent_workers",
 ]
