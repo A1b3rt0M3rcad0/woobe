@@ -34,11 +34,20 @@ class _ActiveRequestSessionFactory:
 
 
 class _SurfaceLifecycle:
-    def __init__(self) -> None:
+    def __init__(self, message_request) -> None:
+        self.message_request = message_request
         self.marked: list[tuple[object, dict]] = []
+
+    async def begin_message(self, _authorized, _idempotency_key, *, metadata=None):
+        return self.message_request, True
 
     async def mark_message(self, message_id, **kwargs) -> None:
         self.marked.append((message_id, kwargs))
+
+
+class _FailingGateway:
+    async def prepare(self, *_args, **_kwargs):
+        raise RuntimeError("runtime composition failed")
 
 
 @pytest.mark.asyncio
@@ -90,54 +99,57 @@ async def test_active_message_request_without_canonical_run_releases_orphaned_ga
 
 
 @pytest.mark.asyncio
-async def test_agent_stream_setup_failure_terminalizes_message_request(
+async def test_runtime_gateway_setup_failure_terminalizes_new_message_request(
     monkeypatch,
 ) -> None:
-    message_request_id = uuid4()
+    message_request = SimpleNamespace(id=uuid4(), target_run_id=None)
     project_id = uuid4()
-    agent_id = uuid4()
+    target_id = uuid4()
     surface_id = uuid4()
     session_id = uuid4()
     release_id = uuid4()
-    lifecycle = _SurfaceLifecycle()
+    lifecycle = _SurfaceLifecycle(message_request)
     authorized = SimpleNamespace(
         surface=SimpleNamespace(
             id=surface_id,
             project_id=project_id,
-            target_id=agent_id,
+            target_type="agent",
+            target_id=target_id,
         ),
         binding=SimpleNamespace(
             metadata_={"source": "control_plane_test"},
             session_id=session_id,
             target_release_id=release_id,
         ),
+        claims=SimpleNamespace(
+            permissions=frozenset({"chat:send", "chat:stream"})
+        ),
     )
     payload = SimpleNamespace(message="hello", metadata=None)
 
-    def fail_runtime_composition():
-        raise RuntimeError("runtime composition failed")
+    async def authorize(*_args, **_kwargs):
+        return authorized
 
+    monkeypatch.setattr(routes, "_authorized_session", authorize)
     monkeypatch.setattr(routes, "_service", lambda _request: lifecycle)
-    monkeypatch.setattr(routes, "build_agent_stream_service", fail_runtime_composition)
-
-    stream = routes._agent_stream(
-        SimpleNamespace(),
-        message_request_id=message_request_id,
-        authorized=authorized,
-        payload=payload,
-    )
+    monkeypatch.setattr(routes, "_runtime_gateway", lambda _request: _FailingGateway())
 
     with pytest.raises(RuntimeError, match="runtime composition failed"):
-        async for _ in stream:
-            pass
+        await routes.stream_public_message(
+            session_id,
+            payload,
+            SimpleNamespace(is_disconnected=lambda: None),
+            idempotency_key="message-key",
+            host_origin="https://app.example.com",
+        )
 
     assert lifecycle.marked == [
-        (message_request_id, {"status": "streaming"}),
         (
-            message_request_id,
+            message_request.id,
             {
                 "status": "failed",
-                "error_code": "runtime_failed",
+                "target_run_id": None,
+                "error_code": "runtime_start_failed",
             },
-        ),
+        )
     ]
