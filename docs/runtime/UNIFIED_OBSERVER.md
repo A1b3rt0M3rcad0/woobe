@@ -156,9 +156,12 @@ A reattach or cancel operation never creates another Run.
 
 ## Browser and Embed runtime protocol
 
-Browser consumers share the same runtime protocol policy:
+Browser consumers share one canonical runtime protocol implementation in `packages/woobe-runtime-client`.
+
+That package owns the UI-agnostic protocol behavior:
 
 - protocol version validation;
+- SSE frame parsing;
 - `run.state` replacement semantics;
 - logical sequence acceptance;
 - duplicate/stale event rejection;
@@ -168,11 +171,11 @@ Browser consumers share the same runtime protocol policy:
 - snapshot output append/replacement calculation;
 - bounded observer retry/backoff.
 
-`packages/woobe-frontend/src/lib/runtime-stream.ts` is the canonical protocol module for the Woobe web application. Both Agent Playground and Network streaming consume it.
+`packages/woobe-frontend/src/lib/runtime-stream.ts` and `packages/woobe-embed/src/runtime-stream.ts` are thin adapters/reexports over `@woobe/runtime-client`. They do not own independent protocol algorithms.
 
-`packages/woobe-embed/src/runtime-stream.ts` is the equivalent bundled protocol module for the independent Embed artifact. The two packages intentionally remain separately buildable, while architecture gates require the same protocol primitives and policy constants so their semantics cannot silently diverge.
+The Woobe frontend and Embed remain separately buildable artifacts, but both consume the same canonical runtime client package. Architecture gates prevent either artifact from reimplementing sequence, gap, terminal, parsing or retry semantics locally.
 
-UI-specific rendering remains outside the protocol module. Network invocation/delegation hydration, Agent activity rendering and Embed DOM updates are presentation concerns.
+UI-specific rendering remains outside the shared package. Network invocation/delegation hydration, Agent activity rendering and Embed DOM updates are presentation concerns.
 
 ## Sequence semantics
 
@@ -220,9 +223,10 @@ Architecture tests protect the boundary against regression:
 - ChatSurface Control Plane lifecycle cannot resolve Agent/Network Runs directly through target ORM models;
 - API/worker composition modules own cross-context runtime adapters;
 - Runtime Observer contracts stay in `shared.runtime`;
-- frontend Agent and Network consumers must use the canonical frontend runtime protocol module;
-- frontend and Embed protocol modules must expose the same protocol primitives and policy constants;
-- app-specific clients cannot reimplement the logical sequence gap algorithm.
+- `packages/woobe-runtime-client` is the canonical browser/embed runtime protocol implementation;
+- frontend Agent and Network consumers must use the shared runtime client through their thin adapter;
+- Embed must use the same shared runtime client rather than maintain a separate protocol implementation;
+- app-specific clients cannot reimplement logical sequence, gap, terminal or retry algorithms.
 
 ## Resulting architecture
 
@@ -243,9 +247,11 @@ Architecture tests protect the boundary against regression:
               │                    │                    │
               └────────────────────┼────────────────────┘
                                    │
-                       frontend/embed protocol
+                         @woobe/runtime-client
+                                   │
+                      frontend / embed consumers
                                    │
                                 users
 ```
 
-Execution remains Agent- or Network-specific below the composition boundary. Consumption and observation use one Run model and one set of runtime semantics above it.
+Execution remains Agent- or Network-specific below the composition boundary. Consumption and observation use one Run model, one RuntimeObserver and one browser/embed runtime protocol implementation above it.
