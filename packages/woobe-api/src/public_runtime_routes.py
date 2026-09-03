@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Request as FastAPIRequest
 
-from composition.runtime import RUNTIME_HTTP
+from runtime_composition import RUNTIME_HTTP
 from shared.infra.errors import AuthorizationError
 from shared.security.principal import ProjectApiPrincipal
 

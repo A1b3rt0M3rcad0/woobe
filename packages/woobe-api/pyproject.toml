@@ -11,4 +11,4 @@ dependencies = ["woobe-core==0.1.0"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-py-modules = ["main", "public_runtime_routes"]
+py-modules = ["main", "public_runtime_routes", "runtime_composition"]

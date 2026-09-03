@@ -5,13 +5,13 @@ import logging
 import signal
 from collections.abc import Sequence
 
-from composition.network_agent_runtime import ProjectRAIAgentInvoker
 from modules.agent.infra.adapters.http_tool_runtime import (
     close_http_tool_executor,
     configure_http_tool_executor,
 )
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.network.infra.workers.registry import configure_network_agent_invoker_factory
+from network_agent_runtime_composition import ProjectRAIAgentInvoker
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine
 from shared.infra.rabbitmq import RabbitMQManager
