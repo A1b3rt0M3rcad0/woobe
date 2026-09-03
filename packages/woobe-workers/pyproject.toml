@@ -14,5 +14,6 @@ package-dir = {"" = "src"}
 py-modules = [
   "worker_main",
   "module_registry_composition",
+  "network_agent_persistence_composition",
   "network_agent_runtime_composition",
 ]
