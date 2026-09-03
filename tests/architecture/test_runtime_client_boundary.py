@@ -10,10 +10,13 @@ EMBED_RUNTIME = ROOT / "packages/woobe-embed/src/runtime-stream.ts"
 EMBED_IFRAME = ROOT / "packages/woobe-embed/src/iframe.ts"
 
 _REQUIRED_RUNTIME_EXPORTS = {
+    "RUNTIME_STREAM_MAX_ATTEMPTS",
     "RuntimeStreamGapError",
     "RuntimeStreamProtocolError",
     "parseRuntimeFrame",
     "acceptRuntimeFrameSequence",
+    "reconcileRuntimeOutput",
+    "runtimeRetryDelayMs",
     "runtimeTerminalStatus",
 }
 
@@ -32,6 +35,8 @@ def test_frontend_and_embed_expose_the_same_runtime_protocol_primitives() -> Non
 
     assert "SUPPORTED_RUNTIME_STREAM_PROTOCOL_VERSION = 1" in frontend
     assert "SUPPORTED_RUNTIME_STREAM_PROTOCOL_VERSION = 1" in embed
+    assert "RUNTIME_STREAM_RETRY_BASE_MS = 250" in frontend
+    assert "RUNTIME_STREAM_RETRY_BASE_MS = 250" in embed
     assert "realtime_available" in frontend
     assert "realtime_available" in embed
 
@@ -41,10 +46,14 @@ def test_frontend_agent_and_network_consume_the_canonical_runtime_protocol() -> 
         source = _source(path)
         assert "@/lib/runtime-stream" in source
         assert "acceptRuntimeFrameSequence" in source
+        assert "reconcileRuntimeOutput" in source
+        assert "runtimeRetryDelayMs" in source
+        assert "RUNTIME_STREAM_MAX_ATTEMPTS" in source
         assert "runtimeTerminalStatus" in source
         assert "TERMINAL_RUN_STATUSES" not in source
         assert "Runtime stream sequence gap: expected" not in source
         assert "Network stream sequence gap: expected" not in source
+        assert "250 * (attempt + 1)" not in source
 
 
 def test_embed_consumes_its_canonical_runtime_protocol_module() -> None:
