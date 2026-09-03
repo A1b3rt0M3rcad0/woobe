@@ -83,6 +83,42 @@ test("stale replacement state is ignored without rewinding sequence", () => {
   assert.equal(state.sequence, 20);
 });
 
+test("durable state is accepted without rewinding the hot sequence", () => {
+  const state = { sequence: 20 };
+  const durable = runtime.parseRuntimeFrame(
+    'event: run.state\ndata: {"type":"run.state","status":"cancelled","output":"partial","realtime_available":false}',
+  );
+  assert.ok(durable);
+  assert.equal(runtime.acceptRuntimeFrameSequence(durable, state), true);
+  assert.equal(state.sequence, 20);
+});
+
+test("snapshot output reconciliation is shared and deterministic", () => {
+  assert.deepEqual(runtime.reconcileRuntimeOutput("Hello", "Hello world"), {
+    output: "Hello world",
+    append: " world",
+    retract: 0,
+    changed: true,
+  });
+  assert.deepEqual(runtime.reconcileRuntimeOutput("old", "new"), {
+    output: "new",
+    append: "new",
+    retract: 3,
+    changed: true,
+  });
+  assert.deepEqual(runtime.reconcileRuntimeOutput("same", "same"), {
+    output: "same",
+    append: "",
+    retract: 0,
+    changed: false,
+  });
+});
+
+test("retry policy exposes one attempt budget and deterministic backoff", () => {
+  assert.equal(runtime.RUNTIME_STREAM_MAX_ATTEMPTS, 4);
+  assert.deepEqual([0, 1, 2, 3].map(runtime.runtimeRetryDelayMs), [250, 500, 750, 1000]);
+});
+
 test("malformed SSE data is ignored instead of crashing the observer", () => {
   const malformed = runtime.parseRuntimeFrame(
     'id: 21\nevent: token\ndata: {"protocol_version":1,"sequence":21,"content":',
