@@ -4,15 +4,16 @@ ARG NODE_VERSION=22
 ARG NGINX_VERSION=1.29.4
 
 FROM node:${NODE_VERSION}-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json ./
+WORKDIR /workspace/packages/woobe-frontend
+COPY packages/woobe-frontend/package.json packages/woobe-frontend/package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 
 FROM deps AS builder
 ARG VITE_API_URL
 ARG VITE_CHAT_EMBED_URL
 ARG VITE_WOOBE_EDITION=core
-COPY . .
+COPY packages/woobe-frontend ./
+COPY packages/woobe-runtime-client ../woobe-runtime-client
 RUN test -n "${VITE_API_URL}" \
     && test -n "${VITE_CHAT_EMBED_URL}" \
     && test "${VITE_WOOBE_EDITION}" = "core" \
@@ -34,7 +35,7 @@ LABEL org.opencontainers.image.title="Woobe Core Web" \
 USER root
 RUN apk upgrade --no-cache
 COPY --from=builder /tmp/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /workspace/packages/woobe-frontend/dist /usr/share/nginx/html
 
 USER 101:101
 EXPOSE 8080
