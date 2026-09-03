@@ -5,6 +5,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 CHAT_ROUTES = ROOT / "packages/woobe-core/src/modules/chat_surface/presentation/routes.py"
 CHAT_REATTACH = ROOT / "packages/woobe-core/src/modules/chat_surface/presentation/reattach_routes.py"
+CHAT_CONTROL_PLANE = (
+    ROOT / "packages/woobe-core/src/modules/chat_surface/control_plane_service.py"
+)
 API_COMPOSITION = ROOT / "packages/woobe-api/src/chat_runtime_composition.py"
 
 
@@ -27,6 +30,15 @@ def test_chat_surface_reattach_route_has_no_target_runtime_imports() -> None:
     assert "resolve_run" in source
     assert ".observe(" in source
     assert ".cancel(" in source
+
+
+def test_chat_surface_control_plane_does_not_resolve_target_runs_directly() -> None:
+    source = CHAT_CONTROL_PLANE.read_text(encoding="utf-8")
+    assert "AgentRunModel" not in source
+    assert "NetworkExecutionModel" not in source
+    assert "modules.agent.infra.database.run_models" not in source
+    assert "ChatRuntimeGateway" in source
+    assert ".resolve_run(" in source
 
 
 def test_api_composition_owns_agent_network_chat_runtime_dispatch() -> None:
