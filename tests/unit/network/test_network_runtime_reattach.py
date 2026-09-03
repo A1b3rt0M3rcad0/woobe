@@ -10,7 +10,7 @@ from modules.network.application.runtime import (
 )
 from modules.network.infra.runtime.redis_store import RedisNetworkExecutionStore
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
-from shared.runtime_reattach import RuntimeStreamReader
+from shared.runtime import RuntimeStreamReader
 
 
 def _execution(execution_id):
