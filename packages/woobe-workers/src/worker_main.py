@@ -14,7 +14,13 @@ from modules.agent.infra.adapters.http_tool_runtime import (
     configure_http_tool_executor,
 )
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
-from modules.network.infra.workers.registry import configure_network_agent_invoker_factory
+from modules.network.infra.workers.registry import (
+    configure_network_agent_artifact_materializer_factory,
+    configure_network_agent_invoker_factory,
+)
+from network_agent_persistence_composition import (
+    ProjectRAIAgentInvocationArtifactMaterializer,
+)
 from network_agent_runtime_composition import ProjectRAIAgentInvoker
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine
@@ -93,6 +99,9 @@ async def run_workers(
                 http_executor,
             )
         )
+        configure_network_agent_artifact_materializer_factory(
+            ProjectRAIAgentInvocationArtifactMaterializer
+        )
         async with engine.begin() as conn:
             await conn.run_sync(lambda _: None)
 
@@ -117,6 +126,7 @@ async def run_workers(
         )
         await stop_event.wait()
     finally:
+        configure_network_agent_artifact_materializer_factory(None)
         configure_network_agent_invoker_factory(None)
         if runner is not None:
             await runner.stop()
