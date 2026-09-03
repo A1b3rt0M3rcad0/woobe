@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 from collections import defaultdict
 from collections.abc import AsyncIterator
 from uuid import UUID
@@ -42,7 +41,6 @@ from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipa
 
 
 router = APIRouter(prefix="/network", tags=["network"])
-TERMINAL_STATUSES = {"completed", "failed", "cancelled", "timed_out", "uncertain"}
 
 
 def _service(request: Request) -> NetworkApplicationService:
@@ -490,46 +488,6 @@ async def _execution_stream(
             raise NotFoundError("Network execution not found")
         return _network_durable_state(execution)
 
-    hot = await EXECUTION_STATE_STORE.get(execution_id)
-    if hot is None and str(initial.status) not in TERMINAL_STATUSES:
-        queued = _network_durable_state(initial)
-        queued.update(
-            {
-                "run_id": str(execution_id),
-                "kind": "NETWORK",
-                "sequence": 0,
-                "realtime_available": False,
-            }
-        )
-        yield network_runtime_sse(
-            RuntimeFrame("run.state", queued, sequence=0),
-            execution_id,
-        )
-        while hot is None:
-            if await request.is_disconnected():
-                return
-            await asyncio.sleep(0.25)
-            async with request.app.state.session_factory() as session:
-                latest = await session.get(NetworkExecutionModel, execution_id)
-            if latest is None or latest.project_id != project_id:
-                raise NotFoundError("Network execution not found")
-            if str(latest.status) in TERMINAL_STATUSES:
-                terminal = _network_durable_state(latest)
-                terminal.update(
-                    {
-                        "run_id": str(execution_id),
-                        "kind": "NETWORK",
-                        "sequence": 0,
-                        "realtime_available": False,
-                    }
-                )
-                yield network_runtime_sse(
-                    RuntimeFrame("run.state", terminal, sequence=0),
-                    execution_id,
-                )
-                return
-            hot = await EXECUTION_STATE_STORE.get(execution_id)
-
     try:
         async for frame in observer.observe(
             RunReference.network(execution_id),
@@ -545,12 +503,12 @@ async def _execution_stream(
             **durable,
             "run_id": str(execution_id),
             "kind": "NETWORK",
-            "sequence": 0,
+            "sequence": None,
             "realtime_available": False,
             "degraded_reason": "runtime_event_gap",
         }
         yield network_runtime_sse(
-            RuntimeFrame("run.state", degraded, sequence=0),
+            RuntimeFrame("run.state", degraded, sequence=None),
             execution_id,
         )
 
