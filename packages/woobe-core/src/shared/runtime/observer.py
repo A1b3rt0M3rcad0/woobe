@@ -26,6 +26,7 @@ RunIdResolver = Callable[[], UUID | None]
 SourceDone = Callable[[], bool]
 EarlyErrorFrame = Callable[[], RuntimeFrame | None]
 HeartbeatData = Callable[[], dict[str, Any]]
+_TERMINAL_STATUSES = {"completed", "failed", "cancelled", "timed_out", "uncertain"}
 
 
 def _now_iso() -> str:
@@ -140,6 +141,7 @@ class RuntimeObserver:
         maxlen: int = 2000,
         local_poll_seconds: float = 0.25,
     ) -> None:
+        self._store = store
         self._heartbeat_seconds = max(1.0, heartbeat_seconds)
         self._local_poll_seconds = max(0.01, local_poll_seconds)
         self._reader = RuntimeStreamReader(
@@ -168,6 +170,59 @@ class RuntimeObserver:
         durable_fallback: DurableFallback,
         disconnect_check: DisconnectCheck | None = None,
     ) -> AsyncIterator[RuntimeFrame]:
+        # Acceptance and hot-runtime initialization are separate boundaries. If a
+        # durable non-terminal Run exists before Redis state materializes, keep this
+        # observer attached instead of treating the temporary lack of hot state as a
+        # completed observation. This is generic Run behavior; it does not transfer
+        # execution ownership to the connection.
+        hot_probe_failed = False
+        try:
+            hot = await self._store.get(run.run_id)
+        except Exception:
+            hot = None
+            hot_probe_failed = True
+
+        if hot is None and not hot_probe_failed:
+            state, cursor = await self.current_state(
+                run,
+                durable_fallback=durable_fallback,
+            )
+            status = str(state.get("status") or "").lower()
+            if cursor is None and status not in _TERMINAL_STATUSES:
+                yield RuntimeFrame("run.state", dict(state), sequence=None)
+
+                while True:
+                    if disconnect_check is not None and await disconnect_check():
+                        return
+                    await asyncio.sleep(self._local_poll_seconds)
+
+                    try:
+                        hot = await self._store.get(run.run_id)
+                    except Exception:
+                        yield RuntimeFrame(
+                            "run.realtime_unavailable",
+                            {"run_id": str(run.run_id)},
+                        )
+                        return
+                    if hot is not None:
+                        break
+
+                    durable = await durable_fallback()
+                    if durable is None:
+                        return
+                    durable_status = str(durable.get("status") or "").lower()
+                    if durable_status in _TERMINAL_STATUSES:
+                        terminal_state, _ = await self.current_state(
+                            run,
+                            durable_fallback=durable_fallback,
+                        )
+                        yield RuntimeFrame(
+                            "run.state",
+                            dict(terminal_state),
+                            sequence=None,
+                        )
+                        return
+
         async for frame in self._reader.stream(
             run.run_id,
             run.kind.value,

@@ -64,6 +64,63 @@ async def test_observer_uses_canonical_run_reference_for_hot_reattach() -> None:
 
 
 @pytest.mark.asyncio
+async def test_observer_waits_between_durable_acceptance_and_hot_runtime() -> None:
+    store = InMemoryExecutionStateStore()
+    run_id = uuid4()
+    durable = {"status": "queued", "output": ""}
+    observer = RuntimeObserver(store, block_ms=20, local_poll_seconds=0.01)
+
+    async def durable_fallback():
+        return dict(durable)
+
+    stream = observer.observe(
+        RunReference.network(run_id),
+        durable_fallback=durable_fallback,
+    )
+    accepted = await asyncio.wait_for(anext(stream), timeout=1)
+
+    assert accepted.event_type == "run.state"
+    assert accepted.data["status"] == "queued"
+    assert accepted.data["realtime_available"] is False
+
+    await store.create(run_id, {"status": "running"}, ttl_seconds=60)
+    await store.append_event(run_id, "execution_started", {})
+
+    hot = await asyncio.wait_for(anext(stream), timeout=1)
+    assert hot.event_type == "run.state"
+    assert hot.data["status"] == "running"
+    assert hot.data["realtime_available"] is True
+    await stream.aclose()
+
+
+@pytest.mark.asyncio
+async def test_observer_emits_durable_terminal_if_hot_runtime_never_materializes() -> None:
+    store = InMemoryExecutionStateStore()
+    run_id = uuid4()
+    durable = {"status": "queued", "output": ""}
+    observer = RuntimeObserver(store, block_ms=20, local_poll_seconds=0.01)
+
+    async def durable_fallback():
+        return dict(durable)
+
+    stream = observer.observe(
+        RunReference.network(run_id),
+        durable_fallback=durable_fallback,
+    )
+    _ = await asyncio.wait_for(anext(stream), timeout=1)
+    durable.update({"status": "completed", "output": "done"})
+
+    terminal = await asyncio.wait_for(anext(stream), timeout=1)
+    assert terminal.event_type == "run.state"
+    assert terminal.data["status"] == "completed"
+    assert terminal.data["output"] == "done"
+    assert terminal.data["realtime_available"] is False
+
+    with pytest.raises(StopAsyncIteration):
+        await anext(stream)
+
+
+@pytest.mark.asyncio
 async def test_local_subscription_is_observer_only_and_does_not_own_source() -> None:
     store = InMemoryExecutionStateStore()
     observer = RuntimeObserver(store, heartbeat_seconds=60, local_poll_seconds=0.01)
