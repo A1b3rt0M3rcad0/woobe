@@ -5,7 +5,10 @@ import {
   refreshAuthSession,
 } from '@/lib/api/client'
 import {
+  RUNTIME_STREAM_MAX_ATTEMPTS,
   acceptRuntimeFrameSequence,
+  reconcileRuntimeOutput,
+  runtimeRetryDelayMs,
   runtimeTerminalStatus,
   type ParsedRuntimeFrame,
   type RuntimeSequenceState,
@@ -286,34 +289,23 @@ function applyRunState(
 ): boolean {
   const data = eventData(event)
   const output = typeof data.output === 'string' ? data.output : ''
-  if (output !== streamState.output) {
-    if (output.startsWith(streamState.output)) {
-      const suffix = output.slice(streamState.output.length)
-      if (suffix) {
-        callbacks.onEvent('token', syntheticEvent(event, {
-          content: suffix,
-          visibility: 'assistant',
-          channel: 'final',
-          phase: 'capability_response_generation',
-        }))
-      }
-    } else {
-      if (streamState.output.length) {
-        callbacks.onEvent('token_retract', syntheticEvent(event, {
-          content_length: streamState.output.length,
-          reason: 'reattach_state_replace',
-        }))
-      }
-      if (output) {
-        callbacks.onEvent('token', syntheticEvent(event, {
-          content: output,
-          visibility: 'assistant',
-          channel: 'final',
-          phase: 'capability_response_generation',
-        }))
-      }
+  const reconciliation = reconcileRuntimeOutput(streamState.output, output)
+  if (reconciliation.changed) {
+    if (reconciliation.retract > 0) {
+      callbacks.onEvent('token_retract', syntheticEvent(event, {
+        content_length: reconciliation.retract,
+        reason: 'reattach_state_replace',
+      }))
     }
-    streamState.output = output
+    if (reconciliation.append) {
+      callbacks.onEvent('token', syntheticEvent(event, {
+        content: reconciliation.append,
+        visibility: 'assistant',
+        channel: 'final',
+        phase: 'capability_response_generation',
+      }))
+    }
+    streamState.output = reconciliation.output
   }
 
   hydrateInvocationSnapshot(event, data, callbacks)
@@ -494,7 +486,7 @@ export async function streamNetworkExecution(
   }
   const streamState: NetworkStreamState = { output: '', sequence: null }
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < RUNTIME_STREAM_MAX_ATTEMPTS; attempt += 1) {
     if (signal?.aborted) throw new DOMException('Network stream aborted', 'AbortError')
     try {
       const completed = stableInput.executionId
@@ -502,10 +494,10 @@ export async function streamNetworkExecution(
         : await requestInitialStream(stableInput, callbacks, streamState, signal, false)
       if (completed) return
     } catch (error) {
-      if (signal?.aborted || attempt === 3) throw error
+      if (signal?.aborted || attempt === RUNTIME_STREAM_MAX_ATTEMPTS - 1) throw error
       if (!stableInput.executionId && attempt > 0) throw error
     }
-    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
+    await new Promise((resolve) => setTimeout(resolve, runtimeRetryDelayMs(attempt)))
   }
   throw new Error('Network stream ended before a terminal event')
 }
