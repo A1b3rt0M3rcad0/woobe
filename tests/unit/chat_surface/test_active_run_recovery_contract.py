@@ -7,42 +7,12 @@ from uuid import uuid4
 import pytest
 
 from modules.chat_surface import control_plane_service as control_plane_service_module
+from modules.chat_surface.application.runtime_gateway import ChatRunIdentity
 from modules.chat_surface.control_plane_service import ControlPlaneChatSurfaceService
 from modules.chat_surface.presentation import reattach_routes
 from modules.chat_surface.service import ChatSurfaceService
 from shared.infra.errors import ConflictError
 from shared.presentation.errors import conflict_handler
-
-
-class _Session:
-    def __init__(self, *, run, message_request=None) -> None:
-        self.run = run
-        self.message_request = message_request
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        return False
-
-    async def get(self, _model, identifier):
-        if getattr(self.run, "id", None) == identifier:
-            return self.run
-        return None
-
-    async def scalar(self, _statement):
-        # The admission tests only query a Run; reattach tests first query the
-        # MessageRequest and then resolve the Run by its durable target_run_id.
-        return self.message_request if self.message_request is not None else self.run
-
-
-class _SessionFactory:
-    def __init__(self, *, run, message_request=None) -> None:
-        self.run = run
-        self.message_request = message_request
-
-    def __call__(self):
-        return _Session(run=self.run, message_request=self.message_request)
 
 
 class _AdmissionSession:
@@ -59,6 +29,28 @@ class _AdmissionSession:
 class _AdmissionSessionFactory:
     def __call__(self):
         return _AdmissionSession()
+
+
+class _ActiveRequestSession:
+    def __init__(self, message_request) -> None:
+        self.message_request = message_request
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def scalar(self, _statement):
+        return self.message_request
+
+
+class _ActiveRequestSessionFactory:
+    def __init__(self, message_request) -> None:
+        self.message_request = message_request
+
+    def __call__(self):
+        return _ActiveRequestSession(self.message_request)
 
 
 class _MessageBindingSession:
@@ -92,32 +84,38 @@ class _MessageBindingSessionFactory:
         )
 
 
-class _MessageLifecycleService:
-    def __init__(self, *, run=None) -> None:
-        self.run = run
+class _LifecycleService:
+    def __init__(self) -> None:
         self.marked: list[tuple[object, dict]] = []
 
     async def mark_message(self, message_id, **kwargs) -> None:
         self.marked.append((message_id, kwargs))
 
-    async def _active_run_for_binding(self, _binding):
-        if self.run is None:
-            return None, None
-        return self.run.id, str(self.run.status)
+
+class _Gateway:
+    def __init__(self, identity: ChatRunIdentity | None) -> None:
+        self.identity = identity
+        self.calls = []
+
+    async def resolve_run(
+        self,
+        target,
+        *,
+        preferred_run_id=None,
+        created_after=None,
+    ):
+        self.calls.append((target, preferred_run_id, created_after))
+        return self.identity
 
 
 def _binding(*, target_type: str):
-    project_id = uuid4()
-    target_id = uuid4()
-    session_id = uuid4()
-    release_id = uuid4()
     return SimpleNamespace(
         id=uuid4(),
-        project_id=project_id,
+        project_id=uuid4(),
         target_type=target_type,
-        target_id=target_id,
-        session_id=session_id,
-        target_release_id=release_id,
+        target_id=uuid4(),
+        session_id=uuid4(),
+        target_release_id=uuid4(),
     )
 
 
@@ -128,92 +126,41 @@ def _authorized(binding):
     )
 
 
-def _agent_run(binding):
-    return SimpleNamespace(
-        id=uuid4(),
-        project_id=binding.project_id,
-        agent_id=binding.target_id,
-        session_id=binding.session_id,
-        agent_release_id=binding.target_release_id,
-        network_execution_id=None,
-        status="running",
-    )
-
-
-def _network_run(binding):
-    return SimpleNamespace(
-        id=uuid4(),
-        project_id=binding.project_id,
-        network_id=binding.target_id,
-        network_session_id=binding.session_id,
-        network_version_id=binding.target_release_id,
-        status="running",
-    )
-
-
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target_type", ["agent", "network"])
-async def test_active_run_admission_and_reattach_resolve_the_same_run(target_type: str) -> None:
-    binding = _binding(target_type=target_type)
-    run = _agent_run(binding) if target_type == "agent" else _network_run(binding)
-    factory = _SessionFactory(run=run)
-    service = ControlPlaneChatSurfaceService(factory, SimpleNamespace())
-
-    admitted_run_id, admitted_status = await service._active_run_for_binding(binding)
-
-    request = SimpleNamespace(
-        app=SimpleNamespace(state=SimpleNamespace(session_factory=factory))
-    )
-    authorized = SimpleNamespace(binding=binding)
-    message_request = SimpleNamespace(
-        id=uuid4(),
-        status="failed",
-        target_run_id=run.id,
-    )
-    recovered_run_id, recovered_status = await reattach_routes._resolve_run_identity(
-        request,
-        authorized,
-        message_request,
-    )
-
-    assert admitted_run_id == run.id
-    assert admitted_status == "running"
-    assert recovered_run_id == run.id
-    assert recovered_status == "running"
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize("target_type", ["agent", "network"])
-async def test_active_run_endpoint_recovers_run_even_if_previous_observer_marked_message_failed(
+async def test_active_run_endpoint_uses_runtime_gateway_as_canonical_resolver(
     monkeypatch,
     target_type: str,
 ) -> None:
     binding = _binding(target_type=target_type)
-    run = _agent_run(binding) if target_type == "agent" else _network_run(binding)
+    run_id = uuid4()
     message_request = SimpleNamespace(
         id=uuid4(),
         status="failed",
-        target_run_id=run.id,
+        target_run_id=run_id,
+        created_at=SimpleNamespace(),
     )
-    factory = _SessionFactory(run=run, message_request=message_request)
     authorized = SimpleNamespace(
         binding=binding,
         claims=SimpleNamespace(permissions=frozenset({"chat:history", "chat:stream"})),
     )
+    gateway = _Gateway(ChatRunIdentity(run_id=run_id, status="running"))
+    lifecycle = _LifecycleService()
 
     async def authorize(*_args, **_kwargs):
         return authorized
 
-    lifecycle = _MessageLifecycleService()
+    async def latest(*_args, **_kwargs):
+        return message_request
+
     monkeypatch.setattr(reattach_routes, "_authorized_session", authorize)
+    monkeypatch.setattr(reattach_routes, "_latest_message_request", latest)
     monkeypatch.setattr(reattach_routes, "_service", lambda _request: lifecycle)
-    request = SimpleNamespace(
-        app=SimpleNamespace(state=SimpleNamespace(session_factory=factory))
-    )
+    monkeypatch.setattr(reattach_routes, "_runtime_gateway", lambda _request: gateway)
 
     response = await reattach_routes.get_chat_active_run(
         binding.session_id,
-        request,
+        SimpleNamespace(),
         host_origin="https://app.example.com",
     )
 
@@ -221,17 +168,22 @@ async def test_active_run_endpoint_recovers_run_even_if_previous_observer_marked
         "success": True,
         "data": {
             "message_request_id": str(message_request.id),
-            "run_id": str(run.id),
+            "run_id": str(run_id),
             "status": "running",
             "target_type": target_type,
         },
     }
+    assert len(gateway.calls) == 1
+    target, preferred_run_id, created_after = gateway.calls[0]
+    assert target.target_type == target_type
+    assert preferred_run_id == run_id
+    assert created_after is None
     assert lifecycle.marked == [
         (
             message_request.id,
             {
                 "status": "streaming",
-                "target_run_id": run.id,
+                "target_run_id": run_id,
                 "error_code": None,
             },
         )
@@ -240,36 +192,33 @@ async def test_active_run_endpoint_recovers_run_even_if_previous_observer_marked
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target_type", ["agent", "network"])
-async def test_active_run_endpoint_uses_canonical_run_when_message_request_is_missing(
+async def test_active_run_endpoint_recovers_canonical_run_without_message_request(
     monkeypatch,
     target_type: str,
 ) -> None:
-    """A canonical active Run must remain observable without MessageRequest correlation."""
     binding = _binding(target_type=target_type)
-    run = _agent_run(binding) if target_type == "agent" else _network_run(binding)
-    factory = _SessionFactory(run=run)
+    run_id = uuid4()
     authorized = SimpleNamespace(
         binding=binding,
         claims=SimpleNamespace(permissions=frozenset({"chat:history", "chat:stream"})),
     )
+    gateway = _Gateway(ChatRunIdentity(run_id=run_id, status="running"))
+    lifecycle = _LifecycleService()
 
     async def authorize(*_args, **_kwargs):
         return authorized
 
-    async def no_message_request(*_args, **_kwargs):
+    async def no_message(*_args, **_kwargs):
         return None
 
-    lifecycle = _MessageLifecycleService(run=run)
     monkeypatch.setattr(reattach_routes, "_authorized_session", authorize)
-    monkeypatch.setattr(reattach_routes, "_latest_message_request", no_message_request)
+    monkeypatch.setattr(reattach_routes, "_latest_message_request", no_message)
     monkeypatch.setattr(reattach_routes, "_service", lambda _request: lifecycle)
-    request = SimpleNamespace(
-        app=SimpleNamespace(state=SimpleNamespace(session_factory=factory))
-    )
+    monkeypatch.setattr(reattach_routes, "_runtime_gateway", lambda _request: gateway)
 
     response = await reattach_routes.get_chat_active_run(
         binding.session_id,
-        request,
+        SimpleNamespace(),
         host_origin="https://app.example.com",
     )
 
@@ -277,12 +226,16 @@ async def test_active_run_endpoint_uses_canonical_run_when_message_request_is_mi
         "success": True,
         "data": {
             "message_request_id": None,
-            "run_id": str(run.id),
+            "run_id": str(run_id),
             "status": "running",
             "target_type": target_type,
         },
     }
     assert lifecycle.marked == []
+    assert len(gateway.calls) == 1
+    _, preferred_run_id, created_after = gateway.calls[0]
+    assert preferred_run_id is None
+    assert created_after is None
 
 
 @pytest.mark.asyncio
@@ -290,9 +243,8 @@ async def test_active_run_endpoint_uses_canonical_run_when_message_request_is_mi
 async def test_begin_message_active_run_conflict_carries_canonical_run_identity(
     target_type: str,
 ) -> None:
-    """Admission already knows the blocking Run, so the conflict must not discard it."""
     binding = _binding(target_type=target_type)
-    run = _agent_run(binding) if target_type == "agent" else _network_run(binding)
+    run_id = uuid4()
     service = ControlPlaneChatSurfaceService(_AdmissionSessionFactory(), SimpleNamespace())
     authorized = _authorized(binding)
 
@@ -300,7 +252,7 @@ async def test_begin_message_active_run_conflict_carries_canonical_run_identity(
         return None
 
     async def active_run(_binding):
-        return run.id, "running"
+        return run_id, "running"
 
     service._reconcile_surface_active_messages = reconcile_surface
     service._active_run_for_binding = active_run
@@ -314,7 +266,7 @@ async def test_begin_message_active_run_conflict_carries_canonical_run_identity(
     error = raised.value
     assert str(error) == "ChatSurface Session already has an active Run"
     assert getattr(error, "code", None) == "active_run_conflict"
-    assert getattr(error, "run_id", None) == run.id
+    assert getattr(error, "run_id", None) == run_id
     assert getattr(error, "status", None) == "running"
     assert getattr(error, "target_type", None) == target_type
 
@@ -337,22 +289,21 @@ async def test_active_message_request_reconciles_terminal_run_and_releases_gate(
     expected_error_code: str | None,
 ) -> None:
     binding = _binding(target_type=target_type)
-    run = _agent_run(binding) if target_type == "agent" else _network_run(binding)
-    run.status = run_status
+    run_id = uuid4()
     message_request = SimpleNamespace(
         id=uuid4(),
         status="streaming",
-        target_run_id=run.id,
+        target_run_id=run_id,
     )
     service = ControlPlaneChatSurfaceService(
-        _SessionFactory(run=run, message_request=message_request),
+        _ActiveRequestSessionFactory(message_request),
         SimpleNamespace(),
     )
     authorized = SimpleNamespace(binding=binding)
     marked: list[tuple[object, dict]] = []
 
     async def resolve_request_run(_request, _binding):
-        return run.id, run_status
+        return run_id, run_status
 
     async def base_mark_message(_self, request_id, **kwargs):
         marked.append((request_id, kwargs))
@@ -368,7 +319,7 @@ async def test_active_message_request_reconciles_terminal_run_and_releases_gate(
             message_request.id,
             {
                 "status": expected_status,
-                "target_run_id": run.id,
+                "target_run_id": run_id,
                 "error_code": expected_error_code,
             },
         )
@@ -376,9 +327,7 @@ async def test_active_message_request_reconciles_terminal_run_and_releases_gate(
 
 
 @pytest.mark.asyncio
-async def test_begin_message_reconciles_active_message_request_before_creating_next_message(
-    monkeypatch,
-) -> None:
+async def test_begin_message_reconciles_active_message_before_creation(monkeypatch) -> None:
     binding = _binding(target_type="agent")
     service = ControlPlaneChatSurfaceService(_AdmissionSessionFactory(), SimpleNamespace())
     authorized = _authorized(binding)
@@ -409,51 +358,6 @@ async def test_begin_message_reconciles_active_message_request_before_creating_n
 
     assert result == (created, True)
     assert events == ["surface-reconcile", "reconcile", "create"]
-
-
-@pytest.mark.asyncio
-async def test_begin_message_retries_once_after_legacy_active_message_integrity_conflict(
-    monkeypatch,
-) -> None:
-    binding = _binding(target_type="agent")
-    service = ControlPlaneChatSurfaceService(_AdmissionSessionFactory(), SimpleNamespace())
-    authorized = _authorized(binding)
-    created = SimpleNamespace(id=uuid4())
-    begin_calls = 0
-    reconcile_calls = 0
-    surface_reconcile_calls = 0
-
-    async def reconcile_surface(surface_id):
-        nonlocal surface_reconcile_calls
-        assert surface_id == authorized.surface.id
-        surface_reconcile_calls += 1
-
-    async def no_active_run(_binding):
-        return None, None
-
-    async def reconcile(_authorized):
-        nonlocal reconcile_calls
-        reconcile_calls += 1
-        return None
-
-    async def base_begin_message(_self, _authorized, _idempotency_key, *, metadata=None):
-        nonlocal begin_calls
-        begin_calls += 1
-        if begin_calls == 1:
-            raise ConflictError("ChatSurface Session already has an active Run")
-        return created, True
-
-    service._reconcile_surface_active_messages = reconcile_surface
-    service._active_run_for_binding = no_active_run
-    service.active_message_request = reconcile
-    monkeypatch.setattr(ChatSurfaceService, "begin_message", base_begin_message)
-
-    result = await service.begin_message(authorized, "next-message")
-
-    assert result == (created, True)
-    assert begin_calls == 2
-    assert reconcile_calls == 2
-    assert surface_reconcile_calls == 1
 
 
 @pytest.mark.asyncio
@@ -518,7 +422,6 @@ async def test_mark_message_waits_for_canonical_terminal_before_releasing_gate(
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target_type", ["agent", "network"])
 async def test_conflict_handler_serializes_active_run_identity(target_type: str) -> None:
-    """The iframe must receive the Run identity directly from the 409 response."""
     run_id = uuid4()
     error = ConflictError("ChatSurface Session already has an active Run")
     error.code = "active_run_conflict"
