@@ -3,7 +3,7 @@ import ast
 import inspect
 
 from modules.agent.infra.messaging.publishers import AgentRabbitMQPublisher
-from modules.agent.infra.workers.outbox_dispatcher import AgentOutboxPublisherProtocol
+from woobe_workers.consumers.agent.outbox_dispatcher import AgentOutboxPublisherProtocol
 
 
 class TestRabbitMQPublisherStructure:
@@ -114,7 +114,7 @@ class TestRabbitMQPublisherNoCrossModuleImports:
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom):
                 if node.module and "shared" in node.module:
-                    assert "shared.infra" in node.module or "shared.workers" in node.module
+                    assert "shared.infra" in node.module
 
 
 class TestRabbitMQPublisherConfirms:

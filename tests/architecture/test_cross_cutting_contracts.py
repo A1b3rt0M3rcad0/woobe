@@ -17,7 +17,7 @@ CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
 MIGRATIONS_DIR = PROJECT_ROOT / "packages" / "woobe-core" / "migrations"
 SHARED_MESSAGING_DIR = CORE_SRC / "shared" / "messaging"
 WORKER_COMPOSITION = (
-    PROJECT_ROOT / "packages" / "woobe-workers" / "src" / "module_registry_composition.py"
+    PROJECT_ROOT / "packages" / "woobe-workers" / "src" / "woobe_workers.composition.registries.py"
 )
 
 MODULES = ["agent", "billing", "core", "identity", "metering", "observability"]
@@ -437,13 +437,12 @@ def test_dead_letter_policy_has_record():
 
 def test_worker_discovery_lives_in_process_composition_root():
     """Spec 095: concrete module discovery belongs to the worker process root."""
-    shared_discovery = CORE_SRC / "shared" / "workers" / "discovery.py"
-    assert not shared_discovery.exists(), (
-        "shared.workers must not know concrete bounded-context module names"
+    assert not (CORE_SRC / "shared" / "workers").exists(), (
+        "woobe-core must not own worker discovery or runtime primitives"
     )
     assert WORKER_COMPOSITION.is_file()
     source = WORKER_COMPOSITION.read_text(encoding="utf-8")
-    assert "CORE_MODULE_WORKER_REGISTRIES" in source
+    assert "CORE_CONSUMER_MODULES" in source
     assert "def discover_module_entries" in source
     assert "def build_registries" in source
     for module_name in ("agent", "core", "identity", "metering", "network", "observability"):
@@ -452,9 +451,12 @@ def test_worker_discovery_lives_in_process_composition_root():
 
 def test_module_worker_entry_is_neutral_shared_contract():
     """Spec 095: shared owns only the process-neutral worker contract."""
-    from shared.workers.contracts import ModuleWorkerEntry
+    from woobe_workers.contracts import ModuleWorkerEntry
 
-    contract_path = CORE_SRC / "shared" / "workers" / "contracts.py"
+    contract_path = (
+        PROJECT_ROOT / "packages" / "woobe-workers" / "src"
+        / "woobe_workers" / "contracts.py"
+    )
     source = contract_path.read_text(encoding="utf-8")
     assert not hasattr(ModuleWorkerEntry, "event_type")
     assert not hasattr(ModuleWorkerEntry, "routing_key")
@@ -465,13 +467,13 @@ def test_module_worker_entry_is_neutral_shared_contract():
 def test_worker_process_composition_imports_shared_contract_only():
     """Spec 095: process composition may discover modules through the neutral contract."""
     source = WORKER_COMPOSITION.read_text(encoding="utf-8")
-    assert "from shared.workers.contracts import ModuleWorkerEntry" in source
+    assert "from woobe_workers.contracts import ModuleWorkerEntry" in source
     assert "importlib" in source
 
 
 def test_worker_runner_module_exists():
     """Spec 095: WorkerRunner must exist."""
-    from shared.workers.runner import WorkerRunner
+    from woobe_workers.runtime.runner import WorkerRunner
     assert callable(WorkerRunner.from_registries)
     assert callable(WorkerRunner)
 
@@ -493,9 +495,7 @@ def test_shared_workers_no_concrete():
     """Spec 096: shared/workers/ has no concrete worker implementations."""
     concrete = {"inbox_consumer.py", "inbox_dispatcher.py", "outbox_publisher.py", "discovery.py"}
     wdir = SHARED_MESSAGING_DIR.parent.joinpath("workers")
-    if wdir.is_dir():
-        existing = {p.name for p in wdir.iterdir() if p.suffix == ".py"}
-        assert not (concrete & existing)
+    assert not wdir.exists()
 
 
 def test_shared_infra_errors_exists():
@@ -638,12 +638,12 @@ def _load_allowlist_spec100(scope: str) -> set[tuple[str, str]]:
 
 FORBIDDEN_WORKER_PATHS = [
     CORE_SRC / "shared" / "workers",
-    PROJECT_ROOT / "packages" / "woobe-workers" / "src",
+    *(CORE_SRC / "modules" / module / "infra" / "workers" for module in MODULES),
 ]
 
 
 def test_no_concrete_workers_outside_modules():
-    """Spec 100: concrete workers must only live in modules/*/infra/workers/."""
+    """Spec 100: concrete workers must never live in woobe-core."""
     for p in FORBIDDEN_WORKER_PATHS:
         if not p.exists():
             continue

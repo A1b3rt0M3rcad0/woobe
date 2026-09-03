@@ -17,7 +17,7 @@ from uuid import uuid4
 
 import pytest
 
-from modules.agent.infra.workers.outbox_dispatcher import (
+from woobe_workers.consumers.agent.outbox_dispatcher import (
     RETRY_BACKOFF_BASE_SECONDS,
     AgentOutboxDispatcherWorker,
 )
@@ -27,8 +27,8 @@ from modules.agent.infra.messaging.event_mappers import (
 )
 from modules.agent.infra.database.models import AgentOutboxEventModel
 from modules.agent.domain.events import AgentExecutionRequestedV1
-from shared.workers.outbox_dispatcher_base import BaseOutboxDispatcher, OutboxRecord
-from shared.workers.base_worker import BaseWorker
+from woobe_workers.runtime.outbox_dispatcher_base import BaseOutboxDispatcher, OutboxRecord
+from woobe_workers.runtime.base_worker import BaseWorker
 
 
 class OutboxStatus(str, Enum):

@@ -19,7 +19,7 @@ from modules.network.infra.database.models import (
 from modules.network.infra.runtime.finalizer import NetworkRuntimeFinalizer
 from modules.network.infra.runtime.loader import NetworkRuntimeLoader
 from modules.network.infra.runtime.redis_store import RedisNetworkExecutionStore
-from modules.network.infra.workers.execution_worker import NetworkLeaseRecoveryWorker
+from woobe_workers.consumers.network.execution_worker import NetworkLeaseRecoveryWorker
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 from shared.infra.redis_execution_state import RedisExecutionStateStore

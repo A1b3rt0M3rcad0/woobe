@@ -1,124 +1,112 @@
+"""Architecture guards for the worker-host ownership boundary."""
+from __future__ import annotations
+
 import ast
 from pathlib import Path
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
-CORE_SRC = PROJECT_ROOT / "packages" / "woobe-core" / "src"
-WORKER_SRC = PROJECT_ROOT / "packages" / "woobe-workers" / "src"
-SRC_MODULES = CORE_SRC / "modules"
-
-KNOWN_MODULES = {
-    d.name
-    for d in SRC_MODULES.iterdir()
-    if d.is_dir() and not d.name.startswith("_")
-}
+ROOT = Path(__file__).resolve().parents[2]
+CORE_SRC = ROOT / "packages" / "woobe-core" / "src"
+WORKER_SRC = ROOT / "packages" / "woobe-workers" / "src"
+WORKER_PACKAGE = WORKER_SRC / "woobe_workers"
+MODULES = ("agent", "core", "identity", "metering", "network", "observability")
 
 
-def _relative_posix(path: Path) -> str:
-    return path.relative_to(PROJECT_ROOT).as_posix()
-
-
-def _extract_module_presentation_imports(file_path: Path) -> list[str]:
-    try:
-        source = file_path.read_text(encoding="utf-8")
-        tree = ast.parse(source, filename=str(file_path))
-    except (SyntaxError, UnicodeDecodeError):
-        return []
-
-    violations = []
+def _imports(path: Path) -> tuple[str, ...]:
+    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    values: list[str] = []
     for node in ast.walk(tree):
-        imported_modules: list[str] = []
         if isinstance(node, ast.ImportFrom) and node.module:
-            imported_modules.append(node.module)
+            values.append(node.module)
         elif isinstance(node, ast.Import):
-            imported_modules.extend(alias.name for alias in node.names)
-
-        for imported in imported_modules:
-            parts = imported.split(".")
-            if (
-                len(parts) >= 3
-                and parts[0] == "modules"
-                and parts[1] in KNOWN_MODULES
-                and parts[2] == "presentation"
-            ):
-                violations.append(imported)
-    return violations
+            values.extend(alias.name for alias in node.names)
+    return tuple(values)
 
 
-class TestWorkerLocations:
-    def test_worker_process_package_does_not_depend_on_http_presentation(self):
-        if not WORKER_SRC.exists():
-            return
+def test_core_contains_no_worker_implementation_or_process_runtime() -> None:
+    forbidden = [
+        CORE_SRC / "shared" / "workers",
+        CORE_SRC / "shared" / "observability" / "worker_health.py",
+        CORE_SRC / "modules" / "agent" / "composition" / "workers.py",
+    ]
+    forbidden.extend(
+        CORE_SRC / "modules" / module / "infra" / "workers"
+        for module in MODULES
+    )
+    assert not [path for path in forbidden if path.exists()]
 
-        violations = []
-        for py_file in WORKER_SRC.rglob("*.py"):
-            for imported in _extract_module_presentation_imports(py_file):
-                violations.append(f"{_relative_posix(py_file)} imports {imported}")
 
-        assert not violations, (
-            "woobe-workers is a process composition boundary and must not depend on module presentation/http code:\n"
-            + "\n".join(f"  - {v}" for v in violations)
-        )
+def test_core_never_depends_on_worker_host() -> None:
+    violations = [
+        path.relative_to(ROOT).as_posix()
+        for path in CORE_SRC.rglob("*.py")
+        if any(name == "woobe_workers" or name.startswith("woobe_workers.") for name in _imports(path))
+    ]
+    assert not violations, "woobe-core imports woobe-workers:\n" + "\n".join(violations)
 
-    def test_concrete_workers_belong_to_core_modules(self):
-        if not SRC_MODULES.exists():
-            return
 
-        for module_dir in SRC_MODULES.iterdir():
-            if not module_dir.is_dir() or module_dir.name.startswith("_"):
-                continue
-            workers_dir = module_dir / "infra" / "workers"
-            if workers_dir.exists():
-                for py_file in workers_dir.rglob("*.py"):
-                    if py_file.name.startswith("_"):
-                        continue
-                    try:
-                        source = py_file.read_text(encoding="utf-8")
-                        tree = ast.parse(source, filename=str(py_file))
-                    except (SyntaxError, UnicodeDecodeError):
-                        continue
-                    for node in ast.walk(tree):
-                        if isinstance(node, ast.ClassDef) and "worker" in node.name.lower():
-                            rel_path = _relative_posix(py_file)
-                            assert rel_path.startswith(
-                                "packages/woobe-core/src/modules/"
-                            ), (
-                                f"Worker {node.name} in {rel_path} is not owned by a Core module"
-                            )
+def test_worker_host_owns_runtime_registries_and_concrete_consumers() -> None:
+    assert (WORKER_SRC / "worker_main.py").is_file()
+    assert (WORKER_PACKAGE / "contracts.py").is_file()
+    assert (WORKER_PACKAGE / "runtime" / "runner.py").is_file()
+    assert (WORKER_PACKAGE / "runtime" / "health.py").is_file()
+    assert (WORKER_PACKAGE / "composition" / "registries.py").is_file()
+    for module in MODULES:
+        consumer = WORKER_PACKAGE / "consumers" / module
+        assert consumer.is_dir(), f"missing consumer package: {module}"
+        assert (consumer / "registry.py").is_file(), f"missing registry: {module}"
 
-    def test_worker_process_package_contains_no_concrete_worker_classes(self):
-        if not WORKER_SRC.exists():
-            return
 
-        violations = []
-        for py_file in WORKER_SRC.rglob("*.py"):
-            try:
-                tree = ast.parse(
-                    py_file.read_text(encoding="utf-8"), filename=str(py_file)
-                )
-            except (SyntaxError, UnicodeDecodeError):
-                continue
-            for node in tree.body:
-                if isinstance(node, ast.ClassDef) and "worker" in node.name.lower():
-                    violations.append(f"{_relative_posix(py_file)}: {node.name}")
-
-        assert not violations, (
-            "woobe-workers must contain process bootstrap/composition only; concrete workers belong to woobe-core modules:\n"
-            + "\n".join(f"  - {v}" for v in violations)
-        )
-
-    def test_detects_presentation_import_in_worker_process(self):
-        forbidden_source = "from modules.agent.presentation.http.routes import router"
-        tree = ast.parse(forbidden_source)
-        violations = []
-        for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and node.module:
-                parts = node.module.split(".")
-                if (
-                    len(parts) >= 3
+def test_worker_host_enters_modules_only_through_public_boundaries() -> None:
+    violations: list[str] = []
+    for path in WORKER_SRC.rglob("*.py"):
+        for imported in _imports(path):
+            if imported == "modules" or imported.startswith("modules."):
+                parts = imported.split(".")
+                public = (
+                    len(parts) == 3
                     and parts[0] == "modules"
-                    and parts[1] in KNOWN_MODULES
-                    and parts[2] == "presentation"
-                ):
-                    violations.append(node.module)
+                    and parts[2] in {"entrypoint", "background_boundary"}
+                )
+                if not public:
+                    violations.append(
+                        f"{path.relative_to(ROOT).as_posix()} imports {imported}"
+                    )
+    assert not violations, "worker consumers bypass public boundaries:\n" + "\n".join(violations)
 
-        assert violations == ["modules.agent.presentation.http.routes"]
+
+def test_background_boundaries_are_one_way_and_transport_neutral() -> None:
+    violations: list[str] = []
+    for module in MODULES:
+        boundary = CORE_SRC / "modules" / module / "background_boundary.py"
+        assert boundary.is_file(), f"missing public background boundary: {module}"
+        for imported in _imports(boundary):
+            if imported == "woobe_workers" or imported.startswith("woobe_workers."):
+                violations.append(f"{boundary.relative_to(ROOT)} imports {imported}")
+            if ".presentation" in imported:
+                violations.append(f"{boundary.relative_to(ROOT)} imports {imported}")
+    assert not violations, "\n".join(violations)
+
+
+def test_worker_package_does_not_depend_on_http_presentation() -> None:
+    violations = [
+        f"{path.relative_to(ROOT).as_posix()} imports {imported}"
+        for path in WORKER_SRC.rglob("*.py")
+        for imported in _imports(path)
+        if imported.startswith("modules.") and ".presentation" in imported
+    ]
+    assert not violations, "\n".join(violations)
+
+
+def test_process_only_settings_are_not_owned_by_core_settings() -> None:
+    core_config = (CORE_SRC / "shared" / "infra" / "config" / "config.py").read_text(encoding="utf-8")
+    worker_settings = (WORKER_PACKAGE / "settings.py").read_text(encoding="utf-8")
+    process_fields = (
+        "network_worker_prefetch",
+        "network_worker_slots",
+        "worker_interval",
+        "worker_health_file",
+        "worker_heartbeat_interval_seconds",
+        "worker_health_max_age_seconds",
+    )
+    assert all(field not in core_config for field in process_fields)
+    assert all(field in worker_settings for field in process_fields)

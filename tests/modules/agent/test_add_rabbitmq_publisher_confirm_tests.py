@@ -15,12 +15,12 @@ from modules.agent.infra.messaging.event_mappers import (
     outbox_to_rabbit_message,
 )
 from modules.agent.infra.messaging.publishers import AgentRabbitMQPublisher
-from modules.agent.infra.workers.outbox_dispatcher import (
+from woobe_workers.consumers.agent.outbox_dispatcher import (
     AgentOutboxDispatcherWorker,
     AgentOutboxPublisherProtocol,
 )
 from shared.infra.rabbitmq import RabbitMQManager
-from shared.workers.outbox_dispatcher_base import BaseOutboxDispatcher, OutboxRecord
+from woobe_workers.runtime.outbox_dispatcher_base import BaseOutboxDispatcher, OutboxRecord
 
 
 class TestPublisherConfirmConnection:
@@ -285,7 +285,7 @@ class TestPublisherNoCrossModuleImports:
                     )
 
     def test_no_cross_module_imports_in_outbox_dispatcher(self):
-        import modules.agent.infra.workers.outbox_dispatcher as mod
+        import woobe_workers.consumers.agent.outbox_dispatcher as mod
 
         source = inspect.getsource(mod)
         tree = ast.parse(source)

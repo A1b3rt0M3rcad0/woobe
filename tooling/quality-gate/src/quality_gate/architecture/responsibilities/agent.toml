@@ -8,7 +8,6 @@ allowed = [
   "composition/factories/**",
   "composition/resources.py",
   "composition/module.py",
-  "composition/workers.py",
 ]
 
 [transport_ownership]
@@ -76,7 +75,6 @@ source = [
   "composition/workflows/**",
   "composition/factories/**",
   "composition/module.py",
-  "composition/workers.py",
 ]
 exclude = []
 forbid_async_functions = true
@@ -115,10 +113,11 @@ allowed_sources = []
 rule_id = "ARCH071"
 source = [
   "packages/woobe-api/src/main.py",
-  "packages/woobe-core/src/shared/workers/discovery.py",
+  "packages/woobe-workers/src/woobe_workers/consumers/agent/**",
+  "packages/woobe-workers/src/woobe_workers/composition/network_agent_runtime.py",
 ]
 package = "{package}"
-allowed_imports = ["{package}.entrypoint"]
+allowed_imports = ["{package}.entrypoint", "{package}.background_boundary"]
 
 [transport_neutral]
 rule_id = "ARCH072"

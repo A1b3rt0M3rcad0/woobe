@@ -17,7 +17,7 @@ def test_api_bootstrap_does_not_start_background_workers() -> None:
 
 
 def test_worker_bootstrap_owns_messaging_and_worker_lifecycle() -> None:
-    import src.worker_main as worker_module
+    import worker_main as worker_module
 
     source = inspect.getsource(worker_module)
     assert "RabbitMQManager" in source
@@ -37,8 +37,8 @@ def test_default_community_compose_keeps_processes_and_optional_infra_separate()
     for optional_service in ("pgbouncer", "redis", "minio", "rabbitmq-observer"):
         assert f"\n  {optional_service}:\n" not in compose
 
-    assert 'command: ["python", "-m", "src.worker_main"]' in compose
-    assert 'command: ["alembic", "upgrade", "head"]' in compose
+    assert 'command: ["python", "-m", "worker_main"]' in compose
+    assert 'command: ["alembic", "-c", "packages/woobe-core/alembic.ini", "upgrade", "head"]' in compose
     assert "condition: service_completed_successfully" in compose
 
 

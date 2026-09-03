@@ -4,7 +4,7 @@ Covers: no consumer registration, outbox dispatcher only, event naming.
 """
 from unittest.mock import MagicMock
 
-from modules.identity.infra.workers.registry import (
+from woobe_workers.consumers.identity.registry import (
     IdentityWorkerRegistry,
     register_identity_workers,
 )

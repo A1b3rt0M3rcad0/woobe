@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from network_agent_runtime_composition import ProjectRAIAgentInvoker
+from woobe_workers.composition.network_agent_runtime import ProjectRAIAgentInvoker
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.composition.factories import ask_agent_runtime_factory
 from modules.agent.domain.entities import Tool

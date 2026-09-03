@@ -8,7 +8,7 @@ from sqlalchemy import delete, select
 
 from modules.agent.infra.database.models import AgentModel, AgentOutboxEventModel
 from modules.agent.infra.database.run_models import AgentRunModel
-from modules.agent.infra.workers.run_recovery_worker import AgentRunRecoveryWorker
+from woobe_workers.consumers.agent.run_recovery_worker import AgentRunRecoveryWorker
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 

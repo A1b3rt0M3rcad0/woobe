@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 
 from modules.metering.infra.messaging import inbox_handlers
-from modules.metering.infra.workers.inbox_processor import MeteringInboxProcessorWorker
+from woobe_workers.consumers.metering.inbox_processor import MeteringInboxProcessorWorker
 
 
 @pytest.mark.asyncio

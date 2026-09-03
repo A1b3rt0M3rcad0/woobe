@@ -2,22 +2,22 @@
 import ast
 import inspect
 
-from modules.agent.infra.workers.inbox_processor import (
+from woobe_workers.consumers.agent.inbox_processor import (
     RETRY_BACKOFF_BASE_SECONDS,
     AgentInboxHandlerProtocol,
     AgentInboxProcessorWorker,
 )
-from shared.workers.inbox_processor_base import BaseInboxProcessor
+from woobe_workers.runtime.inbox_processor_base import BaseInboxProcessor
 
 
 class TestInboxProcessorStructure:
     """Verify the processor is properly located and inherits from the base."""
 
     def test_file_exists_in_correct_location(self):
-        import modules.agent.infra.workers.inbox_processor as mod
+        import woobe_workers.consumers.agent.inbox_processor as mod
 
         assert mod.__file__ is not None
-        assert "modules/agent/infra/workers" in mod.__file__.replace("\\", "/")
+        assert "packages/woobe-workers/src/woobe_workers/consumers/agent" in mod.__file__.replace("\\", "/")
 
     def test_inherits_from_base_inbox_processor(self):
         assert issubclass(AgentInboxProcessorWorker, BaseInboxProcessor)
@@ -124,7 +124,7 @@ class TestInboxProcessorNoCrossModuleImports:
     """Verify the processor does not import from other modules."""
 
     def test_no_imports_from_other_modules(self):
-        import modules.agent.infra.workers.inbox_processor as mod
+        import woobe_workers.consumers.agent.inbox_processor as mod
 
         source = inspect.getsource(mod)
         tree = ast.parse(source)

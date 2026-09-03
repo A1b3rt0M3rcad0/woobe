@@ -3,11 +3,11 @@ from uuid import UUID, uuid4
 
 import pytest
 
-import network_agent_runtime_composition as agent_invoker_module
-from network_agent_runtime_composition import ProjectRAIAgentInvoker
+import woobe_workers.composition.network_agent_runtime as agent_invoker_module
+from woobe_workers.composition.network_agent_runtime import ProjectRAIAgentInvoker
 from modules.agent.entrypoint import current_execution, current_runtime_stream
 from modules.network.application.runtime import InternalDelegationTool
-from modules.network.infra.workers.execution_worker import NetworkExecutionProcessor
+from woobe_workers.consumers.network.execution_worker import NetworkExecutionProcessor
 
 
 _DELEGATION_TOOL_ID = UUID("00000000-0000-0000-0000-000000000202")

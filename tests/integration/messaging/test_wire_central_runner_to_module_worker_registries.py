@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock
 
-from module_registry_composition import build_registries, discover_module_entries
-from modules.agent.infra.workers.run_recovery_worker import AgentRunRecoveryWorker
-from modules.agent.infra.workers.vector_snapshot_worker import VectorSnapshotWorker
+from woobe_workers.composition.registries import build_registries, discover_module_entries
+from woobe_workers.consumers.agent.run_recovery_worker import AgentRunRecoveryWorker
+from woobe_workers.consumers.agent.vector_snapshot_worker import VectorSnapshotWorker
 from shared.infra.rabbitmq import RabbitMQManager
 
 

@@ -16,11 +16,11 @@ from modules.agent.infra.database.repositories import (
     AGENT_OUTBOX_VALID_TRANSITIONS,
     SQLAlchemyAgentOutboxRepository,
 )
-from modules.agent.infra.workers.outbox_dispatcher import (
+from woobe_workers.consumers.agent.outbox_dispatcher import (
     RETRY_BACKOFF_BASE_SECONDS,
     AgentOutboxDispatcherWorker,
 )
-from shared.workers.outbox_dispatcher_base import BaseOutboxDispatcher, OutboxRecord
+from woobe_workers.runtime.outbox_dispatcher_base import BaseOutboxDispatcher, OutboxRecord
 
 
 class TestOutboxClaimBatchConcurrency:

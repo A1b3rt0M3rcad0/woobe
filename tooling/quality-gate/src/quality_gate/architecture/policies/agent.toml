@@ -176,6 +176,7 @@ deny = [
   "shared.infra",
   "shared.messaging",
   "shared.workers",
+  "woobe_workers",
 ]
 
 [[rules]]
@@ -200,6 +201,7 @@ deny = [
   "shared.infra",
   "shared.messaging",
   "shared.workers",
+  "woobe_workers",
   "sqlalchemy",
 ]
 
@@ -224,6 +226,7 @@ deny = [
   "shared.infra",
   "shared.messaging",
   "shared.workers",
+  "woobe_workers",
   "sqlalchemy",
 ]
 
@@ -258,21 +261,6 @@ deny = [
 ]
 
 [[rules]]
-id = "ARCH004W"
-description = "infra workers are inbound adapters: they may invoke Application use cases but cannot depend on presentation or composition"
-source = ["infra/workers/**"]
-allow = [
-  "modules.agent.infra",
-  "modules.agent.application",
-  "modules.agent.domain",
-  "shared",
-]
-deny = [
-  "modules.agent.presentation",
-  "modules.agent.composition",
-]
-
-[[rules]]
 id = "ARCH019"
 description = "composition is the outer module layer and may wire application, infrastructure and presentation without being imported back by them"
 source = ["composition/**"]
@@ -285,6 +273,22 @@ allow = [
   "shared",
 ]
 deny = []
+
+[[rules]]
+id = "ARCH073"
+description = "the public background boundary exposes module-owned capabilities without depending on the worker host"
+source = ["background_boundary.py"]
+allow = [
+  "modules.agent.domain",
+  "modules.agent.application",
+  "modules.agent.infra",
+  "shared",
+]
+deny = [
+  "modules.agent.presentation",
+  "modules.agent.composition",
+  "woobe_workers",
+]
 
 [[rules]]
 id = "ARCH020"
@@ -312,6 +316,7 @@ deny = [
   "shared.messaging",
   "shared.presentation",
   "shared.workers",
+  "woobe_workers",
   "sqlalchemy", "alembic", "asyncpg", "psycopg2", "pgvector",
   "fastapi", "starlette", "aio_pika", "boto3", "langchain",
   "langchain_core", "langchain_openai", "httpx", "uvicorn",
@@ -336,6 +341,7 @@ deny = [
   "shared.messaging",
   "shared.presentation",
   "shared.workers",
+  "woobe_workers",
   "sqlalchemy", "alembic", "asyncpg", "psycopg2", "pgvector",
   "fastapi", "starlette", "aio_pika", "boto3", "langchain",
   "langchain_core", "langchain_openai", "httpx", "uvicorn",

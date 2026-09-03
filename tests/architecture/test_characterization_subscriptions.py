@@ -1,17 +1,17 @@
-"""Characterization test: detect subscription catalog gaps and self-subscriptions.
-
-Corrective spec: 003 (resolved — agent.# self-subscription removed).
-"""
+"""Characterize routing-key coverage in worker-host consumers."""
 from __future__ import annotations
 
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
+CONSUMERS = (
+    PROJECT_ROOT / "packages" / "woobe-workers" / "src"
+    / "woobe_workers" / "consumers"
+)
 
 KNOWN_SELF_SUBSCRIBERS: set[str] = {
-    "src/modules/billing/infra/workers/inbox_consumer.py",
-    "src/modules/core/infra/workers/inbox_consumer.py",
-    "src/modules/identity/infra/workers/inbox_consumer.py",
+    "packages/woobe-workers/src/woobe_workers/consumers/core/inbox_consumer.py",
+    "packages/woobe-workers/src/woobe_workers/consumers/identity/inbox_consumer.py",
 }
 
 ALL_SUBSCRIBED_EVENT_TYPES: set[str] = {
@@ -32,13 +32,10 @@ def _relative_posix(path: Path) -> str:
 class TestCharacterizationSubscriptions:
     def test_no_new_self_subscribers(self):
         violations: list[str] = []
-        src_dir = PROJECT_ROOT / "src"
-        for py_file in src_dir.rglob("*.py"):
-            if "__pycache__" in py_file.parts:
-                continue
+        for py_file in CONSUMERS.rglob("*.py"):
             text = py_file.read_text(encoding="utf-8")
             for line in text.splitlines():
-                if ('.#' in line or '"#' in line) and "ROUTING_KEYS" in line:
+                if (".#" in line or '"#' in line) and "ROUTING_KEYS" in line:
                     rel = _relative_posix(py_file)
                     if rel not in KNOWN_SELF_SUBSCRIBERS:
                         violations.append(f"{rel}: {line.strip()}")
@@ -47,22 +44,19 @@ class TestCharacterizationSubscriptions:
         )
 
     def test_metering_has_all_agent_execution_events(self):
-        consumer_path = PROJECT_ROOT / "src" / "modules" / "metering" / "infra" / "workers" / "inbox_consumer.py"
-        if not consumer_path.exists():
-            return
+        consumer_path = CONSUMERS / "metering" / "inbox_consumer.py"
+        assert consumer_path.is_file()
         text = consumer_path.read_text(encoding="utf-8")
         found = {key for key in ALL_SUBSCRIBED_EVENT_TYPES if key in text}
         assert found == ALL_SUBSCRIBED_EVENT_TYPES, (
             f"Metering consumer missing keys: {ALL_SUBSCRIBED_EVENT_TYPES - found}"
         )
 
-    def test_observability_has_expected_agent_events(self):
-        consumer_path = PROJECT_ROOT / "src" / "modules" / "observability" / "infra" / "workers" / "inbox_consumer.py"
-        if not consumer_path.exists():
-            return
+    def test_observability_has_all_agent_execution_events(self):
+        consumer_path = CONSUMERS / "observability" / "inbox_consumer.py"
+        assert consumer_path.is_file()
         text = consumer_path.read_text(encoding="utf-8")
-        expected = ALL_SUBSCRIBED_EVENT_TYPES - {"agent.execution.requested.v1"}
-        found = {key for key in expected if key in text}
-        assert found == expected, (
-            f"Observability consumer missing keys: {expected - found}"
+        found = {key for key in ALL_SUBSCRIBED_EVENT_TYPES if key in text}
+        assert found == ALL_SUBSCRIBED_EVENT_TYPES, (
+            f"Observability consumer missing keys: {ALL_SUBSCRIBED_EVENT_TYPES - found}"
         )

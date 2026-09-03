@@ -2,22 +2,22 @@
 import ast
 import inspect
 
-from modules.agent.infra.workers.outbox_dispatcher import (
+from woobe_workers.consumers.agent.outbox_dispatcher import (
     RETRY_BACKOFF_BASE_SECONDS,
     AgentOutboxDispatcherWorker,
     AgentOutboxPublisherProtocol,
 )
-from shared.workers.outbox_dispatcher_base import BaseOutboxDispatcher
+from woobe_workers.runtime.outbox_dispatcher_base import BaseOutboxDispatcher
 
 
 class TestOutboxDispatcherStructure:
     """Verify the dispatcher is properly located and inherits from the base."""
 
     def test_file_exists_in_correct_location(self):
-        import modules.agent.infra.workers.outbox_dispatcher as mod
+        import woobe_workers.consumers.agent.outbox_dispatcher as mod
 
         assert mod.__file__ is not None
-        assert "modules/agent/infra/workers" in mod.__file__.replace("\\", "/")
+        assert "packages/woobe-workers/src/woobe_workers/consumers/agent" in mod.__file__.replace("\\", "/")
 
     def test_inherits_from_base_outbox_dispatcher(self):
         assert issubclass(AgentOutboxDispatcherWorker, BaseOutboxDispatcher)
@@ -104,7 +104,7 @@ class TestOutboxDispatcherNoCrossModuleImports:
     """Verify the dispatcher does not import from other modules."""
 
     def test_no_imports_from_other_modules(self):
-        import modules.agent.infra.workers.outbox_dispatcher as mod
+        import woobe_workers.consumers.agent.outbox_dispatcher as mod
 
         source = inspect.getsource(mod)
         tree = ast.parse(source)

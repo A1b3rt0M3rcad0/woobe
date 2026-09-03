@@ -190,10 +190,10 @@ def test_each_module_has_registry(mod_name):
     """Every module must have a worker registry."""
     try:
         mod = importlib.import_module(
-            f"modules.{mod_name}.infra.workers.registry"
+            f"woobe_workers.consumers.{mod_name}.registry"
         )
     except ModuleNotFoundError:
-        pytest.skip(f"No infra/workers/registry.py for {mod_name}")
+        pytest.skip(f"No worker-host registry for {mod_name}")
     assert hasattr(mod, f"register_{mod_name}_workers") or any(
         name.endswith("Registry") or "registry" in name.lower()
         for name in vars(mod)

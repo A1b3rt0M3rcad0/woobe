@@ -7,7 +7,7 @@ from modules.agent.infra.messaging.inbox_handlers import (
     AgentInboxEventRouter,
     EventHandler,
 )
-from modules.agent.infra.workers.inbox_processor import AgentInboxHandlerProtocol
+from woobe_workers.consumers.agent.inbox_processor import AgentInboxHandlerProtocol
 
 
 class TestInboxHandlersStructure:

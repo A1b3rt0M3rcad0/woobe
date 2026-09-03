@@ -4,7 +4,7 @@ Covers: no consumer registration, outbox dispatcher only.
 """
 from unittest.mock import MagicMock
 
-from modules.core.infra.workers.registry import (
+from woobe_workers.consumers.core.registry import (
     CoreWorkerRegistry,
     register_core_workers,
 )

@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 
 from modules.network.application.runtime import NetworkExecutionCancelled
-from modules.network.infra.workers.execution_worker import NetworkExecutionProcessor
+from woobe_workers.consumers.network.execution_worker import NetworkExecutionProcessor
 
 
 class _CancellationStore:

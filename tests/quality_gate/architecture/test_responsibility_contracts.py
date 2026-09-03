@@ -17,6 +17,7 @@ RESPONSIBILITY_SOURCE = (
 )
 CORE_SOURCE = Path("packages/woobe-core/src")
 API_SOURCE = Path("packages/woobe-api/src")
+WORKER_SOURCE = Path("packages/woobe-workers/src")
 
 POLICY = """
 [module]
@@ -52,7 +53,7 @@ def _setup(tmp_path: Path) -> tuple[ArchitectureChecker, object, Path]:
     (module / "presentation/schema.py").write_text("VALUE = 1\n", encoding="utf-8")
     (module / "composition/__init__.py").write_text("", encoding="utf-8")
     (tmp_path / API_SOURCE).mkdir(parents=True, exist_ok=True)
-    (tmp_path / CORE_SOURCE / "shared/workers").mkdir(parents=True, exist_ok=True)
+    (tmp_path / WORKER_SOURCE / "woobe_workers/consumers/agent").mkdir(parents=True, exist_ok=True)
 
     policy_path = tmp_path / "agent-policy.toml"
     policy_path.write_text(POLICY, encoding="utf-8")
@@ -170,7 +171,7 @@ def test_arch071_allows_agent_entrypoint(tmp_path: Path) -> None:
     checker, policy, _ = _setup(tmp_path)
     path = tmp_path / API_SOURCE / "main.py"
     path.write_text(
-        "from modules.agent.entrypoint import register_agent_workers\n",
+        "from modules.agent.entrypoint import build_internal_agent_runtime\n",
         encoding="utf-8",
     )
     assert "ARCH071" not in _ids(checker, policy)
@@ -186,3 +187,23 @@ def test_arch072_application_streaming_is_transport_neutral(tmp_path: Path) -> N
         encoding="utf-8",
     )
     assert "ARCH072" in _ids(checker, policy)
+
+
+def test_arch071_worker_host_rejects_agent_internals(tmp_path: Path) -> None:
+    checker, policy, _ = _setup(tmp_path)
+    path = tmp_path / WORKER_SOURCE / "woobe_workers/consumers/agent/registry.py"
+    path.write_text(
+        "from modules.agent.infra.database.repositories import SQLAlchemyAgentRepository\n",
+        encoding="utf-8",
+    )
+    assert "ARCH071" in _ids(checker, policy)
+
+
+def test_arch071_worker_host_allows_agent_background_boundary(tmp_path: Path) -> None:
+    checker, policy, _ = _setup(tmp_path)
+    path = tmp_path / WORKER_SOURCE / "woobe_workers/consumers/agent/registry.py"
+    path.write_text(
+        "from modules.agent.background_boundary import SQLAlchemyAgentRepository\n",
+        encoding="utf-8",
+    )
+    assert "ARCH071" not in _ids(checker, policy)
