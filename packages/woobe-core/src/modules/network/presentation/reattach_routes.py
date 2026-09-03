@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 from uuid import UUID
 
@@ -263,7 +262,7 @@ async def reattach_network_execution(
     execution_id: UUID,
     request: Request,
 ) -> StreamingResponse:
-    initial = await _load_execution(request, execution_id)
+    await _load_execution(request, execution_id)
     observer = RuntimeObserver(
         EXECUTION_STATE_STORE,
         heartbeat_seconds=request.app.state.settings.network_stream_heartbeat_seconds,
@@ -275,44 +274,6 @@ async def reattach_network_execution(
         return _durable_state(latest)
 
     async def generate():
-        hot = await EXECUTION_STATE_STORE.get(execution_id)
-        if hot is None and str(initial.status) not in _TERMINAL_STATUSES:
-            queued = _durable_state(initial)
-            queued.update(
-                {
-                    "run_id": str(execution_id),
-                    "kind": "NETWORK",
-                    "sequence": None,
-                    "realtime_available": False,
-                }
-            )
-            yield network_runtime_sse(
-                RuntimeFrame("run.state", queued, sequence=None),
-                execution_id,
-            )
-
-            while hot is None:
-                if await request.is_disconnected():
-                    return
-                await asyncio.sleep(0.25)
-                latest = await _load_execution(request, execution_id)
-                if str(latest.status) in _TERMINAL_STATUSES:
-                    terminal = _durable_state(latest)
-                    terminal.update(
-                        {
-                            "run_id": str(execution_id),
-                            "kind": "NETWORK",
-                            "sequence": None,
-                            "realtime_available": False,
-                        }
-                    )
-                    yield network_runtime_sse(
-                        RuntimeFrame("run.state", terminal, sequence=None),
-                        execution_id,
-                    )
-                    return
-                hot = await EXECUTION_STATE_STORE.get(execution_id)
-
         try:
             async for frame in observer.observe(
                 RunReference.network(execution_id),
