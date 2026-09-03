@@ -17,6 +17,18 @@ from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 
 
+class _NoRunGateway:
+    async def resolve_run(
+        self,
+        _target,
+        *,
+        preferred_run_id=None,
+        created_after=None,
+    ):
+        del preferred_run_id, created_after
+        return None
+
+
 @pytest.mark.asyncio
 async def test_orphaned_previous_session_does_not_consume_surface_concurrency_forever() -> None:
     """Regression for Live Test sessions stuck behind an old orphan MessageRequest."""
@@ -122,7 +134,11 @@ async def test_orphaned_previous_session_does_not_consume_surface_concurrency_fo
             orphan.created_at = stale_at
             orphan.updated_at = stale_at
 
-        service = ControlPlaneChatSurfaceService(session_factory, SimpleNamespace())
+        service = ControlPlaneChatSurfaceService(
+            session_factory,
+            SimpleNamespace(),
+            runtime_gateway=_NoRunGateway(),
+        )
         authorized = SimpleNamespace(
             surface=SimpleNamespace(id=surface_id),
             binding=SimpleNamespace(
