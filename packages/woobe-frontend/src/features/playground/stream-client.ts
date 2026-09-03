@@ -1,8 +1,11 @@
 import { ensureCsrfToken, getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
 import {
-  acceptRuntimeFrameSequence,
-  runtimeTerminalStatus,
+  RUNTIME_STREAM_MAX_ATTEMPTS,
   RuntimeStreamGapError,
+  acceptRuntimeFrameSequence,
+  reconcileRuntimeOutput,
+  runtimeRetryDelayMs,
+  runtimeTerminalStatus,
   type ParsedRuntimeFrame,
   type RuntimeSequenceState,
 } from '@/lib/runtime-stream'
@@ -316,25 +319,17 @@ function reconcileRunState(
   callbacks.onRunState?.(item)
 
   const output = typeof item.output === 'string' ? sanitizeAssistantContent(item.output) : ''
-  if (output !== state.output) {
-    if (output.startsWith(state.output)) {
-      const suffix = output.slice(state.output.length)
-      if (suffix) callbacks.onToken({
-        content: suffix,
-        visibility: 'assistant',
-        channel: 'final',
-        phase: 'final_response_generation',
-        provider: null,
-        model: null,
-        redacted: null,
-      })
-    } else {
-      if (state.output.length) callbacks.onTokenRetract?.({
-        content_length: state.output.length,
+  const reconciliation = reconcileRuntimeOutput(state.output, output)
+  if (reconciliation.changed) {
+    if (reconciliation.retract > 0) {
+      callbacks.onTokenRetract?.({
+        content_length: reconciliation.retract,
         reason: 'reattach_state_replace',
       })
-      if (output) callbacks.onToken({
-        content: output,
+    }
+    if (reconciliation.append) {
+      callbacks.onToken({
+        content: reconciliation.append,
         visibility: 'assistant',
         channel: 'final',
         phase: 'final_response_generation',
@@ -343,7 +338,7 @@ function reconcileRunState(
         redacted: null,
       })
     }
-    state.output = output
+    state.output = reconciliation.output
   }
 
   const status = runtimeTerminalStatus(runtimeFrame(frame, item, 'run.state'))
@@ -553,16 +548,16 @@ export async function reattachAgentRunV1(
   signal?: AbortSignal,
 ): Promise<void> {
   const state: RuntimeClientState = { runId, output: '', sequence: null }
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < RUNTIME_STREAM_MAX_ATTEMPTS; attempt += 1) {
     if (signal?.aborted) throw new DOMException('Agent stream aborted', 'AbortError')
     try {
       const terminal = await requestReattach(runId, callbacks, state, signal, false)
       if (terminal) return
     } catch (error) {
-      if (signal?.aborted || attempt === 3) throw error
+      if (signal?.aborted || attempt === RUNTIME_STREAM_MAX_ATTEMPTS - 1) throw error
     }
-    if (attempt < 3) {
-      await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
+    if (attempt < RUNTIME_STREAM_MAX_ATTEMPTS - 1) {
+      await new Promise((resolve) => setTimeout(resolve, runtimeRetryDelayMs(attempt)))
     }
   }
   throw new Error('Run reattach ended without a terminal event')
@@ -574,7 +569,7 @@ export async function askStreamV1(
   signal?: AbortSignal,
 ): Promise<void> {
   const state: RuntimeClientState = { runId: null, output: '', sequence: null }
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < RUNTIME_STREAM_MAX_ATTEMPTS; attempt += 1) {
     if (signal?.aborted) throw new DOMException('Agent stream aborted', 'AbortError')
     try {
       const terminal = state.runId
@@ -583,12 +578,12 @@ export async function askStreamV1(
       if (terminal) return
       if (!state.runId) throw new Error('Stream ended before the canonical Run id was observed')
     } catch (error) {
-      if (signal?.aborted || attempt === 3) throw error
+      if (signal?.aborted || attempt === RUNTIME_STREAM_MAX_ATTEMPTS - 1) throw error
       // Once a Run id exists, all retries are GET observers. Never POST another
       // logical execution to recover a transport failure.
       if (!state.runId) throw error
     }
-    await new Promise((resolve) => setTimeout(resolve, 250 * (attempt + 1)))
+    await new Promise((resolve) => setTimeout(resolve, runtimeRetryDelayMs(attempt)))
   }
   throw new Error('Stream ended without a terminal event')
 }
