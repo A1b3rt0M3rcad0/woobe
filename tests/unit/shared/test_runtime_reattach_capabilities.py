@@ -1,11 +1,7 @@
 from types import SimpleNamespace
 from uuid import uuid4
 
-from shared.runtime_reattach import (
-    _public_event,
-    initial_projection,
-    reduce_projection,
-)
+from shared.runtime.projection import initial_projection, public_event, reduce_projection
 
 
 def test_projection_separates_delegations_from_operational_tools() -> None:
@@ -20,7 +16,7 @@ def test_projection_separates_delegations_from_operational_tools() -> None:
             "input": {"task": "help"},
         },
     )
-    public_type, public_payload = _public_event(delegation_started)
+    public_type, public_payload = public_event(delegation_started)
     assert public_type == "run.progress"
     assert public_payload == {}
 
@@ -65,7 +61,7 @@ def test_projection_preserves_safe_operational_tool_summary() -> None:
             "started_at": "2026-08-27T12:00:00+00:00",
         },
     )
-    event_type, payload = _public_event(started_event)
+    event_type, payload = public_event(started_event)
     assert event_type == "tool_call_started"
     assert "input" not in payload
     assert "authorization" not in payload
@@ -90,7 +86,7 @@ def test_projection_preserves_safe_operational_tool_summary() -> None:
             "ended_at": "2026-08-27T12:00:00.120000+00:00",
         },
     )
-    event_type, payload = _public_event(completed_event)
+    event_type, payload = public_event(completed_event)
     assert event_type == "tool_call_completed"
     assert "output" not in payload
     state = reduce_projection(
