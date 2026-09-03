@@ -18,8 +18,7 @@ async function loadRuntimeModule() {
         strict: true,
       },
     }).outputText;
-    output = output.replace(/from ['"]\.\/([^'"]+)['"]/g, "from './$1.mjs'");
-    output = output.replace(/export \* from ['"]\.\/([^'"]+)['"]/g, "export * from './$1.mjs'");
+    output = output.replace(/from ['"]\.\/([^'"]+?)(?:\.(?:js|ts|mjs))?['"]/g, "from './$1.mjs'");
     await writeFile(join(directory, `${moduleName}.mjs`), output, "utf8");
   }
   return import(pathToFileURL(join(directory, "index.mjs")).href);
