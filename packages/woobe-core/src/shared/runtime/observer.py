@@ -25,6 +25,7 @@ DisconnectCheck = Callable[[], Awaitable[bool]]
 RunIdResolver = Callable[[], UUID | None]
 SourceDone = Callable[[], bool]
 EarlyErrorFrame = Callable[[], RuntimeFrame | None]
+HeartbeatData = Callable[[], dict[str, Any]]
 
 
 def _now_iso() -> str:
@@ -42,17 +43,17 @@ class RuntimeLocalSubscription:
         self,
         source: RuntimeLiveSource,
         *,
-        run_kind: RunKind,
         heartbeat_seconds: float,
         poll_seconds: float,
         run_id_resolver: RunIdResolver | None = None,
+        heartbeat_data: HeartbeatData | None = None,
     ) -> None:
         self._source = source
         self._queue = source.subscribe()
-        self._run_kind = run_kind
         self._heartbeat_seconds = max(1.0, heartbeat_seconds)
         self._poll_seconds = max(0.01, poll_seconds)
         self._run_id_resolver = run_id_resolver
+        self._heartbeat_data = heartbeat_data
         self._closed = False
 
     def _resolved_run_id(self) -> UUID | None:
@@ -64,6 +65,16 @@ class RuntimeLocalSubscription:
         if run_id is not None and payload.get("run_id") is None:
             payload["run_id"] = str(run_id)
         return RuntimeFrame(event.event_type, payload, sequence=None)
+
+    def _heartbeat_frame(self) -> RuntimeFrame:
+        run_id = self._resolved_run_id()
+        payload: dict[str, Any] = {
+            "run_id": str(run_id) if run_id is not None else None,
+            "ts": _now_iso(),
+        }
+        if self._heartbeat_data is not None:
+            payload.update(self._heartbeat_data())
+        return RuntimeFrame("heartbeat", payload)
 
     async def stream(
         self,
@@ -87,15 +98,7 @@ class RuntimeLocalSubscription:
                     now = time.monotonic()
                     if now - last_heartbeat >= self._heartbeat_seconds:
                         last_heartbeat = now
-                        run_id = self._resolved_run_id()
-                        yield RuntimeFrame(
-                            "heartbeat",
-                            {
-                                "run_id": str(run_id) if run_id is not None else None,
-                                "kind": self._run_kind.value.upper(),
-                                "ts": _now_iso(),
-                            },
-                        )
+                        yield self._heartbeat_frame()
                     if source_done is not None and source_done() and self._queue.empty():
                         if early_error_frame is not None:
                             frame = early_error_frame()
@@ -184,13 +187,15 @@ class RuntimeObserver:
         *,
         run_kind: RunKind,
         run_id_resolver: RunIdResolver | None = None,
+        heartbeat_data: HeartbeatData | None = None,
     ) -> RuntimeLocalSubscription:
+        del run_kind
         return RuntimeLocalSubscription(
             source,
-            run_kind=run_kind,
             heartbeat_seconds=self._heartbeat_seconds,
             poll_seconds=self._local_poll_seconds,
             run_id_resolver=run_id_resolver,
+            heartbeat_data=heartbeat_data,
         )
 
 
