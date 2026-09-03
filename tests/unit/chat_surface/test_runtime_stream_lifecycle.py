@@ -5,8 +5,11 @@ from uuid import uuid4
 
 import pytest
 
+from modules.chat_surface.application.runtime_gateway import (
+    ChatRuntimeChunk,
+    PreparedChatRuntime,
+)
 from modules.chat_surface.presentation import reattach_routes
-from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 
 
 class _SurfaceService:
@@ -17,14 +20,21 @@ class _SurfaceService:
         self.marked.append((message_id, kwargs))
 
 
+class _Gateway:
+    def __init__(self, prepared: PreparedChatRuntime) -> None:
+        self.prepared = prepared
+        self.observed = []
+
+    async def observe(self, target, run_id, disconnect_check):
+        self.observed.append((target, run_id, disconnect_check))
+        return self.prepared
+
+
 class _Request:
-    def __init__(self, *, disconnected: bool = False) -> None:
+    def __init__(self, gateway: _Gateway, *, disconnected: bool = False) -> None:
         self.disconnected = disconnected
         self.app = SimpleNamespace(
-            state=SimpleNamespace(
-                settings=SimpleNamespace(network_stream_heartbeat_seconds=10),
-                session_factory=None,
-            )
+            state=SimpleNamespace(chat_surface_runtime_gateway=gateway)
         )
 
     async def is_disconnected(self) -> bool:
@@ -61,42 +71,41 @@ async def test_chat_surface_observer_marks_message_cancelled_only_after_terminal
     async def active_request(*_args, **_kwargs):
         return authorized, message_request, run_id, "cancel_requested"
 
-    store = InMemoryExecutionStateStore()
-    await store.create(
-        run_id,
-        {
-            "status": "running",
-            "project_id": str(project_id),
-            "agent_id": str(agent_id),
-            "session_id": str(session_id),
-        },
-        ttl_seconds=3600,
-    )
-    await store.append_event(
-        run_id,
-        "cancelled",
-        {
-            "run_id": str(run_id),
-            "output": "partial",
-            "partial": True,
-            "persisted": True,
-        },
-    )
+    async def chunks():
+        yield ChatRuntimeChunk(
+            sse=(
+                "event: run.state\n"
+                f'data: {{"type":"run.state","run_id":"{run_id}","status":"cancelled"}}\n\n'
+            ),
+            run_id=run_id,
+            terminal_status="cancelled",
+        )
 
+    prepared = PreparedChatRuntime(stream=chunks(), run_id=run_id)
+    gateway = _Gateway(prepared)
     service = _SurfaceService()
     monkeypatch.setattr(reattach_routes, "_authorized_active_request", active_request)
-    monkeypatch.setattr(reattach_routes, "EXECUTION_STATE_STORE", store)
     monkeypatch.setattr(reattach_routes, "_service", lambda _request: service)
 
-    response = await reattach_routes.stream_chat_active_run(session_id, _Request())
-    chunks = []
+    request = _Request(gateway)
+    response = await reattach_routes.stream_chat_active_run(session_id, request)
+    observed = []
     async for chunk in response.body_iterator:
-        chunks.append(chunk.decode() if isinstance(chunk, bytes) else str(chunk))
+        observed.append(chunk.decode() if isinstance(chunk, bytes) else str(chunk))
 
     assert response.headers["cache-control"] == "no-cache, no-transform"
     assert response.headers["x-accel-buffering"] == "no"
-    assert any('"status": "cancelled"' in chunk for chunk in chunks)
+    assert any('"status":"cancelled"' in chunk for chunk in observed)
+    assert len(gateway.observed) == 1
     assert service.marked == [
+        (
+            message_request.id,
+            {
+                "status": "streaming",
+                "target_run_id": run_id,
+                "error_code": None,
+            },
+        ),
         (
             message_request.id,
             {
@@ -104,7 +113,7 @@ async def test_chat_surface_observer_marks_message_cancelled_only_after_terminal
                 "target_run_id": run_id,
                 "error_code": None,
             },
-        )
+        ),
     ]
 
 
@@ -126,29 +135,32 @@ async def test_chat_surface_transport_disconnect_does_not_terminalize_message_re
     async def active_request(*_args, **_kwargs):
         return authorized, message_request, run_id, "running"
 
-    store = InMemoryExecutionStateStore()
-    await store.create(
-        run_id,
-        {
-            "status": "running",
-            "project_id": str(project_id),
-            "agent_id": str(agent_id),
-            "session_id": str(session_id),
-        },
-        ttl_seconds=3600,
-    )
-    await store.append_event(run_id, "token", {"content": "partial", "visibility": "assistant", "channel": "final"})
+    async def chunks():
+        yield ChatRuntimeChunk(
+            sse="event: token\ndata: {\"type\":\"token\",\"content\":\"partial\"}\n\n",
+            run_id=run_id,
+        )
 
+    prepared = PreparedChatRuntime(stream=chunks(), run_id=run_id)
+    gateway = _Gateway(prepared)
     service = _SurfaceService()
     monkeypatch.setattr(reattach_routes, "_authorized_active_request", active_request)
-    monkeypatch.setattr(reattach_routes, "EXECUTION_STATE_STORE", store)
     monkeypatch.setattr(reattach_routes, "_service", lambda _request: service)
 
     response = await reattach_routes.stream_chat_active_run(
         session_id,
-        _Request(disconnected=True),
+        _Request(gateway, disconnected=True),
     )
     async for _ in response.body_iterator:
         pass
 
-    assert service.marked == []
+    assert service.marked == [
+        (
+            message_request.id,
+            {
+                "status": "streaming",
+                "target_run_id": run_id,
+                "error_code": None,
+            },
+        )
+    ]

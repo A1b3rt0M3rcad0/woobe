@@ -5,6 +5,7 @@ from uuid import uuid4
 
 import pytest
 
+from modules.chat_surface.application.runtime_gateway import ChatRunIdentity
 from modules.chat_surface.control_plane_service import ControlPlaneChatSurfaceService
 from modules.chat_surface.presentation import reattach_routes
 from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
@@ -64,405 +65,146 @@ async def test_chat_cancel_token_cannot_target_another_session() -> None:
         )
 
 
-class _Session:
-    def __init__(self, run) -> None:
-        self.run = run
+class _Gateway:
+    def __init__(self, *, status: str = "cancel_requested", error: Exception | None = None) -> None:
+        self.status = status
+        self.error = error
+        self.calls: list[tuple[object, object]] = []
 
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, exc_type, exc, tb):
-        return False
-
-    async def get(self, _model, _run_id):
-        return self.run
-
-
-class _SessionFactory:
-    def __init__(self, run) -> None:
-        self.run = run
-
-    def __call__(self):
-        return _Session(self.run)
+    async def cancel(self, target, run_id):
+        self.calls.append((target, run_id))
+        if self.error is not None:
+            raise self.error
+        return ChatRunIdentity(run_id=run_id, status=self.status)
 
 
-class _StateStore:
-    def __init__(self, state=None) -> None:
-        self.state = {"status": "running"} if state is None else state
-        self.requested = []
-
-    async def get(self, _run_id):
-        return self.state
-
-    async def request_cancel(self, run_id) -> None:
-        self.requested.append(run_id)
-
-
-class _FailingGetStateStore(_StateStore):
-    async def get(self, _run_id):
-        raise RuntimeError("redis unavailable")
-
-
-class _FailingCancelStateStore(_StateStore):
-    async def request_cancel(self, _run_id) -> None:
-        raise RuntimeError("redis write unavailable")
-
-
-class _NetworkService:
-    def __init__(self) -> None:
-        self.requested = []
-
-    async def request_cancellation(self, execution_id, project_id) -> None:
-        self.requested.append((execution_id, project_id))
-
-
-def _authorized_agent_binding(*, project_id, agent_id, session_id, release_id):
+def _request(gateway: _Gateway):
     return SimpleNamespace(
-        binding=SimpleNamespace(
-            project_id=project_id,
-            target_type="agent",
-            target_id=agent_id,
-            session_id=session_id,
-            target_release_id=release_id,
-        )
-    )
-
-
-def _authorized_network_binding(*, project_id, network_id, session_id, release_id):
-    return SimpleNamespace(
-        binding=SimpleNamespace(
-            project_id=project_id,
-            target_type="network",
-            target_id=network_id,
-            session_id=session_id,
-            target_release_id=release_id,
-        )
-    )
-
-
-@pytest.mark.asyncio
-async def test_chat_cancel_endpoint_requests_agent_runtime_cancellation(monkeypatch) -> None:
-    project_id = uuid4()
-    agent_id = uuid4()
-    release_id = uuid4()
-    session_id = uuid4()
-    run_id = uuid4()
-    authorized = _authorized_agent_binding(
-        project_id=project_id,
-        agent_id=agent_id,
-        session_id=session_id,
-        release_id=release_id,
-    )
-    message_request = SimpleNamespace(id=uuid4())
-    run = SimpleNamespace(
-        id=run_id,
-        project_id=project_id,
-        agent_id=agent_id,
-        session_id=session_id,
-        agent_release_id=release_id,
-        network_execution_id=None,
-        status="running",
-    )
-    permission_calls = []
-
-    async def authorize(_request, actual_session_id, _origin, **kwargs):
-        permission_calls.append((actual_session_id, kwargs))
-        return authorized, message_request, run_id, "running"
-
-    store = _StateStore()
-    monkeypatch.setattr(reattach_routes, "_authorized_active_request", authorize)
-    monkeypatch.setattr(reattach_routes, "EXECUTION_STATE_STORE", store)
-    request = SimpleNamespace(
         app=SimpleNamespace(
-            state=SimpleNamespace(session_factory=_SessionFactory(run))
+            state=SimpleNamespace(chat_surface_runtime_gateway=gateway)
         )
     )
 
-    response = await reattach_routes.cancel_chat_active_run(
-        session_id,
-        request,
-        host_origin="https://app.example.com",
-    )
 
-    assert permission_calls == [
-        (
-            session_id,
-            {"permission": "chat:cancel", "require_stream": False},
+def _authorized_binding(*, target_type: str):
+    return SimpleNamespace(
+        binding=SimpleNamespace(
+            project_id=uuid4(),
+            target_type=target_type,
+            target_id=uuid4(),
+            session_id=uuid4(),
+            target_release_id=uuid4(),
         )
-    ]
-    assert store.requested == [run_id]
-    assert response == {
-        "success": True,
-        "data": {
-            "run_id": str(run_id),
-            "status": "cancel_requested",
-            "target_type": "agent",
-        },
-    }
+    )
 
 
 @pytest.mark.asyncio
-async def test_chat_agent_cancel_rejects_missing_hot_state_when_run_is_still_active(monkeypatch) -> None:
-    project_id = uuid4()
-    agent_id = uuid4()
-    release_id = uuid4()
-    session_id = uuid4()
+@pytest.mark.parametrize("target_type", ["agent", "network"])
+async def test_chat_cancel_endpoint_delegates_to_canonical_runtime_gateway(
+    monkeypatch,
+    target_type: str,
+) -> None:
+    authorized = _authorized_binding(target_type=target_type)
+    session_id = authorized.binding.session_id
     run_id = uuid4()
-    authorized = _authorized_agent_binding(
-        project_id=project_id,
-        agent_id=agent_id,
-        session_id=session_id,
-        release_id=release_id,
-    )
-    run = SimpleNamespace(
-        id=run_id,
-        project_id=project_id,
-        agent_id=agent_id,
-        session_id=session_id,
-        agent_release_id=release_id,
-        network_execution_id=None,
-        status="running",
-    )
-
-    async def authorize(*_args, **_kwargs):
-        return authorized, SimpleNamespace(id=uuid4()), run_id, "running"
-
-    store = _StateStore(state=None)
-    store.state = None
-    monkeypatch.setattr(reattach_routes, "_authorized_active_request", authorize)
-    monkeypatch.setattr(reattach_routes, "EXECUTION_STATE_STORE", store)
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(session_factory=_SessionFactory(run))))
-
-    with pytest.raises(ConflictError):
-        await reattach_routes.cancel_chat_active_run(session_id, request)
-
-    assert store.requested == []
-
-
-@pytest.mark.asyncio
-async def test_chat_agent_cancel_rejects_hot_state_lookup_failure(monkeypatch) -> None:
-    project_id = uuid4()
-    agent_id = uuid4()
-    release_id = uuid4()
-    session_id = uuid4()
-    run_id = uuid4()
-    authorized = _authorized_agent_binding(
-        project_id=project_id,
-        agent_id=agent_id,
-        session_id=session_id,
-        release_id=release_id,
-    )
-    run = SimpleNamespace(
-        id=run_id,
-        project_id=project_id,
-        agent_id=agent_id,
-        session_id=session_id,
-        agent_release_id=release_id,
-        network_execution_id=None,
-        status="running",
-    )
-
-    async def authorize(*_args, **_kwargs):
-        return authorized, SimpleNamespace(id=uuid4()), run_id, "running"
-
-    store = _FailingGetStateStore()
-    monkeypatch.setattr(reattach_routes, "_authorized_active_request", authorize)
-    monkeypatch.setattr(reattach_routes, "EXECUTION_STATE_STORE", store)
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(session_factory=_SessionFactory(run))))
-
-    with pytest.raises(ConflictError, match="temporarily unavailable"):
-        await reattach_routes.cancel_chat_active_run(session_id, request)
-
-    assert store.requested == []
-
-
-@pytest.mark.asyncio
-async def test_chat_agent_cancel_rejects_hot_state_write_failure(monkeypatch) -> None:
-    project_id = uuid4()
-    agent_id = uuid4()
-    release_id = uuid4()
-    session_id = uuid4()
-    run_id = uuid4()
-    authorized = _authorized_agent_binding(
-        project_id=project_id,
-        agent_id=agent_id,
-        session_id=session_id,
-        release_id=release_id,
-    )
-    run = SimpleNamespace(
-        id=run_id,
-        project_id=project_id,
-        agent_id=agent_id,
-        session_id=session_id,
-        agent_release_id=release_id,
-        network_execution_id=None,
-        status="running",
-    )
-
-    async def authorize(*_args, **_kwargs):
-        return authorized, SimpleNamespace(id=uuid4()), run_id, "running"
-
-    store = _FailingCancelStateStore()
-    monkeypatch.setattr(reattach_routes, "_authorized_active_request", authorize)
-    monkeypatch.setattr(reattach_routes, "EXECUTION_STATE_STORE", store)
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(session_factory=_SessionFactory(run))))
-
-    with pytest.raises(ConflictError, match="could not be recorded safely"):
-        await reattach_routes.cancel_chat_active_run(session_id, request)
-
-
-@pytest.mark.asyncio
-async def test_chat_agent_cancel_rejects_run_that_does_not_match_binding(monkeypatch) -> None:
-    project_id = uuid4()
-    agent_id = uuid4()
-    release_id = uuid4()
-    session_id = uuid4()
-    run_id = uuid4()
-    authorized = _authorized_agent_binding(
-        project_id=project_id,
-        agent_id=agent_id,
-        session_id=session_id,
-        release_id=release_id,
-    )
-    wrong_run = SimpleNamespace(
-        id=run_id,
-        project_id=project_id,
-        agent_id=uuid4(),
-        session_id=session_id,
-        agent_release_id=release_id,
-        network_execution_id=None,
-        status="running",
-    )
-
-    async def authorize(*_args, **_kwargs):
-        return authorized, SimpleNamespace(id=uuid4()), run_id, "running"
-
-    store = _StateStore()
-    monkeypatch.setattr(reattach_routes, "_authorized_active_request", authorize)
-    monkeypatch.setattr(reattach_routes, "EXECUTION_STATE_STORE", store)
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(session_factory=_SessionFactory(wrong_run))))
-
-    with pytest.raises(NotFoundError):
-        await reattach_routes.cancel_chat_active_run(session_id, request)
-
-    assert store.requested == []
-
-
-@pytest.mark.asyncio
-async def test_chat_cancel_endpoint_requests_network_runtime_cancellation(monkeypatch) -> None:
-    project_id = uuid4()
-    network_id = uuid4()
-    release_id = uuid4()
-    session_id = uuid4()
-    execution_id = uuid4()
-    authorized = _authorized_network_binding(
-        project_id=project_id,
-        network_id=network_id,
-        session_id=session_id,
-        release_id=release_id,
-    )
-    execution = SimpleNamespace(
-        id=execution_id,
-        project_id=project_id,
-        network_id=network_id,
-        network_session_id=session_id,
-        network_version_id=release_id,
-        status="running",
-    )
     permission_calls = []
 
     async def authorize(_request, actual_session_id, _origin, **kwargs):
         permission_calls.append((actual_session_id, kwargs))
-        return authorized, SimpleNamespace(id=uuid4()), execution_id, "running"
+        return authorized, SimpleNamespace(id=uuid4()), run_id, "running"
 
-    network_service = _NetworkService()
+    gateway = _Gateway()
     monkeypatch.setattr(reattach_routes, "_authorized_active_request", authorize)
-    monkeypatch.setattr(reattach_routes, "_network_service", lambda _request: network_service)
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(session_factory=_SessionFactory(execution))))
 
     response = await reattach_routes.cancel_chat_active_run(
         session_id,
-        request,
+        _request(gateway),
         host_origin="https://app.example.com",
     )
 
     assert permission_calls == [
         (session_id, {"permission": "chat:cancel", "require_stream": False})
     ]
-    assert network_service.requested == [(execution_id, project_id)]
+    assert len(gateway.calls) == 1
+    target, actual_run_id = gateway.calls[0]
+    assert target.target_type == target_type
+    assert target.project_id == authorized.binding.project_id
+    assert target.target_id == authorized.binding.target_id
+    assert target.target_release_id == authorized.binding.target_release_id
+    assert target.session_id == session_id
+    assert actual_run_id == run_id
     assert response == {
         "success": True,
         "data": {
-            "run_id": str(execution_id),
+            "run_id": str(run_id),
             "status": "cancel_requested",
-            "target_type": "network",
+            "target_type": target_type,
         },
     }
 
 
 @pytest.mark.asyncio
-async def test_chat_network_cancel_rejects_execution_that_does_not_match_binding(monkeypatch) -> None:
-    project_id = uuid4()
-    network_id = uuid4()
-    release_id = uuid4()
-    session_id = uuid4()
-    execution_id = uuid4()
-    authorized = _authorized_network_binding(
-        project_id=project_id,
-        network_id=network_id,
-        session_id=session_id,
-        release_id=release_id,
-    )
-    wrong_execution = SimpleNamespace(
-        id=execution_id,
-        project_id=project_id,
-        network_id=uuid4(),
-        network_session_id=session_id,
-        network_version_id=release_id,
-        status="running",
-    )
+@pytest.mark.parametrize(
+    "error",
+    [
+        ConflictError("Agent Run has no active runtime state"),
+        ConflictError("Agent Run runtime control state is temporarily unavailable"),
+        ConflictError("Agent Run cancellation request could not be recorded safely"),
+        NotFoundError("Run not found"),
+    ],
+)
+async def test_chat_cancel_endpoint_preserves_runtime_gateway_failures(
+    monkeypatch,
+    error: Exception,
+) -> None:
+    authorized = _authorized_binding(target_type="agent")
+    run_id = uuid4()
 
     async def authorize(*_args, **_kwargs):
-        return authorized, SimpleNamespace(id=uuid4()), execution_id, "running"
+        return authorized, SimpleNamespace(id=uuid4()), run_id, "running"
 
-    network_service = _NetworkService()
+    gateway = _Gateway(error=error)
     monkeypatch.setattr(reattach_routes, "_authorized_active_request", authorize)
-    monkeypatch.setattr(reattach_routes, "_network_service", lambda _request: network_service)
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(session_factory=_SessionFactory(wrong_execution))))
 
-    with pytest.raises(NotFoundError):
-        await reattach_routes.cancel_chat_active_run(session_id, request)
+    with pytest.raises(type(error), match=str(error)):
+        await reattach_routes.cancel_chat_active_run(
+            authorized.binding.session_id,
+            _request(gateway),
+        )
 
-    assert network_service.requested == []
+    assert len(gateway.calls) == 1
 
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target_type", ["agent", "network"])
-async def test_chat_cancel_endpoint_is_idempotent_for_terminal_run(monkeypatch, target_type) -> None:
-    session_id = uuid4()
+async def test_chat_cancel_endpoint_is_idempotent_for_terminal_run(
+    monkeypatch,
+    target_type: str,
+) -> None:
+    authorized = _authorized_binding(target_type=target_type)
     run_id = uuid4()
-    authorized = SimpleNamespace(binding=SimpleNamespace(target_type=target_type))
-    message_request = SimpleNamespace(id=uuid4())
     permission_calls = []
 
     async def authorize(_request, actual_session_id, _origin, **kwargs):
         permission_calls.append((actual_session_id, kwargs))
-        return authorized, message_request, run_id, "cancelled"
+        return authorized, SimpleNamespace(id=uuid4()), run_id, "cancelled"
 
+    gateway = _Gateway()
     monkeypatch.setattr(reattach_routes, "_authorized_active_request", authorize)
 
     response = await reattach_routes.cancel_chat_active_run(
-        session_id,
-        SimpleNamespace(),
+        authorized.binding.session_id,
+        _request(gateway),
         host_origin="https://app.example.com",
     )
 
     assert permission_calls == [
         (
-            session_id,
+            authorized.binding.session_id,
             {"permission": "chat:cancel", "require_stream": False},
         )
     ]
+    assert gateway.calls == []
     assert response == {
         "success": True,
         "data": {
