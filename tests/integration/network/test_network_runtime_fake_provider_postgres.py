@@ -231,11 +231,28 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
         execution.failure_code,
         execution.failure_detail,
     )
-    assert execution.output_message
+    assert execution.output_message == "Woobe release gate passed"
+    assert execution.failure_code is None
+
     assert len(invocations) == 1
-    assert invocations[0].status == "completed"
+    invocation = invocations[0]
+    assert invocation.node_id == node_id
+    assert invocation.agent_id == agent_id
+    assert invocation.status == "completed"
+    assert invocation.output_message == "Woobe release gate passed"
+
     assert len(runs) == 1
-    assert runs[0].status == "completed"
-    assert runs[0].network_execution_id == submitted.id
+    run = runs[0]
+    assert run.id == invocation.id
+    assert run.network_invocation_id == invocation.id
+    assert run.origin == "network_runtime"
+    assert run.status == "completed"
+    assert run.failure_code is None
+    assert run.result["answer"] == "Woobe release gate passed"
+    assert run.result["provider"] == "custom"
+    assert run.result["model"] == "fake-success"
+    assert run.usage["input_tokens"] == 7
+    assert run.usage["output_tokens"] == 5
+    assert run.usage["total_tokens"] == 12
 
     await engine.dispose()
