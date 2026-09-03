@@ -16,6 +16,13 @@ export interface ParsedRuntimeFrame {
   sequence: number | null
 }
 
+export interface RuntimeOutputReconciliation {
+  output: string
+  append: string
+  retract: number
+  changed: boolean
+}
+
 export class RuntimeStreamGapError extends Error {
   constructor(message: string) {
     super(message)
@@ -30,6 +37,8 @@ export class RuntimeStreamProtocolError extends Error {
   }
 }
 
+export const RUNTIME_STREAM_MAX_ATTEMPTS = 4
+const RUNTIME_STREAM_RETRY_BASE_MS = 250
 const SUPPORTED_RUNTIME_STREAM_PROTOCOL_VERSION = 1
 
 function objectValue(value: unknown): Record<string, unknown> | null {
@@ -51,6 +60,40 @@ function validateProtocolVersion(data: Record<string, unknown>): void {
     throw new RuntimeStreamProtocolError(
       `Unsupported runtime stream protocol version: ${String(value)}`,
     )
+  }
+}
+
+export function runtimeRetryDelayMs(attempt: number): number {
+  return RUNTIME_STREAM_RETRY_BASE_MS * (attempt + 1)
+}
+
+export function reconcileRuntimeOutput(
+  currentOutput: string,
+  nextOutput: string,
+): RuntimeOutputReconciliation {
+  if (currentOutput === nextOutput) {
+    return {
+      output: nextOutput,
+      append: '',
+      retract: 0,
+      changed: false,
+    }
+  }
+
+  if (nextOutput.startsWith(currentOutput)) {
+    return {
+      output: nextOutput,
+      append: nextOutput.slice(currentOutput.length),
+      retract: 0,
+      changed: true,
+    }
+  }
+
+  return {
+    output: nextOutput,
+    append: nextOutput,
+    retract: currentOutput.length,
+    changed: true,
   }
 }
 
