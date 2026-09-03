@@ -18,10 +18,11 @@ from modules.network.presentation.reattach_routes import (
 )
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
-from shared.runtime_reattach import (
-    RuntimeStreamFrame,
+from shared.runtime import (
+    RunReference,
+    RuntimeFrame,
+    RuntimeObserver,
     RuntimeStreamGapError,
-    RuntimeStreamReader,
     format_sse_frame,
 )
 
@@ -200,15 +201,10 @@ async def _authorized_active_request(
         message_request,
     )
 
-    # Admission and recovery must agree on the canonical Run even when the
-    # MessageRequest bookkeeping row is missing or temporarily uncorrelated.
     canonical_resolver = getattr(lifecycle, "_active_run_for_binding", None)
     if run_id is None and callable(canonical_resolver):
         run_id, run_status = await canonical_resolver(authorized.binding)
 
-    # Agent Acceptance and ChatSurface bookkeeping use separate transactions.
-    # Keep the bounded server-side grace period for a MessageRequest whose Run has
-    # not become queryable yet; the browser should perform only one recovery request.
     if message_request is not None and run_id is None:
         for _ in range(20):
             await asyncio.sleep(0.05)
@@ -233,8 +229,6 @@ async def _authorized_active_request(
             or message_request.target_run_id != run_id
         )
     ):
-        # Restore the operational gate if the previous observer disconnected after
-        # the Run had already been accepted. The Run, not that observer, owns life.
         await lifecycle.mark_message(
             message_request.id,
             status="streaming",
@@ -374,7 +368,7 @@ async def stream_chat_active_run(
     if run_id is None:
         raise NotFoundError("ChatSurface Session has no active Run")
 
-    reader = RuntimeStreamReader(
+    observer = RuntimeObserver(
         EXECUTION_STATE_STORE,
         heartbeat_seconds=request.app.state.settings.network_stream_heartbeat_seconds,
         block_ms=500,
@@ -390,6 +384,7 @@ async def stream_chat_active_run(
             return _agent_state(run)
 
         formatter = format_sse_frame
+        run_ref = RunReference.agent(run_id)
         kind = "agent"
         terminal_statuses = _AGENT_TERMINAL
     else:
@@ -402,19 +397,18 @@ async def stream_chat_active_run(
             return network_durable_state(execution)
 
         formatter = lambda frame: network_runtime_sse(frame, run_id)
+        run_ref = RunReference.network(run_id)
         kind = "network"
         terminal_statuses = _NETWORK_TERMINAL
 
     async def generate():
         terminal_status: str | None = None
         try:
-            async for frame in reader.stream(
-                run_id,
-                kind,
+            async for frame in observer.observe(
+                run_ref,
                 durable_fallback=durable_fallback,
+                disconnect_check=request.is_disconnected,
             ):
-                if await request.is_disconnected():
-                    return
                 if frame.event_type == "run.state":
                     status = str(frame.data.get("status") or "")
                     if status in terminal_statuses:
@@ -441,10 +435,8 @@ async def stream_chat_active_run(
                 "realtime_available": False,
                 "degraded_reason": "runtime_event_gap",
             }
-            yield formatter(RuntimeStreamFrame("run.state", degraded, sequence=None))
+            yield formatter(RuntimeFrame("run.state", degraded, sequence=None))
         finally:
-            # Observer loss leaves the message request active. Only durable terminal
-            # state may close it, preserving reload/reattach semantics.
             if terminal_status is not None and message_request is not None:
                 message_status = (
                     "completed"
