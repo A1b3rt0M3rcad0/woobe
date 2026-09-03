@@ -7,6 +7,7 @@ import {
 import {
   RUNTIME_STREAM_MAX_ATTEMPTS,
   acceptRuntimeFrameSequence,
+  parseRuntimeFrame,
   reconcileRuntimeOutput,
   runtimeRetryDelayMs,
   runtimeTerminalStatus,
@@ -250,39 +251,8 @@ function hydrateToolSnapshot(
   }
 }
 
-function eventSequence(parsed: ParsedSseEvent, event: NetworkRuntimeEvent): number | null {
-  if (typeof event.sequence === 'number' && Number.isInteger(event.sequence) && event.sequence >= 0) {
-    return event.sequence
-  }
-  if (parsed.id && /^\d+$/.test(parsed.id)) return Number(parsed.id)
-  return null
-}
-
-function runtimeFrame(
-  parsed: ParsedSseEvent,
-  event: NetworkRuntimeEvent,
-): ParsedRuntimeFrame {
-  return {
-    eventType: parsed.event,
-    data: event as unknown as Record<string, unknown>,
-    payload: eventData(event),
-    sequence: eventSequence(parsed, event),
-  }
-}
-
-function acceptSequence(
-  parsed: ParsedSseEvent,
-  event: NetworkRuntimeEvent,
-  streamState: NetworkStreamState,
-): boolean {
-  const frame = runtimeFrame(parsed, event)
-  const accepted = acceptRuntimeFrameSequence(frame, streamState)
-  if (frame.sequence !== null) event.sequence = frame.sequence
-  return accepted
-}
-
 function applyRunState(
-  parsed: ParsedSseEvent,
+  runtime: ParsedRuntimeFrame,
   event: NetworkRuntimeEvent,
   callbacks: NetworkStreamCallbacks,
   streamState: NetworkStreamState,
@@ -312,7 +282,7 @@ function applyRunState(
   hydrateDelegationSnapshot(event, data, callbacks)
   hydrateToolSnapshot(event, data, callbacks)
   callbacks.onEvent('run.state', event)
-  const status = runtimeTerminalStatus(runtimeFrame(parsed, event))
+  const status = runtimeTerminalStatus(runtime)
   if (status === null) return false
 
   if (status === 'completed') {
@@ -362,24 +332,26 @@ async function consumeResponse(
   let buffer = ''
 
   const dispatchBlock = (block: string): boolean => {
-    const parsed = parseSseBlock(block)
-    if (!parsed) return false
-    const event = JSON.parse(parsed.data) as NetworkRuntimeEvent
-    const sequence = eventSequence(parsed, event)
-    if (sequence !== null) input.lastEventId = sequence
-    if (parsed.event === 'heartbeat') {
+    const runtime = parseRuntimeFrame(block)
+    if (!runtime) return false
+    const event = runtime.data as unknown as NetworkRuntimeEvent
+    if (runtime.eventType === 'heartbeat') {
       callbacks.onHeartbeat?.(event)
       return false
     }
-    if (!acceptSequence(parsed, event, streamState)) return false
-    if (parsed.event === 'run.state') {
-      return applyRunState(parsed, event, callbacks, streamState)
+    if (!acceptRuntimeFrameSequence(runtime, streamState)) return false
+    if (runtime.sequence !== null) {
+      event.sequence = runtime.sequence
+      input.lastEventId = runtime.sequence
+    }
+    if (runtime.eventType === 'run.state') {
+      return applyRunState(runtime, event, callbacks, streamState)
     }
 
-    if (parsed.event === 'token') {
+    if (runtime.eventType === 'token') {
       const content = eventData(event).content
       if (typeof content === 'string') streamState.output += content
-    } else if (parsed.event === 'token_retract') {
+    } else if (runtime.eventType === 'token_retract') {
       const length = eventData(event).content_length
       if (typeof length === 'number' && length > 0) {
         streamState.output = streamState.output.slice(
@@ -389,8 +361,8 @@ async function consumeResponse(
       }
     }
 
-    callbacks.onEvent(parsed.event, event)
-    return isTerminalNetworkEvent(parsed.event)
+    callbacks.onEvent(runtime.eventType, event)
+    return isTerminalNetworkEvent(runtime.eventType)
   }
 
   try {
