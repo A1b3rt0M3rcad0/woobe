@@ -76,6 +76,16 @@ async def _resolve_run_identity(request: Request, authorized, message_request):
     )
     if identity is None:
         return None, None
+
+    # active-run is an operational endpoint, not historical Run lookup. Preserve the
+    # previous contract: a terminal Run remains visible only while MessageRequest is
+    # still active and needs reconciliation. Once bookkeeping is terminal too, the
+    # endpoint must report no active Run instead of resurrecting the last execution.
+    message_active = (
+        message_request is not None and message_request.status in _MESSAGE_ACTIVE
+    )
+    if identity.status not in _ACTIVE and not message_active:
+        return None, None
     return identity.run_id, identity.status
 
 
