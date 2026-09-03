@@ -5,6 +5,10 @@ import logging
 import signal
 from collections.abc import Sequence
 
+from module_registry_composition import (
+    build_registries,
+    discover_module_entries,
+)
 from modules.agent.infra.adapters.http_tool_runtime import (
     close_http_tool_executor,
     configure_http_tool_executor,
@@ -16,7 +20,7 @@ from shared.infra.config import Settings
 from shared.infra.database.session import create_engine
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.observability.logging_config import configure_logging
-from shared.workers.discovery import ModuleWorkerEntry, build_registries, discover_module_entries
+from shared.workers.contracts import ModuleWorkerEntry
 from shared.workers.runner import WorkerRunner
 
 logger = logging.getLogger(__name__)
