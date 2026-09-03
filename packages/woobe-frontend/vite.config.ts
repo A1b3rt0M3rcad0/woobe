@@ -9,6 +9,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@woobe/runtime-client': path.resolve(
+        __dirname,
+        '../woobe-runtime-client/src/index.ts',
+      ),
     },
   },
   server: {
