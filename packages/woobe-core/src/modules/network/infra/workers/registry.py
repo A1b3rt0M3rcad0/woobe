@@ -5,6 +5,7 @@ from collections.abc import Callable
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.network.application.runtime import AgentInvoker
+from modules.network.infra.runtime.agent_artifacts import AgentInvocationArtifactMaterializer
 from modules.network.infra.runtime.finalizer import NetworkRuntimeFinalizer
 from modules.network.infra.runtime.loader import NetworkRuntimeLoader
 from modules.network.infra.runtime.redis_store import RedisNetworkExecutionStore
@@ -20,7 +21,9 @@ from shared.infra.rabbitmq import RabbitMQManager
 from shared.workers.contracts import WorkerProtocol, WorkerRegistryProtocol
 
 AgentInvokerFactory = Callable[[Settings], AgentInvoker]
+AgentArtifactMaterializerFactory = Callable[[], AgentInvocationArtifactMaterializer]
 _AGENT_INVOKER_FACTORY: AgentInvokerFactory | None = None
+_AGENT_ARTIFACT_MATERIALIZER_FACTORY: AgentArtifactMaterializerFactory | None = None
 
 
 def configure_network_agent_invoker_factory(
@@ -28,6 +31,13 @@ def configure_network_agent_invoker_factory(
 ) -> None:
     global _AGENT_INVOKER_FACTORY
     _AGENT_INVOKER_FACTORY = factory
+
+
+def configure_network_agent_artifact_materializer_factory(
+    factory: AgentArtifactMaterializerFactory | None,
+) -> None:
+    global _AGENT_ARTIFACT_MATERIALIZER_FACTORY
+    _AGENT_ARTIFACT_MATERIALIZER_FACTORY = factory
 
 
 class NetworkWorkerRegistry:
@@ -53,9 +63,16 @@ def register_network_workers(
         raise RuntimeError(
             "Network Agent runtime adapter is not configured by the worker composition root"
         )
+    if _AGENT_ARTIFACT_MATERIALIZER_FACTORY is None:
+        raise RuntimeError(
+            "Network Agent artifact materializer is not configured by the worker composition root"
+        )
 
     loader = NetworkRuntimeLoader(SESSION_FACTORY)
-    finalizer = NetworkRuntimeFinalizer(SESSION_FACTORY)
+    finalizer = NetworkRuntimeFinalizer(
+        SESSION_FACTORY,
+        agent_artifact_materializer=_AGENT_ARTIFACT_MATERIALIZER_FACTORY(),
+    )
     state_store = RedisNetworkExecutionStore(EXECUTION_STATE_STORE)
     processor = NetworkExecutionProcessor(
         loader=loader,
