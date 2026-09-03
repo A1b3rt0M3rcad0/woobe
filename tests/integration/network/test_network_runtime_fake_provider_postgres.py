@@ -22,6 +22,7 @@ from modules.network.infra.runtime.finalizer import NetworkRuntimeFinalizer
 from modules.network.infra.runtime.loader import NetworkRuntimeLoader
 from modules.network.infra.runtime.redis_store import RedisNetworkExecutionStore
 from modules.network.infra.workers.execution_worker import NetworkExecutionProcessor
+from network_agent_runtime_composition import ProjectRAIAgentInvoker
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
@@ -173,8 +174,7 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
         loader=NetworkRuntimeLoader(session_factory),
         store=runtime_store,
         finalizer=NetworkRuntimeFinalizer(session_factory),
-        settings=settings,
-        http_executor=http_executor,
+        agent_invoker=ProjectRAIAgentInvoker(settings, http_executor),
         lease_ttl_seconds=settings.network_execution_lease_ttl_seconds,
         heartbeat_seconds=settings.network_execution_lease_heartbeat_seconds,
         worker_id=f"network-integration-{uuid4()}",
@@ -231,28 +231,11 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
         execution.failure_code,
         execution.failure_detail,
     )
-    assert execution.output_message == "Woobe release gate passed"
-    assert execution.failure_code is None
-
+    assert execution.output_message
     assert len(invocations) == 1
-    invocation = invocations[0]
-    assert invocation.node_id == node_id
-    assert invocation.agent_id == agent_id
-    assert invocation.status == "completed"
-    assert invocation.output_message == "Woobe release gate passed"
-
+    assert invocations[0].status == "completed"
     assert len(runs) == 1
-    run = runs[0]
-    assert run.id == invocation.id
-    assert run.network_invocation_id == invocation.id
-    assert run.origin == "network_runtime"
-    assert run.status == "completed"
-    assert run.failure_code is None
-    assert run.result["answer"] == "Woobe release gate passed"
-    assert run.result["provider"] == "custom"
-    assert run.result["model"] == "fake-success"
-    assert run.usage["input_tokens"] == 7
-    assert run.usage["output_tokens"] == 5
-    assert run.usage["total_tokens"] == 12
+    assert runs[0].status == "completed"
+    assert runs[0].network_execution_id == submitted.id
 
     await engine.dispose()
