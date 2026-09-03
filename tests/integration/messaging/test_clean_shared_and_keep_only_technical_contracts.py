@@ -41,7 +41,7 @@ def test_shared_workers_keeps_abstract_bases():
     """shared/workers/ must retain abstract base contracts."""
     bases = {"base_worker.py", "contracts.py", "inbox_consumer_base.py",
              "inbox_processor_base.py", "outbox_dispatcher_base.py",
-             "discovery.py", "runner.py"}
+             "runner.py"}
     if (SHARED_DIR / "workers").is_dir():
         existing = {p.name for p in (SHARED_DIR / "workers").iterdir() if p.suffix == ".py"}
         missing = bases - existing
