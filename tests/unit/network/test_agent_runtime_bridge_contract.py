@@ -3,8 +3,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from composition import network_agent_runtime as agent_invoker_module
-from composition.network_agent_runtime import ProjectRAIAgentInvoker
+import network_agent_runtime_composition as agent_invoker_module
+from network_agent_runtime_composition import ProjectRAIAgentInvoker
 from modules.agent.entrypoint import current_execution, current_runtime_stream
 from modules.network.application.runtime import InternalDelegationTool
 from modules.network.infra.workers.execution_worker import NetworkExecutionProcessor
