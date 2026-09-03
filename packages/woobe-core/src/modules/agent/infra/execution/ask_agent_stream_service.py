@@ -33,11 +33,11 @@ from shared.contracts.time import utc_now
 from shared.runtime import (
     RunKind,
     RunReference,
+    RuntimeEventPublisher,
     RuntimeFrame,
     RuntimeObserver,
     format_sse_frame,
 )
-from shared.runtime_reattach import RuntimeEventPublisher
 from shared.security.redaction import redact_text
 
 DisconnectCheck = Callable[[], Awaitable[bool]]
