@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Header, Request
 from fastapi.responses import StreamingResponse
 
-from modules.agent.entrypoint import AskInput, build_agent_stream_service, commit_safe_stream
+from modules.chat_surface.application.runtime_gateway import (
+    ChatRuntimeGateway,
+    ChatRuntimeRequest,
+    PreparedChatRuntime,
+)
 from modules.chat_surface.control_plane_service import (
     CONTROL_PLANE_TEST_SOURCE,
     ControlPlaneChatSurfaceService,
@@ -21,9 +24,6 @@ from modules.chat_surface.presentation.schemas import (
     UpdateChatSurfaceRequest,
 )
 from modules.chat_surface.service import surface_payload
-from modules.network.application.service import NetworkApplicationService
-from modules.network.infra.database.models import NetworkExecutionModel
-from modules.network.presentation.routes import _execution_stream
 from shared.infra.errors import (
     AuthenticationError,
     AuthorizationError,
@@ -57,14 +57,11 @@ def _service(request: Request) -> ControlPlaneChatSurfaceService:
     )
 
 
-def _network_service(request: Request) -> NetworkApplicationService:
-    settings = request.app.state.settings
-    return NetworkApplicationService(
-        request.app.state.session_factory,
-        hard_max_depth=settings.network_max_depth_hard,
-        hard_max_invocations=settings.network_max_invocations_hard,
-        hard_timeout_seconds=settings.network_timeout_hard_seconds,
-    )
+def _runtime_gateway(request: Request) -> ChatRuntimeGateway:
+    gateway = getattr(request.app.state, "chat_surface_runtime_gateway", None)
+    if gateway is None:
+        raise RuntimeError("ChatSurface runtime gateway is not configured")
+    return gateway
 
 
 def _authenticated_user(request: Request) -> UUID:
@@ -454,99 +451,52 @@ async def list_public_messages(
     return {"success": True, "data": data}
 
 
-async def _agent_stream(
-    request: Request,
+async def _consume_runtime_stream(
+    service: ControlPlaneChatSurfaceService,
     *,
     message_request_id: UUID,
-    authorized,
-    payload: StreamChatMessageRequest,
+    prepared: PreparedChatRuntime,
 ) -> AsyncIterator[str]:
-    service = _service(request)
-    terminal_status = "failed"
-    try:
-        await service.mark_message(message_request_id, status="streaming")
-        session_source = str(
-            (authorized.binding.metadata_ or {}).get("source") or "chat_surface"
-        )
-        input_dto = AskInput(
-            project_id=authorized.surface.project_id,
-            agent_id=authorized.surface.target_id,
-            message=payload.message,
-            session_id=authorized.binding.session_id,
-            tenant_id=str(authorized.surface.id),
-            metadata={
-                **(payload.metadata or {}),
-                "source": (
-                    "chat_surface_test"
-                    if session_source == CONTROL_PLANE_TEST_SOURCE
-                    else "chat_surface"
-                ),
-                "chat_surface_session_source": session_source,
-                "chat_surface_id": str(authorized.surface.id),
-                "chat_surface_target_release_id": str(
-                    authorized.binding.target_release_id
-                ),
-                "embed_protocol_version": 1,
-                "server_received_at": datetime.now(timezone.utc).isoformat(),
-            },
-            execution_context="production",
-            loaded_release_id=authorized.binding.target_release_id,
-        )
-        agent_service = build_agent_stream_service()
-        stream_failed = False
-        async for chunk in commit_safe_stream(agent_service, input_dto, request):
-            if "event: error" in chunk or "event: cancelled" in chunk:
-                stream_failed = True
-            yield chunk
-        terminal_status = "failed" if stream_failed else "completed"
-    except Exception:
-        terminal_status = "failed"
-        raise
-    finally:
-        await service.mark_message(
-            message_request_id,
-            status=terminal_status,
-            error_code="runtime_failed" if terminal_status == "failed" else None,
-        )
-
-
-async def _network_stream(
-    request: Request,
-    *,
-    message_request_id: UUID,
-    execution: NetworkExecutionModel,
-    project_id: UUID,
-    start_sequence: int,
-) -> AsyncIterator[str]:
-    service = _service(request)
+    current_run_id = prepared.run_id
     await service.mark_message(
         message_request_id,
         status="streaming",
-        target_run_id=execution.id,
+        target_run_id=current_run_id,
+        error_code=None,
     )
-    try:
-        async for chunk in _execution_stream(
-            request,
-            execution.id,
-            project_id,
-            start_sequence,
-        ):
-            yield chunk
-        async with request.app.state.session_factory() as session:
-            finished = await session.get(NetworkExecutionModel, execution.id)
-        succeeded = finished is not None and finished.status == "completed"
-        await service.mark_message(
-            message_request_id,
-            status="completed" if succeeded else "failed",
-            error_code=None if succeeded else "runtime_failed",
-        )
-    except Exception:
-        await service.mark_message(
-            message_request_id,
-            status="failed",
-            error_code="runtime_failed",
-        )
-        raise
+
+    terminalized = False
+    async for chunk in prepared.stream:
+        if chunk.run_id is not None and chunk.run_id != current_run_id:
+            current_run_id = chunk.run_id
+            await service.mark_message(
+                message_request_id,
+                status="streaming",
+                target_run_id=current_run_id,
+                error_code=None,
+            )
+
+        if chunk.terminal_status is not None and not terminalized:
+            message_status = (
+                "completed"
+                if chunk.terminal_status == "completed"
+                else "cancelled"
+                if chunk.terminal_status == "cancelled"
+                else "failed"
+            )
+            await service.mark_message(
+                message_request_id,
+                status=message_status,
+                target_run_id=current_run_id,
+                error_code=(
+                    None
+                    if message_status in {"completed", "cancelled"}
+                    else "runtime_failed"
+                ),
+            )
+            terminalized = True
+
+        yield chunk.sse
 
 
 @router.post("/v1/chat/sessions/{session_id}/messages:stream")
@@ -569,84 +519,65 @@ async def stream_public_message(
     if "chat:stream" not in authorized.claims.permissions:
         raise AuthorizationError("ChatSurface Session token scope is insufficient")
 
-    message_request, created = await _service(request).begin_message(
+    service = _service(request)
+    message_request, created = await service.begin_message(
         authorized,
         idempotency_key,
         metadata=payload.metadata,
     )
+    session_source = str(
+        (authorized.binding.metadata_ or {}).get("source") or "chat_surface"
+    )
+    runtime_request = ChatRuntimeRequest(
+        project_id=authorized.surface.project_id,
+        target_type=authorized.surface.target_type,
+        target_id=authorized.surface.target_id,
+        target_release_id=authorized.binding.target_release_id,
+        session_id=authorized.binding.session_id,
+        surface_id=authorized.surface.id,
+        message_request_id=message_request.id,
+        message=payload.message,
+        metadata=dict(payload.metadata or {}),
+        session_source=session_source,
+        created=created,
+        existing_run_id=message_request.target_run_id,
+    )
+
+    try:
+        prepared = await _runtime_gateway(request).prepare(
+            runtime_request,
+            request.is_disconnected,
+        )
+    except Exception:
+        if created:
+            await service.mark_message(
+                message_request.id,
+                status="failed",
+                target_run_id=message_request.target_run_id,
+                error_code="runtime_start_failed",
+            )
+        raise
+
     headers = {
         "Cache-Control": "no-cache, no-transform",
         "Connection": "keep-alive",
         "X-Accel-Buffering": "no",
         "X-Woobe-Message-Request-ID": str(message_request.id),
+        **(prepared.headers or {}),
     }
-    if authorized.surface.target_type == "agent":
-        if not created:
-            raise ConflictError(
-                "Agent message request already exists; reload Session history"
-            )
-        stream = _agent_stream(
-            request,
-            message_request_id=message_request.id,
-            authorized=authorized,
-            payload=payload,
-        )
-    else:
-        if created:
-            try:
-                execution = await _network_service(request).submit_execution(
-                    network_id=authorized.surface.target_id,
-                    project_id=authorized.surface.project_id,
-                    network_session_id=authorized.binding.session_id,
-                    message=payload.message,
-                    idempotency_key=f"chat:{message_request.id}",
-                )
-                await _service(request).mark_message(
-                    message_request.id,
-                    status="streaming",
-                    target_run_id=execution.id,
-                )
-            except Exception:
-                await _service(request).mark_message(
-                    message_request.id,
-                    status="failed",
-                    error_code="runtime_failed",
-                )
-                raise
-        elif message_request.target_run_id is not None:
-            async with request.app.state.session_factory() as session:
-                execution = await session.get(
-                    NetworkExecutionModel,
-                    message_request.target_run_id,
-                )
-            if (
-                execution is None
-                or execution.project_id != authorized.surface.project_id
-                or execution.network_id != authorized.surface.target_id
-                or execution.network_version_id
-                != authorized.binding.target_release_id
-                or execution.network_session_id != authorized.binding.session_id
-            ):
-                raise NotFoundError("Network execution not found")
-        else:
-            raise ConflictError(
-                "Network message request is accepted but its execution is not ready"
-            )
-        headers["X-Network-Execution-ID"] = str(execution.id)
-        start_sequence = (
-            int(last_event_id)
-            if last_event_id is not None and last_event_id.isdigit()
-            else 0
-        )
-        stream = _network_stream(
-            request,
-            message_request_id=message_request.id,
-            execution=execution,
-            project_id=authorized.surface.project_id,
-            start_sequence=start_sequence,
-        )
+    if prepared.run_id is not None:
+        headers.setdefault("X-Woobe-Run-ID", str(prepared.run_id))
+
+    # Current-state reconciliation supersedes transport cursor replay. The header is
+    # accepted for compatibility but never drives execution or observer ownership.
+    del last_event_id
+
     return StreamingResponse(
-        stream,
+        _consume_runtime_stream(
+            service,
+            message_request_id=message_request.id,
+            prepared=prepared,
+        ),
         media_type="text/event-stream",
         headers=headers,
     )
