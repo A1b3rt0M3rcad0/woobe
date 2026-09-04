@@ -60,7 +60,7 @@ def _build_agent_runtime(
     assembler: ContextAssembler = (
         context_assembler
         if context_assembler is not None
-        else build_runtime_context_assembler()
+        else build_runtime_context_assembler(settings.default_context_manager)
     )
     runtime.configure_context_assembler(assembler)
     runtime.configure_rag_embedding_factory(LangchainEmbeddingFactory())
