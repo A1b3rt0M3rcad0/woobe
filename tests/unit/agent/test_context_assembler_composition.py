@@ -47,14 +47,16 @@ def test_public_agent_runtime_composition_wires_registry_dispatcher() -> None:
     _assert_registry_context_assembler(runtime)
 
 
-def test_default_composition_builds_snapshot_aware_dispatcher(monkeypatch) -> None:
+def test_default_composition_builds_snapshot_aware_dispatcher_with_configured_strategy(
+    monkeypatch,
+) -> None:
     from modules.agent.composition.factories import ask_agent_runtime_factory
 
     assembler = _AlternateContextAssembler()
-    calls = []
+    calls: list[str] = []
 
-    def build_dispatcher():
-        calls.append(True)
+    def build_dispatcher(default_context_manager: str):
+        calls.append(default_context_manager)
         return assembler
 
     monkeypatch.setattr(
@@ -63,13 +65,14 @@ def test_default_composition_builds_snapshot_aware_dispatcher(monkeypatch) -> No
         build_dispatcher,
     )
 
+    settings = Settings.model_validate({"default_context_manager": "stdcm:v1"})
     runtime, _transactions = ask_agent_runtime_factory.build_ask_agent_use_case(
-        Settings.model_validate({}),
+        settings,
         http_executor=MagicMock(),
     )
 
     assert runtime._context_assembler is assembler
-    assert calls == [True]
+    assert calls == ["stdcm:v1"]
 
 
 def test_internal_network_agent_runtime_composition_wires_registry_dispatcher() -> None:
