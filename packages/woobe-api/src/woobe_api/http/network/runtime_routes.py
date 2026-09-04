@@ -18,7 +18,6 @@ from modules.network.entrypoint import (
     RunNetworkRequest,
     SaveNetworkDraftRequest,
 )
-from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import AuthorizationError
 from shared.runtime import (
     RunReference,
@@ -318,7 +317,7 @@ async def _execution_stream(
     )
 
     observer = RuntimeObserver(
-        EXECUTION_STATE_STORE,
+        request.app.state.execution_state_store,
         heartbeat_seconds=request.app.state.settings.network_stream_heartbeat_seconds,
         block_ms=500,
     )

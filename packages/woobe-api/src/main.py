@@ -31,7 +31,7 @@ from woobe_api.http.metering.routes import router as metering_router
 from woobe_api.http.network.routes import router as network_router
 from woobe_api.http.observability.routes import router as observability_router
 from public_runtime_routes import router as public_runtime_router
-from shared.composition_resources import DATABASE_ENGINE
+from shared.composition_resources import DATABASE_ENGINE, EXECUTION_STATE_STORE
 from shared.infra.database.session import create_session_factory
 from shared.infra.errors import (
     AuthenticationError,
@@ -113,6 +113,7 @@ def create_app() -> FastAPI:
     security_session_factory = create_session_factory(DATABASE_ENGINE)
     app.state.settings = settings
     app.state.async_engine = DATABASE_ENGINE
+    app.state.execution_state_store = EXECUTION_STATE_STORE
     app.state.session_factory = security_session_factory
     app.state.access_token_codec = build_access_token_codec()
     app.state.http_tool_executor = build_http_tool_executor()

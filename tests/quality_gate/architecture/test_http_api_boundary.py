@@ -95,6 +95,12 @@ def test_http_routers_do_not_wire_persistence() -> None:
         for imported in _imports(path):
             if imported == "sqlalchemy" or imported.startswith("sqlalchemy."):
                 violations.append((path, imported))
+            if imported == "shared.composition_resources":
+                violations.append((path, imported))
+            if imported == "shared.infra.database" or imported.startswith(
+                "shared.infra.database."
+            ):
+                violations.append((path, imported))
             parts = imported.split(".")
             if len(parts) >= 3 and parts[0] == "modules" and parts[2] == "infra":
                 violations.append((path, imported))
@@ -143,9 +149,13 @@ def test_legacy_http_and_composer_locations_are_absent() -> None:
     for context in sorted(BOUNDED_CONTEXTS):
         module = CORE_ROOT / f"modules/{context}"
         for relative in ("presentation/http", "application/composers"):
-            if (module / relative).exists():
+            if any((module / relative).rglob("*.py")):
                 violations.append(f"{context}/{relative}")
     assert not violations
+
+
+def test_shared_http_transport_package_is_absent_from_core() -> None:
+    assert not any((CORE_ROOT / "shared/presentation/http").rglob("*.py"))
 
 
 def test_chat_surface_has_no_loose_root_services() -> None:

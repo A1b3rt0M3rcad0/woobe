@@ -76,7 +76,7 @@ enforce_internal_allowlist = false
 
 [[rules]]
 id = "ARCH228"
-description = "legacy root services remain transport-neutral while they migrate into semantic layers"
+description = "public root boundaries remain transport-neutral"
 source = ["*.py"]
 allow = []
 deny = ["fastapi", "starlette", "woobe_api"]

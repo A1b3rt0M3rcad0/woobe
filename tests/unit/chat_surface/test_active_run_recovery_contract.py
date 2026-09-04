@@ -6,12 +6,16 @@ from uuid import uuid4
 
 import pytest
 
-from modules.chat_surface import control_plane_service as control_plane_service_module
 from modules.chat_surface.application.runtime_gateway import ChatRunIdentity
-from modules.chat_surface.infra.services.control_plane_service import ControlPlaneChatSurfaceService
-from woobe_api.http.chat_surface import reattach_routes
+from modules.chat_surface.infra.services import (
+    control_plane_service as control_plane_service_module,
+)
+from modules.chat_surface.infra.services.control_plane_service import (
+    ControlPlaneChatSurfaceService,
+)
 from modules.chat_surface.infra.services.chat_surface_service import ChatSurfaceService
 from shared.infra.errors import ConflictError
+from woobe_api.http.chat_surface import reattach_routes
 from woobe_api.http.shared.errors import conflict_handler
 
 
@@ -442,4 +446,3 @@ async def test_conflict_handler_serializes_active_run_identity(target_type: str)
             "target_type": target_type,
         },
     }
-

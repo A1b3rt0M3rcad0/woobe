@@ -7,7 +7,6 @@ from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
 
 from modules.network.entrypoint import NetworkBoundaryService, build_network_service
-from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import ValidationError
 from shared.runtime import (
     RunReference,
@@ -162,7 +161,7 @@ async def reattach_network_execution(
 ) -> StreamingResponse:
     await _load_execution(request, execution_id)
     observer = RuntimeObserver(
-        EXECUTION_STATE_STORE,
+        request.app.state.execution_state_store,
         heartbeat_seconds=request.app.state.settings.network_stream_heartbeat_seconds,
         block_ms=500,
     )
