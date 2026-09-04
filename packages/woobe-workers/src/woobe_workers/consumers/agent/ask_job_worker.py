@@ -63,7 +63,9 @@ class AskJobWorker:
             encryption_key=settings.encryption_key,
             tool_executor_factory=tool_runtime.execute_tool,
         )
-        execution.configure_context_assembler(build_runtime_context_assembler())
+        execution.configure_context_assembler(
+            build_runtime_context_assembler(settings.default_context_manager)
+        )
         execution.configure_rag_embedding_factory(LangchainEmbeddingFactory())
         execution.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
 
