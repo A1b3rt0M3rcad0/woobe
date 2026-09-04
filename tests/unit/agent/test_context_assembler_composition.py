@@ -9,6 +9,9 @@ from modules.agent.application.interfaces.context_assembler import (
     ContextAssemblyOutput,
     ContextAssemblyRequest,
 )
+from modules.agent.composition.context_assembler_registry import (
+    DEFAULT_CONTEXT_ASSEMBLER_KEY,
+)
 from modules.agent.composition.factories.ask_agent_runtime_factory import (
     build_ask_agent_handler,
     build_ask_agent_use_case,
@@ -45,6 +48,27 @@ def test_public_agent_runtime_composition_wires_default_context_assembler() -> N
     )
 
     _assert_default_context_assembler(runtime)
+
+
+def test_default_composition_resolves_versioned_key_through_registry(monkeypatch) -> None:
+    from modules.agent.composition.factories import ask_agent_runtime_factory
+
+    assembler = _AlternateContextAssembler()
+    resolved_keys = []
+
+    def resolve(key):
+        resolved_keys.append(key)
+        return assembler
+
+    monkeypatch.setattr(ask_agent_runtime_factory, "build_context_assembler", resolve)
+
+    runtime, _transactions = ask_agent_runtime_factory.build_ask_agent_use_case(
+        Settings.model_validate({}),
+        http_executor=MagicMock(),
+    )
+
+    assert runtime._context_assembler is assembler
+    assert resolved_keys == [DEFAULT_CONTEXT_ASSEMBLER_KEY]
 
 
 def test_internal_network_agent_runtime_composition_wires_default_context_assembler() -> None:
