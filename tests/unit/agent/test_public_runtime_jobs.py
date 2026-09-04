@@ -15,7 +15,7 @@ from modules.agent.domain.errors import AskJobNotFoundError
 from modules.agent.presentation.controllers.public_runtime_controllers import (
     PublicGetJobController,
 )
-from shared.presentation.http.request import Request
+from shared.presentation.contracts import OperationRequest
 from shared.security.principal import ProjectApiPrincipal
 
 
@@ -89,10 +89,11 @@ async def test_job_polling_isolated_by_runtime_key_environment() -> None:
     repo = SimpleNamespace(get_by_id=AsyncMock(return_value=job))
     use_case = GetPublicAskJobUseCase(repo)
     controller = PublicGetJobController(use_case)
-    request = Request(
+    request = OperationRequest(
         principal=principal,
         path_params={"job_id": str(job.id)},
     )
 
     with pytest.raises(AskJobNotFoundError):
         await controller.handle(request)
+

@@ -14,22 +14,22 @@ from starlette.types import ExceptionHandler
 
 from chat_runtime_composition import ApiChatRuntimeGateway
 from modules.agent.entrypoint import (
-    AGENT_HTTP_ROUTERS,
     SETTINGS,
     build_http_tool_executor,
     close_http_tool_executor,
 )
-from modules.chat_surface.presentation.reattach_routes import (
+from woobe_api.http.agent import HTTP_ROUTERS as AGENT_HTTP_ROUTERS
+from woobe_api.http.chat_surface.reattach_routes import (
     router as chat_surface_reattach_router,
 )
-from modules.chat_surface.presentation.routes import router as chat_surface_router
-from modules.chat_surface.security import ChatSessionTokenCodec
-from modules.core.presentation.routes import router as core_router
-from modules.identity.presentation.instance_routes import router as instance_router
-from modules.identity.presentation.routes import router as identity_router
-from modules.metering.presentation.routes import router as metering_router
-from modules.network.presentation import router as network_router
-from modules.observability.presentation.routes import router as observability_router
+from woobe_api.http.chat_surface.routes import router as chat_surface_router
+from modules.identity.entrypoint import build_access_token_codec
+from woobe_api.http.core.routes import router as core_router
+from woobe_api.http.identity.instance_routes import router as instance_router
+from woobe_api.http.identity.routes import router as identity_router
+from woobe_api.http.metering.routes import router as metering_router
+from woobe_api.http.network.routes import router as network_router
+from woobe_api.http.observability.routes import router as observability_router
 from public_runtime_routes import router as public_runtime_router
 from shared.composition_resources import DATABASE_ENGINE
 from shared.infra.database.session import create_session_factory
@@ -44,9 +44,9 @@ from shared.infra.errors import (
     RuntimeTimeoutError,
     ValidationError,
 )
-from shared.observability.http import RequestObservabilityMiddleware
+from woobe_api.middleware.observability import RequestObservabilityMiddleware
 from shared.observability.logging_config import configure_logging
-from shared.presentation.errors import (
+from woobe_api.http.shared.errors import (
     authentication_handler,
     authorization_handler,
     conflict_handler,
@@ -60,10 +60,11 @@ from shared.presentation.errors import (
     unhandled_exception_handler,
     validation_handler,
 )
-from shared.runtime_environment_routes import router as runtime_environment_router
-from shared.security.access_tokens import AccessTokenCodec
-from shared.security.dependency import enforce_request_security
-from shared.security.http_guard import HttpSecurityGuard
+from woobe_api.http.shared.runtime_environment_routes import (
+    router as runtime_environment_router,
+)
+from woobe_api.security.dependency import enforce_request_security
+from woobe_api.security.http_guard import HttpSecurityGuard
 from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     ApiKeyRequestLimiter,
@@ -113,23 +114,9 @@ def create_app() -> FastAPI:
     app.state.settings = settings
     app.state.async_engine = DATABASE_ENGINE
     app.state.session_factory = security_session_factory
-    app.state.access_token_codec = AccessTokenCodec(
-        signing_key=settings.secret_key,
-        issuer=settings.auth_issuer,
-        audience=settings.auth_audience,
-        ttl_seconds=settings.access_token_ttl_seconds,
-        leeway_seconds=settings.auth_clock_skew_seconds,
-    )
-    app.state.chat_session_token_codec = ChatSessionTokenCodec(
-        signing_key=settings.chat_token_signing_key or settings.secret_key,
-        issuer=settings.chat_token_issuer,
-        audience=settings.chat_token_audience,
-        ttl_seconds=settings.chat_token_ttl_seconds,
-        leeway_seconds=settings.auth_clock_skew_seconds,
-    )
+    app.state.access_token_codec = build_access_token_codec()
     app.state.http_tool_executor = build_http_tool_executor()
     app.state.chat_surface_runtime_gateway = ApiChatRuntimeGateway(
-        session_factory=security_session_factory,
         settings=settings,
         app_state=app.state,
     )

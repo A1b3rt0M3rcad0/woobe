@@ -4,7 +4,7 @@ from modules.agent.domain.release_versioning import (
     ReleaseChangeKind,
     calculate_next_release_version,
 )
-from modules.network.application.release_lifecycle import _next_staging_version
+from modules.network.infra.services.release_lifecycle import _next_staging_version
 from modules.network.domain.release_contracts import (
     agent_snapshot_hash,
     canonical_hash,
@@ -138,3 +138,4 @@ def test_staging_versions_have_independent_revision_sequence() -> None:
 
 def test_canonical_hash_does_not_depend_on_dictionary_order() -> None:
     assert canonical_hash({"a": 1, "b": 2}) == canonical_hash({"b": 2, "a": 1})
+

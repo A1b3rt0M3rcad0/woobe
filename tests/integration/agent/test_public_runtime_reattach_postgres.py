@@ -18,8 +18,8 @@ from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.execution.agent_run_reattach_service import (
     AgentRunReattachService,
 )
-from modules.agent.presentation.http import run_routes as agent_run_routes
-from modules.agent.presentation.http.controllers.agent_run_reattach_controller import (
+from woobe_api.http.agent import run_routes as agent_run_routes
+from woobe_api.http.agent.controllers.agent_run_reattach_controller import (
     AgentRunReattachController,
 )
 from shared.infra.config import Settings
@@ -169,3 +169,4 @@ async def test_public_runtime_reattaches_cancelled_agent_from_durable_postgres(
                     delete(AgentModel).where(AgentModel.id == agent_id)
                 )
         await engine.dispose()
+

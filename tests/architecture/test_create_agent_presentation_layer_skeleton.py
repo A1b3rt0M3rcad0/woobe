@@ -30,7 +30,7 @@ class TestCreateAgentPresentationLayerSkeleton:
 
         for name in [
             "modules.agent.presentation.controllers",
-            "modules.agent.presentation.routes",
+            "woobe_api.http.agent.routes",
             "modules.agent.presentation.schemas",
             "modules.agent.presentation.mappers",
         ]:
@@ -55,3 +55,4 @@ class TestCreateAgentPresentationLayerSkeleton:
                 assert forbidden not in content, (
                     f"Forbidden import '{forbidden}' found in {filepath}"
                 )
+

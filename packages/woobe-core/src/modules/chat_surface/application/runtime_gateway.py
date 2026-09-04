@@ -25,6 +25,14 @@ class ChatRunIdentity:
 
 
 @dataclass(frozen=True, slots=True)
+class ChatMessageRequestSnapshot:
+    id: UUID
+    status: str
+    created_at: datetime
+    target_run_id: UUID | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class ChatRuntimeRequest:
     project_id: UUID
     target_type: str

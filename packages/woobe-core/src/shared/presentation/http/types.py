@@ -1,6 +1,7 @@
 from typing import Any, Callable, Coroutine
 
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 
-HttpHandler: Callable[[Request], Coroutine[Any, Any, Response]]
+HttpHandler: Callable[[OperationRequest], Coroutine[Any, Any, OperationResult]]
+

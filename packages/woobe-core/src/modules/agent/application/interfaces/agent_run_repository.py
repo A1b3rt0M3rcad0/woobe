@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from datetime import datetime
 from uuid import UUID
 
 from modules.agent.domain.run import AgentRun
@@ -37,6 +38,18 @@ class AgentRunRepository(ABC):
     async def get_active_direct_by_session(
         self,
         session_id: UUID,
+    ) -> AgentRun | None: ...
+
+    @abstractmethod
+    async def resolve_direct_runtime_run(
+        self,
+        *,
+        project_id: UUID,
+        agent_id: UUID,
+        session_id: UUID,
+        agent_release_id: UUID,
+        preferred_run_id: UUID | None = None,
+        created_after: datetime | None = None,
     ) -> AgentRun | None: ...
 
     @abstractmethod

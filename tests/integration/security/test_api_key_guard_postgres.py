@@ -18,7 +18,7 @@ from shared.security.api_keys import (
     API_KEY_SCOPE_TRACES_READ,
     issue_project_api_key,
 )
-from shared.security.http_guard import HttpSecurityGuard
+from woobe_api.security.http_guard import HttpSecurityGuard
 from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     ApiKeyRequestLimiter,
@@ -297,3 +297,4 @@ async def test_runtime_api_key_rejects_expired_key(api_key_graph) -> None:
             query_params={},
             path_params={},
         )
+

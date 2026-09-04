@@ -1,6 +1,6 @@
 import pytest
 
-from modules.chat_surface.presentation.schemas import normalize_appearance_config
+from modules.chat_surface.application.dtos import normalize_appearance_config
 
 
 def test_appearance_config_upgrades_legacy_values_to_schema_v2() -> None:
@@ -98,3 +98,4 @@ def test_appearance_config_rejects_unknown_or_unsafe_values() -> None:
         normalize_appearance_config({"messages": {"assistant": {"border_radius": 99}}})
     with pytest.raises(ValueError):
         normalize_appearance_config({"response": {"render_mode": "html"}})
+

@@ -9,7 +9,7 @@ from modules.chat_surface.application.runtime_gateway import (
     ChatRuntimeChunk,
     PreparedChatRuntime,
 )
-from modules.chat_surface.presentation import reattach_routes
+from woobe_api.http.chat_surface import reattach_routes
 
 
 class _SurfaceService:
@@ -164,3 +164,4 @@ async def test_chat_surface_transport_disconnect_does_not_terminalize_message_re
             },
         )
     ]
+

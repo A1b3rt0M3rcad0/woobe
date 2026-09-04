@@ -1,6 +1,6 @@
 import json
 
-from modules.agent.presentation.http.controllers.ask_agent_stream_controller import (
+from woobe_api.http.agent.controllers.ask_agent_stream_controller import (
     _is_public_stream_chunk,
 )
 
@@ -76,3 +76,4 @@ def test_public_agent_stream_preserves_non_token_events() -> None:
     assert _is_public_stream_chunk(
         _event("done", {"type": "done", "answer": "public answer"})
     ) is True
+

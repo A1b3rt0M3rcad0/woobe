@@ -5,8 +5,9 @@ from modules.agent.application.dtos.provider_credential_rotation_dtos import (
     RotateProviderCredentialInput,
 )
 from shared.contracts.errors import AuthenticationError
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 from shared.presentation.interface.controller import Controller
 from shared.security.principal import AuthenticatedPrincipal
 
@@ -15,7 +16,7 @@ class RotateProviderCredentialController(Controller):
     def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         principal = request.principal
         if not isinstance(principal, AuthenticatedPrincipal):
             raise AuthenticationError("User authentication required")
@@ -26,8 +27,8 @@ class RotateProviderCredentialController(Controller):
             UUID(request.path_params["credential_id"]),
             RotateProviderCredentialInput(**body),
         )
-        return Response(
-            status_code=200,
+        return OperationResult(
+            outcome=OperationOutcome.SUCCESS,
             body={
                 "success": True,
                 "message": "rotated",
@@ -44,3 +45,4 @@ class RotateProviderCredentialController(Controller):
                 },
             },
         )
+

@@ -1,0 +1,1 @@
+"""Core dependency composition."""

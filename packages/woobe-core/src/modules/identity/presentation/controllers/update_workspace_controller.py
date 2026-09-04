@@ -3,19 +3,21 @@ from modules.identity.application.use_cases import UpdateWorkspaceUseCase
 from modules.identity.application.dtos import UpdateWorkspaceInput
 from modules.identity.presentation.schemas import WorkspaceResponse
 from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 
 
 class UpdateWorkspaceController(Controller):
     def __init__(self, use_case: UpdateWorkspaceUseCase) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         workspace_id = UUID(request.path_params.get("workspace_id"))
         input_dto = UpdateWorkspaceInput(**request.body)
         result = await self._use_case.execute(workspace_id, input_dto)
-        return Response(
-            status_code=200,
+        return OperationResult(
+            outcome=OperationOutcome.SUCCESS,
             body={"success": True, "message": "ok", "data": WorkspaceResponse(**result.model_dump()).model_dump()},
         )
+

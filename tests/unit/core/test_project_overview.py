@@ -25,7 +25,7 @@ from modules.core.infra.database.uow_project_overview_reader import (
 from modules.core.presentation.controllers.get_project_overview_controller import (
     GetProjectOverviewController,
 )
-from shared.presentation.http.request import Request
+from shared.presentation.contracts import OperationRequest
 
 
 class FakeOverviewReader:
@@ -187,7 +187,7 @@ async def test_controller_parses_raw_query_and_sets_private_cache_headers() -> N
     controller = GetProjectOverviewController(GetProjectOverviewUseCase(reader))
     project_id = uuid4()
     response = await controller.handle(
-        Request(
+        OperationRequest(
             path_params={"project_id": str(project_id)},
             query_params={
                 "from": "2026-06-18T00:00:00Z",
@@ -200,9 +200,9 @@ async def test_controller_parses_raw_query_and_sets_private_cache_headers() -> N
         )
     )
 
-    assert response.status_code == 200
-    assert response.headers["Cache-Control"] == "private, max-age=15"
-    assert response.headers["Vary"] == "Authorization"
+    assert response.outcome == "success"
+    assert response.metadata["Cache-Control"] == "private, max-age=15"
+    assert response.metadata["Vary"] == "Authorization"
     assert response.body["data"]["project_id"] == str(project_id)
     assert response.body["data"]["from"] == "2026-06-18T00:00:00Z"
     assert reader.arguments is not None

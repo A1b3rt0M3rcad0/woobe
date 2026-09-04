@@ -19,8 +19,8 @@ from modules.core.infra.database.models import (
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 from shared.security.api_keys import issue_runtime_api_key
-from shared.security.dependency import enforce_request_security
-from shared.security.http_guard import HttpSecurityGuard
+from woobe_api.security.dependency import enforce_request_security
+from woobe_api.security.http_guard import HttpSecurityGuard
 from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     ApiKeyRequestLimiter,
@@ -251,3 +251,4 @@ async def test_public_reattach_uses_real_runtime_key_auth_without_execution_leas
         if project_id is not None and api_key_id is not None:
             await _cleanup(session_factory, project_id=project_id, api_key_id=api_key_id)
         await engine.dispose()
+

@@ -41,9 +41,22 @@ tests/                            # repository and cross-system validation
 └── e2e/
 ```
 
-`woobe-core` is a product Core package, not a framework-neutral library. Domain, application, infrastructure and bounded-context presentation/composition code remain colocated with the module that owns the behavior.
+`woobe-core` is the transport-neutral product Core. Each bounded context owns its domain, application, infrastructure, presentation contracts and composition. FastAPI, Starlette, HTTP routes, middleware and HTTP response semantics are excluded from Core.
 
-`woobe-api` owns process-level HTTP composition. `woobe-workers` owns process-level worker composition. API and Workers may depend on Core; Core must not import either process package.
+`woobe-api` is the real HTTP host and owns process-level HTTP composition. It may consume each bounded context only through that module's explicit `entrypoint.py`; persistence and repository access remain behind Core capabilities. `woobe-workers` owns process-level worker composition and consumes `entrypoint.py` or the intentionally narrow `background_boundary.py`. Core must not import either process package.
+
+The canonical dependency direction is:
+
+```text
+woobe-api ----> module entrypoint ----> composition
+                                        |----> presentation contracts
+                                        |----> application ----> domain
+                                        |----> infrastructure -> domain
+
+woobe-workers -> entrypoint/background boundary
+```
+
+Application layers do not import infrastructure or transport frameworks. Composition is the only layer that assembles concrete implementations. HTTP routers do not open database sessions or instantiate repositories directly.
 
 `woobe-runtime-client` owns transport-neutral browser-side Runtime protocol semantics such as SSE frame parsing, sequence/gap handling, replacement snapshots, terminal classification and retry policy. It does not own execution. `woobe-frontend` and `woobe-embed` consume it through their own transport/rendering adapters and remain independently deployable product artifacts.
 

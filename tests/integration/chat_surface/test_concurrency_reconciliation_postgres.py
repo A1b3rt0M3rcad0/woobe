@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from modules.chat_surface.control_plane_service import ControlPlaneChatSurfaceService
+from modules.chat_surface.infra.services.control_plane_service import ControlPlaneChatSurfaceService
 from modules.chat_surface.infra.database.models import (
     ChatSurfaceMessageRequestModel,
     ChatSurfaceModel,
@@ -176,3 +176,4 @@ async def test_orphaned_previous_session_does_not_consume_surface_concurrency_fo
         assert created_after.status == "accepted"
     finally:
         await engine.dispose()
+

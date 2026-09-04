@@ -6,9 +6,9 @@ from uuid import uuid4
 import pytest
 
 from modules.chat_surface import control_plane_service as control_plane_service_module
-from modules.chat_surface.control_plane_service import ControlPlaneChatSurfaceService
-from modules.chat_surface.presentation import routes
-from modules.chat_surface.service import ChatSurfaceService
+from modules.chat_surface.infra.services.control_plane_service import ControlPlaneChatSurfaceService
+from woobe_api.http.chat_surface import routes
+from modules.chat_surface.infra.services.chat_surface_service import ChatSurfaceService
 
 
 class _ActiveRequestSession:
@@ -153,3 +153,4 @@ async def test_runtime_gateway_setup_failure_terminalizes_new_message_request(
             },
         )
     ]
+

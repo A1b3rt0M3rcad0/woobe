@@ -1,3 +1,1 @@
-from modules.network.application.service import NetworkApplicationService
-
-__all__ = ["NetworkApplicationService"]
+"""Transport- and infrastructure-neutral Network application contracts."""

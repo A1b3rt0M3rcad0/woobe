@@ -11,7 +11,7 @@ from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.database.models import AgentModel, ProviderCredentialModel
 from modules.agent.infra.database.provider_model_repositories import ProviderModelModel
 from modules.agent.infra.database.run_models import AgentRunModel
-from modules.network.application.service import NetworkApplicationService
+from modules.network.infra.services.service import NetworkApplicationService
 from modules.network.infra.database.models import (
     NetworkExecutionModel,
     NetworkInvocationModel,
@@ -256,3 +256,4 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
     assert run.usage["total_tokens"] == 12
 
     await engine.dispose()
+

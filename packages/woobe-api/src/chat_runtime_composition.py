@@ -6,11 +6,12 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from uuid import UUID
 
-from sqlalchemy import select
-
-from modules.agent.entrypoint import AskInput, build_agent_stream_service, commit_safe_stream
-from modules.agent.infra.database.run_models import AgentRunModel
-from modules.chat_surface.application.runtime_gateway import (
+from modules.agent.entrypoint import (
+    AskInput,
+    build_agent_run_reattach_operations,
+    build_agent_stream_service,
+)
+from modules.chat_surface.entrypoint import (
     ChatRunIdentity,
     ChatRuntimeChunk,
     ChatRuntimeRequest,
@@ -18,13 +19,14 @@ from modules.chat_surface.application.runtime_gateway import (
     DisconnectCheck,
     PreparedChatRuntime,
 )
-from modules.network.application.service import NetworkApplicationService
-from modules.network.infra.database.models import NetworkExecutionModel
-from modules.network.presentation.reattach_routes import (
-    _durable_state as network_durable_state,
+from modules.network.entrypoint import NetworkBoundaryService, build_network_service
+from woobe_api.http.network.reattach_routes import (
     network_runtime_sse,
 )
-from modules.network.presentation.routes import _execution_stream
+from woobe_api.http.network.runtime_routes import _execution_stream
+from woobe_api.http.agent.controllers.ask_agent_stream_controller import (
+    commit_safe_stream,
+)
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import ConflictError, NotFoundError
 from shared.runtime import (
@@ -44,8 +46,6 @@ _TERMINAL_BY_EVENT = {
     "execution_failed": "failed",
 }
 _TERMINAL_STATUSES = {"completed", "failed", "cancelled", "timed_out", "uncertain"}
-_AGENT_ACTIVE = {"running"}
-_NETWORK_ACTIVE = {"queued", "running", "cancel_requested"}
 
 
 class _DisconnectAdapter:
@@ -110,67 +110,17 @@ class ApiChatRuntimeGateway:
     discovery, execution, observation and cancellation stay in the API composition root.
     """
 
-    def __init__(self, *, session_factory, settings, app_state) -> None:
-        self._session_factory = session_factory
-        self._settings = settings
+    def __init__(self, *, settings, app_state) -> None:
         self._app_state = app_state
+        self._agent_runs = build_agent_run_reattach_operations()
         self._observer = RuntimeObserver(
             EXECUTION_STATE_STORE,
             heartbeat_seconds=settings.network_stream_heartbeat_seconds,
             block_ms=500,
         )
 
-    def _network_service(self) -> NetworkApplicationService:
-        return NetworkApplicationService(
-            self._session_factory,
-            hard_max_depth=self._settings.network_max_depth_hard,
-            hard_max_invocations=self._settings.network_max_invocations_hard,
-            hard_timeout_seconds=self._settings.network_timeout_hard_seconds,
-        )
-
-    @staticmethod
-    def _valid_agent(run: AgentRunModel | None, target: ChatRuntimeTarget) -> bool:
-        return bool(
-            run is not None
-            and run.project_id == target.project_id
-            and run.agent_id == target.target_id
-            and run.session_id == target.session_id
-            and run.agent_release_id == target.target_release_id
-            and run.network_execution_id is None
-        )
-
-    @staticmethod
-    def _valid_network(
-        execution: NetworkExecutionModel | None,
-        target: ChatRuntimeTarget,
-    ) -> bool:
-        return bool(
-            execution is not None
-            and execution.project_id == target.project_id
-            and execution.network_id == target.target_id
-            and execution.network_session_id == target.session_id
-            and execution.network_version_id == target.target_release_id
-        )
-
-    @staticmethod
-    def _agent_durable_state(run: AgentRunModel) -> dict:
-        result = run.result if isinstance(run.result, dict) else None
-        answer = result.get("answer") if result else None
-        return {
-            "status": str(run.status),
-            "output": answer or "",
-            "result": result,
-            "usage": run.usage if isinstance(run.usage, dict) else {},
-            "trace_id": str(run.trace_id) if run.trace_id else None,
-            "project_id": str(run.project_id),
-            "agent_id": str(run.agent_id),
-            "session_id": str(run.session_id) if run.session_id else None,
-            "updated_at": (
-                run.completed_at.isoformat()
-                if run.completed_at is not None
-                else run.updated_at.isoformat()
-            ),
-        }
+    def _network_service(self) -> NetworkBoundaryService:
+        return build_network_service()
 
     async def resolve_run(
         self,
@@ -179,67 +129,36 @@ class ApiChatRuntimeGateway:
         preferred_run_id: UUID | None = None,
         created_after: datetime | None = None,
     ) -> ChatRunIdentity | None:
-        async with self._session_factory() as session:
-            if target.target_type == "agent":
-                if preferred_run_id is not None:
-                    run = await session.get(AgentRunModel, preferred_run_id)
-                    if self._valid_agent(run, target):
-                        return ChatRunIdentity(run.id, str(run.status))
-                    return None
-
-                statement = select(AgentRunModel).where(
-                    AgentRunModel.project_id == target.project_id,
-                    AgentRunModel.agent_id == target.target_id,
-                    AgentRunModel.session_id == target.session_id,
-                    AgentRunModel.agent_release_id == target.target_release_id,
-                    AgentRunModel.network_execution_id.is_(None),
-                )
-                if created_after is None:
-                    statement = statement.where(AgentRunModel.status.in_(_AGENT_ACTIVE))
-                else:
-                    statement = statement.where(AgentRunModel.created_at >= created_after)
-                run = await session.scalar(
-                    statement.order_by(
-                        AgentRunModel.created_at.desc(),
-                        AgentRunModel.id.desc(),
-                    ).limit(1)
-                )
-                return (
-                    ChatRunIdentity(run.id, str(run.status))
-                    if self._valid_agent(run, target)
-                    else None
-                )
-
-            if target.target_type != "network":
-                raise ConflictError("Unsupported ChatSurface runtime target")
-
-            if preferred_run_id is not None:
-                execution = await session.get(NetworkExecutionModel, preferred_run_id)
-                if self._valid_network(execution, target):
-                    return ChatRunIdentity(execution.id, str(execution.status))
+        if target.target_type == "agent":
+            run = await self._agent_runs.resolve_target_run(
+                project_id=target.project_id,
+                agent_id=target.target_id,
+                session_id=target.session_id,
+                agent_release_id=target.target_release_id,
+                preferred_run_id=preferred_run_id,
+                created_after=created_after,
+            )
+            if run is None:
                 return None
+            return ChatRunIdentity(run["run_id"], run["status"])
 
-            statement = select(NetworkExecutionModel).where(
-                NetworkExecutionModel.project_id == target.project_id,
-                NetworkExecutionModel.network_id == target.target_id,
-                NetworkExecutionModel.network_session_id == target.session_id,
-                NetworkExecutionModel.network_version_id == target.target_release_id,
-            )
-            if created_after is None:
-                statement = statement.where(NetworkExecutionModel.status.in_(_NETWORK_ACTIVE))
-            else:
-                statement = statement.where(NetworkExecutionModel.created_at >= created_after)
-            execution = await session.scalar(
-                statement.order_by(
-                    NetworkExecutionModel.created_at.desc(),
-                    NetworkExecutionModel.id.desc(),
-                ).limit(1)
-            )
-            return (
-                ChatRunIdentity(execution.id, str(execution.status))
-                if self._valid_network(execution, target)
-                else None
-            )
+        if target.target_type != "network":
+            raise ConflictError("Unsupported ChatSurface runtime target")
+
+        execution = await self._network_service().resolve_chat_surface_run(
+            project_id=target.project_id,
+            network_id=target.target_id,
+            network_session_id=target.session_id,
+            network_version_id=target.target_release_id,
+            preferred_run_id=preferred_run_id,
+            created_after=created_after,
+        )
+        if execution is None:
+            return None
+        return ChatRunIdentity(
+            UUID(str(execution["run_id"])),
+            str(execution["status"]),
+        )
 
     async def _agent_stream(
         self,
@@ -281,7 +200,7 @@ class ApiChatRuntimeGateway:
     async def _network_stream(
         self,
         *,
-        execution: NetworkExecutionModel,
+        execution_id: UUID,
         project_id: UUID,
         disconnect_check: DisconnectCheck,
     ) -> AsyncIterator[ChatRuntimeChunk]:
@@ -291,14 +210,14 @@ class ApiChatRuntimeGateway:
         )
         async for chunk in _execution_stream(
             request_adapter,
-            execution.id,
+            execution_id,
             project_id,
             0,
         ):
             run_id, terminal_status = _runtime_metadata(chunk)
             yield ChatRuntimeChunk(
                 sse=chunk,
-                run_id=run_id or execution.id,
+                run_id=run_id or execution_id,
                 terminal_status=terminal_status,
             )
 
@@ -327,27 +246,31 @@ class ApiChatRuntimeGateway:
                 message=runtime_request.message,
                 idempotency_key=f"chat:{runtime_request.message_request_id}",
             )
+            execution_id = execution.id
         elif runtime_request.existing_run_id is not None:
-            async with self._session_factory() as session:
-                execution = await session.get(
-                    NetworkExecutionModel,
-                    runtime_request.existing_run_id,
-                )
-            if not self._valid_network(execution, runtime_request.target):
+            existing = await self._network_service().resolve_chat_surface_run(
+                project_id=runtime_request.project_id,
+                network_id=runtime_request.target_id,
+                network_session_id=runtime_request.session_id,
+                network_version_id=runtime_request.target_release_id,
+                preferred_run_id=runtime_request.existing_run_id,
+            )
+            if existing is None:
                 raise NotFoundError("Network execution not found")
+            execution_id = UUID(str(existing["run_id"]))
         else:
             raise ConflictError(
                 "Network message request is accepted but its execution is not ready"
             )
 
         return PreparedChatRuntime(
-            run_id=execution.id,
+            run_id=execution_id,
             headers={
-                "X-Network-Execution-ID": str(execution.id),
-                "X-Woobe-Run-ID": str(execution.id),
+                "X-Network-Execution-ID": str(execution_id),
+                "X-Woobe-Run-ID": str(execution_id),
             },
             stream=self._network_stream(
-                execution=execution,
+                execution_id=execution_id,
                 project_id=runtime_request.project_id,
                 disconnect_check=disconnect_check,
             ),
@@ -359,37 +282,48 @@ class ApiChatRuntimeGateway:
         run_id: UUID,
         disconnect_check: DisconnectCheck,
     ) -> PreparedChatRuntime:
-        async with self._session_factory() as session:
-            if target.target_type == "agent":
-                run = await session.get(AgentRunModel, run_id)
-                if not self._valid_agent(run, target):
-                    raise NotFoundError("Agent Run not found")
-            elif target.target_type == "network":
-                execution = await session.get(NetworkExecutionModel, run_id)
-                if not self._valid_network(execution, target):
-                    raise NotFoundError("Network execution not found")
-            else:
-                raise ConflictError("Unsupported ChatSurface runtime target")
+        if target.target_type == "agent":
+            await self._agent_runs.durable_target_state(
+                run_id=run_id,
+                project_id=target.project_id,
+                agent_id=target.target_id,
+                session_id=target.session_id,
+                agent_release_id=target.target_release_id,
+            )
+        elif target.target_type == "network":
+            await self._network_service().chat_surface_durable_state(
+                execution_id=run_id,
+                project_id=target.project_id,
+                network_id=target.target_id,
+                network_session_id=target.session_id,
+                network_version_id=target.target_release_id,
+            )
+        else:
+            raise ConflictError("Unsupported ChatSurface runtime target")
 
         async def stream() -> AsyncIterator[ChatRuntimeChunk]:
             if target.target_type == "agent":
                 async def durable_fallback() -> dict | None:
-                    async with self._session_factory() as session:
-                        latest = await session.get(AgentRunModel, run_id)
-                    if not self._valid_agent(latest, target):
-                        raise NotFoundError("Agent Run not found")
-                    return self._agent_durable_state(latest)
+                    return await self._agent_runs.durable_target_state(
+                        run_id=run_id,
+                        project_id=target.project_id,
+                        agent_id=target.target_id,
+                        session_id=target.session_id,
+                        agent_release_id=target.target_release_id,
+                    )
 
                 formatter = format_sse_frame
                 run_ref = RunReference.agent(run_id)
                 kind = "agent"
             else:
                 async def durable_fallback() -> dict | None:
-                    async with self._session_factory() as session:
-                        latest = await session.get(NetworkExecutionModel, run_id)
-                    if not self._valid_network(latest, target):
-                        raise NotFoundError("Network execution not found")
-                    return network_durable_state(latest)
+                    return await self._network_service().chat_surface_durable_state(
+                        execution_id=run_id,
+                        project_id=target.project_id,
+                        network_id=target.target_id,
+                        network_session_id=target.session_id,
+                        network_version_id=target.target_release_id,
+                    )
 
                 formatter = lambda frame: network_runtime_sse(frame, run_id)
                 run_ref = RunReference.network(run_id)
@@ -442,39 +376,29 @@ class ApiChatRuntimeGateway:
         target: ChatRuntimeTarget,
         run_id: UUID,
     ) -> ChatRunIdentity:
-        async with self._session_factory() as session:
-            if target.target_type == "agent":
-                run = await session.get(AgentRunModel, run_id)
-                if not self._valid_agent(run, target):
-                    raise NotFoundError("Agent Run not found")
-                status = str(run.status)
-                if status in _TERMINAL_STATUSES:
-                    return ChatRunIdentity(run.id, status)
-                try:
-                    state = await EXECUTION_STATE_STORE.get(run_id)
-                except Exception as exc:
-                    raise ConflictError(
-                        "Agent Run runtime control state is temporarily unavailable; "
-                        "cancellation was not requested"
-                    ) from exc
-                if state is None:
-                    raise ConflictError(
-                        "Agent Run has no active runtime state; cancellation cannot be confirmed safely"
-                    )
-                try:
-                    await EXECUTION_STATE_STORE.request_cancel(run_id)
-                except Exception as exc:
-                    raise ConflictError(
-                        "Agent Run cancellation request could not be recorded safely"
-                    ) from exc
-                return ChatRunIdentity(run.id, "cancel_requested")
+        if target.target_type == "agent":
+            result = await self._agent_runs.cancel_target_run(
+                run_id=run_id,
+                project_id=target.project_id,
+                agent_id=target.target_id,
+                session_id=target.session_id,
+                agent_release_id=target.target_release_id,
+            )
+            return ChatRunIdentity(run_id, result["status"])
 
-            if target.target_type != "network":
-                raise ConflictError("Unsupported ChatSurface runtime target")
-            execution = await session.get(NetworkExecutionModel, run_id)
-            if not self._valid_network(execution, target):
-                raise NotFoundError("Network execution not found")
-            status = str(execution.status)
+        if target.target_type != "network":
+            raise ConflictError("Unsupported ChatSurface runtime target")
+
+        execution = await self._network_service().resolve_chat_surface_run(
+            project_id=target.project_id,
+            network_id=target.target_id,
+            network_session_id=target.session_id,
+            network_version_id=target.target_release_id,
+            preferred_run_id=run_id,
+        )
+        if execution is None:
+            raise NotFoundError("Network execution not found")
+        status = str(execution["status"])
 
         if status in _TERMINAL_STATUSES:
             return ChatRunIdentity(run_id, status)

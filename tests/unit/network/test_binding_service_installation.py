@@ -2,9 +2,12 @@ import hashlib
 import json
 from uuid import uuid4
 
-import modules.network  # noqa: F401 - installs explicit binding extensions
 from modules.agent.infra.database.models import AgentReleaseModel
-from modules.network.application.service import NetworkApplicationService
+from modules.network.composition.bootstrap import install_network_service_extensions
+from modules.network.infra.services.service import NetworkApplicationService
+
+
+install_network_service_extensions()
 
 
 def test_explicit_binding_helpers_remain_static_after_installation() -> None:

@@ -2,8 +2,9 @@ from modules.core.application.dtos import UpdateApiKeyCredentialInput
 from modules.core.application.use_cases import UpdateApiKeyCredentialUseCase
 from modules.core.presentation.schemas import ApiKeyCredentialResponse
 from shared.infra.errors import AuthenticationError
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 from shared.presentation.interface.controller import Controller
 from shared.security.principal import AuthenticatedPrincipal
 
@@ -12,7 +13,7 @@ class UpdateApiKeyCredentialController(Controller):
     def __init__(self, use_case: UpdateApiKeyCredentialUseCase) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         principal = request.principal
         if not isinstance(principal, AuthenticatedPrincipal):
             raise AuthenticationError("User authentication required")
@@ -39,11 +40,12 @@ class UpdateApiKeyCredentialController(Controller):
             environment=result.environment.value if result.environment else None,
             updated_at=result.updated_at,
         )
-        return Response(
-            status_code=200,
+        return OperationResult(
+            outcome=OperationOutcome.SUCCESS,
             body={
                 "success": True,
                 "message": "updated",
                 "data": response_data.model_dump(),
             },
         )
+

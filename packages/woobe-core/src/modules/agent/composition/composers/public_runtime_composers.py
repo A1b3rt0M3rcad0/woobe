@@ -38,9 +38,6 @@ from modules.agent.presentation.controllers.public_runtime_controllers import (
     PublicGetJobController,
     PublicRunController,
 )
-from modules.agent.presentation.http.controllers.public_runtime_stream_controller import (
-    PublicRuntimeStreamController,
-)
 from shared.infra.transactional_handler import TransactionalHandler
 
 
@@ -54,7 +51,7 @@ def public_run_composer() -> Callable:
     return controller.handle
 
 
-def public_stream_composer() -> Callable:
+def build_public_stream_components() -> tuple:
     use_case, transactions = build_ask_agent_use_case(
         SETTINGS,
         get_http_tool_executor(),
@@ -62,12 +59,11 @@ def public_stream_composer() -> Callable:
     service = AskAgentStreamService(use_case, transactions)
     preparer = PublicRuntimeRequestGateway(transactions)
     environment_guard = build_agent_runtime_environment_guard(transactions)
-    controller = PublicRuntimeStreamController(
+    return (
         service,
         preparer.prepare,
         environment_guard,
     )
-    return controller.handle
 
 
 def public_create_job_composer() -> TransactionalHandler:
@@ -99,5 +95,5 @@ __all__ = [
     "public_create_job_composer",
     "public_get_job_composer",
     "public_run_composer",
-    "public_stream_composer",
+    "build_public_stream_components",
 ]

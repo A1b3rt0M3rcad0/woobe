@@ -8,7 +8,7 @@ from modules.chat_surface.application.runtime_gateway import (
     ChatRuntimeChunk,
     PreparedChatRuntime,
 )
-from modules.chat_surface.presentation.routes import _consume_runtime_stream
+from woobe_api.http.chat_surface.routes import _consume_runtime_stream
 
 
 class _Service:
@@ -95,3 +95,4 @@ async def test_terminal_runtime_fact_terminalizes_message() -> None:
             },
         ),
     ]
+

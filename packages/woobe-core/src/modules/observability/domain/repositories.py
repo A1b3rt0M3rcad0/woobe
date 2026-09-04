@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from modules.observability.domain.entities import Trace, TraceEvent
-from shared.infra.objects import CursorPage
+from shared.contracts.pagination import CursorPage
 
 
 class TraceRepository(ABC):
@@ -73,3 +73,4 @@ class TraceEventRepository(ABC):
 
     @abstractmethod
     async def delete(self, event_id: UUID) -> None: ...
+

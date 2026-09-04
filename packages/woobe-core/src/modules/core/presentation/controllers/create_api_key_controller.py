@@ -2,8 +2,9 @@ from modules.core.application.dtos import CreateApiKeyInput
 from modules.core.application.use_cases import CreateApiKeyUseCase
 from modules.core.presentation.schemas import CreatedApiKeyResponse
 from shared.infra.errors import AuthenticationError
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 from shared.presentation.interface.controller import Controller
 from shared.security.principal import AuthenticatedPrincipal
 
@@ -12,7 +13,7 @@ class CreateApiKeyController(Controller):
     def __init__(self, use_case: CreateApiKeyUseCase) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         principal = request.principal
         if not isinstance(principal, AuthenticatedPrincipal):
             raise AuthenticationError("User authentication required")
@@ -35,11 +36,12 @@ class CreateApiKeyController(Controller):
             created_at=result.created_at,
             rotated_from_id=None,
         )
-        return Response(
-            status_code=201,
+        return OperationResult(
+            outcome=OperationOutcome.CREATED,
             body={
                 "success": True,
                 "message": "created",
                 "data": response_data.model_dump(),
             },
         )
+

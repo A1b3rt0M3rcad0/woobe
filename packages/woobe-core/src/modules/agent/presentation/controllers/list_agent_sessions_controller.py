@@ -3,8 +3,9 @@ from uuid import UUID
 
 from modules.agent.application.dtos import ListAgentSessionsInput
 from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 
 _VALID_ENVIRONMENTS = {"draft", "staging", "production"}
 
@@ -13,15 +14,15 @@ class ListAgentSessionsController(Controller):
     def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         agent_id = UUID(request.path_params["agent_id"])
         project_id = UUID(request.query_params["project_id"])
         raw_limit = request.query_params.get("limit", 20)
         cursor = request.query_params.get("cursor")
         environment = request.query_params.get("environment")
         if environment not in (None, "") and environment not in _VALID_ENVIRONMENTS:
-            return Response(
-                status_code=400,
+            return OperationResult(
+                outcome=OperationOutcome.INVALID,
                 body={"success": False, "message": "environment must be draft, staging or production", "data": None},
             )
 
@@ -41,12 +42,12 @@ class ListAgentSessionsController(Controller):
         try:
             result = await self._use_case.execute(input_dto)
         except Exception as e:
-            return Response(
-                status_code=400,
+            return OperationResult(
+                outcome=OperationOutcome.INVALID,
                 body={"success": False, "message": str(e), "data": None},
             )
-        return Response(
-            status_code=200,
+        return OperationResult(
+            outcome=OperationOutcome.SUCCESS,
             body={
                 "success": True,
                 "message": "ok",
@@ -57,3 +58,4 @@ class ListAgentSessionsController(Controller):
                 },
             },
         )
+

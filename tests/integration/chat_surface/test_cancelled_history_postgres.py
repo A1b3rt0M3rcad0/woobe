@@ -19,7 +19,7 @@ from modules.chat_surface.infra.database.models import (
     ChatSurfaceModel,
     ChatSurfaceSessionBindingModel,
 )
-from modules.chat_surface.service import ChatSurfaceService
+from modules.chat_surface.infra.services.chat_surface_service import ChatSurfaceService
 from modules.core.infra.database.models import ProjectModel
 from modules.network.infra.database.models import (
     NetworkExecutionModel,
@@ -547,3 +547,4 @@ async def test_cancelled_network_chat_surface_history_keeps_request_execution_an
         assert history["items"][1]["data"]["cancelled"] is True
     finally:
         await engine.dispose()
+

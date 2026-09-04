@@ -8,6 +8,7 @@ allowed = [
   "composition/factories/**",
   "composition/resources.py",
   "composition/module.py",
+  "composition/public_api.py",
 ]
 
 [transport_ownership]
@@ -16,7 +17,7 @@ imports = [
   "fastapi",
   "starlette",
 ]
-allowed_sources = ["presentation/http/**"]
+allowed_sources = []
 
 [presentation_purity]
 rule_id = "ARCH065"
@@ -112,7 +113,7 @@ allowed_sources = []
 [module_api]
 rule_id = "ARCH071"
 source = [
-  "packages/woobe-api/src/main.py",
+  "packages/woobe-api/src/**/*.py",
   "packages/woobe-workers/src/woobe_workers/consumers/agent/**",
   "packages/woobe-workers/src/woobe_workers/composition/network_agent_runtime.py",
 ]

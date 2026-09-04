@@ -4,8 +4,9 @@ from uuid import UUID
 from modules.agent.application.dtos import PromoteReleaseInput
 from modules.agent.presentation.mappers import release_to_response
 from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 
 
 def _release_payload(release):
@@ -19,7 +20,7 @@ class PromoteReleaseController(Controller):
     def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         agent_id = UUID(request.path_params["agent_id"])
         release_id = UUID(request.path_params["release_id"])
         body = request.body or {}
@@ -34,4 +35,5 @@ class PromoteReleaseController(Controller):
             copy_snapshot=bool(body.get("copy_snapshot", False)),
             change_kind=body.get("change_kind", "change"),
         )
-        return Response(status_code=200, body={"success": True, "data": _release_payload(result)})
+        return OperationResult(outcome=OperationOutcome.SUCCESS, body={"success": True, "data": _release_payload(result)})
+

@@ -122,7 +122,6 @@ allow = [
   "modules.agent.application",
   "modules.agent.infra",
   "modules.agent.presentation.controllers",
-  "modules.agent.presentation.http.controllers",
   "modules.agent.presentation.interfaces",
   "modules.agent.presentation.schemas",
   "shared.contracts",
@@ -159,7 +158,7 @@ deny = [
 [[rules]]
 id = "ARCH005"
 description = "presentation controllers depend only on application contracts, domain values and presentation code"
-source = ["presentation/controllers/**", "presentation/http/controllers/**"]
+source = ["presentation/controllers/**"]
 allow = [
   "shared.contracts",
   "shared.security.principal",
@@ -177,32 +176,6 @@ deny = [
   "shared.messaging",
   "shared.workers",
   "woobe_workers",
-]
-
-[[rules]]
-id = "ARCH006H"
-description = "HTTP routes are transport adapters and may invoke zero-argument Agent composers, but cannot own infrastructure or application use cases"
-source = ["presentation/http/**"]
-allow = [
-  "shared.contracts",
-  "shared.security.principal",
-  "modules.agent.presentation",
-  "modules.agent.application.interfaces",
-  "modules.agent.application.dtos",
-  "modules.agent.domain",
-  "modules.agent.composition.composers",
-  "shared.presentation",
-  "shared.security",
-]
-deny = [
-  "modules.agent.application.use_cases",
-  "modules.agent.infra",
-  "modules.agent.composition.resources",
-  "shared.infra",
-  "shared.messaging",
-  "shared.workers",
-  "woobe_workers",
-  "sqlalchemy",
 ]
 
 [[rules]]

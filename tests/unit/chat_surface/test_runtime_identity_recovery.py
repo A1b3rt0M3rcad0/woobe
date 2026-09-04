@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 
 from modules.chat_surface.application.runtime_gateway import ChatRunIdentity
-from modules.chat_surface.presentation import reattach_routes
+from woobe_api.http.chat_surface import reattach_routes
 
 
 class _Service:
@@ -100,3 +100,4 @@ async def test_chat_surface_recovers_run_identity_lag_after_message_acceptance(m
             },
         )
     ]
+

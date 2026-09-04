@@ -4,7 +4,7 @@ from uuid import uuid4
 import pytest
 
 from modules.network.presentation import public_runtime
-from shared.security.http_guard import (
+from woobe_api.security.http_guard import (
     is_runtime_execution_request,
     is_runtime_path,
     public_runtime_interface,
@@ -61,3 +61,4 @@ async def test_public_network_stream_uses_same_canonical_reattach_path(monkeypat
 
     result = await public_runtime.stream_network_http(SimpleNamespace())
     assert result is sentinel
+

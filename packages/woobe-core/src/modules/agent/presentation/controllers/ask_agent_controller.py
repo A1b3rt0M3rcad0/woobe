@@ -4,8 +4,9 @@ import logging
 from modules.agent.presentation.schemas import AskResponse, UsageResponse
 from modules.agent.application.dtos import AskInput
 from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 from shared.presentation.interface.controller import Controller
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,7 @@ class AskAgentController(Controller):
     def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         try:
             input_dto = AskInput(**request.body)
             result = await self._use_case.execute(input_dto)
@@ -49,8 +50,8 @@ class AskAgentController(Controller):
             data["execution_events"] = result.execution_events
             data["diagnostics"] = result.diagnostics
 
-            return Response(
-                status_code=200,
+            return OperationResult(
+                outcome=OperationOutcome.SUCCESS,
                 body={
                     "success": True,
                     "message": "Agent answered successfully",
@@ -59,33 +60,34 @@ class AskAgentController(Controller):
             )
 
         except NotFoundError as e:
-            return Response(
-                status_code=404,
+            return OperationResult(
+                outcome=OperationOutcome.NOT_FOUND,
                 body={"success": False, "message": str(e), "data": None},
             )
         except ConflictError as e:
-            return Response(
-                status_code=409,
+            return OperationResult(
+                outcome=OperationOutcome.CONFLICT,
                 body={"success": False, "message": str(e), "data": None},
             )
         except ValidationError as e:
-            return Response(
-                status_code=400,
+            return OperationResult(
+                outcome=OperationOutcome.INVALID,
                 body={"success": False, "message": str(e), "data": None},
             )
         except NotImplementedError as e:
-            return Response(
-                status_code=501,
+            return OperationResult(
+                outcome=OperationOutcome.NOT_IMPLEMENTED,
                 body={"success": False, "message": str(e), "data": None},
             )
         except ValueError as e:
-            return Response(
-                status_code=400,
+            return OperationResult(
+                outcome=OperationOutcome.INVALID,
                 body={"success": False, "message": str(e), "data": None},
             )
         except Exception as e:
             logger.exception("Unexpected error in ask agent: %s", e)
-            return Response(
-                status_code=500,
+            return OperationResult(
+                outcome=OperationOutcome.FAILURE,
                 body={"success": False, "message": "Internal server error", "data": None},
             )
+

@@ -10,7 +10,7 @@ from shared.security.api_keys import (
     API_KEY_VERSION,
     issue_runtime_api_key,
 )
-from shared.security.http_guard import HttpSecurityGuard
+from woobe_api.security.http_guard import HttpSecurityGuard
 
 
 class FakeResult:
@@ -112,3 +112,4 @@ async def test_guard_rejects_environment_prefix_binding_mismatch() -> None:
             query_params={},
             path_params={},
         )
+

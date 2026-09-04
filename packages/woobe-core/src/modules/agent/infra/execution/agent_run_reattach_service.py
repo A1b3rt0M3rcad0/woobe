@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from datetime import datetime
 from uuid import UUID
 
 from modules.agent.domain.run import AgentRun
@@ -201,6 +202,109 @@ class AgentRunReattachService:
                 "Agent Run has no active runtime state; cancellation cannot be confirmed safely"
             )
 
+        try:
+            await self._state_store.request_cancel(run_id)
+        except Exception as exc:
+            raise ConflictError(
+                "Agent Run cancellation request could not be recorded safely"
+            ) from exc
+        return {"run_id": str(run_id), "status": "cancel_requested"}
+
+    async def resolve_target_run(
+        self,
+        *,
+        project_id: UUID,
+        agent_id: UUID,
+        session_id: UUID,
+        agent_release_id: UUID,
+        preferred_run_id: UUID | None = None,
+        created_after: datetime | None = None,
+    ) -> dict | None:
+        async def read_run(repositories: AgentRuntimeRepositories, _outbox):
+            run = await repositories.runs.resolve_direct_runtime_run(
+                project_id=project_id,
+                agent_id=agent_id,
+                session_id=session_id,
+                agent_release_id=agent_release_id,
+                preferred_run_id=preferred_run_id,
+                created_after=created_after,
+            )
+            if run is None:
+                return None
+            return {"run_id": run.id, "status": str(run.status)}
+
+        return await self._transactions.read(read_run)
+
+    async def _load_target_run(
+        self,
+        *,
+        run_id: UUID,
+        project_id: UUID,
+        agent_id: UUID,
+        session_id: UUID,
+        agent_release_id: UUID,
+    ) -> AgentRun:
+        async def read_run(repositories: AgentRuntimeRepositories, _outbox):
+            run = await repositories.runs.resolve_direct_runtime_run(
+                project_id=project_id,
+                agent_id=agent_id,
+                session_id=session_id,
+                agent_release_id=agent_release_id,
+                preferred_run_id=run_id,
+            )
+            if run is None:
+                raise NotFoundError("Agent Run not found")
+            return run
+
+        return await self._transactions.read(read_run)
+
+    async def durable_target_state(
+        self,
+        *,
+        run_id: UUID,
+        project_id: UUID,
+        agent_id: UUID,
+        session_id: UUID,
+        agent_release_id: UUID,
+    ) -> dict:
+        run = await self._load_target_run(
+            run_id=run_id,
+            project_id=project_id,
+            agent_id=agent_id,
+            session_id=session_id,
+            agent_release_id=agent_release_id,
+        )
+        return self._durable_state(run)
+
+    async def cancel_target_run(
+        self,
+        *,
+        run_id: UUID,
+        project_id: UUID,
+        agent_id: UUID,
+        session_id: UUID,
+        agent_release_id: UUID,
+    ) -> dict:
+        run = await self._load_target_run(
+            run_id=run_id,
+            project_id=project_id,
+            agent_id=agent_id,
+            session_id=session_id,
+            agent_release_id=agent_release_id,
+        )
+        if str(run.status) in _TERMINAL_STATUSES:
+            return {"run_id": str(run_id), "status": str(run.status)}
+        try:
+            state = await self._state_store.get(run_id)
+        except Exception as exc:
+            raise ConflictError(
+                "Agent Run runtime control state is temporarily unavailable; "
+                "cancellation was not requested"
+            ) from exc
+        if state is None:
+            raise ConflictError(
+                "Agent Run has no active runtime state; cancellation cannot be confirmed safely"
+            )
         try:
             await self._state_store.request_cancel(run_id)
         except Exception as exc:

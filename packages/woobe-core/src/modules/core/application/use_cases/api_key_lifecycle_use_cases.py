@@ -12,7 +12,7 @@ from modules.core.domain.entities import ApiKey
 from modules.core.domain.enums import ApiKeyKind, ApiKeyStatus
 from modules.core.domain.errors import ApiKeyNotActiveError, ApiKeyNotFoundError
 from modules.core.domain.repositories import ApiKeyRepository
-from shared.infra.errors import ValidationError
+from shared.contracts.errors import ValidationError
 from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.security.api_keys import (
     issue_project_api_key,
@@ -232,3 +232,4 @@ class UpdateApiKeyCredentialUseCase:
             environment=saved.environment,
             updated_at=now,
         )
+

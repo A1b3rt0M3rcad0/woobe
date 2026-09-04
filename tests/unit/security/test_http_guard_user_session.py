@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from shared.security.http_guard import HttpSecurityGuard
+from woobe_api.security.http_guard import HttpSecurityGuard
 from shared.security.principal import AuthenticatedPrincipal
 
 
@@ -36,3 +36,4 @@ async def test_active_session_validation_uses_identity_user_sessions() -> None:
     assert "identity.user_sessions" in statement
     assert "identity.refresh_sessions" not in statement
     assert params == {"session_id": session_id}
+

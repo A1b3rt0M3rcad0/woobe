@@ -18,12 +18,14 @@ Enterprise implementation modules.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Generic, TypeVar
 
-from fastapi import APIRouter
+
+ProcessExtensionT = TypeVar("ProcessExtensionT")
 
 
 @dataclass(frozen=True, slots=True)
-class EditionIntegration:
+class EditionIntegration(Generic[ProcessExtensionT]):
     """Composition payload supplied by a separately licensed Enterprise layer.
 
     ``name`` is operational metadata only. It is not a license selector and it
@@ -31,4 +33,4 @@ class EditionIntegration:
     """
 
     name: str = "core"
-    api_routers: tuple[APIRouter, ...] = ()
+    process_extensions: tuple[ProcessExtensionT, ...] = ()

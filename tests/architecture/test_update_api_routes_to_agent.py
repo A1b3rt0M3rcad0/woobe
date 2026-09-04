@@ -14,26 +14,26 @@ class TestAgentRoutesSuccess:
     """Verify agent routes module exports consolidated agent_router."""
 
     def test_agent_routes_module_exports_agent_router(self):
-        mod = importlib.import_module("modules.agent.presentation.routes")
+        mod = importlib.import_module("woobe_api.http.agent.routes")
         assert hasattr(mod, "agent_router"), (
             "agent/presentation/routes.py must export 'agent_router'"
         )
 
     def test_agent_router_has_agent_prefix(self):
-        mod = importlib.import_module("modules.agent.presentation.routes")
+        mod = importlib.import_module("woobe_api.http.agent.routes")
         assert isinstance(mod.agent_router, APIRouter)
         assert mod.agent_router.prefix == "/agent", (
             "agent_router prefix must be /agent"
         )
 
     def test_agent_router_has_agent_tag(self):
-        mod = importlib.import_module("modules.agent.presentation.routes")
+        mod = importlib.import_module("woobe_api.http.agent.routes")
         assert "agent" in mod.agent_router.tags, (
             "agent_router must have 'agent' tag"
         )
 
     def test_agent_router_includes_legacy_routers(self):
-        mod = importlib.import_module("modules.agent.presentation.routes")
+        mod = importlib.import_module("woobe_api.http.agent.routes")
         legacy_names = {r.name for r in mod.agent_router.routes if hasattr(r, "name")}
         has_ai = "ai" in str(legacy_names).lower() or any(
             "/ai/" in getattr(r, "path", "") for r in mod.agent_router.routes
@@ -52,27 +52,21 @@ class TestAgentRoutesSuccess:
         import main as main_mod
 
         source = inspect.getsource(main_mod.create_app)
-        assert "agent_router" in source, (
-            "packages/woobe-api/src/main.py must reference agent_router"
-        )
-        assert "include_router(agent_router)" in source, (
-            "packages/woobe-api/src/main.py must register agent_router via include_router"
-        )
+        assert "for agent_http_router in AGENT_HTTP_ROUTERS" in source
+        assert "include_router(agent_http_router)" in source
 
     def test_main_imports_agent_router(self):
         import main as main_mod
 
         source = inspect.getsource(main_mod)
-        assert "from modules.agent.presentation.routes import agent_router" in source, (
-            "packages/woobe-api/src/main.py must import agent_router directly"
-        )
+        assert "from woobe_api.http.agent import HTTP_ROUTERS as AGENT_HTTP_ROUTERS" in source
 
 
 class TestAgentRoutesNoForbiddenDependency:
     """Verify agent routes have no forbidden cross-module imports."""
 
     def test_agent_routes_has_no_legacy_module_imports(self):
-        mod = importlib.import_module("modules.agent.presentation.routes")
+        mod = importlib.import_module("woobe_api.http.agent.routes")
         source = inspect.getsource(mod)
         forbidden = [
             "from modules.ai.",
@@ -88,7 +82,7 @@ class TestAgentRoutesNoForbiddenDependency:
             )
 
     def test_agent_routes_only_imports_from_agent_and_shared(self):
-        mod = importlib.import_module("modules.agent.presentation.routes")
+        mod = importlib.import_module("woobe_api.http.agent.routes")
         source = inspect.getsource(mod)
         import_lines = [
             line for line in source.splitlines()
@@ -106,7 +100,7 @@ class TestAgentRoutesLegacyCompatibility:
     """Verify legacy prefix routers remain as deprecation shims."""
 
     def test_legacy_ai_router_still_exists(self):
-        mod = importlib.import_module("modules.agent.presentation.routes")
+        mod = importlib.import_module("woobe_api.http.agent.routes")
         assert hasattr(mod, "router"), (
             "Legacy /ai prefix router must still exist"
         )
@@ -114,7 +108,7 @@ class TestAgentRoutesLegacyCompatibility:
         assert "/ai" in (mod.router.prefix or "")
 
     def test_legacy_knowledge_router_still_exists(self):
-        mod = importlib.import_module("modules.agent.presentation.routes")
+        mod = importlib.import_module("woobe_api.http.agent.routes")
         assert hasattr(mod, "knowledge_router"), (
             "Legacy /knowledge prefix router must still exist"
         )
@@ -122,7 +116,7 @@ class TestAgentRoutesLegacyCompatibility:
         assert "/knowledge" in (mod.knowledge_router.prefix or "")
 
     def test_legacy_runtime_router_still_exists(self):
-        mod = importlib.import_module("modules.agent.presentation.routes")
+        mod = importlib.import_module("woobe_api.http.agent.routes")
         assert hasattr(mod, "runtime_router"), (
             "Legacy /runtime prefix router must still exist"
         )
@@ -130,7 +124,7 @@ class TestAgentRoutesLegacyCompatibility:
         assert "/runtime" in (mod.runtime_router.prefix or "")
 
     def test_legacy_routers_have_agent_tag(self):
-        mod = importlib.import_module("modules.agent.presentation.routes")
+        mod = importlib.import_module("woobe_api.http.agent.routes")
         assert "agent" in mod.router.tags, (
             "Legacy /ai router should include 'agent' tag"
         )
@@ -142,19 +136,17 @@ class TestAgentRoutesLegacyCompatibility:
         )
 
     def test_main_still_registers_legacy_routers(self):
-        import main as main_mod
+        mod = importlib.import_module("woobe_api.http.agent")
+        routes = importlib.import_module("woobe_api.http.agent.routes")
 
-        source = inspect.getsource(main_mod.create_app)
-        assert "agent_ai_router" in source
-        assert "agent_knowledge_router" in source
-        assert "agent_runtime_router" in source
+        assert routes.router in mod.HTTP_ROUTERS
+        assert routes.knowledge_router in mod.HTTP_ROUTERS
+        assert routes.runtime_router in mod.HTTP_ROUTERS
 
     def test_main_registers_agent_router_before_legacy(self):
-        import main as main_mod
+        mod = importlib.import_module("woobe_api.http.agent")
+        routes = importlib.import_module("woobe_api.http.agent.routes")
 
-        source = inspect.getsource(main_mod.create_app)
-        agent_pos = source.index("include_router(agent_router)")
-        ai_pos = source.index("include_router(agent_ai_router)")
-        assert agent_pos < ai_pos, (
-            "agent_router should be registered before legacy routers"
+        assert mod.HTTP_ROUTERS.index(routes.agent_router) < mod.HTTP_ROUTERS.index(
+            routes.router
         )

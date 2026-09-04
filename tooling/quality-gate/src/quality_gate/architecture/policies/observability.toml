@@ -1,0 +1,107 @@
+[module]
+name = "observability"
+root = "packages/woobe-core/src/modules/observability"
+package = "modules.observability"
+required_layers = ["domain", "application", "infra", "presentation", "composition"]
+
+[constraints]
+forbid_cross_module_imports = true
+forbid_dynamic_imports = true
+forbid_wildcard_imports = true
+forbid_cycles = true
+forbidden_paths = ["application/composers", "presentation/http"]
+
+[composer_contract]
+source = ["composition/composers/**"]
+function_suffix = "_composer"
+streaming_suffix = "_stream_composer"
+allowed_handlers = ["TransactionalHandler", "StreamingTransactionalHandler"]
+regular_handler = "TransactionalHandler"
+streaming_handler = "StreamingTransactionalHandler"
+uow_types = ["ObservabilityUnitOfWork"]
+forbidden_parameter_types = ["AsyncSession", "AsyncEngine", "async_sessionmaker"]
+forbidden_parameter_names = ["session", "session_factory", "async_engine", "engine"]
+forbidden_calls = ["Settings", "create_engine", "create_session_factory"]
+repository_suffixes = ["Repository", "Reader", "Writer"]
+forbid_control_flow = true
+forbid_nested_definitions = true
+forbid_uow_attribute_access = true
+require_repository_uow_argument = true
+require_zero_arguments = true
+dependency_parameter_tokens = ["database", "settings", "session", "engine", "factory", "repository", "repo", "reader", "writer", "uow"]
+uow_resource_names = ["DATABASE_ENGINE"]
+forbid_module_level_transients = true
+transient_suffixes = ["UnitOfWork", "Repository", "Reader", "Writer", "UseCase", "Controller", "Handler", "Service"]
+forbid_composed_dependency_calls = true
+enforce_zero_arg_callsites = true
+forbidden_module_level_calls = ["Settings", "create_engine", "create_session_factory"]
+
+[unit_of_work_contract]
+interface_files = ["packages/woobe-core/src/shared/contracts/unit_of_work.py"]
+deprecated_interface_files = []
+concrete_sources = ["infra/database/unit_of_work.py"]
+forbidden_interface_imports = ["sqlalchemy", "fastapi", "starlette", "shared.infra", "modules"]
+repository_name_fragments = ["Repository", "Reader", "Writer"]
+allowed_properties = ["session"]
+forbid_repository_imports = true
+forbid_repository_properties = true
+
+[[rules]]
+id = "ARCH126"
+description = "composers wire module dependencies without transport or framework inputs"
+source = ["composition/composers/**"]
+allow = ["modules.observability", "shared"]
+deny = ["fastapi", "starlette", "sqlalchemy", "woobe_api"]
+
+[[rules]]
+id = "ARCH121"
+description = "the background boundary exposes capabilities without depending on process hosts"
+source = ["background_boundary.py"]
+allow = []
+deny = ["fastapi", "starlette", "woobe_api", "woobe_workers"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH120"
+description = "the public entrypoint reaches internals only through composition"
+source = ["entrypoint.py", "__init__.py"]
+allow = ["modules.observability.composition"]
+deny = ["modules.observability.application", "modules.observability.domain", "modules.observability.infra", "modules.observability.presentation"]
+
+[[rules]]
+id = "ARCH122"
+description = "domain remains independent of outer layers and transport frameworks"
+source = ["domain/**"]
+allow = ["modules.observability.domain", "shared.contracts"]
+deny = ["modules.observability.application", "modules.observability.infra", "modules.observability.presentation", "modules.observability.composition", "fastapi", "starlette", "sqlalchemy", "woobe_api"]
+
+[[rules]]
+id = "ARCH123"
+description = "application cannot depend on infrastructure, presentation, composition or HTTP frameworks"
+source = ["application/**"]
+allow = []
+deny = ["modules.observability.infra", "modules.observability.presentation", "modules.observability.composition", "shared.infra", "sqlalchemy", "fastapi", "starlette", "woobe_api"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH124"
+description = "presentation controllers remain transport-neutral"
+source = ["presentation/**"]
+allow = []
+deny = ["modules.observability.infra", "modules.observability.composition", "fastapi", "starlette", "woobe_api"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH125"
+description = "infrastructure cannot import presentation, composition or the API host"
+source = ["infra/**"]
+allow = []
+deny = ["modules.observability.presentation", "modules.observability.composition", "fastapi", "starlette", "woobe_api"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH129"
+description = "composition is the outer module wiring layer"
+source = ["composition/**"]
+allow = ["modules.observability", "shared"]
+deny = ["fastapi", "starlette", "woobe_api"]

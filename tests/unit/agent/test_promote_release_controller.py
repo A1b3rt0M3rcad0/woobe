@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 
 from modules.agent.presentation.controllers.promote_release_controller import PromoteReleaseController
-from shared.presentation.http.request import Request
+from shared.presentation.contracts import OperationRequest
 
 
 class ReleaseStub:
@@ -44,13 +44,13 @@ async def test_controller_preserves_copy_snapshot_false_for_deploy() -> None:
     release_id = uuid4()
 
     response = await controller.handle(
-        Request(
+        OperationRequest(
             path_params={"agent_id": str(agent_id), "release_id": str(release_id)},
             body={"target_status": "production", "copy_snapshot": False},
         )
     )
 
-    assert response.status_code == 200
+    assert response.outcome == "success"
     assert use_case.calls[0]["target_status"] == "production"
     assert use_case.calls[0]["copy_snapshot"] is False
 
@@ -63,7 +63,7 @@ async def test_controller_preserves_copy_snapshot_true_for_new_release() -> None
     release_id = uuid4()
 
     await controller.handle(
-        Request(
+        OperationRequest(
             path_params={"agent_id": str(agent_id), "release_id": str(release_id)},
             body={"target_status": "production", "copy_snapshot": True},
         )

@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import select
 
-from modules.network.application.rerun_service import NetworkRerunService
+from modules.network.infra.services.rerun_service import NetworkRerunService
 from modules.network.infra.database.models import (
     NetworkExecutionEventModel,
     NetworkExecutionModel,
@@ -140,3 +140,4 @@ async def test_network_rerun_creates_new_run_from_frozen_snapshot_with_lineage()
     assert outbox.causation_id == source_execution_id
 
     await engine.dispose()
+

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from uuid import UUID
 
 from modules.core.domain.entities import ApiKey, Project
-from shared.infra.objects import CursorPage
+from shared.contracts.pagination import CursorPage
 
 
 class ProjectRepository(ABC):
@@ -68,3 +68,4 @@ class ApiKeyRepository(ABC):
 
     @abstractmethod
     async def delete(self, api_key_id: UUID) -> None: ...
+

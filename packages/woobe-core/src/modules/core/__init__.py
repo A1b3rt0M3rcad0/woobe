@@ -1,5 +1,1 @@
-from modules.core.presentation import routes
-
-__all__ = [
-    "routes",
-]
+"""Core bounded context. Process hosts use :mod:`modules.core.entrypoint`."""

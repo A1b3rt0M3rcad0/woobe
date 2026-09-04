@@ -1,5 +1,1 @@
-from modules.observability.presentation import routes
-
-__all__ = [
-    "routes",
-]
+"""Observability bounded context. Hosts use :mod:`modules.observability.entrypoint`."""

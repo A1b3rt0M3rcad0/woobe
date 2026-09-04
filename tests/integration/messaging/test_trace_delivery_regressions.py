@@ -12,7 +12,7 @@ from modules.agent.domain.events import (
 )
 from modules.agent.infra.messaging.event_mappers import domain_event_to_outbox
 from modules.agent.infra.messaging.publishers import AgentRabbitMQPublisher
-from modules.agent.presentation.http.controllers.ask_agent_stream_controller import (
+from woobe_api.http.agent.controllers.ask_agent_stream_controller import (
     commit_safe_stream,
 )
 from modules.observability.infra.messaging.event_mappers import (
@@ -154,3 +154,4 @@ async def test_agent_publisher_raises_when_confirm_is_false() -> None:
 
     with pytest.raises(RuntimeError, match="did not confirm"):
         await publisher.publish(envelope)
+

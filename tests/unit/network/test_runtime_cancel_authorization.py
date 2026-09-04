@@ -6,7 +6,7 @@ from uuid import uuid4
 
 import pytest
 
-from modules.network.presentation.reattach_routes import _authorize_execution
+from modules.network.infra.services.boundary_service import NetworkBoundaryService
 from shared.infra.errors import AuthorizationError, NotFoundError
 from shared.security.principal import ProjectApiPrincipal
 
@@ -45,16 +45,22 @@ def _principal(execution, **overrides):
     return ProjectApiPrincipal(**values)
 
 
-def _request(principal):
-    return SimpleNamespace(state=SimpleNamespace(principal=principal))
+async def _authorize(principal, execution, network_session) -> None:
+    service = object.__new__(NetworkBoundaryService)
+    await service._authorize_execution(
+        None,
+        execution,
+        network_session,
+        principal,
+    )
 
 
 @pytest.mark.asyncio
 async def test_network_runtime_cancel_authorizes_exact_target_and_environment() -> None:
     execution = _execution()
 
-    await _authorize_execution(
-        _request(_principal(execution)),
+    await _authorize(
+        _principal(execution),
         execution,
         _network_session(execution),
     )
@@ -65,8 +71,8 @@ async def test_network_runtime_cancel_rejects_runtime_key_from_another_project()
     execution = _execution()
 
     with pytest.raises(AuthorizationError):
-        await _authorize_execution(
-            _request(_principal(execution, project_id=uuid4())),
+        await _authorize(
+            _principal(execution, project_id=uuid4()),
             execution,
             _network_session(execution),
         )
@@ -77,8 +83,8 @@ async def test_network_runtime_cancel_hides_execution_from_wrong_target() -> Non
     execution = _execution()
 
     with pytest.raises(NotFoundError):
-        await _authorize_execution(
-            _request(_principal(execution, target_id=uuid4())),
+        await _authorize(
+            _principal(execution, target_id=uuid4()),
             execution,
             _network_session(execution),
         )
@@ -89,8 +95,8 @@ async def test_network_runtime_cancel_hides_execution_from_wrong_environment() -
     execution = _execution()
 
     with pytest.raises(NotFoundError):
-        await _authorize_execution(
-            _request(_principal(execution, environment="staging")),
+        await _authorize(
+            _principal(execution, environment="staging"),
             execution,
             _network_session(execution, environment="production"),
         )
@@ -101,8 +107,8 @@ async def test_network_runtime_cancel_requires_authentication() -> None:
     execution = _execution()
 
     with pytest.raises(AuthorizationError):
-        await _authorize_execution(
-            _request(None),
+        await _authorize(
+            None,
             execution,
             _network_session(execution),
         )

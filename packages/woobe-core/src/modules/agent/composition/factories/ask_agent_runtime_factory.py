@@ -21,10 +21,10 @@ from modules.agent.presentation.controllers.ask_agent_controller import AskAgent
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.best_effort_execution_state import BestEffortExecutionStateStore
 from shared.infra.config import Settings
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 
-AskHttpHandler = Callable[[Request], Awaitable[Response]]
+AskRequestHandler = Callable[[OperationRequest], Awaitable[OperationResult]]
 InternalToolHandler = Callable[[dict], Awaitable[dict]]
 
 
@@ -90,6 +90,6 @@ def build_internal_agent_runtime(
 def build_ask_agent_handler(
     settings: Settings,
     http_executor: HttpToolExecutor | None = None,
-) -> AskHttpHandler:
+) -> AskRequestHandler:
     runtime, _transactions = build_ask_agent_use_case(settings, http_executor)
     return AskAgentController(runtime).handle

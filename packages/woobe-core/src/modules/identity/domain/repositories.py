@@ -8,7 +8,7 @@ from modules.identity.domain.entities import (
     User,
     UserSession,
 )
-from shared.infra.objects import CursorPage
+from shared.contracts.pagination import CursorPage
 
 
 class UserRepository(ABC):
@@ -124,3 +124,4 @@ class UserSessionRepository(ABC):
 
     @abstractmethod
     async def delete(self, session_id: UUID) -> None: ...
+
