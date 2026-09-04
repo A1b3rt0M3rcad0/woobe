@@ -9,6 +9,27 @@ from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from modules.agent.domain.context import ContextSnapshot
 
 
+class ContextAssemblyRuntimeContext(Protocol):
+    """Execution evidence/configuration consumed by Context Assembly.
+
+    This is intentionally narrower than RequestExecutionContext so ContextAssembler
+    implementations do not depend on the complete Agent runtime state container.
+    """
+
+    run_id: UUID | None
+    input_message_id: UUID | None
+    model_capacity_units: int | None
+    reserved_output_units: int | None
+    active_tool_definitions: list[dict[str, Any]] | None
+    context_selection_metadata: dict[str, Any] | None
+    rag_metadata: dict[str, Any] | None
+    context_rag_sources: list[dict[str, Any]] | None
+    parent_invocation_id: UUID | None
+    network_execution_id: UUID | None
+    network_invocation_id: UUID | None
+    network_node_id: UUID | None
+
+
 @dataclass(frozen=True, slots=True)
 class ContextAssemblyRequest:
     messages: list[Any]
@@ -17,7 +38,7 @@ class ContextAssemblyRequest:
     project_id: UUID
     provider: str
     model: str
-    runtime_context: Any
+    runtime_context: ContextAssemblyRuntimeContext
     policy: ContextPolicyV1
 
 
