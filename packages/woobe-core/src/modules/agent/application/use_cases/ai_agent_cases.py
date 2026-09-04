@@ -218,9 +218,10 @@ def _ensure_agent_compatible_provider_model(provider_model) -> None:
 
 def _force_strict_json_settings(agent: Agent) -> None:
     settings = dict(agent.settings or {})
-    settings["runtime_config"] = canonicalize_context_assembler_runtime_config(
-        settings.get("runtime_config")
-    )
+    if "runtime_config" in settings:
+        settings["runtime_config"] = canonicalize_context_assembler_runtime_config(
+            settings.get("runtime_config")
+        )
     response_format = settings.get("response_format")
     if not isinstance(response_format, dict):
         agent.settings = settings
