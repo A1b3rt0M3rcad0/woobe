@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from typing import Any, cast
 from unittest.mock import MagicMock
 
 from modules.agent.application.default_context_assembler import DefaultContextAssembler
@@ -80,7 +81,7 @@ def test_handler_composition_accepts_alternate_context_assembler() -> None:
         context_assembler=assembler,
     )
 
-    controller = handler.__self__
+    controller = cast(Any, handler).__self__
     assert controller._use_case._context_assembler is assembler
 
 
