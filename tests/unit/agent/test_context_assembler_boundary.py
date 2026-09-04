@@ -7,8 +7,7 @@ from uuid import uuid4
 import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from modules.agent.application import default_context_assembler
-from modules.agent.application.default_context_assembler import DefaultContextAssembler
+from modules.agent.application import standard_context_assembler
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
     ContextAssemblyOutput,
@@ -19,6 +18,7 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.application.standard_context_assembler import StandardContextAssembler
 from modules.agent.domain.context import ContextSnapshot
 from modules.agent.infra.execution.execution_instrumentation import (
     _assemble_invocation_context,
@@ -43,8 +43,8 @@ def _request() -> ContextAssemblyRequest:
     )
 
 
-def test_default_context_assembler_implements_behavioral_contract() -> None:
-    assembler = DefaultContextAssembler()
+def test_standard_context_assembler_implements_behavioral_contract() -> None:
+    assembler = StandardContextAssembler()
 
     assert isinstance(assembler, ContextAssembler)
 
@@ -59,7 +59,7 @@ def test_default_context_assembler_implements_behavioral_contract() -> None:
     assert result.snapshot.agent_run_id == request.agent_run_id
 
 
-def test_default_context_assembler_is_transparent_adapter(monkeypatch) -> None:
+def test_standard_context_assembler_is_transparent_adapter(monkeypatch) -> None:
     request = _request()
     captured: dict[str, Any] = {}
     sentinel = cast(ContextAssemblyOutput, object())
@@ -69,12 +69,12 @@ def test_default_context_assembler_is_transparent_adapter(monkeypatch) -> None:
         return sentinel
 
     monkeypatch.setattr(
-        default_context_assembler,
+        standard_context_assembler,
         "assemble_context",
         fake_assemble_context,
     )
 
-    result = DefaultContextAssembler().assemble(request)
+    result = StandardContextAssembler().assemble(request)
 
     assert result is sentinel
     assert captured == {
@@ -118,7 +118,7 @@ class _FailingContextAssembler:
         raise RuntimeError("context assembly failed")
 
 
-def test_context_assembler_contract_is_replaceable_without_default_implementation() -> None:
+def test_context_assembler_contract_is_replaceable_without_standard_implementation() -> None:
     assembler = _FakeContextAssembler()
     request = _request()
 
