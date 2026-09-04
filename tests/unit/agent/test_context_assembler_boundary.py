@@ -72,10 +72,13 @@ class _FakeContextAssembler(ContextAssembler):
         self.requests: list[ContextAssemblyRequest] = []
         self.snapshot = object()
         self.capacity_seen: int | None = None
+        self.tool_definitions_seen: list[dict] | None = None
 
     def assemble(self, request: ContextAssemblyRequest):
         self.requests.append(request)
         self.capacity_seen = request.runtime_context.model_capacity_units
+        active_tools = request.runtime_context.active_tool_definitions
+        self.tool_definitions_seen = list(active_tools) if active_tools is not None else None
         return SimpleNamespace(messages=["fake-context"], snapshot=self.snapshot)
 
 
@@ -125,8 +128,40 @@ def test_invocation_context_uses_injected_context_assembler() -> None:
     assert request.provider == "openai"
     assert request.model == "replacement-model"
     assert assembler.capacity_seen == 8192
+    assert assembler.tool_definitions_seen == [{"type": "function"}]
     assert context.model_capacity_units == 2048
     assert context.active_tool_definitions == [{"type": "function"}]
+
+
+@pytest.mark.parametrize("phase", ["final_response_generation", "json_repair"])
+def test_terminal_invocations_hide_tools_from_context_assembly_and_restore_state(
+    phase: str,
+) -> None:
+    assembler = _FakeContextAssembler()
+    context = new_execution_context()
+    context.run_id = uuid4()
+    context.project_id = uuid4()
+    context.context_policy = ContextPolicyV1().model_dump(mode="json")
+    context.active_tool_definitions = [{"type": "function", "function": {"name": "lookup"}}]
+
+    token = current_execution.set(context)
+    try:
+        _assemble_invocation_context(
+            invocation_id=uuid4(),
+            messages=[HumanMessage(content="original")],
+            provider="openai",
+            model_name="model",
+            phase=phase,
+            pricing_snapshot=None,
+            context_assembler=assembler,
+        )
+    finally:
+        current_execution.reset(token)
+
+    assert assembler.tool_definitions_seen == []
+    assert context.active_tool_definitions == [
+        {"type": "function", "function": {"name": "lookup"}}
+    ]
 
 
 def test_instrumented_context_requires_explicit_assembler_when_execution_is_bound() -> None:
