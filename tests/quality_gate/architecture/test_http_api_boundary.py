@@ -160,7 +160,9 @@ def test_http_routers_do_not_wire_persistence() -> None:
         for imported in _imports(path):
             if imported == "sqlalchemy" or imported.startswith("sqlalchemy."):
                 violations.append((path, imported))
-            if imported == "shared.composition_resources":
+            if imported == "shared.composition_resources" or imported.startswith(
+                "shared.composition_resources."
+            ):
                 violations.append((path, imported))
             if imported == "shared.infra.database" or imported.startswith(
                 "shared.infra.database."
