@@ -1,5 +1,8 @@
 """Agent HTTP transport assembly."""
 
+from woobe_api.http.agent.context_assembler_routes import (
+    router as context_assembler_router,
+)
 from woobe_api.http.agent.credential_routes import router as credential_router
 from woobe_api.http.agent.mcp_tools_routes import router as mcp_tools_router
 from woobe_api.http.agent.release_activation_routes import (
@@ -19,6 +22,7 @@ from woobe_api.http.agent.vector_snapshot_routes import (
 )
 
 HTTP_ROUTERS = (
+    context_assembler_router,
     credential_router,
     release_activation_router,
     agent_router,
