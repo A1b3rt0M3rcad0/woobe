@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from types import SimpleNamespace
+from dataclasses import dataclass
+from typing import Any, cast
 from uuid import uuid4
 
 import pytest
@@ -9,6 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from modules.agent.application.default_context_assembler import DefaultContextAssembler
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
+    ContextAssemblyOutput,
     ContextAssemblyRequest,
 )
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
@@ -16,26 +18,15 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.domain.context import ContextSnapshot
 from modules.agent.infra.execution.execution_instrumentation import (
     _assemble_invocation_context,
 )
 
 
 def _request() -> ContextAssemblyRequest:
-    runtime_context = SimpleNamespace(
-        model_capacity_units=None,
-        reserved_output_units=None,
-        active_tool_definitions=[],
-        context_selection_metadata={},
-        rag_metadata={},
-        context_rag_sources=[],
-        parent_invocation_id=None,
-        network_execution_id=None,
-        network_invocation_id=None,
-        network_node_id=None,
-        input_message_id=None,
-        run_id=uuid4(),
-    )
+    runtime_context = new_execution_context()
+    runtime_context.run_id = uuid4()
     return ContextAssemblyRequest(
         messages=[
             SystemMessage(content="system"),
@@ -67,19 +58,28 @@ def test_default_context_assembler_implements_behavioral_contract() -> None:
     assert result.snapshot.agent_run_id == request.agent_run_id
 
 
+@dataclass(frozen=True, slots=True)
+class _FakeAssemblyOutput:
+    messages: list[Any]
+    snapshot: ContextSnapshot
+
+
 class _FakeContextAssembler(ContextAssembler):
     def __init__(self) -> None:
         self.requests: list[ContextAssemblyRequest] = []
-        self.snapshot = object()
+        self.snapshot = cast(ContextSnapshot, object())
         self.capacity_seen: int | None = None
-        self.tool_definitions_seen: list[dict] | None = None
+        self.tool_definitions_seen: list[dict[str, Any]] | None = None
 
-    def assemble(self, request: ContextAssemblyRequest):
+    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
         self.requests.append(request)
         self.capacity_seen = request.runtime_context.model_capacity_units
         active_tools = request.runtime_context.active_tool_definitions
         self.tool_definitions_seen = list(active_tools) if active_tools is not None else None
-        return SimpleNamespace(messages=["fake-context"], snapshot=self.snapshot)
+        return _FakeAssemblyOutput(
+            messages=["fake-context"],
+            snapshot=self.snapshot,
+        )
 
 
 def test_context_assembler_contract_is_replaceable_without_default_implementation() -> None:
@@ -142,7 +142,9 @@ def test_terminal_invocations_hide_tools_from_context_assembly_and_restore_state
     context.run_id = uuid4()
     context.project_id = uuid4()
     context.context_policy = ContextPolicyV1().model_dump(mode="json")
-    context.active_tool_definitions = [{"type": "function", "function": {"name": "lookup"}}]
+    context.active_tool_definitions = [
+        {"type": "function", "function": {"name": "lookup"}}
+    ]
 
     token = current_execution.set(context)
     try:
