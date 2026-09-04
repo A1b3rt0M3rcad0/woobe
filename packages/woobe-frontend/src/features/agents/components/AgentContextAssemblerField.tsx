@@ -29,6 +29,19 @@ function descriptorKey(item: Pick<ContextAssemblerDescriptor, 'name' | 'version'
   return `${item.name}:${item.version}`
 }
 
+function DetailList({ items }: { items: string[] }) {
+  return (
+    <div className="space-y-2.5">
+      {items.map((item) => (
+        <div key={item} className="flex gap-2.5 text-xs leading-5 text-foreground/80">
+          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+          <span>{item}</span>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function AgentContextAssemblerField() {
   const { state, setField } = useAgentEditor()
   const { data: assemblers = [], isLoading, isError } = useContextAssemblers()
@@ -40,6 +53,10 @@ export function AgentContextAssemblerField() {
     display_name: selected.name,
     description: '',
     behavior: '',
+    recommended_for: [],
+    capabilities: [],
+    limitations: [],
+    configuration: '',
     is_default: selectedKey === descriptorKey(DEFAULT_SELECTION),
   }), [selected.name, selected.version, selectedKey])
   const availableAssemblers = assemblers.length > 0 ? assemblers : [selectedFallback]
@@ -98,9 +115,9 @@ export function AgentContextAssemblerField() {
         open={open}
         onClose={() => setOpen(false)}
         title="Select a Context Manager"
-        className="max-w-4xl overflow-hidden bg-surface/95"
+        className="max-w-5xl overflow-hidden bg-surface/95"
       >
-        <div className="grid max-h-[70vh] min-h-[440px] grid-cols-[260px_minmax(0,1fr)] overflow-hidden -m-6">
+        <div className="grid max-h-[76vh] min-h-[500px] grid-cols-[270px_minmax(0,1fr)] overflow-hidden -m-6">
           <aside className="flex min-h-0 flex-col border-r border-border/90 bg-background/25">
             <div className="border-b border-border/90 p-4">
               <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Registered managers</p>
@@ -154,54 +171,78 @@ export function AgentContextAssemblerField() {
 
           <section className="flex min-h-0 flex-col">
             <div className="min-h-0 flex-1 p-6">
-              <div className="max-w-2xl">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary-light">
-                  <BrainCircuit className="h-4 w-4" />
-                </div>
-
-                <div className="mt-5 flex flex-wrap items-center gap-2">
-                  <h3 className="text-xl font-semibold text-foreground">{focused.display_name}</h3>
-                  <span className="rounded border border-border px-2 py-0.5 font-mono text-[10px] text-muted">
-                    {descriptorKey(focused)}
-                  </span>
-                  {descriptorKey(focused) === selectedKey ? (
-                    <span className="rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-primary-light">
-                      Selected
-                    </span>
-                  ) : focused.is_default ? (
-                    <span className="rounded border border-border px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted">
-                      Default
-                    </span>
-                  ) : null}
-                </div>
-
-                {catalogReady ? (
-                  <>
-                    <div className="mt-5">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Description</p>
-                      <p className="mt-2 text-sm leading-6 text-foreground/80">{focused.description}</p>
-                    </div>
-
-                    <div className="mt-6 border-t border-border/80 pt-5">
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">How it operates</p>
-                      <p className="mt-2 text-sm leading-6 text-foreground/80">{focused.behavior}</p>
-                    </div>
-
-                    <div className="mt-6 rounded-xl border border-border/80 bg-background/35 p-4 text-xs leading-5 text-muted">
-                      The selected <span className="font-mono text-foreground">name:version</span> is stored in the Agent snapshot and preserved by immutable releases.
-                    </div>
-                  </>
-                ) : (
-                  <div className="mt-5 rounded-xl border border-border/80 bg-background/35 p-4">
-                    <p className="text-sm font-medium text-foreground">
-                      {isLoading ? 'Loading manager details…' : 'Manager details are temporarily unavailable.'}
-                    </p>
-                    <p className="mt-1 text-xs leading-5 text-muted">
-                      The current snapshot selection remains visible. Manager-specific metadata is not duplicated in the frontend; description and behavior are supplied by the backend registry and rendered here when the catalog is available.
-                    </p>
+              <ScrollArea className="h-full pr-2">
+                <div className="max-w-3xl pb-2">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary-light">
+                    <BrainCircuit className="h-4 w-4" />
                   </div>
-                )}
-              </div>
+
+                  <div className="mt-5 flex flex-wrap items-center gap-2">
+                    <h3 className="text-xl font-semibold text-foreground">{focused.display_name}</h3>
+                    <span className="rounded border border-border px-2 py-0.5 font-mono text-[10px] text-muted">
+                      {descriptorKey(focused)}
+                    </span>
+                    {descriptorKey(focused) === selectedKey ? (
+                      <span className="rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-primary-light">
+                        Selected
+                      </span>
+                    ) : focused.is_default ? (
+                      <span className="rounded border border-border px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted">
+                        Default
+                      </span>
+                    ) : null}
+                  </div>
+
+                  {catalogReady ? (
+                    <>
+                      <div className="mt-5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Description</p>
+                        <p className="mt-2 text-sm leading-6 text-foreground/85">{focused.description}</p>
+                      </div>
+
+                      <div className="mt-6 border-t border-border/80 pt-5">
+                        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">How it operates</p>
+                        <p className="mt-2 text-sm leading-6 text-foreground/80">{focused.behavior}</p>
+                      </div>
+
+                      <div className="mt-6 grid gap-4 border-t border-border/80 pt-5 sm:grid-cols-[minmax(0,1fr)_220px]">
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Recommended for</p>
+                          <div className="mt-3"><DetailList items={focused.recommended_for} /></div>
+                        </div>
+                        <div className="rounded-xl border border-border/80 bg-background/35 p-4">
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Configuration</p>
+                          <p className="mt-2 text-sm font-medium text-foreground">{focused.configuration}</p>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 grid gap-6 border-t border-border/80 pt-5 md:grid-cols-2">
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Capabilities</p>
+                          <div className="mt-3"><DetailList items={focused.capabilities} /></div>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Limitations</p>
+                          <div className="mt-3"><DetailList items={focused.limitations} /></div>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 rounded-xl border border-border/80 bg-background/35 p-4 text-xs leading-5 text-muted">
+                        The selected <span className="font-mono text-foreground">name:version</span> is stored in the Agent snapshot and preserved by immutable releases.
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-5 rounded-xl border border-border/80 bg-background/35 p-4">
+                      <p className="text-sm font-medium text-foreground">
+                        {isLoading ? 'Loading manager details…' : 'Manager details are temporarily unavailable.'}
+                      </p>
+                      <p className="mt-1 text-xs leading-5 text-muted">
+                        The current snapshot selection remains visible. Manager-specific metadata is supplied by the backend Registry and rendered here when the catalog is available.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </ScrollArea>
             </div>
 
             <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/90 bg-background/20 p-4">
