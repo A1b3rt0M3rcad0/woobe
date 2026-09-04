@@ -54,14 +54,11 @@ def test_default_registry_exposes_product_metadata() -> None:
             "version": "v1",
             "display_name": "Default Context",
             "description": (
-                "Deterministic context assembly using Context Policy v1 budgets, "
-                "source priorities and pressure handling."
+                "Balanced deterministic context assembly for general-purpose Agent execution."
             ),
             "behavior": (
-                "Preserves mandatory system and user input, selects session and runtime "
-                "context within configured budgets, applies pressure trimming, ordering "
-                "and deduplication, and records provenance in a Context Snapshot for every "
-                "Model Invocation."
+                "Preserves mandatory inputs, applies Context Policy v1 budgets and priorities, "
+                "trims context under pressure, and records provenance in the Context Snapshot."
             ),
             "is_default": True,
         }
