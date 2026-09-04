@@ -1,6 +1,7 @@
 import { get, post, patch, del } from '@/lib/api/client'
-import type { Agent, AgentContract, AgentModelConfig, AgentPrompt, AgentRelease, AgentReleaseActivation, AgentReleaseTest, CreateAgentRequest, CreateContractRequest, CreateKnowledgeVersionRequest, CreateModelConfigRequest, CreatePromptRequest, CreateReleaseRequest, CreateReleaseTestRequest, KnowledgeVersion, RuntimeEnvironment, RuntimeEnvironmentState, RuntimeEnvironmentStates, UpdateAgentRequest, UpdateContractRequest } from './types'
+import type { Agent, AgentContract, AgentModelConfig, AgentPrompt, AgentRelease, AgentReleaseActivation, AgentReleaseTest, ContextAssemblerDescriptor, CreateAgentRequest, CreateContractRequest, CreateKnowledgeVersionRequest, CreateModelConfigRequest, CreatePromptRequest, CreateReleaseRequest, CreateReleaseTestRequest, KnowledgeVersion, RuntimeEnvironment, RuntimeEnvironmentState, RuntimeEnvironmentStates, UpdateAgentRequest, UpdateContractRequest } from './types'
 
+export async function getContextAssemblers(): Promise<ContextAssemblerDescriptor[]> { return get<ContextAssemblerDescriptor[]>('/ai/context-assemblers') }
 export async function getAgents(projectId?: string): Promise<Agent[]> { return get<Agent[]>('/ai/agents', { params: { project_id: projectId } }) }
 export async function getAgent(id: string): Promise<Agent> { return get<Agent>(`/ai/agents/${id}`) }
 export async function createAgent(data: CreateAgentRequest): Promise<Agent> { return post<Agent>('/ai/agents', data) }
