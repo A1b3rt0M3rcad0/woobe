@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 from modules.agent.application.default_context_assembler import DefaultContextAssembler
 from modules.agent.application.interfaces.context_assembler import (
+    ContextAssembler,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
 )
@@ -31,6 +32,10 @@ class _AlternateContextAssembler:
 class _FalsyAlternateContextAssembler(_AlternateContextAssembler):
     def __bool__(self) -> bool:
         return False
+
+
+def test_context_assembler_port_accepts_structural_implementations() -> None:
+    assert isinstance(_AlternateContextAssembler(), ContextAssembler)
 
 
 def test_public_agent_runtime_composition_wires_default_context_assembler() -> None:
