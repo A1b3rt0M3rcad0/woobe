@@ -82,6 +82,11 @@ class _FakeContextAssembler(ContextAssembler):
         )
 
 
+class _FailingContextAssembler:
+    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
+        raise RuntimeError("context assembly failed")
+
+
 def test_context_assembler_contract_is_replaceable_without_default_implementation() -> None:
     assembler = _FakeContextAssembler()
     request = _request()
@@ -161,6 +166,37 @@ def test_terminal_invocations_hide_tools_from_context_assembly_and_restore_state
         current_execution.reset(token)
 
     assert assembler.tool_definitions_seen == []
+    assert context.active_tool_definitions == [
+        {"type": "function", "function": {"name": "lookup"}}
+    ]
+
+
+def test_invocation_runtime_state_is_restored_when_context_assembler_fails() -> None:
+    context = new_execution_context()
+    context.run_id = uuid4()
+    context.project_id = uuid4()
+    context.context_policy = ContextPolicyV1().model_dump(mode="json")
+    context.model_capacity_units = 2048
+    context.active_tool_definitions = [
+        {"type": "function", "function": {"name": "lookup"}}
+    ]
+
+    token = current_execution.set(context)
+    try:
+        with pytest.raises(RuntimeError, match="context assembly failed"):
+            _assemble_invocation_context(
+                invocation_id=uuid4(),
+                messages=[HumanMessage(content="original")],
+                provider="openai",
+                model_name="replacement-model",
+                phase="final_response_generation",
+                pricing_snapshot={"context_window": 8192},
+                context_assembler=_FailingContextAssembler(),
+            )
+    finally:
+        current_execution.reset(token)
+
+    assert context.model_capacity_units == 2048
     assert context.active_tool_definitions == [
         {"type": "function", "function": {"name": "lookup"}}
     ]
