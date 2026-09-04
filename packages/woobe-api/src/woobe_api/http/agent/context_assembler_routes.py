@@ -10,6 +10,8 @@ router = APIRouter(prefix="/ai", tags=["ai", "agent"])
 
 
 class ContextAssemblerDescriptorResponse(BaseModel):
+    """HTTP contract for backend-owned Context Manager presentation metadata."""
+
     name: str
     version: str
     display_name: str
