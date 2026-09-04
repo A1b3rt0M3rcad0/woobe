@@ -8,6 +8,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from modules.agent.application.dtos.runtime_dtos import ToolCallInfo
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
+    ContextAssemblyOutput,
     ContextAssemblyRequest,
 )
 from modules.agent.application.interfaces.execution import InstrumentedExecution
@@ -15,7 +16,7 @@ from modules.agent.infra.execution import structured_json_repair, tool_execution
 
 
 class _UnusedContextAssembler(ContextAssembler):
-    def assemble(self, request: ContextAssemblyRequest):
+    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
         raise AssertionError("The propagation test must not invoke context assembly directly")
 
 
