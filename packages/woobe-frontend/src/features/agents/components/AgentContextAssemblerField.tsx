@@ -197,7 +197,7 @@ export function AgentContextAssemblerField() {
                       {isLoading ? 'Loading manager details…' : 'Manager details are temporarily unavailable.'}
                     </p>
                     <p className="mt-1 text-xs leading-5 text-muted">
-                      The current snapshot selection remains visible. Manager-specific description and behavior are supplied by the backend registry and rendered here when the catalog is available.
+                      The current snapshot selection remains visible. Manager-specific metadata is not duplicated in the frontend; description and behavior are supplied by the backend registry and rendered here when the catalog is available.
                     </p>
                   </div>
                 )}
