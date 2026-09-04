@@ -5,6 +5,9 @@ may consume agent background capabilities. It contains no worker
 lifecycle, worker registry, polling, slot or process-bootstrap behavior.
 """
 
+from modules.agent.application.context_assembler_registry import (
+    build_runtime_context_assembler,
+)
 from modules.agent.application.dtos.runtime_dtos import (
     AskInput,
 )
@@ -13,10 +16,6 @@ from modules.agent.application.interfaces.embedding_errors import (
 )
 from modules.agent.application.use_cases.vector_snapshot_use_cases import (
     BuildVectorSnapshotUseCase,
-)
-from modules.agent.composition.context_assembler_registry import (
-    DEFAULT_CONTEXT_ASSEMBLER_KEY,
-    build_context_assembler,
 )
 from modules.agent.domain.entities import (
     AskJob,
