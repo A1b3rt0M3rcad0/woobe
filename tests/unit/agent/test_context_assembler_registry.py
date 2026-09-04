@@ -18,7 +18,6 @@ from modules.agent.application.context_assembler_registry import (
     canonicalize_context_assembler_runtime_config,
     list_context_assemblers,
 )
-from modules.agent.application.default_context_assembler import DefaultContextAssembler
 from modules.agent.application.interfaces.context_assembler import (
     DEFAULT_CONTEXT_ASSEMBLER_KEY,
     STANDARD_CONTEXT_ASSEMBLER_KEY,
@@ -29,6 +28,7 @@ from modules.agent.application.interfaces.context_assembler import (
     context_assembler_selection_from_runtime_config,
 )
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
+from modules.agent.application.standard_context_assembler import StandardContextAssembler
 from shared.contracts.errors import ValidationError
 
 
@@ -78,14 +78,14 @@ def test_default_registry_exposes_default_alias_and_explicit_standard_strategy()
     assert explicit_standard.is_system_default_alias is False
 
 
-def test_default_alias_and_explicit_strategy_resolve_same_implementation() -> None:
+def test_default_alias_and_explicit_strategy_resolve_same_standard_implementation() -> None:
     registry = build_context_assembler_registry()
 
     default_assembler = registry.create(DEFAULT_CONTEXT_ASSEMBLER_KEY)
     explicit_assembler = registry.create(STANDARD_CONTEXT_ASSEMBLER_KEY)
 
-    assert isinstance(default_assembler, DefaultContextAssembler)
-    assert isinstance(explicit_assembler, DefaultContextAssembler)
+    assert isinstance(default_assembler, StandardContextAssembler)
+    assert isinstance(explicit_assembler, StandardContextAssembler)
     assert isinstance(default_assembler, ContextAssembler)
     assert default_assembler is not explicit_assembler
 
@@ -145,8 +145,8 @@ def test_build_context_assembler_resolves_through_fresh_registry() -> None:
     first = build_context_assembler(DEFAULT_CONTEXT_ASSEMBLER_KEY)
     second = build_context_assembler(DEFAULT_CONTEXT_ASSEMBLER_KEY)
 
-    assert isinstance(first, DefaultContextAssembler)
-    assert isinstance(second, DefaultContextAssembler)
+    assert isinstance(first, StandardContextAssembler)
+    assert isinstance(second, StandardContextAssembler)
     assert first is not second
 
 
@@ -214,6 +214,14 @@ def test_registry_can_make_any_registered_strategy_the_system_default() -> None:
     assert descriptor.is_default is True
     assert descriptor.is_system_default_alias is True
     assert isinstance(registry.create(alias_key), _AlternateContextAssembler)
+
+
+def test_registry_reserves_default_name_for_system_alias() -> None:
+    key = ContextAssemblerKey("default", "v7")
+    registry = ContextAssemblerRegistry()
+
+    with pytest.raises(ValueError, match="reserved"):
+        registry.register(key, _AlternateContextAssembler, descriptor=_descriptor(key))
 
 
 def test_registry_rejects_default_alias_for_unregistered_strategy() -> None:
@@ -285,9 +293,15 @@ def test_registry_dispatcher_resolves_frozen_strategy_identity() -> None:
 
 
 def test_registry_dispatcher_preserves_legacy_default_v1_behavior() -> None:
-    dispatcher = RegistryContextAssembler(build_context_assembler_registry())
+    registry = ContextAssemblerRegistry()
+    registry.register(
+        STANDARD_CONTEXT_ASSEMBLER_KEY,
+        _AlternateContextAssembler,
+        descriptor=_descriptor(STANDARD_CONTEXT_ASSEMBLER_KEY),
+    )
+    dispatcher = RegistryContextAssembler(registry)
     request = ContextAssemblyRequest(
-        messages=[],
+        messages=["legacy"],
         model_invocation_id=uuid4(),
         agent_run_id=uuid4(),
         project_id=uuid4(),
@@ -302,11 +316,9 @@ def test_registry_dispatcher_preserves_legacy_default_v1_behavior() -> None:
         policy=ContextPolicyV1(),
     )
 
-    # Resolution reaches the Standard strategy. The real assembler then needs a
-    # complete runtime context, so exercising it proves the alias did not try to
-    # resolve a mutable "default" strategy key.
-    with pytest.raises(AttributeError):
-        dispatcher.assemble(request)
+    output = dispatcher.assemble(request)
+
+    assert output.messages == ["legacy"]
 
 
 def test_new_agent_canonicalization_freezes_system_default_and_strategy() -> None:
@@ -368,6 +380,20 @@ def test_frozen_default_selection_keeps_its_resolved_strategy() -> None:
 
     assert selection.selection_key == ContextAssemblerKey("default", "v1")
     assert selection.strategy_key == ContextAssemblerKey("adaptive", "v1")
+
+
+def test_default_selection_version_must_match_frozen_strategy_version() -> None:
+    with pytest.raises(ValidationError, match="selection version must match"):
+        canonicalize_context_assembler_runtime_config(
+            {
+                "context_assembler": {
+                    "name": "default",
+                    "version": "v2",
+                    "strategy_name": "stdcm",
+                    "strategy_version": "v1",
+                }
+            }
+        )
 
 
 def test_runtime_config_rejects_unregistered_strategy() -> None:
