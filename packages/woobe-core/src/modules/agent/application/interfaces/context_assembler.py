@@ -27,7 +27,12 @@ class ContextAssemblyOutput(Protocol):
 
 
 class ContextAssembler(ABC):
-    """Behavioral boundary for assembling one Model Invocation context."""
+    """Assemble the context for exactly one Model Invocation.
+
+    Runtime hosts may share one assembler instance across concurrent Runs. Concrete
+    implementations therefore must keep per-invocation mutable state in the request
+    or local call scope instead of storing it on the assembler instance.
+    """
 
     @abstractmethod
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
