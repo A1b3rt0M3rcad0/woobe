@@ -13,6 +13,12 @@ AGENT_ROOT = (
     / "agent"
 )
 AGENT_EXECUTION = AGENT_ROOT / "infra" / "execution"
+AGENT_RUNTIME_FACTORY = (
+    AGENT_ROOT
+    / "composition"
+    / "factories"
+    / "ask_agent_runtime_factory.py"
+)
 ASK_JOB_WORKER = (
     ROOT
     / "packages"
@@ -86,6 +92,58 @@ def _call_name(node: ast.Call) -> str | None:
 
 def _has_keyword(node: ast.Call, keyword: str) -> bool:
     return any(item.arg == keyword for item in node.keywords)
+
+
+def _find_function(tree: ast.Module, name: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == name:
+            return node
+        if isinstance(node, ast.ClassDef):
+            for member in node.body:
+                if (
+                    isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and member.name == name
+                ):
+                    return member
+    raise AssertionError(f"Function {name} is missing")
+
+
+def _assigned_constructor_names(
+    function: ast.FunctionDef | ast.AsyncFunctionDef,
+    constructor_name: str,
+) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(function):
+        value = None
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            value = node.value
+            targets = list(node.targets)
+        elif isinstance(node, ast.AnnAssign):
+            value = node.value
+            targets = [node.target]
+        if not isinstance(value, ast.Call) or _call_name(value) != constructor_name:
+            continue
+        for target in targets:
+            if isinstance(target, ast.Name):
+                names.add(target.id)
+    return names
+
+
+def _context_assembler_configured_names(
+    function: ast.FunctionDef | ast.AsyncFunctionDef,
+) -> set[str]:
+    names: set[str] = set()
+    for node in ast.walk(function):
+        if not isinstance(node, ast.Call):
+            continue
+        if not isinstance(node.func, ast.Attribute):
+            continue
+        if node.func.attr != "configure_context_assembler":
+            continue
+        if isinstance(node.func.value, ast.Name):
+            names.add(node.func.value.id)
+    return names
 
 
 def test_agent_execution_depends_on_context_assembler_contract_not_default() -> None:
@@ -191,3 +249,37 @@ def test_background_worker_gets_default_assembler_only_from_public_boundary() ->
         "AskJobWorker bypasses Agent background boundary for DefaultContextAssembler: "
         + ", ".join(direct_imports)
     )
+
+
+def test_production_runtime_composition_configures_context_assembler_explicitly() -> None:
+    cases = [
+        (
+            AGENT_RUNTIME_FACTORY,
+            "_build_agent_runtime",
+            "FrozenSnapshotStructuredOutputRuntime",
+        ),
+        (
+            ASK_JOB_WORKER,
+            "_process_job",
+            "TransactionBoundedStructuredOutputRuntime",
+        ),
+    ]
+    violations: list[str] = []
+
+    for path, function_name, constructor_name in cases:
+        function = _find_function(_tree(path), function_name)
+        constructed = _assigned_constructor_names(function, constructor_name)
+        configured = _context_assembler_configured_names(function)
+        if not constructed:
+            violations.append(
+                f"{path.relative_to(ROOT).as_posix()} no longer constructs "
+                f"{constructor_name} in {function_name}"
+            )
+            continue
+        for variable_name in sorted(constructed - configured):
+            violations.append(
+                f"{path.relative_to(ROOT).as_posix()} constructs {constructor_name} "
+                f"as {variable_name} without configure_context_assembler(...)"
+            )
+
+    assert not violations, "\n".join(violations)
