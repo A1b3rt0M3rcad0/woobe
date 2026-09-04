@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.agent.background_boundary import AskInput
 from modules.agent.background_boundary import AskJob
-from modules.agent.background_boundary import DEFAULT_CONTEXT_ASSEMBLER_KEY
 from modules.agent.background_boundary import LangchainEmbeddingFactory
 from modules.agent.background_boundary import LangchainLLMFactory
 from modules.agent.background_boundary import HttpToolExecutor
@@ -15,7 +14,7 @@ from modules.agent.background_boundary import (
 )
 from modules.agent.background_boundary import AgentUnitOfWork
 from modules.agent.background_boundary import AgentToolRuntimeGateway
-from modules.agent.background_boundary import build_context_assembler
+from modules.agent.background_boundary import build_runtime_context_assembler
 from modules.agent.background_boundary import (
     TransactionBoundedStructuredOutputRuntime,
 )
@@ -64,9 +63,7 @@ class AskJobWorker:
             encryption_key=settings.encryption_key,
             tool_executor_factory=tool_runtime.execute_tool,
         )
-        execution.configure_context_assembler(
-            build_context_assembler(DEFAULT_CONTEXT_ASSEMBLER_KEY)
-        )
+        execution.configure_context_assembler(build_runtime_context_assembler())
         execution.configure_rag_embedding_factory(LangchainEmbeddingFactory())
         execution.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
 
