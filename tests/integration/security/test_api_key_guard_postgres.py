@@ -12,13 +12,13 @@ from modules.core.infra.database.models import ApiKeyModel, ProjectModel
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 from shared.infra.errors import AuthenticationError, AuthorizationError, NotFoundError
+from shared.infra.security import SqlSecurityAuthenticator
 from shared.security.access_tokens import AccessTokenCodec
 from shared.security.api_keys import (
     API_KEY_SCOPE_RUNTIME_EXECUTE,
     API_KEY_SCOPE_TRACES_READ,
     issue_project_api_key,
 )
-from shared.security.authentication import SecurityAuthenticator
 from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     ApiKeyRequestLimiter,
@@ -52,7 +52,7 @@ def _guard(session_factory, settings: Settings) -> HttpSecurityGuard:
         session_factory=session_factory,
     )
     return HttpSecurityGuard(
-        authenticator=SecurityAuthenticator(
+        authenticator=SqlSecurityAuthenticator(
             session_factory=session_factory,
             token_codec=AccessTokenCodec(
                 signing_key=settings.secret_key,

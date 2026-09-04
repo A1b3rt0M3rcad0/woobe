@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from shared.security.authentication import SecurityAuthenticator
+from shared.infra.security import SqlSecurityAuthenticator
 from shared.security.principal import AuthenticatedPrincipal
 
 
@@ -27,7 +27,7 @@ async def test_active_session_validation_uses_identity_user_sessions() -> None:
         )
     )
     session = SimpleNamespace(execute=AsyncMock(return_value=result))
-    authenticator = SecurityAuthenticator.__new__(SecurityAuthenticator)
+    authenticator = SqlSecurityAuthenticator.__new__(SqlSecurityAuthenticator)
 
     await authenticator._require_active_session(session, principal)
 

@@ -125,6 +125,23 @@ def test_http_security_adapter_does_not_own_persistence_rules() -> None:
     assert not violations
 
 
+def test_security_authentication_contract_is_persistence_neutral() -> None:
+    contract = CORE_ROOT / "shared/security/authentication.py"
+    forbidden = ("fastapi", "starlette", "sqlalchemy", "shared.infra")
+    violations = [
+        imported
+        for imported in _imports(contract)
+        if any(
+            imported == prefix or imported.startswith(f"{prefix}.")
+            for prefix in forbidden
+        )
+    ]
+    assert not violations
+    assert (
+        CORE_ROOT / "shared/infra/security/authentication.py"
+    ).is_file(), "SQL authentication must be owned by shared infrastructure"
+
+
 def test_workers_consume_only_public_module_boundaries() -> None:
     violations = []
     for path in WORKERS_ROOT.rglob("*.py"):

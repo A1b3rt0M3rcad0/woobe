@@ -5,12 +5,12 @@ from uuid import uuid4
 import pytest
 
 from shared.infra.errors import AuthenticationError
+from shared.infra.security import SqlSecurityAuthenticator
 from shared.security.api_keys import (
     API_KEY_SCOPE_RUNTIME_EXECUTE,
     API_KEY_VERSION,
     issue_runtime_api_key,
 )
-from shared.security.authentication import SecurityAuthenticator
 
 
 class FakeResult:
@@ -67,8 +67,8 @@ def runtime_row(*, issued, environment: str):
     )
 
 
-def build_authenticator(session: FakeSession) -> SecurityAuthenticator:
-    authenticator = SecurityAuthenticator.__new__(SecurityAuthenticator)
+def build_authenticator(session: FakeSession) -> SqlSecurityAuthenticator:
+    authenticator = SqlSecurityAuthenticator.__new__(SqlSecurityAuthenticator)
     authenticator._session_factory = lambda: FakeSessionContext(session)
     authenticator._api_key_rate_limiter = SimpleNamespace(consume=AsyncMock())
     return authenticator

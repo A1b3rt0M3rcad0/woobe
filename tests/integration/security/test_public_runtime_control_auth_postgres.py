@@ -18,8 +18,8 @@ from modules.core.infra.database.models import (
 )
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
+from shared.infra.security import SqlSecurityAuthenticator
 from shared.security.api_keys import issue_runtime_api_key
-from shared.security.authentication import SecurityAuthenticator
 from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     ApiKeyRequestLimiter,
@@ -82,7 +82,7 @@ def _secured_app(session_factory, settings: Settings) -> FastAPI:
         session_factory=session_factory,
     )
     guard = HttpSecurityGuard(
-        authenticator=SecurityAuthenticator(
+        authenticator=SqlSecurityAuthenticator(
             session_factory=session_factory,
             token_codec=MagicMock(),
             api_key_rate_limiter=api_key_rate_limiter,

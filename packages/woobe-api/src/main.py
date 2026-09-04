@@ -33,8 +33,8 @@ from shared.infra.errors import (
     RuntimeTimeoutError,
     ValidationError,
 )
+from shared.infra.security import SqlSecurityAuthenticator
 from shared.observability.logging_config import configure_logging
-from shared.security.authentication import SecurityAuthenticator
 from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     ApiKeyRequestLimiter,
@@ -127,7 +127,7 @@ def create_app() -> FastAPI:
         session_factory=security_session_factory,
     )
     app.state.security_guard = HttpSecurityGuard(
-        authenticator=SecurityAuthenticator(
+        authenticator=SqlSecurityAuthenticator(
             session_factory=security_session_factory,
             token_codec=app.state.access_token_codec,
             api_key_rate_limiter=api_key_rate_limiter,
