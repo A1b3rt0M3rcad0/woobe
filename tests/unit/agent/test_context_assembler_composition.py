@@ -78,6 +78,21 @@ def test_internal_network_runtime_accepts_alternate_context_assembler() -> None:
     assert runtime._context_assembler is assembler
 
 
+def test_agent_entrypoint_preserves_alternate_context_assembler() -> None:
+    from modules.agent.entrypoint import (
+        build_internal_agent_runtime as build_entrypoint_agent_runtime,
+    )
+
+    assembler = _AlternateContextAssembler()
+    runtime = build_entrypoint_agent_runtime(
+        Settings.model_validate({}),
+        http_executor=MagicMock(),
+        context_assembler=assembler,
+    )
+
+    assert runtime._context_assembler is assembler
+
+
 def test_handler_composition_accepts_alternate_context_assembler() -> None:
     assembler = _AlternateContextAssembler()
     handler = build_ask_agent_handler(
