@@ -17,6 +17,10 @@ class ContextAssemblerDescriptorResponse(BaseModel):
     display_name: str
     description: str
     behavior: str
+    recommended_for: list[str]
+    capabilities: list[str]
+    limitations: list[str]
+    configuration: str
     is_default: bool
 
 
