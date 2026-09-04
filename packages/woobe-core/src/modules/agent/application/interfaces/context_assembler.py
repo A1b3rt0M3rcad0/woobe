@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
@@ -74,7 +73,8 @@ class ContextAssemblyOutput(Protocol):
     def snapshot(self) -> ContextSnapshot: ...
 
 
-class ContextAssembler(ABC):
+@runtime_checkable
+class ContextAssembler(Protocol):
     """Assemble the context for exactly one Model Invocation.
 
     Runtime hosts may share one assembler instance across concurrent Runs. Concrete
@@ -82,6 +82,4 @@ class ContextAssembler(ABC):
     or local call scope instead of storing it on the assembler instance.
     """
 
-    @abstractmethod
-    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
-        ...
+    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput: ...
