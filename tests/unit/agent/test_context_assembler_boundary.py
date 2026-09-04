@@ -7,6 +7,7 @@ from uuid import uuid4
 import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from modules.agent.application import default_context_assembler
 from modules.agent.application.default_context_assembler import DefaultContextAssembler
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
@@ -56,6 +57,36 @@ def test_default_context_assembler_implements_behavioral_contract() -> None:
     ]
     assert result.snapshot.model_invocation_id == request.model_invocation_id
     assert result.snapshot.agent_run_id == request.agent_run_id
+
+
+def test_default_context_assembler_is_transparent_adapter(monkeypatch) -> None:
+    request = _request()
+    captured: dict[str, Any] = {}
+    sentinel = cast(ContextAssemblyOutput, object())
+
+    def fake_assemble_context(**kwargs):
+        captured.update(kwargs)
+        return sentinel
+
+    monkeypatch.setattr(
+        default_context_assembler,
+        "assemble_context",
+        fake_assemble_context,
+    )
+
+    result = DefaultContextAssembler().assemble(request)
+
+    assert result is sentinel
+    assert captured == {
+        "messages": request.messages,
+        "model_invocation_id": request.model_invocation_id,
+        "agent_run_id": request.agent_run_id,
+        "project_id": request.project_id,
+        "provider": request.provider,
+        "model": request.model,
+        "runtime_context": request.runtime_context,
+        "policy": request.policy,
+    }
 
 
 @dataclass(frozen=True, slots=True)
