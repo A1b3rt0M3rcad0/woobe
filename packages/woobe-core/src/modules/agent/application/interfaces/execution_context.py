@@ -91,4 +91,5 @@ def new_execution_context(
         started_at=time.monotonic(),
         request_received_at=request_received_at or now,
         execution_started_at=now,
+        client_sent_at=client_sent_at,
     )
