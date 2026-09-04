@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping
 from uuid import UUID
 
+from modules.agent.application.default_context_assembler import DefaultContextAssembler
 from modules.agent.composition.factories.agent_uow_factory import (
     build_agent_read_uow,
     build_agent_uow,
@@ -52,6 +53,7 @@ def _build_agent_runtime(
         encryption_key=settings.encryption_key,
         tool_executor_factory=tool_runtime.execute_tool,
     )
+    runtime.configure_context_assembler(DefaultContextAssembler())
     runtime.configure_rag_embedding_factory(LangchainEmbeddingFactory())
     runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
 
