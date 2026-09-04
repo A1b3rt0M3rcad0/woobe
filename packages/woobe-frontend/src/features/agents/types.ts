@@ -45,66 +45,214 @@ export interface Agent {
 export interface CreateAgentRequest {
   project_id: string
   name: string
-  description?: string
+  provider?: string
+  model?: string
+  provider_model_id?: string
+  fallback_provider_model_id?: string
   system_prompt?: string
-  provider: string
-  model: string
+  description?: string
   temperature?: number
   max_output_tokens?: number
-  session_mode?: string
-  provider_model_id?: string | null
-  provider_credential_id?: string | null
-  fallback_provider?: string | null
-  fallback_model?: string | null
-  fallback_provider_model_id?: string | null
-  fallback_credential_id?: string | null
+  provider_credential_id?: string
+  fallback_provider?: string
+  fallback_model?: string
+  fallback_credential_id?: string
+  session_mode: string
   settings?: Record<string, unknown>
 }
 
-export type UpdateAgentRequest = Partial<Omit<CreateAgentRequest, 'project_id'>>
+export interface UpdateAgentRequest {
+  name?: string
+  description?: string
+  system_prompt?: string
+  provider?: string
+  model?: string
+  provider_model_id?: string
+  fallback_provider_model_id?: string
+  provider_credential_id?: string
+  fallback_provider?: string
+  fallback_model?: string
+  fallback_credential_id?: string
+  temperature?: number
+  max_output_tokens?: number
+  session_mode?: string
+  status?: string
+  settings?: Record<string, unknown>
+}
+
+
+// ── Agent Prompt ───────────────────────────────────────────────
+
+export interface AgentPrompt {
+  id: string
+  project_id: string
+  agent_id: string
+  version: string
+  name: string
+  content: string
+  content_hash?: string
+  status: 'draft' | 'released' | 'archived'
+  created_by?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CreatePromptRequest {
+  project_id: string
+  agent_id: string
+  version: string
+  name?: string
+  content?: string
+}
+
+
+// ── Agent Contract ─────────────────────────────────────────────
+
+export interface AgentContract {
+  id: string
+  project_id: string
+  agent_id: string
+  version: string
+  name: string
+  input_schema?: Record<string, unknown>
+  output_schema?: Record<string, unknown>
+  validation_mode: 'strict' | 'loose'
+  repair_attempts: number
+  additional_instructions?: string
+  schema_hash?: string
+  status: 'draft' | 'released' | 'archived'
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CreateContractRequest {
+  project_id: string
+  agent_id: string
+  version: string
+  name?: string
+  input_schema?: Record<string, unknown>
+  output_schema?: Record<string, unknown>
+  validation_mode?: 'strict' | 'loose'
+  repair_attempts?: number
+  additional_instructions?: string
+}
+
+export interface UpdateContractRequest {
+  name?: string
+  input_schema?: Record<string, unknown>
+  output_schema?: Record<string, unknown>
+  validation_mode?: 'strict' | 'loose'
+  repair_attempts?: number
+  additional_instructions?: string
+  status?: 'draft' | 'released' | 'archived'
+}
+
+
+// ── Agent Model Config ─────────────────────────────────────────
+
+export interface AgentModelConfig {
+  id: string
+  project_id: string
+  agent_id: string
+  version: string
+  provider: string
+  provider_credential_id?: string
+  model: string
+  base_url?: string
+  temperature?: number
+  max_output_tokens?: number
+  session_mode?: string
+  settings?: Record<string, unknown>
+  status: 'draft' | 'released' | 'archived'
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CreateModelConfigRequest {
+  project_id: string
+  agent_id: string
+  version: string
+  provider?: string
+  provider_credential_id?: string
+  model: string
+  base_url?: string
+  temperature?: number
+  max_output_tokens?: number
+  session_mode?: string
+  settings?: Record<string, unknown>
+}
+
+
+// ── Knowledge Version ──────────────────────────────────────────
+
+export interface KnowledgeVersion {
+  id: string
+  project_id: string
+  agent_id: string
+  version: string
+  collection_ids: string[]
+  document_ids?: string[]
+  snapshot_metadata?: Record<string, unknown>
+  status: 'draft' | 'released' | 'archived'
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CreateKnowledgeVersionRequest {
+  project_id: string
+  agent_id: string
+  version: string
+  collection_ids?: string[]
+  document_ids?: string[]
+  snapshot_metadata?: Record<string, unknown>
+}
+
+
+// ── Agent Release ──────────────────────────────────────────────
+
+export type ReleaseStatus = 'draft' | 'staging' | 'released' | 'production' | 'archived' | 'rolled_back'
+export type ReleaseSnapshotKind = 'draft' | 'staging' | 'release'
 
 export interface AgentRelease {
   id: string
   project_id: string
   agent_id: string
   version: string
-  status: string
-  snapshot_kind?: string
-  source_release_id?: string | null
+  status: ReleaseStatus
+  snapshot_kind?: ReleaseSnapshotKind
+  prompt_version_id?: string
+  contract_version_id?: string
+  knowledge_version_id?: string
+  model_config_version_id?: string
+  provider_model_id?: string
+  fallback_provider_model_id?: string
+  // Snapshot fields — complete agent config
   name?: string
   description?: string
   system_prompt?: string
-  session_mode?: string
+  response_format?: Record<string, unknown>
+  output_schema?: Record<string, unknown>
   provider?: string
   model?: string
-  provider_model_id?: string | null
-  provider_credential_id?: string | null
-  fallback_provider?: string | null
-  fallback_model?: string | null
-  fallback_provider_model_id?: string | null
-  fallback_credential_id?: string | null
-  base_url?: string | null
+  provider_credential_id?: string
+  fallback_provider?: string
+  fallback_model?: string
+  fallback_credential_id?: string
+  base_url?: string
   temperature?: number
   max_output_tokens?: number
-  output_schema?: unknown
-  response_format?: Record<string, unknown>
-  runtime_config?: Record<string, unknown> | null
-  knowledge_version_id?: string | null
+  session_mode?: string
+  agent_status?: string
   collection_ids?: string[]
-  prompt_version_id?: string | null
-  model_config_version_id?: string | null
-  contract_version_id?: string | null
-  release_notes?: string | null
-  change_description?: string | null
+  runtime_config?: Record<string, unknown>
+  // Meta
+  release_notes?: string
+  risk_score?: number
+  created_by?: string
+  promoted_by?: string
+  promoted_at?: string
   created_at?: string
-  promoted_at?: string | null
-}
-
-export interface CreateReleaseRequest {
-  project_id: string
-  agent_id: string
-  version: string
-  [key: string]: unknown
+  updated_at?: string
 }
 
 export interface AgentReleaseActivation {
@@ -113,66 +261,72 @@ export interface AgentReleaseActivation {
   agent_id: string
   release_id: string
   previous_release_id?: string | null
-  action: 'deploy' | 'rollback' | 'reactivate' | string
+  action: 'deploy' | 'reactivate' | 'rollback'
+  change_description?: string | null
+  created_by?: string | null
   created_at?: string
 }
+
+export interface CreateReleaseRequest {
+  project_id: string
+  agent_id: string
+  version: string
+  prompt_version_id?: string
+  contract_version_id?: string
+  knowledge_version_id?: string
+  model_config_version_id?: string
+  provider_model_id?: string
+  fallback_provider_model_id?: string
+  // Snapshot fields — complete agent config
+  name?: string
+  description?: string
+  system_prompt?: string
+  response_format?: Record<string, unknown>
+  output_schema?: Record<string, unknown>
+  provider?: string
+  model?: string
+  provider_credential_id?: string
+  fallback_provider?: string
+  fallback_model?: string
+  fallback_credential_id?: string
+  base_url?: string
+  temperature?: number
+  max_output_tokens?: number
+  session_mode?: string
+  agent_status?: string
+  collection_ids?: string[]
+  runtime_config?: Record<string, unknown>
+  // Meta
+  release_notes?: string
+  risk_score?: number
+}
+
+
+// ── Agent Release Test ─────────────────────────────────────────
+
+export type ReleaseTestStatus = 'pending' | 'passed' | 'failed'
 
 export interface AgentReleaseTest {
   id: string
   project_id: string
   agent_id: string
-  release_id: string
-  status?: string
-  [key: string]: unknown
+  release_id?: string
+  contract_version_id?: string
+  input_payload?: Record<string, unknown>
+  expected_output?: Record<string, unknown>
+  actual_output?: Record<string, unknown>
+  status: ReleaseTestStatus
+  validation_errors?: unknown[]
+  latency_ms?: number
+  created_at?: string
+  updated_at?: string
 }
 
 export interface CreateReleaseTestRequest {
   project_id: string
   agent_id: string
-  release_id: string
-  [key: string]: unknown
-}
-
-export interface AgentPrompt {
-  id: string
-  agent_id: string
-  version?: string
-  [key: string]: unknown
-}
-
-export interface CreatePromptRequest {
-  [key: string]: unknown
-}
-
-export interface AgentModelConfig {
-  id: string
-  agent_id: string
-  [key: string]: unknown
-}
-
-export interface CreateModelConfigRequest {
-  [key: string]: unknown
-}
-
-export interface AgentContract {
-  id: string
-  agent_id: string
-  [key: string]: unknown
-}
-
-export interface CreateContractRequest {
-  [key: string]: unknown
-}
-
-export type UpdateContractRequest = Partial<CreateContractRequest>
-
-export interface KnowledgeVersion {
-  id: string
-  agent_id: string
-  version?: string
-  [key: string]: unknown
-}
-
-export interface CreateKnowledgeVersionRequest {
-  [key: string]: unknown
+  release_id?: string
+  contract_version_id?: string
+  input_payload?: Record<string, unknown>
+  expected_output?: Record<string, unknown>
 }
