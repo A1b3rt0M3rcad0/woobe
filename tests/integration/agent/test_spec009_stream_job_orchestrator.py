@@ -126,6 +126,28 @@ class TestWorkerRegistration:
         assert hasattr(worker, "run")
         assert callable(worker.run)
 
+    def test_ask_job_worker_configures_context_assembler(self):
+        import ast
+        import inspect
+
+        from woobe_workers.consumers.agent.ask_job_worker import AskJobWorker
+
+        tree = ast.parse(inspect.getsource(AskJobWorker))
+        assembler_calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "configure_context_assembler"
+        ]
+
+        assert len(assembler_calls) == 1
+        assert len(assembler_calls[0].args) == 1
+        configured = assembler_calls[0].args[0]
+        assert isinstance(configured, ast.Call)
+        assert isinstance(configured.func, ast.Name)
+        assert configured.func.id == "DefaultContextAssembler"
+
 
 class TestNoClosedSession:
     """The UoW owns session lifecycle while repositories are composed explicitly."""
