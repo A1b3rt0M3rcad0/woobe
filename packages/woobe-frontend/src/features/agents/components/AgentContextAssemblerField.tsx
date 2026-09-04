@@ -52,6 +52,12 @@ function selectionKey(item: Pick<ContextAssemblerDescriptor, 'name' | 'version'>
   return `${item.name}:${item.version}`
 }
 
+function strategyKey(
+  item: Pick<ContextAssemblerDescriptor, 'strategy_name' | 'strategy_version'>,
+) {
+  return `${item.strategy_name}:${item.strategy_version}`
+}
+
 function descriptorIdentity(
   item: Pick<ContextAssemblerDescriptor, 'name' | 'version' | 'strategy_name' | 'strategy_version'>,
 ) {
@@ -81,7 +87,7 @@ export function AgentContextAssemblerField() {
     version: selected.version,
     strategy_name: selected.strategy_name,
     strategy_version: selected.strategy_version,
-    display_name: selected.strategy_name === 'stdcm' ? 'Standard Context Manager' : selected.strategy_name,
+    display_name: selected.strategy_name,
     description: '',
     behavior: '',
     recommended_for: [],
@@ -91,10 +97,32 @@ export function AgentContextAssemblerField() {
     is_default: false,
     is_system_default_alias: selected.name === 'default',
   }), [selected])
-  const availableAssemblers = assemblers.length > 0 ? assemblers : [selectedFallback]
-  const selectedDescriptor = availableAssemblers.find(
+
+  const exactSelectedDescriptor = assemblers.find(
     (item) => descriptorIdentity(item) === selectedIdentity,
-  ) ?? selectedFallback
+  )
+  const selectedStrategyDescriptor = assemblers.find(
+    (item) => !item.is_system_default_alias && strategyKey(item) === strategyKey(selected),
+  )
+  const selectedDescriptor = exactSelectedDescriptor
+    ?? (selectedStrategyDescriptor
+      ? {
+          ...selectedStrategyDescriptor,
+          name: selected.name,
+          version: selected.version,
+          strategy_name: selected.strategy_name,
+          strategy_version: selected.strategy_version,
+          is_default: false,
+          is_system_default_alias: selected.name === 'default',
+        }
+      : selectedFallback)
+
+  const availableAssemblers = assemblers.length === 0
+    ? [selectedFallback]
+    : exactSelectedDescriptor
+      ? assemblers
+      : [selectedDescriptor, ...assemblers]
+
   const [open, setOpen] = useState(false)
   const [focusedIdentity, setFocusedIdentity] = useState<string | null>(null)
 
