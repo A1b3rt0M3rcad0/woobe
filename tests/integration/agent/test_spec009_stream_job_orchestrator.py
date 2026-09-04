@@ -143,7 +143,7 @@ class TestWorkerRegistration:
             for alias in node.names
         }
         assert "build_runtime_context_assembler" in boundary_names
-        assert "DefaultContextAssembler" not in boundary_names
+        assert "StandardContextAssembler" not in boundary_names
 
         tree = ast.parse(inspect.getsource(AskJobWorker))
         assembler_calls = [
@@ -160,7 +160,9 @@ class TestWorkerRegistration:
         assert isinstance(configured, ast.Call)
         assert isinstance(configured.func, ast.Name)
         assert configured.func.id == "build_runtime_context_assembler"
-        assert configured.args == []
+        assert len(configured.args) == 1
+        assert isinstance(configured.args[0], ast.Attribute)
+        assert configured.args[0].attr == "default_context_manager"
 
 
 class TestNoClosedSession:
