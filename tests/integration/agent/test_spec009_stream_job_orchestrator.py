@@ -132,6 +132,18 @@ class TestWorkerRegistration:
 
         from woobe_workers.consumers.agent.ask_job_worker import AskJobWorker
 
+        module = inspect.getmodule(AskJobWorker)
+        assert module is not None
+        module_tree = ast.parse(inspect.getsource(module))
+        boundary_imports = [
+            node
+            for node in ast.walk(module_tree)
+            if isinstance(node, ast.ImportFrom)
+            and node.module == "modules.agent.background_boundary"
+            and any(alias.name == "DefaultContextAssembler" for alias in node.names)
+        ]
+        assert len(boundary_imports) == 1
+
         tree = ast.parse(inspect.getsource(AskJobWorker))
         assembler_calls = [
             node
