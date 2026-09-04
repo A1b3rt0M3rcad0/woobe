@@ -107,6 +107,12 @@ def build_internal_agent_runtime(
 def build_ask_agent_handler(
     settings: Settings,
     http_executor: HttpToolExecutor | None = None,
+    *,
+    context_assembler: ContextAssembler | None = None,
 ) -> AskRequestHandler:
-    runtime, _transactions = build_ask_agent_use_case(settings, http_executor)
+    runtime, _transactions = build_ask_agent_use_case(
+        settings,
+        http_executor,
+        context_assembler=context_assembler,
+    )
     return AskAgentController(runtime).handle
