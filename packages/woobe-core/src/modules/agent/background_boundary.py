@@ -5,6 +5,9 @@ may consume agent background capabilities. It contains no worker
 lifecycle, registry, polling, slot or process-bootstrap behavior.
 """
 
+from modules.agent.application.default_context_assembler import (
+    DefaultContextAssembler,
+)
 from modules.agent.application.dtos.runtime_dtos import (
     AskInput,
 )
