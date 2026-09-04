@@ -8,6 +8,7 @@ from uuid import uuid4
 from modules.agent.application.runtime_output_validation import (
     ensure_model_result_has_public_output,
 )
+from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.application.interfaces.embedding_errors import EmbeddingProviderError
 from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
@@ -40,6 +41,7 @@ class _PrimaryExecutionSuper(Protocol):
 class _PrimaryExecutionHost(Protocol):
     _llm_factory: Any
     _transactions: AgentRuntimeTransactionRunner
+    _context_assembler: ContextAssembler | None
     async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict: ...
     def _clean_json_answer(self, answer: str) -> str: ...
 
@@ -66,6 +68,11 @@ def _copy_http_route_metadata(payload: dict[str, Any]) -> None:
 
 
 class InstrumentedPrimaryExecutionMixin:
+    _context_assembler: ContextAssembler | None = None
+
+    def configure_context_assembler(self, assembler: ContextAssembler) -> None:
+        self._context_assembler = assembler
+
     async def execute(self, input_dto: Any) -> Any:
         metadata = input_dto.metadata if isinstance(input_dto.metadata, dict) else {}
         existing_context = current_execution.get()
@@ -240,6 +247,7 @@ class InstrumentedPrimaryExecutionMixin:
         try:
             execution = await run_instrumented_execution(
                 llm_factory=host._llm_factory,
+                context_assembler=host._context_assembler,
                 execute_single_tool=host._execute_single_tool,
                 clean_json_answer=host._clean_json_answer,
                 agent=agent,
