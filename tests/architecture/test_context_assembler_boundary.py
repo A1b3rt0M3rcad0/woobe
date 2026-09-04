@@ -65,6 +65,18 @@ def _runtime_context_contract_fields(tree: ast.Module) -> set[str]:
     raise AssertionError("ContextAssemblyRuntimeContext contract is missing")
 
 
+def _call_name(node: ast.Call) -> str | None:
+    if isinstance(node.func, ast.Name):
+        return node.func.id
+    if isinstance(node.func, ast.Attribute):
+        return node.func.attr
+    return None
+
+
+def _has_keyword(node: ast.Call, keyword: str) -> bool:
+    return any(item.arg == keyword for item in node.keywords)
+
+
 def test_agent_execution_depends_on_context_assembler_contract_not_default() -> None:
     violations: list[str] = []
 
@@ -118,3 +130,28 @@ def test_context_assembly_runtime_contract_covers_every_runtime_state_read() -> 
         "ContextAssemblyRuntimeContext is missing fields read by context_assembly.py: "
         + ", ".join(missing)
     )
+
+
+def test_every_model_invocation_propagates_context_assembler_explicitly() -> None:
+    violations: list[str] = []
+
+    for path in AGENT_EXECUTION.rglob("*.py"):
+        tree = _tree(path)
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            name = _call_name(node)
+            if name not in {
+                "invoke_llm",
+                "run_tool_loop",
+                "repair_json_if_needed",
+                "run_instrumented_execution",
+            }:
+                continue
+            if not _has_keyword(node, "context_assembler"):
+                violations.append(
+                    f"{path.relative_to(ROOT).as_posix()} calls {name}(...) "
+                    "without context_assembler"
+                )
+
+    assert not violations, "\n".join(violations)
