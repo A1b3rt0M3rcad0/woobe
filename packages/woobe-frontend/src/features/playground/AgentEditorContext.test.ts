@@ -43,6 +43,41 @@ describe('AgentEditorContext session mode', () => {
   })
 })
 
+describe('AgentEditorContext context manager snapshot', () => {
+  it('preserves the selected manager in the Agent Draft snapshot', () => {
+    const state = agentToEditorState({
+      ...agent,
+      settings: {
+        runtime_config: {
+          context_assembler: { name: 'adaptive', version: 'v1' },
+        },
+      },
+    })
+
+    expect(state.runtimeConfig.context_assembler).toEqual({ name: 'adaptive', version: 'v1' })
+    expect((canonicalSnapshot(state).runtime_config as Record<string, unknown>).context_assembler).toEqual({
+      name: 'adaptive',
+      version: 'v1',
+    })
+  })
+
+  it('hydrates the exact manager identity from an immutable release snapshot', () => {
+    const current = agentToEditorState(agent)
+    const state = releaseToEditorState({
+      id: 'release-1',
+      project_id: 'project-1',
+      agent_id: 'agent-1',
+      version: 'v1.0.0',
+      status: 'production',
+      runtime_config: {
+        context_assembler: { name: 'default', version: 'v1' },
+      },
+    }, current)
+
+    expect(state.runtimeConfig.context_assembler).toEqual({ name: 'default', version: 'v1' })
+  })
+})
+
 describe('AgentEditorContext Tool permissions', () => {
   it('reads HTTP route permissions from a Tool snapshot', () => {
     const permissions = toolPermissionsFromSnapshots([
