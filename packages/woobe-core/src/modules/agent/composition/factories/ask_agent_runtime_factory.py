@@ -55,7 +55,12 @@ def _build_agent_runtime(
         encryption_key=settings.encryption_key,
         tool_executor_factory=tool_runtime.execute_tool,
     )
-    runtime.configure_context_assembler(context_assembler or DefaultContextAssembler())
+    assembler = (
+        context_assembler
+        if context_assembler is not None
+        else DefaultContextAssembler()
+    )
+    runtime.configure_context_assembler(assembler)
     runtime.configure_rag_embedding_factory(LangchainEmbeddingFactory())
     runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
 
