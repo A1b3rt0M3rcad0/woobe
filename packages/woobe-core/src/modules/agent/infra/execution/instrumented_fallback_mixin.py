@@ -3,6 +3,7 @@ from __future__ import annotations
 from modules.agent.application.runtime_output_validation import (
     ensure_model_result_has_public_output,
 )
+from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
@@ -64,6 +65,11 @@ class InstrumentedFallbackMixin:
             streaming=runtime_streaming_enabled(),
             response_format={"type": "json_object"} if json_enabled else None,
         )
+        context_assembler: ContextAssembler | None = getattr(
+            self,
+            "_context_assembler",
+            None,
+        )
 
         try:
             result, call = await invoke_llm(
@@ -77,6 +83,7 @@ class InstrumentedFallbackMixin:
                 provider=fallback_provider,
                 model_name=agent.fallback_model,
                 pricing_snapshot=pricing_snapshot,
+                context_assembler=context_assembler,
             )
         except InstrumentedExecutionError as exc:
             merged_calls = [*execution.llm_calls, *exc.llm_calls]
