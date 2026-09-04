@@ -34,7 +34,13 @@ _CONTEXT_ASSEMBLER_CONTRACT = (
     AGENT_ROOT / "application" / "interfaces" / "context_assembler.py"
 )
 _DEFAULT_ASSEMBLER = AGENT_ROOT / "application" / "default_context_assembler.py"
+_CONTEXT_ASSEMBLER_REGISTRY = (
+    AGENT_ROOT / "composition" / "context_assembler_registry.py"
+)
 _DEFAULT_ASSEMBLER_MODULE = "modules.agent.application.default_context_assembler"
+_CONTEXT_ASSEMBLER_REGISTRY_MODULE = (
+    "modules.agent.composition.context_assembler_registry"
+)
 _BACKGROUND_BOUNDARY_MODULE = "modules.agent.background_boundary"
 _LEGACY_ASSEMBLY_MODULE = "modules.agent.application.context_assembly"
 
@@ -146,10 +152,36 @@ def _context_assembler_configured_names(
     return names
 
 
-def test_agent_execution_depends_on_context_assembler_contract_not_default() -> None:
+def test_agent_execution_depends_only_on_context_assembler_contract() -> None:
     violations: list[str] = []
 
+    forbidden_modules = {
+        _DEFAULT_ASSEMBLER_MODULE,
+        _CONTEXT_ASSEMBLER_REGISTRY_MODULE,
+    }
     for path in AGENT_EXECUTION.rglob("*.py"):
+        for node in ast.walk(_tree(path)):
+            if isinstance(node, ast.ImportFrom):
+                if node.module in forbidden_modules:
+                    violations.append(
+                        f"{path.relative_to(ROOT).as_posix()} imports {node.module}"
+                    )
+            elif isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in forbidden_modules:
+                        violations.append(
+                            f"{path.relative_to(ROOT).as_posix()} imports {alias.name}"
+                        )
+
+    assert not violations, "\n".join(violations)
+
+
+def test_default_context_assembler_is_composed_only_by_registry() -> None:
+    violations: list[str] = []
+
+    for path in AGENT_ROOT.rglob("*.py"):
+        if path in {_DEFAULT_ASSEMBLER, _CONTEXT_ASSEMBLER_REGISTRY}:
+            continue
         for node in ast.walk(_tree(path)):
             if isinstance(node, ast.ImportFrom):
                 if node.module == _DEFAULT_ASSEMBLER_MODULE:
@@ -226,28 +258,29 @@ def test_every_model_invocation_propagates_context_assembler_explicitly() -> Non
     assert not violations, "\n".join(violations)
 
 
-def test_background_worker_gets_default_assembler_only_from_public_boundary() -> None:
-    direct_imports: list[str] = []
-    boundary_imported = False
+def test_background_worker_resolves_default_assembler_only_from_public_boundary() -> None:
+    boundary_names: set[str] = set()
+    direct_default_imports: list[str] = []
 
     for node in ast.walk(_tree(ASK_JOB_WORKER)):
         if not isinstance(node, ast.ImportFrom):
             continue
         names = {alias.name for alias in node.names}
-        if "DefaultContextAssembler" not in names:
-            continue
         if node.module == _BACKGROUND_BOUNDARY_MODULE:
-            boundary_imported = True
-        else:
-            direct_imports.append(str(node.module))
+            boundary_names.update(names)
+        if "DefaultContextAssembler" in names:
+            direct_default_imports.append(str(node.module))
 
-    assert boundary_imported, (
-        "AskJobWorker must obtain DefaultContextAssembler through "
-        "modules.agent.background_boundary"
+    required = {"build_context_assembler", "DEFAULT_CONTEXT_ASSEMBLER_KEY"}
+    missing = sorted(required - boundary_names)
+
+    assert not missing, (
+        "AskJobWorker must resolve ContextAssembler through modules.agent.background_boundary: "
+        + ", ".join(missing)
     )
-    assert not direct_imports, (
-        "AskJobWorker bypasses Agent background boundary for DefaultContextAssembler: "
-        + ", ".join(direct_imports)
+    assert not direct_default_imports, (
+        "AskJobWorker must not import DefaultContextAssembler directly: "
+        + ", ".join(direct_default_imports)
     )
 
 
