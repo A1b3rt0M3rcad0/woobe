@@ -3,14 +3,11 @@ from __future__ import annotations
 from typing import Any, cast
 from unittest.mock import MagicMock
 
-from modules.agent.application.default_context_assembler import DefaultContextAssembler
+from modules.agent.application.context_assembler_registry import RegistryContextAssembler
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
-)
-from modules.agent.composition.context_assembler_registry import (
-    DEFAULT_CONTEXT_ASSEMBLER_KEY,
 )
 from modules.agent.composition.factories.ask_agent_runtime_factory import (
     build_ask_agent_handler,
@@ -20,10 +17,10 @@ from modules.agent.composition.factories.ask_agent_runtime_factory import (
 from shared.infra.config import Settings
 
 
-def _assert_default_context_assembler(runtime) -> None:
+def _assert_registry_context_assembler(runtime) -> None:
     assert isinstance(
         getattr(runtime, "_context_assembler", None),
-        DefaultContextAssembler,
+        RegistryContextAssembler,
     )
 
 
@@ -41,26 +38,30 @@ def test_context_assembler_port_accepts_structural_implementations() -> None:
     assert isinstance(_AlternateContextAssembler(), ContextAssembler)
 
 
-def test_public_agent_runtime_composition_wires_default_context_assembler() -> None:
+def test_public_agent_runtime_composition_wires_registry_dispatcher() -> None:
     runtime, _transactions = build_ask_agent_use_case(
         Settings.model_validate({}),
         http_executor=MagicMock(),
     )
 
-    _assert_default_context_assembler(runtime)
+    _assert_registry_context_assembler(runtime)
 
 
-def test_default_composition_resolves_versioned_key_through_registry(monkeypatch) -> None:
+def test_default_composition_builds_snapshot_aware_dispatcher(monkeypatch) -> None:
     from modules.agent.composition.factories import ask_agent_runtime_factory
 
     assembler = _AlternateContextAssembler()
-    resolved_keys = []
+    calls = []
 
-    def resolve(key):
-        resolved_keys.append(key)
+    def build_dispatcher():
+        calls.append(True)
         return assembler
 
-    monkeypatch.setattr(ask_agent_runtime_factory, "build_context_assembler", resolve)
+    monkeypatch.setattr(
+        ask_agent_runtime_factory,
+        "build_runtime_context_assembler",
+        build_dispatcher,
+    )
 
     runtime, _transactions = ask_agent_runtime_factory.build_ask_agent_use_case(
         Settings.model_validate({}),
@@ -68,16 +69,16 @@ def test_default_composition_resolves_versioned_key_through_registry(monkeypatch
     )
 
     assert runtime._context_assembler is assembler
-    assert resolved_keys == [DEFAULT_CONTEXT_ASSEMBLER_KEY]
+    assert calls == [True]
 
 
-def test_internal_network_agent_runtime_composition_wires_default_context_assembler() -> None:
+def test_internal_network_agent_runtime_composition_wires_registry_dispatcher() -> None:
     runtime = build_internal_agent_runtime(
         Settings.model_validate({}),
         http_executor=MagicMock(),
     )
 
-    _assert_default_context_assembler(runtime)
+    _assert_registry_context_assembler(runtime)
 
 
 def test_public_agent_runtime_accepts_alternate_context_assembler() -> None:
