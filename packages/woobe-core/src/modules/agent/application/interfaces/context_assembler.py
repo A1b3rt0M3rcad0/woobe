@@ -10,24 +10,48 @@ from modules.agent.domain.context import ContextSnapshot
 
 
 class ContextAssemblyRuntimeContext(Protocol):
-    """Execution evidence/configuration consumed by Context Assembly.
+    """Read-only execution evidence/configuration consumed by Context Assembly.
 
     This is intentionally narrower than RequestExecutionContext so ContextAssembler
-    implementations do not depend on the complete Agent runtime state container.
+    implementations do not depend on the complete Agent runtime state container or
+    mutate orchestration state as part of context selection.
     """
 
-    run_id: UUID | None
-    input_message_id: UUID | None
-    model_capacity_units: int | None
-    reserved_output_units: int | None
-    active_tool_definitions: list[dict[str, Any]] | None
-    context_selection_metadata: dict[str, Any] | None
-    rag_metadata: dict[str, Any] | None
-    context_rag_sources: list[dict[str, Any]] | None
-    parent_invocation_id: UUID | None
-    network_execution_id: UUID | None
-    network_invocation_id: UUID | None
-    network_node_id: UUID | None
+    @property
+    def run_id(self) -> UUID | None: ...
+
+    @property
+    def input_message_id(self) -> UUID | None: ...
+
+    @property
+    def model_capacity_units(self) -> int | None: ...
+
+    @property
+    def reserved_output_units(self) -> int | None: ...
+
+    @property
+    def active_tool_definitions(self) -> list[dict[str, Any]] | None: ...
+
+    @property
+    def context_selection_metadata(self) -> dict[str, Any] | None: ...
+
+    @property
+    def rag_metadata(self) -> dict[str, Any] | None: ...
+
+    @property
+    def context_rag_sources(self) -> list[dict[str, Any]] | None: ...
+
+    @property
+    def parent_invocation_id(self) -> UUID | None: ...
+
+    @property
+    def network_execution_id(self) -> UUID | None: ...
+
+    @property
+    def network_invocation_id(self) -> UUID | None: ...
+
+    @property
+    def network_node_id(self) -> UUID | None: ...
 
 
 @dataclass(frozen=True, slots=True)
