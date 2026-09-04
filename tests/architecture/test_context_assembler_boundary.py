@@ -44,5 +44,9 @@ def test_agent_execution_depends_on_context_assembler_contract_not_default() -> 
                         violations.append(
                             f"{path.relative_to(ROOT).as_posix()} imports DefaultContextAssembler"
                         )
+                    if alias.name == _LEGACY_ASSEMBLY_MODULE:
+                        violations.append(
+                            f"{path.relative_to(ROOT).as_posix()} imports context_assembly module directly"
+                        )
 
     assert not violations, "\n".join(violations)
