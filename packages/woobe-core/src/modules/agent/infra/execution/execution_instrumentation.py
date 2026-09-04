@@ -9,13 +9,16 @@ import uuid6
 from langchain_core.messages import ToolMessage
 
 from modules.agent.application.context_assembly import (
-    assemble_context,
     enrich_snapshot_with_reported_usage,
     estimate_input_units,
     snapshot_to_dict,
 )
 from modules.agent.application.context_policy import ContextPolicyV1
 from modules.agent.application.dtos.runtime_dtos import ToolCallInfo, UsageInfo
+from modules.agent.application.interfaces.context_assembler import (
+    ContextAssembler,
+    ContextAssemblyRequest,
+)
 from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
@@ -158,10 +161,15 @@ def _assemble_invocation_context(
     model_name: str,
     phase: str,
     pricing_snapshot: dict[str, Any] | None,
+    context_assembler: ContextAssembler | None,
 ):
     context = current_execution.get()
     if context is None or context.run_id is None or context.project_id is None:
         return messages, None
+    if context_assembler is None:
+        raise RuntimeError(
+            "ContextAssembler dependency is required for instrumented Agent execution"
+        )
 
     policy = ContextPolicyV1.model_validate(context.context_policy or {})
     previous_capacity = context.model_capacity_units
@@ -174,15 +182,17 @@ def _assemble_invocation_context(
     if phase in {"final_response_generation", "json_repair"}:
         context.active_tool_definitions = []
     try:
-        assembled = assemble_context(
-            messages=messages,
-            model_invocation_id=invocation_id,
-            agent_run_id=context.run_id,
-            project_id=context.project_id,
-            provider=provider,
-            model=model_name,
-            runtime_context=context,
-            policy=policy,
+        assembled = context_assembler.assemble(
+            ContextAssemblyRequest(
+                messages=messages,
+                model_invocation_id=invocation_id,
+                agent_run_id=context.run_id,
+                project_id=context.project_id,
+                provider=provider,
+                model=model_name,
+                runtime_context=context,
+                policy=policy,
+            )
         )
         return assembled.messages, assembled.snapshot
     finally:
@@ -199,6 +209,7 @@ async def invoke_llm(
     provider: str,
     model_name: str,
     pricing_snapshot: dict[str, Any] | None = None,
+    context_assembler: ContextAssembler | None = None,
 ) -> tuple[Any, dict[str, Any]]:
     call_uuid = uuid6.uuid7()
     call_id = str(call_uuid)
@@ -209,6 +220,7 @@ async def invoke_llm(
         model_name=model_name,
         phase=phase,
         pricing_snapshot=pricing_snapshot,
+        context_assembler=context_assembler,
     )
     started_at = utc_iso()
     started = time.monotonic()
