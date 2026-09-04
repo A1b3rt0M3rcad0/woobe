@@ -15,6 +15,10 @@ export interface ContextAssemblerDescriptor {
   display_name: string
   description: string
   behavior: string
+  recommended_for: string[]
+  capabilities: string[]
+  limitations: string[]
+  configuration: string
   is_default: boolean
 }
 
@@ -106,7 +110,7 @@ export interface CreatePromptRequest {
 }
 
 
-// ── Agent Contract ─────────────────────────────────────────────
+// ── Agent Contract ──────────────────────────────────────────
 
 export interface AgentContract {
   id: string
