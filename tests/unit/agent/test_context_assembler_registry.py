@@ -34,6 +34,23 @@ class _AlternateContextAssembler:
         return SimpleNamespace(messages=request.messages, snapshot=SimpleNamespace())
 
 
+def _descriptor(
+    key: ContextAssemblerKey,
+    *,
+    display_name: str = "Alternate Context Manager",
+) -> ContextAssemblerDescriptor:
+    return ContextAssemblerDescriptor(
+        key=key,
+        display_name=display_name,
+        description="Alternate context manager used by tests.",
+        behavior="Assembles test context deterministically.",
+        recommended_for=("Test workloads.",),
+        capabilities=("Returns the provided messages.",),
+        limitations=("Test implementation only.",),
+        configuration="Test configuration",
+    )
+
+
 def test_default_registry_resolves_versioned_default_assembler() -> None:
     registry = build_context_assembler_registry()
 
@@ -52,14 +69,30 @@ def test_default_registry_exposes_product_metadata() -> None:
         {
             "name": "default",
             "version": "v1",
-            "display_name": "Default Context",
+            "display_name": "Standard Context Manager",
             "description": (
-                "Balanced deterministic context assembly for general-purpose Agent execution."
+                "Balanced deterministic context management for general-purpose Agent execution."
             ),
             "behavior": (
-                "Preserves mandatory inputs, applies Context Policy v1 budgets and priorities, "
-                "trims context under pressure, and records provenance in the Context Snapshot."
+                "Builds each Model Invocation context deterministically from the Agent's available "
+                "context sources, applying Context Policy v1 budgets, priorities, pressure handling, "
+                "ordering, deduplication, and provenance capture."
             ),
+            "recommended_for": [
+                "General-purpose Agents that need predictable context behavior.",
+                "Production workloads where replayability and stable snapshot behavior matter.",
+            ],
+            "capabilities": [
+                "Preserves mandatory system instructions and the current user input.",
+                "Balances session history, knowledge, tool, artifact, delegation, and runtime context within configured budgets.",
+                "Applies pressure trimming, ordering, and deduplication before each Model Invocation.",
+                "Records source contributions and provenance in the Context Snapshot.",
+            ],
+            "limitations": [
+                "Does not perform autonomous context planning or iterative retrieval.",
+                "Behavior is bounded by Context Policy v1 and the context sources available to the Agent.",
+            ],
+            "configuration": "Context Policy v1",
             "is_default": True,
         }
     ]
@@ -77,12 +110,50 @@ def test_build_context_assembler_resolves_through_fresh_registry() -> None:
 def test_registry_accepts_structural_context_assembler_factory() -> None:
     key = ContextAssemblerKey("alternate", "v1")
     registry = ContextAssemblerRegistry()
-    registry.register(key, _AlternateContextAssembler)
+    registry.register(key, _AlternateContextAssembler, descriptor=_descriptor(key))
 
     assembler = registry.create(key)
 
     assert isinstance(assembler, ContextAssembler)
     assert isinstance(assembler, _AlternateContextAssembler)
+
+
+def test_registry_requires_explicit_product_metadata() -> None:
+    key = ContextAssemblerKey("alternate", "v1")
+    registry = ContextAssemblerRegistry()
+
+    with pytest.raises(TypeError, match="descriptor"):
+        registry.register(key, _AlternateContextAssembler)  # type: ignore[call-arg]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("display_name", " "),
+        ("description", " "),
+        ("behavior", " "),
+        ("configuration", " "),
+        ("recommended_for", ()),
+        ("capabilities", (" ",)),
+        ("limitations", ()),
+    ],
+)
+def test_descriptor_rejects_incomplete_product_metadata(field: str, value: object) -> None:
+    key = ContextAssemblerKey("alternate", "v1")
+    values: dict[str, object] = {
+        "key": key,
+        "display_name": "Alternate Context Manager",
+        "description": "Description",
+        "behavior": "Behavior",
+        "recommended_for": ("General use",),
+        "capabilities": ("Capability",),
+        "limitations": ("Limitation",),
+        "configuration": "Configuration",
+    }
+    values[field] = value
+
+    with pytest.raises(ValueError, match=field):
+        ContextAssemblerDescriptor(**values)  # type: ignore[arg-type]
 
 
 def test_registry_dispatcher_resolves_manager_from_invocation_runtime_context() -> None:
@@ -91,12 +162,7 @@ def test_registry_dispatcher_resolves_manager_from_invocation_runtime_context() 
     registry.register(
         key,
         _AlternateContextAssembler,
-        descriptor=ContextAssemblerDescriptor(
-            key=key,
-            display_name="Alternate",
-            description="test",
-            behavior="test",
-        ),
+        descriptor=_descriptor(key),
     )
     dispatcher = RegistryContextAssembler(registry)
     request = ContextAssemblyRequest(
@@ -135,10 +201,11 @@ def test_runtime_config_rejects_unregistered_identity() -> None:
 def test_registry_rejects_duplicate_identity() -> None:
     key = ContextAssemblerKey("adaptive", "v1")
     registry = ContextAssemblerRegistry()
-    registry.register(key, _AlternateContextAssembler)
+    descriptor = _descriptor(key)
+    registry.register(key, _AlternateContextAssembler, descriptor=descriptor)
 
     with pytest.raises(DuplicateContextAssemblerError, match="adaptive:v1"):
-        registry.register(key, _AlternateContextAssembler)
+        registry.register(key, _AlternateContextAssembler, descriptor=descriptor)
 
 
 def test_registry_rejects_unknown_identity() -> None:
@@ -151,7 +218,11 @@ def test_registry_rejects_unknown_identity() -> None:
 def test_registry_rejects_incompatible_factory_result() -> None:
     key = ContextAssemblerKey("invalid", "v1")
     registry = ContextAssemblerRegistry()
-    registry.register(key, lambda: object())  # type: ignore[arg-type]
+    registry.register(
+        key,
+        lambda: object(),  # type: ignore[arg-type]
+        descriptor=_descriptor(key),
+    )
 
     with pytest.raises(InvalidContextAssemblerFactoryError, match="invalid:v1"):
         registry.create(key)
