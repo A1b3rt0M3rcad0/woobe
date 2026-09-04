@@ -2,18 +2,19 @@ from __future__ import annotations
 
 from modules.agent.application.context_assembly import assemble_context
 from modules.agent.application.interfaces.context_assembler import (
-    ContextAssembler,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
 )
 
 
-class DefaultContextAssembler(ContextAssembler):
+class DefaultContextAssembler:
     """Current deterministic Context Assembly strategy used by Woobe.
 
     The implementation is stateless by design so a composed runtime may safely reuse
     the same assembler instance across concurrent Agent Runs and Model Invocations.
     """
+
+    __slots__ = ()
 
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
         return assemble_context(
