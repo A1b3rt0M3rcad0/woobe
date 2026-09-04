@@ -126,7 +126,7 @@ class TestWorkerRegistration:
         assert hasattr(worker, "run")
         assert callable(worker.run)
 
-    def test_ask_job_worker_resolves_context_assembler_through_public_registry_boundary(self):
+    def test_ask_job_worker_resolves_context_assembler_through_public_boundary(self):
         import ast
         import inspect
 
@@ -142,8 +142,7 @@ class TestWorkerRegistration:
             and node.module == "modules.agent.background_boundary"
             for alias in node.names
         }
-        assert "build_context_assembler" in boundary_names
-        assert "DEFAULT_CONTEXT_ASSEMBLER_KEY" in boundary_names
+        assert "build_runtime_context_assembler" in boundary_names
         assert "DefaultContextAssembler" not in boundary_names
 
         tree = ast.parse(inspect.getsource(AskJobWorker))
@@ -160,11 +159,8 @@ class TestWorkerRegistration:
         configured = assembler_calls[0].args[0]
         assert isinstance(configured, ast.Call)
         assert isinstance(configured.func, ast.Name)
-        assert configured.func.id == "build_context_assembler"
-        assert len(configured.args) == 1
-        key = configured.args[0]
-        assert isinstance(key, ast.Name)
-        assert key.id == "DEFAULT_CONTEXT_ASSEMBLER_KEY"
+        assert configured.func.id == "build_runtime_context_assembler"
+        assert configured.args == []
 
 
 class TestNoClosedSession:
