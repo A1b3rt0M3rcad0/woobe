@@ -8,7 +8,10 @@ from uuid import uuid4
 from modules.agent.application.runtime_output_validation import (
     ensure_model_result_has_public_output,
 )
-from modules.agent.application.interfaces.context_assembler import ContextAssembler
+from modules.agent.application.interfaces.context_assembler import (
+    ContextAssembler,
+    context_assembler_key_from_runtime_config,
+)
 from modules.agent.application.interfaces.embedding_errors import EmbeddingProviderError
 from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
@@ -158,6 +161,16 @@ class InstrumentedPrimaryExecutionMixin:
             ),
             "agent_release_id": str(context.agent_release_id) if context and context.agent_release_id else None,
             "agent_release_version": context.agent_release_version if context else None,
+            "context_assembler": (
+                {
+                    "name": context.context_assembler_name,
+                    "version": context.context_assembler_version,
+                }
+                if context
+                and context.context_assembler_name
+                and context.context_assembler_version
+                else None
+            ),
             "rag_metadata": rag_metadata or None,
             "runtime_scope": "failed_rag_prepare",
         }
@@ -201,6 +214,13 @@ class InstrumentedPrimaryExecutionMixin:
                 and response_format.get("type") == "json"
             )
             agent, session, trace_id = prepared[0], prepared[1], prepared[2]
+            settings = getattr(agent, "settings", None)
+            settings = settings if isinstance(settings, dict) else {}
+            assembler_key = context_assembler_key_from_runtime_config(
+                settings.get("runtime_config")
+            )
+            context.context_assembler_name = assembler_key.name
+            context.context_assembler_version = assembler_key.version
             context.project_id = getattr(agent, "project_id", None)
             context.agent_id = getattr(agent, "id", None)
             context.session_id = getattr(session, "id", None) if session else None
