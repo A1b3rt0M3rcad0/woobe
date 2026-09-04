@@ -39,19 +39,47 @@ def _literal_dynamic_import(node: ast.Call) -> str | None:
     return None
 
 
+def _import_from_targets(node: ast.ImportFrom) -> tuple[str, ...]:
+    if not node.module:
+        return ()
+    targets = []
+    for alias in node.names:
+        if alias.name == "*":
+            targets.append(node.module)
+        else:
+            targets.append(f"{node.module}.{alias.name}")
+    return tuple(targets)
+
+
 def _imports(path: Path) -> tuple[str, ...]:
     tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
     imports: list[str] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             imports.extend(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            imports.append(node.module)
+        elif isinstance(node, ast.ImportFrom):
+            imports.extend(_import_from_targets(node))
         elif isinstance(node, ast.Call):
             dynamic_import = _literal_dynamic_import(node)
             if dynamic_import is not None:
                 imports.append(dynamic_import)
     return tuple(imports)
+
+
+def test_import_inventory_resolves_import_from_targets(tmp_path: Path) -> None:
+    source = tmp_path / "import_from.py"
+    source.write_text(
+        "from modules import agent\n"
+        "from modules.agent import entrypoint\n"
+        "from modules.agent.entrypoint import AskInput\n",
+        encoding="utf-8",
+    )
+
+    imported = _imports(source)
+
+    assert "modules.agent" in imported
+    assert "modules.agent.entrypoint" in imported
+    assert "modules.agent.entrypoint.AskInput" in imported
 
 
 def test_import_inventory_detects_literal_dynamic_imports(tmp_path: Path) -> None:
