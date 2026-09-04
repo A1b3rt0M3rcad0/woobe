@@ -21,6 +21,24 @@ BOUNDED_CONTEXTS = {
 }
 
 
+def _literal_dynamic_import(node: ast.Call) -> str | None:
+    if not node.args:
+        return None
+    target = node.args[0]
+    if not isinstance(target, ast.Constant) or not isinstance(target.value, str):
+        return None
+    if isinstance(node.func, ast.Name) and node.func.id == "__import__":
+        return target.value
+    if (
+        isinstance(node.func, ast.Attribute)
+        and node.func.attr == "import_module"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "importlib"
+    ):
+        return target.value
+    return None
+
+
 def _imports(path: Path) -> tuple[str, ...]:
     tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
     imports: list[str] = []
@@ -29,7 +47,26 @@ def _imports(path: Path) -> tuple[str, ...]:
             imports.extend(alias.name for alias in node.names)
         elif isinstance(node, ast.ImportFrom) and node.module:
             imports.append(node.module)
+        elif isinstance(node, ast.Call):
+            dynamic_import = _literal_dynamic_import(node)
+            if dynamic_import is not None:
+                imports.append(dynamic_import)
     return tuple(imports)
+
+
+def test_import_inventory_detects_literal_dynamic_imports(tmp_path: Path) -> None:
+    source = tmp_path / "dynamic_imports.py"
+    source.write_text(
+        "import importlib\n"
+        'importlib.import_module("modules.agent.infra.database")\n'
+        '__import__("modules.network.application.service")\n',
+        encoding="utf-8",
+    )
+
+    imported = _imports(source)
+
+    assert "modules.agent.infra.database" in imported
+    assert "modules.network.application.service" in imported
 
 
 def test_woobe_core_is_transport_framework_free() -> None:
