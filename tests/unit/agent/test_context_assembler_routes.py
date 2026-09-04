@@ -24,14 +24,30 @@ async def test_context_assembler_catalog_uses_api_envelope_and_backend_metadata(
         {
             "name": "default",
             "version": "v1",
-            "display_name": "Default Context",
+            "display_name": "Standard Context Manager",
             "description": (
-                "Balanced deterministic context assembly for general-purpose Agent execution."
+                "Balanced deterministic context management for general-purpose Agent execution."
             ),
             "behavior": (
-                "Preserves mandatory inputs, applies Context Policy v1 budgets and priorities, "
-                "trims context under pressure, and records provenance in the Context Snapshot."
+                "Builds each Model Invocation context deterministically from the Agent's available "
+                "context sources, applying Context Policy v1 budgets, priorities, pressure handling, "
+                "ordering, deduplication, and provenance capture."
             ),
+            "recommended_for": [
+                "General-purpose Agents that need predictable context behavior.",
+                "Production workloads where replayability and stable snapshot behavior matter.",
+            ],
+            "capabilities": [
+                "Preserves mandatory system instructions and the current user input.",
+                "Balances session history, knowledge, tool, artifact, delegation, and runtime context within configured budgets.",
+                "Applies pressure trimming, ordering, and deduplication before each Model Invocation.",
+                "Records source contributions and provenance in the Context Snapshot.",
+            ],
+            "limitations": [
+                "Does not perform autonomous context planning or iterative retrieval.",
+                "Behavior is bounded by Context Policy v1 and the context sources available to the Agent.",
+            ],
+            "configuration": "Context Policy v1",
             "is_default": True,
         }
     ]
