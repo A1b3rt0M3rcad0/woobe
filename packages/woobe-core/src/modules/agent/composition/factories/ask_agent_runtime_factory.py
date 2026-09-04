@@ -3,11 +3,10 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping
 from uuid import UUID
 
-from modules.agent.application.interfaces.context_assembler import ContextAssembler
-from modules.agent.composition.context_assembler_registry import (
-    DEFAULT_CONTEXT_ASSEMBLER_KEY,
-    build_context_assembler,
+from modules.agent.application.context_assembler_registry import (
+    build_runtime_context_assembler,
 )
+from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.composition.factories.agent_uow_factory import (
     build_agent_read_uow,
     build_agent_uow,
@@ -61,7 +60,7 @@ def _build_agent_runtime(
     assembler: ContextAssembler = (
         context_assembler
         if context_assembler is not None
-        else build_context_assembler(DEFAULT_CONTEXT_ASSEMBLER_KEY)
+        else build_runtime_context_assembler()
     )
     runtime.configure_context_assembler(assembler)
     runtime.configure_rag_embedding_factory(LangchainEmbeddingFactory())
