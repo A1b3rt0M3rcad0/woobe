@@ -21,11 +21,39 @@ ContextAssemblerFactory = Callable[[], ContextAssembler]
 
 @dataclass(frozen=True, slots=True)
 class ContextAssemblerDescriptor:
+    """Backend-owned product metadata required for every registered Context Manager."""
+
     key: ContextAssemblerKey
     display_name: str
     description: str
     behavior: str
+    recommended_for: tuple[str, ...]
+    capabilities: tuple[str, ...]
+    limitations: tuple[str, ...]
+    configuration: str
     is_default: bool = False
+
+    def __post_init__(self) -> None:
+        required_text = {
+            "display_name": self.display_name,
+            "description": self.description,
+            "behavior": self.behavior,
+            "configuration": self.configuration,
+        }
+        for field_name, value in required_text.items():
+            if not value.strip():
+                raise ValueError(f"Context assembler descriptor {field_name} must not be empty")
+
+        required_lists = {
+            "recommended_for": self.recommended_for,
+            "capabilities": self.capabilities,
+            "limitations": self.limitations,
+        }
+        for field_name, values in required_lists.items():
+            if not values or any(not item.strip() for item in values):
+                raise ValueError(
+                    f"Context assembler descriptor {field_name} must contain non-empty values"
+                )
 
     def as_dict(self) -> dict[str, object]:
         return {
@@ -34,6 +62,10 @@ class ContextAssemblerDescriptor:
             "display_name": self.display_name,
             "description": self.description,
             "behavior": self.behavior,
+            "recommended_for": list(self.recommended_for),
+            "capabilities": list(self.capabilities),
+            "limitations": list(self.limitations),
+            "configuration": self.configuration,
             "is_default": self.is_default,
         }
 
@@ -70,21 +102,15 @@ class ContextAssemblerRegistry:
         key: ContextAssemblerKey,
         factory: ContextAssemblerFactory,
         *,
-        descriptor: ContextAssemblerDescriptor | None = None,
+        descriptor: ContextAssemblerDescriptor,
     ) -> None:
         if key in self._entries:
             raise DuplicateContextAssemblerError(
                 f"Context assembler already registered: {key}"
             )
-        metadata = descriptor or ContextAssemblerDescriptor(
-            key=key,
-            display_name=str(key),
-            description="Registered Context Assembler",
-            behavior="Behavior is defined by the registered implementation.",
-        )
-        if metadata.key != key:
+        if descriptor.key != key:
             raise ValueError("Context assembler descriptor key must match registration key")
-        self._entries[key] = (factory, metadata)
+        self._entries[key] = (factory, descriptor)
 
     def contains(self, key: ContextAssemblerKey) -> bool:
         return key in self._entries
@@ -110,14 +136,30 @@ class ContextAssemblerRegistry:
 
 _DEFAULT_DESCRIPTOR = ContextAssemblerDescriptor(
     key=DEFAULT_CONTEXT_ASSEMBLER_KEY,
-    display_name="Default Context",
+    display_name="Standard Context Manager",
     description=(
-        "Balanced deterministic context assembly for general-purpose Agent execution."
+        "Balanced deterministic context management for general-purpose Agent execution."
     ),
     behavior=(
-        "Preserves mandatory inputs, applies Context Policy v1 budgets and priorities, "
-        "trims context under pressure, and records provenance in the Context Snapshot."
+        "Builds each Model Invocation context deterministically from the Agent's available "
+        "context sources, applying Context Policy v1 budgets, priorities, pressure handling, "
+        "ordering, deduplication, and provenance capture."
     ),
+    recommended_for=(
+        "General-purpose Agents that need predictable context behavior.",
+        "Production workloads where replayability and stable snapshot behavior matter.",
+    ),
+    capabilities=(
+        "Preserves mandatory system instructions and the current user input.",
+        "Balances session history, knowledge, tool, artifact, delegation, and runtime context within configured budgets.",
+        "Applies pressure trimming, ordering, and deduplication before each Model Invocation.",
+        "Records source contributions and provenance in the Context Snapshot.",
+    ),
+    limitations=(
+        "Does not perform autonomous context planning or iterative retrieval.",
+        "Behavior is bounded by Context Policy v1 and the context sources available to the Agent.",
+    ),
+    configuration="Context Policy v1",
     is_default=True,
 )
 
