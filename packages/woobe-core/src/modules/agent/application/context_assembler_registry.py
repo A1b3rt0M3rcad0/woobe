@@ -122,6 +122,10 @@ class ContextAssemblerRegistry:
     ) -> None:
         """Register one explicit strategy identity."""
 
+        if key.name == "default":
+            raise ValueError(
+                "The 'default' Context Manager identity is reserved for the system-default alias"
+            )
         if key in self._entries:
             raise DuplicateContextAssemblerError(
                 f"Context assembler already registered: {key}"
@@ -371,7 +375,12 @@ def validate_context_assembler_runtime_config(
             f"Unsupported context assembler strategy: {selection.strategy_key}"
         )
 
-    if selection.selection_key.name != "default":
+    if selection.selection_key.name == "default":
+        if selection.selection_key.version != selection.strategy_key.version:
+            raise ValidationError(
+                "System default Context Manager selection version must match the frozen strategy version"
+            )
+    else:
         if selection.selection_key != selection.strategy_key:
             raise ValidationError(
                 "Explicit Context Manager selection must match the resolved strategy"
