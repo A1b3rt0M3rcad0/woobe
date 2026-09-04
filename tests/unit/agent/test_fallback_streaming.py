@@ -24,14 +24,16 @@ class _Factory:
 
 
 class _Runtime(InstrumentedFallbackMixin):
-    def __init__(self, factory: _Factory) -> None:
+    def __init__(self, factory: _Factory, context_assembler=None) -> None:
         self._llm_factory = factory
+        self._context_assembler = context_assembler
 
 
 @pytest.mark.asyncio
 async def test_fallback_uses_streaming_model_and_public_final_phase(monkeypatch) -> None:
     factory = _Factory()
-    runtime = _Runtime(factory)
+    context_assembler = object()
+    runtime = _Runtime(factory, context_assembler)
     captured = {}
 
     async def fake_invoke_llm(**kwargs):
@@ -88,3 +90,4 @@ async def test_fallback_uses_streaming_model_and_public_final_phase(monkeypatch)
     assert factory.kwargs["streaming"] is True
     assert captured["phase"] == "final_response_generation"
     assert captured["model"] is factory.model
+    assert captured["context_assembler"] is context_assembler
