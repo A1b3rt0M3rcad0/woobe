@@ -8,6 +8,58 @@ from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from modules.agent.domain.context import ContextSnapshot
 
 
+@dataclass(frozen=True, slots=True)
+class ContextAssemblerKey:
+    """Stable, serializable identity for a ContextAssembler implementation."""
+
+    name: str
+    version: str
+
+    def __post_init__(self) -> None:
+        name = self.name.strip()
+        version = self.version.strip()
+        if not name:
+            raise ValueError("Context assembler name must not be empty")
+        if not version:
+            raise ValueError("Context assembler version must not be empty")
+        object.__setattr__(self, "name", name)
+        object.__setattr__(self, "version", version)
+
+    def __str__(self) -> str:
+        return f"{self.name}:{self.version}"
+
+    def as_dict(self) -> dict[str, str]:
+        return {"name": self.name, "version": self.version}
+
+
+DEFAULT_CONTEXT_ASSEMBLER_KEY = ContextAssemblerKey(name="default", version="v1")
+
+
+def context_assembler_key_from_runtime_config(value: object) -> ContextAssemblerKey:
+    """Read the immutable assembler selection from an Agent runtime snapshot.
+
+    Snapshots created before assembler selection existed resolve to default:v1 so
+    historical releases keep the original Woobe context behavior.
+    """
+
+    if value is None:
+        return DEFAULT_CONTEXT_ASSEMBLER_KEY
+    if not isinstance(value, dict):
+        raise ValueError("Agent runtime_config must be an object")
+
+    raw = value.get("context_assembler")
+    if raw is None:
+        return DEFAULT_CONTEXT_ASSEMBLER_KEY
+    if not isinstance(raw, dict):
+        raise ValueError("context_assembler must be an object")
+
+    name = raw.get("name")
+    version = raw.get("version")
+    if not isinstance(name, str) or not isinstance(version, str):
+        raise ValueError("context_assembler requires string name and version")
+    return ContextAssemblerKey(name=name, version=version)
+
+
 class ContextAssemblyRuntimeContext(Protocol):
     """Read-only attribute surface consumed by Context Assembly.
 
@@ -40,6 +92,12 @@ class ContextAssemblyRuntimeContext(Protocol):
 
     @property
     def context_rag_sources(self) -> list[dict[str, Any]] | None: ...
+
+    @property
+    def context_assembler_name(self) -> str | None: ...
+
+    @property
+    def context_assembler_version(self) -> str | None: ...
 
     @property
     def parent_invocation_id(self) -> UUID | None: ...
