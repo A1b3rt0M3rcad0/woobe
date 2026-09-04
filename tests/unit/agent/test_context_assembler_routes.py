@@ -1,6 +1,6 @@
+import pytest
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
-import pytest
 
 from woobe_api.http.agent.context_assembler_routes import router
 
