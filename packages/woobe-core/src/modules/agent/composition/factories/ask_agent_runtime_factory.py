@@ -55,7 +55,7 @@ def _build_agent_runtime(
         encryption_key=settings.encryption_key,
         tool_executor_factory=tool_runtime.execute_tool,
     )
-    assembler = (
+    assembler: ContextAssembler = (
         context_assembler
         if context_assembler is not None
         else DefaultContextAssembler()
