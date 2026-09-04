@@ -43,8 +43,11 @@ class ContextAssemblyRequest:
 
 
 class ContextAssemblyOutput(Protocol):
-    messages: list[Any]
-    snapshot: ContextSnapshot
+    @property
+    def messages(self) -> list[Any]: ...
+
+    @property
+    def snapshot(self) -> ContextSnapshot: ...
 
 
 class ContextAssembler(ABC):
