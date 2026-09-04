@@ -2,6 +2,7 @@ from typing import Protocol
 from uuid import UUID
 
 from modules.agent.application.context_assembler_registry import (
+    DEFAULT_CONTEXT_MANAGER_SETTING,
     canonicalize_context_assembler_runtime_config,
 )
 from modules.agent.application.dtos.ai_dtos import (
@@ -42,15 +43,22 @@ class CreateAgentUseCase:
         credential_repo: ProviderCredentialRepository,
         outbox: OutboxEventWriter,
         provider_model_repo: ProviderModelRepository | None = None,
+        *,
+        default_context_manager: str = DEFAULT_CONTEXT_MANAGER_SETTING,
     ) -> None:
         self._agent_repo = agent_repo
         self._credential_repo = credential_repo
         self._provider_model_repo = provider_model_repo
         self._outbox = outbox
+        self._default_context_manager = default_context_manager
 
     async def execute(self, input_dto: CreateAgentInput) -> Agent:
         agent = Agent(**input_dto.model_dump())
-        _force_strict_json_settings(agent)
+        _force_strict_json_settings(
+            agent,
+            default_context_manager=self._default_context_manager,
+            initialize_context_manager=True,
+        )
         await _resolve_implicit_provider_model_bindings(agent, self._provider_model_repo)
         await _resolve_provider_model_bindings(
             agent,
@@ -216,11 +224,18 @@ def _ensure_agent_compatible_provider_model(provider_model) -> None:
         raise ConflictError("Provider model is not compatible with agent runtime")
 
 
-def _force_strict_json_settings(agent: Agent) -> None:
+def _force_strict_json_settings(
+    agent: Agent,
+    *,
+    default_context_manager: str = DEFAULT_CONTEXT_MANAGER_SETTING,
+    initialize_context_manager: bool = False,
+) -> None:
     settings = dict(agent.settings or {})
-    if "runtime_config" in settings:
+    if initialize_context_manager or "runtime_config" in settings:
         settings["runtime_config"] = canonicalize_context_assembler_runtime_config(
-            settings.get("runtime_config")
+            settings.get("runtime_config"),
+            default_context_manager=default_context_manager,
+            use_current_default_if_missing=initialize_context_manager,
         )
     response_format = settings.get("response_format")
     if not isinstance(response_format, dict):
