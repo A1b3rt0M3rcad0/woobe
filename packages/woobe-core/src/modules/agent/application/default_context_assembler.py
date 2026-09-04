@@ -9,7 +9,11 @@ from modules.agent.application.interfaces.context_assembler import (
 
 
 class DefaultContextAssembler(ContextAssembler):
-    """Current deterministic Context Assembly strategy used by Woobe."""
+    """Current deterministic Context Assembly strategy used by Woobe.
+
+    The implementation is stateless by design so a composed runtime may safely reuse
+    the same assembler instance across concurrent Agent Runs and Model Invocations.
+    """
 
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
         return assemble_context(
