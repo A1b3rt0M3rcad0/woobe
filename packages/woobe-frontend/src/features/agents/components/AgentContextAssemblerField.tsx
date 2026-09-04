@@ -9,7 +9,12 @@ import type { ContextAssemblerDescriptor } from '@/features/agents/types'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { cn } from '@/lib/utils'
 
-const DEFAULT_SELECTION = { name: 'default', version: 'v1' }
+const LEGACY_DEFAULT_SELECTION = {
+  name: 'default',
+  version: 'v1',
+  strategy_name: 'stdcm',
+  strategy_version: 'v1',
+}
 
 function recordValue(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -19,14 +24,38 @@ function recordValue(value: unknown): Record<string, unknown> {
 
 function currentSelection(runtimeConfig: Record<string, unknown>) {
   const raw = recordValue(runtimeConfig.context_assembler)
+  const name = typeof raw.name === 'string' && raw.name.trim()
+    ? raw.name.trim()
+    : LEGACY_DEFAULT_SELECTION.name
+  const version = typeof raw.version === 'string' && raw.version.trim()
+    ? raw.version.trim()
+    : LEGACY_DEFAULT_SELECTION.version
+  const strategyName = typeof raw.strategy_name === 'string' && raw.strategy_name.trim()
+    ? raw.strategy_name.trim()
+    : name === 'default' && version === 'v1'
+      ? LEGACY_DEFAULT_SELECTION.strategy_name
+      : name
+  const strategyVersion = typeof raw.strategy_version === 'string' && raw.strategy_version.trim()
+    ? raw.strategy_version.trim()
+    : name === 'default' && version === 'v1'
+      ? LEGACY_DEFAULT_SELECTION.strategy_version
+      : version
   return {
-    name: typeof raw.name === 'string' && raw.name.trim() ? raw.name : DEFAULT_SELECTION.name,
-    version: typeof raw.version === 'string' && raw.version.trim() ? raw.version : DEFAULT_SELECTION.version,
+    name,
+    version,
+    strategy_name: strategyName,
+    strategy_version: strategyVersion,
   }
 }
 
-function descriptorKey(item: Pick<ContextAssemblerDescriptor, 'name' | 'version'>) {
+function selectionKey(item: Pick<ContextAssemblerDescriptor, 'name' | 'version'>) {
   return `${item.name}:${item.version}`
+}
+
+function descriptorIdentity(
+  item: Pick<ContextAssemblerDescriptor, 'name' | 'version' | 'strategy_name' | 'strategy_version'>,
+) {
+  return `${item.name}:${item.version}@${item.strategy_name}:${item.strategy_version}`
 }
 
 function DetailList({ items }: { items: string[] }) {
@@ -46,32 +75,37 @@ export function AgentContextAssemblerField() {
   const { state, setField } = useAgentEditor()
   const { data: assemblers = [], isLoading, isError } = useContextAssemblers()
   const selected = useMemo(() => currentSelection(state.runtimeConfig), [state.runtimeConfig])
-  const selectedKey = descriptorKey(selected)
+  const selectedIdentity = descriptorIdentity(selected)
   const selectedFallback = useMemo<ContextAssemblerDescriptor>(() => ({
     name: selected.name,
     version: selected.version,
-    display_name: selected.name,
+    strategy_name: selected.strategy_name,
+    strategy_version: selected.strategy_version,
+    display_name: selected.strategy_name === 'stdcm' ? 'Standard Context Manager' : selected.strategy_name,
     description: '',
     behavior: '',
     recommended_for: [],
     capabilities: [],
     limitations: [],
     configuration: '',
-    is_default: selectedKey === descriptorKey(DEFAULT_SELECTION),
-  }), [selected.name, selected.version, selectedKey])
+    is_default: false,
+    is_system_default_alias: selected.name === 'default',
+  }), [selected])
   const availableAssemblers = assemblers.length > 0 ? assemblers : [selectedFallback]
-  const selectedDescriptor = availableAssemblers.find((item) => descriptorKey(item) === selectedKey)
-    ?? selectedFallback
+  const selectedDescriptor = availableAssemblers.find(
+    (item) => descriptorIdentity(item) === selectedIdentity,
+  ) ?? selectedFallback
   const [open, setOpen] = useState(false)
-  const [focusedKey, setFocusedKey] = useState<string | null>(null)
+  const [focusedIdentity, setFocusedIdentity] = useState<string | null>(null)
 
-  const focused = availableAssemblers.find((item) => descriptorKey(item) === (focusedKey || selectedKey))
-    ?? selectedDescriptor
+  const focused = availableAssemblers.find(
+    (item) => descriptorIdentity(item) === (focusedIdentity || selectedIdentity),
+  ) ?? selectedDescriptor
 
   const catalogReady = !isLoading && !isError && assemblers.length > 0
 
   const openSelector = () => {
-    setFocusedKey(selectedKey)
+    setFocusedIdentity(selectedIdentity)
     setOpen(true)
   }
 
@@ -82,6 +116,8 @@ export function AgentContextAssemblerField() {
       context_assembler: {
         name: focused.name,
         version: focused.version,
+        strategy_name: focused.strategy_name,
+        strategy_version: focused.strategy_version,
       },
     })
     setOpen(false)
@@ -105,7 +141,7 @@ export function AgentContextAssemblerField() {
           </span>
           <span className="truncate text-sm font-medium text-foreground">{selectedDescriptor.display_name}</span>
           <span className="shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted">
-            {selectedKey}
+            {selectionKey(selectedDescriptor)}
           </span>
           <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
         </button>
@@ -134,14 +170,14 @@ export function AgentContextAssemblerField() {
               <ScrollArea className="h-full pr-1">
                 <div className="space-y-2">
                   {availableAssemblers.map((item) => {
-                    const key = descriptorKey(item)
-                    const active = key === descriptorKey(focused)
-                    const current = key === selectedKey
+                    const identity = descriptorIdentity(item)
+                    const active = identity === descriptorIdentity(focused)
+                    const current = identity === selectedIdentity
                     return (
                       <button
-                        key={key}
+                        key={identity}
                         type="button"
-                        onClick={() => setFocusedKey(key)}
+                        onClick={() => setFocusedIdentity(identity)}
                         disabled={!catalogReady && !current}
                         className={cn(
                           'flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors disabled:cursor-default',
@@ -153,7 +189,11 @@ export function AgentContextAssemblerField() {
                         <BrainCircuit className={cn('h-4 w-4 shrink-0', active ? 'text-primary' : 'text-muted')} />
                         <span className="min-w-0 flex-1">
                           <span className="block truncate text-sm font-medium text-foreground">{item.display_name}</span>
-                          <span className="mt-0.5 block truncate font-mono text-[9px] text-muted">{key}</span>
+                          <span className="mt-0.5 block truncate text-[9px] text-muted">
+                            <span className="font-mono">{selectionKey(item)}</span>
+                            <span className="mx-1">·</span>
+                            {item.is_system_default_alias ? 'System default' : 'Explicit strategy'}
+                          </span>
                         </span>
                         {current ? (
                           <span className="flex items-center gap-1 text-[9px] font-medium uppercase tracking-wide text-primary-light">
@@ -180,15 +220,16 @@ export function AgentContextAssemblerField() {
                   <div className="mt-5 flex flex-wrap items-center gap-2">
                     <h3 className="text-xl font-semibold text-foreground">{focused.display_name}</h3>
                     <span className="rounded border border-border px-2 py-0.5 font-mono text-[10px] text-muted">
-                      {descriptorKey(focused)}
+                      {selectionKey(focused)}
                     </span>
-                    {descriptorKey(focused) === selectedKey ? (
+                    {descriptorIdentity(focused) === selectedIdentity ? (
                       <span className="rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-primary-light">
                         Selected
                       </span>
-                    ) : focused.is_default ? (
-                      <span className="rounded border border-border px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted">
-                        Default
+                    ) : null}
+                    {focused.is_default ? (
+                      <span className="rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-primary-light">
+                        System default
                       </span>
                     ) : null}
                   </div>
@@ -210,9 +251,17 @@ export function AgentContextAssemblerField() {
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Recommended for</p>
                           <div className="mt-3"><DetailList items={focused.recommended_for} /></div>
                         </div>
-                        <div className="rounded-xl border border-border/80 bg-background/35 p-4">
-                          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Configuration</p>
-                          <p className="mt-2 text-sm font-medium text-foreground">{focused.configuration}</p>
+                        <div className="space-y-3">
+                          <div className="rounded-xl border border-border/80 bg-background/35 p-4">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Strategy</p>
+                            <p className="mt-2 font-mono text-xs font-medium text-foreground">
+                              {focused.strategy_name}:{focused.strategy_version}
+                            </p>
+                          </div>
+                          <div className="rounded-xl border border-border/80 bg-background/35 p-4">
+                            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Configuration</p>
+                            <p className="mt-2 text-sm font-medium text-foreground">{focused.configuration}</p>
+                          </div>
                         </div>
                       </div>
 
@@ -228,7 +277,7 @@ export function AgentContextAssemblerField() {
                       </div>
 
                       <div className="mt-6 rounded-xl border border-border/80 bg-background/35 p-4 text-xs leading-5 text-muted">
-                        The selected <span className="font-mono text-foreground">name:version</span> is stored in the Agent snapshot and preserved by immutable releases.
+                        The selection <span className="font-mono text-foreground">{selectionKey(focused)}</span> and resolved strategy <span className="font-mono text-foreground">{focused.strategy_name}:{focused.strategy_version}</span> are frozen in the Agent snapshot and preserved by immutable releases.
                       </div>
                     </>
                   ) : (
