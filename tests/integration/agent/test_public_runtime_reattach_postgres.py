@@ -19,9 +19,6 @@ from modules.agent.infra.execution.agent_run_reattach_service import (
     AgentRunReattachService,
 )
 from woobe_api.http.agent import run_routes as agent_run_routes
-from woobe_api.http.agent.controllers.agent_run_reattach_controller import (
-    AgentRunReattachController,
-)
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
@@ -106,16 +103,10 @@ async def test_public_runtime_reattaches_cancelled_agent_from_durable_postgres(
         transactions=transactions,
         state_store=InMemoryExecutionStateStore(),
     )
-    controller = AgentRunReattachController(service)
     monkeypatch.setattr(
         agent_run_routes,
-        "attach_agent_run_composer",
-        lambda: controller.attach,
-    )
-    monkeypatch.setattr(
-        agent_run_routes,
-        "cancel_agent_run_composer",
-        lambda: controller.cancel,
+        "build_agent_run_reattach_operations",
+        lambda: service,
     )
 
     principal = ProjectApiPrincipal(
@@ -169,4 +160,3 @@ async def test_public_runtime_reattaches_cancelled_agent_from_durable_postgres(
                     delete(AgentModel).where(AgentModel.id == agent_id)
                 )
         await engine.dispose()
-

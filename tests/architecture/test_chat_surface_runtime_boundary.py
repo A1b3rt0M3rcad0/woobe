@@ -3,10 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-CHAT_ROUTES = ROOT / "packages/woobe-core/src/modules/chat_surface/presentation/routes.py"
-CHAT_REATTACH = ROOT / "packages/woobe-core/src/modules/chat_surface/presentation/reattach_routes.py"
+API_HTTP = ROOT / "packages/woobe-api/src/woobe_api/http"
+CHAT_ROUTES = API_HTTP / "chat_surface/routes.py"
+CHAT_REATTACH = API_HTTP / "chat_surface/reattach_routes.py"
 CHAT_CONTROL_PLANE = (
-    ROOT / "packages/woobe-core/src/modules/chat_surface/control_plane_service.py"
+    ROOT
+    / "packages/woobe-core/src/modules/chat_surface/infra/services/control_plane_service.py"
 )
 API_COMPOSITION = ROOT / "packages/woobe-api/src/chat_runtime_composition.py"
 

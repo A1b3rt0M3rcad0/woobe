@@ -87,12 +87,12 @@ def test_arch064_http_transport_belongs_to_presentation_http(tmp_path: Path) -> 
     assert "ARCH064" in _ids(checker, policy)
 
 
-def test_arch064_allows_fastapi_inside_presentation_http(tmp_path: Path) -> None:
+def test_arch064_rejects_fastapi_inside_core_presentation(tmp_path: Path) -> None:
     checker, policy, module = _setup(tmp_path)
     path = module / "presentation/http/routes.py"
     path.parent.mkdir(parents=True)
     path.write_text("from fastapi import APIRouter\n", encoding="utf-8")
-    assert "ARCH064" not in _ids(checker, policy)
+    assert "ARCH064" in _ids(checker, policy)
 
 
 def test_arch065_presentation_cannot_use_app_state_as_service_locator(tmp_path: Path) -> None:

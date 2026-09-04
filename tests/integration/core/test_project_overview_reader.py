@@ -345,7 +345,7 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
                 query_count = len(statements)
 
                 statements.clear()
-                production = await uow.project_overview.fetch(
+                production = await reader.fetch(
                     project_id=project_id,
                     start=start,
                     end=end,
