@@ -33,11 +33,11 @@ _CONTEXT_ASSEMBLY = AGENT_ROOT / "application" / "context_assembly.py"
 _CONTEXT_ASSEMBLER_CONTRACT = (
     AGENT_ROOT / "application" / "interfaces" / "context_assembler.py"
 )
-_DEFAULT_ASSEMBLER = AGENT_ROOT / "application" / "default_context_assembler.py"
+_STANDARD_ASSEMBLER = AGENT_ROOT / "application" / "standard_context_assembler.py"
 _CONTEXT_ASSEMBLER_REGISTRY = (
     AGENT_ROOT / "application" / "context_assembler_registry.py"
 )
-_DEFAULT_ASSEMBLER_MODULE = "modules.agent.application.default_context_assembler"
+_STANDARD_ASSEMBLER_MODULE = "modules.agent.application.standard_context_assembler"
 _CONTEXT_ASSEMBLER_REGISTRY_MODULE = (
     "modules.agent.application.context_assembler_registry"
 )
@@ -156,7 +156,7 @@ def test_agent_execution_depends_only_on_context_assembler_contract() -> None:
     violations: list[str] = []
 
     forbidden_modules = {
-        _DEFAULT_ASSEMBLER_MODULE,
+        _STANDARD_ASSEMBLER_MODULE,
         _CONTEXT_ASSEMBLER_REGISTRY_MODULE,
     }
     for path in AGENT_EXECUTION.rglob("*.py"):
@@ -176,33 +176,33 @@ def test_agent_execution_depends_only_on_context_assembler_contract() -> None:
     assert not violations, "\n".join(violations)
 
 
-def test_default_context_assembler_is_composed_only_by_application_registry() -> None:
+def test_standard_context_assembler_is_composed_only_by_application_registry() -> None:
     violations: list[str] = []
 
     for path in AGENT_ROOT.rglob("*.py"):
-        if path in {_DEFAULT_ASSEMBLER, _CONTEXT_ASSEMBLER_REGISTRY}:
+        if path in {_STANDARD_ASSEMBLER, _CONTEXT_ASSEMBLER_REGISTRY}:
             continue
         for node in ast.walk(_tree(path)):
             if isinstance(node, ast.ImportFrom):
-                if node.module == _DEFAULT_ASSEMBLER_MODULE:
+                if node.module == _STANDARD_ASSEMBLER_MODULE:
                     violations.append(
-                        f"{path.relative_to(ROOT).as_posix()} imports DefaultContextAssembler"
+                        f"{path.relative_to(ROOT).as_posix()} imports StandardContextAssembler"
                     )
             elif isinstance(node, ast.Import):
                 for alias in node.names:
-                    if alias.name == _DEFAULT_ASSEMBLER_MODULE:
+                    if alias.name == _STANDARD_ASSEMBLER_MODULE:
                         violations.append(
-                            f"{path.relative_to(ROOT).as_posix()} imports DefaultContextAssembler"
+                            f"{path.relative_to(ROOT).as_posix()} imports StandardContextAssembler"
                         )
 
     assert not violations, "\n".join(violations)
 
 
-def test_legacy_assemble_context_is_only_consumed_by_default_adapter() -> None:
+def test_legacy_assemble_context_is_only_consumed_by_standard_adapter() -> None:
     violations: list[str] = []
 
     for path in AGENT_ROOT.rglob("*.py"):
-        if path == _DEFAULT_ASSEMBLER:
+        if path == _STANDARD_ASSEMBLER:
             continue
         for node in ast.walk(_tree(path)):
             if isinstance(node, ast.ImportFrom):
@@ -260,7 +260,7 @@ def test_every_model_invocation_propagates_context_assembler_explicitly() -> Non
 
 def test_background_worker_gets_runtime_dispatcher_only_from_public_boundary() -> None:
     boundary_names: set[str] = set()
-    direct_default_imports: list[str] = []
+    direct_standard_imports: list[str] = []
     direct_registry_imports: list[str] = []
 
     for node in ast.walk(_tree(ASK_JOB_WORKER)):
@@ -269,8 +269,8 @@ def test_background_worker_gets_runtime_dispatcher_only_from_public_boundary() -
         names = {alias.name for alias in node.names}
         if node.module == _BACKGROUND_BOUNDARY_MODULE:
             boundary_names.update(names)
-        if "DefaultContextAssembler" in names:
-            direct_default_imports.append(str(node.module))
+        if "StandardContextAssembler" in names:
+            direct_standard_imports.append(str(node.module))
         if node.module == _CONTEXT_ASSEMBLER_REGISTRY_MODULE:
             direct_registry_imports.append(str(node.module))
 
@@ -278,9 +278,9 @@ def test_background_worker_gets_runtime_dispatcher_only_from_public_boundary() -
         "AskJobWorker must obtain the snapshot-aware ContextAssembler through "
         "modules.agent.background_boundary"
     )
-    assert not direct_default_imports, (
-        "AskJobWorker must not import DefaultContextAssembler directly: "
-        + ", ".join(direct_default_imports)
+    assert not direct_standard_imports, (
+        "AskJobWorker must not import StandardContextAssembler directly: "
+        + ", ".join(direct_standard_imports)
     )
     assert not direct_registry_imports, (
         "AskJobWorker must not bypass Agent background boundary for the registry: "
