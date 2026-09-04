@@ -8,6 +8,7 @@ from modules.agent.application.interfaces.context_assembler import (
     ContextAssemblyRequest,
 )
 from modules.agent.composition.factories.ask_agent_runtime_factory import (
+    build_ask_agent_handler,
     build_ask_agent_use_case,
     build_internal_agent_runtime,
 )
@@ -69,6 +70,18 @@ def test_internal_network_runtime_accepts_alternate_context_assembler() -> None:
     )
 
     assert runtime._context_assembler is assembler
+
+
+def test_handler_composition_accepts_alternate_context_assembler() -> None:
+    assembler = _AlternateContextAssembler()
+    handler = build_ask_agent_handler(
+        Settings.model_validate({}),
+        http_executor=MagicMock(),
+        context_assembler=assembler,
+    )
+
+    controller = handler.__self__
+    assert controller._use_case._context_assembler is assembler
 
 
 def test_composition_preserves_explicit_falsy_context_assembler() -> None:
