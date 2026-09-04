@@ -4,6 +4,9 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from uuid import UUID
 
+from modules.agent.application.context_assembler_registry import (
+    canonicalize_context_assembler_runtime_config,
+)
 from modules.agent.application.context_policy import canonicalize_context_runtime_config
 from modules.agent.application.dtos.ai_dtos import CreateReleaseInput, CreateReleaseOutput
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
@@ -29,7 +32,8 @@ _SNAPSHOT_FIELDS = (
 
 
 def _canonical_runtime_config(value) -> dict:
-    runtime_config = canonicalize_context_runtime_config(value)
+    runtime_config = canonicalize_context_assembler_runtime_config(value)
+    runtime_config = canonicalize_context_runtime_config(runtime_config)
     raw_rag = runtime_config.get("rag")
     runtime_config["rag"] = RAGRuntimeConfig.model_validate(
         raw_rag if isinstance(raw_rag, dict) else {}
