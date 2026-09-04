@@ -11,6 +11,7 @@ import {
   getAgent,
   getAgentRuntimeEnvironments,
   getAgents,
+  getContextAssemblers,
   getContract,
   getContracts,
   getKnowledgeVersions,
@@ -45,6 +46,13 @@ import type {
   UpdateContractRequest,
 } from './types'
 
+export function useContextAssemblers() {
+  return useQuery({
+    queryKey: ['context-assemblers'],
+    queryFn: getContextAssemblers,
+    staleTime: Infinity,
+  })
+}
 export function useAgents(projectId?: string) {
   return useQuery({ queryKey: ['agents', projectId], queryFn: () => getAgents(projectId), enabled: Boolean(projectId) })
 }
