@@ -9,11 +9,12 @@ from modules.agent.domain.context import ContextSnapshot
 
 
 class ContextAssemblyRuntimeContext(Protocol):
-    """Read-only execution evidence/configuration consumed by Context Assembly.
+    """Read-only attribute surface consumed by Context Assembly.
 
     This is intentionally narrower than RequestExecutionContext so ContextAssembler
-    implementations do not depend on the complete Agent runtime state container or
-    mutate orchestration state as part of context selection.
+    implementations do not depend on the complete Agent runtime state container.
+    Container values exposed through this view are input data and must be treated as
+    immutable by assembler implementations.
     """
 
     @property
@@ -79,7 +80,9 @@ class ContextAssembler(Protocol):
 
     Runtime hosts may share one assembler instance across concurrent Runs. Concrete
     implementations therefore must keep per-invocation mutable state in the request
-    or local call scope instead of storing it on the assembler instance.
+    or local call scope instead of storing it on the assembler instance. Request
+    values are inputs; implementations should return assembled output rather than
+    mutate runtime-owned state in place.
     """
 
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput: ...
