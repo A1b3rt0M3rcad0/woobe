@@ -1,3 +1,4 @@
+import { AgentContextAssemblerField } from '@/features/agents/components/AgentContextAssemblerField'
 import { AgentSessionModeField } from '@/features/agents/components/AgentSessionModeField'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
@@ -15,6 +16,7 @@ export function NetworkAgentFields() {
         </div>
       </section>
       <AgentSessionModeField />
+      <AgentContextAssemblerField />
       <section className="rounded-xl border border-border bg-surface p-4">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">System Prompt</p>
         <Textarea value={state.systemPrompt} onChange={(event) => setField('systemPrompt', event.target.value)} className="min-h-[160px] resize-y font-mono text-xs leading-relaxed" placeholder="System instructions..." />

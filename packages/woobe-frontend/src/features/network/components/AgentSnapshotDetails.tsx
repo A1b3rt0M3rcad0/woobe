@@ -18,6 +18,18 @@ function record(value: unknown): Record<string, unknown> {
     : {}
 }
 
+function contextManager(runtimeConfig: unknown) {
+  const runtime = record(runtimeConfig)
+  const selection = record(runtime.context_assembler)
+  const name = typeof selection.name === 'string' && selection.name.trim()
+    ? selection.name.trim()
+    : 'default'
+  const version = typeof selection.version === 'string' && selection.version.trim()
+    ? selection.version.trim()
+    : 'v1'
+  return `${name}:${version}`
+}
+
 function toolNames(runtimeConfig: unknown): string[] {
   const runtime = record(runtimeConfig)
   const candidates = runtime.tools ?? runtime.enabled_tools ?? runtime.tool_bindings
@@ -67,6 +79,7 @@ export function AgentSnapshotDetails({ release }: { release: AgentRelease }) {
           <SnapshotField label="Temperature" value={release.temperature} />
           <SnapshotField label="Max output tokens" value={release.max_output_tokens} />
           <SnapshotField label="Session mode" value={release.session_mode} />
+          <SnapshotField label="Context manager" value={contextManager(release.runtime_config)} mono />
         </div>
         <p className="mt-2 text-[9px] text-muted">Created {formatDate(release.created_at)}{release.promoted_at ? ` · Promoted ${formatDate(release.promoted_at)}` : ''}</p>
       </section>

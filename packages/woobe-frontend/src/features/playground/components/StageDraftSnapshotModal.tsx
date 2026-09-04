@@ -5,6 +5,7 @@ import { Dialog } from '@/components/ui/Dialog'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import type { AgentRelease } from '@/features/agents/types'
 import type { AgentEditorState } from '../AgentEditorContext'
+import { contextAssemblerLabel } from './releasePresentation'
 
 type StageDraftSnapshotModalProps = {
   open: boolean
@@ -52,6 +53,7 @@ function responseFormatLabel(state: AgentEditorState) {
 
 export function StageDraftSnapshotModal({ open, state, snapshot, currentStaging, isConfirming, onClose, onConfirm }: StageDraftSnapshotModalProps) {
   const outputSchema = snapshot.output_schema ?? state.outputSchema ?? state.responseFormat?.schema
+  const runtimeConfig = snapshot.runtime_config ?? state.runtimeConfig
 
   return (
     <Dialog
@@ -98,6 +100,7 @@ export function StageDraftSnapshotModal({ open, state, snapshot, currentStaging,
                 {row('Name', state.name || 'Untitled agent')}
                 {row('Model', modelLabel(state))}
                 {row('Session', state.sessionMode)}
+                {row('Context', contextAssemblerLabel(runtimeConfig))}
                 {row('Temp', state.temperature)}
                 {row('Tokens', state.maxOutputTokens)}
                 {row('Response', responseFormatLabel(state))}
@@ -120,7 +123,7 @@ export function StageDraftSnapshotModal({ open, state, snapshot, currentStaging,
 
               <section className="space-y-2 rounded-xl border border-border/80 bg-background/45 p-4">
                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-300">Runtime config / knowledge</p>
-                <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg border border-border/60 bg-black/20 p-3 text-xs text-slate-200">{formatJson(snapshot.runtime_config ?? state.runtimeConfig)}</pre>
+                <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-lg border border-border/60 bg-black/20 p-3 text-xs text-slate-200">{formatJson(runtimeConfig)}</pre>
               </section>
             </div>
           </ScrollArea>
