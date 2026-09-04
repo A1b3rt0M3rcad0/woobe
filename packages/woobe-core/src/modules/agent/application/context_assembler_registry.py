@@ -4,7 +4,6 @@ from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, replace
 
-from modules.agent.application.default_context_assembler import DefaultContextAssembler
 from modules.agent.application.interfaces.context_assembler import (
     LEGACY_DEFAULT_CONTEXT_ASSEMBLER_KEY,
     STANDARD_CONTEXT_ASSEMBLER_KEY,
@@ -15,6 +14,7 @@ from modules.agent.application.interfaces.context_assembler import (
     ContextAssemblyRequest,
     context_assembler_selection_from_runtime_config,
 )
+from modules.agent.application.standard_context_assembler import StandardContextAssembler
 from shared.contracts.errors import ValidationError
 
 
@@ -277,7 +277,7 @@ def build_context_assembler_registry(
     registry = ContextAssemblerRegistry()
     registry.register(
         STANDARD_CONTEXT_ASSEMBLER_KEY,
-        DefaultContextAssembler,
+        StandardContextAssembler,
         descriptor=_STANDARD_DESCRIPTOR,
     )
     registry.register_default_alias(
