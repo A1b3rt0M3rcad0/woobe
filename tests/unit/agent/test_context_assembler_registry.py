@@ -18,6 +18,7 @@ from modules.agent.application.context_assembler_registry import (
     canonicalize_context_assembler_runtime_config,
     list_context_assemblers,
 )
+from modules.agent.application.context_managers.standard import StandardContextAssembler
 from modules.agent.application.interfaces.context_assembler import (
     DEFAULT_CONTEXT_ASSEMBLER_KEY,
     STANDARD_CONTEXT_ASSEMBLER_KEY,
@@ -28,7 +29,6 @@ from modules.agent.application.interfaces.context_assembler import (
     context_assembler_selection_from_runtime_config,
 )
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
-from modules.agent.application.standard_context_assembler import StandardContextAssembler
 from shared.contracts.errors import ValidationError
 
 

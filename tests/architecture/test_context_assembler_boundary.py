@@ -33,11 +33,13 @@ _CONTEXT_ASSEMBLY = AGENT_ROOT / "application" / "context_assembly.py"
 _CONTEXT_ASSEMBLER_CONTRACT = (
     AGENT_ROOT / "application" / "interfaces" / "context_assembler.py"
 )
-_STANDARD_ASSEMBLER = AGENT_ROOT / "application" / "standard_context_assembler.py"
+_CONTEXT_MANAGERS_ROOT = AGENT_ROOT / "application" / "context_managers"
+_CONTEXT_MANAGERS_README = _CONTEXT_MANAGERS_ROOT / "README.md"
+_STANDARD_ASSEMBLER = _CONTEXT_MANAGERS_ROOT / "standard.py"
 _CONTEXT_ASSEMBLER_REGISTRY = (
     AGENT_ROOT / "application" / "context_assembler_registry.py"
 )
-_STANDARD_ASSEMBLER_MODULE = "modules.agent.application.standard_context_assembler"
+_STANDARD_ASSEMBLER_MODULE = "modules.agent.application.context_managers.standard"
 _CONTEXT_ASSEMBLER_REGISTRY_MODULE = (
     "modules.agent.application.context_assembler_registry"
 )
@@ -150,6 +152,13 @@ def _context_assembler_configured_names(
         if isinstance(node.func.value, ast.Name):
             names.add(node.func.value.id)
     return names
+
+
+def test_context_manager_strategy_partition_is_explicit() -> None:
+    assert _CONTEXT_MANAGERS_ROOT.is_dir()
+    assert _CONTEXT_MANAGERS_README.is_file()
+    assert _STANDARD_ASSEMBLER.is_file()
+    assert not (AGENT_ROOT / "application" / "standard_context_assembler.py").exists()
 
 
 def test_agent_execution_depends_only_on_context_assembler_contract() -> None:

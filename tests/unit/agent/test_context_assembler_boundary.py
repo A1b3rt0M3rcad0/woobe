@@ -7,7 +7,8 @@ from uuid import uuid4
 import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from modules.agent.application import standard_context_assembler
+from modules.agent.application.context_managers import standard
+from modules.agent.application.context_managers.standard import StandardContextAssembler
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
     ContextAssemblyOutput,
@@ -18,7 +19,6 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
-from modules.agent.application.standard_context_assembler import StandardContextAssembler
 from modules.agent.domain.context import ContextSnapshot
 from modules.agent.infra.execution.execution_instrumentation import (
     _assemble_invocation_context,
@@ -69,7 +69,7 @@ def test_standard_context_assembler_is_transparent_adapter(monkeypatch) -> None:
         return sentinel
 
     monkeypatch.setattr(
-        standard_context_assembler,
+        standard,
         "assemble_context",
         fake_assemble_context,
     )

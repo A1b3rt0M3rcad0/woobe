@@ -4,6 +4,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, replace
 
+from modules.agent.application.context_managers.standard import StandardContextAssembler
 from modules.agent.application.interfaces.context_assembler import (
     LEGACY_DEFAULT_CONTEXT_ASSEMBLER_KEY,
     STANDARD_CONTEXT_ASSEMBLER_KEY,
@@ -14,7 +15,6 @@ from modules.agent.application.interfaces.context_assembler import (
     ContextAssemblyRequest,
     context_assembler_selection_from_runtime_config,
 )
-from modules.agent.application.standard_context_assembler import StandardContextAssembler
 from shared.contracts.errors import ValidationError
 
 
@@ -269,17 +269,30 @@ def _configured_default_strategy(value: str) -> ContextAssemblerKey:
     return key
 
 
+def _register_builtin_context_manager_strategies(
+    registry: ContextAssemblerRegistry,
+) -> None:
+    """Single explicit extension point for built-in Context Manager strategies.
+
+    Concrete implementations live under ``application/context_managers``. Add a
+    stable versioned strategy and its backend-owned descriptor here; Runtime code
+    must not import the concrete implementation directly.
+    """
+
+    registry.register(
+        STANDARD_CONTEXT_ASSEMBLER_KEY,
+        StandardContextAssembler,
+        descriptor=_STANDARD_DESCRIPTOR,
+    )
+
+
 def build_context_assembler_registry(
     default_context_manager: str = DEFAULT_CONTEXT_MANAGER_SETTING,
 ) -> ContextAssemblerRegistry:
     """Build the deterministic catalog supported by this Woobe process."""
 
     registry = ContextAssemblerRegistry()
-    registry.register(
-        STANDARD_CONTEXT_ASSEMBLER_KEY,
-        StandardContextAssembler,
-        descriptor=_STANDARD_DESCRIPTOR,
-    )
+    _register_builtin_context_manager_strategies(registry)
     registry.register_default_alias(
         strategy_key=_configured_default_strategy(default_context_manager),
     )
