@@ -1,5 +1,5 @@
 from modules.agent.application.use_cases import CreateAgentUseCase
-from modules.agent.composition.resources import DATABASE_ENGINE
+from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentRepositoryWithProviderModels,
     SQLAlchemyProviderModelRepository,
@@ -24,6 +24,7 @@ def create_agent_composer() -> TransactionalHandler:
         credential_repo,
         outbox,
         provider_model_repo,
+        default_context_manager=SETTINGS.default_context_manager,
     )
     controller = CreateAgentController(use_case)
     return TransactionalHandler(uow, controller.handle)
