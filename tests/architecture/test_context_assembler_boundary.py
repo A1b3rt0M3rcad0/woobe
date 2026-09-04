@@ -13,6 +13,10 @@ AGENT_ROOT = (
     / "agent"
 )
 AGENT_EXECUTION = AGENT_ROOT / "infra" / "execution"
+_CONTEXT_ASSEMBLY = AGENT_ROOT / "application" / "context_assembly.py"
+_CONTEXT_ASSEMBLER_CONTRACT = (
+    AGENT_ROOT / "application" / "interfaces" / "context_assembler.py"
+)
 _DEFAULT_ASSEMBLER = AGENT_ROOT / "application" / "default_context_assembler.py"
 _DEFAULT_ASSEMBLER_MODULE = "modules.agent.application.default_context_assembler"
 _LEGACY_ASSEMBLY_MODULE = "modules.agent.application.context_assembly"
@@ -20,6 +24,45 @@ _LEGACY_ASSEMBLY_MODULE = "modules.agent.application.context_assembly"
 
 def _tree(path: Path) -> ast.Module:
     return ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+
+
+def _runtime_context_reads(tree: ast.AST) -> set[str]:
+    fields: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "getattr"
+            and len(node.args) >= 2
+            and isinstance(node.args[0], ast.Name)
+            and node.args[0].id == "runtime_context"
+            and isinstance(node.args[1], ast.Constant)
+            and isinstance(node.args[1].value, str)
+        ):
+            fields.add(node.args[1].value)
+        elif (
+            isinstance(node, ast.Attribute)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "runtime_context"
+            and isinstance(node.ctx, ast.Load)
+        ):
+            fields.add(node.attr)
+    return fields
+
+
+def _runtime_context_contract_fields(tree: ast.Module) -> set[str]:
+    for node in tree.body:
+        if isinstance(node, ast.ClassDef) and node.name == "ContextAssemblyRuntimeContext":
+            return {
+                member.name
+                for member in node.body
+                if isinstance(member, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and any(
+                    isinstance(decorator, ast.Name) and decorator.id == "property"
+                    for decorator in member.decorator_list
+                )
+            }
+    raise AssertionError("ContextAssemblyRuntimeContext contract is missing")
 
 
 def test_agent_execution_depends_on_context_assembler_contract_not_default() -> None:
@@ -64,3 +107,14 @@ def test_legacy_assemble_context_is_only_consumed_by_default_adapter() -> None:
                         )
 
     assert not violations, "\n".join(violations)
+
+
+def test_context_assembly_runtime_contract_covers_every_runtime_state_read() -> None:
+    required = _runtime_context_reads(_tree(_CONTEXT_ASSEMBLY))
+    declared = _runtime_context_contract_fields(_tree(_CONTEXT_ASSEMBLER_CONTRACT))
+    missing = sorted(required - declared)
+
+    assert not missing, (
+        "ContextAssemblyRuntimeContext is missing fields read by context_assembly.py: "
+        + ", ".join(missing)
+    )
