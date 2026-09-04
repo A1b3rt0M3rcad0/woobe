@@ -8,6 +8,15 @@ export interface RuntimeEnvironmentState {
 
 export type RuntimeEnvironmentStates = Record<RuntimeEnvironment, RuntimeEnvironmentState>
 
+export interface ContextAssemblerDescriptor {
+  name: string
+  version: string
+  display_name: string
+  description: string
+  behavior: string
+  is_default: boolean
+}
+
 export interface Agent {
   id: string
   project_id: string
