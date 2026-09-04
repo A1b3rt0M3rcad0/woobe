@@ -60,6 +60,8 @@ class RequestExecutionContext:
     context_policy: dict[str, Any] | None = None
     context_assembler_name: str | None = None
     context_assembler_version: str | None = None
+    context_assembler_strategy_name: str | None = None
+    context_assembler_strategy_version: str | None = None
     model_capacity_units: int | None = None
     reserved_output_units: int | None = None
     active_tool_definitions: list[dict[str, Any]] | None = None
@@ -89,5 +91,4 @@ def new_execution_context(
         started_at=time.monotonic(),
         request_received_at=request_received_at or now,
         execution_started_at=now,
-        client_sent_at=client_sent_at,
     )
