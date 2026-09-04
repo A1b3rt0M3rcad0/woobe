@@ -3,6 +3,9 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 
 from modules.agent.application.default_context_assembler import DefaultContextAssembler
+from modules.agent.application.interfaces.context_assembler import (
+    ContextAssemblyRequest,
+)
 from modules.agent.composition.factories.ask_agent_runtime_factory import (
     build_ask_agent_use_case,
     build_internal_agent_runtime,
@@ -15,6 +18,11 @@ def _assert_default_context_assembler(runtime) -> None:
         getattr(runtime, "_context_assembler", None),
         DefaultContextAssembler,
     )
+
+
+class _AlternateContextAssembler:
+    def assemble(self, request: ContextAssemblyRequest):
+        raise AssertionError("Composition test does not execute Context Assembly")
 
 
 def test_public_agent_runtime_composition_wires_default_context_assembler() -> None:
@@ -33,3 +41,25 @@ def test_internal_network_agent_runtime_composition_wires_default_context_assemb
     )
 
     _assert_default_context_assembler(runtime)
+
+
+def test_public_agent_runtime_accepts_alternate_context_assembler() -> None:
+    assembler = _AlternateContextAssembler()
+    runtime, _transactions = build_ask_agent_use_case(
+        Settings.model_validate({}),
+        http_executor=MagicMock(),
+        context_assembler=assembler,
+    )
+
+    assert runtime._context_assembler is assembler
+
+
+def test_internal_network_runtime_accepts_alternate_context_assembler() -> None:
+    assembler = _AlternateContextAssembler()
+    runtime = build_internal_agent_runtime(
+        Settings.model_validate({}),
+        http_executor=MagicMock(),
+        context_assembler=assembler,
+    )
+
+    assert runtime._context_assembler is assembler
