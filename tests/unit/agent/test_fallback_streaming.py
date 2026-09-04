@@ -6,6 +6,7 @@ import pytest
 
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
+    ContextAssemblyOutput,
     ContextAssemblyRequest,
 )
 from modules.agent.infra.execution.instrumented_fallback_mixin import (
@@ -28,7 +29,7 @@ class _Factory:
 
 
 class _UnusedContextAssembler(ContextAssembler):
-    def assemble(self, request: ContextAssemblyRequest):
+    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
         raise AssertionError("Fallback propagation test must not assemble context directly")
 
 
