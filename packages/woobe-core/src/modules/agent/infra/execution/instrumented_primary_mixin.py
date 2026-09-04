@@ -10,7 +10,7 @@ from modules.agent.application.runtime_output_validation import (
 )
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
-    context_assembler_key_from_runtime_config,
+    context_assembler_selection_from_runtime_config,
 )
 from modules.agent.application.interfaces.embedding_errors import EmbeddingProviderError
 from modules.agent.application.interfaces.execution import (
@@ -165,6 +165,8 @@ class InstrumentedPrimaryExecutionMixin:
                 {
                     "name": context.context_assembler_name,
                     "version": context.context_assembler_version,
+                    "strategy_name": context.context_assembler_strategy_name,
+                    "strategy_version": context.context_assembler_strategy_version,
                 }
                 if context
                 and context.context_assembler_name
@@ -216,11 +218,13 @@ class InstrumentedPrimaryExecutionMixin:
             agent, session, trace_id = prepared[0], prepared[1], prepared[2]
             settings = getattr(agent, "settings", None)
             settings = settings if isinstance(settings, dict) else {}
-            assembler_key = context_assembler_key_from_runtime_config(
+            assembler_selection = context_assembler_selection_from_runtime_config(
                 settings.get("runtime_config")
             )
-            context.context_assembler_name = assembler_key.name
-            context.context_assembler_version = assembler_key.version
+            context.context_assembler_name = assembler_selection.selection_key.name
+            context.context_assembler_version = assembler_selection.selection_key.version
+            context.context_assembler_strategy_name = assembler_selection.strategy_key.name
+            context.context_assembler_strategy_version = assembler_selection.strategy_key.version
             context.project_id = getattr(agent, "project_id", None)
             context.agent_id = getattr(agent, "id", None)
             context.session_id = getattr(session, "id", None) if session else None
