@@ -4,6 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
+from modules.agent.application.interfaces.context_assembler import (
+    ContextAssembler,
+    ContextAssemblyRequest,
+)
 from modules.agent.infra.execution.instrumented_fallback_mixin import (
     InstrumentedFallbackMixin,
 )
@@ -23,8 +27,17 @@ class _Factory:
         return self.model
 
 
+class _UnusedContextAssembler(ContextAssembler):
+    def assemble(self, request: ContextAssemblyRequest):
+        raise AssertionError("Fallback propagation test must not assemble context directly")
+
+
 class _Runtime(InstrumentedFallbackMixin):
-    def __init__(self, factory: _Factory, context_assembler=None) -> None:
+    def __init__(
+        self,
+        factory: _Factory,
+        context_assembler: ContextAssembler | None = None,
+    ) -> None:
         self._llm_factory = factory
         self._context_assembler = context_assembler
 
@@ -32,7 +45,7 @@ class _Runtime(InstrumentedFallbackMixin):
 @pytest.mark.asyncio
 async def test_fallback_uses_streaming_model_and_public_final_phase(monkeypatch) -> None:
     factory = _Factory()
-    context_assembler = object()
+    context_assembler = _UnusedContextAssembler()
     runtime = _Runtime(factory, context_assembler)
     captured = {}
 
