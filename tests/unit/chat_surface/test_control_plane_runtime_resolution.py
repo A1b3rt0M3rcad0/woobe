@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 
 from modules.chat_surface.application.runtime_gateway import ChatRunIdentity
-from modules.chat_surface.control_plane_service import ControlPlaneChatSurfaceService
+from modules.chat_surface.infra.services.control_plane_service import ControlPlaneChatSurfaceService
 
 
 class _Gateway:
@@ -111,3 +111,4 @@ async def test_runtime_resolution_fails_closed_without_gateway() -> None:
 
     with pytest.raises(RuntimeError, match="runtime gateway is not configured"):
         await service._active_run_for_binding(_binding("agent"))
+

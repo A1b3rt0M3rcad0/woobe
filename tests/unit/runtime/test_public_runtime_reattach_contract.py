@@ -3,8 +3,8 @@ from uuid import uuid4
 
 import pytest
 
-from modules.network.presentation import public_runtime
-from shared.security.http_guard import (
+from woobe_api.http.network import public_runtime
+from woobe_api.security.http_guard import (
     is_runtime_execution_request,
     is_runtime_path,
     public_runtime_interface,

@@ -1,5 +1,1 @@
-from modules.metering.presentation import routes
-
-__all__ = [
-    "routes",
-]
+"""Metering bounded context. Process hosts use :mod:`modules.metering.entrypoint`."""

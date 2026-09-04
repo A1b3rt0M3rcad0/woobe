@@ -2,47 +2,25 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
-from modules.network.infra.database.repositories import (
-    NetworkOutboxRepository,
-    NetworkRepository,
-    NetworkRuntimeRepository,
-)
 from shared.infra.config.interface.unit_of_work import UnitOfWork
 
 
 class NetworkUnitOfWork(UnitOfWork):
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
-        self._session_factory = session_factory
+    def __init__(self, engine: AsyncEngine) -> None:
+        self._session_factory = async_sessionmaker(
+            bind=engine,
+            expire_on_commit=False,
+            class_=AsyncSession,
+        )
         self._session: AsyncSession | None = None
-        self._networks: NetworkRepository | None = None
-        self._runtime: NetworkRuntimeRepository | None = None
-        self._outbox: NetworkOutboxRepository | None = None
 
     @property
     def session(self) -> AsyncSession:
         if self._session is None:
             raise RuntimeError("NetworkUnitOfWork session not started")
         return self._session
-
-    @property
-    def networks(self) -> NetworkRepository:
-        if self._networks is None:
-            self._networks = NetworkRepository(self.session)
-        return self._networks
-
-    @property
-    def runtime(self) -> NetworkRuntimeRepository:
-        if self._runtime is None:
-            self._runtime = NetworkRuntimeRepository(self.session)
-        return self._runtime
-
-    @property
-    def outbox(self) -> NetworkOutboxRepository:
-        if self._outbox is None:
-            self._outbox = NetworkOutboxRepository(self.session)
-        return self._outbox
 
     async def commit(self) -> None:
         await self.session.commit()
@@ -62,6 +40,3 @@ class NetworkUnitOfWork(UnitOfWork):
                 await self._session.rollback()
             await self._session.close()
         self._session = None
-        self._networks = None
-        self._runtime = None
-        self._outbox = None

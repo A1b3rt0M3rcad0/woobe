@@ -8,6 +8,9 @@ import pytest
 from sqlalchemy import event, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
+from modules.core.infra.database.contextual_project_overview_reader import (
+    ContextualProjectOverviewReader,
+)
 from modules.core.infra.database.unit_of_work import CoreUnitOfWork
 from shared.infra.config import Settings
 
@@ -323,14 +326,15 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
 
         event.listen(engine.sync_engine, "before_cursor_execute", capture_statement)
         try:
-            uow = CoreUnitOfWork(session_factory)
+            uow = CoreUnitOfWork(engine)
             async with uow:
-                expected_query_count = uow.project_overview.query_count
+                reader = ContextualProjectOverviewReader(uow)
+                expected_query_count = reader.query_count
                 await uow.session.execute(
                     text("SET LOCAL TIME ZONE 'America/Sao_Paulo'")
                 )
                 statements.clear()
-                overview = await uow.project_overview.fetch(
+                overview = await reader.fetch(
                     project_id=project_id,
                     start=start,
                     end=end,
@@ -341,7 +345,7 @@ async def test_project_overview_aggregates_filters_and_isolates_projects() -> No
                 query_count = len(statements)
 
                 statements.clear()
-                production = await uow.project_overview.fetch(
+                production = await reader.fetch(
                     project_id=project_id,
                     start=start,
                     end=end,

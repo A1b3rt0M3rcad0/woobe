@@ -1,0 +1,43 @@
+"""Stable public entrypoint for the ChatSurface bounded context."""
+
+from modules.chat_surface.composition.public_api import (
+    CONTROL_PLANE_TEST_SOURCE,
+    ChatRunIdentity,
+    ChatMessageRequestSnapshot,
+    ChatRuntimeChunk,
+    ChatRuntimeGateway,
+    ChatRuntimeRequest,
+    ChatRuntimeTarget,
+    ControlPlaneChatSurfaceService,
+    CreateChatSurfaceRequest,
+    CreateSurfaceAccessKeyRequest,
+    CreateSurfaceSessionRequest,
+    DisconnectCheck,
+    IssueSessionTokenRequest,
+    PreparedChatRuntime,
+    StreamChatMessageRequest,
+    UpdateChatSurfaceRequest,
+    surface_payload,
+    build_chat_surface_service,
+)
+
+__all__ = [
+    "CONTROL_PLANE_TEST_SOURCE",
+    "ChatRunIdentity",
+    "ChatMessageRequestSnapshot",
+    "ChatRuntimeChunk",
+    "ChatRuntimeGateway",
+    "ChatRuntimeRequest",
+    "ChatRuntimeTarget",
+    "ControlPlaneChatSurfaceService",
+    "CreateChatSurfaceRequest",
+    "CreateSurfaceAccessKeyRequest",
+    "CreateSurfaceSessionRequest",
+    "DisconnectCheck",
+    "IssueSessionTokenRequest",
+    "PreparedChatRuntime",
+    "StreamChatMessageRequest",
+    "UpdateChatSurfaceRequest",
+    "surface_payload",
+    "build_chat_surface_service",
+]

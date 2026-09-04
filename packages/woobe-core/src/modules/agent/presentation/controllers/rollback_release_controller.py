@@ -4,8 +4,9 @@ from uuid import UUID
 from modules.agent.application.dtos import RollbackReleaseInput
 from modules.agent.presentation.mappers import release_to_response
 from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 
 
 class RollbackReleaseUseCaseProtocol(Protocol):
@@ -29,14 +30,15 @@ class RollbackReleaseController(Controller):
     def __init__(self, use_case: RollbackReleaseUseCaseProtocol) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         agent_id = UUID(request.path_params["agent_id"])
         release_id = UUID(request.path_params["release_id"])
         body = request.body or {}
         input_dto = RollbackReleaseInput(**body)
         object.__setattr__(input_dto, "change_description", body.get("change_description"))
         result = await self._use_case.execute(agent_id, release_id, input_dto)
-        return Response(
-            status_code=200,
+        return OperationResult(
+            outcome=OperationOutcome.SUCCESS,
             body={"success": True, "data": _release_payload(result)},
         )
+

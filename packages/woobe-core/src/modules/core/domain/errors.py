@@ -1,4 +1,4 @@
-from shared.infra.errors import ConflictError, NotFoundError
+from shared.contracts.errors import ConflictError, NotFoundError
 
 
 class ProjectNotFoundError(NotFoundError):
@@ -15,3 +15,4 @@ class ApiKeyNotActiveError(ConflictError):
 
 class DuplicateSlugError(ConflictError):
     pass
+

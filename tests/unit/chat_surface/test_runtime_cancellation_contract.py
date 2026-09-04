@@ -6,8 +6,8 @@ from uuid import uuid4
 import pytest
 
 from modules.chat_surface.application.runtime_gateway import ChatRunIdentity
-from modules.chat_surface.control_plane_service import ControlPlaneChatSurfaceService
-from modules.chat_surface.presentation import reattach_routes
+from modules.chat_surface.infra.services.control_plane_service import ControlPlaneChatSurfaceService
+from woobe_api.http.chat_surface import reattach_routes
 from shared.infra.errors import AuthorizationError, ConflictError, NotFoundError
 
 
@@ -213,3 +213,4 @@ async def test_chat_cancel_endpoint_is_idempotent_for_terminal_run(
             "target_type": target_type,
         },
     }
+

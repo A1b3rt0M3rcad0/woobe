@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import select
@@ -217,6 +218,40 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
             )
             .order_by(AgentRunModel.created_at.desc(), AgentRunModel.id.desc())
             .limit(1)
+        )
+        model = result.scalar_one_or_none()
+        return _to_entity(model) if model is not None else None
+
+    async def resolve_direct_runtime_run(
+        self,
+        *,
+        project_id: UUID,
+        agent_id: UUID,
+        session_id: UUID,
+        agent_release_id: UUID,
+        preferred_run_id: UUID | None = None,
+        created_after: datetime | None = None,
+    ) -> AgentRun | None:
+        statement = select(AgentRunModel).where(
+            AgentRunModel.project_id == project_id,
+            AgentRunModel.agent_id == agent_id,
+            AgentRunModel.session_id == session_id,
+            AgentRunModel.agent_release_id == agent_release_id,
+            AgentRunModel.network_execution_id.is_(None),
+        )
+        if preferred_run_id is not None:
+            statement = statement.where(AgentRunModel.id == preferred_run_id)
+        elif created_after is not None:
+            statement = statement.where(AgentRunModel.created_at >= created_after)
+        else:
+            statement = statement.where(
+                AgentRunModel.status == AgentRunStatus.RUNNING.value
+            )
+        result = await self._uow.session.execute(
+            statement.order_by(
+                AgentRunModel.created_at.desc(),
+                AgentRunModel.id.desc(),
+            ).limit(1)
         )
         model = result.scalar_one_or_none()
         return _to_entity(model) if model is not None else None

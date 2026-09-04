@@ -3,8 +3,18 @@
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
-AGENT_ROUTES = PROJECT_ROOT / "src" / "modules" / "agent" / "presentation" / "routes.py"
-MAIN_PY = PROJECT_ROOT / "src" / "main.py"
+AGENT_ROUTES = (
+    PROJECT_ROOT
+    / "packages"
+    / "woobe-api"
+    / "src"
+    / "woobe_api"
+    / "http"
+    / "agent"
+    / "routes.py"
+)
+AGENT_HTTP_ASSEMBLY = AGENT_ROUTES.parent / "__init__.py"
+MAIN_PY = PROJECT_ROOT / "packages" / "woobe-api" / "src" / "main.py"
 
 
 class TestToolsRouteRegistration:
@@ -18,11 +28,11 @@ class TestToolsRouteRegistration:
 
     def test_tools_router_imported_in_main(self):
         source = MAIN_PY.read_text(encoding="utf-8")
-        assert "from modules.agent.presentation.routes import tools_router" in source
+        assert "from woobe_api.http.agent import HTTP_ROUTERS as AGENT_HTTP_ROUTERS" in source
 
     def test_tools_router_included_in_app(self):
-        source = MAIN_PY.read_text(encoding="utf-8")
-        assert "app.include_router(tools_router)" in source
+        source = AGENT_HTTP_ASSEMBLY.read_text(encoding="utf-8")
+        assert "tools_router," in source
 
     def test_legacy_tools_router_not_imported(self):
         source = MAIN_PY.read_text(encoding="utf-8")
@@ -38,7 +48,16 @@ class TestToolsRouteRegistration:
         assert "encrypted_value" not in source
 
     def test_no_network_imports_in_schemas(self):
-        schemas_path = PROJECT_ROOT / "src" / "modules" / "agent" / "presentation" / "schemas.py"
+        schemas_path = (
+            PROJECT_ROOT
+            / "packages"
+            / "woobe-core"
+            / "src"
+            / "modules"
+            / "agent"
+            / "presentation"
+            / "schemas.py"
+        )
         source = schemas_path.read_text(encoding="utf-8")
         for lib in ["httpx", "requests", "aiohttp", "urllib"]:
             assert lib not in source, f"Schema should not import network library: {lib}"

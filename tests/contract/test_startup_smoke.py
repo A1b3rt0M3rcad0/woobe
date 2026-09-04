@@ -18,8 +18,8 @@ class TestStartupSmoke:
 
     def test_tools_router_from_agent(self):
         content = MAIN_PATH.read_text(encoding="utf-8")
-        assert "from modules.agent.presentation.routes import tools_router" in content, (
-            "packages/woobe-api/src/main.py must import tools_router from modules.agent.presentation.routes"
+        assert "from woobe_api.http.agent import HTTP_ROUTERS as AGENT_HTTP_ROUTERS" in content, (
+            "packages/woobe-api/src/main.py must import the Agent HTTP assembly"
         )
 
     def test_app_creatable(self):

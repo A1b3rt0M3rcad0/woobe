@@ -11,7 +11,7 @@ from modules.agent.domain.run import AgentRun, AgentRunStatus
 from modules.agent.infra.execution.agent_run_reattach_service import AgentRunReattachService
 from modules.agent.infra.execution.ask_agent_stream_service import AskAgentStreamService
 from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
-from modules.agent.presentation.http.controllers.ask_agent_stream_controller import handle_ask_stream
+from woobe_api.http.agent.controllers.ask_agent_stream_controller import handle_ask_stream
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 from shared.security.principal import ProjectApiPrincipal
 
@@ -223,3 +223,4 @@ async def test_http_disconnect_disposes_only_observer_and_does_not_cancel_run() 
     use_case.release.set()
     await asyncio.wait_for(use_case.completed.wait(), timeout=1)
     assert use_case.cancelled.is_set() is False
+

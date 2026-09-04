@@ -5,7 +5,7 @@ from uuid import uuid4
 import pytest
 from pydantic import ValidationError
 
-from modules.network.presentation.resource_routes import (
+from woobe_api.http.network.resource_routes import (
     CreateNetworkRequest,
     UpdateNetworkMetadataRequest,
     network_payload,
@@ -60,3 +60,4 @@ def test_network_payload_exposes_inventory_agent_count() -> None:
     assert payload["project_id"] == str(project_id)
     assert payload["agent_count"] == 2
     assert payload["draft_revision"] == 3
+

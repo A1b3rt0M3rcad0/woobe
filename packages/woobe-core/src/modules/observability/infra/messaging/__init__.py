@@ -1,7 +1,7 @@
-from modules.observability.infra.messaging import trace_projector as _trace_projector
+from modules.observability.infra.messaging.trace_projector import _DATA_FIELDS
 
 
-_trace_projector._DATA_FIELDS.update(
+_DATA_FIELDS.update(
     {
         "network_id",
         "network_execution_id",

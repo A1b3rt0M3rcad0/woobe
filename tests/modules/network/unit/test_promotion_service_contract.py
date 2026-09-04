@@ -4,7 +4,11 @@ from uuid import uuid4
 
 from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
-from modules.network.application.service import NetworkApplicationService
+from modules.network.composition.bootstrap import install_network_service_extensions
+from modules.network.infra.services.service import NetworkApplicationService
+
+
+install_network_service_extensions()
 
 
 def _draft(schema: dict) -> AgentRelease:

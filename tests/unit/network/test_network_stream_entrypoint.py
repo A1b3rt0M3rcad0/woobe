@@ -5,8 +5,8 @@ from uuid import uuid4
 
 import pytest
 
-from modules.network.presentation import routes
-from modules.network.presentation.schemas import RunNetworkRequest
+from modules.network.entrypoint import RunNetworkRequest
+from woobe_api.http.network import runtime_routes as routes
 
 
 @pytest.mark.asyncio

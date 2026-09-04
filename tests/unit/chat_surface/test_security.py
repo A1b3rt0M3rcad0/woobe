@@ -3,7 +3,7 @@ from uuid import uuid4
 
 import pytest
 
-from modules.chat_surface.security import ChatSessionTokenCodec, normalize_origin
+from modules.chat_surface.application.security import ChatSessionTokenCodec, normalize_origin
 from shared.infra.errors import AuthenticationError, ValidationError
 
 
@@ -112,3 +112,4 @@ def test_session_token_rejects_tampering_and_expiration() -> None:
         )
     with pytest.raises(AuthenticationError):
         _codec().decode(token, now=now + timedelta(seconds=61))
+

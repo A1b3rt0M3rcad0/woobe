@@ -1,0 +1,1 @@
+"""Network composition boundary."""

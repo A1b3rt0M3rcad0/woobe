@@ -2,19 +2,20 @@ from modules.identity.application.use_cases import ListInvitesUseCase
 from modules.identity.application.dtos import ListInvitesInput
 from modules.identity.presentation.schemas import InviteResponse
 from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 
 
 class ListInvitesController(Controller):
     def __init__(self, use_case: ListInvitesUseCase) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         workspace_id = request.path_params["workspace_id"]
         result = await self._use_case.execute(ListInvitesInput(workspace_id=workspace_id))
-        return Response(
-            status_code=200,
+        return OperationResult(
+            outcome=OperationOutcome.SUCCESS,
             body={
                 "success": True,
                 "message": "ok",
@@ -29,3 +30,4 @@ class ListInvitesController(Controller):
                 ).model_dump() for i in result],
             },
         )
+

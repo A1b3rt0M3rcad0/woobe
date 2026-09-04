@@ -1,4 +1,4 @@
-from shared.security.http_guard import (
+from woobe_api.security.http_guard import (
     is_runtime_execution_request,
     is_runtime_path,
     public_runtime_interface,
@@ -17,3 +17,4 @@ def test_runtime_timeout_and_concurrency_skip_job_polling() -> None:
     assert is_runtime_path("/v1/jobs/123") is True
     assert is_runtime_execution_request("POST", "/v1/jobs") is True
     assert is_runtime_execution_request("GET", "/v1/jobs/123") is False
+

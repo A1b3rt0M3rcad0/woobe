@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from modules.identity.application.session_lifecycle import IssuedSession, SessionLifecycle
+from modules.identity.infra.services.session_lifecycle import IssuedSession, SessionLifecycle
 from shared.infra.errors import AuthenticationError
 from shared.security.refresh_tokens import hash_refresh_token
 
@@ -91,3 +91,4 @@ async def test_rotate_detects_reuse_from_replacement_lineage() -> None:
     lifecycle.revoke_all.assert_awaited_once_with(uow, user_id)
     uow.commit.assert_awaited_once_with()
     lifecycle.issue.assert_not_awaited()
+

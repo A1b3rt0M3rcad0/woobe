@@ -2,7 +2,7 @@ import asyncio
 from uuid import uuid4
 
 from modules.agent.infra.database.models import AgentReleaseModel
-from modules.network.application.release_environment_separation import (
+from modules.network.infra.services.release_environment_separation import (
     _copy_agent_snapshot_detached,
 )
 
@@ -81,3 +81,4 @@ def test_network_publish_creates_available_release_without_changing_agent_produc
         assert session.added == [created]
 
     asyncio.run(scenario())
+

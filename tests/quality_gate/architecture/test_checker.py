@@ -46,7 +46,7 @@ id = "ARCH019"
 description = "composition"
 source = ["composition/**"]
 allow = ["modules.agent.domain", "modules.agent.application", "modules.agent.infra", "modules.agent.presentation.controllers", "shared"]
-deny = ["modules.agent.presentation.routes"]
+deny = ["woobe_api.http.agent.routes"]
 
 [[rules]]
 id = "ARCH002"
@@ -336,3 +336,4 @@ def test_non_composer_helper_is_ignored(tmp_path: Path) -> None:
     )
     result = checker.check(policy)
     assert result.passed, result.violations
+

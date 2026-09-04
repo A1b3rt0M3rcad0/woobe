@@ -6,13 +6,17 @@ from uuid import uuid4
 
 import pytest
 
-from modules.chat_surface import control_plane_service as control_plane_service_module
 from modules.chat_surface.application.runtime_gateway import ChatRunIdentity
-from modules.chat_surface.control_plane_service import ControlPlaneChatSurfaceService
-from modules.chat_surface.presentation import reattach_routes
-from modules.chat_surface.service import ChatSurfaceService
+from modules.chat_surface.infra.services import (
+    control_plane_service as control_plane_service_module,
+)
+from modules.chat_surface.infra.services.control_plane_service import (
+    ControlPlaneChatSurfaceService,
+)
+from modules.chat_surface.infra.services.chat_surface_service import ChatSurfaceService
 from shared.infra.errors import ConflictError
-from shared.presentation.errors import conflict_handler
+from woobe_api.http.chat_surface import reattach_routes
+from woobe_api.http.shared.errors import conflict_handler
 
 
 class _AdmissionSession:

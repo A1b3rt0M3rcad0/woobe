@@ -3,8 +3,9 @@ from uuid import UUID
 
 from modules.agent.application.dtos import ListProviderModelsInput
 from modules.agent.application.dtos.model_discovery_dtos import ListAvailableProviderModelsInput
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 from shared.presentation.interface.controller import Controller
 
 
@@ -17,12 +18,12 @@ class ListProviderModelsController(Controller):
         self._use_case = use_case
         self._discovery_use_case = discovery_use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         available_for_credential_id = request.query_params.get("available_for_credential_id")
         if available_for_credential_id:
             if self._discovery_use_case is None:
-                return Response(
-                    status_code=400,
+                return OperationResult(
+                    outcome=OperationOutcome.INVALID,
                     body={"success": False, "message": "Model discovery is not configured", "data": None},
                 )
             result = await self._discovery_use_case.execute(
@@ -32,8 +33,8 @@ class ListProviderModelsController(Controller):
                     capability=request.query_params.get("capability"),
                 )
             )
-            return Response(
-                status_code=200,
+            return OperationResult(
+                outcome=OperationOutcome.SUCCESS,
                 body={"success": True, "message": "ok", "data": [item.model_dump() for item in result]},
             )
 
@@ -42,7 +43,8 @@ class ListProviderModelsController(Controller):
             provider_credential_id=request.query_params.get("provider_credential_id"),
         )
         result = await self._use_case.execute(input_dto)
-        return Response(
-            status_code=200,
+        return OperationResult(
+            outcome=OperationOutcome.SUCCESS,
             body={"success": True, "message": "ok", "data": [item.model_dump() for item in result]},
         )
+

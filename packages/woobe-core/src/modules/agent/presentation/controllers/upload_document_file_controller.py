@@ -4,7 +4,7 @@ from modules.agent.application.dtos import UploadDocumentFileInput
 from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.presentation.mappers import upload_document_output_to_response
 from shared.contracts.errors import ConflictError, NotFoundError, ValidationError
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationResult
 from shared.presentation.interface.controller import Controller
 
 
@@ -15,31 +15,32 @@ class UploadDocumentFileController(Controller):
     async def handle(
         self,
         request: tuple[UploadDocumentFileInput, Any],
-    ) -> Response:
+    ) -> OperationResult:
         input_dto, upload = request
         try:
             result = await self._use_case.execute(input_dto, upload)
         except ConflictError as exc:
-            return Response(
-                status_code=409,
+            return OperationResult(
+                outcome=OperationOutcome.CONFLICT,
                 body={"success": False, "message": str(exc), "data": None},
             )
         except NotFoundError as exc:
-            return Response(
-                status_code=404,
+            return OperationResult(
+                outcome=OperationOutcome.NOT_FOUND,
                 body={"success": False, "message": str(exc), "data": None},
             )
         except ValidationError as exc:
-            return Response(
-                status_code=400,
+            return OperationResult(
+                outcome=OperationOutcome.INVALID,
                 body={"success": False, "message": str(exc), "data": None},
             )
 
-        return Response(
-            status_code=201,
+        return OperationResult(
+            outcome=OperationOutcome.CREATED,
             body={
                 "success": True,
                 "message": "created",
                 "data": upload_document_output_to_response(result).model_dump(),
             },
         )
+

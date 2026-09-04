@@ -5,8 +5,9 @@ from modules.identity.application.dtos import InviteUserInput
 from modules.identity.presentation.schemas import InviteResponse
 from shared.infra.errors import AuthenticationError
 from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 from shared.security.principal import AuthenticatedPrincipal
 
 
@@ -14,7 +15,7 @@ class CreateInviteController(Controller):
     def __init__(self, use_case: InviteUserUseCase) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         if not isinstance(request.principal, AuthenticatedPrincipal):
             raise AuthenticationError("Authentication required")
         body = dict(request.body)
@@ -22,8 +23,8 @@ class CreateInviteController(Controller):
         body["invited_by_user_id"] = request.principal.user_id
         input_dto = InviteUserInput(**body)
         result = await self._use_case.execute(input_dto)
-        return Response(
-            status_code=201,
+        return OperationResult(
+            outcome=OperationOutcome.CREATED,
             body={
                 "success": True,
                 "message": "created",
@@ -38,3 +39,4 @@ class CreateInviteController(Controller):
                 ).model_dump(),
             },
         )
+

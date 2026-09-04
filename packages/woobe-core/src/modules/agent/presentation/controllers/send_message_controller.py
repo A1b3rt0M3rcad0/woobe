@@ -1,8 +1,9 @@
 from modules.agent.application.interfaces.use_case import UseCase
 from modules.agent.application.dtos import SendMessageInput
 from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 from shared.contracts.errors import NotFoundError, ValidationError
 
 
@@ -10,12 +11,12 @@ class SendMessageController(Controller):
     def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         try:
             input_dto = SendMessageInput(**request.body)
             result = await self._use_case.execute(input_dto)
-            return Response(
-                status_code=200,
+            return OperationResult(
+                outcome=OperationOutcome.SUCCESS,
                 body={
                     "success": True,
                     "message": "ok",
@@ -32,6 +33,7 @@ class SendMessageController(Controller):
                 },
             )
         except NotFoundError as e:
-            return Response(status_code=404, body={"success": False, "message": str(e), "data": None})
+            return OperationResult(outcome=OperationOutcome.NOT_FOUND, body={"success": False, "message": str(e), "data": None})
         except ValidationError as e:
-            return Response(status_code=422, body={"success": False, "message": str(e), "data": None})
+            return OperationResult(outcome=OperationOutcome.UNPROCESSABLE, body={"success": False, "message": str(e), "data": None})
+

@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 CORE = ROOT / "packages" / "woobe-core" / "src"
+API_HTTP = ROOT / "packages" / "woobe-api" / "src" / "woobe_api" / "http"
 RUNTIME_CONSUMERS = (
     CORE / "modules" / "agent",
     CORE / "modules" / "network",
@@ -48,17 +49,17 @@ def test_legacy_runtime_reattach_module_is_removed() -> None:
     assert not (CORE / "shared" / "runtime_reattach.py").exists()
 
 
-def test_network_presentation_does_not_reimplement_acceptance_hot_wait() -> None:
-    network_presentation = CORE / "modules" / "network" / "presentation"
+def test_network_http_does_not_reimplement_acceptance_hot_wait() -> None:
+    network_http = API_HTTP / "network"
     violations: list[str] = []
-    for filename in ("routes.py", "reattach_routes.py"):
-        path = network_presentation / filename
+    for filename in ("runtime_routes.py", "reattach_routes.py"):
+        path = network_http / filename
         source = path.read_text(encoding="utf-8")
         if "while hot is None" in source or "await asyncio.sleep(0.25)" in source:
             violations.append(path.relative_to(ROOT).as_posix())
     assert not violations, (
         "Acceptance -> hot-state waiting belongs to RuntimeObserver, not Network "
-        "presentation:\n" + "\n".join(violations)
+        "HTTP transport:\n" + "\n".join(violations)
     )
 
 

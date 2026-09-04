@@ -13,30 +13,26 @@ from modules.agent.infra.database.runtime_transaction_runner import (
 from modules.agent.infra.execution.agent_run_reattach_service import (
     AgentRunReattachService,
 )
-from modules.agent.presentation.http.controllers.agent_run_reattach_controller import (
-    AgentRunReattachController,
-)
 
 
-def _build_controller() -> AgentRunReattachController:
+def _build_operations() -> AgentRunReattachService:
     transactions = AgentRuntimeTransactionRunner(
         build_agent_uow,
         build_agent_read_uow,
     )
-    service = AgentRunReattachService(
+    return AgentRunReattachService(
         transactions=transactions,
         state_store=EXECUTION_STATE_STORE,
     )
-    return AgentRunReattachController(service)
 
 
 def active_agent_run_composer() -> Callable:
-    return _build_controller().active
+    return _build_operations().active
 
 
 def attach_agent_run_composer() -> Callable:
-    return _build_controller().attach
+    return _build_operations().stream_sse
 
 
 def cancel_agent_run_composer() -> Callable:
-    return _build_controller().cancel
+    return _build_operations().cancel

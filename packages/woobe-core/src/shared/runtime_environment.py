@@ -5,7 +5,7 @@ from typing import Literal
 from uuid import UUID
 
 from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from shared.infra.errors import ConflictError, NotFoundError, ValidationError
 
@@ -16,6 +16,55 @@ RUNTIME_ENVIRONMENTS: tuple[RuntimeEnvironment, ...] = (
     "staging",
     "production",
 )
+
+
+class RuntimeEnvironmentService:
+    """Transaction boundary for runtime-environment management capabilities."""
+
+    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+        self._session_factory = session_factory
+
+    async def list_states(
+        self,
+        *,
+        target_type: RuntimeTargetType,
+        target_id: UUID,
+        project_id: UUID,
+    ) -> dict[RuntimeEnvironment, RuntimeEnvironmentState]:
+        async with self._session_factory() as session, session.begin():
+            return await list_runtime_environment_states(
+                session,
+                target_type=target_type,
+                target_id=target_id,
+                project_id=project_id,
+            )
+
+    async def set_enabled(
+        self,
+        *,
+        target_type: RuntimeTargetType,
+        target_id: UUID,
+        project_id: UUID,
+        environment: str,
+        enabled: bool,
+        updated_by: UUID | None,
+    ) -> RuntimeEnvironmentState:
+        async with self._session_factory() as session, session.begin():
+            return await set_runtime_environment_enabled(
+                session,
+                target_type=target_type,
+                target_id=target_id,
+                project_id=project_id,
+                environment=environment,
+                enabled=enabled,
+                updated_by=updated_by,
+            )
+
+
+def build_runtime_environment_service() -> RuntimeEnvironmentService:
+    from shared.composition_resources import SESSION_FACTORY
+
+    return RuntimeEnvironmentService(SESSION_FACTORY)
 
 
 @dataclass(frozen=True, slots=True)

@@ -4,22 +4,21 @@
 
 The installable Python package uses src layout at `tooling/quality-gate/src/quality_gate`. Governed bounded contexts own TOML policy data under `tooling/quality-gate/src/quality_gate/architecture/policies/`; the checker stays generic so new modules add policy data rather than module-specific branches.
 
-The first governed module is `agent`. Its policy is intentionally strict and acts as a ratchet for architectural regressions.
+The governed modules are `agent`, `chat_surface`, `core`, `identity`, `metering`, `network` and `observability`. Their policies act as a ratchet for architectural regressions while the checker remains module-agnostic.
 
 ## Canonical dependency direction
 
-The Agent module follows this dependency graph:
+Every governed module follows this dependency graph:
 
 ```text
-entrypoint -> composition -> presentation
+entrypoint -> composition -> presentation contracts
                      |----> application -> domain
                      |----> infra -------> domain
-                                   ^
-                                   |
-                         application ports
 ```
 
-`composition` is the only module layer allowed to wire concrete implementations. `presentation`, `application`, `infra` and `domain` must never import `composition`. Cross-bounded-context imports are forbidden by default.
+`composition` is the only module layer allowed to wire concrete implementations. `presentation`, `application`, `infra` and `domain` must never import `composition`. Application cannot depend on infrastructure or transport frameworks. Cross-bounded-context imports are forbidden by default.
+
+`woobe-api` owns FastAPI, Starlette, routers, middleware and HTTP status/header mapping. It imports bounded contexts only through `entrypoint.py`. HTTP routers cannot create database sessions, instantiate repositories or import ORM models. `woobe-core` cannot depend on `woobe-api` or HTTP frameworks.
 
 ## Transactional composer contract
 

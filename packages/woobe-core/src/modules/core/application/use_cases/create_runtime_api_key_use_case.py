@@ -9,7 +9,7 @@ from modules.core.domain.entities import ApiKey
 from modules.core.domain.enums import ApiKeyKind, RuntimeTargetType
 from modules.core.domain.errors import ProjectNotFoundError
 from modules.core.domain.repositories import ApiKeyRepository, ProjectRepository
-from shared.infra.errors import NotFoundError
+from shared.contracts.errors import NotFoundError
 from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.security.api_keys import (
     API_KEY_SCOPE_RUNTIME_EXECUTE,
@@ -125,3 +125,4 @@ class CreateRuntimeApiKeyUseCase:
             expires_at=saved.expires_at,
             created_at=saved.created_at,
         )
+

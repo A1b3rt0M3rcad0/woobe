@@ -5,12 +5,12 @@ from uuid import uuid4
 import pytest
 
 from shared.infra.errors import AuthenticationError
+from shared.infra.security import SqlSecurityAuthenticator
 from shared.security.api_keys import (
     API_KEY_SCOPE_RUNTIME_EXECUTE,
     API_KEY_VERSION,
     issue_runtime_api_key,
 )
-from shared.security.http_guard import HttpSecurityGuard
 
 
 class FakeResult:
@@ -67,24 +67,24 @@ def runtime_row(*, issued, environment: str):
     )
 
 
-def build_guard(session: FakeSession) -> HttpSecurityGuard:
-    guard = HttpSecurityGuard.__new__(HttpSecurityGuard)
-    guard._session_factory = lambda: FakeSessionContext(session)
-    guard._api_key_rate_limiter = SimpleNamespace(consume=AsyncMock())
-    return guard
+def build_authenticator(session: FakeSession) -> SqlSecurityAuthenticator:
+    authenticator = SqlSecurityAuthenticator.__new__(SqlSecurityAuthenticator)
+    authenticator._session_factory = lambda: FakeSessionContext(session)
+    authenticator._api_key_rate_limiter = SimpleNamespace(consume=AsyncMock())
+    return authenticator
 
 
 @pytest.mark.asyncio
-async def test_guard_uses_version_parsed_from_woobe_key() -> None:
+async def test_authenticator_uses_version_parsed_from_woobe_key() -> None:
     issued = issue_runtime_api_key("production")
     row = runtime_row(issued=issued, environment="production")
     session = FakeSession(row)
-    guard = build_guard(session)
-    request = SimpleNamespace(method="POST", url=SimpleNamespace(path="/v1/run"))
+    authenticator = build_authenticator(session)
 
-    principal = await guard._authenticate_api_key(
-        request=request,
+    principal = await authenticator.authenticate_api_key(
         credentials=issued.value,
+        required_scope=API_KEY_SCOPE_RUNTIME_EXECUTE,
+        runtime_interface="http",
         body={"message": "Hello"},
         query_params={},
         path_params={},
@@ -97,17 +97,17 @@ async def test_guard_uses_version_parsed_from_woobe_key() -> None:
 
 
 @pytest.mark.asyncio
-async def test_guard_rejects_environment_prefix_binding_mismatch() -> None:
+async def test_authenticator_rejects_environment_prefix_binding_mismatch() -> None:
     issued = issue_runtime_api_key("production")
     row = runtime_row(issued=issued, environment="staging")
     session = FakeSession(row)
-    guard = build_guard(session)
-    request = SimpleNamespace(method="POST", url=SimpleNamespace(path="/v1/run"))
+    authenticator = build_authenticator(session)
 
     with pytest.raises(AuthenticationError, match="Invalid API key"):
-        await guard._authenticate_api_key(
-            request=request,
+        await authenticator.authenticate_api_key(
             credentials=issued.value,
+            required_scope=API_KEY_SCOPE_RUNTIME_EXECUTE,
+            runtime_interface="http",
             body={"message": "Hello"},
             query_params={},
             path_params={},

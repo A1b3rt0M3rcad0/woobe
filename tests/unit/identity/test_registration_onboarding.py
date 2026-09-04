@@ -4,11 +4,11 @@ from uuid import uuid4
 
 import pytest
 
-from modules.identity.application.authentication_service import (
+from modules.identity.infra.services.authentication_service import (
     DEFAULT_WORKSPACE_NAME,
     AuthenticationService,
 )
-from modules.identity.application.session_lifecycle import IssuedSession
+from modules.identity.infra.services.session_lifecycle import IssuedSession
 from modules.identity.domain.enums import MemberRole, WorkspaceStatus, UserStatus
 
 
@@ -32,6 +32,21 @@ def make_service() -> AuthenticationService:
     )
     settings = SimpleNamespace(refresh_token_ttl_days=30)
     return AuthenticationService(SimpleNamespace(), token_codec, settings)
+
+
+def patch_repositories(monkeypatch) -> None:
+    module = "modules.identity.infra.services.authentication_service"
+    bindings = {
+        "SQLAlchemyUserRepository": "users",
+        "SQLAlchemyWorkspaceRepository": "workspaces",
+        "SQLAlchemyWorkspaceMemberRepository": "members",
+        "SQLAlchemyOutboxEventWriter": "outbox",
+    }
+    for repository_name, attribute_name in bindings.items():
+        monkeypatch.setattr(
+            f"{module}.{repository_name}",
+            lambda uow, attribute_name=attribute_name: getattr(uow, attribute_name),
+        )
 
 
 @pytest.mark.asyncio
@@ -74,9 +89,10 @@ async def test_register_provisions_default_owned_workspace_and_returns_it(monkey
     )
     FakeIdentityUnitOfWork.current = uow
     monkeypatch.setattr(
-        "modules.identity.application.authentication_service.IdentityUnitOfWork",
+        "modules.identity.infra.services.authentication_service.IdentityUnitOfWork",
         FakeIdentityUnitOfWork,
     )
+    patch_repositories(monkeypatch)
 
     service = make_service()
     service._sessions.issue = AsyncMock(
@@ -150,9 +166,10 @@ async def test_create_workspace_adds_authenticated_user_as_owner(monkeypatch) ->
     )
     FakeIdentityUnitOfWork.current = uow
     monkeypatch.setattr(
-        "modules.identity.application.authentication_service.IdentityUnitOfWork",
+        "modules.identity.infra.services.authentication_service.IdentityUnitOfWork",
         FakeIdentityUnitOfWork,
     )
+    patch_repositories(monkeypatch)
 
     result = await make_service().create_workspace(
         user_id=user_id,

@@ -18,14 +18,15 @@ from modules.core.infra.database.models import (
 )
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
+from shared.infra.security import SqlSecurityAuthenticator
 from shared.security.api_keys import issue_runtime_api_key
-from shared.security.dependency import enforce_request_security
-from shared.security.http_guard import HttpSecurityGuard
 from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     ApiKeyRequestLimiter,
     LoginRateLimiter,
 )
+from woobe_api.security.dependency import enforce_request_security
+from woobe_api.security.http_guard import HttpSecurityGuard
 
 
 async def _persist_runtime_key(session_factory, *, target_type: str):
@@ -75,16 +76,19 @@ async def _persist_runtime_key(session_factory, *, target_type: str):
 
 
 def _secured_app(session_factory, settings: Settings) -> FastAPI:
-    guard = HttpSecurityGuard(
+    api_key_rate_limiter = ApiKeyRequestLimiter(
+        max_requests=100,
+        window_seconds=60,
         session_factory=session_factory,
-        token_codec=MagicMock(),
+    )
+    guard = HttpSecurityGuard(
+        authenticator=SqlSecurityAuthenticator(
+            session_factory=session_factory,
+            token_codec=MagicMock(),
+            api_key_rate_limiter=api_key_rate_limiter,
+        ),
         login_rate_limiter=LoginRateLimiter(
             max_attempts=100,
-            window_seconds=60,
-            session_factory=session_factory,
-        ),
-        api_key_rate_limiter=ApiKeyRequestLimiter(
-            max_requests=100,
             window_seconds=60,
             session_factory=session_factory,
         ),

@@ -4,7 +4,7 @@ from uuid import uuid4
 
 import pytest
 
-from modules.network.application.session_mode_binding_service import (
+from modules.network.infra.services.session_mode_binding_service import (
     NetworkApplicationService,
     _session_mode_value,
 )
@@ -73,3 +73,4 @@ async def test_freeze_bindings_rejects_release_from_another_agent() -> None:
             project_id=project_id,
             bindings=bindings,
         )
+

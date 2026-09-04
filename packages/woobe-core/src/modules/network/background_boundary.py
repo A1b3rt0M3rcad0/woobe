@@ -13,6 +13,9 @@ from modules.network.application.runtime import (
     NetworkExecutionCancelled,
     NetworkExecutor,
 )
+from modules.network.application.structured_output_persistence import (
+    install_structured_output_persistence,
+)
 from modules.network.application.runtime_failures import (
     NetworkRuntimeFailure,
     classify_runtime_exception,
@@ -33,3 +36,22 @@ from modules.network.infra.runtime.loader import (
 from modules.network.infra.runtime.redis_store import (
     RedisNetworkExecutionStore,
 )
+
+install_structured_output_persistence()
+
+__all__ = [
+    "AgentInvocationArtifact",
+    "AgentInvocationArtifactMaterializer",
+    "AgentInvocationResult",
+    "AgentInvoker",
+    "InternalDelegationTool",
+    "NetworkBudgetExceeded",
+    "NetworkExecutionCancelled",
+    "NetworkExecutor",
+    "NetworkOutboxEventModel",
+    "NetworkRuntimeFailure",
+    "NetworkRuntimeFinalizer",
+    "NetworkRuntimeLoader",
+    "RedisNetworkExecutionStore",
+    "classify_runtime_exception",
+]

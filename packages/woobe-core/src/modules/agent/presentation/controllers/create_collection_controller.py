@@ -3,20 +3,21 @@ from modules.agent.presentation.mappers import create_collection_output_to_respo
 from modules.agent.application.dtos import CreateCollectionInput
 from shared.contracts.errors import ConflictError, ValidationError
 from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 
 
 class CreateCollectionController(Controller):
     def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         try:
             input_dto = CreateCollectionInput(**request.body)
             result = await self._use_case.execute(input_dto)
-            return Response(
-                status_code=201,
+            return OperationResult(
+                outcome=OperationOutcome.CREATED,
                 body={
                     "success": True,
                     "message": "created",
@@ -24,12 +25,13 @@ class CreateCollectionController(Controller):
                 },
             )
         except ConflictError as e:
-            return Response(
-                status_code=409,
+            return OperationResult(
+                outcome=OperationOutcome.CONFLICT,
                 body={"success": False, "message": str(e), "data": None},
             )
         except ValidationError as e:
-            return Response(
-                status_code=422,
+            return OperationResult(
+                outcome=OperationOutcome.UNPROCESSABLE,
                 body={"success": False, "message": str(e), "data": None},
             )
+

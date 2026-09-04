@@ -19,8 +19,8 @@ from modules.agent.domain.errors import (
 from modules.agent.presentation.controllers.public_runtime_controllers import (
     PublicRunController,
 )
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 from shared.security.principal import ProjectApiPrincipal
 
 
@@ -52,18 +52,18 @@ def test_public_request_forbids_internal_routing_fields() -> None:
 async def test_public_run_maps_runtime_key_binding_to_internal_request() -> None:
     principal = runtime_principal("staging")
     internal_handler = AsyncMock(
-        return_value=Response(status_code=200, body={"success": True, "data": {}})
+        return_value=OperationResult(outcome="success", body={"success": True, "data": {}})
     )
     request_preparer = AsyncMock(side_effect=lambda payload, *_: payload)
     controller = PublicRunController(internal_handler, request_preparer)
-    request = Request(
+    request = OperationRequest(
         principal=principal,
         body={"message": "Hello", "session_id": None},
     )
 
     response = await controller.handle(request)
 
-    assert response.status_code == 200
+    assert response.outcome == "success"
     prepared_args = request_preparer.await_args.args
     assert prepared_args[1:] == (
         principal.project_id,

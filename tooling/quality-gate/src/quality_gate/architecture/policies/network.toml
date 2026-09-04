@@ -1,0 +1,84 @@
+[module]
+name = "network"
+root = "packages/woobe-core/src/modules/network"
+package = "modules.network"
+required_layers = ["domain", "application", "infra", "presentation", "composition"]
+
+[constraints]
+forbid_cross_module_imports = false
+forbid_dynamic_imports = true
+forbid_wildcard_imports = true
+forbid_cycles = true
+forbidden_paths = ["application/composers", "presentation/http"]
+
+[unit_of_work_contract]
+interface_files = ["packages/woobe-core/src/shared/contracts/unit_of_work.py"]
+deprecated_interface_files = []
+concrete_sources = ["infra/database/unit_of_work.py"]
+forbidden_interface_imports = ["sqlalchemy", "fastapi", "starlette", "shared.infra", "modules"]
+repository_name_fragments = ["Repository", "Reader", "Writer"]
+allowed_properties = ["session"]
+forbid_repository_imports = true
+forbid_repository_properties = true
+
+[[rules]]
+id = "ARCH220"
+description = "the public entrypoint reaches internals only through composition"
+source = ["entrypoint.py"]
+allow = ["modules.network.composition"]
+deny = ["modules.network.application", "modules.network.domain", "modules.network.infra", "modules.network.presentation"]
+
+[[rules]]
+id = "ARCH221"
+description = "the package root performs no wiring and exposes no internal layers"
+source = ["__init__.py"]
+allow = []
+deny = ["modules.network.application", "modules.network.infra", "modules.network.presentation", "modules.network.composition", "fastapi", "starlette", "woobe_api"]
+
+[[rules]]
+id = "ARCH222"
+description = "the background boundary cannot depend on process hosts"
+source = ["background_boundary.py"]
+allow = []
+deny = ["fastapi", "starlette", "woobe_api", "woobe_workers"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH223"
+description = "domain is independent of Network outer layers and transport frameworks"
+source = ["domain/**"]
+allow = []
+deny = ["modules.network.application", "modules.network.infra", "modules.network.presentation", "modules.network.composition", "fastapi", "starlette", "sqlalchemy", "woobe_api"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH224"
+description = "application cannot depend on infrastructure, presentation, composition or HTTP"
+source = ["application/**"]
+allow = []
+deny = ["modules.network.infra", "modules.network.presentation", "modules.network.composition", "shared.infra", "sqlalchemy", "fastapi", "starlette", "woobe_api"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH225"
+description = "presentation is transport-neutral and has no persistence wiring"
+source = ["presentation/**"]
+allow = []
+deny = ["modules.network.infra", "modules.network.composition", "fastapi", "starlette", "woobe_api"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH226"
+description = "infrastructure cannot import Network presentation, composition or hosts"
+source = ["infra/**"]
+allow = []
+deny = ["modules.network.presentation", "modules.network.composition", "fastapi", "starlette", "woobe_api", "woobe_workers"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH229"
+description = "composition is the outer module wiring layer"
+source = ["composition/**"]
+allow = []
+deny = ["fastapi", "starlette", "woobe_api"]
+enforce_internal_allowlist = false

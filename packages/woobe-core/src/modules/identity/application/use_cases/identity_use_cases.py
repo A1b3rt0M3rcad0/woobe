@@ -48,9 +48,9 @@ from modules.identity.application.dtos import (
     CreateUserInput,
     CreateUserOutput,
 )
-from shared.infra.errors import ConflictError
+from shared.contracts.errors import ConflictError
 from shared.messaging.outbox_writer import OutboxEventWriter
-from shared.infra.crypto import hash_password, verify_password
+from shared.security.crypto import hash_password, verify_password
 
 
 class CreateUserUseCase:
@@ -209,7 +209,7 @@ class UpdateWorkspaceUseCase:
         if input_dto.slug is not None:
             existing = await self._workspace_repo.get_by_slug(input_dto.slug)
             if existing and existing.id != workspace_id:
-                from shared.infra.errors import ConflictError
+                from shared.contracts.errors import ConflictError
                 raise ConflictError(f"Workspace with slug '{input_dto.slug}' already exists")
             workspace.slug = input_dto.slug
 
@@ -472,3 +472,4 @@ class GetCurrentUserUseCase:
 
     async def execute(self, input_dto: GetCurrentUserInput) -> GetCurrentUserOutput:
         return GetCurrentUserOutput(email="customer@gmail.com", name=None)
+

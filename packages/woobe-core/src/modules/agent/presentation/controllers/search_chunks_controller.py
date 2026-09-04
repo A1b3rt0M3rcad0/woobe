@@ -3,20 +3,21 @@ from modules.agent.presentation.mappers import chunk_output_to_response
 from modules.agent.application.dtos import SearchChunksInput
 from shared.contracts.errors import ValidationError
 from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 
 
 class SearchChunksController(Controller):
     def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         try:
             input_dto = SearchChunksInput(**request.body)
             result = await self._use_case.execute(input_dto)
-            return Response(
-                status_code=200,
+            return OperationResult(
+                outcome=OperationOutcome.SUCCESS,
                 body={
                     "success": True,
                     "message": "ok",
@@ -24,7 +25,8 @@ class SearchChunksController(Controller):
                 },
             )
         except ValidationError as e:
-            return Response(
-                status_code=422,
+            return OperationResult(
+                outcome=OperationOutcome.UNPROCESSABLE,
                 body={"success": False, "message": str(e), "data": None},
             )
+

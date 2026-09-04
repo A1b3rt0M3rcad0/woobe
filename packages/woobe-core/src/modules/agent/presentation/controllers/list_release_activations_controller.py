@@ -1,19 +1,20 @@
 from uuid import UUID
 
 from shared.presentation.interface.controller import Controller
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 
 
 class ListAgentReleaseActivationsController(Controller):
     def __init__(self, use_case) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         agent_id = UUID(request.path_params["agent_id"])
         items = await self._use_case.execute(agent_id)
-        return Response(
-            status_code=200,
+        return OperationResult(
+            outcome=OperationOutcome.SUCCESS,
             body={
                 "success": True,
                 "data": [
@@ -32,3 +33,4 @@ class ListAgentReleaseActivationsController(Controller):
                 ],
             },
         )
+

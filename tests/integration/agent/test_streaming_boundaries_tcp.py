@@ -20,7 +20,7 @@ from modules.agent.infra.execution.runtime_streaming import (
     current_runtime_stream,
     invoke_model_with_optional_streaming,
 )
-from modules.agent.presentation.http.controllers.ask_agent_stream_controller import (
+from woobe_api.http.agent.controllers.ask_agent_stream_controller import (
     handle_ask_stream,
 )
 
@@ -284,3 +284,4 @@ async def test_real_uvicorn_tcp_stream_delivers_first_sse_before_service_complet
                     assert service.completed.is_set() is True
     finally:
         service.release.set()
+

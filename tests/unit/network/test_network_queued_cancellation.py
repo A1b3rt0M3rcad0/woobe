@@ -5,7 +5,7 @@ from uuid import uuid4
 
 import pytest
 
-from modules.network.application.service import NetworkApplicationService
+from modules.network.infra.services.service import NetworkApplicationService
 
 
 class _Transaction:
@@ -119,3 +119,4 @@ async def test_cancel_live_network_execution_uses_runtime_control_without_rewrit
     assert execution.completed_at is None
     assert execution.last_event_sequence == 1
     assert session.added == []
+

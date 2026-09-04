@@ -20,8 +20,8 @@ from modules.agent.application.dtos.runtime_dtos import (
 )
 from modules.agent.domain.entities import Agent
 from modules.agent.application.interfaces.llm_factory import LLMFactory
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 
 
 @pytest.fixture
@@ -100,7 +100,7 @@ class TestHttpCompatibility:
         )
 
         controller = AskAgentController(mock_use_case)
-        request = Request(
+        request = OperationRequest(
             body={
                 "agent_id": str(uuid4()),
                 "project_id": str(uuid4()),
@@ -118,8 +118,8 @@ class TestHttpCompatibility:
         asyncio.run(run())
 
         assert response is not None
-        assert isinstance(response, Response)
-        assert response.status_code in (400, 500)
+        assert isinstance(response, OperationResult)
+        assert response.outcome in {"invalid", "failure"}
         assert not response.body.get("success", True)
 
 

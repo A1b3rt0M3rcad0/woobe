@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 
 from modules.chat_surface.application.runtime_gateway import ChatRunIdentity
-from modules.chat_surface.presentation import reattach_routes
+from woobe_api.http.chat_surface import reattach_routes
 
 
 class _Gateway:
@@ -212,3 +212,4 @@ async def test_terminal_run_remains_visible_while_message_bookkeeping_is_active(
     }
     assert lifecycle.marked == []
     assert gateway.calls == [(run_id, None)]
+

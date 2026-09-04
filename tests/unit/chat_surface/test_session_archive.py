@@ -8,7 +8,7 @@ import pytest
 
 from modules.agent.domain.enums import SessionStatus
 from modules.agent.infra.database.models import SessionModel
-from modules.chat_surface.service import ChatSurfaceService, SurfaceCredential
+from modules.chat_surface.infra.services.chat_surface_service import ChatSurfaceService, SurfaceCredential
 from modules.network.infra.database.models import NetworkSessionModel
 
 
@@ -116,3 +116,4 @@ async def test_archive_network_chat_surface_session_keeps_network_archive_status
     assert result is binding
     assert binding.status == "archived"
     assert target_session.status == "archived"
+

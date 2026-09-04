@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from modules.metering.application.dtos.project_usage import ProjectUsageQuery
 from modules.metering.application.use_cases.get_project_usage import GetProjectUsageUseCase
-from shared.presentation.http.request import Request
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationOutcome
+from shared.presentation.contracts import OperationRequest
+from shared.presentation.contracts import OperationResult
 from shared.presentation.interface.controller import Controller
 
 
@@ -11,7 +12,7 @@ class GetProjectUsageController(Controller):
     def __init__(self, use_case: GetProjectUsageUseCase) -> None:
         self._use_case = use_case
 
-    async def handle(self, request: Request) -> Response:
+    async def handle(self, request: OperationRequest) -> OperationResult:
         allowed = {
             "from",
             "to",
@@ -36,15 +37,16 @@ class GetProjectUsageController(Controller):
             }
         )
         result = await self._use_case.execute(query)
-        return Response(
-            status_code=200,
+        return OperationResult(
+            outcome=OperationOutcome.SUCCESS,
             body={
                 "success": True,
                 "message": "ok",
                 "data": result.model_dump(by_alias=True, mode="json"),
             },
-            headers={
+            metadata={
                 "Cache-Control": "private, max-age=15",
                 "Vary": "Authorization",
             },
         )
+

@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from shared.presentation.http.response import Response
+from shared.presentation.contracts import OperationResult
 from shared.presentation.interface.controller import Controller
 
 
@@ -39,7 +39,8 @@ class ModelLifecycleController(Controller):
             result = await self._use_case.execute(item_id, request.body or {})
         else:
             result = await self._use_case.execute(item_id)
-        return Response(
-            status_code=200,
+        return OperationResult(
+            outcome=OperationOutcome.SUCCESS,
             body={"success": True, "message": "ok", "data": _entity_payload(result)},
         )
+

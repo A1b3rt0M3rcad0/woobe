@@ -8,7 +8,7 @@ from modules.metering.domain.entities import (
     UsageDailyProject,
     UsageEvent,
 )
-from shared.infra.objects import CursorPage
+from shared.contracts.pagination import CursorPage
 
 
 class UsageEventRepository(ABC):
@@ -73,3 +73,4 @@ class UsageDailyAgentRepository(ABC):
     async def paginate_by_agent(
         self, agent_id: UUID, *, limit: int = 50, cursor: str | None = None
     ) -> CursorPage[UsageDailyAgent]: ...
+

@@ -5,7 +5,7 @@ from modules.core.application.dtos.create_api_key_dtos import (
 from modules.core.domain.entities import ApiKey
 from modules.core.domain.errors import ProjectNotFoundError
 from modules.core.domain.repositories import ApiKeyRepository, ProjectRepository
-from shared.infra.errors import ValidationError
+from shared.contracts.errors import ValidationError
 from shared.messaging.outbox_writer import OutboxEventWriter
 from shared.security.api_keys import (
     issue_project_api_key,
@@ -81,3 +81,4 @@ class CreateApiKeyUseCase:
             expires_at=saved.expires_at,
             created_at=saved.created_at,
         )
+

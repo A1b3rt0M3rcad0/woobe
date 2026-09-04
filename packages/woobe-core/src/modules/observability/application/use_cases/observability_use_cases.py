@@ -15,7 +15,7 @@ from modules.observability.application.dtos.observability_dtos import (
     TraceSummaryResponse,
 )
 from shared.messaging.outbox_writer import OutboxEventWriter
-from shared.infra.errors import NotFoundError
+from shared.contracts.errors import NotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -241,3 +241,4 @@ class ListTracesUseCase:
             )
             for t in traces
         ]
+

@@ -3,7 +3,7 @@ from typing import Any, cast
 
 import pytest
 
-from shared.security.http_guard import _validate_runtime_security_settings
+from woobe_api.security.http_guard import _validate_runtime_security_settings
 
 
 def _settings(environment: str, protected: bool, site: str = "lax") -> Any:
@@ -34,3 +34,4 @@ def test_cross_site_state_requires_transport_security() -> None:
 def test_invalid_site_policy_is_rejected() -> None:
     with pytest.raises(ValueError, match="same-site"):
         _validate_runtime_security_settings(_settings("test", True, "invalid"))
+

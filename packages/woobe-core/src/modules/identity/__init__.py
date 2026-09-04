@@ -1,5 +1,1 @@
-from modules.identity.presentation import routes
-
-__all__ = [
-    "routes",
-]
+"""Identity bounded context. Process hosts use :mod:`modules.identity.entrypoint`."""

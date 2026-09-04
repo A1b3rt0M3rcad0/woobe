@@ -9,7 +9,7 @@ from modules.agent.infra.database.project_access_repository import (
     SQLAlchemyProjectAccessRepository,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
-from modules.agent.presentation.http.controllers.agent_run_context_controller import (
+from modules.agent.presentation.controllers.agent_run_context_controller import (
     AgentRunContextController,
 )
 from shared.infra.transactional_handler import TransactionalHandler
@@ -61,3 +61,4 @@ def agent_run_detail_by_trace_composer() -> TransactionalHandler:
     )
     controller = AgentRunContextController(use_case)
     return TransactionalHandler(uow, controller.handle_detail_by_trace)
+

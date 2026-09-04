@@ -1,0 +1,83 @@
+[module]
+name = "chat_surface"
+root = "packages/woobe-core/src/modules/chat_surface"
+package = "modules.chat_surface"
+required_layers = ["domain", "application", "infra", "presentation", "composition"]
+
+[constraints]
+forbid_cross_module_imports = false
+forbid_dynamic_imports = true
+forbid_wildcard_imports = true
+forbid_cycles = true
+forbidden_paths = ["application/composers", "presentation/http"]
+
+[[rules]]
+id = "ARCH220"
+description = "the public entrypoint reaches internals only through composition"
+source = ["entrypoint.py"]
+allow = ["modules.chat_surface.composition"]
+deny = ["modules.chat_surface.application", "modules.chat_surface.domain", "modules.chat_surface.infra", "modules.chat_surface.presentation"]
+
+[[rules]]
+id = "ARCH221"
+description = "the package root does not expose transport adapters"
+source = ["__init__.py"]
+allow = []
+deny = ["modules.chat_surface.presentation", "fastapi", "starlette", "woobe_api"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH222"
+description = "the background boundary cannot depend on process hosts"
+source = ["background_boundary.py"]
+allow = []
+deny = ["fastapi", "starlette", "woobe_api", "woobe_workers"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH223"
+description = "domain is independent of ChatSurface outer layers and transport frameworks"
+source = ["domain/**"]
+allow = []
+deny = ["modules.chat_surface.application", "modules.chat_surface.infra", "modules.chat_surface.presentation", "modules.chat_surface.composition", "fastapi", "starlette", "sqlalchemy", "woobe_api"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH224"
+description = "application cannot depend on infrastructure, presentation, composition or HTTP"
+source = ["application/**"]
+allow = []
+deny = ["modules.chat_surface.infra", "modules.chat_surface.presentation", "modules.chat_surface.composition", "shared.infra", "sqlalchemy", "fastapi", "starlette", "woobe_api"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH225"
+description = "presentation is transport-neutral and has no persistence wiring"
+source = ["presentation/**"]
+allow = []
+deny = ["modules.chat_surface.infra", "modules.chat_surface.composition", "fastapi", "starlette", "woobe_api"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH226"
+description = "infrastructure cannot import ChatSurface presentation, composition or hosts"
+source = ["infra/**"]
+allow = []
+deny = ["modules.chat_surface.presentation", "modules.chat_surface.composition", "fastapi", "starlette", "woobe_api", "woobe_workers"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH229"
+description = "composition is the outer module wiring layer"
+source = ["composition/**"]
+allow = []
+deny = ["fastapi", "starlette", "woobe_api"]
+enforce_internal_allowlist = false
+
+[[rules]]
+id = "ARCH228"
+description = "public root boundaries remain transport-neutral"
+source = ["*.py"]
+allow = []
+deny = ["fastapi", "starlette", "woobe_api"]
+enforce_internal_allowlist = false

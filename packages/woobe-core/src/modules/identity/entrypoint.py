@@ -1,0 +1,31 @@
+from modules.identity.composition.public_api import (
+    AuthenticationService,
+    CreateWorkspaceInput,
+    InstanceService,
+    build_access_token_codec,
+    build_authentication_service,
+    build_instance_service,
+    build_workspace_access_service,
+    LoginInput,
+    MemberRole,
+    RegisterInput,
+    get_user_composer,
+    get_workspace_composer,
+    update_workspace_composer,
+)
+
+__all__ = [
+    "AuthenticationService",
+    "CreateWorkspaceInput",
+    "InstanceService",
+    "build_access_token_codec",
+    "build_authentication_service",
+    "build_instance_service",
+    "build_workspace_access_service",
+    "LoginInput",
+    "MemberRole",
+    "RegisterInput",
+    "get_user_composer",
+    "get_workspace_composer",
+    "update_workspace_composer",
+]

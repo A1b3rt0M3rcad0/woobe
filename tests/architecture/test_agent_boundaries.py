@@ -158,7 +158,7 @@ from modules.runtime.service.ask_use_case import AskAgentUseCase
     def test_detects_forbidden_layer_violation_in_agent(self):
         forbidden_source = """\
 from modules.agent.infra.database.models import AgentModel
-from modules.agent.presentation.routes import router
+from woobe_api.http.agent.routes import router
 """
         tree = ast.parse(forbidden_source)
         violations = []
@@ -174,3 +174,4 @@ from modules.agent.presentation.routes import router
         assert len(violations) == 2, (
             f"Expected 2 layer violations from fixture, got {len(violations)}"
         )
+

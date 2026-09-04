@@ -2,9 +2,9 @@
 
 Validates that packages/woobe-api/src/main.py imports and registers routers from
 the agent module directly, with legacy ai/knowledge/runtime routers retained
-only as deprecation shims. Also verifies the bootstrap sets up engine,
-session_factory, settings, CORS, exception handlers, and the startup/shutdown
-lifecycle.
+only as deprecation shims. Also verifies the bootstrap sets up its engine,
+settings, CORS, exception handlers, and startup/shutdown lifecycle without
+publishing persistence wiring through application state.
 """
 import inspect
 
@@ -18,33 +18,32 @@ class TestBootstrapAgentRouterRegistration:
         import main as main_mod
 
         source = inspect.getsource(main_mod)
-        assert "modules.agent.presentation.routes" in source
+        assert "from woobe_api.http.agent import HTTP_ROUTERS" in source
 
     def test_bootstrap_registers_agent_ai_router(self):
         import main as main_mod
 
         source = inspect.getsource(main_mod.create_app)
-        assert "agent_ai_router" in source
+        assert "AGENT_HTTP_ROUTERS" in source
 
     def test_bootstrap_registers_agent_knowledge_router(self):
         import main as main_mod
 
         source = inspect.getsource(main_mod.create_app)
-        assert "agent_knowledge_router" in source
+        assert "AGENT_HTTP_ROUTERS" in source
 
     def test_bootstrap_registers_agent_runtime_router(self):
         import main as main_mod
 
         source = inspect.getsource(main_mod.create_app)
-        assert "agent_runtime_router" in source
+        assert "AGENT_HTTP_ROUTERS" in source
 
     def test_bootstrap_uses_include_router_for_agent_routers(self):
         import main as main_mod
 
         source = inspect.getsource(main_mod.create_app)
-        assert "include_router(agent_ai_router)" in source
-        assert "include_router(agent_knowledge_router)" in source
-        assert "include_router(agent_runtime_router)" in source
+        assert "for agent_http_router in AGENT_HTTP_ROUTERS" in source
+        assert "include_router(agent_http_router)" in source
 
 
 class TestBootstrapLegacyRouterShims:
@@ -59,8 +58,17 @@ class TestBootstrapAllModules:
 
         source = inspect.getsource(main_mod.create_app)
         expected_routers = [
-            "identity", "core", "tools", "metering", "billing", "observability",
-            "agent_ai_router", "agent_knowledge_router", "agent_runtime_router",
+            "instance_router",
+            "identity_router",
+            "core_router",
+            "chat_surface_router",
+            "chat_surface_reattach_router",
+            "public_runtime_router",
+            "AGENT_HTTP_ROUTERS",
+            "runtime_environment_router",
+            "metering_router",
+            "observability_router",
+            "network_router",
         ]
         for name in expected_routers:
             assert name in source, f"Missing router registration: {name}"
@@ -95,11 +103,11 @@ class TestBootstrapInfrastructure:
         app = create_app()
         assert hasattr(app.state, "async_engine")
 
-    def test_create_app_sets_session_factory_on_state(self):
+    def test_create_app_keeps_session_factory_private(self):
         from main import create_app
 
         app = create_app()
-        assert hasattr(app.state, "session_factory")
+        assert not hasattr(app.state, "session_factory")
 
     def test_create_app_has_cors_middleware(self):
         from fastapi.middleware.cors import CORSMiddleware
@@ -168,12 +176,10 @@ class TestBootstrapNoCrossModuleImports:
         import main as main_mod
 
         source = inspect.getsource(main_mod)
-        assert "modules.agent.presentation.routes" in source
+        assert "from woobe_api.http.agent import HTTP_ROUTERS" in source
 
     def test_main_registers_agent_routers_not_legacy(self):
         import main as main_mod
 
         source = inspect.getsource(main_mod.create_app)
-        assert "agent_ai_router" in source
-        assert "agent_knowledge_router" in source
-        assert "agent_runtime_router" in source
+        assert "AGENT_HTTP_ROUTERS" in source
