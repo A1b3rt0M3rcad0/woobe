@@ -23,9 +23,6 @@ export function AgentSettingsTab() {
         </div>
       </div>
 
-      <AgentSessionModeField />
-      <AgentContextAssemblerField />
-
       <div className="rounded-xl border border-border bg-surface">
         <div className="p-4 space-y-3">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">System Prompt</p>
@@ -37,6 +34,9 @@ export function AgentSettingsTab() {
           />
         </div>
       </div>
+
+      <AgentContextAssemblerField />
+      <AgentSessionModeField />
     </div>
   )
 }
