@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import ast
+import inspect
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -80,3 +82,29 @@ async def test_create_agent_preserves_explicit_context_manager_selection() -> No
         "strategy_name": "stdcm",
         "strategy_version": "v1",
     }
+
+
+def test_create_agent_composer_wires_default_context_manager_setting() -> None:
+    from modules.agent.composition.composers.create_agent_composer import (
+        create_agent_composer,
+    )
+
+    tree = ast.parse(inspect.getsource(create_agent_composer))
+    calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "CreateAgentUseCase"
+    ]
+
+    assert len(calls) == 1
+    keyword = next(
+        item
+        for item in calls[0].keywords
+        if item.arg == "default_context_manager"
+    )
+    assert isinstance(keyword.value, ast.Attribute)
+    assert keyword.value.attr == "default_context_manager"
+    assert isinstance(keyword.value.value, ast.Name)
+    assert keyword.value.value.id == "SETTINGS"
