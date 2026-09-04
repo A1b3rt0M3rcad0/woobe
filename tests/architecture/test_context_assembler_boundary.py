@@ -35,11 +35,11 @@ _CONTEXT_ASSEMBLER_CONTRACT = (
 )
 _DEFAULT_ASSEMBLER = AGENT_ROOT / "application" / "default_context_assembler.py"
 _CONTEXT_ASSEMBLER_REGISTRY = (
-    AGENT_ROOT / "composition" / "context_assembler_registry.py"
+    AGENT_ROOT / "application" / "context_assembler_registry.py"
 )
 _DEFAULT_ASSEMBLER_MODULE = "modules.agent.application.default_context_assembler"
 _CONTEXT_ASSEMBLER_REGISTRY_MODULE = (
-    "modules.agent.composition.context_assembler_registry"
+    "modules.agent.application.context_assembler_registry"
 )
 _BACKGROUND_BOUNDARY_MODULE = "modules.agent.background_boundary"
 _LEGACY_ASSEMBLY_MODULE = "modules.agent.application.context_assembly"
@@ -176,7 +176,7 @@ def test_agent_execution_depends_only_on_context_assembler_contract() -> None:
     assert not violations, "\n".join(violations)
 
 
-def test_default_context_assembler_is_composed_only_by_registry() -> None:
+def test_default_context_assembler_is_composed_only_by_application_registry() -> None:
     violations: list[str] = []
 
     for path in AGENT_ROOT.rglob("*.py"):
@@ -258,9 +258,10 @@ def test_every_model_invocation_propagates_context_assembler_explicitly() -> Non
     assert not violations, "\n".join(violations)
 
 
-def test_background_worker_resolves_default_assembler_only_from_public_boundary() -> None:
+def test_background_worker_gets_runtime_dispatcher_only_from_public_boundary() -> None:
     boundary_names: set[str] = set()
     direct_default_imports: list[str] = []
+    direct_registry_imports: list[str] = []
 
     for node in ast.walk(_tree(ASK_JOB_WORKER)):
         if not isinstance(node, ast.ImportFrom):
@@ -270,17 +271,20 @@ def test_background_worker_resolves_default_assembler_only_from_public_boundary(
             boundary_names.update(names)
         if "DefaultContextAssembler" in names:
             direct_default_imports.append(str(node.module))
+        if node.module == _CONTEXT_ASSEMBLER_REGISTRY_MODULE:
+            direct_registry_imports.append(str(node.module))
 
-    required = {"build_context_assembler", "DEFAULT_CONTEXT_ASSEMBLER_KEY"}
-    missing = sorted(required - boundary_names)
-
-    assert not missing, (
-        "AskJobWorker must resolve ContextAssembler through modules.agent.background_boundary: "
-        + ", ".join(missing)
+    assert "build_runtime_context_assembler" in boundary_names, (
+        "AskJobWorker must obtain the snapshot-aware ContextAssembler through "
+        "modules.agent.background_boundary"
     )
     assert not direct_default_imports, (
         "AskJobWorker must not import DefaultContextAssembler directly: "
         + ", ".join(direct_default_imports)
+    )
+    assert not direct_registry_imports, (
+        "AskJobWorker must not bypass Agent background boundary for the registry: "
+        + ", ".join(direct_registry_imports)
     )
 
 
