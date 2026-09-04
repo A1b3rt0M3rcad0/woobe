@@ -1,5 +1,6 @@
 """Explicit transport-neutral public surface for Agent hosts."""
 
+from modules.agent.application.context_assembler_registry import list_context_assemblers
 from modules.agent.application.dtos import AskInput, UploadDocumentFileInput
 from modules.agent.application.dtos.public_runtime_dtos import PublicRunRequest
 from modules.agent.application.dtos.vector_snapshot_dtos import (
@@ -305,6 +306,7 @@ __all__ = [
     'list_agent_sessions_composer',
     'list_agents_composer',
     'list_collections_composer',
+    'list_context_assemblers',
     'list_contract_versions_composer',
     'list_documents_composer',
     'list_knowledge_versions_composer',
