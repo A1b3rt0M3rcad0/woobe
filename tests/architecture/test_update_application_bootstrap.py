@@ -2,9 +2,9 @@
 
 Validates that packages/woobe-api/src/main.py imports and registers routers from
 the agent module directly, with legacy ai/knowledge/runtime routers retained
-only as deprecation shims. Also verifies the bootstrap sets up engine,
-session_factory, settings, CORS, exception handlers, and the startup/shutdown
-lifecycle.
+only as deprecation shims. Also verifies the bootstrap sets up its engine,
+settings, CORS, exception handlers, and startup/shutdown lifecycle without
+publishing persistence wiring through application state.
 """
 import inspect
 
@@ -103,11 +103,11 @@ class TestBootstrapInfrastructure:
         app = create_app()
         assert hasattr(app.state, "async_engine")
 
-    def test_create_app_sets_session_factory_on_state(self):
+    def test_create_app_keeps_session_factory_private(self):
         from main import create_app
 
         app = create_app()
-        assert hasattr(app.state, "session_factory")
+        assert not hasattr(app.state, "session_factory")
 
     def test_create_app_has_cors_middleware(self):
         from fastapi.middleware.cors import CORSMiddleware

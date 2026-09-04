@@ -1,4 +1,5 @@
 from shared.security.access_tokens import AccessTokenCodec
+from shared.security.authentication import SecurityAuthenticator
 from shared.security.cookies import build_refresh_cookie, clear_refresh_cookie
 from shared.security.principal import (
     AuthenticatedPrincipal,
@@ -19,6 +20,7 @@ __all__ = [
     "AuthenticatedPrincipal",
     "LoginRateLimiter",
     "ProjectApiPrincipal",
+    "SecurityAuthenticator",
     "SecurityPrincipal",
     "build_refresh_cookie",
     "clear_refresh_cookie",

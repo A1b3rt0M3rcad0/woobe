@@ -18,12 +18,13 @@ from shared.security.api_keys import (
     API_KEY_SCOPE_TRACES_READ,
     issue_project_api_key,
 )
-from woobe_api.security.http_guard import HttpSecurityGuard
+from shared.security.authentication import SecurityAuthenticator
 from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     ApiKeyRequestLimiter,
     LoginRateLimiter,
 )
+from woobe_api.security.http_guard import HttpSecurityGuard
 
 
 def _runtime_request(api_key: str) -> Request:
@@ -45,21 +46,32 @@ def _runtime_request(api_key: str) -> Request:
 
 
 def _guard(session_factory, settings: Settings) -> HttpSecurityGuard:
-    return HttpSecurityGuard(
+    api_key_rate_limiter = ApiKeyRequestLimiter(
+        max_requests=100,
+        window_seconds=60,
         session_factory=session_factory,
-        token_codec=AccessTokenCodec(
-            signing_key=settings.secret_key,
-            issuer=settings.auth_issuer,
-            audience=settings.auth_audience,
-            ttl_seconds=settings.access_token_ttl_seconds,
-            leeway_seconds=settings.auth_clock_skew_seconds,
+    )
+    return HttpSecurityGuard(
+        authenticator=SecurityAuthenticator(
+            session_factory=session_factory,
+            token_codec=AccessTokenCodec(
+                signing_key=settings.secret_key,
+                issuer=settings.auth_issuer,
+                audience=settings.auth_audience,
+                ttl_seconds=settings.access_token_ttl_seconds,
+                leeway_seconds=settings.auth_clock_skew_seconds,
+            ),
+            api_key_rate_limiter=api_key_rate_limiter,
         ),
-        login_rate_limiter=LoginRateLimiter(max_attempts=100, window_seconds=60),
-        api_key_rate_limiter=ApiKeyRequestLimiter(
-            max_requests=100,
+        login_rate_limiter=LoginRateLimiter(
+            max_attempts=100,
             window_seconds=60,
+            session_factory=session_factory,
         ),
-        api_key_concurrency_limiter=ApiKeyConcurrencyLimiter(max_concurrency=10),
+        api_key_concurrency_limiter=ApiKeyConcurrencyLimiter(
+            max_concurrency=10,
+            session_factory=session_factory,
+        ),
         settings=settings,
     )
 
@@ -297,4 +309,3 @@ async def test_runtime_api_key_rejects_expired_key(api_key_graph) -> None:
             query_params={},
             path_params={},
         )
-

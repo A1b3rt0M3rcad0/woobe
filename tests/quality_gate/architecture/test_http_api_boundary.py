@@ -109,6 +109,22 @@ def test_http_routers_do_not_wire_persistence() -> None:
     assert not violations
 
 
+def test_http_security_adapter_does_not_own_persistence_rules() -> None:
+    security_root = API_ROOT / "woobe_api/security"
+    violations = [
+        (path, imported)
+        for path in security_root.rglob("*.py")
+        for imported in _imports(path)
+        if imported == "sqlalchemy"
+        or imported.startswith("sqlalchemy.")
+        or imported == "shared.infra.database"
+        or imported.startswith("shared.infra.database.")
+        or imported == "shared.security.tenancy"
+        or imported.startswith("shared.security.tenancy.")
+    ]
+    assert not violations
+
+
 def test_workers_consume_only_public_module_boundaries() -> None:
     violations = []
     for path in WORKERS_ROOT.rglob("*.py"):
