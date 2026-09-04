@@ -6,16 +6,25 @@ import pytest
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
 from modules.agent.application.dtos.runtime_dtos import ToolCallInfo
+from modules.agent.application.interfaces.context_assembler import (
+    ContextAssembler,
+    ContextAssemblyRequest,
+)
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.infra.execution import structured_json_repair, tool_execution_loop
+
+
+class _UnusedContextAssembler(ContextAssembler):
+    def assemble(self, request: ContextAssemblyRequest):
+        raise AssertionError("The propagation test must not invoke context assembly directly")
 
 
 @pytest.mark.asyncio
 async def test_tool_loop_propagates_same_assembler_across_model_invocations(
     monkeypatch,
 ) -> None:
-    context_assembler = object()
-    captured_assemblers: list[object | None] = []
+    context_assembler = _UnusedContextAssembler()
+    captured_assemblers: list[ContextAssembler | None] = []
     planned_results = [
         SimpleNamespace(
             content="",
@@ -90,7 +99,7 @@ class _RepairFactory:
 
 @pytest.mark.asyncio
 async def test_json_repair_propagates_context_assembler(monkeypatch) -> None:
-    context_assembler = object()
+    context_assembler = _UnusedContextAssembler()
     captured = {}
 
     async def fake_invoke_llm(**kwargs):
