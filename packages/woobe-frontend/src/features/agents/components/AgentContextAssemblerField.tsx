@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import { BrainCircuit, Check, ChevronRight } from 'lucide-react'
 
+import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
+import { ScrollArea } from '@/components/ui/ScrollArea'
 import { useContextAssemblers } from '@/features/agents/hooks'
 import type { ContextAssemblerDescriptor } from '@/features/agents/types'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
@@ -59,146 +61,144 @@ export function AgentContextAssemblerField() {
 
   return (
     <>
-      <div className="rounded-xl border border-border bg-surface">
-        <div className="p-4 space-y-3">
-          <div>
-            <p className="text-xs font-semibold text-muted uppercase tracking-wider">Context Management</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted">
-              Selects how context is assembled for every Model Invocation. The exact manager and version are part of the Agent snapshot.
-            </p>
-          </div>
+      <section className="rounded-xl border border-border bg-surface p-4">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted">Context Management</p>
+        <p className="mt-1 text-[11px] leading-relaxed text-muted">
+          Select the context manager for this Agent snapshot.
+        </p>
 
-          <button
-            type="button"
-            onClick={openSelector}
-            className="group flex w-full items-center gap-3 rounded-lg border border-border bg-background/40 p-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
-          >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface">
-              <BrainCircuit className="h-4 w-4 text-primary" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="truncate text-sm font-medium text-foreground">
-                  {selectedDescriptor?.display_name || selected.name}
-                </span>
-                <span className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted">
-                  {selectedKey}
-                </span>
-              </div>
-              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted">
-                {selectedDescriptor?.description || 'Registered Context Manager selected by this Agent snapshot.'}
-              </p>
-            </div>
-            <ChevronRight className="h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
-          </button>
-
-          <p className="text-[11px] leading-relaxed text-muted">
-            Draft changes flow to Staging and Production through immutable releases, preserving this selection for replay and rollback.
-          </p>
-        </div>
-      </div>
+        <button
+          type="button"
+          onClick={openSelector}
+          className="group mt-3 flex h-12 w-full items-center gap-2.5 rounded-lg border border-border bg-background/40 px-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/35"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-primary">
+            <BrainCircuit className="h-4 w-4" />
+          </span>
+          <span className="truncate text-sm font-medium text-foreground">{selected.name}</span>
+          <span className="shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted">
+            {selectedKey}
+          </span>
+          <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
+        </button>
+      </section>
 
       <Dialog
         open={open}
         onClose={() => setOpen(false)}
-        title="Context Manager"
-        className="max-w-3xl"
-        scrollMode="content"
+        title="Select a Context Manager"
+        className="max-w-4xl overflow-hidden bg-surface/95"
       >
-        <div className="space-y-4">
-          <div>
-            <p className="text-sm font-medium text-foreground">Registered managers</p>
-            <p className="mt-1 text-xs leading-relaxed text-muted">
-              This list comes from the Context Assembler Registry supported by the running Woobe instance.
-            </p>
-          </div>
-
-          {isLoading ? (
-            <div className="rounded-lg border border-border p-4 text-sm text-muted">Loading registered context managers...</div>
-          ) : isError ? (
-            <div className="rounded-lg border border-danger/30 bg-danger/5 p-4 text-sm text-danger">
-              Could not load the Context Assembler Registry.
+        <div className="grid max-h-[70vh] min-h-[440px] grid-cols-[260px_minmax(0,1fr)] overflow-hidden -m-6">
+          <aside className="flex min-h-0 flex-col border-r border-border/90 bg-background/25">
+            <div className="border-b border-border/90 p-4">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Registered managers</p>
+              <p className="mt-1 text-[11px] text-muted">
+                {isLoading ? 'Loading registry…' : `${assemblers.length} available`}
+              </p>
             </div>
-          ) : assemblers.length === 0 ? (
-            <div className="rounded-lg border border-border p-4 text-sm text-muted">No context managers are registered.</div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-              <div className="space-y-2">
-                {assemblers.map((item) => {
-                  const key = descriptorKey(item)
-                  const active = key === descriptorKey(focused || selected)
-                  const current = key === selectedKey
-                  return (
-                    <button
-                      key={key}
-                      type="button"
-                      onClick={() => setFocusedKey(key)}
-                      className={cn(
-                        'w-full rounded-lg border p-3 text-left transition-colors',
-                        active
-                          ? 'border-primary/60 bg-primary/10'
-                          : 'border-border bg-background/30 hover:border-primary/30 hover:bg-accent/30',
-                      )}
-                    >
-                      <div className="flex items-start gap-2">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-sm font-medium text-foreground">{item.display_name}</span>
-                            {item.is_default && (
-                              <span className="rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted">Default</span>
-                            )}
-                          </div>
-                          <span className="mt-1 block font-mono text-[10px] text-muted">{key}</span>
-                        </div>
-                        {current && <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />}
-                      </div>
-                    </button>
-                  )
-                })}
-              </div>
 
-              <div className="rounded-lg border border-border bg-background/30 p-4">
-                {focused ? (
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-sm font-semibold text-foreground">{focused.display_name}</h3>
-                        <span className="rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted">
-                          {descriptorKey(focused)}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-xs leading-relaxed text-muted">{focused.description}</p>
+            <div className="min-h-0 flex-1 p-3">
+              {isLoading ? (
+                <div className="rounded-lg border border-border/80 bg-background/40 p-3 text-xs text-muted">
+                  Loading context managers…
+                </div>
+              ) : isError ? (
+                <div className="rounded-lg border border-danger/30 bg-danger/5 p-3 text-xs text-danger">
+                  Could not load the registry.
+                </div>
+              ) : assemblers.length === 0 ? (
+                <div className="rounded-lg border border-border/80 bg-background/40 p-3 text-xs text-muted">
+                  No context managers registered.
+                </div>
+              ) : (
+                <ScrollArea className="h-full pr-1">
+                  <div className="space-y-2">
+                    {assemblers.map((item) => {
+                      const key = descriptorKey(item)
+                      const active = key === descriptorKey(focused || selected)
+                      const current = key === selectedKey
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setFocusedKey(key)}
+                          className={cn(
+                            'flex w-full items-center gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors',
+                            active
+                              ? 'border-primary/60 bg-primary/10'
+                              : 'border-border/80 bg-background/35 hover:border-primary/30 hover:bg-accent/30',
+                          )}
+                        >
+                          <BrainCircuit className={cn('h-4 w-4 shrink-0', active ? 'text-primary' : 'text-muted')} />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-foreground">{item.name}</span>
+                            <span className="mt-0.5 block truncate font-mono text-[9px] text-muted">{key}</span>
+                          </span>
+                          {current ? <Check className="h-4 w-4 shrink-0 text-primary" /> : null}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+            </div>
+          </aside>
+
+          <section className="flex min-h-0 flex-col">
+            <div className="min-h-0 flex-1 p-6">
+              {focused ? (
+                <div className="max-w-2xl">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/20 bg-primary/10 text-primary-light">
+                    <BrainCircuit className="h-4 w-4" />
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap items-center gap-2">
+                    <h3 className="text-xl font-semibold text-foreground">{focused.display_name}</h3>
+                    <span className="rounded border border-border px-2 py-0.5 font-mono text-[10px] text-muted">
+                      {descriptorKey(focused)}
+                    </span>
+                    {focused.is_default ? (
+                      <span className="rounded border border-border px-2 py-0.5 text-[9px] font-medium uppercase tracking-wider text-muted">
+                        Default
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <p className="mt-3 text-sm leading-relaxed text-muted">{focused.description}</p>
+
+                  <div className="mt-6 border-t border-border/80 pt-5">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">How it operates</p>
+                    <p className="mt-2 text-sm leading-6 text-foreground/80">{focused.behavior}</p>
+                  </div>
+
+                  <div className="mt-6 space-y-3 border-t border-border/80 pt-5 text-xs leading-5 text-muted">
+                    <div className="flex gap-2.5">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                      <span>Used to assemble context for Model Invocations.</span>
                     </div>
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wider text-muted">How it operates</p>
-                      <p className="mt-2 text-xs leading-relaxed text-foreground/80">{focused.behavior}</p>
+                    <div className="flex gap-2.5">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                      <span>The exact <span className="font-mono text-foreground">name:version</span> is stored in the Agent snapshot.</span>
                     </div>
-                    <div className="rounded-lg border border-border bg-surface/60 p-3 text-[11px] leading-relaxed text-muted">
-                      The selected <span className="font-mono text-foreground">name:version</span> is frozen into the Agent runtime snapshot. Existing releases do not silently switch when new manager versions are registered.
+                    <div className="flex gap-2.5">
+                      <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
+                      <span>Immutable releases preserve the selection for replay and rollback.</span>
                     </div>
                   </div>
-                ) : null}
-              </div>
+                </div>
+              ) : (
+                <div className="flex h-full items-center justify-center text-sm text-muted">
+                  Select a registered manager to inspect its behavior.
+                </div>
+              )}
             </div>
-          )}
 
-          <div className="flex items-center justify-end gap-2 border-t border-border pt-4">
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="rounded-lg border border-border px-3 py-2 text-xs font-medium text-muted transition-colors hover:bg-accent"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={applySelection}
-              disabled={!focused || isLoading || isError}
-              className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground transition-opacity disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              Use this manager
-            </button>
-          </div>
+            <div className="flex shrink-0 items-center justify-end gap-2 border-t border-border/90 bg-background/20 p-4">
+              <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button onClick={applySelection} disabled={!focused || isLoading || isError}>Select manager</Button>
+            </div>
+          </section>
         </div>
       </Dialog>
     </>
