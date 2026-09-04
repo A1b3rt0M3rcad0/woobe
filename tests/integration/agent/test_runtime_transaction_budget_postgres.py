@@ -7,6 +7,7 @@ from langchain_core.messages import AIMessage
 from sqlalchemy import event
 from sqlalchemy.orm import Session as SyncSession
 
+from modules.agent.application.default_context_assembler import DefaultContextAssembler
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.infra.database.models import AgentModel, ProviderCredentialModel
 from modules.agent.infra.database.run_models import AgentRunModel
@@ -115,6 +116,7 @@ async def test_agent_happy_path_uses_exactly_two_postgres_commits() -> None:
         llm_factory=_ProviderFactory(),
         encryption_key=settings.encryption_key,
     )
+    runtime.configure_context_assembler(DefaultContextAssembler())
 
     commits = 0
 
