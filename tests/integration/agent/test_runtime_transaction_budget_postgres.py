@@ -7,8 +7,8 @@ from langchain_core.messages import AIMessage
 from sqlalchemy import event
 from sqlalchemy.orm import Session as SyncSession
 
+from modules.agent.application.context_managers.standard import StandardContextAssembler
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.application.standard_context_assembler import StandardContextAssembler
 from modules.agent.infra.database.models import AgentModel, ProviderCredentialModel
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.agent.infra.database.runtime_transaction_runner import (
