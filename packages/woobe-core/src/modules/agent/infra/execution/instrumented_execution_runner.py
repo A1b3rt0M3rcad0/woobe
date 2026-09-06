@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from typing import Any, Callable, Coroutine
+from uuid import uuid4
 
 from langchain_core.messages import SystemMessage
 
@@ -28,43 +29,15 @@ _BOUND_CAPABILITIES_INSTRUCTION = (
 )
 
 _SKILL_RESOLUTION_INSTRUCTION = (
-    "Installed Skill applicability is resolved at the start of every Run before any "
-    "user-facing answer. The runtime forces one skills_search preflight on the first "
-    "Model Invocation. Build that search from the user's actual task and, when useful, "
-    "include equivalent terms likely to appear in Skill names or descriptions. Do not "
-    "answer the user during the preflight. After its Tool result is present, inspect the "
-    "returned candidates and call skills_activate for every Skill whose described scope "
-    "applies before answering. A task being simple or solvable without a Skill is not a "
-    "reason to skip an applicable Skill. If matched_count is zero but installed_count is "
-    "greater than zero, evaluate the catalog_fallback candidates instead of claiming no "
-    "Skill is installed. Repeat skills_search only when pagination or a refined query is "
-    "actually required."
+    "The runtime performs a mandatory skills_search preflight before the first Model "
+    "Invocation of every Run with enabled Skills. Its Tool result is already present in "
+    "the current invocation history. Inspect those candidates before answering. Call "
+    "skills_activate for every Skill whose described scope applies to the user's task, "
+    "even when the task is simple or you could solve it directly. If matched_count is zero "
+    "but installed_count is greater than zero, evaluate the catalog_fallback candidates "
+    "instead of claiming that no Skill is installed. Repeat skills_search only when "
+    "pagination or a refined query is actually required."
 )
-
-
-class _InitialThenModel:
-    """Use one bound model for the first invocation, then the normal Run model."""
-
-    __slots__ = ("_initial", "_following", "_initial_used")
-
-    def __init__(self, initial: Any, following: Any) -> None:
-        self._initial = initial
-        self._following = following
-        self._initial_used = False
-
-    def _next(self) -> Any:
-        if not self._initial_used:
-            self._initial_used = True
-            return self._initial
-        return self._following
-
-    async def ainvoke(self, messages, **kwargs):
-        return await self._next().ainvoke(messages, **kwargs)
-
-    async def astream(self, messages, **kwargs):
-        model = self._next()
-        async for chunk in model.astream(messages, **kwargs):
-            yield chunk
 
 
 def _primary_pricing_snapshot(agent: Agent) -> dict[str, Any] | None:
@@ -80,6 +53,35 @@ def _positive_int(value: Any) -> int | None:
         parsed = int(value)
         return parsed if parsed > 0 else None
     return None
+
+
+def _message_text(message: Any) -> str:
+    content = getattr(message, "content", None)
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+            elif isinstance(item, dict):
+                text = item.get("text") or item.get("content")
+                if isinstance(text, str):
+                    parts.append(text)
+        return "\n".join(part for part in parts if part)
+    return ""
+
+
+def _latest_user_query(messages: list) -> str:
+    for message in reversed(messages):
+        role = getattr(message, "role", None)
+        message_type = getattr(message, "type", None)
+        class_name = message.__class__.__name__
+        if role == "user" or message_type in {"human", "user"} or class_name == "HumanMessage":
+            value = _message_text(message).strip()
+            if value:
+                return value[:500]
+    return ""
 
 
 def _bind_context_runtime(
@@ -175,6 +177,7 @@ async def run_instrumented_execution(
     context = current_execution.get()
     if context is not None:
         context.skill_context = None
+    skill_preflight_call: dict[str, Any] | None = None
     if snapshots:
         policy = resolve_context_policy(runtime_config).skills
         if policy is None or context is None:
@@ -206,6 +209,12 @@ async def run_instrumented_execution(
             return await execute_bound_tool(tool_call, resolved_tool_id)
 
         execute_single_tool = execute_with_skills
+        skill_preflight_call = {
+            "name": "skills_search",
+            "args": {"query": _latest_user_query(messages)},
+            "id": f"skill-preflight-{uuid4()}",
+            "type": "tool_call",
+        }
     pricing_snapshot = _primary_pricing_snapshot(agent)
     _bind_context_runtime(
         agent=agent,
@@ -250,15 +259,6 @@ async def run_instrumented_execution(
         response_format=base_response_format,
     )
     model = base_model.bind_tools(agent_tools, tool_choice="auto") if has_tools else base_model
-    if snapshots:
-        skill_resolution_model = base_model.bind_tools(
-            agent_tools,
-            tool_choice={
-                "type": "function",
-                "function": {"name": "skills_search"},
-            },
-        )
-        model = _InitialThenModel(skill_resolution_model, model)
 
     network_execution = bool(context and context.network_execution_id)
     # Terminal recovery is exceptional. Delay constructing its structured model until
@@ -307,13 +307,12 @@ async def run_instrumented_execution(
         provider=provider,
         model_name=agent.model,
         initial_phase=(
-            "skill_resolution"
-            if snapshots
-            else "capability_response_generation"
+            "capability_response_generation"
             if has_tools
             else "response_generation"
         ),
         final_json_instruction=instruction,
+        initial_tool_call=skill_preflight_call,
         pricing_snapshot=pricing_snapshot,
         context_assembler=context_assembler,
     )

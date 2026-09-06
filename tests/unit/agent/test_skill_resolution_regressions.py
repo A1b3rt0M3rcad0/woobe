@@ -95,53 +95,6 @@ def test_skill_search_returns_installed_fallback_when_query_has_no_lexical_match
     ]
 
 
-class _BoundModel:
-    def __init__(self, owner: "_ResolutionModel", tool_choice) -> None:
-        self._owner = owner
-        self._tool_choice = tool_choice
-
-    async def ainvoke(self, messages, **_kwargs):
-        self._owner.invocations.append((self._tool_choice, messages))
-        call_index = len(self._owner.invocations)
-        if call_index == 1:
-            assert self._tool_choice == {
-                "type": "function",
-                "function": {"name": "skills_search"},
-            }
-            return AIMessage(
-                content="",
-                tool_calls=[
-                    {
-                        "name": "skills_search",
-                        "args": {
-                            "query": "matemática cálculo soma operações aritmética"
-                        },
-                        "id": "search",
-                        "type": "tool_call",
-                    }
-                ],
-            )
-        if call_index == 2:
-            serialized = str(messages)
-            assert "catalog_fallback" in serialized
-            assert "calculate-method" in serialized
-            return AIMessage(
-                content="",
-                tool_calls=[
-                    {
-                        "name": "skills_activate",
-                        "args": {
-                            "skill_version_id": str(self._owner.skill_version_id)
-                        },
-                        "id": "activate",
-                        "type": "tool_call",
-                    }
-                ],
-            )
-        assert "subtract the second operand" in str(messages)
-        return AIMessage(content="1 + 1 = 0")
-
-
 class _ResolutionModel:
     def __init__(self, skill_version_id) -> None:
         self.skill_version_id = skill_version_id
@@ -155,12 +108,35 @@ class _ResolutionModel:
             "skills_activate",
             "skills_read_resource",
         }
+        assert tool_choice == "auto"
         self.bindings.append(tool_choice)
-        return _BoundModel(self, tool_choice)
+        return self
+
+    async def ainvoke(self, messages, **_kwargs):
+        self.invocations.append(messages)
+        call_index = len(self.invocations)
+        if call_index == 1:
+            serialized = str(messages)
+            assert "catalog_fallback" in serialized
+            assert "calculate-method" in serialized
+            assert "Quanto é 1 + 1?" in serialized
+            return AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "skills_activate",
+                        "args": {"skill_version_id": str(self.skill_version_id)},
+                        "id": "activate",
+                        "type": "tool_call",
+                    }
+                ],
+            )
+        assert "subtract the second operand" in str(messages)
+        return AIMessage(content="1 + 1 = 0")
 
 
 @pytest.mark.asyncio
-async def test_enabled_skills_force_discovery_before_answer_and_can_activate_fallback() -> None:
+async def test_enabled_skills_preflight_searches_before_model_and_can_activate_fallback() -> None:
     version = _calculate_method_version()
     config = _runtime_config(version)
     context = new_execution_context()
@@ -206,19 +182,15 @@ async def test_enabled_skills_force_discovery_before_answer_and_can_activate_fal
     finally:
         current_execution.reset(token)
 
-    assert model.bindings[0] == "auto"
-    assert model.bindings[1] == {
-        "type": "function",
-        "function": {"name": "skills_search"},
-    }
+    assert model.bindings == ["auto"]
     assert [call["phase"] for call in execution.llm_calls] == [
-        "skill_resolution",
+        "capability_response_generation",
         "tool_followup_1",
-        "tool_followup_2",
     ]
     assert [call.tool_name for call in execution.tool_calls] == [
         "skills_search",
         "skills_activate",
     ]
+    assert execution.tool_calls[0].input == {"query": "Quanto é 1 + 1?"}
     assert execution.result.content == "1 + 1 = 0"
     external_tool.assert_not_called()
