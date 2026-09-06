@@ -27,6 +27,45 @@ _BOUND_CAPABILITIES_INSTRUCTION = (
     "when they are needed; otherwise answer directly."
 )
 
+_SKILL_RESOLUTION_INSTRUCTION = (
+    "Installed Skill applicability is resolved at the start of every Run before any "
+    "user-facing answer. The runtime forces one skills_search preflight on the first "
+    "Model Invocation. Build that search from the user's actual task and, when useful, "
+    "include equivalent terms likely to appear in Skill names or descriptions. Do not "
+    "answer the user during the preflight. After its Tool result is present, inspect the "
+    "returned candidates and call skills_activate for every Skill whose described scope "
+    "applies before answering. A task being simple or solvable without a Skill is not a "
+    "reason to skip an applicable Skill. If matched_count is zero but installed_count is "
+    "greater than zero, evaluate the catalog_fallback candidates instead of claiming no "
+    "Skill is installed. Repeat skills_search only when pagination or a refined query is "
+    "actually required."
+)
+
+
+class _InitialThenModel:
+    """Use one bound model for the first invocation, then the normal Run model."""
+
+    __slots__ = ("_initial", "_following", "_initial_used")
+
+    def __init__(self, initial: Any, following: Any) -> None:
+        self._initial = initial
+        self._following = following
+        self._initial_used = False
+
+    def _next(self) -> Any:
+        if not self._initial_used:
+            self._initial_used = True
+            return self._initial
+        return self._following
+
+    async def ainvoke(self, messages, **kwargs):
+        return await self._next().ainvoke(messages, **kwargs)
+
+    async def astream(self, messages, **kwargs):
+        model = self._next()
+        async for chunk in model.astream(messages, **kwargs):
+            yield chunk
+
 
 def _primary_pricing_snapshot(agent: Agent) -> dict[str, Any] | None:
     settings = agent.settings or {}
@@ -88,12 +127,21 @@ def _messages_with_leading_system_instruction(messages: list, instruction: str) 
     return [SystemMessage(content=instruction), *result]
 
 
-def _messages_with_bound_capability_authority(messages: list, *, has_tools: bool, has_skills: bool = False) -> list:
+def _messages_with_bound_capability_authority(
+    messages: list, *, has_tools: bool, has_skills: bool = False
+) -> list:
     if not has_tools:
         return list(messages)
     return _messages_with_leading_system_instruction(
         messages,
-        (_BOUND_CAPABILITIES_INSTRUCTION.replace("Do not search for, list, discover, or invent additional capabilities.", "Skill discovery may find installed procedures, but never grants additional Tool permissions.") if has_skills else _BOUND_CAPABILITIES_INSTRUCTION),
+        (
+            _BOUND_CAPABILITIES_INSTRUCTION.replace(
+                "Do not search for, list, discover, or invent additional capabilities.",
+                "Skill discovery may find installed procedures, but never grants additional Tool permissions.",
+            )
+            if has_skills
+            else _BOUND_CAPABILITIES_INSTRUCTION
+        ),
     )
 
 
@@ -119,7 +167,11 @@ async def run_instrumented_execution(
         else str(agent.provider)
     )
     runtime_config = (agent.settings or {}).get("runtime_config")
-    snapshots = frozen_enabled_skills(runtime_config, agent.project_id) if isinstance(runtime_config, dict) and runtime_config.get("skills") else []
+    snapshots = (
+        frozen_enabled_skills(runtime_config, agent.project_id)
+        if isinstance(runtime_config, dict) and runtime_config.get("skills")
+        else []
+    )
     context = current_execution.get()
     if context is not None:
         context.skill_context = None
@@ -130,7 +182,10 @@ async def run_instrumented_execution(
         skill_runtime = SkillRuntime(snapshots, policy, set(tool_name_to_id))
         collisions = set(tool_name_to_id).intersection(skill_runtime.mapping)
         if collisions:
-            raise ValueError("Skill operation name collides with a bound Tool: " + ", ".join(sorted(collisions)))
+            raise ValueError(
+                "Skill operation name collides with a bound Tool: "
+                + ", ".join(sorted(collisions))
+            )
         context.skill_context = skill_runtime.contributions()
         agent_tools = [*agent_tools, *skill_runtime.definitions]
         tool_name_to_id = {**tool_name_to_id, **skill_runtime.mapping}
@@ -141,7 +196,11 @@ async def run_instrumented_execution(
         async def execute_with_skills(tool_call: dict, resolved_tool_id: str) -> dict:
             name = tool_call.get("name")
             if name in skill_runtime.mapping:
-                output = skill_runtime.execute(name, tool_call.get("args") or {}, tool_call_id=str(tool_call.get("id") or ""))
+                output = skill_runtime.execute(
+                    name,
+                    tool_call.get("args") or {},
+                    tool_call_id=str(tool_call.get("id") or ""),
+                )
                 skill_execution_context.skill_context = skill_runtime.contributions()
                 return output
             return await execute_bound_tool(tool_call, resolved_tool_id)
@@ -191,6 +250,15 @@ async def run_instrumented_execution(
         response_format=base_response_format,
     )
     model = base_model.bind_tools(agent_tools, tool_choice="auto") if has_tools else base_model
+    if snapshots:
+        skill_resolution_model = base_model.bind_tools(
+            agent_tools,
+            tool_choice={
+                "type": "function",
+                "function": {"name": "skills_search"},
+            },
+        )
+        model = _InitialThenModel(skill_resolution_model, model)
 
     network_execution = bool(context and context.network_execution_id)
     # Terminal recovery is exceptional. Delay constructing its structured model until
@@ -218,6 +286,11 @@ async def run_instrumented_execution(
         has_tools=has_tools,
         has_skills=bool(snapshots),
     )
+    if snapshots:
+        execution_messages = _messages_with_leading_system_instruction(
+            execution_messages,
+            _SKILL_RESOLUTION_INSTRUCTION,
+        )
     if instruction is not None:
         execution_messages = _messages_with_leading_system_instruction(
             execution_messages,
@@ -234,7 +307,9 @@ async def run_instrumented_execution(
         provider=provider,
         model_name=agent.model,
         initial_phase=(
-            "capability_response_generation"
+            "skill_resolution"
+            if snapshots
+            else "capability_response_generation"
             if has_tools
             else "response_generation"
         ),
