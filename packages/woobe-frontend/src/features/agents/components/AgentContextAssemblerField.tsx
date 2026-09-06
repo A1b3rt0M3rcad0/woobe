@@ -163,6 +163,7 @@ export function AgentContextAssemblerField() {
     ? selectionKey(selected)
     : selectionKey(focused.selectionDescriptor)
   const catalogReady = !isLoading && !isError && assemblers.length > 0
+  const canApplySelection = catalogReady && focused.catalogBacked && !focusedIsCurrent
 
   const openSelector = () => {
     setFocusedStrategyKey(selectedStrategyKey)
@@ -170,7 +171,7 @@ export function AgentContextAssemblerField() {
   }
 
   const applySelection = () => {
-    if (!catalogReady || !focused.catalogBacked) return
+    if (!canApplySelection) return
     const next = focused.selectionDescriptor
     setField('runtimeConfig', {
       ...state.runtimeConfig,
@@ -186,25 +187,28 @@ export function AgentContextAssemblerField() {
 
   return (
     <>
-      <section className="rounded-xl border border-border bg-surface p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted">Context Management</p>
-        <p className="mt-1 text-[11px] leading-relaxed text-muted">
-          Select the context manager for this Agent snapshot.
-        </p>
-
+      <section>
         <button
           type="button"
           onClick={openSelector}
-          className="group mt-3 flex h-12 w-full items-center gap-2.5 rounded-lg border border-border bg-background/40 px-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/35"
+          aria-label={`Change context manager. Current selection: ${selectedDescriptor.display_name}`}
+          className="group flex min-h-16 w-full items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/20"
         >
-          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-primary">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background/40 text-primary">
             <BrainCircuit className="h-4 w-4" />
           </span>
-          <span className="truncate text-sm font-medium text-foreground">{selectedDescriptor.display_name}</span>
-          <span className="shrink-0 rounded border border-border px-1.5 py-0.5 font-mono text-[10px] text-muted">
-            {selectionKey(selected)}
+          <span className="min-w-0 flex-1">
+            <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted">
+              Selected context manager
+            </span>
+            <span className="mt-0.5 block truncate text-sm font-semibold text-foreground">
+              {selectedDescriptor.display_name}
+            </span>
           </span>
-          <ChevronRight className="ml-auto h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5" />
+          <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-primary-light">
+            Change
+            <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+          </span>
         </button>
       </section>
 
@@ -378,7 +382,9 @@ export function AgentContextAssemblerField() {
               </p>
               <div className="flex shrink-0 items-center gap-2">
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                <Button onClick={applySelection} disabled={!catalogReady || !focused.catalogBacked}>Select manager</Button>
+                <Button onClick={applySelection} disabled={!canApplySelection}>
+                  {focusedIsCurrent ? 'Selected' : 'Select manager'}
+                </Button>
               </div>
             </div>
           </section>
