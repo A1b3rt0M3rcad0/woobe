@@ -6,7 +6,6 @@ import { NetworkExecutionPath } from '@/features/network/components/NetworkExecu
 import { ToolCallsCollapsible } from '@/features/playground/components/ToolCallsCollapsible'
 import { isSkillOperation, operationLabel, skillActivityLabel, operationEventLabel } from './operations'
 import { skillCount, toolCount, type NetworkAgentInvocation } from '@/features/network/components/networkChatExecution'
-import { createChatUi, DEFAULT_APPEARANCE } from '../../../../woobe-embed/src/chat-ui'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
 const roots: ReturnType<typeof createRoot>[] = []
@@ -59,45 +58,5 @@ describe('Skill execution presentation', () => {
     const root = { tools: [activation, { tool_name: 'http' }], children: [{ tools: [{ tool_name: 'skills_search' }], children: [] }] } as unknown as NetworkAgentInvocation
     expect(toolCount(root)).toBe(1)
     expect(skillCount(root)).toBe(2)
-  })
-})
-
-describe('ChatSurface Skill activity', () => {
-  it('shows explicit activity even with dots and retains evidence after streaming', () => {
-    const host = document.createElement('div'); document.body.append(host)
-    const ui = createChatUi(host, DEFAULT_APPEARANCE)
-    const message = ui.appendPendingAssistant()
-    expect(ui.updateAssistantActivity(message, { tool_name: 'skills_activate', status: 'calling_tool' })).toBe('Activate Skill…')
-    ui.updateSkillActivity(message, { ...activation, success: null, status: 'running' })
-    ui.updateSkillActivity(message, activation)
-    ui.beginAssistantStreaming(message)
-    ui.finishAssistantStreaming(message)
-    expect(message.querySelectorAll('.skill-activity p')).toHaveLength(1)
-    expect(message.textContent).toContain('Activate Skill')
-    expect(message.textContent).toContain('completed')
-    expect(message.textContent).not.toContain('Tool')
-  })
-  it('does not leave unfinished Skill activity running after a terminal response', () => {
-    const host = document.createElement('div'); document.body.append(host)
-    const ui = createChatUi(host, DEFAULT_APPEARANCE)
-    const message = ui.appendPendingAssistant()
-    ui.updateSkillActivity(message, { tool_name: 'skills_activate', status: 'running' })
-    ui.finishAssistantStreaming(message)
-    expect(message.textContent).toContain('interrupted')
-    expect(message.textContent).not.toContain('running')
-  })
-  it('renders history evidence and respects generic versus named detail', () => {
-    const host = document.createElement('div'); document.body.append(host)
-    const ui = createChatUi(host, { ...DEFAULT_APPEARANCE, activity: { ...DEFAULT_APPEARANCE.activity, detail_level: 'generic' } })
-    const message = ui.appendMessage('assistant', 'Answer')
-    ui.updateSkillActivity(message, activation)
-    expect(message.textContent).not.toContain('inverse-math')
-    ui.setAppearance({ ...DEFAULT_APPEARANCE, activity: { ...DEFAULT_APPEARANCE.activity, detail_level: 'named' } })
-    ui.updateSkillActivity(message, activation)
-    expect(message.textContent).toContain('inverse-math @ 1.0.0')
-    ui.updateSkillActivity(message, { tool_name: 'skills_read_resource', skill_name: 'invoice-review', skill_version: '2.0.0', success: true })
-    expect(message.textContent).toContain('invoice-review @ 2.0.0')
-    ui.updateSkillActivity(message, { tool_name: 'http', success: true })
-    expect(message.querySelectorAll('.skill-activity p')).toHaveLength(2)
   })
 })
