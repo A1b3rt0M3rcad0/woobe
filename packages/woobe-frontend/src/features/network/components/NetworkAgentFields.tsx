@@ -8,6 +8,7 @@ export function NetworkAgentFields() {
   const { state, setField } = useAgentEditor()
   return (
     <div className="space-y-4 p-4">
+      <AgentContextAssemblerField />
       <section className="rounded-xl border border-border bg-surface p-4">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Agent Details</p>
         <div className="space-y-3">
@@ -19,7 +20,6 @@ export function NetworkAgentFields() {
         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">System Prompt</p>
         <Textarea value={state.systemPrompt} onChange={(event) => setField('systemPrompt', event.target.value)} className="min-h-[160px] resize-y font-mono text-xs leading-relaxed" placeholder="System instructions..." />
       </section>
-      <AgentContextAssemblerField />
       <AgentSessionModeField />
     </div>
   )
