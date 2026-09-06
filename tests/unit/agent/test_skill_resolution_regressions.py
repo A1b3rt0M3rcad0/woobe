@@ -95,6 +95,26 @@ def test_skill_search_returns_installed_fallback_when_query_has_no_lexical_match
     ]
 
 
+def test_skill_search_reports_empty_only_when_no_skills_are_installed() -> None:
+    runtime = SkillRuntime([], SkillContextPolicy(), set())
+
+    result = runtime.execute(
+        "skills_search",
+        {"query": "matemática cálculo soma operações aritmética"},
+        tool_call_id="search",
+    )
+
+    assert result["success"] is True
+    assert result["output"] == {
+        "skills": [],
+        "installed_count": 0,
+        "matched_count": 0,
+        "total_matches": 0,
+        "result_mode": "empty",
+        "next_offset": None,
+    }
+
+
 class _ResolutionModel:
     def __init__(self, skill_version_id) -> None:
         self.skill_version_id = skill_version_id
@@ -173,6 +193,8 @@ async def test_enabled_skills_preflight_searches_before_model_and_can_activate_f
             tool_name_to_id={},
             messages=[
                 SystemMessage(content="Follow installed procedures."),
+                HumanMessage(content="Quanto é 5 + 5?"),
+                AIMessage(content="10"),
                 HumanMessage(content="Quanto é 1 + 1?"),
             ],
             context_assembler=build_context_assembler(
@@ -194,3 +216,52 @@ async def test_enabled_skills_preflight_searches_before_model_and_can_activate_f
     assert execution.tool_calls[0].input == {"query": "Quanto é 1 + 1?"}
     assert execution.result.content == "1 + 1 = 0"
     external_tool.assert_not_called()
+
+
+class _DirectModel:
+    def __init__(self) -> None:
+        self.invocations = []
+
+    def bind_tools(self, _tools, *, tool_choice):
+        raise AssertionError(
+            f"Agent without enabled Skills or Tools must not bind capabilities: {tool_choice}"
+        )
+
+    async def ainvoke(self, messages, **_kwargs):
+        self.invocations.append(messages)
+        return AIMessage(content="5 + 5 = 10")
+
+
+@pytest.mark.asyncio
+async def test_agent_without_enabled_skills_has_no_preflight_or_extra_model_round() -> None:
+    model = _DirectModel()
+    factory = SimpleNamespace(create_chat_model=lambda **_kwargs: model)
+    agent = SimpleNamespace(
+        id=uuid4(),
+        project_id=uuid4(),
+        provider="openai",
+        model="test",
+        temperature=0.2,
+        max_output_tokens=1000,
+        settings={},
+    )
+
+    execution = await run_instrumented_execution(
+        llm_factory=factory,
+        execute_single_tool=AsyncMock(),
+        clean_json_answer=lambda answer: answer,
+        agent=agent,
+        api_key="test",
+        base_url=None,
+        response_format={},
+        json_enabled=False,
+        has_tools=False,
+        agent_tools=[],
+        tool_name_to_id={},
+        messages=[HumanMessage(content="Quanto é 5 + 5?")],
+    )
+
+    assert len(model.invocations) == 1
+    assert [call["phase"] for call in execution.llm_calls] == ["response_generation"]
+    assert execution.tool_calls == []
+    assert execution.result.content == "5 + 5 = 10"
