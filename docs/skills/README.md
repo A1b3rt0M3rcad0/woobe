@@ -89,3 +89,23 @@ Migration `0064` creates `agent.skills` and `agent.skill_versions`, with Project
 For application rollback, first disable/remove Skills or restore a pre-Skills Agent/Network release. Keep the catalog tables while any historical snapshot may still use Skills. The migration has a downgrade that drops both tables; it is destructive and should only be used after packages are backed up and dependent bindings/releases are accounted for.
 
 Browser validation, a real-provider smoke Run, and migration execution on PostgreSQL remain review/deployment checks when those environments are available. Local tests cover repository persistence using SQLite, PostgreSQL migration DDL, context assembly, real instrumented loops with a simulated model, Project authorization identifiers and editor serialization.
+
+### Execution presentation
+
+Standalone, Network and ChatSurface use the shared runtime client's Skill operation
+presentation. `skills_search`, `skills_activate` and `skills_read_resource` are
+shown as **Search Skills**, **Activate Skill** and **Read Skill resource**. Conversation
+and Run evidence separate **Skill activity** from **Tool calls**; counts refer to
+operations, not unique installed or activated Skills. Discovery is not activation.
+
+Activation and resource receipts identify the Skill/version. Public completion events
+and reattach projections retain that compact identity without instruction/resource
+bodies. ChatSurface keeps Skill evidence beside the completed answer and restores it
+from saved message evidence; its generic detail setting omits package names. Named
+detail displays identity when available, including resumed Runs.
+
+Transport event names and `tool_calls` fields remain compatible with existing
+consumers and stored Runs. Historical reserved operation names are recognized without
+a migration. Aggregate diagnostics that do not expose a breakdown are explicitly
+labelled **Tool/Skill operations**, including their shared timing and context overhead.
+Raw protocol fields remain visible only as technical evidence.

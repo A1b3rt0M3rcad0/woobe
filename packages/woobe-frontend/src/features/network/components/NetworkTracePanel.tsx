@@ -5,7 +5,7 @@ import { ScrollArea } from '@/components/ui/ScrollArea'
 import { formatLatency } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 
-import { invocationCount, toolCount } from './networkChatExecution'
+import { invocationCount, toolCount, skillCount } from './networkChatExecution'
 import type { AgentNodeId } from './networkWorkspaceTypes'
 import type { NetworkTraceRecord } from './networkObservabilityTypes'
 import type { NetworkSession } from './networkSessionTypes'
@@ -34,6 +34,7 @@ function newestFirst(left: NetworkTraceRecord, right: NetworkTraceRecord) {
 function TraceListItem({ trace, selected, onSelect }: { trace: NetworkTraceRecord; selected: boolean; onSelect: () => void }) {
   const agents = invocationCount(trace.execution.root)
   const tools = toolCount(trace.execution.root)
+  const skills = skillCount(trace.execution.root)
   return (
     <button type="button" onClick={onSelect} className={cn('w-full rounded-lg border px-3 py-2.5 text-left transition-colors', selected ? 'border-primary/35 bg-primary/10' : 'border-transparent hover:border-border/70 hover:bg-background/55')}>
       <div className="flex items-start gap-2.5">
@@ -45,6 +46,7 @@ function TraceListItem({ trace, selected, onSelect }: { trace: NetworkTraceRecor
             <span>{formatLatency(trace.durationMs)}</span>
             <span>{agents} Agents</span>
             {tools ? <span>{tools} Tools</span> : null}
+            {skills ? <span>{skills} Skill operations</span> : null}
           </div>
         </div>
         <ChevronRight className={cn('mt-1 h-3.5 w-3.5 shrink-0', selected ? 'text-primary-light' : 'text-muted/50')} />

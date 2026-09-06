@@ -1,3 +1,4 @@
+import { operationEventLabel } from '@/features/skills/operations'
 import type { UsageInfo } from '@/features/playground/types'
 
 import type { AgentNodeId, Environment, NetworkBinding } from './networkWorkspaceTypes'
@@ -24,7 +25,7 @@ function runtimeTraceEvents(records: RuntimeEventRecord[]): NetworkTraceEvent[] 
   return records.map(({ eventType, event }, index) => ({
     id: event.event_id ?? `${event.execution_id}-${event.sequence ?? index}`,
     type: eventType,
-    label: eventType.replace(/_/g, ' '),
+    label: operationEventLabel(eventType.replace(/_/g, ' '), event.data),
     timestamp: event.created_at ?? '',
     sequence: event.sequence ?? index + 1,
     spanId: event.invocation_id,

@@ -1,3 +1,4 @@
+import { operationEventLabel } from '@/features/skills/operations'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   Activity,
@@ -32,6 +33,7 @@ import {
   invocationCount,
   sourceCount,
   toolCount,
+  skillCount,
   uniqueAgentCount,
   type NetworkAgentInvocation,
 } from './networkChatExecution'
@@ -242,6 +244,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
   const agentRuns = invocationCount(trace.execution.root)
   const agents = uniqueAgentCount(trace.execution.root)
   const tools = toolCount(trace.execution.root)
+  const skills = skillCount(trace.execution.root)
   const sources = sourceCount(trace.execution.root)
   const delegations = delegationCount(trace.execution.root)
   const delegationRows = useMemo(() => delegationEvidence(trace.execution.root), [trace.execution.root])
@@ -286,7 +289,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
           <MetaItem label="Duration" value={formatLatency(trace.durationMs)} />
           <MetaItem label="Agent Runs" value={String(agentRuns)} />
           <MetaItem label="Agents" value={String(agents)} />
-          <MetaItem label="Tools" value={String(tools)} />
+          <MetaItem label="Tools / Skill activity" value={`${tools} / ${skills}`} />
           <MetaItem label="Tokens" value={totalTokens == null ? 'Unknown' : formatTokens(totalTokens)} />
           <MetaItem label="Cost" value={trace.costUsd == null ? 'Unknown' : formatCurrency(trace.costUsd)} />
         </div>
@@ -327,7 +330,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
               <div className="mt-2"><AgentResultViewer value={trace.answer} title="Network result" subtitle={`${trace.environment} · ${trace.networkVersion}`} compact emptyLabel={outcome === 'running' ? 'The final response is still being generated.' : outcome === 'cancelled' ? 'The Run was cancelled before a final response was produced.' : 'The Run ended without a final response.'} /></div>
             </section>
 
-            <section className="rounded-xl border border-border/75 bg-background/30 p-3"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Activity</p><div className="mt-2 grid grid-cols-4 gap-3"><MetaItem label="Agent Runs" value={String(agentRuns)} /><MetaItem label="Delegations" value={String(delegations)} /><MetaItem label="Tools" value={`${tools} calls`} /><MetaItem label="Events" value={String(trace.events.length)} /></div></section>
+            <section className="rounded-xl border border-border/75 bg-background/30 p-3"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Activity</p><div className="mt-2 grid grid-cols-4 gap-3"><MetaItem label="Agent Runs" value={String(agentRuns)} /><MetaItem label="Delegations" value={String(delegations)} /><MetaItem label="Tools / Skill activity" value={`${tools} / ${skills}`} /><MetaItem label="Events" value={String(trace.events.length)} /></div></section>
 
             <section className="space-y-3 border-t border-border/70 pt-4">
               <div className="flex items-start gap-2"><Brain className="mt-0.5 h-3.5 w-3.5 text-muted" /><div><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Network Context</p><p className="mt-1 text-[9px] leading-4 text-muted">Aggregated from the actual Model Invocations executed by child Agent Runs.</p></div></div>
@@ -366,16 +369,16 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
                   )) : <p className="text-[9px] text-muted">No Agent delegations were executed.</p>}
                 </div>
               </CollapsibleSection>
-              {routeEvents.length ? <CollapsibleSection title="Routing decisions" badge={String(routeEvents.length)}><div className="space-y-2">{routeEvents.map((event) => <div key={event.id} className="rounded-lg bg-background/45 p-2.5"><div className="flex items-center gap-1.5"><GitBranch className="h-3.5 w-3.5 text-primary-light" /><code className="text-[9px] text-white">{event.type}</code></div><p className="mt-1 text-[9px] text-muted">{event.label}</p><JsonCodeBlock value={event.payload} maxHeight={128} className="mt-2" /></div>)}</div></CollapsibleSection> : null}
+              {routeEvents.length ? <CollapsibleSection title="Routing decisions" badge={String(routeEvents.length)}><div className="space-y-2">{routeEvents.map((event) => <div key={event.id} className="rounded-lg bg-background/45 p-2.5"><div className="flex items-center gap-1.5"><GitBranch className="h-3.5 w-3.5 text-primary-light" /><code className="text-[9px] text-white">{operationEventLabel(event.type, event.payload)}</code></div><p className="mt-1 text-[9px] text-muted">{event.label}</p><JsonCodeBlock value={event.payload} maxHeight={128} className="mt-2" /></div>)}</div></CollapsibleSection> : null}
               {trace.parsedOutput ? <CollapsibleSection title="Structured output"><JsonCodeBlock value={trace.parsedOutput} maxHeight={180} /></CollapsibleSection> : null}
               <CollapsibleSection title="Session composition" badge={`${trace.agentContexts.length} contexts`}><NetworkSessionComposition contexts={trace.agentContexts} /></CollapsibleSection>
               <CollapsibleSection title="Composition snapshot"><JsonCodeBlock value={{ environment: trace.environment, network_version: trace.networkVersion, composition_hash: trace.compositionHash, agents: trace.agentContexts.map((context) => ({ node_id: context.nodeId, agent_id: context.agentId, source: context.source, version: context.version, session_mode: context.sessionMode })) }} maxHeight={220} /></CollapsibleSection>
-              <CollapsibleSection title="Events" badge={String(trace.events.length)}><div className="space-y-1.5">{trace.events.map((event) => <div key={event.id} className="rounded-lg bg-background/45 px-3 py-2"><div className="flex items-center justify-between gap-2"><code className="truncate text-[9px] text-white">{event.type}</code><span className="text-[8px] text-muted">#{event.sequence}</span></div><p className="mt-1 text-[9px] text-muted">{event.label}</p><JsonCodeBlock value={event.payload} maxHeight={112} className="mt-2" /></div>)}</div></CollapsibleSection>
+              <CollapsibleSection title="Events" badge={String(trace.events.length)}><div className="space-y-1.5">{trace.events.map((event) => <div key={event.id} className="rounded-lg bg-background/45 px-3 py-2"><div className="flex items-center justify-between gap-2"><code className="truncate text-[9px] text-white">{operationEventLabel(event.type, event.payload)}</code><span className="text-[8px] text-muted">#{event.sequence}</span></div><p className="mt-1 text-[9px] text-muted">{event.label}</p><JsonCodeBlock value={event.payload} maxHeight={112} className="mt-2" /></div>)}</div></CollapsibleSection>
               <CollapsibleSection title="Raw"><JsonCodeBlock value={trace} maxHeight={300} /></CollapsibleSection>
               <CollapsibleSection title="Technical identifiers" badge={`${technicalIds.length} IDs`}><div className="divide-y divide-border/60">{technicalIds.map(([label, value]) => <CopyableIdRow key={label} label={label} value={value} />)}</div><button type="button" onClick={() => void navigator.clipboard.writeText(technicalIds.map(([label, value]) => `${label}: ${value}`).join('\n'))} className="mt-2 inline-flex items-center gap-1.5 text-[9px] font-medium text-muted hover:text-white"><Copy className="h-3 w-3" />Copy all identifiers</button></CollapsibleSection>
             </div>
 
-            <div className="grid grid-cols-4 gap-2 text-[9px] text-muted"><span className="inline-flex items-center gap-1"><GitBranch className="h-3 w-3" />{delegations} Delegations</span><span className="inline-flex items-center gap-1"><Wrench className="h-3 w-3" />{tools} Tool Calls</span><span className="inline-flex items-center gap-1"><Database className="h-3 w-3" />{sources} Sources</span><span className="inline-flex items-center gap-1"><Activity className="h-3 w-3" />{trace.events.length} Events</span></div>
+            <div className="grid grid-cols-4 gap-2 text-[9px] text-muted"><span className="inline-flex items-center gap-1"><GitBranch className="h-3 w-3" />{delegations} Delegations</span><span className="inline-flex items-center gap-1"><Wrench className="h-3 w-3" />{tools} Tools · {skills} Skill operations</span><span className="inline-flex items-center gap-1"><Database className="h-3 w-3" />{sources} Sources</span><span className="inline-flex items-center gap-1"><Activity className="h-3 w-3" />{trace.events.length} Events</span></div>
           </>
         ) : null}
       </div>

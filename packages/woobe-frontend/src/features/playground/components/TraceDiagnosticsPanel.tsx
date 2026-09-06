@@ -80,7 +80,7 @@ export function TraceDiagnosticsPanel({ traceId, runId }: { traceId?: string | n
         </div>
         {toolShare != null && (
           <span className="rounded-full border border-border bg-background px-2 py-0.5 text-[10px] font-mono text-muted">
-            Tool wall {toolShare.toFixed(1)}%
+            Tool/Skill wall {toolShare.toFixed(1)}%
           </span>
         )}
       </div>
@@ -88,16 +88,16 @@ export function TraceDiagnosticsPanel({ traceId, runId }: { traceId?: string | n
       <div className="grid grid-cols-2 gap-1.5">
         <Metric label="Agent runtime" value={runtime == null ? '—' : formatLatency(runtime)} icon={Activity} />
         <Metric label="LLM work Σ" value={llmWork == null ? '—' : formatLatency(llmWork)} icon={Cpu} hint="Sum of individual LLM call durations." />
-        <Metric label="Tool wall" value={toolWall == null ? '—' : formatLatency(toolWall)} icon={Wrench} hint="Elapsed wall-clock spent waiting for Tool rounds." />
-        <Metric label="Tool work Σ" value={toolWork == null ? '—' : formatLatency(toolWork)} icon={Wrench} hint="Sum of individual Tool durations. It can exceed Tool wall when Tools run in parallel." />
+        <Metric label="Tool/Skill wall" value={toolWall == null ? '—' : formatLatency(toolWall)} icon={Wrench} hint="Elapsed wall-clock spent waiting for Tool/Skill rounds." />
+        <Metric label="Tool/Skill work Σ" value={toolWork == null ? '—' : formatLatency(toolWork)} icon={Wrench} hint="Sum of individual Tool/Skill durations. It can exceed Tool/Skill wall when operations run in parallel." />
       </div>
 
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted">
         <span>{llmCount} LLM call{llmCount === 1 ? '' : 's'}</span>
-        <span>{toolCount} tool call{toolCount === 1 ? '' : 's'}</span>
+        <span>{toolCount} Tool/Skill operations</span>
         <span className="inline-flex items-center gap-1 text-emerald-400"><CheckCircle className="h-3 w-3" /> {successes}</span>
         <span className="inline-flex items-center gap-1 text-red-400"><XCircle className="h-3 w-3" /> {failures}</span>
-        {parallelism != null && toolCount > 0 && <span>Tool parallelism {parallelism.toFixed(2)}×</span>}
+        {parallelism != null && toolCount > 0 && <span>Operation parallelism {parallelism.toFixed(2)}×</span>}
         {prepare != null && <span>Setup {formatLatency(prepare)}</span>}
         {finalization != null && <span className="inline-flex items-center gap-1"><Database className="h-3 w-3" /> Finalize {formatLatency(finalization)}</span>}
         {other != null && <span>Other {formatLatency(other)}</span>}

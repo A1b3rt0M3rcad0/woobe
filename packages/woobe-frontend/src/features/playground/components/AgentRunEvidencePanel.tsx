@@ -1,3 +1,5 @@
+import { operationCountsLabel } from '@/features/skills/operations'
+import { ToolCallsCollapsible } from './ToolCallsCollapsible'
 import { AlertTriangle, Copy, RefreshCw } from 'lucide-react'
 
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
@@ -73,7 +75,7 @@ export function AgentRunEvidencePanel({ runId, traceId }: { runId?: string | nul
           <div><span className="text-muted">Origin</span><p className="mt-0.5 text-slate-200">{data.origin}</p></div>
           <div><span className="text-muted">Provider</span><p className="mt-0.5 text-slate-200">{data.provider || '—'}</p></div>
           <div><span className="text-muted">Model</span><p className="mt-0.5 truncate text-slate-200">{data.model || '—'}</p></div>
-          <div><span className="text-muted">Tool calls</span><p className="mt-0.5 text-slate-200">{data.tool_calls.length}</p></div>
+          <div><span className="text-muted">Operations</span><p className="mt-0.5 text-slate-200">{operationCountsLabel(data.tool_calls)}</p></div>
           <div><span className="text-muted">Sources</span><p className="mt-0.5 text-slate-200">{data.sources.length}</p></div>
         </div>
       </section>
@@ -94,8 +96,7 @@ export function AgentRunEvidencePanel({ runId, traceId }: { runId?: string | nul
 
       {data.tool_calls.length ? (
         <section className="rounded-xl border border-border/75 bg-background/25 p-3">
-          <p className="mb-2 text-[9px] font-semibold uppercase tracking-wide text-muted">Tool evidence</p>
-          <JsonCodeBlock value={data.tool_calls} maxHeight={240} />
+          <ToolCallsCollapsible toolCalls={data.tool_calls} />
         </section>
       ) : null}
 

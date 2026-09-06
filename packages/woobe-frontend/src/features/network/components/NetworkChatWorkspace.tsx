@@ -1,3 +1,4 @@
+import { isSkillOperation, operationLabel } from '@/features/skills/operations'
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -65,6 +66,7 @@ function activityLabel(eventType: string, event: NetworkRuntimeEvent) {
   if (eventType === 'agent_invocation_completed') return `Agent completed at depth ${event.depth ?? 0}`
   if (eventType === 'agent_invocation_failed') return `Agent failed: ${String(event.data.message ?? event.data.code ?? 'runtime error')}`
   if (eventType === 'agent_invocation_cancelled') return `Agent cancelled at depth ${event.depth ?? 0}`
+  if (['tool_call_started', 'tool_call_completed'].includes(eventType) && isSkillOperation({ tool_name: String(event.data.tool_name ?? '') })) return `${operationLabel({ ...event.data, tool_name: String(event.data.tool_name) })} · ${eventType === 'tool_call_started' ? 'running' : event.data.success === false ? 'failed' : 'completed'}`
   if (eventType === 'tool_call_started') return `Calling tool: ${String(event.data.tool_name ?? 'tool')}`
   if (eventType === 'tool_call_completed') return `Tool completed: ${String(event.data.tool_name ?? 'tool')}`
   if (eventType === 'delegation_started') return `Delegating to ${String(event.data.target ?? event.data.target_node_id ?? 'Agent')}`

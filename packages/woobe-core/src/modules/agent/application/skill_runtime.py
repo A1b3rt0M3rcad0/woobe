@@ -292,6 +292,8 @@ class SkillRuntime:
                     output = {
                         "skill_version_id": skill_version_id,
                         "path": path,
+                        "name": snapshot["package"]["name"],
+                        "version": snapshot["version"],
                         "loaded": True,
                         "already_loaded": not added,
                         "content": "The Context Manager supplies this resource separately without duplicating it in Tool history.",

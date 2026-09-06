@@ -495,3 +495,43 @@ def test_release_identity_changes_with_skill_version_and_restores_exact_snapshot
     assert frozen_enabled_skills(
         restored.settings["runtime_config"], version.project_id
     ) == [version.snapshot()]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "operation", ["skills_search", "skills_activate", "skills_read_resource"]
+)
+async def test_skill_instrumentation_labels_activity_without_changing_transport(
+    operation, monkeypatch
+):
+    from modules.agent.infra.execution import (
+        execution_instrumentation as instrumentation,
+    )
+
+    activity = AsyncMock()
+    event = AsyncMock()
+    monkeypatch.setattr(instrumentation, "emit_agent_activity", activity)
+    monkeypatch.setattr(instrumentation, "emit_runtime_event", event)
+    info, message, payload = await instrumentation.execute_tool_call(
+        execute=AsyncMock(
+            return_value={
+                "success": True,
+                "output": {"name": "invoice-review", "version": "1.0.0"},
+            }
+        ),
+        tool_call={"id": "skill-call", "name": operation, "args": {}},
+        resolved_tool_id="internal-skill-operation",
+    )
+    assert len(activity.call_args_list) == 2
+    for call in activity.call_args_list:
+        assert "Skill" in call.kwargs["message"]
+        assert "tool" not in call.kwargs["message"].lower()
+    assert [call.args[0] for call in event.call_args_list] == [
+        "tool_call_started",
+        "tool_call_completed",
+    ]
+    assert info.tool_name == operation
+    assert message.tool_call_id == "skill-call"
+    assert payload["success"] is True
+    assert payload["skill_name"] == "invoice-review"
+    assert payload["skill_version"] == "1.0.0"

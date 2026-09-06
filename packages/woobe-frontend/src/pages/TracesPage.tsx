@@ -1,3 +1,5 @@
+import { operationCountsLabel, operationEventLabel } from '@/features/skills/operations'
+import { ToolCallsCollapsible } from '@/features/playground/components/ToolCallsCollapsible'
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
@@ -298,7 +300,7 @@ function AgentRunRow({ trace, agentName, networkName, selected, nested = false, 
       <div className="min-w-0 text-xs text-muted">
         <p className="truncate text-slate-300">{environment ?? 'Environment not recorded'}{version ? ` · ${version}` : ''}</p>
         <p className="mt-1 truncate">{trace.provider || 'Provider unknown'} / {trace.model || 'Model unknown'}</p>
-        {(llmCalls != null || toolCalls != null) && <p className="mt-1">{llmCalls ?? 0} LLM · {toolCalls ?? 0} Tools</p>}
+        {(llmCalls != null || toolCalls != null) && <p className="mt-1">{llmCalls ?? 0} LLM · {toolCalls ?? 0} Tool/Skill operations</p>}
       </div>
 
       <RunStatusBadge status={status} />
@@ -351,7 +353,7 @@ function NetworkRunRow({ group, agentNames, selectedKey, expanded, onToggle, onS
 
         <button type="button" onClick={onSelectNetwork} className="min-w-0 text-left text-xs text-muted focus-visible:outline-none">
           <p className="truncate text-slate-300">{group.environment ?? 'Environment not recorded'}{group.versionLabel ? ` · ${group.versionLabel}` : ''}</p>
-          <p className="mt-1">{group.traces.length} Agent Run{group.traces.length === 1 ? '' : 's'} · {toolCalls} Tool{toolCalls === 1 ? '' : 's'}</p>
+          <p className="mt-1">{group.traces.length} Agent Run{group.traces.length === 1 ? '' : 's'} · {toolCalls} Tool/Skill operations</p>
           {failedChildren > 0 && <p className="mt-1 text-amber-300">{failedChildren} child failure{failedChildren === 1 ? '' : 's'}</p>}
         </button>
 
@@ -486,7 +488,7 @@ function AgentRunInspector({ trace, detail, agentName, networkName }: {
           <div><p className="text-[10px] uppercase tracking-wide text-muted">Duration</p><p className="mt-1 text-sm font-medium text-white">{formatLatency(source.total_latency_ms)}</p></div>
           <div><p className="text-[10px] uppercase tracking-wide text-muted">Tokens</p><p className="mt-1 text-sm font-medium text-white">{totalTokens == null ? 'Unknown' : formatTokens(totalTokens)}</p></div>
           <div><p className="text-[10px] uppercase tracking-wide text-muted">Cost</p><p className="mt-1 text-sm font-medium text-white">{source.total_cost_usd == null ? 'Unknown' : formatMoney(source.total_cost_usd)}</p></div>
-          <div><p className="text-[10px] uppercase tracking-wide text-muted">Operations</p><p className="mt-1 text-sm font-medium text-white">{llmCalls.length || asNumber(diagnostics.llm_call_count) || 0} LLM · {toolCalls.length || asNumber(diagnostics.tool_call_count) || 0} Tools</p></div>
+          <div><p className="text-[10px] uppercase tracking-wide text-muted">Operations</p><p className="mt-1 text-sm font-medium text-white">{llmCalls.length || asNumber(diagnostics.llm_call_count) || 0} LLM · {toolCalls.length ? operationCountsLabel(toolCalls) : `${asNumber(diagnostics.tool_call_count) || 0} Tool/Skill operations`}</p></div>
         </div>
       </section>
 
@@ -504,10 +506,10 @@ function AgentRunInspector({ trace, detail, agentName, networkName }: {
       <DetailSection title="Execution timeline" description="Measured phases and operations across the Run lifecycle."><Timeline items={timeline} /></DetailSection>
 
       {(llmCalls.length || toolCalls.length || sources.length) ? (
-        <DetailSection title="Operations" description="Model calls, Tools and Knowledge used inside this Agent Run.">
+        <DetailSection title="Operations" description="Model calls, Skills, Tools and Knowledge used inside this Agent Run.">
           <div className="space-y-4">
             {llmCalls.length ? <div><div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-200"><Cpu className="h-3.5 w-3.5 text-primary-light" />LLM Calls <span className="text-muted">{llmCalls.length}</span></div><div className="space-y-2">{llmCalls.map((call, index) => <div key={asString(call.call_id) ?? `${index}`} className="grid gap-2 rounded-lg border border-border/70 bg-background/40 p-3 sm:grid-cols-[minmax(0,1fr)_90px_90px]"><div className="min-w-0"><p className="truncate text-xs font-medium text-white">{asString(call.provider) ?? 'Provider unknown'} / {asString(call.model) ?? 'Model unknown'}</p><p className="mt-1 text-[10px] text-muted">{asString(call.phase) ?? 'inference'} · {asString(call.status) ?? 'unknown'}</p></div><p className="text-xs text-muted sm:text-right">{formatLatency(asNumber(call.latency_ms))}</p><p className="text-xs text-muted sm:text-right">{asNumber(call.cost_usd) == null ? 'Cost unknown' : formatMoney(asNumber(call.cost_usd)!)}</p></div>)}</div></div> : null}
-            {toolCalls.length ? <div><div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-200"><Wrench className="h-3.5 w-3.5 text-violet-300" />Tool Calls <span className="text-muted">{toolCalls.length}</span></div><div className="space-y-2">{toolCalls.map((call, index) => <div key={asString(call.tool_call_id) ?? `${index}`} className="rounded-lg border border-border/70 bg-background/40 p-3"><div className="flex items-center justify-between gap-3"><p className="truncate text-xs font-medium text-white">{asString(call.tool_name) ?? 'Unknown Tool'}</p><span className={cn('text-[10px]', call.success === false || call.status === 'error' ? 'text-red-300' : 'text-emerald-300')}>{asString(call.status) ?? (call.success === false ? 'error' : 'success')}</span></div><p className="mt-1 text-[10px] text-muted">{formatLatency(asNumber(call.duration_ms ?? call.latency_ms))}</p></div>)}</div></div> : null}
+            {toolCalls.length ? <ToolCallsCollapsible toolCalls={toolCalls.map(call => ({ ...call, tool_name: asString(call.tool_name) ?? 'Unknown Tool', duration_ms: asNumber(call.duration_ms) ?? undefined, status: asString(call.status), success: typeof call.success === 'boolean' ? call.success : null }))} /> : null}
             {sources.length ? <div><div className="mb-2 flex items-center gap-2 text-xs font-medium text-slate-200"><Database className="h-3.5 w-3.5 text-violet-300" />Knowledge sources <span className="text-muted">{sources.length}</span></div><div className="space-y-2">{sources.map((item, index) => <div key={asString(item.chunk_id) ?? asString(item.document_id) ?? `${index}`} className="rounded-lg border border-border/70 bg-background/40 p-3"><p className="truncate text-xs font-medium text-white">{asString(item.document_title) ?? 'Knowledge source'}</p><p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted">{asString(item.content_preview) ?? 'No content preview recorded.'}</p></div>)}</div></div> : null}
           </div>
         </DetailSection>
@@ -519,7 +521,7 @@ function AgentRunInspector({ trace, detail, agentName, networkName }: {
             <div className="rounded-lg border border-border/70 bg-background/40 p-3"><p className="text-[10px] uppercase tracking-wide text-muted">Trace ID</p><code className="mt-2 block truncate text-xs text-white">{source.id}</code></div>
             <div className="rounded-lg border border-border/70 bg-background/40 p-3"><p className="text-[10px] uppercase tracking-wide text-muted">Agent ID</p><code className="mt-2 block truncate text-xs text-white">{source.agent_id ?? '—'}</code></div>
           </div>
-          {detail?.events?.length ? <details className="rounded-lg border border-border/70 bg-background/40 p-3"><summary className="cursor-pointer text-xs font-medium text-slate-200">Recorded events · {detail.events.length}</summary><div className="mt-3 space-y-2">{detail.events.map((event: TraceEvent) => <div key={event.id} className="rounded-lg border border-border/60 bg-background/60 p-3"><div className="flex items-center justify-between gap-3"><code className="truncate text-[10px] text-white">{event.event_type}</code><span className="text-[9px] text-muted">{event.created_at ? formatDateTime(event.created_at) : '—'}</span></div>{event.payload ? <JsonCodeBlock value={event.payload} maxHeight={150} className="mt-2" /> : null}</div>)}</div></details> : null}
+          {detail?.events?.length ? <details className="rounded-lg border border-border/70 bg-background/40 p-3"><summary className="cursor-pointer text-xs font-medium text-slate-200">Recorded events · {detail.events.length}</summary><div className="mt-3 space-y-2">{detail.events.map((event: TraceEvent) => <div key={event.id} className="rounded-lg border border-border/60 bg-background/60 p-3"><div className="flex items-center justify-between gap-3"><code className="truncate text-[10px] text-white">{operationEventLabel(event.event_type, event.payload)}</code><span className="text-[9px] text-muted">{event.created_at ? formatDateTime(event.created_at) : '—'}</span></div>{event.payload ? <JsonCodeBlock value={event.payload} maxHeight={150} className="mt-2" /> : null}</div>)}</div></details> : null}
           <details className="rounded-lg border border-border/70 bg-background/40 p-3"><summary className="cursor-pointer text-xs font-medium text-slate-200">Raw Trace</summary><JsonCodeBlock value={detail ?? trace} maxHeight={320} className="mt-3" /></details>
         </div>
       </DetailSection>
@@ -549,7 +551,7 @@ function NetworkRunInspector({ group, agentNames, onSelectAgent }: { group: Netw
         <div className="mt-4 grid gap-3 border-t border-border/70 pt-4 sm:grid-cols-2 xl:grid-cols-5">
           <div><p className="text-[10px] uppercase tracking-wide text-muted">Duration</p><p className="mt-1 text-sm font-medium text-white">{formatLatency(group.durationMs)}</p></div>
           <div><p className="text-[10px] uppercase tracking-wide text-muted">Agent Runs</p><p className="mt-1 text-sm font-medium text-white">{group.traces.length}</p></div>
-          <div><p className="text-[10px] uppercase tracking-wide text-muted">Tools</p><p className="mt-1 text-sm font-medium text-white">{totalTools}</p></div>
+          <div><p className="text-[10px] uppercase tracking-wide text-muted">Tool/Skill operations</p><p className="mt-1 text-sm font-medium text-white">{totalTools}</p></div>
           <div><p className="text-[10px] uppercase tracking-wide text-muted">Tokens</p><p className="mt-1 text-sm font-medium text-white">{totalTokens ? formatTokens(totalTokens) : 'Unknown'}</p></div>
           <div><p className="text-[10px] uppercase tracking-wide text-muted">Cost</p><p className="mt-1 text-sm font-medium text-white">{group.costUsd == null ? 'Partial/unknown' : formatMoney(group.costUsd)}</p></div>
         </div>
@@ -791,7 +793,7 @@ export default function TracesPage() {
                 detailLoading ? <LoadingState message="Loading Agent Run" variant="panel" /> : <AgentRunInspector trace={selectedAgent} detail={selectedAgentDetail} agentName={selectedAgent.agent_id ? agentNames.get(selectedAgent.agent_id) ?? `Agent ${compactId(selectedAgent.agent_id)}` : 'Agent Run'} networkName={selectedAgent.network_id ? networkNames.get(selectedAgent.network_id) : null} />
               ) : (
                 <div className="flex min-h-[420px] items-center justify-center rounded-xl border border-dashed border-border/80 bg-surface/35 p-8 text-center">
-                  <div><Activity className="mx-auto h-8 w-8 text-muted/40" /><h3 className="mt-3 text-sm font-semibold text-white">Select a Run</h3><p className="mt-2 max-w-sm text-xs leading-5 text-muted">Inspect the execution path of a Network Run or open an Agent Run to review its timeline, model calls, Tools, Knowledge and Trace evidence.</p></div>
+                  <div><Activity className="mx-auto h-8 w-8 text-muted/40" /><h3 className="mt-3 text-sm font-semibold text-white">Select a Run</h3><p className="mt-2 max-w-sm text-xs leading-5 text-muted">Inspect the execution path of a Network Run or open an Agent Run to review its timeline, model calls, Skills, Tools, Knowledge and Trace evidence.</p></div>
                 </div>
               )}
             </aside>

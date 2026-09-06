@@ -1,3 +1,4 @@
+import { skillActivityLabel } from '@/features/skills/operations'
 import { useState, type ReactNode } from 'react'
 import {
   AlertCircle,
@@ -92,6 +93,8 @@ function SourcesCollapsible({
 }
 
 function activityMessage(activity?: AgentActivityInfo | null): string {
+  const skillLabel = activity && skillActivityLabel(activity)
+  if (skillLabel) return skillLabel
   if (activity?.message) return activity.message
   if (activity?.status === 'planning_tools') return 'Checking whether tools are needed...'
   if (activity?.status === 'calling_tool') return activity.tool_name ? `Calling tool: ${activity.tool_name}...` : 'Calling tool...'

@@ -1,3 +1,4 @@
+import { operationCountsLabel, operationLabel, operationEventLabel } from '@/features/skills/operations'
 import { useState, useRef, useLayoutEffect } from 'react'
 import { useTraceDetail } from '@/features/traces/hooks'
 import { normalizeTraceDetail } from '@/features/traces/normalizers'
@@ -218,7 +219,7 @@ function ToolCallList({ toolCalls }: { toolCalls: { tool_name: string; status?: 
           ) : (
             <HelpCircle className="h-3.5 w-3.5 text-muted shrink-0" />
           )}
-          <span className="text-xs text-white flex-1 truncate">{tc.tool_name}</span>
+          <span className="text-xs text-white flex-1 truncate">{operationLabel(tc)}</span>
           {tc.status && (
             <span className={cn(
               'text-[10px] font-medium',
@@ -246,7 +247,7 @@ function EventTimeline({ events }: { events: TraceEvent[] }) {
       {events.map((evt) => (
         <div key={evt.id} className="rounded-lg border border-border bg-background px-3 py-2">
           <div className="flex items-center justify-between">
-            <code className="text-[11px] text-white font-mono">{evt.event_type}</code>
+            <code className="text-[11px] text-white font-mono">{operationEventLabel(evt.event_type, evt.payload)}</code>
             <span className="text-[10px] text-muted">{evt.created_at ? new Date(evt.created_at).toLocaleTimeString() : ''}</span>
           </div>
           {evt.payload && <JsonCodeBlock value={evt.payload} maxHeight={96} className="mt-1" />}
@@ -344,7 +345,7 @@ function DetailView({ traceId, projectId, agentId, sessionId, messageId, status,
             </CollapsibleSection>
           )}
           {toolCalls && toolCalls.length > 0 && (
-            <CollapsibleSection title="Tool Calls" badge={`${toolCalls.length}`}>
+            <CollapsibleSection title={operationCountsLabel(toolCalls)}>
               <ToolCallList toolCalls={toolCalls} />
             </CollapsibleSection>
           )}
@@ -515,7 +516,7 @@ function LocalTraceDetail({ trace, onBack }: { trace: TraceItem; onBack: () => v
               </CollapsibleSection>
             )}
             {response.tool_calls && response.tool_calls.length > 0 && (
-              <CollapsibleSection title="Tool Calls" badge={`${response.tool_calls.length}`}>
+              <CollapsibleSection title={operationCountsLabel(response.tool_calls)}>
                 <ToolCallList toolCalls={response.tool_calls} />
               </CollapsibleSection>
             )}

@@ -1,3 +1,4 @@
+import { isSkillOperation } from '@/features/skills/operations'
 import type { SourceInfo, ToolCallInfo, UsageInfo } from '@/features/playground/types'
 import type { NetworkRuntimeEvent } from '@/features/network/types'
 
@@ -124,8 +125,12 @@ export function operationalTools(tools: ToolCallInfo[]): ToolCallInfo[] {
 }
 
 export function toolCount(root: NetworkAgentInvocation): number {
-  return operationalTools(root.tools).length
+  return operationalTools(root.tools).filter(tool => !isSkillOperation(tool)).length
     + root.children.reduce((total, child) => total + toolCount(child), 0)
+}
+
+export function skillCount(root: NetworkAgentInvocation): number {
+  return root.tools.filter(isSkillOperation).length + root.children.reduce((total, child) => total + skillCount(child), 0)
 }
 
 export function sourceCount(root: NetworkAgentInvocation): number {
@@ -267,7 +272,7 @@ function markRunningToolsFailed(tools: ToolCallInfo[]): ToolCallInfo[] {
           success: false,
           status: 'error',
           error_code: tool.error_code ?? 'execution_stopped',
-          error: tool.error ?? 'Network execution stopped before the Tool completed.',
+          error: tool.error ?? `Network execution stopped before the ${isSkillOperation(tool) ? 'Skill operation' : 'Tool'} completed.`,
         }
       : tool
   ))

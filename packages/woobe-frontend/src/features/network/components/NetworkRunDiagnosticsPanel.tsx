@@ -71,7 +71,7 @@ function sourceLabel(source: string) {
     case 'SESSION': return 'Conversation'
     case 'USER_INPUT': return 'Current input'
     case 'KNOWLEDGE': return 'Knowledge'
-    case 'TOOL': return 'Tool results'
+    case 'TOOL': return 'Tool/Skill results'
     case 'DELEGATION': return 'Delegation'
     case 'RUNTIME': return 'Runtime'
     case 'ARTIFACT': return 'Artifacts'
@@ -201,14 +201,14 @@ function ExecutionDiagnostics({ data }: { data: NetworkRunDiagnostics }) {
         <Metric label="Network wall" value={formatLatency(data.network_wall_latency_ms)} icon={Activity} />
         <Metric label="Agent work" value={formatLatency(data.agent_work_latency_ms)} icon={Bot} />
         <Metric label="LLM total" value={formatLatency(data.llm_runtime_latency_ms)} icon={Cpu} />
-        <Metric label="Tool work" value={formatLatency(data.tool_work_latency_ms)} icon={Wrench} />
+        <Metric label="Tool/Skill work" value={formatLatency(data.tool_work_latency_ms)} icon={Wrench} />
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-muted">
         <span>{data.agent_run_count} Agent Run{data.agent_run_count === 1 ? '' : 's'}</span>
         <span className="inline-flex items-center gap-1"><GitBranch className="h-3 w-3" />{data.delegation_count} delegation{data.delegation_count === 1 ? '' : 's'}</span>
         <span>{data.llm_call_count} LLM call{data.llm_call_count === 1 ? '' : 's'}</span>
-        <span>{data.tool_call_count} Tool call{data.tool_call_count === 1 ? '' : 's'}</span>
+        <span>{data.tool_call_count} Tool/Skill operations</span>
         <span className="inline-flex items-center gap-1 text-emerald-400"><CheckCircle className="h-3 w-3" />{data.successful_tool_calls}</span>
         <span className="inline-flex items-center gap-1 text-red-400"><XCircle className="h-3 w-3" />{data.failed_tool_calls}</span>
         <span>Depth {data.max_depth}</span>
