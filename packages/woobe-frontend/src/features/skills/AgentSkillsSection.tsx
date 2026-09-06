@@ -1,5 +1,7 @@
+import { Link, useParams, useSearchParams } from 'react-router-dom'
+import { workspaceProjectPath } from '@/lib/constants/routes'
 import { useState } from 'react'
-import { ChevronDown, Puzzle, Trash2 } from 'lucide-react'
+import { Puzzle, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useContextAssemblers } from '@/features/agents/hooks'
@@ -9,8 +11,11 @@ import { ManageSkillsDialog } from './ManageSkillsDialog'
 
 export function AgentSkillsSection({ projectId }: { projectId: string }) {
   const { state, setField } = useAgentEditor()
-  const { data: managers = [], isPending, isError } = useContextAssemblers()
-  const [open, setOpen] = useState(false)
+  const { data: managers = [], isPending, isError, refetch } = useContextAssemblers()
+  const { workspaceId } = useParams<{ workspaceId: string }>()
+  const [params] = useSearchParams()
+  const initialVersionId = params.get('skill_version_id') ?? undefined
+  const [open, setOpen] = useState(Boolean(initialVersionId))
   const config = skillsConfig(state.runtimeConfig)
   const selection = record(state.runtimeConfig.context_assembler)
   const manager = managers.find(item => item.supports_skills && item.name === selection.name && item.version === selection.version)
@@ -21,12 +26,11 @@ export function AgentSkillsSection({ projectId }: { projectId: string }) {
   const updateBudget = (key: string, value: number) => setField('runtimeConfig', { ...state.runtimeConfig, context: { ...context, skills: { ...policy, [key]: value } } })
 
   return <>
-    <details className="group rounded-xl border border-border bg-surface">
-      <summary className="flex cursor-pointer list-none items-center gap-3 p-4 [&::-webkit-details-marker]:hidden">
+    <section className="rounded-xl border border-border bg-surface" aria-label="Installed Skills">
+      <div className="flex items-center gap-3 p-4">
         <Puzzle className="h-4 w-4 shrink-0 text-primary" />
         <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Skills</span><span className="mt-0.5 block text-[11px] text-muted">{config.bindings.length ? `${config.bindings.length} installed · ${enabled} enabled` : 'Procedures available when needed'}</span></span>
-        <ChevronDown className="h-4 w-4 text-muted transition-transform group-open:rotate-180" />
-      </summary>
+      </div>
       <div className="space-y-4 border-t border-border p-4">
         <p className="text-xs leading-5 text-muted">The Agent discovers installed Skills and loads their instructions when needed. Loaded content stays available for the current Run.</p>
         {config.bindings.map(binding => {
@@ -47,8 +51,10 @@ export function AgentSkillsSection({ projectId }: { projectId: string }) {
             {snapshot?.package.description && <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-muted">{snapshot.package.description}</p>}
           </div>
         })}
-        <Button className="w-full" size="sm" variant="outline" disabled={!manager || !projectId} onClick={() => setOpen(true)}>Manage Skills</Button>
-        {!manager && <p role={isError ? 'alert' : 'status'} className="text-xs text-muted">{isPending ? 'Loading compatible Context Managers…' : isError ? 'Unable to load Context Managers. Reopen the editor to retry.' : 'No installed Context Manager supports Skills.'}</p>}
+        <Button className="w-full" size="sm" variant="outline" disabled={!projectId} onClick={() => setOpen(true)}>Manage Skills</Button>
+        {!manager && <p role={isError ? 'alert' : 'status'} className="text-xs text-muted">{isPending ? 'Loading compatible Context Managers…' : isError ? 'Unable to load compatible Context Managers.' : 'No installed Context Manager supports Skills.'}</p>}
+        {isError && <Button size="sm" variant="ghost" onClick={() => void refetch()}>Retry Context Managers</Button>}
+        <Link to={workspaceProjectPath(workspaceId, projectId, 'skills')} className="block text-center text-xs text-primary-light hover:underline">Open Project Skills</Link>
         {!!config.bindings.length && <details className="text-xs text-muted">
           <summary className="cursor-pointer">Context budget</summary>
           <div className="mt-3 space-y-3">
@@ -58,7 +64,7 @@ export function AgentSkillsSection({ projectId }: { projectId: string }) {
           </div>
         </details>}
       </div>
-    </details>
-    {open && manager && <ManageSkillsDialog projectId={projectId} bindings={config.bindings} managerName={manager.display_name} onClose={() => setOpen(false)} onInstall={snapshot => setField('runtimeConfig', installSkill(state.runtimeConfig, snapshot, manager))} />}
+    </section>
+    {open && <ManageSkillsDialog projectId={projectId} bindings={config.bindings} managerName={manager?.display_name} initialVersionId={initialVersionId} installDisabled={!manager} onClose={() => setOpen(false)} onInstall={snapshot => { if (manager) setField('runtimeConfig', installSkill(state.runtimeConfig, snapshot, manager)) }} />}
   </>
 }

@@ -4,11 +4,17 @@ Skills are reusable, versioned procedures owned by a Project. An Agent installs 
 
 ## Configure an Agent
 
-In the shared standalone / Network left sidebar, open **Agent → Skills → Manage Skills**. Import `SKILL.md` or a package folder, review an immutable version, and install it on the Agent draft. Importing publishes a version to the Project catalog immediately; installation, version changes, enabling/disabling and removal are persisted through the existing **Save changes** flow. Releasing and rolling back an Agent preserve its pinned Skill versions and context policy.
+Open **Build → Skills** in the Project sidebar, alongside Tools, Models and Credentials. **All Skills** lists the Project catalog with search, paging and version review. **Create Skill** provides name, usage description and instruction fields; **Import Skill** accepts `SKILL.md` or a package folder. Both publish immutable versions through the same server-validated catalog API.
 
-Installation selects a registered Context Manager with `supports_skills`. The built-in implementation is **Standard Context Manager v2 (`stdcm:v2`)**. Historical `stdcm:v1` and `default:v1` selections continue to use v1. Enabled Skills cannot be saved with an incompatible manager or a policy that excludes SKILL or TOOL.
+**Installed on Agents** lists fixed versions in saved Agent configurations, including disabled bindings, with search by Skill or Agent and links to configure each Agent. It does not count unsaved edits or historical Releases as current installations. Loading and request failures are shown separately from empty results.
 
-The collapsed Skills section shows installed/enabled counts. Expanded controls contain bindings and optional context budgets; the existing sidebar tabs are unchanged. Release details show exact versions and package hashes.
+From a version, choose **Install on Agent**, select the Agent, then review the selected version in its Skills editor. Installation, version changes, enabling/disabling and removal are persisted with the editor’s existing **Save** flow. Importing/creating a catalog version happens immediately and does not itself install it on an Agent. Releasing and rolling back preserve pinned Skill versions and context policy.
+
+Both the standalone Inspector and the Network Agent editor expose an explicit **Skills** tab. They use the same six-section navigation component, arranged in two rows so Skills remains visible in narrow panels. The old collapsed placement below the System Prompt was removed. Release details continue to show fixed versions and hashes.
+
+The Project page is available at `/workspaces/:workspaceId/projects/:projectId/skills`; `/projects/:projectId/skills` uses the existing legacy redirect. Agent links use `?editor=skills`, optionally with `skill_version_id`, to open the requested version for review. Following a link never installs or saves a version implicitly.
+
+Installation selects a registered Context Manager with `supports_skills`. The built-in implementation is **Standard Context Manager v2 (`stdcm:v2`)**. Historical `stdcm:v1` and `default:v1` selections continue to use v1. Enabled Skills cannot be saved with an incompatible manager or a policy that excludes SKILL or TOOL. Catalog browsing, creation and import remain available if manager metadata is unavailable; installation stays disabled until compatibility is known.
 
 ## Package contract
 

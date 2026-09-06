@@ -1,6 +1,6 @@
-import { useState } from 'react'
-import { Edit3, Rocket, Bot, FileJson, Cpu, BookOpen, Wrench, Save, RotateCcw, Lock } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { Edit3, Rocket, Save, RotateCcw, Lock } from 'lucide-react'
+import { AgentEditorNavigation, useAgentEditorSection } from '@/features/agents/components/AgentEditorNavigation'
+import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
 import { InspectorTabs } from './InspectorTabs'
 import { AgentSettingsTab } from './AgentSettingsTab'
 import { ModelSettingsTab } from './ModelSettingsTab'
@@ -29,13 +29,6 @@ interface AgentInspectorProps {
   onCollapse?: () => void
 }
 
-const editorSubTabs = [
-  { id: 'agent', label: 'Agent', icon: <Bot className="h-3 w-3" /> },
-  { id: 'output', label: 'Output', icon: <FileJson className="h-3 w-3" /> },
-  { id: 'model', label: 'Model', icon: <Cpu className="h-3 w-3" /> },
-  { id: 'knowledge', label: 'Knowledge', icon: <BookOpen className="h-3 w-3" /> },
-  { id: 'tools', label: 'Tools', icon: <Wrench className="h-3 w-3" /> },
-]
 
 function titleCaseEnvironment(environment: RuntimeEnvironment) {
   return environment.charAt(0).toUpperCase() + environment.slice(1)
@@ -167,34 +160,19 @@ function EditorActions({ agent, projectId }: { agent: Agent; projectId: string }
 }
 
 function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; projectId: string; agentId: string }) {
-  const [editorTab, setEditorTab] = useState('agent')
+  const [editorTab, setEditorTab] = useAgentEditorSection()
 
   return (
     <div className="flex flex-col h-full">
       <EditorHeader />
       <EditorActions agent={agent} projectId={projectId} />
-      <div className="flex gap-1 border-b border-border/90 bg-surface/70 p-1.5 shrink-0">
-        {editorSubTabs.map((sub) => (
-          <button
-            key={sub.id}
-            onClick={() => setEditorTab(sub.id)}
-            className={cn(
-              'flex-1 flex items-center justify-center gap-1 rounded-lg border px-1.5 py-2 text-[11px] font-medium transition-colors',
-              editorTab === sub.id
-                ? 'border-primary/35 bg-primary/10 text-primary-light shadow-sm shadow-primary/5'
-                : 'border-transparent text-muted hover:border-border/80 hover:bg-background/60 hover:text-white',
-            )}
-          >
-            {sub.icon}
-            {sub.label}
-          </button>
-        ))}
-      </div>
+      <AgentEditorNavigation value={editorTab} onChange={setEditorTab} />
       <ScrollArea className="flex-1 min-h-0">
         {editorTab === 'agent' && <AgentSettingsTab />}
         {editorTab === 'output' && <OutputSettingsTab />}
         {editorTab === 'model' && <ModelSettingsTab projectId={projectId} />}
         {editorTab === 'knowledge' && <KnowledgeTab projectId={projectId} agentId={agentId} />}
+        {editorTab === 'skills' && <div className="p-4"><AgentSkillsSection projectId={projectId} /></div>}
         {editorTab === 'tools' && <ToolsTab projectId={projectId} agentId={agentId} />}
       </ScrollArea>
     </div>

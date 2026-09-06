@@ -26,6 +26,7 @@ import NetworkWorkspaceRoute from '@/pages/NetworkWorkspaceRoute'
 import KnowledgePage from '@/pages/KnowledgePage'
 import ToolsPage from '@/pages/ToolsPage'
 import ModelsPage from '@/pages/ModelsPage'
+import SkillsPage from '@/pages/SkillsPage'
 import CredentialsPage from '@/pages/CredentialsPage'
 import McpConnectCallbackPage from '@/pages/McpConnectCallbackPage'
 import UsagePage from '@/pages/UsagePage'
@@ -187,6 +188,7 @@ export function AppRouter() {
               <Route path="/workspaces/:workspaceId/projects/:projectId/agents/:agentId/playground" element={<AgentPlaygroundPage />} />
               <Route path="/workspaces/:workspaceId/projects/:projectId/knowledge" element={<KnowledgePage />} />
               <Route path="/workspaces/:workspaceId/projects/:projectId/tools" element={<ToolsPage />} />
+              <Route path="/workspaces/:workspaceId/projects/:projectId/skills" element={<SkillsPage />} />
               <Route path="/workspaces/:workspaceId/projects/:projectId/models" element={<ModelsPage />} />
               <Route path="/workspaces/:workspaceId/projects/:projectId/credentials" element={<CredentialsPage />} />
               <Route path="/workspaces/:workspaceId/projects/:projectId/api-keys" element={<ApiKeysPage />} />
@@ -209,6 +211,7 @@ export function AppRouter() {
           <Route path="/projects/:projectId/agents/:agentId/playground" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/knowledge" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/tools" element={<LegacyProjectRedirect />} />
+          <Route path="/projects/:projectId/skills" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/models" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/credentials" element={<LegacyProjectRedirect />} />
           <Route path="/projects/:projectId/api-keys" element={<LegacyProjectRedirect />} />

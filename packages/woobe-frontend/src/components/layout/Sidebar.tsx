@@ -6,6 +6,7 @@ import {
   Bot,
   BookOpen,
   Wrench,
+  Puzzle,
   Boxes,
   Cable,
   Key,
@@ -40,6 +41,7 @@ const buildNavItems: NavItem[] = [
   { label: 'Agents', icon: Bot, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'agents') },
   { label: 'Knowledge', icon: BookOpen, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'knowledge') },
   { label: 'Tools', icon: Wrench, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'tools') },
+  { label: 'Skills', icon: Puzzle, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'skills') },
   { label: 'Models', icon: Boxes, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'models') },
   { label: 'Credentials', icon: Cable, href: (workspaceId: string, projId: string) => workspaceProjectPath(workspaceId, projId, 'credentials') },
 ]
