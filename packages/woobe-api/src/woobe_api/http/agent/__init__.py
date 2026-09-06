@@ -21,7 +21,10 @@ from woobe_api.http.agent.vector_snapshot_routes import (
     router as vector_snapshot_router,
 )
 
+from woobe_api.http.agent.skill_routes import router as skill_router
+
 HTTP_ROUTERS = (
+    skill_router,
     context_assembler_router,
     credential_router,
     release_activation_router,

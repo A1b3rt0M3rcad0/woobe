@@ -153,6 +153,9 @@ class ContextAssemblyRuntimeContext(Protocol):
     """
 
     @property
+    def skill_context(self) -> list[dict[str, Any]] | None: ...
+
+    @property
     def run_id(self) -> UUID | None: ...
 
     @property

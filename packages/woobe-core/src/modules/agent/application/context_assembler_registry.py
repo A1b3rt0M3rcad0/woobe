@@ -5,6 +5,7 @@ from copy import deepcopy
 from dataclasses import dataclass, replace
 
 from modules.agent.application.context_managers.standard import StandardContextAssembler
+from modules.agent.application.context_managers.standard_v2 import StandardSkillsContextAssembler
 from modules.agent.application.interfaces.context_assembler import (
     LEGACY_DEFAULT_CONTEXT_ASSEMBLER_KEY,
     STANDARD_CONTEXT_ASSEMBLER_KEY,
@@ -35,6 +36,7 @@ class ContextAssemblerDescriptor:
     capabilities: tuple[str, ...]
     limitations: tuple[str, ...]
     configuration: str
+    supports_skills: bool = False
     is_default: bool = False
     is_system_default_alias: bool = False
 
@@ -76,6 +78,7 @@ class ContextAssemblerDescriptor:
             "capabilities": list(self.capabilities),
             "limitations": list(self.limitations),
             "configuration": self.configuration,
+            "supports_skills": self.supports_skills,
             "is_default": self.is_default,
             "is_system_default_alias": self.is_system_default_alias,
         }
@@ -279,6 +282,19 @@ def _register_builtin_context_manager_strategies(
     must not import the concrete implementation directly.
     """
 
+    skills_key = ContextAssemblerKey(name="stdcm", version="v2")
+    registry.register(
+        skills_key, lambda: StandardSkillsContextAssembler(StandardContextAssembler()),
+        descriptor=replace(
+            _STANDARD_DESCRIPTOR, key=skills_key, strategy_key=skills_key,
+            display_name="Standard Context Manager v2", supports_skills=True,
+            description="Deterministic context management with versioned Skills loaded on demand.",
+            behavior="Loads compact Skill discovery metadata and protects activated instructions and resources until the Agent Run ends. Preserves v1 source handling for other context.",
+            capabilities=(*_STANDARD_DESCRIPTOR.capabilities, "Loads Skills on demand with per-Run retention, bounded discovery, and exact package provenance."),
+            limitations=("Skills support text instructions and resources; arbitrary scripts are not executed.", "Activated instructions cannot be compacted; an insufficient budget blocks the invocation."),
+            configuration="Context Policy v1 with Skills budgets",
+        ),
+    )
     registry.register(
         STANDARD_CONTEXT_ASSEMBLER_KEY,
         StandardContextAssembler,

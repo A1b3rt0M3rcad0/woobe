@@ -1,3 +1,4 @@
+import { SkillSnapshotSummary } from '@/features/skills/SkillSnapshotSummary'
 import { FileText, Package, Sparkles } from 'lucide-react'
 
 import { Badge } from '@/components/ui/Badge'
@@ -82,6 +83,7 @@ export function ReleaseDetailsView({ release }: ReleaseDetailsViewProps) {
 
   return (
     <div className="space-y-5">
+      <SkillSnapshotSummary runtimeConfig={release.runtime_config} />
       <section className="rounded-xl border border-border/80 bg-background/35 p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">

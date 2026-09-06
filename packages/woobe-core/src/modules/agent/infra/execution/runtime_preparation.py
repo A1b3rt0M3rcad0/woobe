@@ -7,6 +7,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID
 
+from modules.agent.application.skill_bindings import freeze_skill_bindings
 from modules.agent.application.interfaces.context_policy import canonicalize_context_runtime_config
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ToolStatus
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
@@ -259,3 +260,11 @@ def build_execution_snapshot(
             "embedding_dimensions": vector_snapshot.embedding_dimensions,
         }
     return json_safe(snapshot)
+
+
+async def prepare_skill_state(repositories: AgentRuntimeRepositories, *, agent: Any) -> None:
+    settings = deepcopy(agent.settings or {})
+    runtime = settings.get("runtime_config")
+    if isinstance(runtime, dict) and "skills" in runtime:
+        settings["runtime_config"] = await freeze_skill_bindings(repositories.skills, project_id=agent.project_id, runtime_config=runtime)
+        agent.settings = settings

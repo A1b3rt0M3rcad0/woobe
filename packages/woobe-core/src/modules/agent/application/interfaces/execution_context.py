@@ -55,6 +55,9 @@ class RequestExecutionContext:
         Callable[[dict], Awaitable[dict]],
     ] | None = None
 
+    # Run-local procedural content, never serialized as Session history.
+    skill_context: list[dict[str, Any]] | None = None
+
     # Context Engineering evidence. These values are configuration/provenance only;
     # raw secrets and full materialized prompts must never be stored here.
     context_policy: dict[str, Any] | None = None

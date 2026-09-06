@@ -1,10 +1,11 @@
+import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
 import { AgentContextAssemblerField } from '@/features/agents/components/AgentContextAssemblerField'
 import { AgentSessionModeField } from '@/features/agents/components/AgentSessionModeField'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 
-export function NetworkAgentFields() {
+export function NetworkAgentFields({ projectId }: { projectId: string }) {
   const { state, setField } = useAgentEditor()
   return (
     <div className="space-y-4 p-4">
@@ -20,6 +21,7 @@ export function NetworkAgentFields() {
         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">System Prompt</p>
         <Textarea value={state.systemPrompt} onChange={(event) => setField('systemPrompt', event.target.value)} className="min-h-[160px] resize-y font-mono text-xs leading-relaxed" placeholder="System instructions..." />
       </section>
+      <AgentSkillsSection projectId={projectId} />
       <AgentSessionModeField />
     </div>
   )

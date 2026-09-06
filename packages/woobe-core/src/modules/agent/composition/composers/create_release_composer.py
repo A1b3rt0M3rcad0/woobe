@@ -1,3 +1,4 @@
+from modules.agent.infra.database.skill_repository import SQLAlchemySkillRepository
 from modules.agent.application.use_cases.knowledge_release_validator import KnowledgeReleaseValidator
 from modules.agent.application.use_cases.knowledge_safe_release_lifecycle import KnowledgeSafeCreateReleaseUseCase
 from modules.agent.application.use_cases.session_mode_compatible_release import SessionModeCompatibleCreateReleaseUseCase
@@ -24,7 +25,7 @@ def create_release_composer() -> TransactionalHandler:
     tool_repo = SQLAlchemyAgentToolRepository(uow)
     agent_repo = SQLAlchemyAgentRepositoryWithProviderModels(uow)
     validator = KnowledgeReleaseValidator(knowledge_repo, vector_repo)
-    release_use_case = KnowledgeSafeCreateReleaseUseCase(release_repo, validator, tool_repo)
+    release_use_case = KnowledgeSafeCreateReleaseUseCase(release_repo, validator, tool_repo, SQLAlchemySkillRepository(uow))
     use_case = SessionModeCompatibleCreateReleaseUseCase(release_use_case, agent_repo)
     controller = CreateReleaseController(use_case)
     return TransactionalHandler(uow, controller.handle)

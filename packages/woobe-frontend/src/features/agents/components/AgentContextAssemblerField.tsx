@@ -1,3 +1,4 @@
+import { skillsConfig } from '@/features/skills/config'
 import { useMemo, useState } from 'react'
 import { BrainCircuit, Check, ChevronRight } from 'lucide-react'
 
@@ -163,7 +164,8 @@ export function AgentContextAssemblerField() {
     ? selectionKey(selected)
     : selectionKey(focused.selectionDescriptor)
   const catalogReady = !isLoading && !isError && assemblers.length > 0
-  const canApplySelection = catalogReady && focused.catalogBacked && !focusedIsCurrent
+  const incompatibleSkills = skillsConfig(state.runtimeConfig).bindings.some(item => item.enabled) && !focusedDescriptor.supports_skills
+  const canApplySelection = catalogReady && focused.catalogBacked && !focusedIsCurrent && !incompatibleSkills
 
   const openSelector = () => {
     setFocusedStrategyKey(selectedStrategyKey)
@@ -382,6 +384,7 @@ export function AgentContextAssemblerField() {
               </p>
               <div className="flex shrink-0 items-center gap-2">
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+                {incompatibleSkills && <p role="alert" className="max-w-xs text-xs text-amber-400">Disable installed Skills before selecting a manager without Skills support.</p>}
                 <Button onClick={applySelection} disabled={!canApplySelection}>
                   {focusedIsCurrent ? 'Selected' : 'Select manager'}
                 </Button>

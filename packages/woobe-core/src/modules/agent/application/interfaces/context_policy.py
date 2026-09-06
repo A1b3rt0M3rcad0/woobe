@@ -108,8 +108,15 @@ def _default_source_priorities() -> dict[ContextSourceType, ContextPriority]:
     }
 
 
+class SkillContextPolicy(BaseModel):
+    catalog_max_units: int = Field(default=2000, ge=128, le=100_000)
+    max_units: int = Field(default=8000, ge=256, le=1_000_000)
+    search_limit: int = Field(default=8, ge=1, le=50)
+
+
 class ContextPolicyV1(BaseModel):
     schema_version: Literal[1] = 1
+    skills: SkillContextPolicy | None = Field(default=None, exclude_if=lambda value: value is None)
     allowed_sources: list[ContextSourceType] = Field(
         default_factory=lambda: [
             ContextSourceType.SYSTEM,
