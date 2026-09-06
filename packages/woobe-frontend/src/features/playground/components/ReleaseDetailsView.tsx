@@ -3,7 +3,7 @@ import { FileText, Package, Sparkles } from 'lucide-react'
 import { Badge } from '@/components/ui/Badge'
 import { useKnowledgeVersions } from '@/features/agents/hooks'
 import type { AgentRelease } from '@/features/agents/types'
-import { formatReleaseDate, sessionModeLabel } from './releasePresentation'
+import { contextAssemblerLabel, formatReleaseDate, sessionModeLabel } from './releasePresentation'
 
 type ReleaseDetailsViewProps = {
   release: AgentRelease
@@ -118,6 +118,7 @@ export function ReleaseDetailsView({ release }: ReleaseDetailsViewProps) {
           <DetailRow label="Provider" value={release.provider} />
           <DetailRow label="Model" value={release.model} />
           <DetailRow label="Session Mode" value={sessionModeLabel(release.session_mode)} />
+          <DetailRow label="Context Manager" value={contextAssemblerLabel(release.runtime_config)} />
           <DetailRow label="Temperature" value={release.temperature} />
           <DetailRow label="Maximum output" value={release.max_output_tokens ? `${release.max_output_tokens} tokens` : null} />
           <DetailRow label="Fallback" value={fallback} />

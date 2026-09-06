@@ -14,6 +14,24 @@ function stableValue(value: unknown) {
   }
 }
 
+function recordValue(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {}
+}
+
+export function contextAssemblerLabel(runtimeConfig: unknown) {
+  const runtime = recordValue(runtimeConfig)
+  const selection = recordValue(runtime.context_assembler)
+  const name = typeof selection.name === 'string' && selection.name.trim()
+    ? selection.name.trim()
+    : 'default'
+  const version = typeof selection.version === 'string' && selection.version.trim()
+    ? selection.version.trim()
+    : 'v1'
+  return `${name}:${version}`
+}
+
 export function formatReleaseDate(value?: string) {
   if (!value) return '—'
   const date = new Date(value)

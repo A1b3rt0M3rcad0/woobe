@@ -1,3 +1,4 @@
+import { AgentContextAssemblerField } from '@/features/agents/components/AgentContextAssemblerField'
 import { AgentSessionModeField } from '@/features/agents/components/AgentSessionModeField'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
@@ -8,6 +9,8 @@ export function AgentSettingsTab() {
 
   return (
     <div className="p-4 space-y-4">
+      <AgentContextAssemblerField />
+
       <div className="rounded-xl border border-border bg-surface">
         <div className="p-4 space-y-3">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">Agent Details</p>
@@ -22,8 +25,6 @@ export function AgentSettingsTab() {
         </div>
       </div>
 
-      <AgentSessionModeField />
-
       <div className="rounded-xl border border-border bg-surface">
         <div className="p-4 space-y-3">
           <p className="text-xs font-semibold text-muted uppercase tracking-wider">System Prompt</p>
@@ -35,6 +36,8 @@ export function AgentSettingsTab() {
           />
         </div>
       </div>
+
+      <AgentSessionModeField />
     </div>
   )
 }

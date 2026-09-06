@@ -2,9 +2,12 @@
 
 This module is the only supported surface through which external process hosts
 may consume agent background capabilities. It contains no worker
-lifecycle, registry, polling, slot or process-bootstrap behavior.
+lifecycle, worker registry, polling, slot or process-bootstrap behavior.
 """
 
+from modules.agent.application.context_assembler_registry import (
+    build_runtime_context_assembler,
+)
 from modules.agent.application.dtos.runtime_dtos import (
     AskInput,
 )

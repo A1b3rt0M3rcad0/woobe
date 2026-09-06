@@ -7,6 +7,7 @@ from typing import Any, Callable, Coroutine
 
 from langchain_core.messages import AIMessage, SystemMessage
 
+from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
@@ -223,6 +224,7 @@ async def run_tool_loop(
     final_model: Any | None = None,
     final_model_factory: Callable[[], Any] | None = None,
     pricing_snapshot: dict[str, Any] | None = None,
+    context_assembler: ContextAssembler | None = None,
 ) -> tuple[InstrumentedExecution, int]:
     """Execute one real response invocation and continue only for capability calls.
 
@@ -243,6 +245,7 @@ async def run_tool_loop(
         provider=provider,
         model_name=model_name,
         pricing_snapshot=pricing_snapshot,
+        context_assembler=context_assembler,
     )
     execution.llm_calls.append(call)
     execution.timeline.append({"kind": "llm", "occurred_at": call["occurred_at"], "payload": call})
@@ -295,6 +298,7 @@ async def run_tool_loop(
                 provider=provider,
                 model_name=model_name,
                 pricing_snapshot=pricing_snapshot,
+                context_assembler=context_assembler,
             )
         except InstrumentedExecutionError as exc:
             execution.llm_calls.extend(exc.llm_calls)
@@ -342,6 +346,7 @@ async def run_tool_loop(
                 provider=provider,
                 model_name=model_name,
                 pricing_snapshot=pricing_snapshot,
+                context_assembler=context_assembler,
             )
         except InstrumentedExecutionError as exc:
             raise InstrumentedExecutionError(

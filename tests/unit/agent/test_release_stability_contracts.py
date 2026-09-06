@@ -4,6 +4,9 @@ from uuid import uuid4
 
 import pytest
 
+from modules.agent.application.context_assembler_registry import (
+    canonicalize_context_assembler_runtime_config,
+)
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.interfaces.context_policy import (
@@ -99,13 +102,15 @@ def _runtime(*, top_k=5, tool_ids=None, snapshots=None):
         max_context_chunks=min(5, top_k),
     ).model_dump()
     return canonicalize_context_runtime_config(
-        {
-            "rag": rag,
-            "tools": {
-                "tool_ids": tool_ids or [],
-                "snapshots": snapshots or [],
-            },
-        }
+        canonicalize_context_assembler_runtime_config(
+            {
+                "rag": rag,
+                "tools": {
+                    "tool_ids": tool_ids or [],
+                    "snapshots": snapshots or [],
+                },
+            }
+        )
     )
 
 

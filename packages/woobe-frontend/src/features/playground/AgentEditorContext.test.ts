@@ -43,6 +43,50 @@ describe('AgentEditorContext session mode', () => {
   })
 })
 
+describe('AgentEditorContext context manager snapshot', () => {
+  it('preserves the explicit strategy identity in the Agent Draft snapshot', () => {
+    const selection = {
+      name: 'adaptive',
+      version: 'v1',
+      strategy_name: 'adaptive',
+      strategy_version: 'v1',
+    }
+    const state = agentToEditorState({
+      ...agent,
+      settings: {
+        runtime_config: {
+          context_assembler: selection,
+        },
+      },
+    })
+
+    expect(state.runtimeConfig.context_assembler).toEqual(selection)
+    expect((canonicalSnapshot(state).runtime_config as Record<string, unknown>).context_assembler).toEqual(selection)
+  })
+
+  it('hydrates the frozen system-default selection and resolved strategy from a release', () => {
+    const current = agentToEditorState(agent)
+    const selection = {
+      name: 'default',
+      version: 'v1',
+      strategy_name: 'stdcm',
+      strategy_version: 'v1',
+    }
+    const state = releaseToEditorState({
+      id: 'release-1',
+      project_id: 'project-1',
+      agent_id: 'agent-1',
+      version: 'v1.0.0',
+      status: 'production',
+      runtime_config: {
+        context_assembler: selection,
+      },
+    }, current)
+
+    expect(state.runtimeConfig.context_assembler).toEqual(selection)
+  })
+})
+
 describe('AgentEditorContext Tool permissions', () => {
   it('reads HTTP route permissions from a Tool snapshot', () => {
     const permissions = toolPermissionsFromSnapshots([

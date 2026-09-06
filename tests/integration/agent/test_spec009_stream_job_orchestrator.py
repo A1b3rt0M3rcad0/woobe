@@ -126,6 +126,44 @@ class TestWorkerRegistration:
         assert hasattr(worker, "run")
         assert callable(worker.run)
 
+    def test_ask_job_worker_resolves_context_assembler_through_public_boundary(self):
+        import ast
+        import inspect
+
+        from woobe_workers.consumers.agent.ask_job_worker import AskJobWorker
+
+        module = inspect.getmodule(AskJobWorker)
+        assert module is not None
+        module_tree = ast.parse(inspect.getsource(module))
+        boundary_names = {
+            alias.name
+            for node in ast.walk(module_tree)
+            if isinstance(node, ast.ImportFrom)
+            and node.module == "modules.agent.background_boundary"
+            for alias in node.names
+        }
+        assert "build_runtime_context_assembler" in boundary_names
+        assert "StandardContextAssembler" not in boundary_names
+
+        tree = ast.parse(inspect.getsource(AskJobWorker))
+        assembler_calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "configure_context_assembler"
+        ]
+
+        assert len(assembler_calls) == 1
+        assert len(assembler_calls[0].args) == 1
+        configured = assembler_calls[0].args[0]
+        assert isinstance(configured, ast.Call)
+        assert isinstance(configured.func, ast.Name)
+        assert configured.func.id == "build_runtime_context_assembler"
+        assert len(configured.args) == 1
+        assert isinstance(configured.args[0], ast.Attribute)
+        assert configured.args[0].attr == "default_context_manager"
+
 
 class TestNoClosedSession:
     """The UoW owns session lifecycle while repositories are composed explicitly."""

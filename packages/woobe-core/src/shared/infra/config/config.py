@@ -90,6 +90,7 @@ class Settings(BaseSettings):
     runtime_max_snapshot_override_bytes: int = Field(default=32768, gt=0, le=4194304)
     runtime_max_request_bytes: int = Field(default=262144, gt=0, le=8388608)
     runtime_total_timeout_seconds: float = Field(default=120.0, gt=0, le=600)
+    default_context_manager: str = "stdcm:v1"
     chat_surface_enabled: bool = True
     chat_surface_allow_insecure_origins: bool = False
     chat_token_signing_key: str = ""
@@ -162,6 +163,23 @@ class Settings(BaseSettings):
         if normalized != "core":
             raise ValueError("WOOBE_EDITION must be 'core' in the Core distribution")
         return normalized
+
+    @field_validator("default_context_manager", mode="before")
+    @classmethod
+    def validate_default_context_manager(cls, value: object) -> str:
+        normalized = str(value).strip()
+        name, separator, version = normalized.partition(":")
+        if (
+            not separator
+            or not name.strip()
+            or not version.strip()
+            or ":" in version
+            or name.strip() == "default"
+        ):
+            raise ValueError(
+                "WOOBE_DEFAULT_CONTEXT_MANAGER must identify a concrete strategy as '<name>:<version>'"
+            )
+        return f"{name.strip()}:{version.strip()}"
 
     @field_validator("database_url", mode="before")
     @classmethod

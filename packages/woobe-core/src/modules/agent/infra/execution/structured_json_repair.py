@@ -5,6 +5,7 @@ from typing import Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
+from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
@@ -26,6 +27,7 @@ async def repair_json_if_needed(
     schema: dict,
     clean_json_answer,
     pricing_snapshot: dict[str, Any] | None = None,
+    context_assembler: ContextAssembler | None = None,
 ) -> InstrumentedExecution:
     result = execution.result
     answer = result.content if hasattr(result, "content") else str(result)
@@ -64,6 +66,7 @@ async def repair_json_if_needed(
             provider=provider,
             model_name=model_name,
             pricing_snapshot=pricing_snapshot,
+            context_assembler=context_assembler,
         )
     except InstrumentedExecutionError as exc:
         raise InstrumentedExecutionError(

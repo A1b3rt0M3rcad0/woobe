@@ -5,6 +5,7 @@ from typing import Any, Callable, Coroutine
 
 from langchain_core.messages import SystemMessage
 
+from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.application.interfaces.context_policy import resolve_context_policy
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
@@ -108,6 +109,7 @@ async def run_instrumented_execution(
     agent_tools: list[dict],
     tool_name_to_id: dict[str, str],
     messages: list,
+    context_assembler: ContextAssembler | None = None,
 ) -> InstrumentedExecution:
     provider = (
         agent.provider.value
@@ -206,6 +208,7 @@ async def run_instrumented_execution(
         ),
         final_json_instruction=instruction,
         pricing_snapshot=pricing_snapshot,
+        context_assembler=context_assembler,
     )
     if not json_enabled:
         return execution
@@ -221,4 +224,5 @@ async def run_instrumented_execution(
         schema=response_format.get("schema", {}),
         clean_json_answer=clean_json_answer,
         pricing_snapshot=pricing_snapshot,
+        context_assembler=context_assembler,
     )

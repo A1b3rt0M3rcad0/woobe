@@ -8,6 +8,23 @@ export interface RuntimeEnvironmentState {
 
 export type RuntimeEnvironmentStates = Record<RuntimeEnvironment, RuntimeEnvironmentState>
 
+/** Backend-owned presentation contract for one registered Context Manager. */
+export interface ContextAssemblerDescriptor {
+  name: string
+  version: string
+  strategy_name: string
+  strategy_version: string
+  display_name: string
+  description: string
+  behavior: string
+  recommended_for: string[]
+  capabilities: string[]
+  limitations: string[]
+  configuration: string
+  is_default: boolean
+  is_system_default_alias: boolean
+}
+
 export interface Agent {
   id: string
   project_id: string
@@ -96,7 +113,7 @@ export interface CreatePromptRequest {
 }
 
 
-// ── Agent Contract ─────────────────────────────────────────────
+// ── Agent Contract ──────────────────────────────────────────
 
 export interface AgentContract {
   id: string

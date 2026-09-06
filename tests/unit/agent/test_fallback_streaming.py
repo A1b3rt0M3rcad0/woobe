@@ -4,6 +4,11 @@ from types import SimpleNamespace
 
 import pytest
 
+from modules.agent.application.interfaces.context_assembler import (
+    ContextAssembler,
+    ContextAssemblyOutput,
+    ContextAssemblyRequest,
+)
 from modules.agent.infra.execution.instrumented_fallback_mixin import (
     InstrumentedFallbackMixin,
 )
@@ -23,15 +28,26 @@ class _Factory:
         return self.model
 
 
+class _UnusedContextAssembler(ContextAssembler):
+    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
+        raise AssertionError("Fallback propagation test must not assemble context directly")
+
+
 class _Runtime(InstrumentedFallbackMixin):
-    def __init__(self, factory: _Factory) -> None:
+    def __init__(
+        self,
+        factory: _Factory,
+        context_assembler: ContextAssembler | None = None,
+    ) -> None:
         self._llm_factory = factory
+        self._context_assembler = context_assembler
 
 
 @pytest.mark.asyncio
 async def test_fallback_uses_streaming_model_and_public_final_phase(monkeypatch) -> None:
     factory = _Factory()
-    runtime = _Runtime(factory)
+    context_assembler = _UnusedContextAssembler()
+    runtime = _Runtime(factory, context_assembler)
     captured = {}
 
     async def fake_invoke_llm(**kwargs):
@@ -88,3 +104,4 @@ async def test_fallback_uses_streaming_model_and_public_final_phase(monkeypatch)
     assert factory.kwargs["streaming"] is True
     assert captured["phase"] == "final_response_generation"
     assert captured["model"] is factory.model
+    assert captured["context_assembler"] is context_assembler

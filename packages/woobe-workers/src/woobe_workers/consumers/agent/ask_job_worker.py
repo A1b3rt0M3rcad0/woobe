@@ -14,6 +14,7 @@ from modules.agent.background_boundary import (
 )
 from modules.agent.background_boundary import AgentUnitOfWork
 from modules.agent.background_boundary import AgentToolRuntimeGateway
+from modules.agent.background_boundary import build_runtime_context_assembler
 from modules.agent.background_boundary import (
     TransactionBoundedStructuredOutputRuntime,
 )
@@ -61,6 +62,9 @@ class AskJobWorker:
             llm_factory=LangchainLLMFactory(),
             encryption_key=settings.encryption_key,
             tool_executor_factory=tool_runtime.execute_tool,
+        )
+        execution.configure_context_assembler(
+            build_runtime_context_assembler(settings.default_context_manager)
         )
         execution.configure_rag_embedding_factory(LangchainEmbeddingFactory())
         execution.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
