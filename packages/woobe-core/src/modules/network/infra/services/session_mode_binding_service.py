@@ -7,19 +7,15 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from modules.agent.application.draft_execution_snapshot import (
-    build_draft_release_execution_snapshot,
-    build_legacy_agent_execution_snapshot,
-    validate_agent_draft_skill_projection,
-)
+from modules.agent.application.execution_snapshot import AgentExecutionSnapshotResolver
 from modules.agent.infra.database.models import AgentModel, AgentReleaseModel
+from modules.network.domain.entities import NetworkDefinition
+from modules.network.domain.enums import NetworkEnvironment, NetworkVersionKind
+from modules.network.domain.graph import composition_hash
+from modules.network.infra.database.models import NetworkVersionModel
 from modules.network.infra.services.promotion_aware_service import (
     NetworkApplicationService as PromotionAwareNetworkApplicationService,
 )
-from modules.network.domain.entities import NetworkDefinition
-from modules.network.domain.enums import NetworkEnvironment
-from modules.network.domain.graph import composition_hash
-from modules.network.infra.database.models import NetworkVersionModel
 from shared.contracts.errors import ValidationError as AgentValidationError
 from shared.infra.errors import ConflictError, NotFoundError
 
@@ -33,7 +29,7 @@ def _session_mode_value(value: Any) -> str | None:
 
 
 class NetworkApplicationService(PromotionAwareNetworkApplicationService):
-    """Freezes each Agent Session Mode into executable Network bindings."""
+    """Freeze canonical Agent execution snapshots into Network bindings."""
 
     async def _resolve_draft_bindings(
         self,
@@ -91,25 +87,26 @@ class NetworkApplicationService(PromotionAwareNetworkApplicationService):
             release.agent_id: release for release in draft_result.scalars().all()
         }
 
+        resolver = AgentExecutionSnapshotResolver()
         bindings: dict[str, dict[str, Any]] = {}
         for node in definition.nodes:
             agent = agents[node.agent_id]
             draft_release = draft_releases.get(node.agent_id)
             try:
-                if draft_release is not None:
-                    validate_agent_draft_skill_projection(
-                        agent.settings,
-                        draft_release.runtime_config,
-                    )
-                    snapshot = build_draft_release_execution_snapshot(draft_release)
-                else:
-                    snapshot = build_legacy_agent_execution_snapshot(agent)
+                resolved = resolver.resolve_loaded(
+                    project_id=project_id,
+                    agent=agent,
+                    environment="draft",
+                    release=draft_release,
+                    allow_legacy_draft=True,
+                    validate_draft_projection=draft_release is not None,
+                )
             except (AgentValidationError, ValueError) as exc:
                 raise ConflictError(
                     f"Agent Draft snapshot is not executable for Network node {node.id}: {exc}"
                 ) from exc
 
-            mode = _session_mode_value(snapshot.get("session_mode"))
+            mode = _session_mode_value(resolved.snapshot.get("session_mode"))
             if mode is None:
                 raise ConflictError(
                     f"Agent Draft snapshot has no valid Session Mode: {node.id}"
@@ -118,10 +115,12 @@ class NetworkApplicationService(PromotionAwareNetworkApplicationService):
             bindings[str(node.id)] = {
                 "node_id": str(node.id),
                 "agent_id": str(node.agent_id),
-                "draft_release_id": self._uuid_text(
-                    draft_release.id if draft_release is not None else None
-                ),
-                "snapshot_override": snapshot,
+                "binding_source": resolved.source,
+                "draft_release_id": self._uuid_text(resolved.release_id),
+                "release_version": resolved.release_version,
+                "release_status": resolved.release_status,
+                "snapshot_kind": resolved.snapshot_kind,
+                "snapshot_override": resolved.snapshot,
                 "session_mode": mode,
             }
         return bindings
@@ -185,11 +184,17 @@ class NetworkApplicationService(PromotionAwareNetworkApplicationService):
             if version is None or version.project_id != project_id:
                 raise NotFoundError("Network version not found")
 
+            environment = (
+                "staging"
+                if version.kind == NetworkVersionKind.STAGING.value
+                else "production"
+            )
             bindings = deepcopy(version.resolved_bindings or {})
             await self._freeze_bindings(
                 session,
                 project_id=project_id,
                 bindings=bindings,
+                environment=environment,
             )
             definition = self._definition(version.definition)
             version.resolved_bindings = bindings
@@ -203,15 +208,15 @@ class NetworkApplicationService(PromotionAwareNetworkApplicationService):
         *,
         project_id: UUID,
         bindings: dict[str, Any],
+        environment: str,
     ) -> None:
         parsed: dict[str, tuple[dict[str, Any], UUID, UUID]] = {}
         release_ids: set[UUID] = set()
+        agent_ids: set[UUID] = set()
 
         for node_id, raw_binding in bindings.items():
             if not isinstance(raw_binding, dict):
-                raise ConflictError(
-                    f"Invalid Agent binding for Network node: {node_id}"
-                )
+                raise ConflictError(f"Invalid Agent binding for Network node: {node_id}")
 
             raw_release_id = raw_binding.get("release_id")
             raw_agent_id = raw_binding.get("agent_id")
@@ -225,31 +230,55 @@ class NetworkApplicationService(PromotionAwareNetworkApplicationService):
 
             parsed[node_id] = (raw_binding, release_id, agent_id)
             release_ids.add(release_id)
+            agent_ids.add(agent_id)
 
         if not parsed:
             return
 
-        result = await session.execute(
+        release_result = await session.execute(
             select(AgentReleaseModel).where(AgentReleaseModel.id.in_(release_ids))
         )
-        releases = {release.id: release for release in result.scalars().all()}
+        releases = {release.id: release for release in release_result.scalars().all()}
+        agent_result = await session.execute(
+            select(AgentModel).where(
+                AgentModel.id.in_(agent_ids),
+                AgentModel.project_id == project_id,
+            )
+        )
+        agents = {agent.id: agent for agent in agent_result.scalars().all()}
+        resolver = AgentExecutionSnapshotResolver()
 
         for node_id, (raw_binding, release_id, agent_id) in parsed.items():
             release = releases.get(release_id)
+            agent = agents.get(agent_id)
             if release is None:
                 raise ConflictError(
                     f"Agent snapshot pinned by Network node was not found: {node_id}"
                 )
-            if release.project_id != project_id or release.agent_id != agent_id:
-                raise ConflictError(
-                    f"Agent snapshot does not belong to Network node: {node_id}"
-                )
+            if agent is None:
+                raise ConflictError(f"Agent pinned by Network node was not found: {node_id}")
 
-            mode = _session_mode_value(release.session_mode)
-            if mode is None:
-                raise ConflictError(
-                    f"Agent snapshot has no valid Session Mode: {node_id}"
+            try:
+                resolved = resolver.resolve_loaded(
+                    project_id=project_id,
+                    agent=agent,
+                    environment=environment,
+                    release=release,
                 )
+            except (AgentValidationError, ValueError) as exc:
+                raise ConflictError(
+                    f"Agent snapshot pinned by Network node is not executable: {node_id}: {exc}"
+                ) from exc
+
+            mode = _session_mode_value(resolved.snapshot.get("session_mode"))
+            if mode is None:
+                raise ConflictError(f"Agent snapshot has no valid Session Mode: {node_id}")
+
+            raw_binding["binding_source"] = resolved.source
+            raw_binding["release_version"] = resolved.release_version
+            raw_binding["release_status"] = resolved.release_status
+            raw_binding["snapshot_kind"] = resolved.snapshot_kind
+            raw_binding["snapshot_override"] = resolved.snapshot
             raw_binding["session_mode"] = mode
 
 
