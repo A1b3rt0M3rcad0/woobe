@@ -171,10 +171,15 @@ async def test_freeze_bindings_uses_pinned_agent_release_session_mode() -> None:
     release_id = uuid4()
     node_id = uuid4()
     session = AsyncMock()
-    session.get.return_value = SimpleNamespace(
-        project_id=project_id,
-        agent_id=agent_id,
-        session_mode="stateful",
+    session.execute.return_value = _ScalarResult(
+        [
+            SimpleNamespace(
+                id=release_id,
+                project_id=project_id,
+                agent_id=agent_id,
+                session_mode="stateful",
+            )
+        ]
     )
     bindings = {
         str(node_id): {
@@ -191,25 +196,31 @@ async def test_freeze_bindings_uses_pinned_agent_release_session_mode() -> None:
     )
 
     assert bindings[str(node_id)]["session_mode"] == "stateful"
-    session.get.assert_awaited_once()
+    session.execute.assert_awaited_once()
 
 
 @pytest.mark.asyncio
 async def test_freeze_bindings_rejects_release_from_another_agent() -> None:
     project_id = uuid4()
     agent_id = uuid4()
+    release_id = uuid4()
     node_id = uuid4()
     session = AsyncMock()
-    session.get.return_value = SimpleNamespace(
-        project_id=project_id,
-        agent_id=uuid4(),
-        session_mode="stateless",
+    session.execute.return_value = _ScalarResult(
+        [
+            SimpleNamespace(
+                id=release_id,
+                project_id=project_id,
+                agent_id=uuid4(),
+                session_mode="stateless",
+            )
+        ]
     )
     bindings = {
         str(node_id): {
             "node_id": str(node_id),
             "agent_id": str(agent_id),
-            "release_id": str(uuid4()),
+            "release_id": str(release_id),
         }
     }
 
