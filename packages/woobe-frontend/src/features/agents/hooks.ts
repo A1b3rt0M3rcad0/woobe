@@ -155,6 +155,8 @@ export function useCreateRelease(agentId?: string) {
     mutationFn: (data: CreateReleaseRequest) => createRelease(agentId!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['releases', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['agent', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
       queryClient.invalidateQueries({ queryKey: ['network-promotion-preview'] })
     },
   })
