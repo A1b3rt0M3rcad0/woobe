@@ -1,15 +1,35 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
-from modules.agent.application.execution_snapshot import (
-    AgentExecutionSnapshotResolver,
-    apply_agent_execution_snapshot,
-)
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
+from shared.runtime_environment import normalize_runtime_environment
+
+
+ExecutionSnapshotResolverFactory = Callable[[Any, Any], Any]
+ExecutionSnapshotApplier = Callable[[Any, dict[str, Any]], Any]
+_execution_snapshot_resolver_factory: ExecutionSnapshotResolverFactory | None = None
+_execution_snapshot_applier: ExecutionSnapshotApplier | None = None
+
+
+def configure_execution_snapshot_runtime(
+    resolver_factory: ExecutionSnapshotResolverFactory,
+    snapshot_applier: ExecutionSnapshotApplier,
+) -> None:
+    """Wire Application snapshot orchestration from the composition root."""
+    global _execution_snapshot_resolver_factory, _execution_snapshot_applier
+    _execution_snapshot_resolver_factory = resolver_factory
+    _execution_snapshot_applier = snapshot_applier
+
+
+def _snapshot_runtime_dependencies() -> tuple[ExecutionSnapshotResolverFactory, ExecutionSnapshotApplier]:
+    if _execution_snapshot_resolver_factory is None or _execution_snapshot_applier is None:
+        raise RuntimeError("Agent execution snapshot runtime dependencies were not configured")
+    return _execution_snapshot_resolver_factory, _execution_snapshot_applier
 
 
 class CanonicalExecutionSnapshotRuntimeResolver(ReleaseRuntimeResolver):
@@ -19,14 +39,15 @@ class CanonicalExecutionSnapshotRuntimeResolver(ReleaseRuntimeResolver):
         agent = await self._load_base_agent(uow, input_dto)
         release_repo = getattr(uow, "releases", None)
         execution_context = (input_dto.execution_context or "playground").lower()
-        environment = AgentExecutionSnapshotResolver.normalize_environment(execution_context)
+        environment = normalize_runtime_environment(execution_context)
         runtime_context = current_execution.get()
         if runtime_context is not None:
             runtime_context.execution_context = execution_context
 
         session_release_id = await self._session_runtime_binding(uow, input_dto)
         effective_release_id = session_release_id or input_dto.loaded_release_id
-        resolver = AgentExecutionSnapshotResolver(uow.agents, release_repo)
+        resolver_factory, apply_snapshot = _snapshot_runtime_dependencies()
+        resolver = resolver_factory(uow.agents, release_repo)
 
         if effective_release_id is not None:
             resolved = await resolver.resolve(
@@ -38,7 +59,7 @@ class CanonicalExecutionSnapshotRuntimeResolver(ReleaseRuntimeResolver):
             if resolved.release is not None:
                 input_dto.loaded_release_id = resolved.release_id
                 self._bind_release_context(resolved.release)
-            agent = apply_agent_execution_snapshot(agent, resolved.snapshot)
+            agent = apply_snapshot(agent, resolved.snapshot)
             return await self._resolve_provider_model_refs(uow, agent)
 
         if environment == "draft" and input_dto.snapshot_override:
@@ -66,8 +87,11 @@ class CanonicalExecutionSnapshotRuntimeResolver(ReleaseRuntimeResolver):
             self._bind_release_context(resolved.release)
             if environment != "draft":
                 input_dto.loaded_release_id = resolved.release_id
-        agent = apply_agent_execution_snapshot(agent, resolved.snapshot)
+        agent = apply_snapshot(agent, resolved.snapshot)
         return await self._resolve_provider_model_refs(uow, agent)
 
 
-__all__ = ["CanonicalExecutionSnapshotRuntimeResolver"]
+__all__ = [
+    "CanonicalExecutionSnapshotRuntimeResolver",
+    "configure_execution_snapshot_runtime",
+]
