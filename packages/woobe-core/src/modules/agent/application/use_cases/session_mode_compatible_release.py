@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import Any
 from uuid import UUID
 
-from modules.agent.domain.enums import AgentStatus, Provider, SessionMode
+from modules.agent.domain.enums import Provider, SessionMode
 from modules.agent.domain.errors import AgentNotFoundError
 from shared.contracts.errors import ValidationError
 
@@ -91,8 +91,6 @@ def _sync_agent_projection(agent: Any, draft: Any) -> None:
     if draft.session_mode not in {"stateful", "stateless"}:
         raise ValidationError("Agent snapshot session_mode must be stateful or stateless")
     agent.session_mode = SessionMode(str(draft.session_mode))
-    if draft.agent_status:
-        agent.status = AgentStatus(str(draft.agent_status))
 
     settings = dict(agent.settings or {})
     if draft.response_format is None:
