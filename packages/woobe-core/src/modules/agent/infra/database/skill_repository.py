@@ -3,6 +3,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 
+from modules.agent.application.interfaces.skill_repository import SkillRepository
 from modules.agent.domain.skills import Skill, SkillVersion
 from modules.agent.infra.database.skill_models import SkillModel, SkillVersionModel
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
@@ -30,7 +31,7 @@ def _version(model: SkillVersionModel, project_id: UUID) -> SkillVersion:
     )
 
 
-class SQLAlchemySkillRepository:
+class SQLAlchemySkillRepository(SkillRepository):
     def __init__(self, uow: AgentUnitOfWork) -> None:
         self._uow = uow
 

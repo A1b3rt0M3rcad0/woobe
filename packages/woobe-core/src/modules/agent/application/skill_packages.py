@@ -5,26 +5,13 @@ from pathlib import PurePosixPath
 from typing import Any
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
 
+from modules.agent.application.dtos.skill_dtos import ImportSkillInput
 from shared.contracts.errors import ValidationError
 
 MAX_PACKAGE_BYTES = 1_000_000
 MAX_RESOURCE_BYTES = 200_000
 SKILL_NAME = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)*")
-
-
-class ImportSkillInput(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    version: str = Field(
-        min_length=1,
-        max_length=64,
-        pattern=r"^[0-9]+\.[0-9]+\.[0-9]+(?:-[a-zA-Z0-9.-]+)?$",
-    )
-    skill_md: str = Field(min_length=1, max_length=200_000)
-    resources: dict[str, str] = Field(default_factory=dict, max_length=64)
-    required_tools: list[str] = Field(default_factory=list, max_length=64)
 
 
 def validate_resource_path(path: str) -> str:

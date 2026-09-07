@@ -1,8 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import replace
-
-from langchain_core.messages import HumanMessage, SystemMessage
+from typing import Any
 
 from modules.agent.application.context_assembly import (
     ContextAssemblyResult,
@@ -16,6 +15,15 @@ from modules.agent.application.interfaces.context_assembler import (
 )
 from modules.agent.application.skill_runtime import skill_contribution_content
 from modules.agent.domain.context import ContextPriority, ContextSourceType
+
+
+def _message_class(messages: list[Any], class_name: str):
+    for message in messages:
+        if message.__class__.__name__ == class_name:
+            return message.__class__
+    raise ContextBudgetExceeded(
+        f"Standard Context Manager v2 requires a {class_name} template"
+    )
 
 
 class StandardSkillsContextAssembler:
@@ -38,6 +46,8 @@ class StandardSkillsContextAssembler:
                 raise ContextBudgetExceeded(
                     "Active Skills require an allowed SKILL source and a Skills budget"
                 )
+            system_message = _message_class(messages, "SystemMessage")
+            human_message = _message_class(messages, "HumanMessage")
             materialized = []
             seen = set()
             for item in candidates:
@@ -51,7 +61,7 @@ class StandardSkillsContextAssembler:
                 metadata["source_type"] = "SKILL"
                 content = skill_contribution_content(item)
                 message_type = (
-                    HumanMessage if item["component"] == "resource" else SystemMessage
+                    human_message if item["component"] == "resource" else system_message
                 )
                 materialized.append(
                     message_type(
@@ -67,8 +77,9 @@ class StandardSkillsContextAssembler:
                 )
             # Keep the current user input last and preserve all provider tool pairs.
             insertion = 0
-            while insertion < len(messages) and isinstance(
-                messages[insertion], SystemMessage
+            while (
+                insertion < len(messages)
+                and messages[insertion].__class__.__name__ == "SystemMessage"
             ):
                 insertion += 1
             messages[insertion:insertion] = materialized

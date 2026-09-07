@@ -7,8 +7,6 @@ from uuid import uuid4
 from langchain_core.messages import SystemMessage
 
 from modules.agent.application.interfaces.context_assembler import ContextAssembler
-from modules.agent.application.skill_bindings import frozen_enabled_skills
-from modules.agent.application.skill_runtime import SkillRuntime
 from modules.agent.application.interfaces.context_policy import resolve_context_policy
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
@@ -38,6 +36,19 @@ _SKILL_RESOLUTION_INSTRUCTION = (
     "instead of claiming that no Skill is installed. Repeat skills_search only when "
     "pagination or a refined query is actually required."
 )
+
+_skill_snapshots_resolver: Callable[[object, Any], list[dict[str, Any]]] | None = None
+_skill_runtime_factory: Callable[[list[dict[str, Any]], Any, set[str]], Any] | None = None
+
+
+def configure_skill_runtime(
+    snapshots_resolver: Callable[[object, Any], list[dict[str, Any]]],
+    runtime_factory: Callable[[list[dict[str, Any]], Any, set[str]], Any],
+) -> None:
+    """Bind concrete Skill application services from the composition root."""
+    global _skill_snapshots_resolver, _skill_runtime_factory
+    _skill_snapshots_resolver = snapshots_resolver
+    _skill_runtime_factory = runtime_factory
 
 
 def _primary_pricing_snapshot(agent: Agent) -> dict[str, Any] | None:
@@ -169,11 +180,13 @@ async def run_instrumented_execution(
         else str(agent.provider)
     )
     runtime_config = (agent.settings or {}).get("runtime_config")
-    snapshots = (
-        frozen_enabled_skills(runtime_config, agent.project_id)
-        if isinstance(runtime_config, dict) and runtime_config.get("skills")
-        else []
-    )
+    has_skill_config = isinstance(runtime_config, dict) and bool(runtime_config.get("skills"))
+    if has_skill_config:
+        if _skill_snapshots_resolver is None or _skill_runtime_factory is None:
+            raise RuntimeError("Skill runtime dependencies were not configured")
+        snapshots = _skill_snapshots_resolver(runtime_config, agent.project_id)
+    else:
+        snapshots = []
     context = current_execution.get()
     if context is not None:
         context.skill_context = None
@@ -182,7 +195,7 @@ async def run_instrumented_execution(
         policy = resolve_context_policy(runtime_config).skills
         if policy is None or context is None:
             raise RuntimeError("Skills require a prepared execution context and policy")
-        skill_runtime = SkillRuntime(snapshots, policy, set(tool_name_to_id))
+        skill_runtime = _skill_runtime_factory(snapshots, policy, set(tool_name_to_id))
         collisions = set(tool_name_to_id).intersection(skill_runtime.mapping)
         if collisions:
             raise ValueError(
