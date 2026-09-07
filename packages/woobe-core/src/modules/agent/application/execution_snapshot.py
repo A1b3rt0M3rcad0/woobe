@@ -321,8 +321,12 @@ class AgentExecutionSnapshotResolver:
         release = None
         if release_id is not None:
             if self._release_repo is None:
-                raise ValidationError("Runtime environment requires release repository")
+                raise ValidationError(
+                    f"{environment.title()} runtime requires release repository"
+                )
             release = await self._release_repo.get_by_id(release_id)
+            if release is None:
+                raise ValidationError("Pinned Agent release was not found")
         elif self._release_repo is not None:
             if environment == "production":
                 release = await self._release_repo.get_active_production(agent_id)
