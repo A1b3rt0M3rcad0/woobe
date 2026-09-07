@@ -7,6 +7,11 @@ from uuid import UUID
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from modules.agent.application.draft_execution_snapshot import (
+    build_draft_release_execution_snapshot,
+    build_legacy_agent_execution_snapshot,
+    validate_agent_draft_skill_projection,
+)
 from modules.agent.infra.database.models import AgentModel, AgentReleaseModel
 from modules.network.infra.services.promotion_aware_service import (
     NetworkApplicationService as PromotionAwareNetworkApplicationService,
@@ -15,6 +20,7 @@ from modules.network.domain.entities import NetworkDefinition
 from modules.network.domain.enums import NetworkEnvironment
 from modules.network.domain.graph import composition_hash
 from modules.network.infra.database.models import NetworkVersionModel
+from shared.contracts.errors import ValidationError as AgentValidationError
 from shared.infra.errors import ConflictError, NotFoundError
 
 
@@ -89,86 +95,20 @@ class NetworkApplicationService(PromotionAwareNetworkApplicationService):
         for node in definition.nodes:
             agent = agents[node.agent_id]
             draft_release = draft_releases.get(node.agent_id)
-            agent_settings = dict(agent.settings or {})
-            runtime_config = deepcopy(
-                getattr(draft_release, "runtime_config", None)
-                or agent_settings.get("runtime_config")
-            )
-            snapshot = {
-                "system_prompt": (
-                    draft_release.system_prompt
-                    if draft_release is not None
-                    and draft_release.system_prompt is not None
-                    else agent.system_prompt
-                ),
-                "response_format": (
-                    draft_release.response_format
-                    if draft_release is not None
-                    and draft_release.response_format is not None
-                    else agent_settings.get("response_format")
-                ),
-                "provider": (
-                    draft_release.provider
-                    if draft_release is not None and draft_release.provider is not None
-                    else agent.provider
-                ),
-                "model": (
-                    draft_release.model
-                    if draft_release is not None and draft_release.model is not None
-                    else agent.model
-                ),
-                "provider_credential_id": self._uuid_text(
-                    draft_release.provider_credential_id
-                    if draft_release is not None
-                    and draft_release.provider_credential_id is not None
-                    else agent.provider_credential_id
-                ),
-                "provider_model_id": self._uuid_text(
-                    getattr(draft_release, "provider_model_id", None)
-                    or getattr(agent, "provider_model_id", None)
-                ),
-                "fallback_provider": (
-                    draft_release.fallback_provider
-                    if draft_release is not None
-                    and draft_release.fallback_provider is not None
-                    else agent.fallback_provider
-                ),
-                "fallback_model": (
-                    draft_release.fallback_model
-                    if draft_release is not None
-                    and draft_release.fallback_model is not None
-                    else agent.fallback_model
-                ),
-                "fallback_credential_id": self._uuid_text(
-                    draft_release.fallback_credential_id
-                    if draft_release is not None
-                    and draft_release.fallback_credential_id is not None
-                    else agent.fallback_credential_id
-                ),
-                "fallback_provider_model_id": self._uuid_text(
-                    getattr(draft_release, "fallback_provider_model_id", None)
-                    or getattr(agent, "fallback_provider_model_id", None)
-                ),
-                "temperature": (
-                    draft_release.temperature
-                    if draft_release is not None
-                    and draft_release.temperature is not None
-                    else agent.temperature
-                ),
-                "max_output_tokens": (
-                    draft_release.max_output_tokens
-                    if draft_release is not None
-                    and draft_release.max_output_tokens is not None
-                    else agent.max_output_tokens
-                ),
-                "session_mode": (
-                    draft_release.session_mode
-                    if draft_release is not None
-                    and draft_release.session_mode is not None
-                    else agent.session_mode
-                ),
-                "runtime_config": runtime_config,
-            }
+            try:
+                if draft_release is not None:
+                    validate_agent_draft_skill_projection(
+                        agent.settings,
+                        draft_release.runtime_config,
+                    )
+                    snapshot = build_draft_release_execution_snapshot(draft_release)
+                else:
+                    snapshot = build_legacy_agent_execution_snapshot(agent)
+            except (AgentValidationError, ValueError) as exc:
+                raise ConflictError(
+                    f"Agent Draft snapshot is not executable for Network node {node.id}: {exc}"
+                ) from exc
+
             mode = _session_mode_value(snapshot.get("session_mode"))
             if mode is None:
                 raise ConflictError(
@@ -314,4 +254,3 @@ class NetworkApplicationService(PromotionAwareNetworkApplicationService):
 
 
 __all__ = ["NetworkApplicationService"]
-
