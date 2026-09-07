@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 from uuid import uuid4
@@ -115,6 +116,43 @@ def test_skill_search_reports_empty_only_when_no_skills_are_installed() -> None:
     }
 
 
+def test_large_catalog_uses_search_only_as_overflow_discovery() -> None:
+    version = _calculate_method_version()
+    snapshots = []
+    for index in range(12):
+        snapshot = deepcopy(version.snapshot())
+        snapshot["skill_id"] = str(uuid4())
+        snapshot["skill_version_id"] = str(uuid4())
+        snapshot["package"]["name"] = f"calculate-method-{index}"
+        snapshot["package"]["description"] = (
+            f"Use arithmetic calculation method variant {index}."
+        )
+        snapshots.append(snapshot)
+
+    runtime = SkillRuntime(
+        snapshots,
+        SkillContextPolicy(catalog_max_units=128, search_limit=3),
+        set(),
+    )
+
+    catalog = runtime.contributions()[0]["content"]
+    assert "12 installed Skills. Use skills_search" in catalog
+    assert "calculate-method-0" not in catalog
+
+    result = runtime.execute(
+        "skills_search",
+        {"query": "calculate arithmetic"},
+        tool_call_id="search",
+    )
+
+    assert result["success"] is True
+    assert result["output"]["installed_count"] == 12
+    assert result["output"]["matched_count"] == 12
+    assert result["output"]["result_mode"] == "matched"
+    assert 1 <= len(result["output"]["skills"]) <= 3
+    assert result["output"]["next_offset"] is not None
+
+
 class _ResolutionModel:
     def __init__(self, skill_version_id) -> None:
         self.skill_version_id = skill_version_id
@@ -137,9 +175,21 @@ class _ResolutionModel:
         call_index = len(self.invocations)
         if call_index == 1:
             serialized = str(messages)
-            assert "catalog_fallback" in serialized
             assert "calculate-method" in serialized
+            assert "Use this method for arithmetic calculations and addition." in serialized
+            assert str(self.skill_version_id) in serialized
             assert "Quanto é 1 + 1?" in serialized
+            assert not any(
+                message.__class__.__name__ == "ToolMessage" for message in messages
+            )
+            assert not any(
+                isinstance(message, AIMessage)
+                and any(
+                    call.get("name") == "skills_search"
+                    for call in (message.tool_calls or [])
+                )
+                for message in messages
+            )
             return AIMessage(
                 content="",
                 tool_calls=[
@@ -156,7 +206,7 @@ class _ResolutionModel:
 
 
 @pytest.mark.asyncio
-async def test_enabled_skills_preflight_searches_before_model_and_can_activate_fallback() -> None:
+async def test_enabled_skills_are_known_before_model_and_activate_without_search() -> None:
     version = _calculate_method_version()
     config = _runtime_config(version)
     context = new_execution_context()
@@ -209,11 +259,7 @@ async def test_enabled_skills_preflight_searches_before_model_and_can_activate_f
         "capability_response_generation",
         "tool_followup_1",
     ]
-    assert [call.tool_name for call in execution.tool_calls] == [
-        "skills_search",
-        "skills_activate",
-    ]
-    assert execution.tool_calls[0].input == {"query": "Quanto é 1 + 1?"}
+    assert [call.tool_name for call in execution.tool_calls] == ["skills_activate"]
     assert execution.result.content == "1 + 1 = 0"
     external_tool.assert_not_called()
 
@@ -233,7 +279,7 @@ class _DirectModel:
 
 
 @pytest.mark.asyncio
-async def test_agent_without_enabled_skills_has_no_preflight_or_extra_model_round() -> None:
+async def test_agent_without_enabled_skills_has_no_extra_model_round() -> None:
     model = _DirectModel()
     factory = SimpleNamespace(create_chat_model=lambda **_kwargs: model)
     agent = SimpleNamespace(
