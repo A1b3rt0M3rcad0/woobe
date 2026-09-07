@@ -26,16 +26,18 @@ _BOUND_CAPABILITIES_INSTRUCTION = (
 )
 
 _SKILL_RESOLUTION_INSTRUCTION = (
-    "The installed Skill catalog is already materialized in this Model Invocation by the "
-    "runtime and is authoritative for the Skills enabled on this Agent Run. Inspect that "
-    "catalog before producing a user-facing answer. When a listed Skill's described scope "
-    "applies to the user's task, call skills_activate before following its procedure, even "
-    "when the task is simple or you could answer directly. Do not call skills_search merely "
-    "to confirm a Skill that is already listed in the catalog. Use skills_search only when "
-    "the catalog explicitly says the full installed catalog exceeded its context budget, "
-    "when applicability remains uncertain, or when pagination/refined discovery is actually "
-    "required. Never claim that no Skill is installed when the installed Skill catalog says "
-    "otherwise."
+    "The installed Skill catalog is routing metadata for the Skills enabled on this Agent "
+    "Run. Determine Skill applicability from the CURRENT USER REQUEST, not from previous "
+    "Session messages, prior Runs, or earlier Skill usage. Do not activate a Skill merely "
+    "because it is installed, was used earlier, or is mentioned in conversation history. "
+    "Activate a Skill only when the current request matches its when_to_use scope; then call "
+    "skills_activate before following that procedure. If no visible Skill applies, answer "
+    "directly with no Skill operation. Do not call skills_search merely to confirm a Skill "
+    "already listed in a complete catalog. Use skills_search only when catalog_complete is "
+    "false, when a required Skill may be omitted by the catalog budget, or when routing "
+    "cannot be resolved from the visible when_to_use metadata. Activated instructions and "
+    "resources are runtime-only context for this Agent Run and must not be treated as "
+    "Session memory or reused by a later Run."
 )
 
 _skill_snapshots_resolver: Callable[[object, Any], list[dict[str, Any]]] | None = None
