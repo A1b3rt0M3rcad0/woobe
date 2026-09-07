@@ -6,7 +6,9 @@ from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.entities import Agent
 from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
-from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
+from modules.agent.infra.execution.canonical_execution_snapshot_runtime_resolver import (
+    CanonicalExecutionSnapshotRuntimeResolver,
+)
 from shared.contracts.errors import ConflictError, ValidationError
 from shared.runtime_environment import normalize_runtime_environment
 
@@ -29,7 +31,7 @@ def _session_environment(session: Any) -> str:
     return "draft"
 
 
-class SessionContinuityReleaseRuntimeResolver(ReleaseRuntimeResolver):
+class SessionContinuityReleaseRuntimeResolver(CanonicalExecutionSnapshotRuntimeResolver):
     """Standalone Sessions follow their environment; each Run freezes its Release.
 
     `opened_release_id` is provenance only. Network invocations keep the explicit
