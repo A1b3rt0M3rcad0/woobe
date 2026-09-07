@@ -1,15 +1,17 @@
+import { isSkillOperation, operationCountsLabel } from '@/features/skills/operations'
 import {
   CheckCircle2,
   CircleDot,
   CornerDownRight,
   Wrench,
+  Puzzle,
   XCircle,
 } from 'lucide-react'
 
 import { formatLatency, formatNumber } from '@/lib/formatters/number'
 import { cn } from '@/lib/utils'
 
-import type { NetworkAgentInvocation } from './networkChatExecution'
+import { operationalTools, type NetworkAgentInvocation } from './networkChatExecution'
 import {
   flattenNetworkInvocationPath,
   summarizeInvocationTools,
@@ -30,7 +32,7 @@ function toolSummaryLabel(invocation: NetworkAgentInvocation) {
     summary.completed ? `${summary.completed} completed` : null,
     summary.failed ? `${summary.failed} failed` : null,
   ].filter(Boolean)
-  return `${summary.total} Tool Call${summary.total === 1 ? '' : 's'}${states.length ? ` · ${states.join(' · ')}` : ''}`
+  return `${operationCountsLabel(operationalTools(invocation.tools))}${states.length ? ` · ${states.join(' · ')}` : ''}`
 }
 
 export function NetworkExecutionPath({
@@ -78,7 +80,7 @@ export function NetworkExecutionPath({
                   <span className="truncate">{invocation.source} · {invocation.version}</span>
                   {invocation.usage ? <span className="ml-auto shrink-0">{formatNumber(invocation.usage.input_tokens, 0)} / {formatNumber(invocation.usage.output_tokens, 0)} tokens</span> : null}
                 </div>
-                {toolSummary ? <p className={cn('mt-1 inline-flex items-center gap-1 text-[9px]', summarizeInvocationTools(invocation).failed ? 'text-red-300' : summarizeInvocationTools(invocation).running ? 'text-blue-300' : 'text-muted')}><Wrench className="h-3 w-3" />{toolSummary}</p> : null}
+                {toolSummary ? <p className={cn('mt-1 inline-flex items-center gap-1 text-[9px]', summarizeInvocationTools(invocation).failed ? 'text-red-300' : summarizeInvocationTools(invocation).running ? 'text-blue-300' : 'text-muted')}>{invocation.tools.some(isSkillOperation) ? <Puzzle className="h-3 w-3" /> : <Wrench className="h-3 w-3" />}{toolSummary}</p> : null}
               </div>
             </div>
           </button>

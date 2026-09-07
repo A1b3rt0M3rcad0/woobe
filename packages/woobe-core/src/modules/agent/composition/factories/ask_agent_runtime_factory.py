@@ -7,6 +7,11 @@ from modules.agent.application.context_assembler_registry import (
     build_runtime_context_assembler,
 )
 from modules.agent.application.interfaces.context_assembler import ContextAssembler
+from modules.agent.application.skill_bindings import (
+    freeze_skill_bindings,
+    frozen_enabled_skills,
+)
+from modules.agent.application.skill_runtime import SkillRuntime
 from modules.agent.composition.factories.agent_uow_factory import (
     build_agent_read_uow,
     build_agent_uow,
@@ -20,6 +25,12 @@ from modules.agent.infra.database.runtime_vector_search_reader import AgentRunti
 from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.infra.execution.frozen_snapshot_runtime import (
     FrozenSnapshotStructuredOutputRuntime,
+)
+from modules.agent.infra.execution.instrumented_execution_runner import (
+    configure_skill_runtime,
+)
+from modules.agent.infra.execution.runtime_preparation import (
+    configure_skill_binding_freezer,
 )
 from modules.agent.presentation.controllers.ask_agent_controller import AskAgentController
 from shared.composition_resources import EXECUTION_STATE_STORE
@@ -43,6 +54,8 @@ def _build_agent_runtime(
     internal_tool_handlers: Mapping[UUID, InternalToolHandler] | None = None,
     context_assembler: ContextAssembler | None = None,
 ) -> tuple[FrozenSnapshotStructuredOutputRuntime, AgentRuntimeTransactionRunner]:
+    configure_skill_runtime(frozen_enabled_skills, SkillRuntime)
+    configure_skill_binding_freezer(freeze_skill_bindings)
     transactions = build_agent_runtime_transactions()
     executor = http_executor or get_http_tool_executor()
     tool_runtime = AgentToolRuntimeGateway(

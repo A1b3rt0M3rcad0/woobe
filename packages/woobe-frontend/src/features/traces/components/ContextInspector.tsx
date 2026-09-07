@@ -120,7 +120,7 @@ type CompositionRow = {
 
 function compositionLabel(sourceType: string, sourceRef?: string | null): { key: string; label: string } {
   if (sourceType === 'SYSTEM' && sourceRef === 'runtime_tool_definitions') {
-    return { key: 'tool_definitions', label: 'Tool definitions' }
+    return { key: 'tool_definitions', label: 'Tool/Skill definitions' }
   }
   switch (sourceType) {
     case 'SYSTEM':
@@ -132,7 +132,7 @@ function compositionLabel(sourceType: string, sourceRef?: string | null): { key:
     case 'KNOWLEDGE':
       return { key: 'knowledge', label: 'Knowledge' }
     case 'TOOL':
-      return { key: 'tool', label: 'Tool results' }
+      return { key: 'tool', label: 'Tool/Skill results' }
     case 'DELEGATION':
       return { key: 'delegation', label: 'Delegation' }
     case 'RUNTIME':

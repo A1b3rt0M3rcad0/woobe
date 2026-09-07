@@ -1,6 +1,9 @@
 from typing import Protocol
 from uuid import UUID
 
+from modules.agent.application.interfaces.skill_repository import SkillRepository
+from modules.agent.application.skill_bindings import freeze_skill_bindings
+
 from modules.agent.application.context_assembler_registry import (
     DEFAULT_CONTEXT_MANAGER_SETTING,
     canonicalize_context_assembler_runtime_config,
@@ -45,12 +48,14 @@ class CreateAgentUseCase:
         provider_model_repo: ProviderModelRepository | None = None,
         *,
         default_context_manager: str = DEFAULT_CONTEXT_MANAGER_SETTING,
+        skill_repo: SkillRepository | None = None,
     ) -> None:
         self._agent_repo = agent_repo
         self._credential_repo = credential_repo
         self._provider_model_repo = provider_model_repo
         self._outbox = outbox
         self._default_context_manager = default_context_manager
+        self._skill_repo = skill_repo
 
     async def execute(self, input_dto: CreateAgentInput) -> Agent:
         agent = Agent(**input_dto.model_dump())
@@ -68,6 +73,11 @@ class CreateAgentUseCase:
         if agent.provider_credential_id and not await self._credential_repo.get_by_id(agent.provider_credential_id):
             from modules.agent.domain.errors import CredentialNotFoundError
             raise CredentialNotFoundError(agent.provider_credential_id)
+        if "skills" in (agent.settings or {}).get("runtime_config", {}):
+            agent.settings["runtime_config"] = await freeze_skill_bindings(
+                self._skill_repo, project_id=agent.project_id,
+                runtime_config=agent.settings["runtime_config"],
+            )
         saved = await self._agent_repo.save(agent)
         await self._outbox.write(AgentCreatedV1.create(
             agent_id=saved.id,
@@ -87,11 +97,14 @@ class UpdateAgentUseCase:
         outbox: OutboxEventWriter,
         provider_model_repo: ProviderModelRepository | None = None,
         network_usage_reader: NetworkAgentUsageReader | None = None,
+        *,
+        skill_repo: SkillRepository | None = None,
     ) -> None:
         self._agent_repo = agent_repo
         self._credential_repo = credential_repo
         self._provider_model_repo = provider_model_repo
         self._network_usage_reader = network_usage_reader
+        self._skill_repo = skill_repo
         self._outbox = outbox
 
     async def execute(self, agent_id: UUID, input_dto: UpdateAgentInput) -> UpdateAgentOutput:
@@ -130,6 +143,11 @@ class UpdateAgentUseCase:
             self._provider_model_repo,
             self._credential_repo,
         )
+        if "skills" in (existing.settings or {}).get("runtime_config", {}):
+            existing.settings["runtime_config"] = await freeze_skill_bindings(
+                self._skill_repo, project_id=existing.project_id,
+                runtime_config=existing.settings["runtime_config"],
+            )
         saved = await self._agent_repo.update(existing)
         await self._outbox.write(AgentUpdatedV1.create(
             agent_id=saved.id,

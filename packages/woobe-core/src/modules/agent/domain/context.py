@@ -9,6 +9,7 @@ import uuid6
 
 
 class ContextSourceType(StrEnum):
+    SKILL = "SKILL"
     SYSTEM = "SYSTEM"
     USER_INPUT = "USER_INPUT"
     SESSION = "SESSION"

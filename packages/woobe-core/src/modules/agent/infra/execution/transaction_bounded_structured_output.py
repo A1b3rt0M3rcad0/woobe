@@ -20,6 +20,7 @@ from modules.agent.application.use_cases.structured_output_contract import (
 )
 from modules.agent.domain.entities import Session
 from modules.agent.infra.execution.explicit_runtime_persistence import ExplicitRuntimePersistenceMixin
+from modules.agent.infra.execution.runtime_preparation import prepare_skill_state
 from modules.agent.infra.execution.runtime_preparation import prepare_rag_binding, prepare_tool_state
 from modules.agent.infra.execution.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
@@ -140,6 +141,7 @@ class TransactionBoundedStructuredOutputRuntime(
                 tool_from_snapshot=tool_from_release_snapshot,
                 tool_with_permissions=tool_with_permission_overrides,
             )
+            await prepare_skill_state(repositories, agent=agent)
             rag_binding = await prepare_rag_binding(repositories, agent=agent)
             session = None
             existing_session = False

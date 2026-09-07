@@ -1,3 +1,4 @@
+import { isSkillActivity, skillActivityLabel, skillEvidenceLabel, type SkillActivity } from "./skill-activity";
 import {
   DEFAULT_APPEARANCE,
   normalizeAppearance,
@@ -20,6 +21,7 @@ export interface ChatUi {
   clearMessages(): void;
   appendMessage(role: MessageRole, content: string, forceScroll?: boolean): HTMLElement;
   appendPendingAssistant(): HTMLElement;
+  updateSkillActivity(element: HTMLElement, activity: SkillActivity): void;
   updateAssistantActivity(element: HTMLElement, activity: PublicAgentActivity): string;
   beginAssistantStreaming(element: HTMLElement): void;
   updateAssistantStreaming(element: HTMLElement, content: string): void;
@@ -51,6 +53,8 @@ const ACTIVITY_STATUSES = new Set([
 ]);
 
 function activityLabel(appearance: SurfaceAppearance, activity: PublicAgentActivity): string {
+  const skillLabel = skillActivityLabel(activity);
+  if (skillLabel) return skillLabel;
   const status = ACTIVITY_STATUSES.has(activity.status ?? "")
     ? (activity.status as keyof SurfaceAppearance["activity"]["labels"])
     : "preparing";
@@ -142,7 +146,7 @@ function renderPendingContent(
   activity: PublicAgentActivity = { status: "preparing" },
 ): string {
   item.replaceChildren();
-  if (appearance.activity.mode === "dots") {
+  if (appearance.activity.mode === "dots" && !isSkillActivity(activity)) {
     const indicator = document.createElement("span");
     indicator.className = "typing-indicator";
     indicator.setAttribute("aria-hidden", "true");
@@ -180,6 +184,22 @@ export function createChatUi(
   let sessionExpired = false;
   let followLatest = true;
   const streamingFrames = new Map<HTMLElement, number>();
+  const skillEvidence = new WeakMap<HTMLElement, Map<string, SkillActivity>>();
+
+  const renderSkillEvidence = (element: HTMLElement) => {
+    element.querySelector(".skill-activity")?.remove();
+    const calls = skillEvidence.get(element);
+    if (!calls?.size) return;
+    const section = document.createElement("div");
+    section.className = "skill-activity";
+    section.setAttribute("aria-label", "Skill activity");
+    for (const call of calls.values()) {
+      const row = document.createElement("p");
+      row.textContent = skillEvidenceLabel(call, appearance.activity.detail_level === "named");
+      section.append(row);
+    }
+    element.append(section);
+  };
 
   root.innerHTML = `
     <section class="chat">
@@ -221,6 +241,7 @@ export function createChatUi(
       element.replaceChildren(body);
     }
     renderMessageContent(body, content, appearance.response.render_mode);
+    renderSkillEvidence(element);
   };
 
   const flushStreaming = (element: HTMLElement) => {
@@ -368,9 +389,18 @@ export function createChatUi(
       scrollToLatest(true);
       return item;
     },
+    updateSkillActivity(element, activity) {
+      if (!isSkillActivity(activity)) return;
+      const calls = skillEvidence.get(element) ?? new Map<string, SkillActivity>();
+      const key = activity.tool_call_id ?? activity.tool_name!;
+      calls.set(key, { ...calls.get(key), ...activity });
+      skillEvidence.set(element, calls);
+      renderSkillEvidence(element);
+    },
     updateAssistantActivity(element, activity) {
       if (!element.classList.contains("message--pending")) return "";
       const label = renderPendingContent(element, appearance, activity);
+      renderSkillEvidence(element);
       scrollToLatest();
       return label;
     },
@@ -393,6 +423,9 @@ export function createChatUi(
       streamingFrames.set(element, frame);
     },
     finishAssistantStreaming(element) {
+      for (const call of skillEvidence.get(element)?.values() ?? []) {
+        if (call.status === "running") call.status = "interrupted";
+      }
       flushStreaming(element);
       element.classList.remove("message--pending", "message--streaming");
       element.removeAttribute("aria-label");

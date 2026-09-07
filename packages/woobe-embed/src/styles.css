@@ -552,3 +552,6 @@ textarea:disabled {
     opacity: 0.75;
   }
 }
+
+.skill-activity { margin-top: 8px; border-top: 1px solid currentColor; padding-top: 6px; font-size: 12px; opacity: .8; }
+.skill-activity p { margin: 3px 0; }

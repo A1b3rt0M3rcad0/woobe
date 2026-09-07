@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from typing import Protocol
 
+from modules.agent.application.interfaces.skill_repository import SkillRepository
+from modules.agent.application.skill_bindings import freeze_skill_bindings
+
 from modules.agent.application.interfaces.release_activation_repository import (
     AgentReleaseActivationRepository,
 )
@@ -56,10 +59,12 @@ class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
         release_repo: AgentReleaseRepository,
         knowledge_validator: ReleaseKnowledgeValidator,
         tool_repo: ToolRepository,
+        skill_repo: SkillRepository | None = None,
     ) -> None:
         super().__init__(release_repo)
         self._knowledge_validator = knowledge_validator
         self._tool_repo = tool_repo
+        self._skill_repo = skill_repo
 
     async def execute(self, input_dto, change_kind: str = "change"):
         candidate = AgentRelease(
@@ -88,6 +93,7 @@ class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
                 raw_permissions=raw_tools.get("permissions"),
                 previous_snapshots=previous_snapshots,
             )
+        runtime_config = await freeze_skill_bindings(self._skill_repo, project_id=input_dto.project_id, runtime_config=runtime_config)
         input_dto.runtime_config = runtime_config or None
 
         return await super().execute(input_dto, change_kind=change_kind)

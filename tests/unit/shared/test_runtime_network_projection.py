@@ -177,3 +177,31 @@ async def test_network_projection_preserves_failed_invocation_cause_for_reattach
     assert invocation["status"] == "failed"
     assert invocation["failure"]["code"] == "agent_context_error"
     assert invocation["failure"]["stage"] == "agent_context_preparation"
+
+
+@pytest.mark.asyncio
+async def test_skill_identity_survives_reattach_without_procedure_content() -> None:
+    store = InMemoryExecutionStateStore()
+    publisher = RuntimeEventPublisher(store, projection_interval_seconds=0)
+    run_id = uuid4()
+    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+    await publisher.publish(
+        run_id,
+        "agent",
+        "tool_call_completed",
+        {
+            "tool_call_id": "skill-1",
+            "tool_name": "skills_activate",
+            "skill_name": "invoice-review",
+            "skill_version": "1.0.0",
+            "success": True,
+            "output": {"instructions": "private procedure body"},
+        },
+    )
+    projection, _ = await RuntimeStreamReader(store).current_state(
+        run_id, "agent", durable_fallback=_unused_fallback
+    )
+    assert projection is not None
+    assert projection["tools"][0]["skill_name"] == "invoice-review"
+    assert projection["tools"][0]["skill_version"] == "1.0.0"
+    assert "private procedure body" not in str(projection)

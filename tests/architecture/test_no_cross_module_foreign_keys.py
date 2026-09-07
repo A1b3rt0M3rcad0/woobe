@@ -8,6 +8,7 @@ Validates that:
 """
 from __future__ import annotations
 
+import ast
 import re
 from pathlib import Path
 
@@ -77,6 +78,28 @@ def _extract_fk_refs(source: str) -> list[tuple[str, str, str]]:
         if len(parts) >= 2:
             results.append((parts[0], parts[1], ref))
     return results
+
+
+def _migration_fk_refs(source: str) -> list[tuple[str, str, str]]:
+    # Inline ForeignKeys inherit their owning create_table schema. A reference
+    # within that same module is not a cross-module dependency.
+    owners: dict[str, set[str]] = {}
+    for table in ast.walk(ast.parse(source)):
+        if not isinstance(table, ast.Call) or not isinstance(table.func, ast.Attribute) or table.func.attr != "create_table":
+            continue
+        schema = next((keyword.value.value for keyword in table.keywords if keyword.arg == "schema" and isinstance(keyword.value, ast.Constant)), None)
+        if not isinstance(schema, str):
+            continue
+        for node in ast.walk(table):
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "ForeignKey" and node.args and isinstance(node.args[0], ast.Constant):
+                owners.setdefault(node.args[0].value, set()).add(schema)
+    return [(schema, table, ref) for schema, table, ref in _extract_fk_refs(source)
+            if not owners.get(ref) or any(_schema_to_module(owner) != _schema_to_module(schema) for owner in owners[ref])]
+
+
+def test_migration_inline_fk_classifier_preserves_cross_module_detection():
+    source = "op.create_table('versions', sa.Column('skill_id', sa.ForeignKey('agent.skills.id')), sa.Column('project_id', sa.ForeignKey('core.projects.id')), schema='agent')"
+    assert _migration_fk_refs(source) == [("core", "projects", "core.projects.id")]
 
 
 class TestNoCrossModuleForeignKeys:
@@ -174,7 +197,7 @@ class TestNoCrossModuleForeignKeys:
             except UnicodeDecodeError:
                 continue
 
-            for schema, table, full_ref in _extract_fk_refs(source):
+            for schema, table, full_ref in _migration_fk_refs(source):
                 if schema in LEGACY_SCHEMAS:
                     continue
                 target_module = _schema_to_module(schema)

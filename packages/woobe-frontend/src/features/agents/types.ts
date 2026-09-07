@@ -10,6 +10,7 @@ export type RuntimeEnvironmentStates = Record<RuntimeEnvironment, RuntimeEnviron
 
 /** Backend-owned presentation contract for one registered Context Manager. */
 export interface ContextAssemblerDescriptor {
+  supports_skills?: boolean
   name: string
   version: string
   strategy_name: string

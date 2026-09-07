@@ -20,6 +20,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --all-groups --extra test --no-install-project
 
 COPY packages/woobe-core/pyproject.toml packages/woobe-core/pyproject.toml
+COPY packages/woobe-core/alembic.ini packages/woobe-core/alembic.ini
+COPY packages/woobe-core/migrations/ packages/woobe-core/migrations/
 COPY packages/woobe-core/src/ packages/woobe-core/src/
 COPY packages/woobe-api/pyproject.toml packages/woobe-api/pyproject.toml
 COPY packages/woobe-api/src/ packages/woobe-api/src/

@@ -27,6 +27,7 @@ from modules.agent.domain.events import (
 from modules.agent.domain.run import AgentRun, AgentRunStatus
 from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
 from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
+from modules.agent.infra.execution.runtime_preparation import prepare_skill_state
 from modules.agent.infra.execution.runtime_preparation import (
     build_execution_snapshot,
     prepare_rag_binding,
@@ -204,6 +205,7 @@ class ExplicitRuntimePersistenceMixin:
                 tool_from_snapshot=tool_from_release_snapshot,
                 tool_with_permissions=tool_with_permission_overrides,
             )
+            await prepare_skill_state(repositories, agent=agent)
             rag_binding = await prepare_rag_binding(repositories, agent=agent)
 
             response_format = self._get_response_format(agent)

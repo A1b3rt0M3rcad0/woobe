@@ -1,4 +1,5 @@
 from modules.agent.composition.public_api import (
+    skill_catalog_composer,
     SETTINGS,
     AskInput,
     AgentRunReattachOperations,
@@ -118,6 +119,7 @@ from modules.agent.composition.public_api import (
 )
 
 __all__ = [
+    "skill_catalog_composer",
     'agent_run_context_by_trace_composer',
     'agent_run_context_composer',
     'agent_run_detail_by_trace_composer',

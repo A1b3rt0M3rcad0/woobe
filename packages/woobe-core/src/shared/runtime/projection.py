@@ -277,6 +277,11 @@ def reduce_projection(
                     "error_code": payload.get("error_code"),
                     "error": payload.get("error"),
                     "completed_at": payload.get("ended_at") or occurred_at,
+                    **{
+                        key: payload[key]
+                        for key in ("skill_name", "skill_version")
+                        if isinstance(payload.get(key), str)
+                    },
                 },
             )
     elif event_type == "agent_invocation_started":

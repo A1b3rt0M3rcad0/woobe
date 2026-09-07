@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { CheckCircle, ChevronDown, ChevronRight, Loader2, Wrench, XCircle } from 'lucide-react'
+import { operationGroups, operationLabel } from '@/features/skills/operations'
+import { CheckCircle, ChevronDown, ChevronRight, Loader2, Puzzle, Wrench, XCircle } from 'lucide-react'
 
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import type { ToolCallInfo } from '@/features/playground/types'
@@ -12,29 +13,32 @@ interface ToolCallsCollapsibleProps {
 }
 
 function isRunningTool(toolCall: ToolCallInfo): boolean {
+  if (isFailedTool(toolCall)) return false
   return toolCall.status === 'running'
     || (toolCall.success == null && toolCall.status !== 'error')
 }
 
 function isFailedTool(toolCall: ToolCallInfo): boolean {
-  return toolCall.success === false || toolCall.status === 'error'
+  return toolCall.success === false || toolCall.status === 'error' || toolCall.status === 'failed'
 }
 
-function summaryLabel(toolCalls: ToolCallInfo[]): string {
+function summaryLabel(toolCalls: ToolCallInfo[], label: string): string {
   const running = toolCalls.filter(isRunningTool).length
   const failed = toolCalls.filter(isFailedTool).length
   const completed = toolCalls.length - running - failed
-  const parts = [`Tool calls (${toolCalls.length})`]
+  const parts = [`${label} (${toolCalls.length})`]
   if (running) parts.push(`${running} running`)
   if (completed) parts.push(`${completed} completed`)
   if (failed) parts.push(`${failed} failed`)
   return parts.join(' · ')
 }
 
-export function ToolCallsCollapsible({
+function OperationGroup({
   toolCalls,
   variant = 'playground',
-}: ToolCallsCollapsibleProps) {
+  label,
+  kind,
+}: ToolCallsCollapsibleProps & { label: string; kind: 'skill' | 'tool' }) {
   const [open, setOpen] = useState(false)
   const compact = variant === 'network'
   const hasRunningTool = toolCalls.some(isRunningTool)
@@ -47,6 +51,7 @@ export function ToolCallsCollapsible({
       <button
         type="button"
         onClick={() => setOpen(!open)}
+        aria-expanded={open}
         className={cn(
           'flex max-w-full items-center gap-1.5 transition-colors hover:text-white',
           compact ? 'text-[9px]' : 'text-xs',
@@ -58,8 +63,8 @@ export function ToolCallsCollapsible({
           ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" />
           : hasFailedTool
             ? <XCircle className="h-3 w-3 shrink-0" />
-            : <Wrench className="h-3 w-3 shrink-0" />}
-        <span className="truncate">{summaryLabel(toolCalls)}</span>
+            : kind === 'skill' ? <Puzzle className="h-3 w-3 shrink-0" /> : <Wrench className="h-3 w-3 shrink-0" />}
+        <span className="truncate">{summaryLabel(toolCalls, label)}</span>
       </button>
       {open && (
         <div className="space-y-1.5">
@@ -86,7 +91,7 @@ export function ToolCallsCollapsible({
                       <XCircle className={cn('shrink-0 text-red-400', compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
                     )}
                     <span className={cn('truncate font-medium text-white', compact ? 'text-[9px]' : 'text-xs')}>
-                      {toolCall.tool_name}
+                      {operationLabel(toolCall)}
                     </span>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
@@ -132,4 +137,10 @@ export function ToolCallsCollapsible({
       )}
     </div>
   )
+}
+
+export function ToolCallsCollapsible({ toolCalls, variant }: ToolCallsCollapsibleProps) {
+  return <>{operationGroups(toolCalls ?? []).map(group => (
+    <OperationGroup key={group.kind} toolCalls={group.calls} variant={variant} label={group.label} kind={group.kind} />
+  ))}</>
 }

@@ -206,7 +206,10 @@ async function loadHistory() {
   for (const item of items) {
     if (typeof item?.role === "string" && typeof item?.content === "string") {
       if (item.role === "user" || item.role === "assistant") {
-        chatUi.appendMessage(item.role, item.content);
+        const message = chatUi.appendMessage(item.role, item.content);
+        if (item.role === "assistant" && Array.isArray(item.data?.tool_calls)) {
+          for (const call of item.data.tool_calls) chatUi.updateSkillActivity(message, call);
+        }
       }
     }
   }
@@ -298,8 +301,14 @@ function applyRuntimeFrame(
   if (!acceptRuntimeFrameSequence(parsed, observer.sequence)) return null;
 
   const { eventType, data, payload } = parsed;
+  if (eventType === "tool_call_started" || eventType === "tool_call_completed") {
+    ensureUi().updateSkillActivity(observer.assistant, payload);
+  }
   if (eventType === "run.state") {
     replaceAnswer(observer, typeof payload.output === "string" ? payload.output : "");
+    for (const calls of [payload.tools, payload.active_tools]) {
+      if (Array.isArray(calls)) for (const call of calls) ensureUi().updateSkillActivity(observer.assistant, call);
+    }
     if (payload.status === "cancel_requested") {
       const wasStopping = stopping;
       setStoppingState(true);

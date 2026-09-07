@@ -24,6 +24,7 @@ from modules.agent.application.interfaces.execution import (
     InstrumentedExecutionError,
 )
 from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.application.skill_runtime import SKILL_TOOL_NAMES
 from modules.agent.application.use_cases.tool_output_compaction import (
     compact_tool_output_for_llm,
 )
@@ -346,9 +347,15 @@ async def execute_tool_call(
 ) -> tuple[ToolCallInfo, ToolMessage, dict[str, Any]]:
     started_at = utc_iso()
     tool_name = tool_call["name"]
+    is_skill = tool_name in SKILL_TOOL_NAMES
+    skill_action = {
+        "skills_search": "Searching Skills...",
+        "skills_activate": "Activating Skill...",
+        "skills_read_resource": "Reading Skill resource...",
+    }.get(tool_name)
     await emit_agent_activity(
         "calling_tool",
-        message=f"Calling tool: {tool_name}...",
+        message=skill_action or f"Calling tool: {tool_name}...",
         tool_name=tool_name,
     )
     await emit_runtime_event(
@@ -425,11 +432,16 @@ async def execute_tool_call(
         "ended_at": ended_at,
         "occurred_at": ended_at,
     }
+    if is_skill and isinstance(output.get("output"), dict):
+        receipt = output["output"]
+        for source, target in (("name", "skill_name"), ("version", "skill_version")):
+            if isinstance(receipt.get(source), str):
+                payload[target] = receipt[source]
     _record_live_tool_call(info, payload)
     await emit_runtime_event("tool_call_completed", **payload)
     await emit_agent_activity(
         "processing_tool_result",
-        message="Processing tool result...",
+        message="Processing Skill result..." if is_skill else "Processing tool result...",
         tool_name=tool_name,
     )
     return info, message, payload

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from copy import deepcopy
 from enum import Enum
 from typing import Any
@@ -18,6 +18,14 @@ _SECRET_PATTERN = re.compile(r"\{\{secret:([^}]+)\}\}")
 ToolFromSnapshot = Callable[[dict[str, Any]], Any]
 ToolWithPermissions = Callable[[Any, Any], Any]
 ToolToSnapshot = Callable[[Any], dict[str, Any]]
+SkillBindingFreezer = Callable[..., Awaitable[dict[str, Any]]]
+_skill_binding_freezer: SkillBindingFreezer | None = None
+
+
+def configure_skill_binding_freezer(freezer: SkillBindingFreezer) -> None:
+    """Bind the Skill application service from the composition root."""
+    global _skill_binding_freezer
+    _skill_binding_freezer = freezer
 
 
 def _value(value: object) -> object:
@@ -259,3 +267,17 @@ def build_execution_snapshot(
             "embedding_dimensions": vector_snapshot.embedding_dimensions,
         }
     return json_safe(snapshot)
+
+
+async def prepare_skill_state(repositories: AgentRuntimeRepositories, *, agent: Any) -> None:
+    settings = deepcopy(agent.settings or {})
+    runtime = settings.get("runtime_config")
+    if isinstance(runtime, dict) and "skills" in runtime:
+        if _skill_binding_freezer is None:
+            raise RuntimeError("Skill binding freezer was not configured")
+        settings["runtime_config"] = await _skill_binding_freezer(
+            repositories.skills,
+            project_id=agent.project_id,
+            runtime_config=runtime,
+        )
+        agent.settings = settings

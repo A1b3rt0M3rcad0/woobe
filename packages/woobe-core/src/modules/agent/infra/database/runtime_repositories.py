@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from modules.agent.infra.database.skill_repository import SQLAlchemySkillRepository
+
 from modules.agent.infra.database.agent_run_repository import SQLAlchemyAgentRunRepository
 from modules.agent.infra.database.project_access_repository import (
     SQLAlchemyProjectAccessRepository,
@@ -55,6 +57,7 @@ class AgentRuntimeRepositories:
     document_chunks: SQLAlchemyDocumentChunkRepository
     knowledge_versions: SQLAlchemyKnowledgeVersionRepository
     vector_snapshots: SQLAlchemyVectorSnapshotRepository
+    skills: SQLAlchemySkillRepository | None = None
 
 
 def build_agent_runtime_repositories(
@@ -76,4 +79,5 @@ def build_agent_runtime_repositories(
         document_chunks=SQLAlchemyDocumentChunkRepository(uow),
         knowledge_versions=SQLAlchemyKnowledgeVersionRepository(uow),
         vector_snapshots=SQLAlchemyVectorSnapshotRepository(uow),
+        skills=SQLAlchemySkillRepository(uow),
     )

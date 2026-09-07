@@ -210,7 +210,7 @@ export function UsageOperations({
                 <p className="mt-1 text-sm font-semibold text-white">{formatNumber(tokensPerRun)}</p>
               </div>
               <div className="rounded-lg border border-border/60 bg-background/25 p-3">
-                <p className="text-[9px] uppercase tracking-wider text-muted">Tool calls</p>
+                <p className="text-[9px] uppercase tracking-wider text-muted">Tool/Skill operations</p>
                 <p className="mt-1 text-sm font-semibold text-white">{formatNumber(composition.tool_calls)}</p>
               </div>
             </div>

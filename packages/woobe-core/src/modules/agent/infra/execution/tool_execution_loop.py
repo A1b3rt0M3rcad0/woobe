@@ -221,6 +221,7 @@ async def run_tool_loop(
     model_name: str,
     initial_phase: str,
     final_json_instruction: str | None,
+    initial_tool_call: dict[str, Any] | None = None,
     final_model: Any | None = None,
     final_model_factory: Callable[[], Any] | None = None,
     pricing_snapshot: dict[str, Any] | None = None,
@@ -228,14 +229,35 @@ async def run_tool_loop(
 ) -> tuple[InstrumentedExecution, int]:
     """Execute one real response invocation and continue only for capability calls.
 
-    The terminal model is recovery-only and is constructed lazily when a supplied
-    ``final_model_factory`` is needed. A capability-free response never creates or
-    invokes that model.
+    ``initial_tool_call`` is an optional runtime-owned preflight capability. It is
+    executed before the first provider invocation and does not consume a model Tool
+    round. The terminal model is recovery-only and is constructed lazily when a
+    supplied ``final_model_factory`` is needed.
     """
 
     execution = InstrumentedExecution(result=None)
     base_messages = _sanitize_base_messages(messages)
     tool_loop_messages = list(base_messages)
+
+    if initial_tool_call is not None:
+        preflight = AIMessage(content="", tool_calls=[initial_tool_call])
+        tool_loop_messages.append(preflight)
+        started = time.monotonic()
+        info, message, payload = await execute_tool_call(
+            execute=execute_single_tool,
+            tool_call=initial_tool_call,
+            resolved_tool_id=tool_name_to_id.get(
+                initial_tool_call["name"], initial_tool_call["name"]
+            ),
+        )
+        execution.tool_wall_latency_ms += round((time.monotonic() - started) * 1000)
+        execution.tool_calls.append(info)
+        execution.tool_call_duration_sum_ms += int(info.duration_ms or 0)
+        execution.timeline.append(
+            {"kind": "tool", "occurred_at": payload["occurred_at"], "payload": payload}
+        )
+        tool_loop_messages.append(message)
+
     call_index = 1
     result, call = await invoke_llm(
         model=model,

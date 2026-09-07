@@ -64,9 +64,10 @@ def test_default_registry_exposes_default_alias_and_explicit_standard_strategy()
     assert [descriptor.key for descriptor in descriptors] == [
         DEFAULT_CONTEXT_ASSEMBLER_KEY,
         STANDARD_CONTEXT_ASSEMBLER_KEY,
+        ContextAssemblerKey("stdcm", "v2"),
     ]
 
-    system_default, explicit_standard = descriptors
+    system_default, explicit_standard, skills_standard = descriptors
     assert system_default.strategy_key == STANDARD_CONTEXT_ASSEMBLER_KEY
     assert system_default.display_name == "Standard Context Manager"
     assert system_default.is_default is True
@@ -93,8 +94,8 @@ def test_default_alias_and_explicit_strategy_resolve_same_standard_implementatio
 def test_default_registry_exposes_backend_owned_product_metadata_for_both_selections() -> None:
     descriptors = list_context_assemblers()
 
-    assert len(descriptors) == 2
-    system_default, explicit_standard = descriptors
+    assert len(descriptors) == 3
+    system_default, explicit_standard, skills_standard = descriptors
 
     expected_common = {
         "strategy_name": "stdcm",
@@ -123,6 +124,7 @@ def test_default_registry_exposes_backend_owned_product_metadata_for_both_select
             "Behavior is bounded by Context Policy v1 and the context sources available to the Agent.",
         ],
         "configuration": "Context Policy v1",
+        "supports_skills": False,
     }
 
     assert system_default == {

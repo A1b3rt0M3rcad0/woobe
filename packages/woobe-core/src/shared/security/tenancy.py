@@ -25,6 +25,7 @@ DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     "snapshot_id": "agent.vector_snapshots",
     "vector_snapshot_id": "agent.vector_snapshots",
     "tool_id": "agent.tools",
+    "skill_id": "agent.skills",
     "secret_id": "agent.tool_secrets",
     "session_id": "agent.sessions",
     "message_id": "agent.messages",
@@ -42,6 +43,12 @@ DIRECT_PROJECT_RESOURCES: dict[str, str] = {
 }
 
 INDIRECT_PROJECT_RESOURCE_QUERIES: dict[str, str] = {
+    "skill_version_id": """
+        SELECT skills.project_id
+        FROM agent.skill_versions AS versions
+        JOIN agent.skills AS skills ON skills.id = versions.skill_id
+        WHERE versions.id = :resource_id
+    """,
     # agent_collections does not duplicate project_id; ownership is derived from
     # its agent. This is used by DELETE /knowledge/agent-collections/{link_id}.
     "link_id": """

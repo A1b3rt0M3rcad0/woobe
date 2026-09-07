@@ -25,6 +25,34 @@ _BOUND_CAPABILITIES_INSTRUCTION = (
     "when they are needed; otherwise answer directly."
 )
 
+_SKILL_RESOLUTION_INSTRUCTION = (
+    "The installed Skill catalog is routing metadata for the Skills enabled on this Agent "
+    "Run. Determine Skill applicability from the CURRENT USER REQUEST, not from previous "
+    "Session messages, prior Runs, or earlier Skill usage. Do not activate a Skill merely "
+    "because it is installed, was used earlier, or is mentioned in conversation history. "
+    "Activate a Skill only when the current request matches its when_to_use scope; then call "
+    "skills_activate before following that procedure. If no visible Skill applies, answer "
+    "directly with no Skill operation. Do not call skills_search merely to confirm a Skill "
+    "already listed in a complete catalog. Use skills_search only when catalog_complete is "
+    "false, when a required Skill may be omitted by the catalog budget, or when routing "
+    "cannot be resolved from the visible when_to_use metadata. Activated instructions and "
+    "resources are runtime-only context for this Agent Run and must not be treated as "
+    "Session memory or reused by a later Run."
+)
+
+_skill_snapshots_resolver: Callable[[object, Any], list[dict[str, Any]]] | None = None
+_skill_runtime_factory: Callable[[list[dict[str, Any]], Any, set[str]], Any] | None = None
+
+
+def configure_skill_runtime(
+    snapshots_resolver: Callable[[object, Any], list[dict[str, Any]]],
+    runtime_factory: Callable[[list[dict[str, Any]], Any, set[str]], Any],
+) -> None:
+    """Bind concrete Skill application services from the composition root."""
+    global _skill_snapshots_resolver, _skill_runtime_factory
+    _skill_snapshots_resolver = snapshots_resolver
+    _skill_runtime_factory = runtime_factory
+
 
 def _primary_pricing_snapshot(agent: Agent) -> dict[str, Any] | None:
     settings = agent.settings or {}
@@ -86,12 +114,21 @@ def _messages_with_leading_system_instruction(messages: list, instruction: str) 
     return [SystemMessage(content=instruction), *result]
 
 
-def _messages_with_bound_capability_authority(messages: list, *, has_tools: bool) -> list:
+def _messages_with_bound_capability_authority(
+    messages: list, *, has_tools: bool, has_skills: bool = False
+) -> list:
     if not has_tools:
         return list(messages)
     return _messages_with_leading_system_instruction(
         messages,
-        _BOUND_CAPABILITIES_INSTRUCTION,
+        (
+            _BOUND_CAPABILITIES_INSTRUCTION.replace(
+                "Do not search for, list, discover, or invent additional capabilities.",
+                "Skill discovery may find installed procedures, but never grants additional Tool permissions.",
+            )
+            if has_skills
+            else _BOUND_CAPABILITIES_INSTRUCTION
+        ),
     )
 
 
@@ -116,6 +153,48 @@ async def run_instrumented_execution(
         if hasattr(agent.provider, "value")
         else str(agent.provider)
     )
+    runtime_config = (agent.settings or {}).get("runtime_config")
+    has_skill_config = isinstance(runtime_config, dict) and bool(runtime_config.get("skills"))
+    if has_skill_config:
+        if _skill_snapshots_resolver is None or _skill_runtime_factory is None:
+            raise RuntimeError("Skill runtime dependencies were not configured")
+        snapshots = _skill_snapshots_resolver(runtime_config, agent.project_id)
+    else:
+        snapshots = []
+    context = current_execution.get()
+    if context is not None:
+        context.skill_context = None
+    if snapshots:
+        policy = resolve_context_policy(runtime_config).skills
+        if policy is None or context is None:
+            raise RuntimeError("Skills require a prepared execution context and policy")
+        skill_runtime = _skill_runtime_factory(snapshots, policy, set(tool_name_to_id))
+        collisions = set(tool_name_to_id).intersection(skill_runtime.mapping)
+        if collisions:
+            raise ValueError(
+                "Skill operation name collides with a bound Tool: "
+                + ", ".join(sorted(collisions))
+            )
+        context.skill_context = skill_runtime.contributions()
+        agent_tools = [*agent_tools, *skill_runtime.definitions]
+        tool_name_to_id = {**tool_name_to_id, **skill_runtime.mapping}
+        has_tools = True
+        execute_bound_tool = execute_single_tool
+        skill_execution_context = context
+
+        async def execute_with_skills(tool_call: dict, resolved_tool_id: str) -> dict:
+            name = tool_call.get("name")
+            if name in skill_runtime.mapping:
+                output = skill_runtime.execute(
+                    name,
+                    tool_call.get("args") or {},
+                    tool_call_id=str(tool_call.get("id") or ""),
+                )
+                skill_execution_context.skill_context = skill_runtime.contributions()
+                return output
+            return await execute_bound_tool(tool_call, resolved_tool_id)
+
+        execute_single_tool = execute_with_skills
     pricing_snapshot = _primary_pricing_snapshot(agent)
     _bind_context_runtime(
         agent=agent,
@@ -185,7 +264,13 @@ async def run_instrumented_execution(
     execution_messages = _messages_with_bound_capability_authority(
         messages,
         has_tools=has_tools,
+        has_skills=bool(snapshots),
     )
+    if snapshots:
+        execution_messages = _messages_with_leading_system_instruction(
+            execution_messages,
+            _SKILL_RESOLUTION_INSTRUCTION,
+        )
     if instruction is not None:
         execution_messages = _messages_with_leading_system_instruction(
             execution_messages,

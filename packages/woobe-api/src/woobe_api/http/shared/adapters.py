@@ -27,7 +27,12 @@ _STATUS_BY_OUTCOME = {
 }
 
 
-async def request_adapter(fastapi_request: FastAPIRequest, handler: Any) -> OperationResult:
+async def request_adapter(
+    fastapi_request: FastAPIRequest,
+    handler: Any,
+    *,
+    metadata: dict[str, Any] | None = None,
+) -> OperationResult:
     body: Any = None
     try:
         body = await fastapi_request.json()
@@ -40,6 +45,7 @@ async def request_adapter(fastapi_request: FastAPIRequest, handler: Any) -> Oper
         body=body,
         query_params=dict(fastapi_request.query_params),
         path_params=dict(fastapi_request.path_params),
+        metadata=dict(metadata or {}),
     )
 
     response = await handler(operation_request)

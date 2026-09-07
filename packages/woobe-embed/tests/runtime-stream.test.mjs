@@ -9,7 +9,7 @@ import ts from "typescript";
 async function loadRuntimeModule() {
   const directory = await mkdtemp(join(tmpdir(), "woobe-runtime-client-"));
   const sourceRoot = new URL("../../woobe-runtime-client/src/", import.meta.url);
-  for (const moduleName of ["types", "protocol", "sse", "observer", "index"]) {
+  for (const moduleName of ["types", "protocol", "sse", "observer", "operations", "index"]) {
     const source = await readFile(new URL(`${moduleName}.ts`, sourceRoot), "utf8");
     let output = ts.transpileModule(source, {
       compilerOptions: {

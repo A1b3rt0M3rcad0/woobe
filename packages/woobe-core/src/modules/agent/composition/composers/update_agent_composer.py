@@ -1,3 +1,4 @@
+from modules.agent.infra.database.skill_repository import SQLAlchemySkillRepository
 from modules.agent.application.use_cases import UpdateAgentUseCase
 from modules.agent.composition.resources import DATABASE_ENGINE
 from modules.agent.infra.adapters.legacy_runtime_status_adapter import (
@@ -32,6 +33,7 @@ def update_agent_composer() -> TransactionalHandler:
         outbox,
         provider_model_repo,
         network_usage_reader,
+        skill_repo=SQLAlchemySkillRepository(uow),
     )
     use_case = LegacyRuntimeStatusUpdateAdapter(update_use_case, uow)
     controller = UpdateAgentController(use_case)

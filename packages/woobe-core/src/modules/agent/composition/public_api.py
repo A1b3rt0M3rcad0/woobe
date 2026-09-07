@@ -1,5 +1,7 @@
 """Explicit transport-neutral public surface for Agent hosts."""
 
+from modules.agent.composition.composers.skill_catalog_composer import skill_catalog_composer
+
 from modules.agent.application.context_assembler_registry import list_context_assemblers
 from modules.agent.application.dtos import AskInput, UploadDocumentFileInput
 from modules.agent.application.dtos.public_runtime_dtos import PublicRunRequest
@@ -242,6 +244,7 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    "skill_catalog_composer",
     'agent_run_context_by_trace_composer',
     'agent_run_context_composer',
     'agent_run_detail_by_trace_composer',

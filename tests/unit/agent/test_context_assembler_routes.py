@@ -20,9 +20,9 @@ async def test_context_assembler_catalog_uses_api_envelope_and_backend_metadata(
     payload = response.json()
     assert payload["success"] is True
     assert payload["message"] == "ok"
-    assert len(payload["data"]) == 2
+    assert len(payload["data"]) == 3
 
-    system_default, explicit_standard = payload["data"]
+    system_default, explicit_standard, skills_standard = payload["data"]
     expected_common = {
         "strategy_name": "stdcm",
         "strategy_version": "v1",
@@ -50,6 +50,7 @@ async def test_context_assembler_catalog_uses_api_envelope_and_backend_metadata(
             "Behavior is bounded by Context Policy v1 and the context sources available to the Agent.",
         ],
         "configuration": "Context Policy v1",
+        "supports_skills": False,
     }
 
     assert system_default == {

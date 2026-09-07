@@ -23,6 +23,7 @@ class ContextAssemblerDescriptorResponse(BaseModel):
     capabilities: list[str] = Field(min_length=1)
     limitations: list[str] = Field(min_length=1)
     configuration: str = Field(min_length=1)
+    supports_skills: bool = False
     is_default: bool
     is_system_default_alias: bool
 
