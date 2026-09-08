@@ -14,7 +14,6 @@ const baseProps = {
   sessions: [],
   sessionId: null,
   onSelectTrace: vi.fn(),
-  onNewSession: vi.fn(),
   onSelectSession: vi.fn(),
 }
 

@@ -184,6 +184,7 @@ export default function NetworkPage() {
   const { environment, centerMode, selection, inspectorContext, inspectionScope } = workspace
   const [panelTab, setPanelTab] = useState<PanelTab>('traces')
   const [showLeftPanel, setShowLeftPanel] = useState(false)
+  const [networkSessionActionBlocked, setNetworkSessionActionBlocked] = useState(false)
   const [pendingNode, setPendingNode] = useState<string | null>(null)
   const [showApi, setShowApi] = useState(false)
   const [networkManager, setNetworkManager] = useState<NetworkManagerState | null>(null)
@@ -272,6 +273,7 @@ export default function NetworkPage() {
   useEffect(() => {
     setShowLeftPanel(false)
     setPanelTab('traces')
+    setNetworkSessionActionBlocked(false)
     setActiveSessionIdByEnvironment({ draft: null, staging: null, production: null })
     setSelectedTraceIdBySession({})
     setTraces([])
@@ -676,6 +678,11 @@ export default function NetworkPage() {
     clearSnapshotInspection()
   }
 
+  const openSessionFromPanel = (sessionId: string) => {
+    selectSession(sessionId)
+    changeCenter('chat')
+  }
+
   const startNewConversation = () => {
     setActiveSessionIdByEnvironment((current) => ({ ...current, [environment]: null }))
     clearSnapshotInspection()
@@ -720,6 +727,14 @@ export default function NetworkPage() {
       toast.error(error instanceof Error ? error.message : 'Unable to create Network Session')
       return null
     }
+  }
+
+  const createSessionFromRail = async () => {
+    if (networkSessionActionBlocked || savingWorkspace || createNetworkSessionMutation.isPending) return
+    const session = await createSession()
+    if (!session) return
+    setShowLeftPanel(false)
+    changeCenter('chat')
   }
 
   const startFirstTest = async () => {
@@ -847,6 +862,14 @@ export default function NetworkPage() {
   const releaseActionBlocked = Boolean(snapshotInspection)
     || (environment === 'draft' ? editorHasErrors || workspaceDirty || draftSavePending || isInitialSetup : !environmentReady)
   const effectiveCenterMode = isInitialSetup ? 'canvas' : centerMode
+  const newSessionDisabledReason = networkSessionActionBlocked
+    ? 'New Session is unavailable while the Network runtime is busy or disabled.'
+    : !environmentReady
+      ? `Create the ${environment} version before starting its Chat.`
+      : savingWorkspace
+        ? 'Wait for the current Draft save to finish.'
+        : undefined
+  const newSessionDisabled = Boolean(newSessionDisabledReason) || createNetworkSessionMutation.isPending
 
   const canvasContent = agentsQuery.isLoading ? (
     <div className="flex flex-1 items-center justify-center text-xs text-muted">Loading Network inventory</div>
@@ -870,7 +893,27 @@ export default function NetworkPage() {
   )
 
   const chatContent = (
-    <NetworkChatWorkspace key={environment} networkId={network?.id || ''} projectId={projectId!} networkName={`${currentProject?.name || 'Project'} Network`} environment={environment} versionLabel={versionLabel} currentVersionId={currentVersionId} bindings={runtimeBindings} sessions={environmentSessions} activeSession={activeSession} historyTurns={hydratedHistory.turns} historyLoading={Boolean(activeSession && sessionMessagesQuery.isLoading)} onBeforeDraftRun={async () => (await saveWorkspaceDraft()).draft_revision} onSelectSession={selectSession} onCreateSession={createSession} onStartNewConversation={startNewConversation} onRun={handleCompletedTrace} onSelectAgent={selectNode} onOpenTrace={openTraceFromChat} />
+    <NetworkChatWorkspace
+      key={environment}
+      networkId={network?.id || ''}
+      projectId={projectId!}
+      networkName={`${currentProject?.name || 'Project'} Network`}
+      environment={environment}
+      versionLabel={versionLabel}
+      currentVersionId={currentVersionId}
+      bindings={runtimeBindings}
+      activeSession={activeSession}
+      historyTurns={hydratedHistory.turns}
+      historyLoading={Boolean(activeSession && sessionMessagesQuery.isLoading)}
+      onBeforeDraftRun={async () => (await saveWorkspaceDraft()).draft_revision}
+      onSelectSession={selectSession}
+      onCreateSession={createSession}
+      onStartNewConversation={startNewConversation}
+      onSessionActionBlockedChange={setNetworkSessionActionBlocked}
+      onRun={handleCompletedTrace}
+      onSelectAgent={selectNode}
+      onOpenTrace={openTraceFromChat}
+    />
   )
 
   return (
@@ -922,8 +965,32 @@ export default function NetworkPage() {
         )}
       </div>
       <div className="relative flex min-h-0 flex-1">
-        {!isInitialSetup ? <NetworkOperationsRail activeTab={showLeftPanel ? panelTab : null} onTabChange={handlePanelTab} /> : null}
-        {!isInitialSetup && showLeftPanel ? <NetworkOperationsPanel presentation={centerMode === 'chat' ? 'docked' : 'overlay'} activeTab={panelTab} traces={activeTraces} session={activeSession} selectedTraceId={selectedTraceId} onSelectTrace={selectTrace} onViewCanvas={(trace) => void viewTraceOnCanvas(trace)} onOpenAgent={selectNode} /> : null}
+        {!isInitialSetup ? (
+          <NetworkOperationsRail
+            activeTab={showLeftPanel ? panelTab : null}
+            onTabChange={handlePanelTab}
+            onNewSession={createSessionFromRail}
+            newSessionDisabled={newSessionDisabled}
+            newSessionDisabledReason={newSessionDisabledReason}
+            newSessionPending={createNetworkSessionMutation.isPending}
+          />
+        ) : null}
+        {!isInitialSetup && showLeftPanel ? (
+          <NetworkOperationsPanel
+            presentation={centerMode === 'chat' ? 'docked' : 'overlay'}
+            activeTab={panelTab}
+            traces={activeTraces}
+            sessions={environmentSessions}
+            session={activeSession}
+            selectedTraceId={selectedTraceId}
+            currentVersionId={currentVersionId}
+            sessionsLoading={networkSessionsQuery.isLoading}
+            onSelectTrace={selectTrace}
+            onSelectSession={openSessionFromPanel}
+            onViewCanvas={(trace) => void viewTraceOnCanvas(trace)}
+            onOpenAgent={selectNode}
+          />
+        ) : null}
         <div className="relative flex min-w-0 flex-1 overflow-hidden">
           <div className={cn('absolute inset-0 flex min-w-0', effectiveCenterMode !== 'canvas' && 'invisible pointer-events-none')} aria-hidden={effectiveCenterMode !== 'canvas'}>{canvasContent}</div>
           <div className={cn('absolute inset-0 flex min-w-0', effectiveCenterMode !== 'chat' && 'invisible pointer-events-none')} aria-hidden={effectiveCenterMode !== 'chat'}>{chatContent}</div>

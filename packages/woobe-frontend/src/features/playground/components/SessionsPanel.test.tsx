@@ -22,50 +22,49 @@ const session = {
 afterEach(() => resetAgentStreamStopState())
 
 describe('SessionsPanel active Run isolation', () => {
-  it('keeps Session actions enabled while runtime is idle', () => {
+  it('keeps Session selection enabled while runtime is idle and does not render Session creation controls', () => {
     resetAgentStreamStopState()
     const html = renderToStaticMarkup(
       <SessionsPanel
         sessions={[session]}
         currentSessionId={session.id}
         sessionMode="stateful"
-        onNewSession={vi.fn()}
         onSelectSession={vi.fn()}
       />,
     )
 
     expect(html).not.toContain('Wait for the active Agent Run')
+    expect(html).not.toContain('aria-label="New Session"')
+    expect(html).not.toContain('>New</button>')
   })
 
-  it('disables Session creation and selection while an Agent Run is running', () => {
+  it('disables Session selection while an Agent Run is running', () => {
     setAgentStreamStopState('running')
     const html = renderToStaticMarkup(
       <SessionsPanel
         sessions={[session]}
         currentSessionId={session.id}
         sessionMode="stateful"
-        onNewSession={vi.fn()}
         onSelectSession={vi.fn()}
       />,
     )
 
     expect(html).toContain('Wait for the active Agent Run to finish or stop it before changing Sessions')
-    expect((html.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(2)
+    expect((html.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(1)
   })
 
-  it('keeps Session actions disabled while cancellation is being finalized', () => {
+  it('keeps Session selection disabled while cancellation is being finalized', () => {
     setAgentStreamStopState('stopping')
     const html = renderToStaticMarkup(
       <SessionsPanel
         sessions={[session]}
         currentSessionId={session.id}
         sessionMode="stateful"
-        onNewSession={vi.fn()}
         onSelectSession={vi.fn()}
       />,
     )
 
     expect(html).toContain('Wait for the active Agent Run cancellation to finish before changing Sessions')
-    expect((html.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(2)
+    expect((html.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(1)
   })
 })

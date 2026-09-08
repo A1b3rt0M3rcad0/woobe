@@ -4,7 +4,7 @@ import { cn } from '@/lib/utils'
 import type { AgentNodeId } from './networkWorkspaceTypes'
 import type { NetworkTraceRecord } from './networkObservabilityTypes'
 import type { NetworkSession } from './networkSessionTypes'
-import { NetworkDebugPanel } from './NetworkDebugPanel'
+import { NetworkSessionsPanel } from './NetworkSessionsPanel'
 import { NetworkTracePanel } from './NetworkTracePanel'
 
 export { Badge, NetworkOperationsRail } from './NetworkOperationsRail'
@@ -15,27 +15,32 @@ export type NetworkOperationsPresentation = 'auto' | 'overlay' | 'docked'
 export function NetworkOperationsPanel({
   activeTab,
   traces,
+  sessions,
   session,
   selectedTraceId,
+  currentVersionId,
+  sessionsLoading = false,
   presentation = 'auto',
   onSelectTrace,
+  onSelectSession,
   onViewCanvas,
   onOpenAgent,
 }: {
-  activeTab: 'traces' | 'debug'
+  activeTab: 'traces' | 'sessions'
   traces: NetworkTraceRecord[]
+  sessions: NetworkSession[]
   session: NetworkSession | null
   selectedTraceId: string | null
+  currentVersionId: string | null
+  sessionsLoading?: boolean
   presentation?: NetworkOperationsPresentation
   onSelectTrace: (trace: NetworkTraceRecord) => void
+  onSelectSession: (sessionId: string) => void
   onViewCanvas: (trace: NetworkTraceRecord) => void
   onOpenAgent: (nodeId: AgentNodeId) => void
 }) {
   const panelRef = useRef<HTMLElement | null>(null)
   const [autoDocked, setAutoDocked] = useState(false)
-  const selectedTrace = selectedTraceId
-    ? traces.find((trace) => trace.id === selectedTraceId) ?? null
-    : null
 
   useEffect(() => {
     if (presentation !== 'auto') return
@@ -77,7 +82,15 @@ export function NetworkOperationsPanel({
           : 'relative z-0 shrink-0 shadow-xl shadow-black/20',
       )}
     >
-      {activeTab === 'traces' ? (
+      {activeTab === 'sessions' ? (
+        <NetworkSessionsPanel
+          sessions={sessions}
+          activeSessionId={session?.id ?? null}
+          currentVersionId={currentVersionId}
+          loading={sessionsLoading}
+          onSelectSession={onSelectSession}
+        />
+      ) : (
         <NetworkTracePanel
           traces={traces}
           session={session}
@@ -86,8 +99,6 @@ export function NetworkOperationsPanel({
           onViewCanvas={onViewCanvas}
           onOpenAgent={onOpenAgent}
         />
-      ) : (
-        <NetworkDebugPanel trace={selectedTrace} />
       )}
     </aside>
   )
