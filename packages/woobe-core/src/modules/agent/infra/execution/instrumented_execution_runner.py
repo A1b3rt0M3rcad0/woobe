@@ -14,6 +14,7 @@ from modules.agent.infra.execution.runtime_streaming import (
     current_runtime_stream,
     runtime_streaming_enabled,
 )
+from modules.agent.infra.execution.skill_routing_model import SkillRoutingModelAdapter
 from modules.agent.infra.execution.structured_json_repair import repair_json_if_needed
 from modules.agent.infra.execution.tool_execution_loop import run_tool_loop
 
@@ -27,16 +28,21 @@ _BOUND_CAPABILITIES_INSTRUCTION = (
 
 _SKILL_RESOLUTION_INSTRUCTION = (
     "The installed Skill catalog is routing metadata for the Skills enabled on this Agent "
-    "Run. Before normal response generation, resolve Skill applicability for the CURRENT "
-    "USER REQUEST through the runtime Skill routing gate. Choose activate when the request "
-    "matches a visible Skill's when_to_use scope, none when no installed Skill applies, or "
-    "search only when catalog_complete is false or the visible routing metadata is "
-    "insufficient. Determine applicability from the current request, not from previous "
-    "Session messages, prior Runs, or earlier Skill usage. Do not activate a Skill merely "
-    "because it is installed, was used earlier, or is mentioned in conversation history. "
-    "Do not search merely to confirm a Skill already listed in a complete catalog. When a "
-    "Skill is activated, its procedural instructions become runtime-only context for this "
-    "Agent Run and must be followed subject to higher-priority Agent and system policies."
+    "Run. This invocation is exclusively for Skill applicability resolution for the CURRENT "
+    "USER REQUEST. Do not answer the user's request in this invocation. Prefer calling the "
+    "bound skills_resolve operation exactly once. Choose activate when the request matches a "
+    "visible Skill's when_to_use scope, none when no installed Skill applies, or search only "
+    "when catalog_complete is false or the visible routing metadata is insufficient. If the "
+    "model/provider does not emit a Tool call, return ONLY one JSON object with the same "
+    "decision: {\"action\":\"activate\",\"skill_version_id\":\"<uuid>\"}, "
+    "{\"action\":\"none\"}, or {\"action\":\"search\",\"query\":\"<query>\",\"offset\":0}. "
+    "Do not include markdown or explanatory text. Determine applicability from the current "
+    "request, not from previous Session messages, prior Runs, or earlier Skill usage. Do not "
+    "activate a Skill merely because it is installed, was used earlier, or is mentioned in "
+    "conversation history. Do not search merely to confirm a Skill already listed in a "
+    "complete catalog. When a Skill is activated, its procedural instructions become "
+    "runtime-only context for this Agent Run and must be followed subject to higher-priority "
+    "Agent and system policies."
 )
 
 _skill_snapshots_resolver: Callable[[object, Any], list[dict[str, Any]]] | None = None
@@ -241,9 +247,12 @@ async def run_instrumented_execution(
     model = base_model.bind_tools(agent_tools, tool_choice="auto") if has_tools else base_model
     routing_model = None
     if skill_runtime is not None:
-        routing_model = base_model.bind_tools(
-            [skill_runtime.routing_definition],
-            tool_choice="auto",
+        routing_model = SkillRoutingModelAdapter(
+            base_model.bind_tools(
+                [skill_runtime.routing_definition],
+                tool_choice="auto",
+            ),
+            clean_json_answer=clean_json_answer,
         )
 
     network_execution = bool(context and context.network_execution_id)
