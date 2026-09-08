@@ -218,7 +218,12 @@ async def test_custom_provider_direct_json_routing_can_resolve_none() -> None:
             has_tools=False,
             agent_tools=[],
             tool_name_to_id={},
-            messages=[HumanMessage(content="Quanto é 1 + 1?")],
+            messages=[
+                SystemMessage(content="FOLLOWUP_AGENT_PERSONA"),
+                HumanMessage(content="OLD_USER_CONTEXT"),
+                AIMessage(content="OLD_ASSISTANT_CONTEXT"),
+                HumanMessage(content="Quanto é 1 + 1?"),
+            ],
             context_assembler=build_context_assembler(
                 ContextAssemblerKey("stdcm", "v2")
             ),
