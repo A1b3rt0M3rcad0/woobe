@@ -19,6 +19,7 @@ const fixture = vi.hoisted(() => ({
   agentsError: false,
   managersError: false,
   snapshot: { id: 'version-1', skill_version_id: 'version-1', skill_id: 'skill-1', project_id: 'project-1', name: 'invoice-review', description: 'Review invoices', version: '1.0.0', package_hash: 'hash', required_tools: [], estimated_instruction_units: 100, resource_paths: [], created_at: '2026-09-06', package: { name: 'invoice-review', description: 'Review invoices', instructions: 'Check totals', skill_md: 'Check totals', resources: {}, required_tools: [] } },
+  summary: { id: 'skill-1', project_id: 'project-1', name: 'invoice-review', created_at: '2026-09-06', latest_version_id: 'version-1', latest_version: '1.0.0', latest_description: 'Review invoices', latest_required_tools: [], latest_estimated_instruction_units: 100, latest_resource_count: 0, latest_version_created_at: '2026-09-06', version_count: 1 },
 }))
 vi.mock('./api', () => ({ listSkills: vi.fn(), listSkillVersions: vi.fn(), getSkillVersion: vi.fn(), importSkill: vi.fn() }))
 vi.mock('@/components/layout/SidebarUserCard', () => ({ SidebarUserCard: () => null }))
@@ -73,7 +74,7 @@ beforeEach(() => {
   container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
   vi.clearAllMocks(); fixture.agentsError = false; fixture.managersError = false; fixture.agent.settings = {}
-  vi.mocked(listSkills).mockResolvedValue([{ id: 'skill-1', project_id: 'project-1', name: 'invoice-review', created_at: '2026-09-06' }])
+  vi.mocked(listSkills).mockResolvedValue([fixture.summary])
   vi.mocked(listSkillVersions).mockResolvedValue([fixture.snapshot])
   vi.mocked(getSkillVersion).mockResolvedValue(fixture.snapshot)
   vi.mocked(importSkill).mockResolvedValue(fixture.snapshot)
@@ -92,6 +93,16 @@ describe('Skills navigation regression', () => {
     await render(<AppRouter />, path, true)
     await settle(() => expect(container.querySelector('h1')?.textContent).toBe('Skills'))
     expect(listSkills).toHaveBeenCalledWith('project-1', '', 0)
+  })
+  it('renders the Project catalog as operational cards and opens Skill details without replacing the page', async () => {
+    await render(<SkillsPage />)
+    await settle(() => expect(container.textContent).toContain('v1.0.0'))
+    expect(container.textContent).toContain('1 version')
+    expect(container.textContent).toContain('≈ 100 units')
+    const card = [...container.querySelectorAll('button')].find(element => element.getAttribute('aria-label') === 'Open Skill invoice-review')!
+    await click(card)
+    await settle(() => expect(document.body.textContent).toContain('SHA-256 hash'))
+    expect(container.querySelector('h1')?.textContent).toBe('Skills')
   })
   it.each(['standalone', 'network'])('makes Skills visible and usable in the %s editor', async surface => {
     const editor = surface === 'network' ? <NetworkAgentEditor agent={fixture.agent} projectId="project-1" agentId="agent-1" /> : <AgentInspector agent={fixture.agent} projectId="project-1" agentId="agent-1" activeTab="editor" environment="draft" environmentRelease={null} onTabChange={vi.fn()} />
@@ -130,20 +141,23 @@ describe('Skills navigation regression', () => {
     await click(button('Install on Agent')); await click(button('Reviewer'))
     await settle(() => expect(container.querySelector('output')?.textContent).toBe('/workspaces/workspace-1/projects/project-1/agents/agent-1/playground?editor=skills&skill_version_id=version-1'))
   })
-  it('lists saved installations including disabled versions and links to the Agent Skills editor', async () => {
+  it('lists saved installations including disabled versions as operational cards and opens the Agent Skills editor', async () => {
     fixture.agent.settings = { runtime_config: { skills: { bindings: [{ skill_id: 'skill-1', skill_version_id: 'version-1', enabled: false }], snapshots: [fixture.snapshot] } } }
-    await render(<SkillsPage />)
+    await render(<><SkillsPage /><Location /></>)
     await click([...container.querySelectorAll('button')].find(element => element.getAttribute('role') === 'tab' && element.textContent?.includes('Installed on Agents'))!)
-    expect(container.textContent).toContain('1.0.0 · Disabled')
-    expect(container.querySelector('article a')?.getAttribute('href')).toContain('/agents/agent-1/playground?editor=skills')
+    expect(container.textContent).toContain('v1.0.0')
+    expect(container.textContent).toContain('Disabled')
+    const installation = [...container.querySelectorAll('button')].find(element => element.getAttribute('aria-label') === 'Open Agent Skills for Reviewer')!
+    await click(installation)
+    await settle(() => expect(container.querySelector('output')?.textContent).toContain('/agents/agent-1/playground?editor=skills'))
     expect(savedSkillInstallations([fixture.agent], 'another-project')).toEqual([])
   })
   it('distinguishes an empty catalog from a failed catalog request', async () => {
     vi.mocked(listSkills).mockResolvedValue([])
     await render(<SkillsPage />)
-    await settle(() => expect(container.textContent).toContain('Build your Agent’s skill set'))
+    await settle(() => expect(container.textContent).toContain('No Skills yet'))
     vi.mocked(listSkills).mockRejectedValue(new Error('Catalog unavailable'))
     await act(async () => { await client.invalidateQueries({ queryKey: ['skills'] }) })
-    await settle(() => expect(container.textContent).toContain('Could not load the catalog'))
+    await settle(() => expect(container.textContent).toContain('Catalog unavailable'))
   })
 })

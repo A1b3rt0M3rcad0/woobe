@@ -3,8 +3,8 @@ from __future__ import annotations
 from typing import Protocol
 from uuid import UUID
 
-from modules.agent.application.dtos.skill_dtos import ImportSkillInput
-from modules.agent.domain.skills import Skill, SkillVersion
+from modules.agent.application.dtos.skill_dtos import ImportSkillInput, SkillSummary
+from modules.agent.domain.skills import SkillVersion
 
 
 class SkillCatalogOperations(Protocol):
@@ -24,7 +24,7 @@ class SkillCatalogOperations(Protocol):
         query: str = "",
         offset: int = 0,
         limit: int = 50,
-    ) -> list[Skill]: ...
+    ) -> list[SkillSummary]: ...
 
     async def versions(
         self,

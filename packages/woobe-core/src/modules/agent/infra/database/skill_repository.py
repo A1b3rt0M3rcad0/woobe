@@ -1,8 +1,9 @@
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import and_, func, select
 from sqlalchemy.exc import IntegrityError
 
+from modules.agent.application.dtos.skill_dtos import SkillSummary
 from modules.agent.application.interfaces.skill_repository import SkillRepository
 from modules.agent.domain.skills import Skill, SkillVersion
 from modules.agent.infra.database.skill_models import SkillModel, SkillVersionModel
@@ -37,18 +38,87 @@ class SQLAlchemySkillRepository(SkillRepository):
 
     async def list_skills(
         self, project_id: UUID, *, query: str = "", offset: int = 0, limit: int = 50
-    ) -> list[Skill]:
-        statement = select(SkillModel).where(SkillModel.project_id == project_id)
+    ) -> list[SkillSummary]:
+        ranked_versions = (
+            select(
+                SkillVersionModel.id.label("version_id"),
+                SkillVersionModel.skill_id.label("skill_id"),
+                SkillVersionModel.version.label("version"),
+                SkillVersionModel.package.label("package"),
+                SkillVersionModel.package_hash.label("package_hash"),
+                SkillVersionModel.created_at.label("version_created_at"),
+                func.count(SkillVersionModel.id)
+                .over(partition_by=SkillVersionModel.skill_id)
+                .label("version_count"),
+                func.row_number()
+                .over(
+                    partition_by=SkillVersionModel.skill_id,
+                    order_by=(
+                        SkillVersionModel.created_at.desc(),
+                        SkillVersionModel.id.desc(),
+                    ),
+                )
+                .label("version_position"),
+            )
+            .subquery()
+        )
+        statement = (
+            select(
+                SkillModel,
+                ranked_versions.c.version_id,
+                ranked_versions.c.version,
+                ranked_versions.c.package,
+                ranked_versions.c.package_hash,
+                ranked_versions.c.version_created_at,
+                ranked_versions.c.version_count,
+            )
+            .outerjoin(
+                ranked_versions,
+                and_(
+                    ranked_versions.c.skill_id == SkillModel.id,
+                    ranked_versions.c.version_position == 1,
+                ),
+            )
+            .where(SkillModel.project_id == project_id)
+        )
         if query:
             statement = statement.where(
                 SkillModel.name.icontains(query, autoescape=True)
             )
-        result = await self._uow.session.scalars(
+        result = await self._uow.session.execute(
             statement.order_by(SkillModel.name, SkillModel.id)
             .offset(offset)
             .limit(limit)
         )
-        return [_skill(item) for item in result]
+        summaries: list[SkillSummary] = []
+        for (
+            model,
+            version_id,
+            version,
+            package,
+            package_hash,
+            version_created_at,
+            version_count,
+        ) in result.all():
+            latest_version = None
+            if version_id is not None:
+                latest_version = SkillVersion(
+                    id=version_id,
+                    skill_id=model.id,
+                    project_id=project_id,
+                    version=version,
+                    package=package,
+                    package_hash=package_hash,
+                    created_at=version_created_at,
+                )
+            summaries.append(
+                SkillSummary(
+                    skill=_skill(model),
+                    latest_version=latest_version,
+                    version_count=int(version_count or 0),
+                )
+            )
+        return summaries
 
     async def get_skill(self, project_id: UUID, skill_id: UUID) -> Skill | None:
         result = await self._uow.session.scalar(
