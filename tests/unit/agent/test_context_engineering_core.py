@@ -387,13 +387,65 @@ def test_source_share_is_recorded_from_materialized_context():
     assert result.snapshot.manifest["metrics"]["source_share_measurement"] == "estimated"
 
 
+def test_context_budget_metrics_report_fit_and_model_clamp():
+    policy = ContextPolicyV1.model_validate(
+        {
+            "budget": {
+                "max_input_units": 900,
+                "runtime_reserve_units": 100,
+            }
+        }
+    )
+    result = _assemble(
+        [SystemMessage(content="system"), HumanMessage(content="hello")],
+        policy=policy,
+        runtime_context=_runtime_context(
+            model_capacity_units=1000,
+            reserved_output_units=200,
+        ),
+    )
+
+    metrics = result.snapshot.manifest["metrics"]
+    assert metrics["configured_input_budget_units"] == 900
+    assert metrics["model_usable_input_units"] == 700
+    assert metrics["effective_input_budget_units"] == 700
+    assert metrics["budget_clamped"] is True
+    assert metrics["budget_clamp_reason"] == "model_capacity"
+    assert metrics["context_fit_status"] == "FIT"
+    assert metrics["budget_reduction_units"] == 0
+    assert metrics["context_preservation_ratio"] == pytest.approx(1.0)
+    assert metrics["headroom_units"] == 700 - result.snapshot.estimated_input_units
+
+
+def test_context_budget_metrics_report_degraded_when_global_budget_reduces_context():
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="old " * 120),
+            AIMessage(content="answer " * 120),
+            HumanMessage(content="current"),
+        ],
+        runtime_context=_runtime_context(
+            model_capacity_units=90,
+            reserved_output_units=10,
+        ),
+    )
+
+    metrics = result.snapshot.manifest["metrics"]
+    assert metrics["pre_budget_units"] > metrics["effective_input_budget_units"]
+    assert metrics["context_fit_status"] == "DEGRADED"
+    assert metrics["budget_reduction_units"] > 0
+    assert 0 < metrics["context_preservation_ratio"] < 1
+    assert result.snapshot.estimated_input_units <= result.snapshot.usable_input_budget
+
+
 def test_context_assembly_fails_when_mandatory_material_exceeds_model_budget():
     runtime_context = _runtime_context(
         model_capacity_units=40,
         reserved_output_units=0,
     )
 
-    with pytest.raises(ContextBudgetExceeded, match="Mandatory context exceeds"):
+    with pytest.raises(ContextBudgetExceeded, match="Mandatory context exceeds") as error:
         _assemble(
             [
                 SystemMessage(content="s" * 120),
@@ -401,6 +453,13 @@ def test_context_assembly_fails_when_mandatory_material_exceeds_model_budget():
             ],
             runtime_context=runtime_context,
         )
+
+    failure = error.value.failure_context()
+    assert failure["code"] == "CONTEXT_BUDGET_EXCEEDED"
+    assert failure["context_fit_status"] == "UNFIT"
+    assert failure["effective_budget_units"] == 40
+    assert failure["mandatory_units"] > 40
+    assert failure["provider_called"] is False
 
 
 def test_reported_provider_usage_replaces_estimate_for_pressure_measurement():
@@ -424,4 +483,6 @@ def test_reported_provider_usage_replaces_estimate_for_pressure_measurement():
     assert enriched.utilization == pytest.approx(850 / 900)
     assert enriched.manifest["reported_input_units"] == 850
     assert enriched.manifest["metrics"]["reported_input_units"] == 850
+    assert enriched.manifest["metrics"]["headroom_units"] == 50
+    assert enriched.manifest["metrics"]["headroom_ratio"] == pytest.approx(50 / 900)
     assert enriched.manifest["health"]["status"] == "critical"

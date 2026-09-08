@@ -10,6 +10,9 @@ from modules.agent.application.interfaces.context_policy import resolve_context_
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.entities import Agent
+from modules.agent.infra.execution.execution_instrumentation import (
+    resolve_effective_output_tokens,
+)
 from modules.agent.infra.execution.runtime_streaming import (
     current_runtime_stream,
     runtime_streaming_enabled,
@@ -90,6 +93,8 @@ def _bind_context_runtime(
     runtime_config = (agent.settings or {}).get("runtime_config")
     policy = resolve_context_policy(runtime_config)
     context.context_policy = policy.model_dump(mode="json")
+    # Keep the configured Agent output intent here. Each Model Invocation clamps
+    # it to the invoked ProviderModel capability while assembling Context.
     context.reserved_output_units = agent.max_output_tokens or 1000
     context.active_tool_definitions = list(agent_tools)
     context.model_capacity_units = _positive_int(
@@ -218,6 +223,10 @@ async def run_instrumented_execution(
 
         execute_single_tool = execute_with_skills
     pricing_snapshot = _primary_pricing_snapshot(agent)
+    effective_output_tokens = resolve_effective_output_tokens(
+        agent.max_output_tokens,
+        pricing_snapshot,
+    )
     _bind_context_runtime(
         agent=agent,
         agent_tools=agent_tools,
@@ -256,7 +265,7 @@ async def run_instrumented_execution(
         api_key=api_key,
         base_url=base_url,
         temperature=agent.temperature or 0.2,
-        max_tokens=agent.max_output_tokens or 1000,
+        max_tokens=effective_output_tokens,
         streaming=streaming_enabled,
         response_format=base_response_format,
     )
@@ -285,7 +294,7 @@ async def run_instrumented_execution(
                 api_key=api_key,
                 base_url=base_url,
                 temperature=agent.temperature or 0.2,
-                max_tokens=agent.max_output_tokens or 1000,
+                max_tokens=effective_output_tokens,
                 streaming=streaming_enabled,
                 response_format={"type": "json_object"},
             )
@@ -357,7 +366,7 @@ async def run_instrumented_execution(
         model_name=agent.model,
         api_key=api_key,
         base_url=base_url,
-        max_tokens=agent.max_output_tokens or 1000,
+        max_tokens=effective_output_tokens,
         schema=response_format.get("schema", {}),
         clean_json_answer=clean_json_answer,
         pricing_snapshot=pricing_snapshot,

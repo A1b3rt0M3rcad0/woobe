@@ -5,7 +5,10 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from langchain_core.messages import SystemMessage
 
-from modules.agent.infra.execution.execution_instrumentation import aggregate_usage
+from modules.agent.infra.execution.execution_instrumentation import (
+    aggregate_usage,
+    resolve_effective_output_tokens,
+)
 from modules.agent.infra.execution.instrumented_execution_runner import (
     run_instrumented_execution,
 )
@@ -31,6 +34,44 @@ def _agent():
 
 async def _execute_sum(_call, _tool_id):
     return {"success": True, "duration_ms": 10, "output": {"result": 1}}
+
+
+def test_effective_output_tokens_clamps_to_invoked_model_capability():
+    assert resolve_effective_output_tokens(8192, {"max_output_tokens": 4096}) == 4096
+    assert resolve_effective_output_tokens(2048, {"max_output_tokens": 4096}) == 2048
+    assert resolve_effective_output_tokens(2048, {}) == 2048
+
+
+@pytest.mark.asyncio
+async def test_primary_model_factory_uses_effective_output_capability():
+    agent = _agent()
+    agent.settings = {"model_pricing": {"max_output_tokens": 40}}
+    model = MagicMock()
+    model.ainvoke = AsyncMock(
+        return_value=Result(
+            "ok",
+            usage={"input_tokens": 2, "output_tokens": 1, "total_tokens": 3},
+        )
+    )
+    factory = MagicMock()
+    factory.create_chat_model.return_value = model
+
+    await run_instrumented_execution(
+        llm_factory=factory,
+        execute_single_tool=_execute_sum,
+        clean_json_answer=lambda value: value,
+        agent=agent,
+        api_key="key",
+        base_url=None,
+        response_format={},
+        json_enabled=False,
+        has_tools=False,
+        agent_tools=[],
+        tool_name_to_id={},
+        messages=[],
+    )
+
+    assert factory.create_chat_model.call_args.kwargs["max_tokens"] == 40
 
 
 @pytest.mark.asyncio

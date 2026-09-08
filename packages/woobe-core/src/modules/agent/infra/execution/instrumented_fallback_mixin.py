@@ -12,6 +12,7 @@ from modules.agent.application.interfaces.execution_context import current_execu
 from modules.agent.infra.execution.execution_instrumentation import (
     aggregate_usage,
     invoke_llm,
+    resolve_effective_output_tokens,
 )
 from modules.agent.infra.execution.runtime_streaming import (
     emit_runtime_event,
@@ -55,13 +56,17 @@ class InstrumentedFallbackMixin:
         )
         call_index = len(execution.llm_calls) + 1
         pricing_snapshot = _fallback_pricing_snapshot(agent)
+        effective_output_tokens = resolve_effective_output_tokens(
+            agent.max_output_tokens,
+            pricing_snapshot,
+        )
         fallback_chat_model = self._llm_factory.create_chat_model(
             provider=fallback_provider,
             model=agent.fallback_model,
             api_key=str((prepared or {}).get("api_key") or ""),
             base_url=(prepared or {}).get("base_url"),
             temperature=agent.temperature or 0.2,
-            max_tokens=agent.max_output_tokens or 1000,
+            max_tokens=effective_output_tokens,
             streaming=runtime_streaming_enabled(),
             response_format={"type": "json_object"} if json_enabled else None,
         )
@@ -86,8 +91,34 @@ class InstrumentedFallbackMixin:
                 context_assembler=context_assembler,
             )
         except InstrumentedExecutionError as exc:
-            merged_calls = [*execution.llm_calls, *exc.llm_calls]
-            merged_timeline = [*execution.timeline, *exc.timeline]
+            existing_call_ids = {
+                call.get("call_id")
+                for call in execution.llm_calls
+                if call.get("call_id")
+            }
+            merged_calls = [
+                *execution.llm_calls,
+                *[
+                    call
+                    for call in exc.llm_calls
+                    if not call.get("call_id") or call.get("call_id") not in existing_call_ids
+                ],
+            ]
+            existing_timeline_call_ids = {
+                item.get("payload", {}).get("call_id")
+                for item in execution.timeline
+                if isinstance(item.get("payload"), dict)
+            }
+            merged_timeline = [
+                *execution.timeline,
+                *[
+                    item
+                    for item in exc.timeline
+                    if not isinstance(item.get("payload"), dict)
+                    or not item["payload"].get("call_id")
+                    or item["payload"].get("call_id") not in existing_timeline_call_ids
+                ],
+            ]
             merged = InstrumentedExecution(
                 result=None,
                 tool_calls=list(execution.tool_calls),

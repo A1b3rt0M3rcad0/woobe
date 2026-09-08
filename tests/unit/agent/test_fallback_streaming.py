@@ -44,7 +44,7 @@ class _Runtime(InstrumentedFallbackMixin):
 
 
 @pytest.mark.asyncio
-async def test_fallback_uses_streaming_model_and_public_final_phase(monkeypatch) -> None:
+async def test_fallback_uses_streaming_model_public_final_phase_and_effective_output(monkeypatch) -> None:
     factory = _Factory()
     context_assembler = _UnusedContextAssembler()
     runtime = _Runtime(factory, context_assembler)
@@ -83,7 +83,7 @@ async def test_fallback_uses_streaming_model_and_public_final_phase(monkeypatch)
         fallback_provider_model_id=None,
         temperature=0.2,
         max_output_tokens=256,
-        settings={},
+        settings={"fallback_model_pricing": {"max_output_tokens": 64}},
     )
     channel = RuntimeStreamChannel()
     stream_token = current_runtime_stream.set(channel)
@@ -102,6 +102,7 @@ async def test_fallback_uses_streaming_model_and_public_final_phase(monkeypatch)
     assert info["fallback_model"] == "fallback-model"
     assert factory.kwargs is not None
     assert factory.kwargs["streaming"] is True
+    assert factory.kwargs["max_tokens"] == 64
     assert captured["phase"] == "final_response_generation"
     assert captured["model"] is factory.model
     assert captured["context_assembler"] is context_assembler
