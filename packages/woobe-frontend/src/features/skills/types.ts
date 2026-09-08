@@ -1,4 +1,14 @@
 export interface Skill { id: string; project_id: string; name: string; created_at: string }
+export interface SkillSummary extends Skill {
+  latest_version_id: string | null
+  latest_version: string | null
+  latest_description: string | null
+  latest_required_tools: string[]
+  latest_estimated_instruction_units: number | null
+  latest_resource_count: number
+  latest_version_created_at: string | null
+  version_count: number
+}
 export interface SkillVersion {
   id: string; skill_id: string; version: string; name: string; description: string
   package_hash: string; required_tools: string[]; estimated_instruction_units: number
