@@ -1,5 +1,6 @@
 from uuid import UUID
 
+from modules.agent.application.dtos.skill_dtos import SkillSummary
 from modules.agent.application.interfaces.skill_repository import SkillRepository
 from modules.agent.application.skill_packages import (
     ImportSkillInput,
@@ -49,7 +50,7 @@ class SkillCatalog:
 
     async def list(
         self, project_id: UUID, *, query: str, offset: int, limit: int
-    ) -> list[Skill]:
+    ) -> list[SkillSummary]:
         return await self._repository.list_skills(
             project_id, query=query, offset=offset, limit=limit
         )

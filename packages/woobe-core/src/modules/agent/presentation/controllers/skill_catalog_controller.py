@@ -1,7 +1,10 @@
-from dataclasses import asdict
 from uuid import UUID
 
-from modules.agent.application.dtos.skill_dtos import ImportSkillInput, SkillListQuery
+from modules.agent.application.dtos.skill_dtos import (
+    ImportSkillInput,
+    SkillListQuery,
+    SkillSummary,
+)
 from modules.agent.application.interfaces.skill_catalog import SkillCatalogOperations
 from modules.agent.domain.skills import SkillVersion
 from shared.presentation.contracts import (
@@ -9,6 +12,10 @@ from shared.presentation.contracts import (
     OperationRequest,
     OperationResult,
 )
+
+
+def _estimated_instruction_units(version: SkillVersion) -> int:
+    return max(1, (len(version.package["instructions"]) + 3) // 4)
 
 
 def version_summary(version: SkillVersion) -> dict:
@@ -20,11 +27,29 @@ def version_summary(version: SkillVersion) -> dict:
         "name": version.package["name"],
         "description": version.package["description"],
         "required_tools": version.package["required_tools"],
-        "estimated_instruction_units": max(
-            1, (len(version.package["instructions"]) + 3) // 4
-        ),
+        "estimated_instruction_units": _estimated_instruction_units(version),
         "resource_paths": sorted(version.package["resources"]),
         "created_at": version.created_at,
+    }
+
+
+def skill_summary(summary: SkillSummary) -> dict:
+    latest = summary.latest_version
+    return {
+        "id": str(summary.skill.id),
+        "project_id": str(summary.skill.project_id),
+        "name": summary.skill.name,
+        "created_at": summary.skill.created_at,
+        "latest_version_id": str(latest.id) if latest else None,
+        "latest_version": latest.version if latest else None,
+        "latest_description": latest.package["description"] if latest else None,
+        "latest_required_tools": list(latest.package["required_tools"]) if latest else [],
+        "latest_estimated_instruction_units": (
+            _estimated_instruction_units(latest) if latest else None
+        ),
+        "latest_resource_count": len(latest.package["resources"]) if latest else 0,
+        "latest_version_created_at": latest.created_at if latest else None,
+        "version_count": summary.version_count,
     }
 
 
@@ -39,7 +64,7 @@ class SkillCatalogController:
         created = False
         if operation == "list":
             data = [
-                asdict(item)
+                skill_summary(item)
                 for item in await self._catalog.list(project_id, **query.model_dump())
             ]
         elif operation == "versions":

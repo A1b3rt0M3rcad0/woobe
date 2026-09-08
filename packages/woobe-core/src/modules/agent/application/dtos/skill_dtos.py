@@ -1,6 +1,17 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from pydantic import BaseModel, ConfigDict, Field
+
+from modules.agent.domain.skills import Skill, SkillVersion
+
+
+@dataclass(frozen=True, slots=True)
+class SkillSummary:
+    skill: Skill
+    latest_version: SkillVersion | None
+    version_count: int
 
 
 class ImportSkillInput(BaseModel):
