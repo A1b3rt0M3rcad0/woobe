@@ -62,3 +62,54 @@ describe('ChatCanvas terminal placeholder reconciliation', () => {
     expect(html).toContain('ok')
   })
 })
+
+describe('ChatCanvas shared Agent and Network surface', () => {
+  it('uses the standalone layout for a Network empty state while preserving the Network icon', () => {
+    const html = renderToStaticMarkup(
+      <ChatCanvas
+        entries={[]}
+        isSending={false}
+        onSend={vi.fn()}
+        onStop={vi.fn()}
+        assistantIcon="network"
+        emptyTitle="Test your Network"
+        emptyDescription="Execute the current Network composition."
+        suggestions={['Test the Network composition.']}
+        enableFirstRunSuccess={false}
+      />,
+    )
+
+    expect(html).toContain('Test your Network')
+    expect(html).toContain('Execute the current Network composition.')
+    expect(html).toContain('Test the Network composition.')
+    expect(html).toContain('lucide-workflow')
+    expect(html).toContain('Attach')
+    expect(html).toContain('Tools')
+    expect(html).toContain('Enter to send')
+  })
+
+  it('renders Network messages with the same comfortable message geometry as standalone Chat', () => {
+    const html = renderToStaticMarkup(
+      <ChatCanvas
+        entries={[
+          {
+            key: 'network-answer',
+            message: { role: 'assistant', content: 'Network answer' },
+            assistantIcon: 'network',
+          },
+        ]}
+        isSending={false}
+        onSend={vi.fn()}
+        onStop={vi.fn()}
+        assistantIcon="network"
+        enableFirstRunSuccess={false}
+      />,
+    )
+
+    expect(html).toContain('Network answer')
+    expect(html).toContain('lucide-workflow')
+    expect(html).toContain('rounded-xl rounded-bl-md')
+    expect(html).toContain('text-sm leading-relaxed')
+    expect(html).not.toContain('rounded-lg rounded-bl-sm')
+  })
+})

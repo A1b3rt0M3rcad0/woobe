@@ -1,6 +1,9 @@
-import { Circle, Clock, MessageSquare } from 'lucide-react'
+import { useMemo, useState } from 'react'
+import { Circle, Clock, Loader2, MessageSquare, RotateCcw } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { ScrollArea } from '@/components/ui/ScrollArea'
+import { resetNetworkSessionContext } from '@/features/network/api'
 import { cn } from '@/lib/utils'
 
 import type { NetworkSession } from './networkSessionTypes'
@@ -30,11 +33,52 @@ export function NetworkSessionsPanel({
   loading?: boolean
   onSelectSession: (sessionId: string) => void
 }) {
+  const [resettingContext, setResettingContext] = useState(false)
+  const activeSession = useMemo(
+    () => sessions.find((session) => session.id === activeSessionId) ?? null,
+    [activeSessionId, sessions],
+  )
+  const activeSessionIsEarlierSnapshot = Boolean(
+    activeSession
+      && activeSession.environment !== 'draft'
+      && currentVersionId
+      && activeSession.networkVersion !== currentVersionId,
+  )
+
+  const resetContext = async () => {
+    if (!activeSession || activeSessionIsEarlierSnapshot || resettingContext) return
+    setResettingContext(true)
+    try {
+      await resetNetworkSessionContext(activeSession.networkId, activeSession.id, activeSession.projectId)
+      toast.success('Agent contexts reset for this Network Session')
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unable to reset Network context')
+    } finally {
+      setResettingContext(false)
+    }
+  }
+
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 border-b border-border/80 px-4 py-3">
-        <h3 className="text-sm font-semibold text-white">Sessions</h3>
-        <p className="mt-0.5 text-[10px] text-muted">Conversation continuity for the active Network environment.</p>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-semibold text-white">Sessions</h3>
+            <p className="mt-0.5 text-[10px] text-muted">Conversation continuity for the active Network environment.</p>
+          </div>
+          {activeSession && !activeSessionIsEarlierSnapshot ? (
+            <button
+              type="button"
+              onClick={() => { void resetContext() }}
+              disabled={resettingContext}
+              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[10px] text-muted transition-colors hover:border-primary/30 hover:text-white disabled:cursor-wait disabled:opacity-50"
+              title="Start fresh Agent contexts in the selected Network Session"
+            >
+              {resettingContext ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+              Reset context
+            </button>
+          ) : null}
+        </div>
       </div>
 
       <ScrollArea className="min-h-0 flex-1">

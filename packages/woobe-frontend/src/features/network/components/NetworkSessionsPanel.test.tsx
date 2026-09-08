@@ -22,6 +22,13 @@ const session: NetworkSession = {
   agentContexts: [],
 }
 
+const currentSession: NetworkSession = {
+  ...session,
+  id: 'network-session-current',
+  title: 'Current production session',
+  networkVersion: 'version-current',
+}
+
 describe('NetworkSessionsPanel', () => {
   it('renders Session continuity without a nested New Session action', () => {
     const html = renderToStaticMarkup(
@@ -37,7 +44,34 @@ describe('NetworkSessionsPanel', () => {
     expect(html).toContain('6 msgs')
     expect(html).toContain('3 Runs')
     expect(html).toContain('Earlier snapshot')
+    expect(html).not.toContain('Reset context')
     expect(html).not.toContain('aria-label="New Session"')
+  })
+
+  it('moves Reset context to the selected current Session instead of Chat', () => {
+    const html = renderToStaticMarkup(
+      <NetworkSessionsPanel
+        sessions={[currentSession]}
+        activeSessionId={currentSession.id}
+        currentVersionId="version-current"
+        onSelectSession={vi.fn()}
+      />,
+    )
+
+    expect(html).toContain('Reset context')
+  })
+
+  it('does not expose Session context actions when no Session is selected', () => {
+    const html = renderToStaticMarkup(
+      <NetworkSessionsPanel
+        sessions={[currentSession]}
+        activeSessionId={null}
+        currentVersionId="version-current"
+        onSelectSession={vi.fn()}
+      />,
+    )
+
+    expect(html).not.toContain('Reset context')
   })
 
   it('points an empty Network to the primary rail action', () => {
