@@ -13,7 +13,12 @@ from modules.agent.application.interfaces.context_policy import SkillContextPoli
 from modules.agent.application.skill_packages import validate_resource_path
 from shared.contracts.errors import ValidationError
 
-SKILL_TOOL_NAMES = ("skills_search", "skills_activate", "skills_read_resource")
+SKILL_TOOL_NAMES = (
+    "skills_search",
+    "skills_activate",
+    "skills_read_resource",
+    "skills_resolve",
+)
 
 
 def _definition(
@@ -71,6 +76,35 @@ def skill_tool_definitions() -> list[dict]:
     ]
 
 
+def skill_routing_definition() -> dict:
+    return _definition(
+        "skills_resolve",
+        (
+            "Resolve whether an installed Skill applies to the CURRENT USER REQUEST before "
+            "normal response generation. Choose activate when one visible Skill matches its "
+            "when_to_use scope, none when no installed Skill applies, or search only when "
+            "the visible catalog is incomplete or insufficient to make the decision."
+        ),
+        {
+            "action": {
+                "type": "string",
+                "enum": ["activate", "search", "none"],
+            },
+            "skill_version_id": {
+                "type": "string",
+                "description": "Required when action is activate",
+            },
+            "query": {
+                "type": "string",
+                "maxLength": 500,
+                "description": "Required when action is search",
+            },
+            "offset": {"type": "integer", "minimum": 0},
+        },
+        ["action"],
+    )
+
+
 def skill_contribution_content(item: dict) -> str:
     content = item["content"]
     if item["component"] == "instructions":
@@ -107,11 +141,13 @@ class SkillRuntime:
         self._policy = policy
         self._tool_names = tool_names
         self._active: dict[str, dict] = {}
+        self._routing_resolved = False
         self.mapping = {
             name: str(uuid5(NAMESPACE_URL, "woobe://skills/" + name))
             for name in SKILL_TOOL_NAMES
         }
         self.definitions = skill_tool_definitions()
+        self.routing_definition = skill_routing_definition()
 
         metadata = [self._routing_metadata(item) for item in self._snapshots.values()]
         complete_catalog = {
@@ -154,6 +190,10 @@ class SkillRuntime:
             raise ValidationError(
                 "Skill discovery instructions exceed the configured Skills budget"
             )
+
+    @property
+    def routing_resolved(self) -> bool:
+        return self._routing_resolved
 
     @staticmethod
     def _routing_metadata(snapshot: dict) -> dict:
@@ -223,7 +263,57 @@ class SkillRuntime:
         try:
             if not isinstance(arguments, dict):
                 raise ValidationError("Skill arguments must be an object")
-            if name == "skills_search":
+            if name == "skills_resolve":
+                action = arguments.get("action")
+                if action == "none":
+                    self._routing_resolved = True
+                    output = {
+                        "action": "none",
+                        "resolved": True,
+                        "activated": False,
+                    }
+                elif action == "search":
+                    query = arguments.get("query")
+                    if not isinstance(query, str) or not query:
+                        raise ValidationError(
+                            "Skill routing search requires a non-empty query"
+                        )
+                    search_result = self.execute(
+                        "skills_search",
+                        {
+                            "query": query,
+                            "offset": arguments.get("offset", 0),
+                        },
+                        tool_call_id=tool_call_id,
+                    )
+                    if not search_result.get("success"):
+                        return search_result
+                    output = {
+                        "action": "search",
+                        "resolved": False,
+                        **search_result["output"],
+                    }
+                elif action == "activate":
+                    activation = self.execute(
+                        "skills_activate",
+                        {
+                            "skill_version_id": arguments.get("skill_version_id")
+                        },
+                        tool_call_id=tool_call_id,
+                    )
+                    if not activation.get("success"):
+                        return activation
+                    self._routing_resolved = True
+                    output = {
+                        "action": "activate",
+                        "resolved": True,
+                        **activation["output"],
+                    }
+                else:
+                    raise ValidationError(
+                        "Skill routing action must be activate, search, or none"
+                    )
+            elif name == "skills_search":
                 query = arguments.get("query")
                 offset = arguments.get("offset", 0)
                 if (
