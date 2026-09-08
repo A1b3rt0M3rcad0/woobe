@@ -28,7 +28,6 @@ interface NetworkChatWorkspaceProps {
   versionLabel: string
   currentVersionId: string | null
   bindings: Record<AgentNodeId, NetworkBinding>
-  sessions: NetworkSession[]
   activeSession: NetworkSession | null
   historyTurns: NetworkTurn[]
   historyLoading: boolean
@@ -36,6 +35,7 @@ interface NetworkChatWorkspaceProps {
   onSelectSession: (sessionId: string) => void
   onCreateSession: () => Promise<NetworkSession | null>
   onStartNewConversation: () => void
+  onSessionActionBlockedChange?: (blocked: boolean) => void
   onRun: (trace: NetworkTraceRecord) => void
   onSelectAgent: (nodeId: AgentNodeId) => void
   onOpenTrace: (execution: NetworkExecution) => void
@@ -100,7 +100,7 @@ function parsedOutputFromEvent(event: NetworkRuntimeEvent): Record<string, unkno
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null
 }
 
-export function NetworkChatWorkspace({ networkId, projectId, networkName, environment, versionLabel, currentVersionId, bindings, sessions, activeSession, historyTurns, historyLoading, onBeforeDraftRun, onSelectSession, onCreateSession, onStartNewConversation, onRun, onSelectAgent, onOpenTrace }: NetworkChatWorkspaceProps) {
+export function NetworkChatWorkspace({ networkId, projectId, networkName, environment, versionLabel, currentVersionId, bindings, activeSession, historyTurns, historyLoading, onBeforeDraftRun, onSelectSession, onCreateSession, onStartNewConversation, onSessionActionBlockedChange, onRun, onSelectAgent, onOpenTrace }: NetworkChatWorkspaceProps) {
   const queryClient = useQueryClient()
   const runtimeStatesQuery = useNetworkRuntimeEnvironments(networkId, projectId)
   const runtimeEnabled = runtimeStatesQuery.data?.[environment]?.enabled ?? true
@@ -133,6 +133,14 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
   const changed = Boolean(activeSession && environment !== 'draft' && activeSession.networkVersion !== currentVersionId)
   const turns = useMemo(() => reconcileNetworkTurns(historyTurns, localTurns), [historyTurns, localTurns])
   const counts = Object.values(bindings).reduce<Record<NetworkBinding['source'], number>>((result, binding) => ({ ...result, [binding.source]: result[binding.source] + 1 }), { draft: 0, staging: 0, release: 0 })
+
+  useLayoutEffect(() => {
+    onSessionActionBlockedChange?.(running || creatingSession || !runtimeEnabled)
+  }, [creatingSession, onSessionActionBlockedChange, running, runtimeEnabled])
+
+  useLayoutEffect(() => () => {
+    onSessionActionBlockedChange?.(false)
+  }, [onSessionActionBlockedChange])
 
   const scheduleLiveAnswer = (answer: string) => {
     liveAnswerSchedulerRef.current?.schedule(answer)
@@ -481,7 +489,7 @@ export function NetworkChatWorkspace({ networkId, projectId, networkName, enviro
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <NetworkChatHeader environment={environment} versionLabel={versionLabel} counts={counts} sessions={sessions} activeSessionId={activeSession?.id ?? null} changed={changed} newSessionDisabled={running || creatingSession || !runtimeEnabled} onSelectSession={onSelectSession} onNew={startNew} onResetContext={() => void resetContext()} />
+      <NetworkChatHeader environment={environment} versionLabel={versionLabel} counts={counts} activeSessionId={activeSession?.id ?? null} changed={changed} onNew={startNew} onResetContext={() => void resetContext()} />
       {historyLoading ? <div className="border-b border-border/60 px-4 py-2 text-[9px] text-muted">Loading persisted Network history…</div> : null}
       {!runtimeEnabled ? <div className="border-b border-red-500/20 bg-red-500/5 px-4 py-2 text-[9px] font-medium text-red-300">{disabledReason}</div> : null}
       <NetworkChatHistory scrollRef={scrollRef} networkName={networkName} turns={turns} running={running} pendingMessage={pendingMessage} liveAnswer={liveAnswer} liveActivity={liveActivity} liveExecution={liveExecution} liveResponseCommitted={liveResponseCommitted} liveParsedOutput={liveParsedOutput} liveOutputParseError={liveOutputParseError} onScroll={(event) => { shouldStickToBottomRef.current = isNearBottom(event.currentTarget) }} onSuggestion={send} onSelectAgent={onSelectAgent} onOpenTrace={onOpenTrace} />
