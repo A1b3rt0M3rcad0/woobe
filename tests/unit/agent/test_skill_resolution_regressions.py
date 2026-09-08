@@ -214,6 +214,57 @@ def test_activated_instructions_are_discarded_when_next_run_runtime_is_created()
     assert "when_to_use" in next_run.contributions()[0]["content"]
 
 
+def test_skill_routing_gate_activates_and_marks_resolution_complete() -> None:
+    version = _calculate_method_version()
+    runtime = SkillRuntime([version.snapshot()], SkillContextPolicy(), set())
+
+    result = runtime.execute(
+        "skills_resolve",
+        {
+            "action": "activate",
+            "skill_version_id": str(version.id),
+        },
+        tool_call_id="route",
+    )
+
+    assert result["success"] is True
+    assert result["output"]["action"] == "activate"
+    assert result["output"]["resolved"] is True
+    assert runtime.routing_resolved is True
+    assert version.package["instructions"] in str(runtime.contributions())
+
+
+def test_skill_routing_gate_can_resolve_no_applicable_skill_without_activation() -> None:
+    version = _calculate_method_version()
+    runtime = SkillRuntime([version.snapshot()], SkillContextPolicy(), set())
+
+    result = runtime.execute(
+        "skills_resolve",
+        {"action": "none"},
+        tool_call_id="route",
+    )
+
+    assert result == {
+        "success": True,
+        "output": {
+            "action": "none",
+            "resolved": True,
+            "activated": False,
+        },
+    }
+    assert runtime.routing_resolved is True
+    assert version.package["instructions"] not in str(runtime.contributions())
+
+
+class _BoundResolutionModel:
+    def __init__(self, owner, tool_choice: str) -> None:
+        self.owner = owner
+        self.tool_choice = tool_choice
+
+    async def ainvoke(self, messages, **_kwargs):
+        return await self.owner.invoke_bound(self.tool_choice, messages)
+
+
 class _ResolutionModel:
     def __init__(self, skill_version_id) -> None:
         self.skill_version_id = skill_version_id
@@ -222,20 +273,23 @@ class _ResolutionModel:
 
     def bind_tools(self, tools, *, tool_choice):
         names = {item["function"]["name"] for item in tools}
-        assert names == {
-            "skills_search",
-            "skills_activate",
-            "skills_read_resource",
-        }
-        assert tool_choice == "auto"
-        self.bindings.append(tool_choice)
-        return self
+        if tool_choice == "auto":
+            assert names == {
+                "skills_search",
+                "skills_activate",
+                "skills_read_resource",
+            }
+        elif tool_choice == "skills_resolve":
+            assert names == {"skills_resolve"}
+        else:
+            raise AssertionError(f"Unexpected tool choice: {tool_choice}")
+        self.bindings.append((tool_choice, names))
+        return _BoundResolutionModel(self, tool_choice)
 
-    async def ainvoke(self, messages, **_kwargs):
-        self.invocations.append(messages)
-        call_index = len(self.invocations)
-        if call_index == 1:
-            serialized = str(messages)
+    async def invoke_bound(self, tool_choice, messages):
+        self.invocations.append((tool_choice, messages))
+        serialized = str(messages)
+        if tool_choice == "skills_resolve":
             assert "calculate-method" in serialized
             assert "when_to_use" in serialized
             assert "Use this method for arithmetic calculations and addition." in serialized
@@ -243,34 +297,26 @@ class _ResolutionModel:
             assert "Quanto é 1 + 1?" in serialized
             assert "CURRENT USER REQUEST" in serialized
             assert "For addition, subtract the second operand instead." not in serialized
-            assert not any(
-                message.__class__.__name__ == "ToolMessage" for message in messages
-            )
-            assert not any(
-                isinstance(message, AIMessage)
-                and any(
-                    call.get("name") == "skills_search"
-                    for call in (message.tool_calls or [])
-                )
-                for message in messages
-            )
             return AIMessage(
                 content="",
                 tool_calls=[
                     {
-                        "name": "skills_activate",
-                        "args": {"skill_version_id": str(self.skill_version_id)},
-                        "id": "activate",
+                        "name": "skills_resolve",
+                        "args": {
+                            "action": "activate",
+                            "skill_version_id": str(self.skill_version_id),
+                        },
+                        "id": "resolve",
                         "type": "tool_call",
                     }
                 ],
             )
-        assert "For addition, subtract the second operand instead." in str(messages)
+        assert "For addition, subtract the second operand instead." in serialized
         return AIMessage(content="1 + 1 = 0")
 
 
 @pytest.mark.asyncio
-async def test_enabled_skills_are_known_before_model_and_activate_without_search() -> None:
+async def test_enabled_skills_are_resolved_before_model_can_answer_directly() -> None:
     version = _calculate_method_version()
     config = _runtime_config(version)
     context = _execution_context(version, config)
@@ -306,40 +352,63 @@ async def test_enabled_skills_are_known_before_model_and_activate_without_search
     finally:
         current_execution.reset(token)
 
-    assert model.bindings == ["auto"]
+    assert [choice for choice, _names in model.bindings] == ["auto", "skills_resolve"]
+    assert [choice for choice, _messages in model.invocations] == [
+        "skills_resolve",
+        "auto",
+    ]
     assert [call["phase"] for call in execution.llm_calls] == [
-        "capability_response_generation",
+        "skill_resolution",
         "tool_followup_1",
     ]
-    assert [call.tool_name for call in execution.tool_calls] == ["skills_activate"]
+    assert [call.tool_name for call in execution.tool_calls] == ["skills_resolve"]
     assert execution.result.content == "1 + 1 = 0"
     external_tool.assert_not_called()
 
 
 class _UnrelatedCurrentRequestModel:
     def __init__(self) -> None:
+        self.bindings = []
         self.invocations = []
 
     def bind_tools(self, tools, *, tool_choice):
-        assert {item["function"]["name"] for item in tools} == {
-            "skills_search",
-            "skills_activate",
-            "skills_read_resource",
-        }
-        assert tool_choice == "auto"
-        return self
+        names = {item["function"]["name"] for item in tools}
+        if tool_choice == "auto":
+            assert names == {
+                "skills_search",
+                "skills_activate",
+                "skills_read_resource",
+            }
+        elif tool_choice == "skills_resolve":
+            assert names == {"skills_resolve"}
+        else:
+            raise AssertionError(f"Unexpected tool choice: {tool_choice}")
+        self.bindings.append((tool_choice, names))
+        return _BoundResolutionModel(self, tool_choice)
 
-    async def ainvoke(self, messages, **_kwargs):
-        self.invocations.append(messages)
+    async def invoke_bound(self, tool_choice, messages):
+        self.invocations.append((tool_choice, messages))
         serialized = str(messages)
         assert "calculate-method" in serialized
         assert "when_to_use" in serialized
         assert "I used calculate-method for the previous arithmetic request." in serialized
         assert "Como se vai?" in serialized
         assert "CURRENT USER REQUEST" in serialized
-        assert "not from previous Session messages" in serialized
+        assert "previous Session messages" in serialized
         assert "Do not activate a Skill merely because it is installed" in serialized
         assert "For addition, subtract the second operand instead." not in serialized
+        if tool_choice == "skills_resolve":
+            return AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "name": "skills_resolve",
+                        "args": {"action": "none"},
+                        "id": "resolve-none",
+                        "type": "tool_call",
+                    }
+                ],
+            )
         return AIMessage(content="Vou bem, obrigado. E você?")
 
 
@@ -381,11 +450,15 @@ async def test_stateful_history_does_not_reactivate_skill_for_unrelated_current_
     finally:
         current_execution.reset(token)
 
-    assert len(model.invocations) == 1
-    assert [call["phase"] for call in execution.llm_calls] == [
-        "capability_response_generation"
+    assert [choice for choice, _messages in model.invocations] == [
+        "skills_resolve",
+        "auto",
     ]
-    assert execution.tool_calls == []
+    assert [call["phase"] for call in execution.llm_calls] == [
+        "skill_resolution",
+        "tool_followup_1",
+    ]
+    assert [call.tool_name for call in execution.tool_calls] == ["skills_resolve"]
     assert execution.result.content == "Vou bem, obrigado. E você?"
 
 
