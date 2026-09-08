@@ -13,6 +13,8 @@ from modules.agent.application.interfaces.context_policy import SkillContextPoli
 from modules.agent.application.skill_packages import validate_resource_path
 from shared.contracts.errors import ValidationError
 
+# ``skills_resolve`` remains reserved for namespace and historical-presentation
+# compatibility. New Runs never bind or execute it.
 SKILL_TOOL_NAMES = (
     "skills_search",
     "skills_activate",
@@ -39,70 +41,47 @@ def _definition(
     }
 
 
-def skill_tool_definitions() -> list[dict]:
+def skill_tool_definitions(*, include_search: bool = True) -> list[dict]:
     version = {
         "type": "string",
         "description": "Exact installed Skill version UUID from the catalog or search",
     }
-    return [
-        _definition(
-            "skills_search",
-            (
-                "Discover installed Skills only when the visible catalog is incomplete "
-                "or applicability cannot be resolved from its when_to_use metadata. "
-                "Returns routing metadata, never full instructions."
+    definitions: list[dict] = []
+    if include_search:
+        definitions.append(
+            _definition(
+                "skills_search",
+                (
+                    "Discover metadata for installed Skills omitted from an incomplete "
+                    "visible catalog. Returns routing metadata, never full instructions."
+                ),
+                {
+                    "query": {"type": "string", "maxLength": 500},
+                    "offset": {"type": "integer", "minimum": 0},
+                },
+                ["query"],
+            )
+        )
+    definitions.extend(
+        [
+            _definition(
+                "skills_activate",
+                (
+                    "Load one installed Skill's procedural instructions for the current Agent "
+                    "Run only. Use it only when the current user request matches when_to_use."
+                ),
+                {"skill_version_id": version},
+                ["skill_version_id"],
             ),
-            {
-                "query": {"type": "string", "maxLength": 500},
-                "offset": {"type": "integer", "minimum": 0},
-            },
-            ["query"],
-        ),
-        _definition(
-            "skills_activate",
-            (
-                "Load one installed Skill's procedural instructions for the current Agent "
-                "Run only. Use it only when the current user request matches when_to_use."
+            _definition(
+                "skills_read_resource",
+                "Load one text resource from an already activated Skill. Paths are relative to the Skill package.",
+                {"skill_version_id": version, "path": {"type": "string", "maxLength": 240}},
+                ["skill_version_id", "path"],
             ),
-            {"skill_version_id": version},
-            ["skill_version_id"],
-        ),
-        _definition(
-            "skills_read_resource",
-            "Load one text resource from an already activated Skill. Paths are relative to the Skill package.",
-            {"skill_version_id": version, "path": {"type": "string", "maxLength": 240}},
-            ["skill_version_id", "path"],
-        ),
-    ]
-
-
-def skill_routing_definition() -> dict:
-    return _definition(
-        "skills_resolve",
-        (
-            "Resolve whether an installed Skill applies to the CURRENT USER REQUEST before "
-            "normal response generation. Choose activate when one visible Skill matches its "
-            "when_to_use scope, none when no installed Skill applies, or search only when "
-            "the visible catalog is incomplete or insufficient to make the decision."
-        ),
-        {
-            "action": {
-                "type": "string",
-                "enum": ["activate", "search", "none"],
-            },
-            "skill_version_id": {
-                "type": "string",
-                "description": "Required when action is activate",
-            },
-            "query": {
-                "type": "string",
-                "maxLength": 500,
-                "description": "Required when action is search",
-            },
-            "offset": {"type": "integer", "minimum": 0},
-        },
-        ["action"],
+        ]
     )
+    return definitions
 
 
 def skill_contribution_content(item: dict) -> str:
@@ -126,6 +105,14 @@ def _search_terms(value: str) -> set[str]:
     return set(_normalize_search_text(value).split())
 
 
+def _serialize_catalog(payload: dict[str, Any]) -> str:
+    return json.dumps(
+        payload,
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+
+
 class SkillRuntime:
     """Run-local activation state. Packages are frozen; no arbitrary code is executed."""
 
@@ -141,44 +128,34 @@ class SkillRuntime:
         self._policy = policy
         self._tool_names = tool_names
         self._active: dict[str, dict] = {}
-        self._routing_resolved = False
         self.mapping = {
             name: str(uuid5(NAMESPACE_URL, "woobe://skills/" + name))
             for name in SKILL_TOOL_NAMES
         }
-        self.definitions = skill_tool_definitions()
-        self.routing_definition = skill_routing_definition()
 
-        metadata = [self._routing_metadata(item) for item in self._snapshots.values()]
-        complete_catalog = {
-            "catalog_complete": True,
-            "skills": metadata,
-        }
-        serialized = json.dumps(
-            complete_catalog,
-            ensure_ascii=False,
-            separators=(",", ":"),
+        metadata = sorted(
+            (self._routing_metadata(item) for item in self._snapshots.values()),
+            key=lambda item: (item["name"], item["skill_version_id"]),
         )
-        if estimate_input_units(serialized) <= policy.catalog_max_units:
-            listing = serialized
-        else:
-            listing = json.dumps(
-                {
-                    "catalog_complete": False,
-                    "installed_count": len(metadata),
-                    "action": (
-                        "Use skills_search only if the current user request requires "
-                        "discovering a Skill omitted from this catalog."
-                    ),
-                },
-                ensure_ascii=False,
-                separators=(",", ":"),
-            )
+        listing, self._catalog_complete = self._build_catalog(metadata)
+        self.definitions = skill_tool_definitions(
+            include_search=not self._catalog_complete
+        )
 
+        catalog_guidance = (
+            "All installed routing metadata is visible; do not search to confirm it."
+            if self._catalog_complete
+            else (
+                "Some installed routing metadata is omitted; skills_search is available "
+                "only to discover omitted metadata when the current request requires it."
+            )
+        )
         self._catalog = {
             "content": (
                 "Installed Skill catalog for this Agent Run. Routing metadata only; "
-                "procedural instructions are not loaded.\n"
+                "procedural instructions are not loaded. "
+                + catalog_guidance
+                + "\n"
                 + listing
             ),
             "component": "catalog",
@@ -191,9 +168,49 @@ class SkillRuntime:
                 "Skill discovery instructions exceed the configured Skills budget"
             )
 
+    def _build_catalog(self, metadata: list[dict[str, Any]]) -> tuple[str, bool]:
+        complete_catalog = {
+            "catalog_complete": True,
+            "skills": metadata,
+        }
+        serialized = _serialize_catalog(complete_catalog)
+        if estimate_input_units(serialized) <= self._policy.catalog_max_units:
+            return serialized, True
+
+        installed_count = len(metadata)
+        visible: list[dict[str, Any]] = []
+        for item in metadata:
+            candidate_visible = [*visible, item]
+            candidate = {
+                "catalog_complete": False,
+                "installed_count": installed_count,
+                "visible_count": len(candidate_visible),
+                "omitted_count": installed_count - len(candidate_visible),
+                "skills": candidate_visible,
+            }
+            if (
+                estimate_input_units(_serialize_catalog(candidate))
+                <= self._policy.catalog_max_units
+            ):
+                visible.append(item)
+
+        partial_catalog = {
+            "catalog_complete": False,
+            "installed_count": installed_count,
+            "visible_count": len(visible),
+            "omitted_count": installed_count - len(visible),
+            "skills": visible,
+        }
+        serialized = _serialize_catalog(partial_catalog)
+        if estimate_input_units(serialized) > self._policy.catalog_max_units:
+            raise ValidationError(
+                "Skill catalog metadata exceeds the configured catalog budget"
+            )
+        return serialized, False
+
     @property
-    def routing_resolved(self) -> bool:
-        return self._routing_resolved
+    def catalog_complete(self) -> bool:
+        return self._catalog_complete
 
     @staticmethod
     def _routing_metadata(snapshot: dict) -> dict:
@@ -264,56 +281,14 @@ class SkillRuntime:
             if not isinstance(arguments, dict):
                 raise ValidationError("Skill arguments must be an object")
             if name == "skills_resolve":
-                action = arguments.get("action")
-                if action == "none":
-                    self._routing_resolved = True
-                    output = {
-                        "action": "none",
-                        "resolved": True,
-                        "activated": False,
-                    }
-                elif action == "search":
-                    query = arguments.get("query")
-                    if not isinstance(query, str) or not query:
-                        raise ValidationError(
-                            "Skill routing search requires a non-empty query"
-                        )
-                    search_result = self.execute(
-                        "skills_search",
-                        {
-                            "query": query,
-                            "offset": arguments.get("offset", 0),
-                        },
-                        tool_call_id=tool_call_id,
-                    )
-                    if not search_result.get("success"):
-                        return search_result
-                    output = {
-                        "action": "search",
-                        "resolved": False,
-                        **search_result["output"],
-                    }
-                elif action == "activate":
-                    activation = self.execute(
-                        "skills_activate",
-                        {
-                            "skill_version_id": arguments.get("skill_version_id")
-                        },
-                        tool_call_id=tool_call_id,
-                    )
-                    if not activation.get("success"):
-                        return activation
-                    self._routing_resolved = True
-                    output = {
-                        "action": "activate",
-                        "resolved": True,
-                        **activation["output"],
-                    }
-                else:
+                raise ValidationError(
+                    "skills_resolve is a legacy Skill operation and is not executable for new Runs"
+                )
+            if name == "skills_search":
+                if self._catalog_complete:
                     raise ValidationError(
-                        "Skill routing action must be activate, search, or none"
+                        "Skill search is unavailable because the installed Skill catalog is complete"
                     )
-            elif name == "skills_search":
                 query = arguments.get("query")
                 offset = arguments.get("offset", 0)
                 if (

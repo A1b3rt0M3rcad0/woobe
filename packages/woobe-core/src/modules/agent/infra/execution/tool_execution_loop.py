@@ -211,29 +211,6 @@ def _failure_context(
     }
 
 
-def _ensure_completion_allowed(
-    *,
-    result: Any,
-    execution: InstrumentedExecution,
-    completion_guard: Callable[[], bool] | None,
-    completion_guard_error: str,
-) -> None:
-    if completion_guard is None or completion_guard() or _has_tool_calls(result):
-        return
-    raise InstrumentedExecutionError(
-        completion_guard_error,
-        llm_calls=execution.llm_calls,
-        tool_calls=execution.tool_calls,
-        timeline=execution.timeline,
-        tool_wall_latency_ms=execution.tool_wall_latency_ms,
-        tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
-        failure_context=_failure_context(
-            execution.failure_context,
-            partial_result_available=bool(execution.tool_calls),
-        ),
-    )
-
-
 async def run_tool_loop(
     *,
     model: Any,
@@ -245,11 +222,6 @@ async def run_tool_loop(
     initial_phase: str,
     final_json_instruction: str | None,
     initial_tool_call: dict[str, Any] | None = None,
-    initial_model: Any | None = None,
-    initial_messages: list | None = None,
-    followup_model_selector: Callable[[], Any] | None = None,
-    completion_guard: Callable[[], bool] | None = None,
-    completion_guard_error: str = "Required runtime routing did not resolve before response generation",
     final_model: Any | None = None,
     final_model_factory: Callable[[], Any] | None = None,
     pricing_snapshot: dict[str, Any] | None = None,
@@ -259,12 +231,8 @@ async def run_tool_loop(
 
     ``initial_tool_call`` is an optional runtime-owned preflight capability. It is
     executed before the first provider invocation and does not consume a model Tool
-    round. ``initial_model`` and ``followup_model_selector`` allow a runtime-owned
-    routing gate to use a constrained model before normal response generation.
-    ``initial_messages`` can isolate that first control-plane invocation from the full
-    Agent conversation while all follow-up generation still uses ``messages``. The
-    terminal model is recovery-only and is constructed lazily when a supplied
-    ``final_model_factory`` is needed.
+    round. The terminal model is recovery-only and is constructed lazily when a
+    supplied ``final_model_factory`` is needed.
     """
 
     execution = InstrumentedExecution(result=None)
@@ -290,15 +258,10 @@ async def run_tool_loop(
         )
         tool_loop_messages.append(message)
 
-    initial_invocation_messages = (
-        _sanitize_base_messages(initial_messages)
-        if initial_messages is not None
-        else tool_loop_messages
-    )
     call_index = 1
     result, call = await invoke_llm(
-        model=initial_model or model,
-        messages=initial_invocation_messages,
+        model=model,
+        messages=tool_loop_messages,
         phase=initial_phase,
         call_index=call_index,
         provider=provider,
@@ -307,12 +270,8 @@ async def run_tool_loop(
         context_assembler=context_assembler,
     )
     execution.llm_calls.append(call)
-    execution.timeline.append({"kind": "llm", "occurred_at": call["occurred_at"], "payload": call})
-    _ensure_completion_allowed(
-        result=result,
-        execution=execution,
-        completion_guard=completion_guard,
-        completion_guard_error=completion_guard_error,
+    execution.timeline.append(
+        {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
     )
 
     round_index = 0
@@ -329,7 +288,9 @@ async def run_tool_loop(
                 execute_tool_call(
                     execute=execute_single_tool,
                     tool_call=tool_call,
-                    resolved_tool_id=tool_name_to_id.get(tool_call["name"], tool_call["name"]),
+                    resolved_tool_id=tool_name_to_id.get(
+                        tool_call["name"], tool_call["name"]
+                    ),
                 )
                 for tool_call in tool_calls
             ]
@@ -345,7 +306,9 @@ async def run_tool_loop(
             tool_loop_messages.append(message)
             round_failed = round_failed or info.success is False
 
-        consecutive_failure_rounds = consecutive_failure_rounds + 1 if round_failed else 0
+        consecutive_failure_rounds = (
+            consecutive_failure_rounds + 1 if round_failed else 0
+        )
         if consecutive_failure_rounds >= MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS:
             stopped_reason = "repeated semantic capability failures"
             break
@@ -355,13 +318,8 @@ async def run_tool_loop(
 
         call_index += 1
         try:
-            followup_model = (
-                followup_model_selector()
-                if followup_model_selector is not None
-                else model
-            )
             result, call = await invoke_llm(
-                model=followup_model,
+                model=model,
                 messages=tool_loop_messages,
                 phase=f"tool_followup_{round_index}",
                 call_index=call_index,
@@ -377,29 +335,13 @@ async def run_tool_loop(
                 exc.failure_context,
                 partial_result_available=bool(execution.tool_calls),
             )
-            stopped_reason = "the capability follow-up request was rejected by the provider"
+            stopped_reason = (
+                "the capability follow-up request was rejected by the provider"
+            )
             break
         execution.llm_calls.append(call)
-        execution.timeline.append({"kind": "llm", "occurred_at": call["occurred_at"], "payload": call})
-        _ensure_completion_allowed(
-            result=result,
-            execution=execution,
-            completion_guard=completion_guard,
-            completion_guard_error=completion_guard_error,
-        )
-
-    if completion_guard is not None and not completion_guard():
-        raise InstrumentedExecutionError(
-            completion_guard_error,
-            llm_calls=execution.llm_calls,
-            tool_calls=execution.tool_calls,
-            timeline=execution.timeline,
-            tool_wall_latency_ms=execution.tool_wall_latency_ms,
-            tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
-            failure_context=_failure_context(
-                execution.failure_context,
-                partial_result_available=bool(execution.tool_calls),
-            ),
+        execution.timeline.append(
+            {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
         )
 
     requires_terminal_recovery = bool(stopped_reason) and _has_tool_calls(result)
@@ -452,7 +394,9 @@ async def run_tool_loop(
                 ),
             ) from exc
         execution.llm_calls.append(call)
-        execution.timeline.append({"kind": "llm", "occurred_at": call["occurred_at"], "payload": call})
+        execution.timeline.append(
+            {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
+        )
 
     execution.result = result
     return execution, call_index
