@@ -135,7 +135,7 @@ export function ChatCanvas({
   const [showFirstRunSuccess, setShowFirstRunSuccess] = useState(false)
   const stopState = useAgentStreamStopState()
   const stopping = isStopping ?? stopState === 'stopping'
-  const resolvedEntries = useMemo(
+  const resolvedEntries = useMemo<ChatCanvasEntry[]>(
     () => entries ?? (messages ?? []).map((message, index) => ({ key: String(index), message })),
     [entries, messages],
   )
