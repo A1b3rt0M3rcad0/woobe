@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { CopyButton } from '@/components/common/CopyButton'
 import { Separator } from '@/components/ui/Separator'
-import { Activity, AlertTriangle, Circle, Clock, Loader2, MessageSquare, Plus, RefreshCw } from 'lucide-react'
+import { Activity, AlertTriangle, Circle, Clock, Loader2, MessageSquare, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAgentStreamStopState } from '@/features/playground/stream-stop-state'
 import type { SessionListItem } from '@/features/playground/types'
@@ -10,14 +10,11 @@ interface SessionsPanelProps {
   sessions: SessionListItem[]
   currentSessionId: string | null
   sessionMode: 'stateful' | 'stateless'
-  creationDisabledReason?: string
-  onNewSession: () => void | Promise<void>
   onSelectSession: (id: string) => void
   onLoadMoreSessions?: () => void
   hasMoreSessions?: boolean
   isInitialLoading?: boolean
   isLoadingMore?: boolean
-  isCreatingSession?: boolean
   isError?: boolean
   errorMessage?: string
   onRetry?: () => void
@@ -59,14 +56,11 @@ export function SessionsPanel({
   sessions,
   currentSessionId,
   sessionMode,
-  creationDisabledReason,
-  onNewSession,
   onSelectSession,
   onLoadMoreSessions,
   hasMoreSessions = false,
   isInitialLoading = false,
   isLoadingMore = false,
-  isCreatingSession = false,
   isError = false,
   errorMessage,
   onRetry,
@@ -74,13 +68,11 @@ export function SessionsPanel({
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const runtimeState = useAgentStreamStopState()
   const runtimeBusy = runtimeState !== 'idle'
-  const newSessionsDisabled = runtimeBusy || sessionMode === 'stateless' || Boolean(creationDisabledReason)
   const disabledReason = runtimeBusy
     ? runtimeState === 'stopping'
       ? 'Wait for the active Agent Run cancellation to finish before changing Sessions'
       : 'Wait for the active Agent Run to finish or stop it before changing Sessions'
-    : creationDisabledReason
-      ?? (sessionMode === 'stateless' ? 'This Agent runtime is stateless and cannot create persistent Sessions' : undefined)
+    : undefined
   const selectedSessionMissing = Boolean(currentSessionId) && !sessions.some((session) => session.id === currentSessionId)
 
   useEffect(() => {
@@ -102,19 +94,7 @@ export function SessionsPanel({
 
   return (
     <div className="p-4 space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <h3 className="text-sm font-semibold text-white">Sessions</h3>
-        <button
-          type="button"
-          onClick={() => void onNewSession()}
-          disabled={isCreatingSession || newSessionsDisabled}
-          title={disabledReason}
-          className="inline-flex h-7 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 text-[11px] font-medium text-primary-light transition-colors hover:border-primary/50 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
-        >
-          {isCreatingSession ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-          New
-        </button>
-      </div>
+      <h3 className="text-sm font-semibold text-white">Sessions</h3>
 
       {disabledReason && (
         <div className="flex gap-2 rounded-xl border border-border/80 bg-background/45 p-3 text-xs leading-5 text-muted">
@@ -182,18 +162,11 @@ export function SessionsPanel({
         <div className="flex flex-col items-center justify-center rounded-xl border border-border/80 bg-background/45 px-4 py-8 text-center">
           <MessageSquare className="mb-2 h-8 w-8 text-muted" />
           <p className="text-sm text-muted">No sessions yet</p>
-          <p className="mt-1 text-xs text-muted">{newSessionsDisabled ? 'Persistent Sessions cannot be created in the current runtime state.' : 'Create a Session or execute this stateful Agent.'}</p>
-          {!newSessionsDisabled ? (
-            <button
-              type="button"
-              onClick={() => void onNewSession()}
-              disabled={isCreatingSession}
-              className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 text-xs font-medium text-primary-light transition-colors hover:border-primary/50 hover:bg-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {isCreatingSession ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />}
-              New Session
-            </button>
-          ) : null}
+          <p className="mt-1 text-xs text-muted">
+            {sessionMode === 'stateless'
+              ? 'This Agent runtime is stateless and does not create persistent Sessions.'
+              : 'Use New Session in the left rail to start a conversation.'}
+          </p>
         </div>
       )}
 
