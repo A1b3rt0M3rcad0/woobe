@@ -3,7 +3,6 @@ import { Cpu, Plus } from 'lucide-react'
 
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 import { useProviderModels } from '@/features/provider-models/hooks'
@@ -38,7 +37,6 @@ export function NetworkAgentModel({ projectId }: { projectId: string }) {
   }
   return <div className="space-y-4 p-4">
     <Summary title="Primary Model" model={primary} credential={credentialFor(primary)} onChange={() => setTarget('primary')} onRemove={() => { setField('providerModelId', null); setField('providerCredentialId', null); setField('provider', ''); setField('model', ''); setField('baseUrl', null) }} />
-    <Section title="Generation Settings"><div className="grid grid-cols-2 gap-3"><label className="text-xs font-medium text-muted">Temperature<Input type="number" min="0" max="2" step="0.1" className="mt-1" value={state.temperature} onChange={(event) => setField('temperature', Number(event.target.value) || 0)} /></label><label className="text-xs font-medium text-muted">Max Output Tokens<Input type="number" min="1" className="mt-1" value={state.maxOutputTokens} onChange={(event) => setField('maxOutputTokens', Number(event.target.value) || 1)} /></label></div></Section>
     <Summary title="Fallback" model={fallback} credential={credentialFor(fallback)} onChange={() => setTarget('fallback')} onRemove={() => { setField('fallbackProviderModelId', null); setField('fallbackProviderCredentialId', null); setField('fallbackProvider', ''); setField('fallbackModel', '') }} />
     <NetworkModelManagerModal open={target !== null} projectId={projectId} selectedModelId={target === 'fallback' ? state.fallbackProviderModelId : state.providerModelId} onClose={() => setTarget(null)} onUseModel={useModel} />
   </div>

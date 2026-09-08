@@ -20,6 +20,19 @@ function pressureClass(status: string | undefined): string {
   }
 }
 
+function fitClass(status: string | null | undefined): string {
+  switch ((status ?? '').toUpperCase()) {
+    case 'UNFIT':
+      return 'border-red-500/25 bg-red-500/10 text-red-300'
+    case 'DEGRADED':
+      return 'border-amber-500/25 bg-amber-500/10 text-amber-300'
+    case 'FIT':
+      return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
+    default:
+      return 'border-border bg-background text-muted'
+  }
+}
+
 function formatPercent(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return '—'
   return `${(value * 100).toFixed(value >= 0.1 ? 1 : 2)}%`
@@ -35,10 +48,18 @@ function asRecord(value: unknown): Record<string, unknown> | null {
     : null
 }
 
+function metricsOf(snapshot: ContextSnapshotEvidence): Record<string, unknown> {
+  return asRecord(snapshot.manifest?.metrics) ?? {}
+}
+
 function metric(snapshot: ContextSnapshotEvidence, key: string): number | null {
-  const metrics = asRecord(snapshot.manifest?.metrics)
-  const value = metrics?.[key]
+  const value = metricsOf(snapshot)[key]
   return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+function metricText(snapshot: ContextSnapshotEvidence, key: string): string | null {
+  const value = metricsOf(snapshot)[key]
+  return typeof value === 'string' && value.trim() ? value : null
 }
 
 function warnings(snapshot: ContextSnapshotEvidence): string[] {
@@ -71,10 +92,16 @@ function median(values: number[]): number | null {
     : sorted[middle]
 }
 
+function isContextBudgetBlocked(invocation: ContextModelInvocation): boolean {
+  return asRecord(invocation.data)?.code === 'CONTEXT_BUDGET_EXCEEDED'
+}
+
 function RunContextSummary({ invocations }: { invocations: ContextModelInvocation[] }) {
   const snapshots = invocations
     .map((invocation) => invocation.context_snapshot)
     .filter((snapshot): snapshot is ContextSnapshotEvidence => Boolean(snapshot))
+  const blocked = invocations.filter(isContextBudgetBlocked).length
+  const degraded = snapshots.filter((snapshot) => metricText(snapshot, 'context_fit_status') === 'DEGRADED').length
   const totalInput = snapshots.reduce(
     (total, snapshot) => total + (snapshot.reported_input_units ?? snapshot.estimated_input_units ?? 0),
     0,
@@ -99,11 +126,13 @@ function RunContextSummary({ invocations }: { invocations: ContextModelInvocatio
           <p className="text-[9px] uppercase tracking-wider text-muted">Model input</p>
           <p className="mt-0.5 text-sm font-mono text-white">{formatUnits(totalInput)}</p>
         </div>
-        <span className="text-[9px] text-muted">Across {snapshots.length} invocation{snapshots.length === 1 ? '' : 's'}</span>
+        <span className="text-[9px] text-muted">Across {invocations.length} invocation{invocations.length === 1 ? '' : 's'}</span>
       </div>
       <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-muted">
         {utilizations.length ? <span>Median utilization {formatPercent(median(utilizations))}</span> : null}
         {budgetUnknown ? <span className="text-amber-300">Budget unavailable for {budgetUnknown}</span> : null}
+        {degraded ? <span className="text-amber-300">{degraded} degraded</span> : null}
+        {blocked ? <span className="text-red-300">{blocked} unfit / blocked</span> : null}
         {compactionSaving > 0 ? <span>Compaction saved {formatUnits(compactionSaving)}</span> : null}
         {truncationCount > 0 ? <span className="text-amber-300">{truncationCount} truncated</span> : null}
       </div>
@@ -178,9 +207,41 @@ function Composition({ snapshot }: { snapshot: ContextSnapshotEvidence }) {
   )
 }
 
+function BlockedInvocationCard({ invocation }: { invocation: ContextModelInvocation }) {
+  const data = asRecord(invocation.data) ?? {}
+  if (data.code !== 'CONTEXT_BUDGET_EXCEEDED') return null
+  const number = (key: string) => typeof data[key] === 'number' ? data[key] as number : null
+
+  return (
+    <div className="space-y-2.5 rounded-lg border border-red-500/25 bg-red-500/5 p-2.5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="truncate text-[11px] font-medium text-white">Invocation #{invocation.call_index ?? '—'} · {invocation.phase || 'model_invocation'}</p>
+          <p className="truncate font-mono text-[10px] text-muted">{invocation.provider || '—'}/{invocation.model || '—'}</p>
+        </div>
+        <span className={cn('shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-medium', fitClass('UNFIT'))}>UNFIT</span>
+      </div>
+      <div className="grid grid-cols-2 gap-1.5 text-[10px]">
+        <div className="rounded border border-border px-2 py-1.5"><p className="text-[9px] uppercase tracking-wider text-muted">Effective budget</p><p className="font-mono text-white">{formatUnits(number('effective_budget_units'))}</p></div>
+        <div className="rounded border border-border px-2 py-1.5"><p className="text-[9px] uppercase tracking-wider text-muted">Mandatory context</p><p className="font-mono text-white">{formatUnits(number('mandatory_units'))}</p></div>
+      </div>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-muted">
+        <span>Capacity {formatUnits(number('model_capacity_units'))}</span>
+        <span>Output reserve {formatUnits(number('reserved_output_units'))}</span>
+        <span>Runtime reserve {formatUnits(number('runtime_reserve_units'))}</span>
+      </div>
+      <div className="flex items-start gap-1.5 rounded border border-red-500/20 bg-red-500/5 px-2 py-1.5 text-[9px] text-red-200">
+        <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+        Provider was not called because mandatory Context exceeded the invocation-specific budget.
+      </div>
+      {invocation.error ? <p className="text-[9px] text-muted">{invocation.error}</p> : null}
+    </div>
+  )
+}
+
 function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) {
   const snapshot = invocation.context_snapshot
-  if (!snapshot) return null
+  if (!snapshot) return <BlockedInvocationCard invocation={invocation} />
 
   const providerReported = snapshot.reported_input_units
   const input = providerReported ?? snapshot.estimated_input_units
@@ -189,6 +250,14 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
   const candidates = metric(snapshot, 'raw_candidate_count')
   const compactionSaving = metric(snapshot, 'compaction_saving_units') ?? 0
   const truncationCount = metric(snapshot, 'truncation_count') ?? 0
+  const configuredBudget = metric(snapshot, 'configured_input_budget_units')
+  const modelUsable = metric(snapshot, 'model_usable_input_units')
+  const preBudgetUnits = metric(snapshot, 'pre_budget_units')
+  const budgetReduction = metric(snapshot, 'budget_reduction_units') ?? 0
+  const preservation = metric(snapshot, 'context_preservation_ratio')
+  const headroom = metric(snapshot, 'headroom_units')
+  const headroomRatio = metric(snapshot, 'headroom_ratio')
+  const fitStatus = metricText(snapshot, 'context_fit_status') ?? 'FIT'
   const modalities = asRecord(snapshot.manifest?.modalities)
   const aggregateComparable = modalities?.aggregate_comparable !== false
   const budgetKnown = snapshot.usable_input_budget != null
@@ -205,18 +274,14 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
             {invocation.provider || '—'}/{invocation.model || '—'}
           </p>
         </div>
-        {pressureKnown ? (
-          <span className={cn(
-            'shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-medium',
-            pressureClass(snapshot.pressure_status),
-          )}>
-            {snapshot.pressure_status} pressure
-          </span>
-        ) : (
-          <span className="shrink-0 rounded-full border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">
-            Budget unavailable
-          </span>
-        )}
+        <div className="flex shrink-0 flex-wrap justify-end gap-1">
+          <span className={cn('rounded-full border px-1.5 py-0.5 text-[9px] font-medium', fitClass(fitStatus))}>{fitStatus}</span>
+          {pressureKnown ? (
+            <span className={cn('rounded-full border px-1.5 py-0.5 text-[9px] font-medium', pressureClass(snapshot.pressure_status))}>{snapshot.pressure_status} pressure</span>
+          ) : (
+            <span className="rounded-full border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-300">Budget unavailable</span>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-1.5">
@@ -226,12 +291,19 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
           <p className="text-[9px] text-muted">{providerReported != null ? 'Provider reported' : 'Woobe estimate'}</p>
         </div>
         <div className="rounded border border-border px-2 py-1.5">
-          <p className="text-[9px] uppercase tracking-wider text-muted">Context budget</p>
+          <p className="text-[9px] uppercase tracking-wider text-muted">Effective budget</p>
           <p className="text-[12px] font-mono text-white">{budgetKnown ? formatUnits(snapshot.usable_input_budget) : 'Unavailable'}</p>
-          <p className="text-[9px] text-muted">
-            {budgetKnown ? `${formatPercent(snapshot.utilization)} used` : 'Model capacity was not resolved'}
-          </p>
+          <p className="text-[9px] text-muted">{budgetKnown ? `${formatPercent(snapshot.utilization)} used` : 'Model capacity was not resolved'}</p>
         </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-x-3 gap-y-1 rounded border border-border/70 px-2 py-1.5 text-[9px] text-muted">
+        <span>Configured <span className="font-mono text-slate-200">{configuredBudget == null ? 'Auto' : formatUnits(configuredBudget)}</span></span>
+        <span>Model usable <span className="font-mono text-slate-200">{formatUnits(modelUsable)}</span></span>
+        <span>Headroom <span className="font-mono text-slate-200">{formatUnits(headroom)} · {formatPercent(headroomRatio)}</span></span>
+        <span>Preserved <span className="font-mono text-slate-200">{formatPercent(preservation)}</span></span>
+        {preBudgetUnits != null ? <span>Before budget <span className="font-mono text-slate-200">{formatUnits(preBudgetUnits)}</span></span> : null}
+        {budgetReduction > 0 ? <span className="text-amber-300">Budget reduced <span className="font-mono">{formatUnits(budgetReduction)}</span></span> : null}
       </div>
 
       <div>
@@ -249,6 +321,7 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
         {providerReported != null ? <span>Pre-call estimate {formatUnits(snapshot.estimated_input_units)}</span> : null}
         {snapshot.model_capacity_units != null ? <span>Capacity {formatUnits(snapshot.model_capacity_units)}</span> : null}
         {snapshot.reserved_output_units != null ? <span>Output reserve {formatUnits(snapshot.reserved_output_units)}</span> : null}
+        <span>Runtime reserve {formatUnits(snapshot.runtime_reserve_units)}</span>
       </div>
 
       {!aggregateComparable ? (
@@ -282,80 +355,41 @@ function InvocationCard({ invocation }: { invocation: ContextModelInvocation }) 
           </div>
           <JsonCodeBlock value={snapshot.manifest} maxHeight={180} />
           <JsonCodeBlock value={snapshot.contributions} maxHeight={180} />
-          <p className="break-all text-[9px] text-muted">
-            policy {snapshot.policy_hash} · materialized {snapshot.materialized_hash}
-          </p>
+          <p className="break-all text-[9px] text-muted">policy {snapshot.policy_hash} · materialized {snapshot.materialized_hash}</p>
         </div>
       </details>
     </div>
   )
 }
 
-export function ContextInspector({
-  traceId,
-  runId,
-  finalizing = false,
-}: {
-  traceId?: string
-  runId?: string
-  finalizing?: boolean
-}) {
+export function ContextInspector({ traceId, runId, finalizing = false }: { traceId?: string; runId?: string; finalizing?: boolean }) {
   const { data, isLoading, isError, error, refetch } = useContextModelInvocations({ traceId, runId })
 
   if (isLoading) {
-    return (
-      <div className="px-4 pb-4">
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/30 p-3 text-xs text-muted">
-          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-          {finalizing ? 'Finalizing Context evidence…' : 'Loading Context evidence…'}
-        </div>
-      </div>
-    )
+    return <div className="px-4 pb-4"><div className="flex items-center gap-2 rounded-lg border border-border bg-surface/30 p-3 text-xs text-muted"><RefreshCw className="h-3.5 w-3.5 animate-spin" />{finalizing ? 'Finalizing Context evidence…' : 'Loading Context evidence…'}</div></div>
   }
 
   if (isError) {
     return (
       <div className="px-4 pb-4">
         <div className="space-y-1.5 rounded-lg border border-border bg-surface/30 p-3">
-          <div className="flex items-center gap-2 text-xs text-muted">
-            <Brain className="h-3.5 w-3.5" />
-            Context evidence unavailable
-          </div>
-          <p className="text-[10px] text-muted">
-            {finalizing
-              ? 'The Agent Run completed, but Context evidence has not been finalized yet.'
-              : error instanceof Error ? error.message : 'Context evidence could not be loaded.'}
-          </p>
-          <button onClick={() => refetch()} className="text-[10px] text-primary hover:underline">
-            Retry
-          </button>
+          <div className="flex items-center gap-2 text-xs text-muted"><Brain className="h-3.5 w-3.5" />Context evidence unavailable</div>
+          <p className="text-[10px] text-muted">{finalizing ? 'The Agent Run completed, but Context evidence has not been finalized yet.' : error instanceof Error ? error.message : 'Context evidence could not be loaded.'}</p>
+          <button onClick={() => refetch()} className="text-[10px] text-primary hover:underline">Retry</button>
         </div>
       </div>
     )
   }
 
   if (!data?.length) {
-    return finalizing ? (
-      <div className="px-4 pb-4">
-        <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/30 p-3 text-xs text-muted">
-          <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-          Finalizing Context evidence…
-        </div>
-      </div>
-    ) : null
+    return finalizing ? <div className="px-4 pb-4"><div className="flex items-center gap-2 rounded-lg border border-border bg-surface/30 p-3 text-xs text-muted"><RefreshCw className="h-3.5 w-3.5 animate-spin" />Finalizing Context evidence…</div></div> : null
   }
 
   return (
     <div className="space-y-2 px-4 pb-4">
-      <div className="flex items-center gap-2 border-t border-border pt-3">
-        <Brain className="h-3.5 w-3.5 text-muted" />
-        <span className="text-xs font-medium text-white">Context</span>
-        <span className="ml-auto text-[10px] text-muted">{data.length} model invocation{data.length === 1 ? '' : 's'}</span>
-      </div>
+      <div className="flex items-center gap-2 border-t border-border pt-3"><Brain className="h-3.5 w-3.5 text-muted" /><span className="text-xs font-medium text-white">Context</span><span className="ml-auto text-[10px] text-muted">{data.length} model invocation{data.length === 1 ? '' : 's'}</span></div>
       <RunContextSummary invocations={data} />
-      {data.map((invocation, index) => (
-        <InvocationCard key={invocation.id ?? `${invocation.call_index ?? index}-${index}`} invocation={invocation} />
-      ))}
+      {data.map((invocation, index) => <InvocationCard key={invocation.id ?? `${invocation.call_index ?? index}-${index}`} invocation={invocation} />)}
     </div>
   )
 }

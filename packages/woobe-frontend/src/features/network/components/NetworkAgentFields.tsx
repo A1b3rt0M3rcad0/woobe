@@ -4,11 +4,11 @@ import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 
-export function NetworkAgentFields() {
+export function NetworkAgentFields({ projectId }: { projectId: string }) {
   const { state, setField } = useAgentEditor()
   return (
     <div className="space-y-4 p-4">
-      <AgentContextAssemblerField />
+      <AgentContextAssemblerField projectId={projectId} />
       <section className="rounded-xl border border-border bg-surface p-4">
         <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Agent Details</p>
         <div className="space-y-3">

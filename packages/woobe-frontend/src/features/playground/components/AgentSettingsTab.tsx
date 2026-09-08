@@ -4,12 +4,12 @@ import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
 import { useAgentEditor } from '../AgentEditorContext'
 
-export function AgentSettingsTab() {
+export function AgentSettingsTab({ projectId }: { projectId: string }) {
   const { state, setField } = useAgentEditor()
 
   return (
     <div className="p-4 space-y-4">
-      <AgentContextAssemblerField />
+      <AgentContextAssemblerField projectId={projectId} />
 
       <div className="rounded-xl border border-border bg-surface">
         <div className="p-4 space-y-3">
