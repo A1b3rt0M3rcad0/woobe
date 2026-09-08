@@ -91,6 +91,7 @@ def _release(
         provider_model_id=provider_model_id,
         provider="openai",
         model="model-a",
+        session_mode="stateful",
         runtime_config=runtime_config,
         knowledge_version_id=knowledge_version_id,
     )
