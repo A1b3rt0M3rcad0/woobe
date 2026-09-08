@@ -243,7 +243,7 @@ async def run_instrumented_execution(
     if skill_runtime is not None:
         routing_model = base_model.bind_tools(
             [skill_runtime.routing_definition],
-            tool_choice="skills_resolve",
+            tool_choice="auto",
         )
 
     network_execution = bool(context and context.network_execution_id)
