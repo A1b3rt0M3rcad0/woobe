@@ -1,12 +1,20 @@
 import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
+from uuid import uuid4
 
 import pytest
 from langchain_core.messages import SystemMessage
 
+from modules.agent.application.context_assembly import ContextBudgetExceeded
+from modules.agent.application.interfaces.execution import (
+    InstrumentedExecution,
+    InstrumentedExecutionError,
+)
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.infra.execution.execution_instrumentation import (
     aggregate_usage,
+    invoke_llm,
     resolve_effective_output_tokens,
 )
 from modules.agent.infra.execution.instrumented_execution_runner import (
@@ -40,6 +48,64 @@ def test_effective_output_tokens_clamps_to_invoked_model_capability():
     assert resolve_effective_output_tokens(8192, {"max_output_tokens": 4096}) == 4096
     assert resolve_effective_output_tokens(2048, {"max_output_tokens": 4096}) == 2048
     assert resolve_effective_output_tokens(2048, {}) == 2048
+
+
+@pytest.mark.asyncio
+async def test_context_budget_unfit_blocks_provider_and_records_invocation_evidence():
+    captured = {}
+
+    class RejectingAssembler:
+        def assemble(self, request):
+            captured["capacity"] = request.runtime_context.model_capacity_units
+            captured["reserved"] = request.runtime_context.reserved_output_units
+            raise ContextBudgetExceeded(
+                "mandatory context does not fit",
+                configured_budget_units=64000,
+                effective_budget_units=25904,
+                mandatory_units=28000,
+                model_capacity_units=request.runtime_context.model_capacity_units,
+                reserved_output_units=request.runtime_context.reserved_output_units,
+                runtime_reserve_units=2000,
+            )
+
+    execution = InstrumentedExecution(result=None)
+    context = SimpleNamespace(
+        run_id=uuid4(),
+        project_id=uuid4(),
+        context_policy={},
+        model_capacity_units=128000,
+        reserved_output_units=8192,
+        active_tool_definitions=[],
+        execution=execution,
+    )
+    token = current_execution.set(context)
+    model = MagicMock()
+    model.ainvoke = AsyncMock()
+    try:
+        with pytest.raises(InstrumentedExecutionError) as error:
+            await invoke_llm(
+                model=model,
+                messages=[],
+                phase="final_response_generation",
+                call_index=2,
+                provider="custom",
+                model_name="fallback-model",
+                pricing_snapshot={
+                    "context_window": 32000,
+                    "max_output_tokens": 4096,
+                },
+                context_assembler=RejectingAssembler(),
+            )
+    finally:
+        current_execution.reset(token)
+
+    assert captured == {"capacity": 32000, "reserved": 4096}
+    assert model.ainvoke.await_count == 0
+    assert error.value.failure_context["code"] == "CONTEXT_BUDGET_EXCEEDED"
+    assert error.value.failure_context["provider_called"] is False
+    assert execution.llm_calls[0]["context_fit_status"] == "UNFIT"
+    assert execution.llm_calls[0]["effective_budget_units"] == 25904
+    assert execution.llm_calls[0]["provider_called"] is False
 
 
 @pytest.mark.asyncio
