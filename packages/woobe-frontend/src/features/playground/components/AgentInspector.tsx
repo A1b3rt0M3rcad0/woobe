@@ -135,7 +135,7 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
       <EditorActions agent={agent} projectId={projectId} />
       <AgentEditorNavigation value={editorTab} onChange={setEditorTab} />
       <ScrollArea className="flex-1 min-h-0">
-        {editorTab === 'agent' && <AgentSettingsTab />}
+        {editorTab === 'agent' && <AgentSettingsTab projectId={projectId} />}
         {editorTab === 'output' && <OutputSettingsTab />}
         {editorTab === 'model' && <ModelSettingsTab projectId={projectId} />}
         {editorTab === 'knowledge' && <KnowledgeTab projectId={projectId} agentId={agentId} />}

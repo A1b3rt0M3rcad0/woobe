@@ -9,6 +9,7 @@ import uuid6
 from langchain_core.messages import ToolMessage
 
 from modules.agent.application.context_assembly import (
+    ContextBudgetExceeded,
     enrich_snapshot_with_reported_usage,
     estimate_input_units,
     snapshot_to_dict,
@@ -71,6 +72,18 @@ def _positive_int(value: Any) -> int | None:
         parsed = int(value)
         return parsed if parsed > 0 else None
     return None
+
+
+def resolve_effective_output_tokens(
+    configured_output_tokens: Any,
+    pricing_snapshot: dict[str, Any] | None,
+    *,
+    default: int = 1000,
+) -> int:
+    """Clamp desired Agent output to the capability of the invoked model."""
+    configured = _positive_int(configured_output_tokens) or default
+    model_limit = _positive_int((pricing_snapshot or {}).get("max_output_tokens"))
+    return min(configured, model_limit) if model_limit is not None else configured
 
 
 def _provider_failure_context(
@@ -174,11 +187,16 @@ def _assemble_invocation_context(
 
     policy = ContextPolicyV1.model_validate(context.context_policy or {})
     previous_capacity = context.model_capacity_units
+    previous_reserved = context.reserved_output_units
     previous_tools = context.active_tool_definitions
-    # Capacity is invocation-specific. A fallback must not inherit the primary
-    # model context window when its ProviderModel metadata does not define one.
+    # Capacity and output reserve are invocation-specific. A fallback must not
+    # inherit the primary model limits when its ProviderModel differs.
     context.model_capacity_units = _positive_int(
         (pricing_snapshot or {}).get("context_window")
+    )
+    context.reserved_output_units = resolve_effective_output_tokens(
+        previous_reserved,
+        pricing_snapshot,
     )
     if phase in {"final_response_generation", "json_repair"}:
         context.active_tool_definitions = []
@@ -198,6 +216,7 @@ def _assemble_invocation_context(
         return assembled.messages, assembled.snapshot
     finally:
         context.model_capacity_units = previous_capacity
+        context.reserved_output_units = previous_reserved
         context.active_tool_definitions = previous_tools
 
 
@@ -214,18 +233,59 @@ async def invoke_llm(
 ) -> tuple[Any, dict[str, Any]]:
     call_uuid = uuid6.uuid7()
     call_id = str(call_uuid)
-    invocation_messages, context_snapshot = _assemble_invocation_context(
-        invocation_id=call_uuid,
-        messages=messages,
-        provider=provider,
-        model_name=model_name,
-        phase=phase,
-        pricing_snapshot=pricing_snapshot,
-        context_assembler=context_assembler,
-    )
     started_at = utc_iso()
     started = time.monotonic()
     cost_context = _cost_context(pricing_snapshot)
+    try:
+        invocation_messages, context_snapshot = _assemble_invocation_context(
+            invocation_id=call_uuid,
+            messages=messages,
+            provider=provider,
+            model_name=model_name,
+            phase=phase,
+            pricing_snapshot=pricing_snapshot,
+            context_assembler=context_assembler,
+        )
+    except ContextBudgetExceeded as exc:
+        ended_at = utc_iso()
+        failure_context = {
+            "phase": phase,
+            "call_index": call_index,
+            "provider": provider,
+            "model": model_name,
+            **exc.failure_context(),
+        }
+        call = {
+            "call_id": call_id,
+            "call_index": call_index,
+            "phase": phase,
+            "status": "error",
+            "error": str(exc),
+            "started_at": started_at,
+            "ended_at": ended_at,
+            "occurred_at": ended_at,
+            "latency_ms": round((time.monotonic() - started) * 1000),
+            "input_tokens": None,
+            "output_tokens": None,
+            "total_tokens": None,
+            "cost_usd": None,
+            "cost_status": "unknown_tokens",
+            "cost_reason": "Model invocation was blocked by Context Budget before provider execution",
+            "usage_complete": False,
+            "provider": provider,
+            "model": model_name,
+            "context_snapshot": None,
+            **cost_context,
+            **failure_context,
+        }
+        _record_live_llm_call(call)
+        raise InstrumentedExecutionError(
+            str(exc),
+            llm_calls=[call],
+            timeline=[{"kind": "llm", "occurred_at": ended_at, "payload": call}],
+            failure_context=failure_context,
+        ) from exc
+
     running_call = {
         "call_id": call_id,
         "call_index": call_index,

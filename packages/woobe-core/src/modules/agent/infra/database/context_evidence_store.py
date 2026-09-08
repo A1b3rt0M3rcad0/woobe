@@ -44,6 +44,24 @@ def _as_float(value: Any) -> float | None:
     return None
 
 
+_INVOCATION_DATA_KEYS = (
+    "cost_status",
+    "cost_reason",
+    "pricing_id",
+    "upstream_status",
+    "upstream_error_code",
+    "code",
+    "context_fit_status",
+    "configured_budget_units",
+    "effective_budget_units",
+    "mandatory_units",
+    "model_capacity_units",
+    "reserved_output_units",
+    "runtime_reserve_units",
+    "provider_called",
+)
+
+
 class ContextEvidenceStore:
     """Persist Context evidence inside the caller's current SQL transaction."""
 
@@ -65,12 +83,8 @@ class ContextEvidenceStore:
         for call in calls:
             if not isinstance(call, dict):
                 continue
-            snapshot = call.get("context_snapshot")
-            if not isinstance(snapshot, dict):
-                continue
             invocation_id = _uuid(call.get("call_id"))
-            snapshot_id = _uuid(snapshot.get("id"))
-            if invocation_id is None or snapshot_id is None:
+            if invocation_id is None:
                 continue
             if await session.get(ModelInvocationModel, invocation_id) is not None:
                 continue
@@ -110,13 +124,7 @@ class ContextEvidenceStore:
                 error=str(call.get("error")) if call.get("error") else None,
                 data={
                     key: call.get(key)
-                    for key in (
-                        "cost_status",
-                        "cost_reason",
-                        "pricing_id",
-                        "upstream_status",
-                        "upstream_error_code",
-                    )
+                    for key in _INVOCATION_DATA_KEYS
                     if call.get(key) is not None
                 },
             )
@@ -125,6 +133,15 @@ class ContextEvidenceStore:
             # Flush each FK parent explicitly while remaining inside the caller's
             # single terminal transaction; this is ordering, not another UoW/commit.
             await session.flush([invocation_model])
+
+            snapshot = call.get("context_snapshot")
+            if not isinstance(snapshot, dict):
+                # A Context Budget UNFIT decision is still a durable Model Invocation
+                # attempt even though Woobe correctly blocks it before provider I/O.
+                continue
+            snapshot_id = _uuid(snapshot.get("id"))
+            if snapshot_id is None:
+                continue
 
             snapshot_model = ContextSnapshotModel(
                 id=snapshot_id,
@@ -273,7 +290,30 @@ class ContextEvidenceStore:
                     ContextSnapshotModel.model_invocation_id == invocation.id
                 )
             )
+            base = {
+                "id": str(invocation.id),
+                "call_index": invocation.call_index,
+                "phase": invocation.phase,
+                "provider": invocation.provider,
+                "model": invocation.model,
+                "status": invocation.status,
+                "error": invocation.error,
+                "latency_ms": invocation.latency_ms,
+                "input_units": invocation.input_units,
+                "output_units": invocation.output_units,
+                "total_units": invocation.total_units,
+                "cost_usd": (
+                    float(invocation.cost_usd)
+                    if invocation.cost_usd is not None
+                    else None
+                ),
+                "started_at": invocation.started_at,
+                "ended_at": invocation.ended_at,
+                "data": dict(invocation.data or {}),
+                "persistence": "context_evidence",
+            }
             if snapshot is None:
+                result.append({**base, "context_snapshot": None})
                 continue
             contributions = list(
                 (
@@ -286,23 +326,7 @@ class ContextEvidenceStore:
             )
             result.append(
                 {
-                    "id": str(invocation.id),
-                    "call_index": invocation.call_index,
-                    "phase": invocation.phase,
-                    "provider": invocation.provider,
-                    "model": invocation.model,
-                    "status": invocation.status,
-                    "latency_ms": invocation.latency_ms,
-                    "input_units": invocation.input_units,
-                    "output_units": invocation.output_units,
-                    "total_units": invocation.total_units,
-                    "cost_usd": (
-                        float(invocation.cost_usd)
-                        if invocation.cost_usd is not None
-                        else None
-                    ),
-                    "started_at": invocation.started_at,
-                    "ended_at": invocation.ended_at,
+                    **base,
                     "context_snapshot": {
                         "id": str(snapshot.id),
                         "policy_schema_version": snapshot.policy_schema_version,

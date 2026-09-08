@@ -3,7 +3,6 @@ import { Cpu, Plus } from 'lucide-react'
 
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 import { NetworkModelManagerModal } from '@/features/network/components/NetworkModelManagerModal'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
@@ -113,14 +112,6 @@ export function ModelSettingsTab({ projectId }: ModelSettingsTabProps) {
             <Button size="sm" className="mt-3" onClick={() => setTarget('primary')}><Plus className="mr-2 h-3.5 w-3.5" />Select model</Button>
           </div>
         )}
-      </section>
-
-      <section className="rounded-xl border border-border bg-surface p-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Generation Settings</p>
-        <div className="grid grid-cols-2 gap-3">
-          <label className="text-xs font-medium text-muted">Temperature<Input type="number" step="0.1" min="0" max="2" className="mt-1" value={state.temperature} onChange={(event) => setField('temperature', Number(event.target.value) || 0)} /></label>
-          <label className="text-xs font-medium text-muted">Max Output Tokens<Input type="number" min="1" className="mt-1" value={state.maxOutputTokens} onChange={(event) => setField('maxOutputTokens', Number(event.target.value) || 1)} /></label>
-        </div>
       </section>
 
       <section className="rounded-xl border border-border bg-surface p-4">

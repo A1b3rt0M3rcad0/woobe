@@ -23,7 +23,37 @@ from modules.agent.domain.context import (
 
 
 class ContextBudgetExceeded(RuntimeError):
-    pass
+    def __init__(
+        self,
+        message: str,
+        *,
+        configured_budget_units: int | None = None,
+        effective_budget_units: int | None = None,
+        mandatory_units: int | None = None,
+        model_capacity_units: int | None = None,
+        reserved_output_units: int | None = None,
+        runtime_reserve_units: int = 0,
+    ) -> None:
+        super().__init__(message)
+        self.configured_budget_units = configured_budget_units
+        self.effective_budget_units = effective_budget_units
+        self.mandatory_units = mandatory_units
+        self.model_capacity_units = model_capacity_units
+        self.reserved_output_units = reserved_output_units
+        self.runtime_reserve_units = runtime_reserve_units
+
+    def failure_context(self) -> dict[str, Any]:
+        return {
+            "code": "CONTEXT_BUDGET_EXCEEDED",
+            "context_fit_status": "UNFIT",
+            "configured_budget_units": self.configured_budget_units,
+            "effective_budget_units": self.effective_budget_units,
+            "mandatory_units": self.mandatory_units,
+            "model_capacity_units": self.model_capacity_units,
+            "reserved_output_units": self.reserved_output_units,
+            "runtime_reserve_units": self.runtime_reserve_units,
+            "provider_called": False,
+        }
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,7 +226,7 @@ def _trim_message_to_units(message: Any, max_units: int) -> tuple[Any, bool]:
 def _effective_budget(
     policy: ContextPolicyV1,
     runtime_context: Any,
-) -> tuple[int | None, int | None, int, int | None]:
+) -> tuple[int | None, int | None, int, int | None, int | None, int | None]:
     raw_capacity = (
         getattr(runtime_context, "model_capacity_units", None)
         if runtime_context
@@ -218,7 +248,7 @@ def _effective_budget(
         usable = min(model_usable, configured)
     else:
         usable = model_usable if model_usable is not None else configured
-    return capacity, reserved, runtime_reserve, usable
+    return capacity, reserved, runtime_reserve, model_usable, configured, usable
 
 
 def _pressure(
@@ -564,7 +594,7 @@ def assemble_context(
     apply_source_cap(ContextSourceType.ARTIFACT, policy.artifacts.max_units)
     apply_source_cap(ContextSourceType.DELEGATION, policy.delegation.max_units)
 
-    capacity, reserved, runtime_reserve, usable = _effective_budget(
+    capacity, reserved, runtime_reserve, model_usable, configured, usable = _effective_budget(
         policy,
         runtime_context,
     )
@@ -594,9 +624,12 @@ def assemble_context(
         )
         return total + tool_definition_units
 
+    pre_budget_units = total_units()
+    context_fit_status = "FIT"
     if usable is not None:
-        overflow = total_units() - usable
+        overflow = pre_budget_units - usable
         if overflow > 0:
+            context_fit_status = "DEGRADED"
             # Session history is longitudinal and may be discarded oldest-first
             # before mutating mandatory current input/system material.
             for index, source in enumerate(sources):
@@ -645,10 +678,17 @@ def assemble_context(
                 if overflow <= 0:
                     break
 
-        if total_units() > usable:
+        mandatory_units = total_units()
+        if mandatory_units > usable:
             raise ContextBudgetExceeded(
                 f"Mandatory context exceeds usable input budget: "
-                f"{total_units()} > {usable}"
+                f"{mandatory_units} > {usable}",
+                configured_budget_units=configured,
+                effective_budget_units=usable,
+                mandatory_units=mandatory_units,
+                model_capacity_units=capacity,
+                reserved_output_units=reserved,
+                runtime_reserve_units=runtime_reserve,
             )
 
     selected_indices = [index for index, selected in enumerate(keep) if selected]
@@ -752,6 +792,21 @@ def assemble_context(
     truncation_rate = (
         truncation_count / selected_count if selected_count > 0 else 0.0
     )
+    budget_reduction_units = max(0, pre_budget_units - estimated)
+    context_preservation_ratio = (
+        estimated / pre_budget_units if pre_budget_units > 0 else 1.0
+    )
+    headroom_units = usable - estimated if usable is not None else None
+    headroom_ratio = (
+        headroom_units / usable
+        if headroom_units is not None and usable and usable > 0
+        else None
+    )
+    budget_clamped = (
+        configured is not None
+        and model_usable is not None
+        and configured > model_usable
+    )
 
     aggregate_comparable = all(
         contribution.modality in {"text", "structured_data"}
@@ -803,6 +858,17 @@ def assemble_context(
         "truncation_count": truncation_count,
         "truncation_rate": truncation_rate,
         "source_share_measurement": "estimated",
+        "configured_input_budget_units": configured,
+        "model_usable_input_units": model_usable,
+        "effective_input_budget_units": usable,
+        "budget_clamped": budget_clamped,
+        "budget_clamp_reason": "model_capacity" if budget_clamped else None,
+        "pre_budget_units": pre_budget_units,
+        "budget_reduction_units": budget_reduction_units,
+        "context_preservation_ratio": context_preservation_ratio,
+        "headroom_units": headroom_units,
+        "headroom_ratio": headroom_ratio,
+        "context_fit_status": context_fit_status,
     }
     manifest = {
         "schema_version": 1,
@@ -894,6 +960,14 @@ def enrich_snapshot_with_reported_usage(
     manifest["measurement_status"] = ContextMeasurementStatus.REPORTED.value
     metrics = dict(manifest.get("metrics") or {})
     metrics["reported_input_units"] = reported_input_units
+    if snapshot.usable_input_budget is not None:
+        headroom_units = snapshot.usable_input_budget - reported_input_units
+        metrics["headroom_units"] = headroom_units
+        metrics["headroom_ratio"] = (
+            headroom_units / snapshot.usable_input_budget
+            if snapshot.usable_input_budget > 0
+            else None
+        )
     manifest["metrics"] = metrics
     pressure = _pressure_from_manifest(utilization, manifest)
     existing_health = manifest.get("health")

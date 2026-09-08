@@ -1,6 +1,6 @@
 import { skillsConfig } from '@/features/skills/config'
 import { useMemo, useState } from 'react'
-import { BrainCircuit, Check, ChevronRight } from 'lucide-react'
+import { BrainCircuit, Check, ChevronRight, Settings2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -9,6 +9,7 @@ import { useContextAssemblers } from '@/features/agents/hooks'
 import type { ContextAssemblerDescriptor } from '@/features/agents/types'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { cn } from '@/lib/utils'
+import { AgentContextConfigurationDialog } from './AgentContextConfigurationDialog'
 
 const LEGACY_DEFAULT_SELECTION = {
   name: 'default',
@@ -80,7 +81,7 @@ function DetailList({ items }: { items: string[] }) {
   )
 }
 
-export function AgentContextAssemblerField() {
+export function AgentContextAssemblerField({ projectId }: { projectId: string }) {
   const { state, setField } = useAgentEditor()
   const { data: assemblers = [], isLoading, isError } = useContextAssemblers()
   const selected = useMemo(() => currentSelection(state.runtimeConfig), [state.runtimeConfig])
@@ -153,6 +154,7 @@ export function AgentContextAssemblerField() {
     : [selectedFallbackOption, ...catalogOptions]
 
   const [open, setOpen] = useState(false)
+  const [configureOpen, setConfigureOpen] = useState(false)
   const [focusedStrategyKey, setFocusedStrategyKey] = useState<string | null>(null)
 
   const focused = availableOptions.find(
@@ -190,12 +192,7 @@ export function AgentContextAssemblerField() {
   return (
     <>
       <section>
-        <button
-          type="button"
-          onClick={openSelector}
-          aria-label={`Change context manager. Current selection: ${selectedDescriptor.display_name}`}
-          className="group flex min-h-16 w-full items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3 text-left transition-colors hover:border-primary/40 hover:bg-accent/20"
-        >
+        <div className="flex min-h-16 w-full items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background/40 text-primary">
             <BrainCircuit className="h-4 w-4" />
           </span>
@@ -207,12 +204,37 @@ export function AgentContextAssemblerField() {
               {selectedDescriptor.display_name}
             </span>
           </span>
-          <span className="flex shrink-0 items-center gap-1.5 text-xs font-medium text-primary-light">
-            Change
-            <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-          </span>
-        </button>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 px-2.5 text-xs text-primary-light"
+              onClick={() => setConfigureOpen(true)}
+              aria-label={`Configure context for ${selectedDescriptor.display_name}`}
+            >
+              <Settings2 className="mr-1 h-3.5 w-3.5" />
+              Configure
+            </Button>
+            <button
+              type="button"
+              onClick={openSelector}
+              aria-label={`Change context manager. Current selection: ${selectedDescriptor.display_name}`}
+              className="group flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-primary-light transition-colors hover:bg-accent/30 hover:text-foreground"
+            >
+              Change
+              <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+            </button>
+          </div>
+        </div>
       </section>
+
+      <AgentContextConfigurationDialog
+        open={configureOpen}
+        onClose={() => setConfigureOpen(false)}
+        projectId={projectId}
+        managerName={selectedDescriptor.display_name}
+      />
 
       <Dialog
         open={open}

@@ -217,6 +217,8 @@ export interface ContextModelInvocation {
   provider: string | null
   model: string | null
   status: string | null
+  error?: string | null
+  data?: Record<string, unknown> | null
   latency_ms?: number | null
   input_units?: number | null
   output_units?: number | null
