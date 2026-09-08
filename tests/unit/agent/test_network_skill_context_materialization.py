@@ -59,25 +59,25 @@ class _Model:
     def __init__(self, version_id):
         self.version_id = version_id
         self.received = []
+        self.bound_names = None
 
     def bind_tools(self, tools, *, tool_choice):
         assert tool_choice == 'auto'
         names = {item['function']['name'] for item in tools}
+        assert names == {'skills_activate', 'skills_read_resource'}
+        self.bound_names = names
 
         async def invoke(messages, **kwargs):
             self.received.append(messages)
-            if names == {'skills_resolve'}:
-                searched = any(getattr(message, 'type', '') == 'tool' for message in messages)
-                arguments = (
-                    {'action': 'activate', 'skill_version_id': str(self.version_id)}
-                    if searched else {'action': 'search', 'query': 'arithmetic', 'offset': 0}
-                )
-                return AIMessage(content='', tool_calls=[{
-                    'name': 'skills_resolve', 'args': arguments,
-                    'id': f'call-{len(self.received)}', 'type': 'tool_call',
-                }])
             materialized = any(INSTRUCTION in str(message.content) for message in messages)
-            return AIMessage(content='SKILL_CONTEXT_REACHED_MODEL' if materialized else 'MISSING')
+            if not materialized:
+                return AIMessage(content='', tool_calls=[{
+                    'name': 'skills_activate',
+                    'args': {'skill_version_id': str(self.version_id)},
+                    'id': 'activate-skill',
+                    'type': 'tool_call',
+                }])
+            return AIMessage(content='SKILL_CONTEXT_REACHED_MODEL')
 
         return SimpleNamespace(ainvoke=invoke)
 
@@ -142,8 +142,11 @@ async def test_skill_instructions_cross_real_preparation_and_registry(monkeypatc
             json_enabled=False, has_tools=False, agent_tools=[], tool_name_to_id={},
             messages=prepared[11], context_assembler=build_runtime_context_assembler(),
         )
+        assert [call.tool_name for call in execution.tool_calls] == ['skills_activate']
         assert execution.tool_calls[-1].output['output']['activated'] is True
         assert execution.result.content == 'SKILL_CONTEXT_REACHED_MODEL'
+        assert len(model.received) == 2
+        assert model.bound_names == {'skills_activate', 'skills_read_resource'}
         assert context.context_assembler_strategy_name == 'stdcm'
         assert context.context_assembler_strategy_version == 'v2'
         assert context.prepare_started_at is not None

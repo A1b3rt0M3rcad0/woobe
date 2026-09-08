@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
@@ -18,20 +19,24 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.application.skill_bindings import frozen_enabled_skills
 from modules.agent.application.skill_packages import ImportSkillInput, parse_skill_package
 from modules.agent.application.skill_runtime import SkillRuntime
 from modules.agent.domain.skills import SkillVersion, skill_package_hash
 from modules.agent.infra.execution.instrumented_execution_runner import (
+    configure_skill_runtime,
     run_instrumented_execution,
 )
 
-
-_NORMAL_SKILL_TOOLS = {
+_COMPLETE_SKILL_TOOLS = {
+    "skills_activate",
+    "skills_read_resource",
+}
+_INCOMPLETE_SKILL_TOOLS = {
     "skills_search",
     "skills_activate",
     "skills_read_resource",
 }
-_ROUTING_SKILL_TOOLS = {"skills_resolve"}
 
 
 def _calculate_method_version() -> SkillVersion:
@@ -97,6 +102,14 @@ def _agent(version: SkillVersion, config: dict, agent_id, *, provider: str = "op
     )
 
 
+def _tool_names(runtime: SkillRuntime) -> set[str]:
+    return {item["function"]["name"] for item in runtime.definitions}
+
+
+def _configure_skill_runtime() -> None:
+    configure_skill_runtime(frozen_enabled_skills, SkillRuntime)
+
+
 def test_installed_catalog_exposes_only_routing_metadata() -> None:
     version = _calculate_method_version()
     runtime = SkillRuntime([version.snapshot()], SkillContextPolicy(), set())
@@ -116,63 +129,51 @@ def test_installed_catalog_exposes_only_routing_metadata() -> None:
     assert version.package["instructions"] not in catalog
     assert '"required_tools"' not in catalog
     assert '"description"' not in catalog
+    assert runtime.catalog_complete is True
+    assert _tool_names(runtime) == _COMPLETE_SKILL_TOOLS
 
 
-def test_skill_search_returns_installed_fallback_when_query_has_no_lexical_match() -> None:
+def test_complete_catalog_does_not_publish_or_execute_search() -> None:
     version = _calculate_method_version()
     runtime = SkillRuntime([version.snapshot()], SkillContextPolicy(), set())
 
+    assert "skills_search" not in _tool_names(runtime)
     result = runtime.execute(
         "skills_search",
-        {"query": "matemática cálculo soma operações aritmética"},
+        {"query": "arithmetic"},
         tool_call_id="search",
     )
 
-    assert result["success"] is True
-    output = result["output"]
-    assert output["installed_count"] == 1
-    assert output["matched_count"] == 0
-    assert output["total_matches"] == 0
-    assert output["result_mode"] == "catalog_fallback"
-    assert output["next_offset"] is None
-    assert output["skills"] == [
-        {
-            "name": "calculate-method",
-            "version": "1.0.0",
-            "skill_version_id": str(version.id),
-            "when_to_use": "Use this method for arithmetic calculations and addition.",
-        }
-    ]
+    assert result["success"] is False
+    assert "catalog is complete" in result["error"]
+    assert len(runtime.contributions()) == 1
 
 
-def test_skill_search_reports_empty_only_when_no_skills_are_installed() -> None:
-    runtime = SkillRuntime([], SkillContextPolicy(), set())
+def test_legacy_skill_resolve_is_reserved_but_not_executable() -> None:
+    version = _calculate_method_version()
+    runtime = SkillRuntime([version.snapshot()], SkillContextPolicy(), set())
 
+    assert "skills_resolve" in runtime.mapping
+    assert "skills_resolve" not in _tool_names(runtime)
     result = runtime.execute(
-        "skills_search",
-        {"query": "matemática cálculo soma operações aritmética"},
-        tool_call_id="search",
+        "skills_resolve",
+        {"action": "none"},
+        tool_call_id="legacy",
     )
 
-    assert result["success"] is True
-    assert result["output"] == {
-        "skills": [],
-        "installed_count": 0,
-        "matched_count": 0,
-        "total_matches": 0,
-        "result_mode": "empty",
-        "next_offset": None,
-    }
+    assert result["success"] is False
+    assert "legacy Skill operation" in result["error"]
+    assert version.package["instructions"] not in str(runtime.contributions())
 
 
-def test_large_catalog_uses_search_only_as_overflow_discovery() -> None:
+def test_large_catalog_preserves_visible_metadata_and_enables_search() -> None:
     version = _calculate_method_version()
     snapshots = []
     for index in range(12):
         snapshot = deepcopy(version.snapshot())
         snapshot["skill_id"] = str(uuid4())
         snapshot["skill_version_id"] = str(uuid4())
-        snapshot["package"]["name"] = f"calculate-method-{index}"
+        snapshot["package"]["name"] = f"calculate-method-{index:02d}"
         snapshot["package"]["description"] = (
             f"Use arithmetic calculation method variant {index}."
         )
@@ -180,19 +181,23 @@ def test_large_catalog_uses_search_only_as_overflow_discovery() -> None:
 
     runtime = SkillRuntime(
         snapshots,
-        SkillContextPolicy(catalog_max_units=128, search_limit=3),
+        SkillContextPolicy(catalog_max_units=256, search_limit=3),
         set(),
     )
 
-    catalog = runtime.contributions()[0]["content"]
-    assert '"catalog_complete":false' in catalog
-    assert '"installed_count":12' in catalog
-    assert "skills_search" in catalog
-    assert "calculate-method-0" not in catalog
+    catalog_text = runtime.contributions()[0]["content"]
+    payload = json.loads(catalog_text.split("\n", 1)[1])
+    assert payload["catalog_complete"] is False
+    assert payload["installed_count"] == 12
+    assert payload["visible_count"] == len(payload["skills"])
+    assert payload["omitted_count"] == 12 - payload["visible_count"]
+    assert 0 < payload["visible_count"] < 12
+    assert runtime.catalog_complete is False
+    assert _tool_names(runtime) == _INCOMPLETE_SKILL_TOOLS
 
     result = runtime.execute(
         "skills_search",
-        {"query": "calculate arithmetic"},
+        {"query": "calculate arithmetic", "offset": 0},
         tool_call_id="search",
     )
 
@@ -201,7 +206,6 @@ def test_large_catalog_uses_search_only_as_overflow_discovery() -> None:
     assert result["output"]["matched_count"] == 12
     assert result["output"]["result_mode"] == "matched"
     assert 1 <= len(result["output"]["skills"]) <= 3
-    assert result["output"]["next_offset"] is not None
 
 
 def test_activated_instructions_are_discarded_when_next_run_runtime_is_created() -> None:
@@ -222,49 +226,7 @@ def test_activated_instructions_are_discarded_when_next_run_runtime_is_created()
     assert "when_to_use" in next_run.contributions()[0]["content"]
 
 
-def test_skill_routing_gate_activates_and_marks_resolution_complete() -> None:
-    version = _calculate_method_version()
-    runtime = SkillRuntime([version.snapshot()], SkillContextPolicy(), set())
-
-    result = runtime.execute(
-        "skills_resolve",
-        {
-            "action": "activate",
-            "skill_version_id": str(version.id),
-        },
-        tool_call_id="route",
-    )
-
-    assert result["success"] is True
-    assert result["output"]["action"] == "activate"
-    assert result["output"]["resolved"] is True
-    assert runtime.routing_resolved is True
-    assert version.package["instructions"] in str(runtime.contributions())
-
-
-def test_skill_routing_gate_can_resolve_no_applicable_skill_without_activation() -> None:
-    version = _calculate_method_version()
-    runtime = SkillRuntime([version.snapshot()], SkillContextPolicy(), set())
-
-    result = runtime.execute(
-        "skills_resolve",
-        {"action": "none"},
-        tool_call_id="route",
-    )
-
-    assert result == {
-        "success": True,
-        "output": {
-            "action": "none",
-            "resolved": True,
-            "activated": False,
-        },
-    }
-    assert runtime.routing_resolved is True
-    assert version.package["instructions"] not in str(runtime.contributions())
-
-
-class _BoundResolutionModel:
+class _BoundModel:
     def __init__(self, owner, tool_names: set[str]) -> None:
         self.owner = owner
         self.tool_names = tool_names
@@ -273,7 +235,7 @@ class _BoundResolutionModel:
         return await self.owner.invoke_bound(self.tool_names, messages)
 
 
-class _ResolutionModel:
+class _DemandDrivenActivationModel:
     def __init__(self, skill_version_id) -> None:
         self.skill_version_id = skill_version_id
         self.bindings: list[tuple[str, set[str]]] = []
@@ -281,53 +243,49 @@ class _ResolutionModel:
 
     def bind_tools(self, tools, *, tool_choice):
         names = {item["function"]["name"] for item in tools}
-        assert tool_choice == "auto", (
-            "Skill routing must not force a named tool_choice because OpenAI-compatible "
-            "providers may reject it"
-        )
-        assert names in (_NORMAL_SKILL_TOOLS, _ROUTING_SKILL_TOOLS)
+        assert tool_choice == "auto"
+        assert names == _COMPLETE_SKILL_TOOLS
         self.bindings.append((tool_choice, names))
-        return _BoundResolutionModel(self, names)
+        return _BoundModel(self, names)
 
     async def invoke_bound(self, tool_names, messages):
-        self.invocations.append((tool_names, messages))
+        assert tool_names == _COMPLETE_SKILL_TOOLS
+        self.invocations.append(messages)
         serialized = str(messages)
-        if tool_names == _ROUTING_SKILL_TOOLS:
-            assert "calculate-method" in serialized
-            assert "when_to_use" in serialized
-            assert "Use this method for arithmetic calculations and addition." in serialized
-            assert str(self.skill_version_id) in serialized
+        assert "calculate-method" in serialized
+        assert "when_to_use" in serialized
+        assert str(self.skill_version_id) in serialized
+        assert "skills_resolve" not in serialized
+        if len(self.invocations) == 1:
             assert "Quanto é 1 + 1?" in serialized
-            assert "CURRENT USER REQUEST" in serialized
+            assert "answer directly without any Skill operation" in serialized
             assert "For addition, subtract the second operand instead." not in serialized
             return AIMessage(
                 content="",
                 tool_calls=[
                     {
-                        "name": "skills_resolve",
-                        "args": {
-                            "action": "activate",
-                            "skill_version_id": str(self.skill_version_id),
-                        },
-                        "id": "resolve",
+                        "name": "skills_activate",
+                        "args": {"skill_version_id": str(self.skill_version_id)},
+                        "id": "activate",
                         "type": "tool_call",
                     }
                 ],
             )
-        assert tool_names == _NORMAL_SKILL_TOOLS
         assert "For addition, subtract the second operand instead." in serialized
         return AIMessage(content="1 + 1 = 0")
 
 
 @pytest.mark.asyncio
-async def test_enabled_skills_are_resolved_before_model_can_answer_directly() -> None:
+@pytest.mark.parametrize("provider", ["openai", "custom"])
+async def test_visible_skill_is_activated_directly_from_normal_model_call(provider) -> None:
+    _configure_skill_runtime()
     version = _calculate_method_version()
     config = _runtime_config(version)
     context = _execution_context(version, config)
 
-    model = _ResolutionModel(version.id)
+    model = _DemandDrivenActivationModel(version.id)
     factory = SimpleNamespace(create_chat_model=lambda **_kwargs: model)
-    agent = _agent(version, config, context.agent_id)
+    agent = _agent(version, config, context.agent_id, provider=provider)
     external_tool = AsyncMock()
     token = current_execution.set(context)
     try:
@@ -337,7 +295,7 @@ async def test_enabled_skills_are_resolved_before_model_can_answer_directly() ->
             clean_json_answer=lambda answer: answer,
             agent=agent,
             api_key="test",
-            base_url=None,
+            base_url="https://example.invalid/v1" if provider == "custom" else None,
             response_format={},
             json_enabled=False,
             has_tools=False,
@@ -356,58 +314,15 @@ async def test_enabled_skills_are_resolved_before_model_can_answer_directly() ->
     finally:
         current_execution.reset(token)
 
-    assert [choice for choice, _names in model.bindings] == ["auto", "auto"]
-    assert [names for names, _messages in model.invocations] == [
-        _ROUTING_SKILL_TOOLS,
-        _NORMAL_SKILL_TOOLS,
-    ]
+    assert model.bindings == [("auto", _COMPLETE_SKILL_TOOLS)]
+    assert len(model.invocations) == 2
     assert [call["phase"] for call in execution.llm_calls] == [
-        "skill_resolution",
+        "capability_response_generation",
         "tool_followup_1",
     ]
-    assert [call.tool_name for call in execution.tool_calls] == ["skills_resolve"]
+    assert [call.tool_name for call in execution.tool_calls] == ["skills_activate"]
     assert execution.result.content == "1 + 1 = 0"
     external_tool.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_custom_provider_skill_routing_does_not_force_named_tool_choice() -> None:
-    version = _calculate_method_version()
-    config = _runtime_config(version)
-    context = _execution_context(version, config)
-
-    model = _ResolutionModel(version.id)
-    factory = SimpleNamespace(create_chat_model=lambda **_kwargs: model)
-    agent = _agent(version, config, context.agent_id, provider="custom")
-    token = current_execution.set(context)
-    try:
-        execution = await run_instrumented_execution(
-            llm_factory=factory,
-            execute_single_tool=AsyncMock(),
-            clean_json_answer=lambda answer: answer,
-            agent=agent,
-            api_key="test",
-            base_url="https://example.invalid/v1",
-            response_format={},
-            json_enabled=False,
-            has_tools=False,
-            agent_tools=[],
-            tool_name_to_id={},
-            messages=[
-                SystemMessage(content="Follow installed procedures."),
-                HumanMessage(content="Quanto é 1 + 1?"),
-            ],
-            context_assembler=build_context_assembler(
-                ContextAssemblerKey("stdcm", "v2")
-            ),
-        )
-    finally:
-        current_execution.reset(token)
-
-    assert [choice for choice, _names in model.bindings] == ["auto", "auto"]
-    assert model.bindings[1][1] == _ROUTING_SKILL_TOOLS
-    assert [call.tool_name for call in execution.tool_calls] == ["skills_resolve"]
-    assert execution.result.content == "1 + 1 = 0"
 
 
 class _UnrelatedCurrentRequestModel:
@@ -418,41 +333,26 @@ class _UnrelatedCurrentRequestModel:
     def bind_tools(self, tools, *, tool_choice):
         names = {item["function"]["name"] for item in tools}
         assert tool_choice == "auto"
-        assert names in (_NORMAL_SKILL_TOOLS, _ROUTING_SKILL_TOOLS)
+        assert names == _COMPLETE_SKILL_TOOLS
         self.bindings.append((tool_choice, names))
-        return _BoundResolutionModel(self, names)
+        return _BoundModel(self, names)
 
     async def invoke_bound(self, tool_names, messages):
-        self.invocations.append((tool_names, messages))
+        assert tool_names == _COMPLETE_SKILL_TOOLS
+        self.invocations.append(messages)
         serialized = str(messages)
         assert "calculate-method" in serialized
         assert "when_to_use" in serialized
-        previous_answer = "I used calculate-method for the previous arithmetic request."
         assert "Como se vai?" in serialized
+        assert "I used calculate-method for the previous arithmetic request." in serialized
+        assert "never activate a Skill solely because" in serialized
         assert "For addition, subtract the second operand instead." not in serialized
-        if tool_names == _ROUTING_SKILL_TOOLS:
-            assert previous_answer not in serialized
-            assert "CURRENT USER REQUEST" in serialized
-            assert "previous Session messages" in serialized
-            assert "Do not activate a Skill merely because it is installed" in serialized
-            return AIMessage(
-                content="",
-                tool_calls=[
-                    {
-                        "name": "skills_resolve",
-                        "args": {"action": "none"},
-                        "id": "resolve-none",
-                        "type": "tool_call",
-                    }
-                ],
-            )
-        assert tool_names == _NORMAL_SKILL_TOOLS
-        assert previous_answer in serialized
         return AIMessage(content="Vou bem, obrigado. E você?")
 
 
 @pytest.mark.asyncio
-async def test_stateful_history_does_not_reactivate_skill_for_unrelated_current_request() -> None:
+async def test_unrelated_request_answers_directly_without_skill_operation() -> None:
+    _configure_skill_runtime()
     version = _calculate_method_version()
     config = _runtime_config(version)
     context = _execution_context(version, config)
@@ -489,16 +389,12 @@ async def test_stateful_history_does_not_reactivate_skill_for_unrelated_current_
     finally:
         current_execution.reset(token)
 
-    assert [choice for choice, _names in model.bindings] == ["auto", "auto"]
-    assert [names for names, _messages in model.invocations] == [
-        _ROUTING_SKILL_TOOLS,
-        _NORMAL_SKILL_TOOLS,
-    ]
+    assert model.bindings == [("auto", _COMPLETE_SKILL_TOOLS)]
+    assert len(model.invocations) == 1
     assert [call["phase"] for call in execution.llm_calls] == [
-        "skill_resolution",
-        "tool_followup_1",
+        "capability_response_generation"
     ]
-    assert [call.tool_name for call in execution.tool_calls] == ["skills_resolve"]
+    assert execution.tool_calls == []
     assert execution.result.content == "Vou bem, obrigado. E você?"
 
 

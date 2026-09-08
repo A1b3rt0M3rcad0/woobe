@@ -44,6 +44,7 @@ from modules.agent.application.skill_runtime import (
 from modules.agent.application.use_cases.skill_cases import SkillCatalog
 from modules.agent.domain.skills import SkillVersion, skill_package_hash
 from modules.agent.infra.execution.instrumented_execution_runner import (
+    configure_skill_runtime,
     run_instrumented_execution,
 )
 from shared.contracts.errors import NotFoundError, ValidationError
@@ -233,10 +234,9 @@ async def test_catalog_versions_are_project_scoped_and_keep_name(version):
 def test_progressive_loading_deduplication_provenance_and_run_isolation(version):
     runtime = SkillRuntime([version.snapshot()], SkillContextPolicy(), set())
     assert version.package["instructions"] not in str(runtime.contributions())
-    result = runtime.execute(
+    assert not runtime.execute(
         "skills_search", {"query": "invoice"}, tool_call_id="search"
-    )
-    assert result["output"]["skills"][0]["skill_version_id"] == str(version.id)
+    )["success"]
     activation = runtime.execute(
         "skills_activate",
         {"skill_version_id": str(version.id)},
@@ -361,7 +361,7 @@ def test_legacy_context_unchanged_without_skills(version):
     }
 
 
-async def test_real_model_loop_discovers_then_loads_only_requested_skill(version):
+async def test_real_model_loop_activates_visible_skill_only_when_requested(version):
     context = new_execution_context()
     context.project_id = version.project_id
     context.agent_id = uuid4()
@@ -370,11 +370,9 @@ async def test_real_model_loop_discovers_then_loads_only_requested_skill(version
     context.context_policy = resolve_context_policy(config).model_dump(mode="json")
     observed = []
     normal_skill_tools = {
-        "skills_search",
         "skills_activate",
         "skills_read_resource",
     }
-    routing_skill_tools = {"skills_resolve"}
 
     class BoundModel:
         def __init__(self, owner, tool_names):
@@ -388,29 +386,24 @@ async def test_real_model_loop_discovers_then_loads_only_requested_skill(version
         def bind_tools(self, tools, **kwargs):
             names = {item["function"]["name"] for item in tools}
             assert kwargs.get("tool_choice") == "auto"
-            assert names == normal_skill_tools or names == routing_skill_tools
+            assert names == normal_skill_tools
             return BoundModel(self, names)
 
         async def invoke_bound(self, tool_names, messages):
             observed.append((tool_names, messages))
-            if tool_names == routing_skill_tools:
-                assert version.package["instructions"] not in str(messages)
+            materialized = version.package["instructions"] in str(messages)
+            if not materialized:
                 return AIMessage(
                     content="",
                     tool_calls=[
                         {
-                            "name": "skills_resolve",
-                            "args": {
-                                "action": "activate",
-                                "skill_version_id": str(version.id),
-                            },
-                            "id": "resolve",
+                            "name": "skills_activate",
+                            "args": {"skill_version_id": str(version.id)},
+                            "id": "activate",
                             "type": "tool_call",
                         }
                     ],
                 )
-            assert tool_names == normal_skill_tools
-            assert version.package["instructions"] in str(messages)
             return AIMessage(content="Invoice reviewed.")
 
     model = Model()
@@ -425,6 +418,7 @@ async def test_real_model_loop_discovers_then_loads_only_requested_skill(version
         settings={"runtime_config": config},
     )
     external_tool = AsyncMock()
+    configure_skill_runtime(frozen_enabled_skills, SkillRuntime)
     token = current_execution.set(context)
     try:
         result = await run_instrumented_execution(
@@ -448,9 +442,10 @@ async def test_real_model_loop_discovers_then_loads_only_requested_skill(version
             ),
         )
         assert [tool_names for tool_names, _messages in observed] == [
-            routing_skill_tools,
+            normal_skill_tools,
             normal_skill_tools,
         ]
+        assert [call.tool_name for call in result.tool_calls] == ["skills_activate"]
         assert result.result.content == "Invoice reviewed."
         external_tool.assert_not_called()
     finally:
