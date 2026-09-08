@@ -112,7 +112,7 @@ class _DirectRoutingDecisionModel:
     def bind_tools(self, tools, *, tool_choice):
         names = {item["function"]["name"] for item in tools}
         assert tool_choice == "auto"
-        assert names in {_NORMAL_SKILL_TOOLS, _ROUTING_SKILL_TOOLS}
+        assert names == _NORMAL_SKILL_TOOLS or names == _ROUTING_SKILL_TOOLS
         self.bindings.append((tool_choice, names))
         return _BoundModel(self, names)
 
