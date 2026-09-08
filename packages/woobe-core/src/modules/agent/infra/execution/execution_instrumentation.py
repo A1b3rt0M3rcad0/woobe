@@ -353,6 +353,16 @@ async def execute_tool_call(
         "skills_activate": "Activating Skill...",
         "skills_read_resource": "Reading Skill resource...",
     }.get(tool_name)
+    if tool_name == "skills_resolve":
+        arguments = tool_call.get("args")
+        action = arguments.get("action") if isinstance(arguments, dict) else None
+        if not isinstance(action, str):
+            action = None
+        skill_action = {
+            "search": "Searching Skills...",
+            "activate": "Activating Skill...",
+            "none": "No applicable Skill.",
+        }.get(action, "Resolving Skill applicability...")
     await emit_agent_activity(
         "calling_tool",
         message=skill_action or f"Calling tool: {tool_name}...",

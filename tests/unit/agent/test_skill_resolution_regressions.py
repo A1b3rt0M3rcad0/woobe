@@ -427,13 +427,14 @@ class _UnrelatedCurrentRequestModel:
         serialized = str(messages)
         assert "calculate-method" in serialized
         assert "when_to_use" in serialized
-        assert "I used calculate-method for the previous arithmetic request." in serialized
+        previous_answer = "I used calculate-method for the previous arithmetic request."
         assert "Como se vai?" in serialized
-        assert "CURRENT USER REQUEST" in serialized
-        assert "previous Session messages" in serialized
-        assert "Do not activate a Skill merely because it is installed" in serialized
         assert "For addition, subtract the second operand instead." not in serialized
         if tool_names == _ROUTING_SKILL_TOOLS:
+            assert previous_answer not in serialized
+            assert "CURRENT USER REQUEST" in serialized
+            assert "previous Session messages" in serialized
+            assert "Do not activate a Skill merely because it is installed" in serialized
             return AIMessage(
                 content="",
                 tool_calls=[
@@ -446,6 +447,7 @@ class _UnrelatedCurrentRequestModel:
                 ],
             )
         assert tool_names == _NORMAL_SKILL_TOOLS
+        assert previous_answer in serialized
         return AIMessage(content="Vou bem, obrigado. E você?")
 
 

@@ -6,13 +6,14 @@ export interface SkillActivity {
   status?: string;
   success?: boolean | null;
   tool_call_id?: string;
+  input?: unknown;
   output?: unknown;
 }
 
 export { isSkillOperation as isSkillActivity, skillActivityLabel } from '@woobe/runtime-client';
 
 export function skillEvidenceLabel(activity: SkillActivity, named: boolean): string {
-  const label = operationLabel({ tool_name: activity.tool_name, output: named ? activity.output : undefined, skill_name: named ? activity.skill_name : undefined, skill_version: named ? activity.skill_version : undefined });
+  const label = operationLabel(activity, named);
   const status = activity.status === "cancelled" || activity.status === "interrupted" ? activity.status
     : activity.success === false || activity.status === "error" || activity.status === "failed" ? "failed"
     : activity.status === "running" ? "running"

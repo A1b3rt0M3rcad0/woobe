@@ -352,10 +352,12 @@ class TransactionBoundedStructuredOutputRuntime(
         token = _rag_history_context.set([])
         try:
             if self._defer_persistence(input_dto):
-                prepared = await self._prepare_deferred_network(input_dto)
+                prepared = await self._prepare_with_instrumentation(
+                    input_dto,
+                    self._prepare_deferred_network,
+                )
             else:
                 prepared = await super(StructuredOutputAskAgentUseCase, self)._prepare(input_dto)
-            prepared = await self._apply_runtime_tool_selection(prepared)
             updated = list(prepared)
             context = current_execution.get()
 
