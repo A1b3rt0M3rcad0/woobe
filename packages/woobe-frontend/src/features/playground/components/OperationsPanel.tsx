@@ -20,15 +20,12 @@ interface OperationsPanelProps {
   sessions: SessionListItem[]
   sessionId: string | null
   sessionMode?: 'stateful' | 'stateless'
-  sessionCreationDisabledReason?: string
   onSelectTrace: (id: string | null) => void
-  onNewSession: () => void | Promise<void>
   onSelectSession: (id: string) => void
   onLoadMoreSessions?: () => void
   hasMoreSessions?: boolean
   sessionsLoading?: boolean
   sessionsLoadingMore?: boolean
-  creatingSession?: boolean
   sessionsError?: boolean
   sessionsErrorMessage?: string
   onSessionsRetry?: () => void
@@ -48,15 +45,12 @@ export function OperationsPanel(props: OperationsPanelProps) {
     sessions,
     sessionId,
     sessionMode = 'stateful',
-    sessionCreationDisabledReason,
     onSelectTrace,
-    onNewSession,
     onSelectSession,
     onLoadMoreSessions,
     hasMoreSessions,
     sessionsLoading,
     sessionsLoadingMore,
-    creatingSession,
     sessionsError,
     sessionsErrorMessage,
     onSessionsRetry,
@@ -127,7 +121,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
         </div>
       ) : null}
       <ScrollArea className={cn('flex-1 min-h-0', sessionInteractionBlocked && 'pointer-events-none opacity-60')}>
-        <SessionsPanel sessions={sessions} currentSessionId={sessionId} sessionMode={sessionMode} creationDisabledReason={sessionCreationDisabledReason} onNewSession={onNewSession} onSelectSession={onSelectSession} onLoadMoreSessions={onLoadMoreSessions} hasMoreSessions={hasMoreSessions} isInitialLoading={sessionsLoading} isLoadingMore={sessionsLoadingMore} isCreatingSession={creatingSession} isError={sessionsError} errorMessage={sessionsErrorMessage} onRetry={onSessionsRetry} />
+        <SessionsPanel sessions={sessions} currentSessionId={sessionId} sessionMode={sessionMode} onSelectSession={onSelectSession} onLoadMoreSessions={onLoadMoreSessions} hasMoreSessions={hasMoreSessions} isInitialLoading={sessionsLoading} isLoadingMore={sessionsLoadingMore} isError={sessionsError} errorMessage={sessionsErrorMessage} onRetry={onSessionsRetry} />
       </ScrollArea>
     </div>
   )
