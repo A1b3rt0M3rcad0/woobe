@@ -20,6 +20,8 @@ import {
 type BudgetMode = 'auto' | 'fixed'
 type BudgetPreset = 'auto' | '25' | '50' | '75' | '90' | 'custom'
 
+const NUMBER_INPUT_CLASS = 'mt-1 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+
 function formatUnits(value: number | null | undefined): string {
   return value == null ? 'Unavailable' : new Intl.NumberFormat('en-US').format(value)
 }
@@ -29,11 +31,37 @@ function formatPercent(value: number | null): string {
   return `${(value * 100).toFixed(1)}%`
 }
 
-function CapacityRow({ label, value, muted = false }: { label: string; value: string; muted?: boolean }) {
+function Help({ text, label }: { text: string; label: string }) {
+  return (
+    <span
+      className="cursor-help select-none text-[10px] font-medium text-muted/80 hover:text-primary-light focus:text-primary-light focus:outline-none"
+      title={text}
+      tabIndex={0}
+      aria-label={`${label}: ${text}`}
+    >
+      (?)
+    </span>
+  )
+}
+
+function CapacityRow({
+  label,
+  value,
+  help,
+  muted = false,
+}: {
+  label: string
+  value: string
+  help: string
+  muted?: boolean
+}) {
   return (
     <div className="flex items-center justify-between gap-3 text-[11px]">
-      <span className="text-muted">{label}</span>
-      <span className={cn('font-mono', muted ? 'text-muted' : 'text-foreground')}>{value}</span>
+      <span className="inline-flex min-w-0 items-center gap-1 text-muted">
+        <span>{label}</span>
+        <Help text={help} label={label} />
+      </span>
+      <span className={cn('shrink-0 font-mono', muted ? 'text-muted' : 'text-foreground')}>{value}</span>
     </div>
   )
 }
@@ -85,14 +113,43 @@ function CapacityCard({
       </div>
 
       <div className="mt-3 space-y-1.5 border-t border-border/70 pt-3">
-        <CapacityRow label="Model context window" value={formatUnits(capacity.contextWindow)} />
-        <CapacityRow label="Model max output" value={formatUnits(capacity.modelMaxOutputTokens)} muted={capacity.modelMaxOutputTokens == null} />
-        <CapacityRow label="Effective output reserve" value={formatUnits(capacity.effectiveOutputReserve)} />
-        <CapacityRow label="Maximum input capacity" value={formatUnits(capacity.modelUsableInput)} />
-        <CapacityRow label="Configured context budget" value={capacity.configuredInputBudget == null ? 'Auto' : formatUnits(capacity.configuredInputBudget)} />
-        <CapacityRow label="Effective context budget" value={formatUnits(capacity.effectiveInputBudget)} />
+        <CapacityRow
+          label="Model context window"
+          value={formatUnits(capacity.contextWindow)}
+          help="Maximum context window supported by this model according to its ProviderModel capability metadata."
+        />
+        <CapacityRow
+          label="Model max output"
+          value={formatUnits(capacity.modelMaxOutputTokens)}
+          help="Maximum response size supported by this model. Woobe will not request more output than this capability allows."
+          muted={capacity.modelMaxOutputTokens == null}
+        />
+        <CapacityRow
+          label="Effective output reserve"
+          value={formatUnits(capacity.effectiveOutputReserve)}
+          help="Output tokens Woobe reserves for this model invocation after applying the model maximum to the configured Max Output Tokens."
+        />
+        <CapacityRow
+          label="Maximum input capacity"
+          value={formatUnits(capacity.modelUsableInput)}
+          help="Maximum input context available after subtracting output and runtime reserves from the model context window."
+        />
+        <CapacityRow
+          label="Configured context budget"
+          value={capacity.configuredInputBudget == null ? 'Auto' : formatUnits(capacity.configuredInputBudget)}
+          help="The input context limit configured for this Agent. Auto uses the available capacity of each model invocation."
+        />
+        <CapacityRow
+          label="Effective context budget"
+          value={formatUnits(capacity.effectiveInputBudget)}
+          help="The final input context budget Woobe can use for this invocation after applying the configured budget and model capacity limits."
+        />
         {isFallback && capacity.budgetPreservationRatio != null ? (
-          <CapacityRow label="Configured budget preservation" value={formatPercent(capacity.budgetPreservationRatio)} />
+          <CapacityRow
+            label="Configured budget preservation"
+            value={formatPercent(capacity.budgetPreservationRatio)}
+            help="How much of the configured context budget this fallback model can preserve when its available context capacity is smaller."
+          />
         ) : null}
       </div>
     </div>
@@ -225,7 +282,13 @@ export function AgentContextConfigurationDialog({
             </div>
 
             <div className="mt-3">
-              <label className="text-xs font-medium text-muted">Input Context Budget</label>
+              <div className="inline-flex items-center gap-1 text-xs font-medium text-muted">
+                <span>Input Context Budget</span>
+                <Help
+                  label="Input Context Budget"
+                  text="Defines how much input context Woobe may materialize for each model invocation. Auto follows the available capacity; presets and Custom freeze an absolute Draft value."
+                />
+              </div>
               <div className="mt-2 flex flex-wrap gap-1.5">
                 {(['auto', '25', '50', '75', '90', 'custom'] as BudgetPreset[]).map((item) => {
                   const percentage = item !== 'auto' && item !== 'custom'
@@ -249,13 +312,19 @@ export function AgentContextConfigurationDialog({
 
             {budgetMode === 'fixed' ? (
               <label className="mt-3 block text-xs font-medium text-muted">
-                Context budget units
+                <span className="inline-flex items-center gap-1">
+                  Context budget units
+                  <Help
+                    label="Context budget units"
+                    text="Absolute maximum input context units Woobe may materialize for the Agent. For text models these units are used as the pre-call token budget estimate."
+                  />
+                </span>
                 <Input
                   type="number"
                   min="256"
                   max="4000000"
                   step="1"
-                  className="mt-1"
+                  className={NUMBER_INPUT_CLASS}
                   value={inputBudget}
                   onChange={(event) => {
                     setPreset('custom')
@@ -267,13 +336,19 @@ export function AgentContextConfigurationDialog({
             ) : null}
 
             <label className="mt-3 block text-xs font-medium text-muted">
-              Runtime Reserve
+              <span className="inline-flex items-center gap-1">
+                Runtime Reserve
+                <Help
+                  label="Runtime Reserve"
+                  text="Keeps part of the model context window unavailable to input materialization so the runtime has explicit headroom before the model call."
+                />
+              </span>
               <Input
                 type="number"
                 min="0"
                 max="1000000"
                 step="1"
-                className="mt-1"
+                className={NUMBER_INPUT_CLASS}
                 value={runtimeReserve}
                 onChange={(event) => setRuntimeReserve(Number(event.target.value))}
               />
@@ -289,24 +364,36 @@ export function AgentContextConfigurationDialog({
             </div>
             <div className="mt-3 grid grid-cols-2 gap-3">
               <label className="text-xs font-medium text-muted">
-                Temperature
+                <span className="inline-flex items-center gap-1">
+                  Temperature
+                  <Help
+                    label="Temperature"
+                    text="Controls response variability. Lower values are more deterministic; higher values allow more variation."
+                  />
+                </span>
                 <Input
                   type="number"
                   min="0"
                   max="2"
                   step="0.1"
-                  className="mt-1"
+                  className={NUMBER_INPUT_CLASS}
                   value={temperature}
                   onChange={(event) => setTemperature(Number(event.target.value))}
                 />
               </label>
               <label className="text-xs font-medium text-muted">
-                Max Output Tokens
+                <span className="inline-flex items-center gap-1">
+                  Max Output Tokens
+                  <Help
+                    label="Max Output Tokens"
+                    text="Maximum response budget requested by the Agent. Woobe automatically reduces it when the invoked primary or fallback model supports a smaller maximum output."
+                  />
+                </span>
                 <Input
                   type="number"
                   min="1"
                   step="1"
-                  className="mt-1"
+                  className={NUMBER_INPUT_CLASS}
                   value={maxOutputTokens}
                   onChange={(event) => setMaxOutputTokens(Number(event.target.value))}
                 />
