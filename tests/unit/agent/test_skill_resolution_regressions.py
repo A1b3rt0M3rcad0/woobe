@@ -285,7 +285,7 @@ class _ResolutionModel:
             "Skill routing must not force a named tool_choice because OpenAI-compatible "
             "providers may reject it"
         )
-        assert names in {_NORMAL_SKILL_TOOLS, _ROUTING_SKILL_TOOLS}
+        assert names in (_NORMAL_SKILL_TOOLS, _ROUTING_SKILL_TOOLS)
         self.bindings.append((tool_choice, names))
         return _BoundResolutionModel(self, names)
 
@@ -418,7 +418,7 @@ class _UnrelatedCurrentRequestModel:
     def bind_tools(self, tools, *, tool_choice):
         names = {item["function"]["name"] for item in tools}
         assert tool_choice == "auto"
-        assert names in {_NORMAL_SKILL_TOOLS, _ROUTING_SKILL_TOOLS}
+        assert names in (_NORMAL_SKILL_TOOLS, _ROUTING_SKILL_TOOLS)
         self.bindings.append((tool_choice, names))
         return _BoundResolutionModel(self, names)
 
