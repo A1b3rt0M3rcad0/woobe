@@ -1,24 +1,19 @@
-import { AlertTriangle, Lock, MessageSquarePlus, Network, PencilLine, RotateCcw } from 'lucide-react'
+import { AlertTriangle, Lock, Network, PencilLine, RotateCcw } from 'lucide-react'
 
 import type { Environment, NetworkBinding } from './networkWorkspaceTypes'
 import { networkLabel } from './networkChatExecution'
-import type { NetworkSession } from './networkSessionTypes'
-import { NetworkSessionSelector } from './NetworkSessionSelector'
 
 interface NetworkChatHeaderProps {
   environment: Environment
   counts: Record<NetworkBinding['source'], number>
-  sessions: NetworkSession[]
   activeSessionId: string | null
   versionLabel: string
   changed: boolean
-  newSessionDisabled?: boolean
-  onSelectSession: (sessionId: string) => void
   onNew: () => void
   onResetContext: () => void
 }
 
-export function NetworkChatHeader({ environment, counts, sessions, activeSessionId, versionLabel, changed, newSessionDisabled = false, onSelectSession, onNew, onResetContext }: NetworkChatHeaderProps) {
+export function NetworkChatHeader({ environment, counts, activeSessionId, versionLabel, changed, onNew, onResetContext }: NetworkChatHeaderProps) {
   const readOnly = environment !== 'draft'
   const immutableSnapshotChanged = environment !== 'draft' && changed
   return (
@@ -39,15 +34,9 @@ export function NetworkChatHeader({ environment, counts, sessions, activeSession
             <p className="mt-0.5 text-[10px] text-muted">{networkLabel(environment, versionLabel)} · {counts.draft} Draft · {counts.staging} Staging · {counts.release} Release</p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
-          <NetworkSessionSelector sessions={sessions} activeSessionId={activeSessionId} onSelect={onSelectSession} />
-          <button type="button" disabled={newSessionDisabled} onClick={onNew} className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background/55 text-muted hover:border-primary/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-45" title="New Network conversation" aria-label="New Network conversation"><MessageSquarePlus className="h-3.5 w-3.5" /></button>
-        </div>
         <button type="button" disabled={!activeSessionId} onClick={onResetContext} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[9px] text-muted hover:border-primary/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-40" title={activeSessionId ? 'Start fresh Agent contexts in this Network Session' : 'Send the first message before resetting session context'}><RotateCcw className="h-3 w-3" />Reset context</button>
       </div>
 
-      {!activeSessionId ? <div className="mt-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-[10px] text-slate-300">New conversation. A Network Session will be created automatically when you send the first message.</div> : null}
-      {environment === 'draft' && counts.draft > 0 ? <div className="mt-2 rounded-lg border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-[10px] text-blue-100/80">Draft sessions can include Agent Draft contexts. Runtime Keys cannot execute this mutable composition.</div> : null}
       {immutableSnapshotChanged ? (
         <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-amber-500/25 bg-amber-500/5 px-3 py-2">
           <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
