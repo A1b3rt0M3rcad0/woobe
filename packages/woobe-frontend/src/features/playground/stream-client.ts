@@ -1,3 +1,4 @@
+import { skillActivityLabel } from '@/features/skills/operations'
 import { ensureCsrfToken, getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
 import {
   RUNTIME_STREAM_MAX_ATTEMPTS,
@@ -146,6 +147,8 @@ function isFinalStreamText(item: StreamTokenInfo): boolean {
 }
 
 function activityMessage(status: string, toolName?: string | null): string {
+  const skillLabel = skillActivityLabel({ tool_name: toolName, status })
+  if (skillLabel) return skillLabel
   if (status === 'planning_tools') return 'Checking whether tools are needed...'
   if (status === 'calling_tool') return toolName ? `Calling tool: ${toolName}...` : 'Calling tool...'
   if (status === 'processing_tool_result') return 'Processing tool result...'

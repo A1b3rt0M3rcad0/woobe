@@ -6,6 +6,10 @@ from uuid import UUID
 from modules.agent.application.context_assembler_registry import (
     build_runtime_context_assembler,
 )
+from modules.agent.application.execution_snapshot import (
+    AgentExecutionSnapshotResolver,
+    apply_agent_execution_snapshot,
+)
 from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.application.skill_bindings import (
     freeze_skill_bindings,
@@ -23,6 +27,9 @@ from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.database.runtime_transaction_runner import AgentRuntimeTransactionRunner
 from modules.agent.infra.database.runtime_vector_search_reader import AgentRuntimeVectorSearchReader
 from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
+from modules.agent.infra.execution.canonical_execution_snapshot_runtime_resolver import (
+    configure_execution_snapshot_runtime,
+)
 from modules.agent.infra.execution.frozen_snapshot_runtime import (
     FrozenSnapshotStructuredOutputRuntime,
 )
@@ -56,6 +63,10 @@ def _build_agent_runtime(
 ) -> tuple[FrozenSnapshotStructuredOutputRuntime, AgentRuntimeTransactionRunner]:
     configure_skill_runtime(frozen_enabled_skills, SkillRuntime)
     configure_skill_binding_freezer(freeze_skill_bindings)
+    configure_execution_snapshot_runtime(
+        AgentExecutionSnapshotResolver,
+        apply_agent_execution_snapshot,
+    )
     transactions = build_agent_runtime_transactions()
     executor = http_executor or get_http_tool_executor()
     tool_runtime = AgentToolRuntimeGateway(

@@ -60,3 +60,39 @@ describe('Skill execution presentation', () => {
     expect(skillCount(root)).toBe(2)
   })
 })
+
+const resolvedSearch = {
+  tool_name: 'skills_resolve', tool_call_id: 'resolve-search',
+  input: { action: 'search' }, success: true, status: 'success',
+}
+const resolvedActivation = {
+  ...activation, tool_name: 'skills_resolve', tool_call_id: 'resolve-activate',
+  input: { action: 'activate' },
+  output: { success: true, output: { action: 'activate', name: 'inverse-math', version: '1.0.0' } },
+}
+
+describe('Skill resolution operation presentation', () => {
+  it.each(['playground', 'network'] as const)('renders resolver activity in %s', variant => {
+    const host = renderCalls([resolvedSearch, resolvedActivation], variant)
+    expect(host.textContent).toContain('Skill activity (2)')
+    expect(host.textContent).not.toContain('Tool calls')
+    act(() => host.querySelector('button')!.click())
+    expect(host.textContent).toContain('Search Skills')
+    expect(host.textContent).toContain('Activate Skill · inverse-math @ 1.0.0')
+  })
+  it('distinguishes search, activation and no matching Skill in old and new receipts', () => {
+    expect(isSkillOperation(resolvedSearch)).toBe(true)
+    expect(operationLabel(resolvedSearch)).toBe('Search Skills')
+    expect(operationLabel(resolvedActivation)).toContain('Activate Skill')
+    expect(operationLabel({ tool_name: 'skills_resolve', output: JSON.stringify({ output: { action: 'none' } }) })).toBe('No applicable Skill')
+    expect(operationLabel({ tool_name: 'skills_resolve', input: { action: 'toString' } })).toBe('Resolve Skill')
+    expect(isSkillOperation({ tool_name: 'skills_resolve_customer' })).toBe(false)
+    expect(skillActivityLabel({ tool_name: 'skills_resolve', status: 'calling_tool' })).toBe('Resolve Skill…')
+    expect(operationEventLabel('tool_call_completed', resolvedActivation)).toContain('Activate Skill')
+  })
+  it('counts resolver calls as Skill operations throughout the Network', () => {
+    const root = { tools: [resolvedSearch, { tool_name: 'http' }], children: [{ tools: [resolvedActivation], children: [] }] } as unknown as NetworkAgentInvocation
+    expect(toolCount(root)).toBe(1)
+    expect(skillCount(root)).toBe(2)
+  })
+})

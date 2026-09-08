@@ -1,4 +1,4 @@
-/** Presentation of the three reserved Skill runtime operations, including historical Runs. */
+/** Presentation of reserved Skill runtime operations, including historical Runs. */
 export interface OperationInfo {
   tool_name?: string | null
   skill_name?: string | null
@@ -8,9 +8,16 @@ export interface OperationInfo {
 }
 
 const actions: Record<string, string> = {
+  skills_resolve: 'Resolve Skill',
   skills_search: 'Search Skills',
   skills_activate: 'Activate Skill',
   skills_read_resource: 'Read Skill resource',
+}
+
+const resolutionActions: Record<string, string> = {
+  search: 'Search Skills',
+  activate: 'Activate Skill',
+  none: 'No applicable Skill',
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -24,16 +31,21 @@ export function isSkillOperation(call: OperationInfo): boolean {
   return Object.prototype.hasOwnProperty.call(actions, call?.tool_name ?? '')
 }
 
-export function operationLabel(call: OperationInfo): string {
+export function operationLabel(call: OperationInfo, includeDetails = true): string {
   if (!isSkillOperation(call)) return call.tool_name || 'Unknown Tool'
   const input = record(call.input)
   const result = record(call.output)
   const output = record(result.output ?? result)
+  const action = typeof input.action === 'string' ? input.action : typeof output.action === 'string' ? output.action : ''
+  const label = call.tool_name === 'skills_resolve' && Object.prototype.hasOwnProperty.call(resolutionActions, action)
+    ? resolutionActions[action]
+    : actions[call.tool_name!]
+  if (!includeDetails) return label
   const name = typeof call.skill_name === 'string' ? call.skill_name : typeof output.name === 'string' ? output.name : null
   const version = typeof call.skill_version === 'string' ? call.skill_version : typeof output.version === 'string' ? output.version : null
   const path = typeof input.path === 'string' ? input.path : typeof output.path === 'string' ? output.path : null
   const detail = name ? `${name}${version ? ` @ ${version}` : ''}` : null
-  return [actions[call.tool_name!], detail, path].filter(Boolean).join(' · ')
+  return [label, detail, path].filter(Boolean).join(' · ')
 }
 
 export function operationGroups<T extends OperationInfo>(calls: T[]) {

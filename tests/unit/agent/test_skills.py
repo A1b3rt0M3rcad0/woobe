@@ -369,31 +369,47 @@ async def test_real_model_loop_discovers_then_loads_only_requested_skill(version
     config = runtime_config(version)
     context.context_policy = resolve_context_policy(config).model_dump(mode="json")
     observed = []
+    normal_skill_tools = {
+        "skills_search",
+        "skills_activate",
+        "skills_read_resource",
+    }
+    routing_skill_tools = {"skills_resolve"}
+
+    class BoundModel:
+        def __init__(self, owner, tool_names):
+            self.owner = owner
+            self.tool_names = tool_names
+
+        async def ainvoke(self, messages, **kwargs):
+            return await self.owner.invoke_bound(self.tool_names, messages)
 
     class Model:
         def bind_tools(self, tools, **kwargs):
-            assert {item["function"]["name"] for item in tools} == {
-                "skills_search",
-                "skills_activate",
-                "skills_read_resource",
-            }
-            return self
+            names = {item["function"]["name"] for item in tools}
+            assert kwargs.get("tool_choice") == "auto"
+            assert names == normal_skill_tools or names == routing_skill_tools
+            return BoundModel(self, names)
 
-        async def ainvoke(self, messages, **kwargs):
-            observed.append(messages)
-            if len(observed) == 1:
+        async def invoke_bound(self, tool_names, messages):
+            observed.append((tool_names, messages))
+            if tool_names == routing_skill_tools:
                 assert version.package["instructions"] not in str(messages)
                 return AIMessage(
                     content="",
                     tool_calls=[
                         {
-                            "name": "skills_activate",
-                            "args": {"skill_version_id": str(version.id)},
-                            "id": "load",
+                            "name": "skills_resolve",
+                            "args": {
+                                "action": "activate",
+                                "skill_version_id": str(version.id),
+                            },
+                            "id": "resolve",
                             "type": "tool_call",
                         }
                     ],
                 )
+            assert tool_names == normal_skill_tools
             assert version.package["instructions"] in str(messages)
             return AIMessage(content="Invoice reviewed.")
 
@@ -431,7 +447,10 @@ async def test_real_model_loop_discovers_then_loads_only_requested_skill(version
                 ContextAssemblerKey("stdcm", "v2")
             ),
         )
-        assert len(observed) == 2
+        assert [tool_names for tool_names, _messages in observed] == [
+            routing_skill_tools,
+            normal_skill_tools,
+        ]
         assert result.result.content == "Invoice reviewed."
         external_tool.assert_not_called()
     finally:

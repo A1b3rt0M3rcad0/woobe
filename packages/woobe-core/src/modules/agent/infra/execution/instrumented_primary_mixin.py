@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from typing import Any, Protocol, cast
 from uuid import uuid4
 
@@ -192,13 +193,20 @@ class InstrumentedPrimaryExecutionMixin:
             logger.exception("Failed to persist RAG embedding failure telemetry")
 
     async def _prepare(self, input_dto: Any) -> Any:
+        parent = cast(_PrimaryExecutionSuper, super())
+        return await self._prepare_with_instrumentation(input_dto, parent._prepare)
+
+    async def _prepare_with_instrumentation(
+        self,
+        input_dto: Any,
+        prepare_operation: Callable[[Any], Awaitable[Any]],
+    ) -> Any:
         context = current_execution.get()
         if context:
             context.prepare_started_at = utc_now()
         started = time.monotonic()
-        parent = cast(_PrimaryExecutionSuper, super())
         try:
-            prepared = await parent._prepare(input_dto)
+            prepared = await prepare_operation(input_dto)
             runtime_tool_selector = getattr(self, "_apply_runtime_tool_selection", None)
             if callable(runtime_tool_selector):
                 prepared = await runtime_tool_selector(prepared)

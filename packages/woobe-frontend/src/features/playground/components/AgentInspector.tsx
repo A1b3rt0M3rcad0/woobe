@@ -13,7 +13,7 @@ import { useAgentEditor } from '../AgentEditorContext'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { ScrollArea } from '@/components/ui/ScrollArea'
-import { useCreateRelease, useUpdateAgent } from '@/features/agents/hooks'
+import { useCreateRelease } from '@/features/agents/hooks'
 import { toast } from 'sonner'
 import type { Agent, AgentRelease, RuntimeEnvironment } from '@/features/agents/types'
 
@@ -56,7 +56,6 @@ function EditorHeader() {
 
 function EditorActions({ agent, projectId }: { agent: Agent; projectId: string }) {
   const { toSnapshot, updateBaseline, resetToBaseline } = useAgentEditor()
-  const updateAgent = useUpdateAgent(agent.id)
   const createRelease = useCreateRelease(agent.id)
 
   const handleSaveDraft = async () => {
@@ -91,38 +90,6 @@ function EditorActions({ agent, projectId }: { agent: Agent; projectId: string }
         ...canonicalSnapshot,
       } as any)
 
-      const payload: Record<string, unknown> = {
-        name: canonicalSnapshot.name,
-        description: canonicalSnapshot.description,
-        system_prompt: canonicalSnapshot.system_prompt,
-        session_mode: canonicalSnapshot.session_mode,
-        provider_model_id: canonicalSnapshot.provider_model_id,
-        provider: canonicalSnapshot.provider,
-        model: canonicalSnapshot.model,
-        provider_credential_id: canonicalSnapshot.provider_credential_id,
-        fallback_provider_model_id: canonicalSnapshot.fallback_provider_model_id ?? null,
-        fallback_provider: canonicalSnapshot.fallback_provider ?? null,
-        fallback_model: canonicalSnapshot.fallback_model ?? null,
-        fallback_credential_id: canonicalSnapshot.fallback_credential_id ?? null,
-        temperature: canonicalSnapshot.temperature,
-        max_output_tokens: canonicalSnapshot.max_output_tokens,
-        settings: {
-          ...(agent.settings || {}),
-          response_format: canonicalSnapshot.response_format,
-          base_url: canonicalSnapshot.base_url,
-          knowledge_version_id: canonicalSnapshot.knowledge_version_id,
-          runtime_config: canonicalSnapshot.runtime_config,
-        },
-      }
-
-      try {
-        await updateAgent.mutateAsync(payload as any)
-      } catch {
-        updateBaseline()
-        toast.warning('Draft saved, but the Agent summary could not be synchronized')
-        return
-      }
-
       updateBaseline()
       toast.success('Draft saved')
     } catch (err) {
@@ -141,7 +108,7 @@ function EditorActions({ agent, projectId }: { agent: Agent; projectId: string }
         variant="outline"
         className="text-[11px] flex-1 border-primary/30 bg-primary/10 text-primary-light hover:bg-primary/15 hover:text-white"
         onClick={handleSaveDraft}
-        loading={updateAgent.isPending || createRelease.isPending}
+        loading={createRelease.isPending}
       >
         <Save className="mr-1 h-3 w-3" />
         Save Draft

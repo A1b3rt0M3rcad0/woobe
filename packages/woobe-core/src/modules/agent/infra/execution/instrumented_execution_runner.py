@@ -14,6 +14,7 @@ from modules.agent.infra.execution.runtime_streaming import (
     current_runtime_stream,
     runtime_streaming_enabled,
 )
+from modules.agent.infra.execution.skill_routing_model import SkillRoutingModelAdapter
 from modules.agent.infra.execution.structured_json_repair import repair_json_if_needed
 from modules.agent.infra.execution.tool_execution_loop import run_tool_loop
 
@@ -27,17 +28,24 @@ _BOUND_CAPABILITIES_INSTRUCTION = (
 
 _SKILL_RESOLUTION_INSTRUCTION = (
     "The installed Skill catalog is routing metadata for the Skills enabled on this Agent "
-    "Run. Determine Skill applicability from the CURRENT USER REQUEST, not from previous "
-    "Session messages, prior Runs, or earlier Skill usage. Do not activate a Skill merely "
-    "because it is installed, was used earlier, or is mentioned in conversation history. "
-    "Activate a Skill only when the current request matches its when_to_use scope; then call "
-    "skills_activate before following that procedure. If no visible Skill applies, answer "
-    "directly with no Skill operation. Do not call skills_search merely to confirm a Skill "
-    "already listed in a complete catalog. Use skills_search only when catalog_complete is "
-    "false, when a required Skill may be omitted by the catalog budget, or when routing "
-    "cannot be resolved from the visible when_to_use metadata. Activated instructions and "
-    "resources are runtime-only context for this Agent Run and must not be treated as "
-    "Session memory or reused by a later Run."
+    "Run. This invocation is exclusively for Skill applicability resolution for the CURRENT "
+    "USER REQUEST. Do not answer the user's request in this invocation. Prefer calling the "
+    "bound skills_resolve operation exactly once. Choose activate when the request matches a "
+    "visible Skill's when_to_use scope, none when no installed Skill applies, or search only "
+    "when catalog_complete is false or the visible routing metadata is insufficient. Match "
+    "semantic intent rather than literal keywords: a request can express a covered operation "
+    "through symbols or examples, such as an expression using '+' matching a Skill whose "
+    "when_to_use covers addition or arithmetic. If the model/provider does not emit a Tool "
+    "call, return ONLY one JSON object with the same decision: "
+    "{\"action\":\"activate\",\"skill_version_id\":\"<uuid>\"}, "
+    "{\"action\":\"none\"}, or {\"action\":\"search\",\"query\":\"<query>\",\"offset\":0}. "
+    "Do not include markdown or explanatory text. Determine applicability from the current "
+    "request, not from previous Session messages, prior Runs, or earlier Skill usage. Do not "
+    "activate a Skill merely because it is installed, was used earlier, or is mentioned in "
+    "conversation history. Do not search merely to confirm a Skill already listed in a "
+    "complete catalog. When a Skill is activated, its procedural instructions become "
+    "runtime-only context for this Agent Run and must be followed subject to higher-priority "
+    "Agent and system policies."
 )
 
 _skill_snapshots_resolver: Callable[[object, Any], list[dict[str, Any]]] | None = None
@@ -132,6 +140,19 @@ def _messages_with_bound_capability_authority(
     )
 
 
+def _skill_routing_messages(messages: list) -> list:
+    """Keep Skill applicability classification focused on the current request.
+
+    The Context Manager will inject the immutable installed-Skill catalog into this
+    minimal message set. Agent persona, Session history, Knowledge, and unrelated
+    conversational material are intentionally excluded from the routing invocation.
+    """
+    for message in reversed(messages):
+        if message.__class__.__name__ == "HumanMessage":
+            return [SystemMessage(content=_SKILL_RESOLUTION_INSTRUCTION), message]
+    raise RuntimeError("Skill routing requires a current user message")
+
+
 async def run_instrumented_execution(
     *,
     llm_factory: Any,
@@ -164,6 +185,7 @@ async def run_instrumented_execution(
     context = current_execution.get()
     if context is not None:
         context.skill_context = None
+    skill_runtime = None
     if snapshots:
         policy = resolve_context_policy(runtime_config).skills
         if policy is None or context is None:
@@ -239,6 +261,15 @@ async def run_instrumented_execution(
         response_format=base_response_format,
     )
     model = base_model.bind_tools(agent_tools, tool_choice="auto") if has_tools else base_model
+    routing_model = None
+    if skill_runtime is not None:
+        routing_model = SkillRoutingModelAdapter(
+            base_model.bind_tools(
+                [skill_runtime.routing_definition],
+                tool_choice="auto",
+            ),
+            clean_json_answer=clean_json_answer,
+        )
 
     network_execution = bool(context and context.network_execution_id)
     # Terminal recovery is exceptional. Delay constructing its structured model until
@@ -266,19 +297,38 @@ async def run_instrumented_execution(
         has_tools=has_tools,
         has_skills=bool(snapshots),
     )
-    if snapshots:
-        execution_messages = _messages_with_leading_system_instruction(
-            execution_messages,
-            _SKILL_RESOLUTION_INSTRUCTION,
-        )
     if instruction is not None:
         execution_messages = _messages_with_leading_system_instruction(
             execution_messages,
             instruction,
         )
+    routing_messages = (
+        _skill_routing_messages(messages)
+        if skill_runtime is not None
+        else None
+    )
+
+    followup_model_selector: Callable[[], Any] | None = None
+    completion_guard: Callable[[], bool] | None = None
+    if skill_runtime is not None:
+        if routing_model is None:
+            raise RuntimeError("Skill routing model was not configured")
+
+        def select_skill_followup_model() -> Any:
+            return model if skill_runtime.routing_resolved else routing_model
+
+        followup_model_selector = select_skill_followup_model
+        completion_guard = lambda: skill_runtime.routing_resolved
 
     execution, call_index = await run_tool_loop(
         model=model,
+        initial_model=routing_model,
+        initial_messages=routing_messages,
+        followup_model_selector=followup_model_selector,
+        completion_guard=completion_guard,
+        completion_guard_error=(
+            "Skill applicability routing did not resolve before Agent response generation"
+        ),
         final_model=final_model,
         final_model_factory=final_model_factory,
         execute_single_tool=execute_single_tool,
@@ -287,7 +337,9 @@ async def run_instrumented_execution(
         provider=provider,
         model_name=agent.model,
         initial_phase=(
-            "capability_response_generation"
+            "skill_resolution"
+            if skill_runtime is not None
+            else "capability_response_generation"
             if has_tools
             else "response_generation"
         ),
