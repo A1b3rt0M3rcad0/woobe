@@ -246,6 +246,7 @@ async def run_tool_loop(
     final_json_instruction: str | None,
     initial_tool_call: dict[str, Any] | None = None,
     initial_model: Any | None = None,
+    initial_messages: list | None = None,
     followup_model_selector: Callable[[], Any] | None = None,
     completion_guard: Callable[[], bool] | None = None,
     completion_guard_error: str = "Required runtime routing did not resolve before response generation",
@@ -259,7 +260,9 @@ async def run_tool_loop(
     ``initial_tool_call`` is an optional runtime-owned preflight capability. It is
     executed before the first provider invocation and does not consume a model Tool
     round. ``initial_model`` and ``followup_model_selector`` allow a runtime-owned
-    routing gate to use a constrained model before normal response generation. The
+    routing gate to use a constrained model before normal response generation.
+    ``initial_messages`` can isolate that first control-plane invocation from the full
+    Agent conversation while all follow-up generation still uses ``messages``. The
     terminal model is recovery-only and is constructed lazily when a supplied
     ``final_model_factory`` is needed.
     """
@@ -287,10 +290,15 @@ async def run_tool_loop(
         )
         tool_loop_messages.append(message)
 
+    initial_invocation_messages = (
+        _sanitize_base_messages(initial_messages)
+        if initial_messages is not None
+        else tool_loop_messages
+    )
     call_index = 1
     result, call = await invoke_llm(
         model=initial_model or model,
-        messages=tool_loop_messages,
+        messages=initial_invocation_messages,
         phase=initial_phase,
         call_index=call_index,
         provider=provider,
