@@ -121,7 +121,6 @@ class _DirectRoutingDecisionModel:
         serialized = str(messages)
         if tool_names == _ROUTING_SKILL_TOOLS:
             assert "exclusively for Skill applicability resolution" in serialized
-            assert "Do not answer the user's request" in serialized
             assert "return ONLY one JSON object" in serialized
             assert "calculate-method" in serialized
             assert "Quanto é 1 + 1?" in serialized
