@@ -708,7 +708,18 @@ function PlaygroundContent() {
           <span className="ml-auto text-muted">{visibleProvider || '—'}/{visibleModel || '—'}</span>
         </div>
         <div className="flex flex-1 min-h-0 overflow-hidden">
-          <OperationsRail activeTab={showLeftPanel ? leftPanelTab : null} environment={environment} onTabChange={handleLeftPanelTabChange} />
+          <OperationsRail
+            activeTab={showLeftPanel ? leftPanelTab : null}
+            environment={environment}
+            onTabChange={handleLeftPanelTabChange}
+            onNewSession={async () => {
+              setShowLeftPanel(false)
+              await handleNewSession()
+            }}
+            newSessionDisabled={isSending || Boolean(sessionCreationDisabledReason)}
+            newSessionDisabledReason={isSending ? 'Wait for the active Agent Run to finish or stop it before creating a Session' : sessionCreationDisabledReason}
+            newSessionPending={creatingSession}
+          />
           {showLeftPanel && (
             <OperationsPanel
               activeTab={leftPanelTab}
@@ -720,15 +731,12 @@ function PlaygroundContent() {
               sessions={sessions}
               sessionId={selectedSessionId}
               sessionMode={agentSessionMode}
-              sessionCreationDisabledReason={sessionCreationDisabledReason}
               onSelectTrace={setSelectedTraceId}
-              onNewSession={handleNewSession}
               onSelectSession={handleSessionSelect}
               onLoadMoreSessions={handleLoadMoreSessions}
               hasMoreSessions={Boolean(hasMoreSessions)}
               sessionsLoading={sessionsLoading || sessionsFetching}
               sessionsLoadingMore={sessionsLoadingMore}
-              creatingSession={creatingSession}
               sessionsError={sessionsError}
               sessionsErrorMessage={sessionsQueryError instanceof Error ? sessionsQueryError.message : undefined}
               onSessionsRetry={() => { void refetchSessions() }}
