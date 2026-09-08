@@ -32,9 +32,12 @@ _SKILL_RESOLUTION_INSTRUCTION = (
     "USER REQUEST. Do not answer the user's request in this invocation. Prefer calling the "
     "bound skills_resolve operation exactly once. Choose activate when the request matches a "
     "visible Skill's when_to_use scope, none when no installed Skill applies, or search only "
-    "when catalog_complete is false or the visible routing metadata is insufficient. If the "
-    "model/provider does not emit a Tool call, return ONLY one JSON object with the same "
-    "decision: {\"action\":\"activate\",\"skill_version_id\":\"<uuid>\"}, "
+    "when catalog_complete is false or the visible routing metadata is insufficient. Match "
+    "semantic intent rather than literal keywords: a request can express a covered operation "
+    "through symbols or examples, such as an expression using '+' matching a Skill whose "
+    "when_to_use covers addition or arithmetic. If the model/provider does not emit a Tool "
+    "call, return ONLY one JSON object with the same decision: "
+    "{\"action\":\"activate\",\"skill_version_id\":\"<uuid>\"}, "
     "{\"action\":\"none\"}, or {\"action\":\"search\",\"query\":\"<query>\",\"offset\":0}. "
     "Do not include markdown or explanatory text. Determine applicability from the current "
     "request, not from previous Session messages, prior Runs, or earlier Skill usage. Do not "
@@ -135,6 +138,19 @@ def _messages_with_bound_capability_authority(
             else _BOUND_CAPABILITIES_INSTRUCTION
         ),
     )
+
+
+def _skill_routing_messages(messages: list) -> list:
+    """Keep Skill applicability classification focused on the current request.
+
+    The Context Manager will inject the immutable installed-Skill catalog into this
+    minimal message set. Agent persona, Session history, Knowledge, and unrelated
+    conversational material are intentionally excluded from the routing invocation.
+    """
+    for message in reversed(messages):
+        if message.__class__.__name__ == "HumanMessage":
+            return [SystemMessage(content=_SKILL_RESOLUTION_INSTRUCTION), message]
+    raise RuntimeError("Skill routing requires a current user message")
 
 
 async def run_instrumented_execution(
@@ -281,16 +297,16 @@ async def run_instrumented_execution(
         has_tools=has_tools,
         has_skills=bool(snapshots),
     )
-    if snapshots:
-        execution_messages = _messages_with_leading_system_instruction(
-            execution_messages,
-            _SKILL_RESOLUTION_INSTRUCTION,
-        )
     if instruction is not None:
         execution_messages = _messages_with_leading_system_instruction(
             execution_messages,
             instruction,
         )
+    routing_messages = (
+        _skill_routing_messages(messages)
+        if skill_runtime is not None
+        else None
+    )
 
     followup_model_selector: Callable[[], Any] | None = None
     completion_guard: Callable[[], bool] | None = None
@@ -307,6 +323,7 @@ async def run_instrumented_execution(
     execution, call_index = await run_tool_loop(
         model=model,
         initial_model=routing_model,
+        initial_messages=routing_messages,
         followup_model_selector=followup_model_selector,
         completion_guard=completion_guard,
         completion_guard_error=(
