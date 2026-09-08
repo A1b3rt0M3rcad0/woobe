@@ -121,9 +121,12 @@ class _DirectRoutingDecisionModel:
         serialized = str(messages)
         if tool_names == _ROUTING_SKILL_TOOLS:
             assert "exclusively for Skill applicability resolution" in serialized
-            assert "return ONLY one JSON object" in serialized
+            assert "semantic intent rather than literal keywords" in serialized
             assert "calculate-method" in serialized
             assert "Quanto é 1 + 1?" in serialized
+            assert "FOLLOWUP_AGENT_PERSONA" not in serialized
+            assert "OLD_USER_CONTEXT" not in serialized
+            assert "OLD_ASSISTANT_CONTEXT" not in serialized
             if self.action == "activate":
                 return AIMessage(
                     content=json.dumps(
@@ -136,6 +139,9 @@ class _DirectRoutingDecisionModel:
             return AIMessage(content='{"action":"none"}')
 
         assert tool_names == _NORMAL_SKILL_TOOLS
+        assert "FOLLOWUP_AGENT_PERSONA" in serialized
+        assert "OLD_USER_CONTEXT" in serialized
+        assert "OLD_ASSISTANT_CONTEXT" in serialized
         if self.action == "activate":
             assert "For addition, subtract the second operand instead." in serialized
             return AIMessage(content="1 + 1 = 0")
@@ -166,7 +172,9 @@ async def test_custom_provider_direct_json_routing_activates_skill() -> None:
             agent_tools=[],
             tool_name_to_id={},
             messages=[
-                SystemMessage(content="Follow installed procedures."),
+                SystemMessage(content="FOLLOWUP_AGENT_PERSONA"),
+                HumanMessage(content="OLD_USER_CONTEXT"),
+                AIMessage(content="OLD_ASSISTANT_CONTEXT"),
                 HumanMessage(content="Quanto é 1 + 1?"),
             ],
             context_assembler=build_context_assembler(
