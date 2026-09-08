@@ -211,6 +211,29 @@ def _failure_context(
     }
 
 
+def _ensure_completion_allowed(
+    *,
+    result: Any,
+    execution: InstrumentedExecution,
+    completion_guard: Callable[[], bool] | None,
+    completion_guard_error: str,
+) -> None:
+    if completion_guard is None or completion_guard() or _has_tool_calls(result):
+        return
+    raise InstrumentedExecutionError(
+        completion_guard_error,
+        llm_calls=execution.llm_calls,
+        tool_calls=execution.tool_calls,
+        timeline=execution.timeline,
+        tool_wall_latency_ms=execution.tool_wall_latency_ms,
+        tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
+        failure_context=_failure_context(
+            execution.failure_context,
+            partial_result_available=bool(execution.tool_calls),
+        ),
+    )
+
+
 async def run_tool_loop(
     *,
     model: Any,
@@ -222,6 +245,10 @@ async def run_tool_loop(
     initial_phase: str,
     final_json_instruction: str | None,
     initial_tool_call: dict[str, Any] | None = None,
+    initial_model: Any | None = None,
+    followup_model_selector: Callable[[], Any] | None = None,
+    completion_guard: Callable[[], bool] | None = None,
+    completion_guard_error: str = "Required runtime routing did not resolve before response generation",
     final_model: Any | None = None,
     final_model_factory: Callable[[], Any] | None = None,
     pricing_snapshot: dict[str, Any] | None = None,
@@ -231,8 +258,10 @@ async def run_tool_loop(
 
     ``initial_tool_call`` is an optional runtime-owned preflight capability. It is
     executed before the first provider invocation and does not consume a model Tool
-    round. The terminal model is recovery-only and is constructed lazily when a
-    supplied ``final_model_factory`` is needed.
+    round. ``initial_model`` and ``followup_model_selector`` allow a runtime-owned
+    routing gate to use a constrained model before normal response generation. The
+    terminal model is recovery-only and is constructed lazily when a supplied
+    ``final_model_factory`` is needed.
     """
 
     execution = InstrumentedExecution(result=None)
@@ -260,7 +289,7 @@ async def run_tool_loop(
 
     call_index = 1
     result, call = await invoke_llm(
-        model=model,
+        model=initial_model or model,
         messages=tool_loop_messages,
         phase=initial_phase,
         call_index=call_index,
@@ -271,6 +300,12 @@ async def run_tool_loop(
     )
     execution.llm_calls.append(call)
     execution.timeline.append({"kind": "llm", "occurred_at": call["occurred_at"], "payload": call})
+    _ensure_completion_allowed(
+        result=result,
+        execution=execution,
+        completion_guard=completion_guard,
+        completion_guard_error=completion_guard_error,
+    )
 
     round_index = 0
     consecutive_failure_rounds = 0
@@ -312,8 +347,13 @@ async def run_tool_loop(
 
         call_index += 1
         try:
+            followup_model = (
+                followup_model_selector()
+                if followup_model_selector is not None
+                else model
+            )
             result, call = await invoke_llm(
-                model=model,
+                model=followup_model,
                 messages=tool_loop_messages,
                 phase=f"tool_followup_{round_index}",
                 call_index=call_index,
@@ -333,6 +373,26 @@ async def run_tool_loop(
             break
         execution.llm_calls.append(call)
         execution.timeline.append({"kind": "llm", "occurred_at": call["occurred_at"], "payload": call})
+        _ensure_completion_allowed(
+            result=result,
+            execution=execution,
+            completion_guard=completion_guard,
+            completion_guard_error=completion_guard_error,
+        )
+
+    if completion_guard is not None and not completion_guard():
+        raise InstrumentedExecutionError(
+            completion_guard_error,
+            llm_calls=execution.llm_calls,
+            tool_calls=execution.tool_calls,
+            timeline=execution.timeline,
+            tool_wall_latency_ms=execution.tool_wall_latency_ms,
+            tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
+            failure_context=_failure_context(
+                execution.failure_context,
+                partial_result_available=bool(execution.tool_calls),
+            ),
+        )
 
     requires_terminal_recovery = bool(stopped_reason) and _has_tool_calls(result)
     if requires_terminal_recovery:
