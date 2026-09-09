@@ -87,7 +87,7 @@ describe('Agent editor output validation', () => {
     expect(state.responseFormat.schema).toBe('{ "message": "string", "confidence": "float" }')
   })
 
-  it('does not block text output even when a previous raw JSON draft is invalid', () => {
+  it('does not block text output and never sends invalid dormant JSON through the typed API contract', () => {
     const state = editorState()
     state.responseFormat = {
       ...state.responseFormat,
@@ -96,11 +96,32 @@ describe('Agent editor output validation', () => {
       schema: '{ unfinished',
     }
 
+    expect((canonicalSnapshot(state).response_format as Record<string, unknown>).schema).toBe('{ unfinished')
+
     const result = validateAgentEditorState(state)
     expect(result.valid).toBe(true)
     if (result.valid) {
       expect((result.snapshot.response_format as Record<string, unknown>).enabled).toBe(false)
-      expect((result.snapshot.response_format as Record<string, unknown>).schema).toBe('{ unfinished')
+      expect((result.snapshot.response_format as Record<string, unknown>).type).toBe('text')
+      expect((result.snapshot.response_format as Record<string, unknown>).schema).toBeNull()
+      expect(result.snapshot.output_schema).toBeNull()
+    }
+  })
+
+  it('preserves a valid dormant JSON contract when text output is active', () => {
+    const state = editorState()
+    state.responseFormat = {
+      ...state.responseFormat,
+      enabled: false,
+      type: 'text',
+      schema: '{ "message": "string" }',
+    }
+
+    const result = validateAgentEditorState(state)
+    expect(result.valid).toBe(true)
+    if (result.valid) {
+      expect((result.snapshot.response_format as Record<string, unknown>).schema).toEqual({ message: 'string' })
+      expect(result.snapshot.output_schema).toEqual({ message: 'string' })
     }
   })
 })
