@@ -4,9 +4,31 @@ import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { AgentContextAssemblerField } from './AgentContextAssemblerField'
 import { AgentSessionModeField } from './AgentSessionModeField'
 
-export function AgentRuntimeSettings({ projectId }: { projectId: string }) {
+export function AgentRuntimeSettings({ projectId, standalone = false }: { projectId: string; standalone?: boolean }) {
   const { state } = useAgentEditor()
   const sessionLabel = state.sessionMode === 'stateless' ? 'Stateless' : 'Stateful'
+
+  if (standalone) {
+    return (
+      <section aria-label="Runtime" className="space-y-5 p-4">
+        <div>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-white">Runtime</p>
+              <p className="mt-1 text-[11px] leading-4 text-muted">Context assembly and Session continuity used while this Agent executes.</p>
+            </div>
+            <span className="shrink-0 font-mono text-[9px] text-muted">{sessionLabel}</span>
+          </div>
+        </div>
+
+        <AgentContextAssemblerField projectId={projectId} compact />
+
+        <div className="border-t border-border/80 pt-5">
+          <AgentSessionModeField compact />
+        </div>
+      </section>
+    )
+  }
 
   return (
     <div className="p-4">
