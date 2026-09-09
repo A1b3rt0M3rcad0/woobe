@@ -1,9 +1,5 @@
-import { AgentContextAssemblerField } from './AgentContextAssemblerField'
-import { AgentSessionModeField } from './AgentSessionModeField'
+import { AgentRuntimeSurface } from './AgentRuntimeSurface'
 
 export function AgentRuntimeSettings({ projectId }: { projectId: string }) {
-  return <div className="space-y-4 p-4">
-    <AgentContextAssemblerField projectId={projectId} />
-    <AgentSessionModeField />
-  </div>
+  return <div className="p-4"><AgentRuntimeSurface projectId={projectId} /></div>
 }
