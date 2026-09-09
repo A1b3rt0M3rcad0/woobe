@@ -4,7 +4,7 @@ import { Bot, FileJson, Puzzle, ServerCog } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export type AgentEditorSection = 'details' | 'behavior' | 'runtime' | 'model' | 'output' | 'knowledge' | 'tools' | 'skills'
-type AgentEditorGroupId = 'agent' | 'execution' | 'capabilities' | 'output'
+export type AgentEditorGroupId = 'agent' | 'execution' | 'capabilities' | 'output'
 
 interface AgentEditorGroup {
   id: AgentEditorGroupId
@@ -13,7 +13,7 @@ interface AgentEditorGroup {
   sections: ReadonlyArray<{ id: AgentEditorSection; label: string }>
 }
 
-const groups: ReadonlyArray<AgentEditorGroup> = [
+export const agentEditorGroups: ReadonlyArray<AgentEditorGroup> = [
   {
     id: 'agent',
     label: 'Agent',
@@ -52,15 +52,15 @@ const groups: ReadonlyArray<AgentEditorGroup> = [
 
 function resolveSection(value: string | null): AgentEditorSection {
   if (value === 'agent' || value === 'overview') return 'details'
-  for (const group of groups) {
+  for (const group of agentEditorGroups) {
     const section = group.sections.find(item => item.id === value)
     if (section) return section.id
   }
   return 'details'
 }
 
-function groupForSection(section: AgentEditorSection) {
-  return groups.find(group => group.sections.some(item => item.id === section)) ?? groups[0]
+export function groupForAgentEditorSection(section: AgentEditorSection) {
+  return agentEditorGroups.find(group => group.sections.some(item => item.id === section)) ?? agentEditorGroups[0]
 }
 
 export function useAgentEditorSection() {
@@ -71,13 +71,25 @@ export function useAgentEditorSection() {
   return [section, setSection] as const
 }
 
-export function AgentEditorNavigation({ value, onChange }: { value: AgentEditorSection; onChange: (value: AgentEditorSection) => void }) {
-  const activeGroup = groupForSection(value)
+export function AgentEditorNavigation({
+  value,
+  onChange,
+  standalone = false,
+}: {
+  value: AgentEditorSection
+  onChange: (value: AgentEditorSection) => void
+  standalone?: boolean
+}) {
+  const activeGroup = groupForAgentEditorSection(value)
 
   return (
     <nav aria-label="Agent configuration" className="shrink-0 border-b border-border/80 bg-surface/45">
-      <div role="group" aria-label="Agent configuration groups" className="grid grid-cols-4 px-2 pt-1.5">
-        {groups.map(group => {
+      <div
+        role="group"
+        aria-label="Agent configuration groups"
+        className={cn('grid grid-cols-4', standalone ? 'px-2 py-1.5' : 'px-2 pt-1.5')}
+      >
+        {agentEditorGroups.map(group => {
           const Icon = group.icon
           const active = activeGroup.id === group.id
           return (
@@ -87,18 +99,19 @@ export function AgentEditorNavigation({ value, onChange }: { value: AgentEditorS
               aria-pressed={active}
               onClick={() => onChange(group.sections[0].id)}
               className={cn(
-                'relative flex min-w-0 items-center justify-center gap-1.5 border-b-2 border-transparent px-1.5 py-2 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
+                'relative flex min-w-0 items-center justify-center border-b-2 border-transparent font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
+                standalone ? 'h-9 gap-0.5 px-1 text-[11px]' : 'gap-1.5 px-1.5 py-2 text-[10px]',
                 active ? 'border-primary text-white' : 'text-muted hover:text-white',
               )}
             >
-              <Icon className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-primary-light' : 'text-muted')} />
+              {!standalone ? <Icon className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-primary-light' : 'text-muted')} /> : null}
               <span className="truncate">{group.label}</span>
             </button>
           )
         })}
       </div>
 
-      {activeGroup.sections.length > 1 ? (
+      {!standalone && activeGroup.sections.length > 1 ? (
         <div role="group" aria-label="Agent configuration sections" className="flex items-center gap-1 px-3 py-2">
           {activeGroup.sections.map(section => (
             <button
