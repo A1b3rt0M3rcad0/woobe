@@ -271,14 +271,48 @@ export function AgentInspector({
     <aside
       aria-label="Agent Inspector"
       className={cn(
-        'fixed bottom-0 right-0 top-[3.5rem] z-40 flex w-full max-w-[400px] shrink-0 flex-col border-l border-border/90 bg-surface shadow-xl shadow-black/20 transition-[width,max-width] duration-200 lg:static lg:z-auto lg:bg-surface/75 lg:shadow-sm lg:shadow-black/5',
+        'fixed bottom-0 right-0 top-[8rem] z-40 flex w-full max-w-[400px] shrink-0 flex-col border-l border-border/90 bg-surface shadow-xl shadow-black/20 transition-[width,max-width] duration-200 lg:static lg:z-auto lg:bg-surface/75 lg:shadow-sm lg:shadow-black/5',
         expanded ? 'lg:w-[640px] lg:max-w-[65vw]' : 'lg:w-[400px] lg:max-w-[400px]',
       )}
     >
-      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border/90 bg-background/25 px-3">
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/90 bg-background/25 px-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-xs font-semibold text-white">Agent settings</p>
+          <p className="truncate text-[11px] font-semibold text-white">Agent settings</p>
         </div>
+
+        <div role="tablist" aria-label="Inspector mode" className="flex shrink-0 items-center rounded-lg border border-border/80 bg-background/35 p-0.5">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={resolvedActiveTab === 'editor'}
+            onClick={() => onTabChange('editor')}
+            className={cn(
+              'flex h-8 items-center justify-center gap-1 rounded-md px-2 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
+              resolvedActiveTab === 'editor'
+                ? 'bg-surface text-white shadow-sm'
+                : 'text-muted hover:text-white',
+            )}
+          >
+            {environment === 'draft' ? <Edit3 className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
+            {editorLabel}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={resolvedActiveTab === 'versions'}
+            onClick={() => onTabChange('versions')}
+            className={cn(
+              'flex h-8 items-center justify-center gap-1 rounded-md px-2 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
+              resolvedActiveTab === 'versions'
+                ? 'bg-surface text-white shadow-sm'
+                : 'text-muted hover:text-white',
+            )}
+          >
+            <Rocket className="h-3 w-3" />
+            Versions
+          </button>
+        </div>
+
         <button
           type="button"
           onClick={() => setExpanded(current => !current)}
@@ -300,39 +334,6 @@ export function AgentInspector({
             <ChevronRight className="h-3.5 w-3.5" />
           </button>
         ) : null}
-      </div>
-
-      <div role="tablist" aria-label="Inspector mode" className="grid shrink-0 grid-cols-2 border-b border-border/90 bg-surface/45 p-1.5">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={resolvedActiveTab === 'editor'}
-          onClick={() => onTabChange('editor')}
-          className={cn(
-            'flex h-9 items-center justify-center gap-1.5 rounded-md text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
-            resolvedActiveTab === 'editor'
-              ? 'bg-background text-white shadow-sm'
-              : 'text-muted hover:bg-background/45 hover:text-white',
-          )}
-        >
-          {environment === 'draft' ? <Edit3 className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
-          {editorLabel}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={resolvedActiveTab === 'versions'}
-          onClick={() => onTabChange('versions')}
-          className={cn(
-            'flex h-9 items-center justify-center gap-1.5 rounded-md text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
-            resolvedActiveTab === 'versions'
-              ? 'bg-background text-white shadow-sm'
-              : 'text-muted hover:bg-background/45 hover:text-white',
-          )}
-        >
-          <Rocket className="h-3.5 w-3.5" />
-          Versions
-        </button>
       </div>
 
       <div className="min-h-0 flex-1 overflow-hidden">
