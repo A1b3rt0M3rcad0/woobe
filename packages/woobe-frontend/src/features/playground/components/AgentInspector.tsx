@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ChevronRight, Edit3, Lock, Maximize2, Minimize2, Rocket, RotateCcw, Save } from 'lucide-react'
-import { AgentEditorNavigation, useAgentEditorSection } from '@/features/agents/components/AgentEditorNavigation'
+import { AgentEditorNavigation, groupForAgentEditorSection, useAgentEditorSection } from '@/features/agents/components/AgentEditorNavigation'
 import { AgentOverviewSettings } from '@/features/agents/components/AgentOverviewSettings'
 import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
 import { AgentBehaviorSettings } from '@/features/agents/components/AgentBehaviorSettings'
@@ -147,21 +147,62 @@ function EditorToolbar({ agent, projectId }: { agent: Agent; projectId: string }
 }
 
 function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; projectId: string; agentId: string }) {
-  const [editorTab, setEditorTab] = useAgentEditorSection()
+  const [editorSection, setEditorSection] = useAgentEditorSection()
+  const activeGroup = groupForAgentEditorSection(editorSection)
+
+  useEffect(() => {
+    const target = document.getElementById(`standalone-agent-editor-${editorSection}`)
+    if (!target) return
+    const frame = requestAnimationFrame(() => target.scrollIntoView({ block: 'start' }))
+    return () => cancelAnimationFrame(frame)
+  }, [editorSection])
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <EditorToolbar agent={agent} projectId={projectId} />
-      <AgentEditorNavigation value={editorTab} onChange={setEditorTab} />
+      <AgentEditorNavigation value={editorSection} onChange={setEditorSection} standalone />
       <ScrollArea className="min-h-0 flex-1">
-        {editorTab === 'details' && <AgentOverviewSettings onOpenBehavior={() => setEditorTab('behavior')} />}
-        {editorTab === 'behavior' && <AgentBehaviorSettings />}
-        {editorTab === 'runtime' && <AgentRuntimeSettings projectId={projectId} />}
-        {editorTab === 'output' && <OutputSettingsTab />}
-        {editorTab === 'model' && <ModelSettingsTab projectId={projectId} />}
-        {editorTab === 'knowledge' && <KnowledgeTab projectId={projectId} agentId={agentId} />}
-        {editorTab === 'skills' && <div className="p-4"><AgentSkillsSection projectId={projectId} /></div>}
-        {editorTab === 'tools' && <ToolsTab projectId={projectId} agentId={agentId} />}
+        {activeGroup.id === 'agent' ? (
+          <div className="divide-y divide-border/80">
+            <div id="standalone-agent-editor-details" className="scroll-mt-3">
+              <AgentOverviewSettings onOpenBehavior={() => setEditorSection('behavior')} />
+            </div>
+            <div id="standalone-agent-editor-behavior" className="scroll-mt-3">
+              <AgentBehaviorSettings />
+            </div>
+          </div>
+        ) : null}
+
+        {activeGroup.id === 'execution' ? (
+          <div className="divide-y divide-border/80">
+            <div id="standalone-agent-editor-runtime" className="scroll-mt-3">
+              <AgentRuntimeSettings projectId={projectId} />
+            </div>
+            <div id="standalone-agent-editor-model" className="scroll-mt-3">
+              <ModelSettingsTab projectId={projectId} />
+            </div>
+          </div>
+        ) : null}
+
+        {activeGroup.id === 'capabilities' ? (
+          <div className="divide-y divide-border/80">
+            <div id="standalone-agent-editor-knowledge" className="scroll-mt-3">
+              <KnowledgeTab projectId={projectId} agentId={agentId} />
+            </div>
+            <div id="standalone-agent-editor-tools" className="scroll-mt-3">
+              <ToolsTab projectId={projectId} agentId={agentId} />
+            </div>
+            <div id="standalone-agent-editor-skills" className="scroll-mt-3 p-4">
+              <AgentSkillsSection projectId={projectId} />
+            </div>
+          </div>
+        ) : null}
+
+        {activeGroup.id === 'output' ? (
+          <div id="standalone-agent-editor-output" className="scroll-mt-3">
+            <OutputSettingsTab />
+          </div>
+        ) : null}
       </ScrollArea>
     </div>
   )
