@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Bot, FileJson, Puzzle, ServerCog } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -64,10 +64,19 @@ export function groupForAgentEditorSection(section: AgentEditorSection) {
 }
 
 export function useAgentEditorSection() {
-  const [params] = useSearchParams()
+  const [params, setParams] = useSearchParams()
   const requested = params.get('editor')
-  const [section, setSection] = useState<AgentEditorSection>(() => resolveSection(requested))
-  useEffect(() => { setSection(resolveSection(requested)) }, [requested])
+  const [section, setLocalSection] = useState<AgentEditorSection>(() => resolveSection(requested))
+
+  useEffect(() => { setLocalSection(resolveSection(requested)) }, [requested])
+
+  const setSection = (next: AgentEditorSection) => {
+    setLocalSection(next)
+    const nextParams = new URLSearchParams(params)
+    nextParams.set('editor', next)
+    setParams(nextParams, { replace: true })
+  }
+
   return [section, setSection] as const
 }
 
@@ -81,6 +90,11 @@ export function AgentEditorNavigation({
   standalone?: boolean
 }) {
   const activeGroup = groupForAgentEditorSection(value)
+  const lastVisited = useRef<Partial<Record<AgentEditorGroupId, AgentEditorSection>>>({})
+
+  useEffect(() => {
+    lastVisited.current[activeGroup.id] = value
+  }, [activeGroup.id, value])
 
   return (
     <nav aria-label="Agent configuration" className="shrink-0 border-b border-border/80 bg-surface/45">
@@ -92,12 +106,13 @@ export function AgentEditorNavigation({
         {agentEditorGroups.map(group => {
           const Icon = group.icon
           const active = activeGroup.id === group.id
+          const target = standalone ? lastVisited.current[group.id] ?? group.sections[0].id : group.sections[0].id
           return (
             <button
               key={group.id}
               type="button"
               aria-pressed={active}
-              onClick={() => onChange(group.sections[0].id)}
+              onClick={() => onChange(target)}
               className={cn(
                 'relative flex min-w-0 items-center justify-center border-b-2 border-transparent font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
                 standalone ? 'h-9 gap-0.5 px-1 text-[11px]' : 'gap-1.5 px-1.5 py-2 text-[10px]',
