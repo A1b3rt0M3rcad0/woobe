@@ -56,7 +56,7 @@ function ToolStatusToggle({ active, loading, onClick }: { active: boolean; loadi
   )
 }
 
-function ActionsMenu({ canEdit, onEdit, onRemove }: { canEdit: boolean; onEdit?: () => void; onRemove: () => void }) {
+function ActionsMenu({ canEdit, editLabel, onEdit, onRemove }: { canEdit: boolean; editLabel: string; onEdit?: () => void; onRemove: () => void }) {
   return (
     <details className="relative">
       <summary className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-lg border border-border/80 bg-background/50 text-muted transition-colors hover:bg-accent hover:text-white [&::-webkit-details-marker]:hidden" aria-label="Tool actions">
@@ -66,7 +66,7 @@ function ActionsMenu({ canEdit, onEdit, onRemove }: { canEdit: boolean; onEdit?:
         {canEdit && onEdit ? (
           <button type="button" onClick={onEdit} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-white hover:bg-accent">
             <Pencil className="h-3.5 w-3.5" />
-            Edit Project Tool
+            {editLabel}
           </button>
         ) : null}
         <button type="button" onClick={onRemove} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-red-200 hover:bg-red-500/10">
@@ -95,7 +95,7 @@ export function AgentToolCard({
   const isHttpProvider = isHttpProviderTool(tool)
   const risk = effectiveRisk(tool)
   const showRisk = riskScore(risk) >= 2
-  const statusIsReadOnly = context === 'network' || !onToggleActive
+  const showReadOnlyStatus = context === 'playground' && !onToggleActive
 
   return (
     <article className={cn(
@@ -111,14 +111,14 @@ export function AgentToolCard({
             <h3 className="truncate text-sm font-semibold text-white">{tool.name}</h3>
             {isRetired ? (
               <span className="shrink-0 text-[9px] text-amber-200">Retired</span>
-            ) : statusIsReadOnly ? (
+            ) : showReadOnlyStatus ? (
               <span className="shrink-0 text-[9px] capitalize text-muted">{tool.status}</span>
             ) : null}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {context === 'playground' && !isRetired && onToggleActive ? <ToolStatusToggle active={isActive} loading={statusLoading} onClick={onToggleActive} /> : null}
-          <ActionsMenu canEdit={!isRetired && isHttpProvider} onEdit={onEdit} onRemove={onRemove} />
+          <ActionsMenu canEdit={!isRetired && isHttpProvider} editLabel={context === 'playground' ? 'Edit Project Tool' : 'Edit Tool'} onEdit={onEdit} onRemove={onRemove} />
         </div>
       </div>
 
