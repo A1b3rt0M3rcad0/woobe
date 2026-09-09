@@ -1,4 +1,5 @@
-import { ChevronRight, Edit3, Lock, Rocket, RotateCcw, Save } from 'lucide-react'
+import { useState } from 'react'
+import { ChevronRight, Edit3, Lock, Maximize2, Minimize2, Rocket, RotateCcw, Save } from 'lucide-react'
 import { AgentEditorNavigation, useAgentEditorSection } from '@/features/agents/components/AgentEditorNavigation'
 import { AgentOverviewSettings } from '@/features/agents/components/AgentOverviewSettings'
 import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
@@ -187,6 +188,7 @@ export function AgentInspector({
   onTabChange,
   onCollapse,
 }: AgentInspectorProps) {
+  const [expanded, setExpanded] = useState(false)
   const resolvedActiveTab = activeTab === 'versions' ? 'versions' : 'editor'
   const editorLabel = environment === 'draft' ? 'Editor' : 'Snapshot'
   const editorContent = environment === 'draft'
@@ -194,11 +196,27 @@ export function AgentInspector({
     : <EnvironmentSnapshotContent environment={environment} release={environmentRelease} loading={environmentReleaseLoading} />
 
   return (
-    <aside aria-label="Agent Inspector" className="flex w-[400px] shrink-0 flex-col border-l border-border/90 bg-surface/75 shadow-sm shadow-black/5">
+    <aside
+      aria-label="Agent Inspector"
+      className={cn(
+        'flex shrink-0 flex-col border-l border-border/90 bg-surface/75 shadow-sm shadow-black/5 transition-[width,max-width] duration-200',
+        expanded ? 'w-[720px] max-w-[55vw]' : 'w-[400px]',
+      )}
+    >
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border/90 bg-background/25 px-3">
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Inspector</p>
         </div>
+        <button
+          type="button"
+          onClick={() => setExpanded(current => !current)}
+          className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-accent/60 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
+          aria-label={expanded ? 'Restore Inspector width' : 'Expand Inspector'}
+          title={expanded ? 'Restore Inspector width' : 'Expand Inspector'}
+          aria-pressed={expanded}
+        >
+          {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+        </button>
         {onCollapse ? (
           <button
             type="button"
