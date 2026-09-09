@@ -66,7 +66,7 @@ function ActionsMenu({ canEdit, onEdit, onRemove }: { canEdit: boolean; onEdit?:
         {canEdit && onEdit ? (
           <button type="button" onClick={onEdit} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-white hover:bg-accent">
             <Pencil className="h-3.5 w-3.5" />
-            Edit API
+            Edit Project Tool
           </button>
         ) : null}
         <button type="button" onClick={onRemove} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-red-200 hover:bg-red-500/10">
@@ -95,6 +95,7 @@ export function AgentToolCard({
   const isHttpProvider = isHttpProviderTool(tool)
   const risk = effectiveRisk(tool)
   const showRisk = riskScore(risk) >= 2
+  const statusIsReadOnly = context === 'network' || !onToggleActive
 
   return (
     <article className={cn(
@@ -108,7 +109,11 @@ export function AgentToolCard({
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             <h3 className="truncate text-sm font-semibold text-white">{tool.name}</h3>
-            {isRetired ? <span className="shrink-0 text-[9px] text-amber-200">Retired</span> : context === 'network' ? <span className="shrink-0 text-[9px] capitalize text-muted">{tool.status}</span> : null}
+            {isRetired ? (
+              <span className="shrink-0 text-[9px] text-amber-200">Retired</span>
+            ) : statusIsReadOnly ? (
+              <span className="shrink-0 text-[9px] capitalize text-muted">{tool.status}</span>
+            ) : null}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
