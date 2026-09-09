@@ -1,6 +1,6 @@
 import { skillsConfig } from '@/features/skills/config'
 import { useMemo, useState } from 'react'
-import { BrainCircuit, Check, ChevronRight, Settings2 } from 'lucide-react'
+import { BrainCircuit, Check, Settings2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -81,7 +81,7 @@ function DetailList({ items }: { items: string[] }) {
   )
 }
 
-export function AgentContextAssemblerField({ projectId }: { projectId: string }) {
+export function AgentContextAssemblerField({ projectId, compact = false }: { projectId: string; compact?: boolean }) {
   const { state, setField } = useAgentEditor()
   const { data: assemblers = [], isLoading, isError } = useContextAssemblers()
   const selected = useMemo(() => currentSelection(state.runtimeConfig), [state.runtimeConfig])
@@ -191,40 +191,46 @@ export function AgentContextAssemblerField({ projectId }: { projectId: string })
 
   return (
     <>
-      <section>
-        <div className="flex min-h-16 w-full items-center gap-3 rounded-xl border border-border bg-surface px-4 py-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-background/40 text-primary">
-            <BrainCircuit className="h-4 w-4" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted">
-              Selected context manager
+      <section aria-label="Context Manager" className={cn(!compact && 'rounded-xl border border-border bg-surface p-4')}>
+        <div className="mb-2.5">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Context Manager</p>
+          <p className="mt-1 text-xs leading-5 text-muted">Controls how context is assembled before each Agent execution.</p>
+        </div>
+
+        <div className="rounded-lg border border-border bg-background/35 p-3">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light">
+              <BrainCircuit className="h-4 w-4" />
             </span>
-            <span className="mt-0.5 block truncate text-sm font-semibold text-foreground">
-              {selectedDescriptor.display_name}
-            </span>
-          </span>
-          <div className="flex shrink-0 items-center gap-1.5">
+            <div className="min-w-0 flex-1">
+              <p className="break-words text-sm font-semibold leading-5 text-foreground">{selectedDescriptor.display_name}</p>
+              <p className="mt-0.5 font-mono text-[10px] text-muted">{selectedStrategyKey}</p>
+              {selectedDescriptor.description ? <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-muted">{selectedDescriptor.description}</p> : null}
+            </div>
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3">
             <Button
               type="button"
               size="sm"
-              variant="ghost"
-              className="h-8 px-2.5 text-xs text-primary-light"
+              variant="outline"
+              className="h-8 text-[11px]"
               onClick={() => setConfigureOpen(true)}
               aria-label={`Configure context for ${selectedDescriptor.display_name}`}
             >
               <Settings2 className="mr-1 h-3.5 w-3.5" />
               Configure
             </Button>
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant="ghost"
+              className="h-8 text-[11px] text-primary-light"
               onClick={openSelector}
               aria-label={`Change context manager. Current selection: ${selectedDescriptor.display_name}`}
-              className="group flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-medium text-primary-light transition-colors hover:bg-accent/30 hover:text-foreground"
             >
               Change
-              <ChevronRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-            </button>
+            </Button>
           </div>
         </div>
       </section>
