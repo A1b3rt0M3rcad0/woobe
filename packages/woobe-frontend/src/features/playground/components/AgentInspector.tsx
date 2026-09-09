@@ -165,10 +165,10 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
         {activeGroup.id === 'agent' ? (
           <div className="divide-y divide-border/80">
             <div id="standalone-agent-editor-details" className="scroll-mt-3">
-              <AgentOverviewSettings onOpenBehavior={() => setEditorSection('behavior')} />
+              <AgentOverviewSettings standalone />
             </div>
             <div id="standalone-agent-editor-behavior" className="scroll-mt-3">
-              <AgentBehaviorSettings />
+              <AgentBehaviorSettings standalone />
             </div>
           </div>
         ) : null}
