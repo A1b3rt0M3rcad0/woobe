@@ -5,7 +5,7 @@ import { AgentOverviewSettings } from '@/features/agents/components/AgentOvervie
 import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
 import { AgentBehaviorSettings } from '@/features/agents/components/AgentBehaviorSettings'
 import { AgentRuntimeSettings } from '@/features/agents/components/AgentRuntimeSettings'
-import { validateAgentEditorState } from '@/features/agents/editorValidation'
+import { outputContractError, validateAgentEditorState } from '@/features/agents/editorValidation'
 import { ModelSettingsTab } from './ModelSettingsTab'
 import { KnowledgeTab } from './KnowledgeTab'
 import { ToolsTab } from './ToolsTab'
@@ -49,8 +49,7 @@ function EditorToolbar({
   const { state, loadedReleaseVersion, setLoadedRelease, isDirty, updateBaseline, resetToBaseline } = useAgentEditor()
   const createRelease = useCreateRelease(agent.id)
   const [saveFailed, setSaveFailed] = useState(false)
-  const validation = validateAgentEditorState(state)
-  const hasValidationIssue = !validation.valid
+  const hasValidationIssue = Boolean(outputContractError(state))
 
   const handleSaveDraft = async () => {
     setSaveFailed(false)
