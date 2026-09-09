@@ -5,7 +5,12 @@ import { Textarea } from '@/components/ui/Textarea'
 import { Button } from '@/components/ui/Button'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 
-export function AgentOverviewSettings({ onOpenBehavior }: { onOpenBehavior: () => void }) {
+interface AgentOverviewSettingsProps {
+  onOpenBehavior?: () => void
+  standalone?: boolean
+}
+
+export function AgentOverviewSettings({ onOpenBehavior, standalone = false }: AgentOverviewSettingsProps) {
   const { state, setField } = useAgentEditor()
   const id = useId()
   const behavior = state.behavior
@@ -16,6 +21,34 @@ export function AgentOverviewSettings({ onOpenBehavior }: { onOpenBehavior: () =
     .filter(item => item.trim()).length
   const objective = behavior.objective.trim()
   const configured = Boolean(objective || responsibilities || allowed || disallowed || guidance)
+
+  if (standalone) {
+    return (
+      <section className="space-y-4 p-4" aria-label="Agent Identity">
+        <div>
+          <p className="text-xs font-semibold text-white">Identity</p>
+          <p className="mt-1 text-[11px] leading-4 text-muted">Name and role used to identify this Agent throughout the Project.</p>
+        </div>
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-muted" htmlFor={`${id}-name`}>Name</label>
+            <Input id={`${id}-name`} value={state.name} onChange={event => setField('name', event.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <label className="block text-xs font-medium text-muted" htmlFor={`${id}-description`}>Description</label>
+            <Textarea
+              id={`${id}-description`}
+              rows={3}
+              className="min-h-0 resize-y text-xs leading-5"
+              value={state.description}
+              onChange={event => setField('description', event.target.value)}
+              placeholder="Role and specialization"
+            />
+          </div>
+        </div>
+      </section>
+    )
+  }
 
   return (
     <div className="space-y-4 p-4">
@@ -83,7 +116,7 @@ export function AgentOverviewSettings({ onOpenBehavior }: { onOpenBehavior: () =
             </div>
           </div>
 
-          <Button type="button" size="sm" variant="outline" className="w-full" onClick={onOpenBehavior}>
+          <Button type="button" size="sm" variant="outline" className="w-full" onClick={() => onOpenBehavior?.()}>
             {configured ? 'Edit Behavior' : 'Configure Behavior'}
           </Button>
         </div>
