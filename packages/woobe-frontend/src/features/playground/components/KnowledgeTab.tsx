@@ -15,6 +15,7 @@ import { RagRuntimeSettings } from './RagRuntimeSettings'
 interface KnowledgeTabProps {
   projectId: string
   agentId: string
+  standalone?: boolean
 }
 
 function recordValue(value: unknown): Record<string, unknown> {
@@ -37,7 +38,7 @@ function ragRuntimeConfig(runtimeConfig: Record<string, unknown>): RagRuntimeCon
   }
 }
 
-export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
+export function KnowledgeTab({ projectId, agentId, standalone = false }: KnowledgeTabProps) {
   const { data: versions = [], isLoading } = useKnowledgeVersions(agentId)
   const { data: collections = [] } = useCollections(projectId)
   const createKnowledgeVersion = useCreateKnowledgeVersion(agentId)
@@ -79,89 +80,110 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
 
   if (isLoading) return <LoadingState variant="panel" layout="list" message="Loading knowledge..." />
 
+  const bindingContent = !activeVersion ? (
+    <div className="rounded-lg border border-border bg-background p-3">
+      <div className="flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-primary-light">
+          <Database className="h-4 w-4" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-white">No knowledge selected</p>
+          <p className="mt-1 text-xs leading-5 text-muted">Choose an immutable vector version for this Agent Draft.</p>
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2 border-t border-border/80 pt-3">
+        <Button type="button" size="sm" onClick={() => setSelectorOpen(true)}>
+          Select knowledge
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={() => setManageKnowledgeOpen(true)}>
+          <Database className="mr-2 h-3.5 w-3.5" />
+          Manage knowledge
+        </Button>
+      </div>
+    </div>
+  ) : (
+    <div className="rounded-lg border border-border bg-background p-3">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-primary-light">
+            <Database className="h-4 w-4" />
+          </div>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-medium text-white">{collectionName}</p>
+            <p className="mt-1 text-xs text-muted">Knowledge {activeVersion.version} · Vector {snapshotVersion}</p>
+            <p className="mt-1 text-[10px] uppercase tracking-wider text-muted/80">Immutable snapshot</p>
+          </div>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 w-7 shrink-0 p-0 text-muted hover:text-red-300"
+          onClick={() => setField('knowledgeVersionId', null)}
+          aria-label="Remove knowledge"
+          title="Remove knowledge"
+        >
+          <X className="h-3.5 w-3.5" />
+        </Button>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2 border-t border-border/80 pt-3">
+        <Button type="button" size="sm" variant="outline" onClick={() => setSelectorOpen(true)}>
+          Change version
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={() => setManageKnowledgeOpen(true)}>
+          <Database className="mr-2 h-3.5 w-3.5" />
+          Manage knowledge
+        </Button>
+      </div>
+    </div>
+  )
+
+  const retrievalContent = (
+    <button
+      type="button"
+      onClick={() => setRuntimeSettingsOpen(true)}
+      className="group flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-background p-3 text-left transition-colors hover:border-primary/30 hover:bg-background/80"
+    >
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-white">Search behavior</p>
+        <p className="mt-1 text-xs text-muted">Top {ragConfig.top_k} from {ragConfig.candidate_k} candidates</p>
+        <p className="mt-1 truncate text-[10px] text-muted/80">{queryModeLabel} · {groundingLabel}</p>
+      </div>
+      <ChevronRight className="h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary-light" />
+    </button>
+  )
+
   return (
-    <div className="space-y-4 p-4">
-      <section className="rounded-xl border border-border bg-surface">
-        <div className="space-y-3 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Knowledge</p>
+    <>
+      {standalone ? (
+        <section aria-label="Knowledge" className="space-y-5 p-4">
+          <div>
+            <p className="text-xs font-semibold text-white">Knowledge</p>
+            <p className="mt-1 text-[11px] leading-4 text-muted">Immutable vector snapshot and retrieval policy bound to this Agent Draft.</p>
+          </div>
+          {bindingContent}
+          <div className="space-y-2 border-t border-border/80 pt-5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Runtime Retrieval</p>
+            {retrievalContent}
+          </div>
+        </section>
+      ) : (
+        <div className="space-y-4 p-4">
+          <section className="rounded-xl border border-border bg-surface">
+            <div className="space-y-3 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted">Knowledge</p>
+              {bindingContent}
+            </div>
+          </section>
 
-          {!activeVersion ? (
-            <div className="rounded-lg border border-border bg-background p-3">
-              <div className="flex items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-primary-light">
-                  <Database className="h-4 w-4" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-white">No knowledge selected</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">Choose an immutable vector version for this Agent Draft.</p>
-                </div>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-border/80 pt-3">
-                <Button type="button" size="sm" onClick={() => setSelectorOpen(true)}>
-                  Select knowledge
-                </Button>
-                <Button type="button" size="sm" variant="outline" onClick={() => setManageKnowledgeOpen(true)}>
-                  <Database className="mr-2 h-3.5 w-3.5" />
-                  Manage knowledge
-                </Button>
-              </div>
+          <section className="rounded-xl border border-border bg-surface">
+            <div className="space-y-3 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted">Runtime Retrieval</p>
+              {retrievalContent}
             </div>
-          ) : (
-            <div className="rounded-lg border border-border bg-background p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex min-w-0 items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface text-primary-light">
-                    <Database className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-white">{collectionName}</p>
-                    <p className="mt-1 text-xs text-muted">Knowledge {activeVersion.version} · Vector {snapshotVersion}</p>
-                    <p className="mt-1 text-[10px] uppercase tracking-wider text-muted/80">Immutable snapshot</p>
-                  </div>
-                </div>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="ghost"
-                  className="h-7 w-7 shrink-0 p-0 text-muted hover:text-red-300"
-                  onClick={() => setField('knowledgeVersionId', null)}
-                  aria-label="Remove knowledge"
-                  title="Remove knowledge"
-                >
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-border/80 pt-3">
-                <Button type="button" size="sm" variant="outline" onClick={() => setSelectorOpen(true)}>
-                  Change version
-                </Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setManageKnowledgeOpen(true)}>
-                  <Database className="mr-2 h-3.5 w-3.5" />
-                  Manage knowledge
-                </Button>
-              </div>
-            </div>
-          )}
+          </section>
         </div>
-      </section>
-
-      <section className="rounded-xl border border-border bg-surface">
-        <div className="space-y-3 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Runtime Retrieval</p>
-          <button
-            type="button"
-            onClick={() => setRuntimeSettingsOpen(true)}
-            className="group flex w-full items-center justify-between gap-3 rounded-lg border border-border bg-background p-3 text-left transition-colors hover:border-primary/30 hover:bg-background/80"
-          >
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-white">Search behavior</p>
-              <p className="mt-1 text-xs text-muted">Top {ragConfig.top_k} from {ragConfig.candidate_k} candidates</p>
-              <p className="mt-1 truncate text-[10px] text-muted/80">{queryModeLabel} · {groundingLabel}</p>
-            </div>
-            <ChevronRight className="h-4 w-4 shrink-0 text-muted transition-transform group-hover:translate-x-0.5 group-hover:text-primary-light" />
-          </button>
-        </div>
-      </section>
+      )}
 
       <SelectKnowledgeVersionModal open={selectorOpen} projectId={projectId} currentSnapshotId={activeSnapshotId} onClose={() => setSelectorOpen(false)} onSelect={(snapshot) => void applySnapshot(snapshot)} />
       <RagRuntimeSettings open={runtimeSettingsOpen} value={ragConfig} onClose={() => setRuntimeSettingsOpen(false)} onApply={applyRuntimeConfig} />
@@ -178,6 +200,6 @@ export function KnowledgeTab({ projectId, agentId }: KnowledgeTabProps) {
         onClose={() => setManageKnowledgeOpen(false)}
         onUseSnapshot={applySnapshot}
       />
-    </div>
+    </>
   )
 }
