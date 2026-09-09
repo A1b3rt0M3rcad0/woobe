@@ -26,7 +26,7 @@ function initialPermissionsForTool(tool: Tool): Record<string, McpToolPermission
   return permissions
 }
 
-export function NetworkAgentTools({ projectId, agentId }: { projectId: string; agentId: string }) {
+export function AgentToolsSettings({ projectId, agentId }: { projectId: string; agentId: string }) {
   const toolsQuery = useTools(projectId)
   const tools = toolsQuery.data ?? []
   const { state, setField, setState } = useAgentEditor()
@@ -91,7 +91,7 @@ export function NetworkAgentTools({ projectId, agentId }: { projectId: string; a
           {selected.map((tool) => (
             <AgentToolCard
               key={tool.id}
-              context="network"
+              context="agent"
               tool={tool}
               onChanged={refreshTools}
               onEdit={() => setEditingTool(tool)}

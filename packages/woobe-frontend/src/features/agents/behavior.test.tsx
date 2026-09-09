@@ -9,19 +9,20 @@ import type { Agent, AgentRelease } from './types'
 import { AgentEditorNavigation, useAgentEditorSection } from './components/AgentEditorNavigation'
 import { AgentEditorProvider, agentToEditorState, canonicalSnapshot, releaseToEditorState, useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { AgentInspector } from '@/features/playground/components/AgentInspector'
-import { NetworkAgentEditor } from '@/features/network/components/NetworkAgentEditor'
+import { NetworkAgentWorkspace } from '@/features/network/components/NetworkAgentWorkspace'
 import { ReleaseDetailsView } from '@/features/playground/components/ReleaseDetailsView'
 import { describeReleaseChanges } from '@/features/playground/components/releasePresentation'
 import CreateAgentPage from '@/pages/CreateAgentPage'
 import { useAgentCreationFlow, type AgentCreationFlowController } from './hooks/useAgentCreationFlow'
 
 const fixture = vi.hoisted(() => ({
-  save: vi.fn(), create: vi.fn(),
+  save: vi.fn(), create: vi.fn(), dirty: vi.fn(), registerSave: vi.fn(),
   releases: [] as AgentRelease[],
   tools: [], models: [] as Array<Record<string, unknown>>, credentials: [] as Array<Record<string, unknown>>,
 }))
 vi.mock('@/features/agents/hooks', async original => ({ ...await original<typeof import('@/features/agents/hooks')>(),
   useReleases: () => ({ data: fixture.releases }),
+  useRelease: (_agentId: string, id: string) => ({ data: fixture.releases.find(item => item.id === id) }),
   useCreateRelease: () => ({ mutateAsync: fixture.save, isPending: false }),
   useCreateAgent: () => ({ mutateAsync: fixture.create, isPending: false }),
   useKnowledgeVersions: () => ({ data: [] }),
@@ -33,8 +34,11 @@ vi.mock('@/features/provider-models/hooks', async original => ({ ...await origin
   useCreateProviderModel: () => ({ mutateAsync: vi.fn() }),
   useAvailableProviderModels: () => ({ data: [] }),
 }))
-vi.mock('@/features/tools/hooks', async original => ({ ...await original<typeof import('@/features/tools/hooks')>(), useAgentTools: () => ({ data: fixture.tools }) }))
-vi.mock('@/components/ui/JsonEditor', () => ({ JsonEditor: () => null }))
+vi.mock('@/features/tools/hooks', async original => ({ ...await original<typeof import('@/features/tools/hooks')>(), useAgentTools: () => ({ data: fixture.tools }), useTools: () => ({ data: fixture.tools }) }))
+vi.mock('@/features/knowledge/hooks', async original => ({ ...await original<typeof import('@/features/knowledge/hooks')>(), useCollections: () => ({ data: [] }) }))
+vi.mock('@/features/network/components/NetworkAgentChat', () => ({ NetworkAgentChat: () => <Probe /> }))
+vi.mock('@/features/network/components/NetworkAgentVersions', () => ({ NetworkAgentVersions: () => null }))
+vi.mock('@/components/ui/JsonEditor', () => ({ JsonEditor: ({ value, onChange, disabled }: { value: string; onChange: (value: string) => void; disabled: boolean }) => <textarea aria-label="Output contract" value={value} onChange={event => onChange(event.target.value)} disabled={disabled} /> }))
 
 const agent: Agent = { id: 'agent', project_id: 'project', name: 'Reviewer', description: 'Review invoices', provider: 'openai', model: 'test', status: 'active', session_mode: 'stateful', system_prompt: '  original legacy instructions\n' }
 const release = (overrides: Partial<AgentRelease> = {}): AgentRelease => ({ id: 'release', project_id: 'project', agent_id: 'agent', version: '1.0.0', status: 'released', name: 'Frozen', provider: 'openai', model: 'test', session_mode: 'stateful', ...overrides })
@@ -55,8 +59,11 @@ async function render(content: ReactNode, path = '/workspaces/workspace/projects
   await act(async () => { root.render(<QueryClientProvider client={client}><MemoryRouter initialEntries={[path]}><Routes><Route path="/workspaces/:workspaceId/projects/:projectId/*" element={content} /></Routes></MemoryRouter></QueryClientProvider>) })
 }
 async function renderEditor(surface: string, value = agent) {
-  const content = surface === 'network' ? <NetworkAgentEditor agent={value} projectId="project" agentId="agent" /> : <AgentInspector agent={value} projectId="project" agentId="agent" activeTab="editor" environment="draft" environmentRelease={null} onTabChange={vi.fn()} />
-  await render(<AgentEditorProvider agent={value} projectId="project"><Probe />{content}</AgentEditorProvider>)
+  if (surface === 'network') {
+    await render(<NetworkAgentWorkspace agent={value} projectId="project" networkBinding={{ source: 'draft', version: 'draft' }} onOpenComposition={vi.fn()} onDirtyChange={fixture.dirty} onRegisterSaveAction={fixture.registerSave} />)
+  } else {
+    await render(<AgentEditorProvider agent={value} projectId="project"><Probe /><AgentInspector agent={value} projectId="project" agentId="agent" activeTab="editor" environment="draft" environmentRelease={null} onTabChange={vi.fn()} /></AgentEditorProvider>)
+  }
 }
 function button(label: string) {
   const match = [...container.querySelectorAll('button')].find(item => item.getAttribute('aria-label') === label || item.textContent?.trim() === label)
@@ -79,6 +86,7 @@ async function fill(element: HTMLInputElement | HTMLTextAreaElement, value: stri
 }
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('HTTP requests are disabled in editor tests') }))
   if (!HTMLElement.prototype.scrollIntoView) HTMLElement.prototype.scrollIntoView = vi.fn()
   if (!globalThis.requestAnimationFrame) globalThis.requestAnimationFrame = callback => setTimeout(() => callback(performance.now()), 0) as unknown as number
   if (!globalThis.cancelAnimationFrame) globalThis.cancelAnimationFrame = id => clearTimeout(id)
@@ -87,7 +95,7 @@ beforeEach(() => {
   vi.clearAllMocks(); fixture.releases = []; fixture.models = []; fixture.credentials = []
   fixture.save.mockResolvedValue({}); fixture.create.mockResolvedValue(agent)
 })
-afterEach(async () => { await act(async () => root.unmount()); client.clear(); container.remove() })
+afterEach(async () => { await act(async () => root.unmount()); client.clear(); container.remove(); vi.unstubAllGlobals() })
 
 describe('Behavior editor contracts', () => {
   it('hydrates a legacy prompt verbatim and writes only the structured Behavior', () => {
@@ -112,99 +120,140 @@ describe('Behavior editor contracts', () => {
     expect(behaviorToSpec(state).responsibilities).toEqual(['Second', 'First', 'Second'])
     expect(state.responsibilities).toEqual([' Second ', '', 'First', 'Second'])
   })
-  it('renders the standalone editor as four continuous configuration surfaces', async () => {
-    await renderEditor('standalone')
-    const primary = container.querySelector('[aria-label="Agent configuration groups"]')!
-    expect([...primary.querySelectorAll('button')].map(item => item.textContent)).toEqual(['Agent', 'Execution', 'Capabilities', 'Output'])
-    expect(container.querySelector('[aria-label="Agent configuration sections"]')).toBeNull()
-    expect(container.textContent).not.toContain('System Prompt')
-    expect(container.querySelector('section[aria-label="Agent Identity"]')).toBeTruthy()
-    expect(container.querySelector('section[aria-label="Behavior"]')).toBeTruthy()
-    expect(container.querySelector('section[aria-label="Behavior Summary"]')).toBeNull()
-    expect(input('Name').value).toBe('Reviewer')
-    expect(input('Description').value).toBe('Review invoices')
-    expect(editor.isDirty).toBe(false)
-
-    await fill(input('Objective'), 'Resolve invoices')
-    expect(editor.isDirty).toBe(true)
-    await act(async () => editor.resetToBaseline())
-    expect(input('Objective').value).toBe('')
-    expect(editor.isDirty).toBe(false)
-    await fill(input('Objective'), 'Resolve invoices')
-
-    await click(button('Execution'))
-    expect(container.querySelector('section[aria-label="Runtime"]')).toBeTruthy()
-    expect(container.querySelector('section[aria-label="Model"]')).toBeTruthy()
-    expect(container.querySelector('section[aria-label="Context Manager"]')).toBeTruthy()
-    expect(container.querySelector('section[aria-label="Session Mode"]')).toBeTruthy()
-    expect(container.textContent).toContain('Standard Context Manager')
-    await click([...container.querySelectorAll('button')].find(item => item.textContent?.startsWith('Stateless'))!)
-    expect(container.textContent).toContain('does not preserve Agent Session history')
-    await click(button('Save draft'))
-    expect(fixture.save).toHaveBeenCalledWith(expect.objectContaining({ behavior_spec: expect.objectContaining({ objective: 'Resolve invoices' }), session_mode: 'stateless' }))
-    expect(fixture.save.mock.calls[0][0]).not.toHaveProperty('system_prompt')
-    expect(editor.isDirty).toBe(false)
-  })
-  it('keeps the Network editor on its existing secondary-navigation contract', async () => {
-    await renderEditor('network')
+  it.each(['standalone', 'network'])('uses the same section navigation and Draft actions in %s', async surface => {
+    await renderEditor(surface)
     const primary = container.querySelector('[aria-label="Agent configuration groups"]')!
     expect([...primary.querySelectorAll('button')].map(item => item.textContent)).toEqual(['Agent', 'Execution', 'Capabilities', 'Output'])
     expect([...container.querySelectorAll('[aria-label="Agent configuration sections"] button')].map(item => item.textContent)).toEqual(['Overview', 'Behavior'])
     expect(container.querySelector('section[aria-label="Agent Identity"]')).toBeTruthy()
     expect(container.querySelector('section[aria-label="Behavior Summary"]')).toBeTruthy()
+    expect(container.querySelector('section[aria-label="Behavior"]')).toBeNull()
+    expect(container.textContent).not.toContain('System Prompt')
+    expect(input('Name').value).toBe('Reviewer')
+    expect(input('Description').value).toBe('Review invoices')
+    expect(editor.isDirty).toBe(false)
+
     await click(button('Edit Behavior'))
     await fill(input('Objective'), 'Resolve invoices')
+    await click(button('Reset Draft'))
+    expect(input('Objective').value).toBe('')
+    expect(editor.isDirty).toBe(false)
+    await fill(input('Objective'), 'Resolve invoices')
     await click(button('Execution'))
-    await click(button('Runtime'))
+    expect([...container.querySelectorAll('[aria-label="Agent configuration sections"] button')].map(item => item.textContent)).toEqual(['Runtime', 'Model'])
     expect(container.querySelector('section[aria-label="Runtime"]')).toBeTruthy()
+    expect(container.textContent).toContain('Standard Context Manager')
     await click([...container.querySelectorAll('button')].find(item => item.textContent?.startsWith('Stateless'))!)
+    await click(button('Model'))
+    expect(container.querySelector('section[aria-label="Runtime"]')).toBeNull()
+    expect(container.textContent).toContain('Primary Model')
+    expect(container.textContent).toContain('Fallback')
+    await click(button('Capabilities'))
+    expect([...container.querySelectorAll('[aria-label="Agent configuration sections"] button')].map(item => item.textContent)).toEqual(['Knowledge', 'Tools', 'Skills'])
+    expect(container.textContent).toContain('Runtime Retrieval')
+    await click(button('Tools'))
+    expect(container.textContent).toContain('No Tools selected')
+    expect(container.textContent).not.toContain('Runtime Retrieval')
     await click(button('Save'))
     expect(fixture.save).toHaveBeenCalledWith(expect.objectContaining({ behavior_spec: expect.objectContaining({ objective: 'Resolve invoices' }), session_mode: 'stateless' }))
+    expect(fixture.save.mock.calls[0][0]).not.toHaveProperty('system_prompt')
+    expect(editor.isDirty).toBe(false)
   })
-  it.each(['Responsibilities', 'Allowed Behaviors', 'Disallowed Behaviors'])('adds, edits and removes direct standalone %s rows without a second confirmation', async label => {
-    await renderEditor('standalone')
-    const labels = ['Responsibilities', 'Allowed Behaviors', 'Disallowed Behaviors']
-    const addIndex = labels.indexOf(label)
-
-    let addButtons = [...container.querySelectorAll('button')].filter(item => item.textContent?.trim() === 'Add')
-    await click(addButtons[addIndex])
-    await fill(input(`${label} 1`), 'First item')
-    addButtons = [...container.querySelectorAll('button')].filter(item => item.textContent?.trim() === 'Add')
-    await click(addButtons[addIndex])
-    await fill(input(`${label} 2`), 'Second item')
-
-    expect(container.textContent).not.toContain('Confirm add')
+  it.each(['standalone', 'network'].flatMap(surface => ['Responsibilities', 'Allowed Behaviors', 'Disallowed Behaviors'].map(label => [surface, label])))('adds, edits and removes %s %s with the shared item editor', async (surface, label) => {
+    await renderEditor(surface)
+    await click(button('Behavior'))
     const key = behaviorFields.find(field => field.label === label)!.specKey
+    await click(button(`Add ${label.toLowerCase()}`))
+    await fill(input(`New ${label}`), 'Cancelled item')
+    await click(button(`Cancel add ${label.toLowerCase()}`))
+    expect((editor.toSnapshot().behavior_spec as Record<string, unknown>)[key]).toEqual([])
+    for (const value of ['First item', 'Second item']) {
+      await click(button(`Add ${label.toLowerCase()}`))
+      await fill(input(`New ${label}`), value)
+      await click(button(`Confirm add ${label.toLowerCase()}`))
+    }
     expect((editor.toSnapshot().behavior_spec as Record<string, unknown>)[key]).toEqual(['First item', 'Second item'])
     await fill(input(`${label} 2`), 'Second item edited')
-    expect((editor.toSnapshot().behavior_spec as Record<string, unknown>)[key]).toEqual(['First item', 'Second item edited'])
     await click(button(`Remove ${label.toLowerCase()} 1`))
     expect((editor.toSnapshot().behavior_spec as Record<string, unknown>)[key]).toEqual(['Second item edited'])
   })
-  it('edits standalone identity and guidance directly in the central Draft state', async () => {
-    await renderEditor('standalone')
+  it.each(['standalone', 'network'])('edits identity and applies or cancels guidance in %s', async surface => {
+    await renderEditor(surface)
     await fill(input('Name'), 'Auditor')
     await fill(input('Description'), 'Invoice specialist')
-
+    await click(button('Behavior'))
+    await click(button('Configure Operating Instructions'))
+    await fill(input('Operating Instructions'), 'Cancelled instructions')
+    await click(button('Cancel Operating Instructions'))
+    expect(editor.state.behavior.operatingInstructions).toBe('')
     await click(button('Configure Operating Instructions'))
     await fill(input('Operating Instructions'), 'Check totals')
-    expect((editor.toSnapshot().behavior_spec as Record<string, unknown>).operating_instructions).toBe('Check totals')
-    await click(button('Close Operating Instructions'))
-
+    await click(button('Apply Operating Instructions'))
     await click(button('Configure Response Guidelines'))
     await fill(input('Response Guidelines'), 'Be concise')
-    expect((editor.toSnapshot().behavior_spec as Record<string, unknown>).response_guidelines).toBe('Be concise')
-    await click(button('Close Response Guidelines'))
-
-    const advanced = [...container.querySelectorAll('summary')].find(item => item.textContent?.trim() === 'Advanced instructions')!
-    await click(advanced)
+    await click(button('Apply Response Guidelines'))
     await click(button('Edit Additional Instructions'))
     expect(input('Additional Instructions').value).toBe(agent.system_prompt)
     await fill(input('Additional Instructions'), 'Extra guidance')
-
+    await click(button('Apply Additional Instructions'))
     expect(editor.toSnapshot()).toMatchObject({ name: 'Auditor', description: 'Invoice specialist', behavior_spec: { operating_instructions: 'Check totals', response_guidelines: 'Be concise', additional_instructions: 'Extra guidance' } })
     expect(container.querySelectorAll('span[title][tabindex="0"]').length).toBe(7)
-    expect(container.textContent).not.toContain('Apply Operating Instructions')
+  })
+  it.each(['standalone', 'network'])('blocks invalid Output from another section and recovers after Reset in %s', async surface => {
+    await renderEditor(surface)
+    await click(button('Output'))
+    await click(container.querySelector('input[type="checkbox"]')!)
+    await fill(input('Output contract'), '[]')
+    await click(button('Agent'))
+    await click(button('Save'))
+    expect(fixture.save).not.toHaveBeenCalled()
+    expect(button('Output').getAttribute('aria-pressed')).toBe('true')
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain('must be a JSON object')
+    await click(button('Reset Draft'))
+    await click(button('Agent'))
+    await fill(input('Name'), 'Valid Draft')
+    await click(button('Save'))
+    expect(fixture.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Valid Draft', output_schema: null, response_format: expect.objectContaining({ enabled: false }) }))
+    expect(editor.isDirty).toBe(false)
+  })
+  it.each(['standalone', 'network'])('keeps newer edits dirty when a captured save finishes in %s', async surface => {
+    let finish!: (value: unknown) => void
+    fixture.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve }))
+    await renderEditor(surface)
+    await fill(input('Name'), 'Saved name')
+    await click(button('Save'))
+    await fill(input('Description'), 'Edited while saving')
+    await act(async () => { finish({}) })
+    expect(fixture.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Saved name', description: 'Review invoices' }))
+    expect(editor.isDirty).toBe(true)
+    await click(button('Reset Draft'))
+    expect(input('Name').value).toBe('Saved name')
+    expect(input('Description').value).toBe('Review invoices')
+  })
+  it.each(['standalone', 'network'])('preserves the Draft after a failed save and clears the loaded Release after retry in %s', async surface => {
+    fixture.save.mockRejectedValueOnce(new Error('Save unavailable'))
+    await renderEditor(surface)
+    await act(async () => editor.setLoadedRelease('release', '1.0.0'))
+    await fill(input('Name'), 'Retry name')
+    await click(button('Save'))
+    expect(container.textContent).toContain('Save failed')
+    expect(editor.isDirty).toBe(true)
+    expect(editor.loadedReleaseVersion).toBe('1.0.0')
+    await click(button('Save'))
+    expect(editor.isDirty).toBe(false)
+    expect(editor.loadedReleaseVersion).toBeNull()
+  })
+  it('keeps the Network dirty notification and registered save valid while viewing Versions', async () => {
+    await renderEditor('network')
+    expect(fixture.dirty).toHaveBeenLastCalledWith(false)
+    await fill(input('Name'), 'Network draft')
+    expect(fixture.dirty).toHaveBeenLastCalledWith(true)
+    await click(button('Versions'))
+    let result: boolean | undefined
+    await act(async () => { result = await fixture.registerSave.mock.calls[fixture.registerSave.mock.calls.length - 1][0]() })
+    expect(result).toBe(true)
+    expect(fixture.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Network draft' }))
+    expect(fixture.dirty).toHaveBeenLastCalledWith(false)
   })
   it('keeps edits made after a save capture dirty when the captured state becomes the baseline', async () => {
     await render(<AgentEditorProvider agent={agent} projectId="project"><Probe /></AgentEditorProvider>)

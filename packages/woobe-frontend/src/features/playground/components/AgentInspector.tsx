@@ -1,24 +1,11 @@
-import { useEffect, useState } from 'react'
-import { ChevronRight, Edit3, Lock, Maximize2, Minimize2, Rocket, RotateCcw, Save } from 'lucide-react'
-import { AgentEditorNavigation, groupForAgentEditorSection, useAgentEditorSection } from '@/features/agents/components/AgentEditorNavigation'
-import { AgentOverviewSettings } from '@/features/agents/components/AgentOverviewSettings'
-import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
-import { AgentBehaviorSettings } from '@/features/agents/components/AgentBehaviorSettings'
-import { AgentRuntimeSettings } from '@/features/agents/components/AgentRuntimeSettings'
-import { outputContractError, validateAgentEditorState } from '@/features/agents/editorValidation'
-import { ModelSettingsTab } from './ModelSettingsTab'
-import { KnowledgeTab } from './KnowledgeTab'
-import { ToolsTab } from './ToolsTab'
-import { OutputSettingsTab } from './OutputSettingsTab'
+import { useState } from 'react'
+import { ChevronRight, Edit3, Lock, Maximize2, Minimize2, Rocket } from 'lucide-react'
+import { AgentConfigurationEditor } from '@/features/agents/components/AgentConfigurationEditor'
 import { ReleaseTab } from './ReleaseTab'
 import { ReleaseDetailsView } from './ReleaseDetailsView'
-import { useAgentEditor } from '../AgentEditorContext'
-import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { ScrollArea } from '@/components/ui/ScrollArea'
-import { useCreateRelease } from '@/features/agents/hooks'
 import { cn } from '@/lib/utils'
-import { toast } from 'sonner'
 import type { Agent, AgentRelease, RuntimeEnvironment } from '@/features/agents/types'
 
 interface AgentInspectorProps {
@@ -35,181 +22,6 @@ interface AgentInspectorProps {
 
 function titleCaseEnvironment(environment: RuntimeEnvironment) {
   return environment.charAt(0).toUpperCase() + environment.slice(1)
-}
-
-function EditorToolbar({
-  agent,
-  projectId,
-  onInvalidOutput,
-}: {
-  agent: Agent
-  projectId: string
-  onInvalidOutput: () => void
-}) {
-  const { state, loadedReleaseVersion, setLoadedRelease, isDirty, updateBaseline, resetToBaseline } = useAgentEditor()
-  const createRelease = useCreateRelease(agent.id)
-  const [saveFailed, setSaveFailed] = useState(false)
-  const hasValidationIssue = Boolean(outputContractError(state))
-
-  const handleSaveDraft = async () => {
-    setSaveFailed(false)
-    const capturedState = state
-    const result = validateAgentEditorState(capturedState)
-    if (!result.valid) {
-      onInvalidOutput()
-      toast.error(result.issue.message)
-      return
-    }
-
-    try {
-      await createRelease.mutateAsync({
-        project_id: projectId,
-        agent_id: agent.id,
-        version: 'draft',
-        ...result.snapshot,
-      } as any)
-
-      updateBaseline(capturedState)
-      setLoadedRelease(null, null)
-      toast.success('Draft saved')
-    } catch (err) {
-      setSaveFailed(true)
-      toast.error(err instanceof Error ? err.message : 'Failed to save draft')
-    }
-  }
-
-  const status = createRelease.isPending
-    ? 'Saving…'
-    : saveFailed
-      ? 'Save failed'
-      : hasValidationIssue
-        ? 'Fix Output contract'
-        : isDirty
-          ? 'Unsaved changes'
-          : loadedReleaseVersion
-            ? 'Ready to save as Draft'
-            : 'Saved'
-
-  return (
-    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/90 bg-background/25 px-3 py-2.5">
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-[10px] font-medium text-muted">
-          {loadedReleaseVersion ? (
-            <>Draft based on <span className="font-mono text-primary-light">{loadedReleaseVersion}</span></>
-          ) : (
-            'Current Draft'
-          )}
-        </p>
-        <p className={cn(
-          'mt-0.5 text-[9px] font-medium',
-          saveFailed || hasValidationIssue
-            ? 'text-red-300'
-            : createRelease.isPending
-              ? 'text-primary-light'
-              : isDirty
-                ? 'text-amber-300/90'
-                : 'text-muted/60',
-        )}>
-          {status}
-        </p>
-      </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="h-8 px-2 text-[10px] text-muted"
-          onClick={() => {
-            setSaveFailed(false)
-            resetToBaseline()
-          }}
-          disabled={!isDirty || createRelease.isPending}
-          title="Discard unsaved Draft changes"
-          aria-label="Discard changes"
-        >
-          <RotateCcw className="mr-1 h-3.5 w-3.5" />
-          Discard
-        </Button>
-        <Button
-          size="sm"
-          className="h-8 px-2.5 text-[10px]"
-          onClick={handleSaveDraft}
-          loading={createRelease.isPending}
-          disabled={!isDirty && !loadedReleaseVersion}
-          aria-invalid={hasValidationIssue || undefined}
-        >
-          <Save className="mr-1 h-3.5 w-3.5" />
-          Save draft
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; projectId: string; agentId: string }) {
-  const [editorSection, setEditorSection] = useAgentEditorSection()
-  const activeGroup = groupForAgentEditorSection(editorSection)
-
-  useEffect(() => {
-    const target = document.getElementById(`standalone-agent-editor-${editorSection}`)
-    if (!target || typeof target.scrollIntoView !== 'function') return
-    const scroll = () => target.scrollIntoView({ block: 'start' })
-    if (typeof requestAnimationFrame !== 'function') {
-      const timeout = window.setTimeout(scroll, 0)
-      return () => window.clearTimeout(timeout)
-    }
-    const frame = requestAnimationFrame(scroll)
-    return () => cancelAnimationFrame(frame)
-  }, [editorSection])
-
-  return (
-    <div className="flex h-full min-h-0 flex-col">
-      <EditorToolbar agent={agent} projectId={projectId} onInvalidOutput={() => setEditorSection('output')} />
-      <AgentEditorNavigation value={editorSection} onChange={setEditorSection} standalone />
-      <ScrollArea className="min-h-0 flex-1">
-        {activeGroup.id === 'agent' ? (
-          <div className="divide-y divide-border/80">
-            <div id="standalone-agent-editor-details" className="scroll-mt-3">
-              <AgentOverviewSettings standalone />
-            </div>
-            <div id="standalone-agent-editor-behavior" className="scroll-mt-3">
-              <AgentBehaviorSettings standalone />
-            </div>
-          </div>
-        ) : null}
-
-        {activeGroup.id === 'execution' ? (
-          <div className="divide-y divide-border/80">
-            <div id="standalone-agent-editor-runtime" className="scroll-mt-3">
-              <AgentRuntimeSettings projectId={projectId} standalone />
-            </div>
-            <div id="standalone-agent-editor-model" className="scroll-mt-3">
-              <ModelSettingsTab projectId={projectId} standalone />
-            </div>
-          </div>
-        ) : null}
-
-        {activeGroup.id === 'capabilities' ? (
-          <div className="divide-y divide-border/80">
-            <div id="standalone-agent-editor-knowledge" className="scroll-mt-3">
-              <KnowledgeTab projectId={projectId} agentId={agentId} standalone />
-            </div>
-            <div id="standalone-agent-editor-tools" className="scroll-mt-3">
-              <ToolsTab projectId={projectId} agentId={agentId} standalone />
-            </div>
-            <div id="standalone-agent-editor-skills" className="scroll-mt-3">
-              <AgentSkillsSection projectId={projectId} standalone />
-            </div>
-          </div>
-        ) : null}
-
-        {activeGroup.id === 'output' ? (
-          <div id="standalone-agent-editor-output" className="scroll-mt-3">
-            <OutputSettingsTab standalone />
-          </div>
-        ) : null}
-      </ScrollArea>
-    </div>
-  )
 }
 
 function EnvironmentSnapshotContent({
@@ -263,7 +75,7 @@ export function AgentInspector({
   const resolvedActiveTab = activeTab === 'versions' ? 'versions' : 'editor'
   const editorLabel = environment === 'draft' ? 'Editor' : 'Snapshot'
   const editorContent = environment === 'draft'
-    ? <EditorTabContent agent={agent} projectId={projectId} agentId={agentId} />
+    ? <AgentConfigurationEditor agent={agent} projectId={projectId} agentId={agentId} />
     : <EnvironmentSnapshotContent environment={environment} release={environmentRelease} loading={environmentReleaseLoading} />
 
   return (

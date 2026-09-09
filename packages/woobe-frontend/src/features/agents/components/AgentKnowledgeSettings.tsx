@@ -36,7 +36,7 @@ function runtimeConfig(value: Record<string, unknown>): RagRuntimeConfig {
   }
 }
 
-export function NetworkAgentKnowledge({ projectId, agentId }: { projectId: string; agentId: string }) {
+export function AgentKnowledgeSettings({ projectId, agentId }: { projectId: string; agentId: string }) {
   const { data: versions = [] } = useKnowledgeVersions(agentId)
   const { data: collections = [] } = useCollections(projectId)
   const createKnowledgeVersion = useCreateKnowledgeVersion(agentId)

@@ -5,7 +5,7 @@ import { McpProviderPanel, isMcpProviderTool } from '@/features/tools/components
 import type { HttpToolConfig, McpToolPermission, Tool } from '@/features/tools/types'
 import { cn } from '@/lib/utils'
 
-export type AgentToolCardContext = 'playground' | 'network'
+export type AgentToolCardContext = 'playground' | 'agent'
 
 interface AgentToolCardProps {
   tool: Tool

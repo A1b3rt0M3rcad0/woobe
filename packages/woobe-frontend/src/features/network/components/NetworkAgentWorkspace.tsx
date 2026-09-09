@@ -7,7 +7,7 @@ import type { Agent, AgentRelease, BehaviorSpecification } from '@/features/agen
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { cn } from '@/lib/utils'
 import { NetworkAgentChat } from './NetworkAgentChat'
-import { NetworkAgentEditor } from './NetworkAgentEditor'
+import { AgentConfigurationEditor } from '@/features/agents/components/AgentConfigurationEditor'
 import { NetworkAgentVersions } from './NetworkAgentVersions'
 
 type AgentWorkspaceTab = 'editor' | 'versions' | 'chat'
@@ -139,7 +139,7 @@ function EditableAgentWorkspaceContent({ agent, projectId, networkBinding, onOpe
       </div>
       <div className="flex shrink-0 gap-1 border-b border-border/80 bg-surface/60 p-1.5">{([['editor', 'Editor', Edit3], ['versions', 'Versions', Rocket], ['chat', 'Chat', MessageSquare]] as Array<[AgentWorkspaceTab, string, typeof Edit3]>).map(([id, label, Icon]) => <button key={id} type="button" onClick={() => setTab(id)} className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[10px] font-medium', tab === id ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-transparent text-muted hover:border-border/70 hover:text-white')}><Icon className="h-3.5 w-3.5" />{label}</button>)}</div>
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        <div className={cn('absolute inset-0', tab !== 'editor' && 'invisible pointer-events-none')} aria-hidden={tab !== 'editor'}><NetworkAgentEditor agent={agent} projectId={projectId} agentId={agent.id} onDirtyChange={onDirtyChange} onRegisterSaveAction={onRegisterSaveAction} /></div>
+        <div className={cn('absolute inset-0', tab !== 'editor' && 'invisible pointer-events-none')} aria-hidden={tab !== 'editor'}><AgentConfigurationEditor agent={agent} projectId={projectId} agentId={agent.id} onDirtyChange={onDirtyChange} onRegisterSaveAction={onRegisterSaveAction} /></div>
         <div className={cn('absolute inset-0', tab !== 'versions' && 'invisible pointer-events-none')} aria-hidden={tab !== 'versions'}><NetworkAgentVersions agent={agent} projectId={projectId} networkBinding={networkBinding} onOpenComposition={onOpenComposition} /></div>
         <div className={cn('absolute inset-0', tab !== 'chat' && 'invisible pointer-events-none')} aria-hidden={tab !== 'chat'}><NetworkAgentChat agent={runtimeAgent} projectId={projectId} onChatCompleted={() => undefined} /></div>
       </div>

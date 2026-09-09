@@ -9,7 +9,7 @@ import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { enableSkillsContext, installSkill, record, skillsConfig } from './config'
 import { ManageSkillsDialog } from './ManageSkillsDialog'
 
-function StandaloneBudgetInput({
+function SkillBudgetInput({
   value,
   min,
   max,
@@ -44,7 +44,7 @@ function StandaloneBudgetInput({
   )
 }
 
-export function AgentSkillsSection({ projectId, standalone = false }: { projectId: string; standalone?: boolean }) {
+export function AgentSkillsSection({ projectId }: { projectId: string }) {
   const { state, setField } = useAgentEditor()
   const { data: managers = [], isPending, isError, refetch } = useContextAssemblers()
   const { workspaceId } = useParams<{ workspaceId: string }>()
@@ -89,37 +89,14 @@ export function AgentSkillsSection({ projectId, standalone = false }: { projectI
         <summary className="cursor-pointer">Context budget</summary>
         <div className="mt-3 space-y-3">
           <p className="leading-5">Estimated input units, including the catalog. Instructions are preserved in full. If the budget is exhausted, another activation is declined.</p>
-          {standalone ? (
-            <>
-              <label className="block">Total Skills budget<StandaloneBudgetInput min={256} max={1000000} value={Number(policy.max_units ?? 8000)} onCommit={value => updateBudget('max_units', value)} /></label>
-              <label className="block">Catalog and search budget<StandaloneBudgetInput min={128} max={100000} value={Number(policy.catalog_max_units ?? 2000)} onCommit={value => updateBudget('catalog_max_units', value)} /></label>
-            </>
-          ) : (
-            <>
-              <label className="block">Total Skills budget<Input type="number" min={256} max={1000000} step={1} value={Number(policy.max_units ?? 8000)} onChange={event => { const value = event.target.valueAsNumber; if (Number.isInteger(value) && value >= 256 && value <= 1000000) updateBudget('max_units', value) }} className="mt-1" /></label>
-              <label className="block">Catalog and search budget<Input type="number" min={128} max={100000} step={1} value={Number(policy.catalog_max_units ?? 2000)} onChange={event => { const value = event.target.valueAsNumber; if (Number.isInteger(value) && value >= 128 && value <= 100000) updateBudget('catalog_max_units', value) }} className="mt-1" /></label>
-            </>
-          )}
+          <label className="block">Total Skills budget<SkillBudgetInput min={256} max={1000000} value={Number(policy.max_units ?? 8000)} onCommit={value => updateBudget('max_units', value)} /></label>
+          <label className="block">Catalog and search budget<SkillBudgetInput min={128} max={100000} value={Number(policy.catalog_max_units ?? 2000)} onCommit={value => updateBudget('catalog_max_units', value)} /></label>
         </div>
       </details>}
     </>
   )
 
   return <>
-    {standalone ? (
-      <section className="space-y-4 p-4" aria-label="Installed Skills">
-        <div>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-xs font-semibold text-white">Skills</p>
-              <p className="mt-1 text-[11px] leading-4 text-muted">Versioned procedures available to this Agent and materialized only when requested by the runtime.</p>
-            </div>
-            <span className="shrink-0 font-mono text-[9px] text-muted">{config.bindings.length} installed · {enabled} enabled</span>
-          </div>
-        </div>
-        {body}
-      </section>
-    ) : (
       <section className="rounded-xl border border-border bg-surface" aria-label="Installed Skills">
         <div className="flex items-center gap-3 p-4">
           <Puzzle className="h-4 w-4 shrink-0 text-primary" />
@@ -127,7 +104,6 @@ export function AgentSkillsSection({ projectId, standalone = false }: { projectI
         </div>
         <div className="space-y-4 border-t border-border p-4">{body}</div>
       </section>
-    )}
     {open && <ManageSkillsDialog projectId={projectId} bindings={config.bindings} managerName={manager?.display_name} initialVersionId={initialVersionId} installDisabled={!manager} onClose={() => setOpen(false)} onInstall={snapshot => { if (manager) setField('runtimeConfig', installSkill(state.runtimeConfig, snapshot, manager)) }} />}
   </>
 }
