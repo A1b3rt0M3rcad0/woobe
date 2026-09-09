@@ -108,7 +108,7 @@ describe('Agent editor output validation', () => {
     }
   })
 
-  it('preserves a valid dormant JSON contract when text output is active', () => {
+  it('preserves a valid dormant JSON contract without reactivating legacy output_schema', () => {
     const state = editorState()
     state.responseFormat = {
       ...state.responseFormat,
@@ -121,7 +121,7 @@ describe('Agent editor output validation', () => {
     expect(result.valid).toBe(true)
     if (result.valid) {
       expect((result.snapshot.response_format as Record<string, unknown>).schema).toEqual({ message: 'string' })
-      expect(result.snapshot.output_schema).toEqual({ message: 'string' })
+      expect(result.snapshot.output_schema).toBeNull()
     }
   })
 })
