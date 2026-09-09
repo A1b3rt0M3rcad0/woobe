@@ -10,7 +10,6 @@ import { NetworkAgentEditor } from '@/features/network/components/NetworkAgentEd
 import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import SkillsPage from '@/pages/SkillsPage'
 import { getSkillVersion, importSkill, listSkills, listSkillVersions } from './api'
-import { savedSkillInstallations } from './installations'
 import type { Agent } from '@/features/agents/types'
 
 const fixture = vi.hoisted(() => ({
@@ -155,18 +154,17 @@ describe('Skills navigation regression', () => {
     await click([...container.querySelectorAll('button')].find(element => element.getAttribute('role') === 'tab' && element.textContent?.includes('Installed on Agents'))!)
     expect(container.textContent).toContain('v1.0.0')
     expect(container.textContent).toContain('Disabled')
-    await click([...container.querySelectorAll('button')].find(element => element.getAttribute('aria-label') === 'Open Agent Skills editor for Reviewer')!)
+    await click([...container.querySelectorAll('button')].find(element => element.getAttribute('aria-label') === 'Open Agent Skills for Reviewer')!)
     await settle(() => expect(container.querySelector('output')?.textContent).toContain('/agents/agent-1/playground?editor=skills'))
   })
   it('distinguishes an empty catalog from a failed catalog request', async () => {
     vi.mocked(listSkills).mockResolvedValue([])
     await render(<SkillsPage />)
-    await settle(() => expect(container.textContent).toContain('No Skills in this Project yet'))
-    expect(container.textContent).not.toContain('Failed to load Skills')
+    await settle(() => expect(container.textContent).toContain('No Skills yet'))
+    expect(container.textContent).not.toContain('Catalog unavailable')
 
-    vi.mocked(listSkills).mockRejectedValueOnce(new Error('offline'))
-    await act(async () => { client.clear() })
-    await render(<SkillsPage />)
-    await settle(() => expect(container.textContent).toContain('Failed to load Skills'))
+    vi.mocked(listSkills).mockRejectedValueOnce(new Error('Catalog unavailable'))
+    await act(async () => { await client.invalidateQueries({ queryKey: ['skills'] }) })
+    await settle(() => expect(container.textContent).toContain('Catalog unavailable'))
   })
 })
