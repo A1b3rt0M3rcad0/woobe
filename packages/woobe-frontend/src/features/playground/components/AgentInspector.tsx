@@ -39,8 +39,10 @@ function titleCaseEnvironment(environment: RuntimeEnvironment) {
 function EditorToolbar({ agent, projectId }: { agent: Agent; projectId: string }) {
   const { loadedReleaseVersion, isDirty, toSnapshot, updateBaseline, resetToBaseline } = useAgentEditor()
   const createRelease = useCreateRelease(agent.id)
+  const [saveFailed, setSaveFailed] = useState(false)
 
   const handleSaveDraft = async () => {
+    setSaveFailed(false)
     try {
       const snapshot = toSnapshot()
       const rawResponseFormat = snapshot.response_format
@@ -75,13 +77,24 @@ function EditorToolbar({ agent, projectId }: { agent: Agent; projectId: string }
       updateBaseline()
       toast.success('Draft saved')
     } catch (err) {
+      setSaveFailed(true)
       toast.error(err instanceof Error ? err.message : 'Failed to save draft')
     }
   }
 
+  const status = createRelease.isPending
+    ? 'Saving…'
+    : saveFailed
+      ? 'Save failed'
+      : isDirty
+        ? 'Unsaved changes'
+        : loadedReleaseVersion
+          ? 'Ready to save as Draft'
+          : 'Saved'
+
   return (
-    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/90 bg-background/25 px-3 py-2">
-      <div className="min-w-0">
+    <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/90 bg-background/25 px-3 py-2.5">
+      <div className="min-w-0 flex-1">
         <p className="truncate text-[10px] font-medium text-muted">
           {loadedReleaseVersion ? (
             <>Draft based on <span className="font-mono text-primary-light">{loadedReleaseVersion}</span></>
@@ -89,21 +102,34 @@ function EditorToolbar({ agent, projectId }: { agent: Agent; projectId: string }
             'Current Draft'
           )}
         </p>
-        <p className={isDirty ? 'mt-0.5 text-[9px] text-amber-300/90' : 'mt-0.5 text-[9px] text-muted/60'}>
-          {isDirty ? 'Unsaved changes' : loadedReleaseVersion ? 'Ready to save as Draft' : 'Saved'}
+        <p className={cn(
+          'mt-0.5 text-[9px] font-medium',
+          saveFailed
+            ? 'text-red-300'
+            : createRelease.isPending
+              ? 'text-primary-light'
+              : isDirty
+                ? 'text-amber-300/90'
+                : 'text-muted/60',
+        )}>
+          {status}
         </p>
       </div>
       <div className="flex shrink-0 items-center gap-1.5">
         <Button
           size="sm"
           variant="ghost"
-          className="h-7 w-7 p-0 text-muted"
-          onClick={resetToBaseline}
-          disabled={!isDirty}
-          title="Reset editor to last saved Draft state"
-          aria-label="Reset Draft"
+          className="h-7 px-2 text-[10px] text-muted"
+          onClick={() => {
+            setSaveFailed(false)
+            resetToBaseline()
+          }}
+          disabled={!isDirty || createRelease.isPending}
+          title="Discard unsaved Draft changes"
+          aria-label="Discard changes"
         >
-          <RotateCcw className="h-3.5 w-3.5" />
+          <RotateCcw className="mr-1 h-3.5 w-3.5" />
+          Discard
         </Button>
         <Button
           size="sm"
@@ -112,8 +138,8 @@ function EditorToolbar({ agent, projectId }: { agent: Agent; projectId: string }
           loading={createRelease.isPending}
           disabled={!isDirty && !loadedReleaseVersion}
         >
-          <Save className="mr-1 h-3 w-3" />
-          Save
+          <Save className="mr-1 h-3.5 w-3.5" />
+          Save draft
         </Button>
       </div>
     </div>
