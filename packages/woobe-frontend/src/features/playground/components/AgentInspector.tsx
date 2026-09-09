@@ -187,13 +187,13 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
         {activeGroup.id === 'capabilities' ? (
           <div className="divide-y divide-border/80">
             <div id="standalone-agent-editor-knowledge" className="scroll-mt-3">
-              <KnowledgeTab projectId={projectId} agentId={agentId} />
+              <KnowledgeTab projectId={projectId} agentId={agentId} standalone />
             </div>
             <div id="standalone-agent-editor-tools" className="scroll-mt-3">
-              <ToolsTab projectId={projectId} agentId={agentId} />
+              <ToolsTab projectId={projectId} agentId={agentId} standalone />
             </div>
-            <div id="standalone-agent-editor-skills" className="scroll-mt-3 p-4">
-              <AgentSkillsSection projectId={projectId} />
+            <div id="standalone-agent-editor-skills" className="scroll-mt-3">
+              <AgentSkillsSection projectId={projectId} standalone />
             </div>
           </div>
         ) : null}
