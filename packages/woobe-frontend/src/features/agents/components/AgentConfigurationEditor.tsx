@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { RotateCcw, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -57,7 +57,11 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
     }
   }, [agent.id, createRelease, projectId, setLoadedRelease, setSection, state, updateBaseline])
 
-  useEffect(() => { onDirtyChange?.(isDirty) }, [isDirty, onDirtyChange])
+  const dirtyChangeRef = useRef(onDirtyChange)
+  useEffect(() => { dirtyChangeRef.current = onDirtyChange }, [onDirtyChange])
+  // Parent callbacks may change identity after receiving this notification.
+  // Notify on dirty transitions, not callback replacements, to avoid feedback loops.
+  useEffect(() => { dirtyChangeRef.current?.(isDirty) }, [isDirty])
   useEffect(() => {
     onRegisterSaveAction?.(saveDraft)
     return () => onRegisterSaveAction?.(null)

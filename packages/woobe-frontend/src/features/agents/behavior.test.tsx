@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from 'react'
+import { act, useState, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -310,6 +310,34 @@ describe('Behavior editor contracts', () => {
     await click(button('Save'))
     expect(editor.isDirty).toBe(false)
     expect(editor.loadedReleaseVersion).toBeNull()
+  })
+  it('notifies only dirty transitions when the Network parent replaces its callback', async () => {
+    function Parent() {
+      const [dirtyIds, setDirtyIds] = useState(new Set<string>())
+      return <><span data-testid="dirty-count">{dirtyIds.size}</span><NetworkAgentWorkspace
+        agent={agent} projectId="project" networkBinding={{ source: 'draft', version: 'draft' }}
+        onOpenComposition={() => {}}
+        onDirtyChange={dirty => {
+          fixture.dirty(dirty)
+          // Bound the broken feedback cycle so the regression fails without hanging.
+          if (fixture.dirty.mock.calls.length >= 10) return
+          setDirtyIds(current => {
+            const next = new Set(current)
+            if (dirty) next.add(agent.id)
+            else next.delete(agent.id)
+            return next
+          })
+        }}
+      /></>
+    }
+    await render(<Parent />)
+    expect(fixture.dirty.mock.calls).toEqual([[false]])
+    await fill(input('Name'), 'Changed draft')
+    expect(fixture.dirty.mock.calls).toEqual([[false], [true]])
+    expect(container.querySelector('[data-testid="dirty-count"]')?.textContent).toBe('1')
+    await click(button('Reset Draft'))
+    expect(fixture.dirty.mock.calls).toEqual([[false], [true], [false]])
+    expect(container.querySelector('[data-testid="dirty-count"]')?.textContent).toBe('0')
   })
   it('keeps the Network dirty notification and registered save valid while viewing Versions', async () => {
     await renderEditor('network')
