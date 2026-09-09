@@ -38,7 +38,7 @@ function normalizedInactiveSchema(schema: unknown): Record<string, unknown> | nu
 
 function textOutputSnapshot(state: AgentEditorState): Record<string, unknown> {
   const snapshot = canonicalSnapshot(state)
-  const schema = normalizedInactiveSchema(state.responseFormat.schema)
+  const dormantSchema = normalizedInactiveSchema(state.responseFormat.schema)
   const responseFormat = snapshot.response_format && typeof snapshot.response_format === 'object' && !Array.isArray(snapshot.response_format)
     ? snapshot.response_format as Record<string, unknown>
     : {}
@@ -50,9 +50,11 @@ function textOutputSnapshot(state: AgentEditorState): Record<string, unknown> {
       enabled: false,
       type: 'text',
       strict: true,
-      schema,
+      schema: dormantSchema,
     },
-    output_schema: schema,
+    // output_schema is a legacy compatibility signal. Keeping it populated would
+    // reactivate structured output even when response_format.enabled is false.
+    output_schema: null,
   }
 }
 
