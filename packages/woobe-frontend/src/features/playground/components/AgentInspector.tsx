@@ -176,10 +176,10 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
         {activeGroup.id === 'execution' ? (
           <div className="divide-y divide-border/80">
             <div id="standalone-agent-editor-runtime" className="scroll-mt-3">
-              <AgentRuntimeSettings projectId={projectId} />
+              <AgentRuntimeSettings projectId={projectId} standalone />
             </div>
             <div id="standalone-agent-editor-model" className="scroll-mt-3">
-              <ModelSettingsTab projectId={projectId} />
+              <ModelSettingsTab projectId={projectId} standalone />
             </div>
           </div>
         ) : null}
