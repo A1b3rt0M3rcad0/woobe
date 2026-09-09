@@ -79,6 +79,9 @@ async function fill(element: HTMLInputElement | HTMLTextAreaElement, value: stri
 }
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  if (!HTMLElement.prototype.scrollIntoView) HTMLElement.prototype.scrollIntoView = vi.fn()
+  if (!globalThis.requestAnimationFrame) globalThis.requestAnimationFrame = callback => setTimeout(() => callback(performance.now()), 0) as unknown as number
+  if (!globalThis.cancelAnimationFrame) globalThis.cancelAnimationFrame = id => clearTimeout(id)
   container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
   vi.clearAllMocks(); fixture.releases = []; fixture.models = []; fixture.credentials = []
@@ -109,21 +112,19 @@ describe('Behavior editor contracts', () => {
     expect(behaviorToSpec(state).responsibilities).toEqual(['Second', 'First', 'Second'])
     expect(state.responsibilities).toEqual([' Second ', '', 'First', 'Second'])
   })
-  it.each(['standalone', 'network'])('shares Overview, editable Behavior and Runtime with save/reset in %s', async surface => {
-    await renderEditor(surface)
+  it('renders the standalone editor as four continuous configuration surfaces', async () => {
+    await renderEditor('standalone')
     const primary = container.querySelector('[aria-label="Agent configuration groups"]')!
     expect([...primary.querySelectorAll('button')].map(item => item.textContent)).toEqual(['Agent', 'Execution', 'Capabilities', 'Output'])
-    expect([...container.querySelectorAll('[aria-label="Agent configuration sections"] button')].map(item => item.textContent)).toEqual(['Overview', 'Behavior'])
+    expect(container.querySelector('[aria-label="Agent configuration sections"]')).toBeNull()
     expect(container.textContent).not.toContain('System Prompt')
-    expect(container.textContent).not.toContain('Context Manager')
     expect(container.querySelector('section[aria-label="Agent Identity"]')).toBeTruthy()
-    expect(container.querySelector('section[aria-label="Behavior Summary"]')).toBeTruthy()
+    expect(container.querySelector('section[aria-label="Behavior"]')).toBeTruthy()
+    expect(container.querySelector('section[aria-label="Behavior Summary"]')).toBeNull()
     expect(input('Name').value).toBe('Reviewer')
     expect(input('Description').value).toBe('Review invoices')
     expect(editor.isDirty).toBe(false)
 
-    await click(button('Edit Behavior'))
-    expect(button('Behavior').getAttribute('aria-pressed')).toBe('true')
     await fill(input('Objective'), 'Resolve invoices')
     expect(editor.isDirty).toBe(true)
     await act(async () => editor.resetToBaseline())
@@ -132,32 +133,47 @@ describe('Behavior editor contracts', () => {
     await fill(input('Objective'), 'Resolve invoices')
 
     await click(button('Execution'))
-    await click(button('Runtime'))
     expect(container.querySelector('section[aria-label="Runtime"]')).toBeTruthy()
+    expect(container.querySelector('section[aria-label="Model"]')).toBeTruthy()
     expect(container.querySelector('section[aria-label="Context Manager"]')).toBeTruthy()
     expect(container.querySelector('section[aria-label="Session Mode"]')).toBeTruthy()
     expect(container.textContent).toContain('Standard Context Manager')
-    expect(container.textContent).toContain('Context Manager · Stateful')
-    expect(container.textContent).not.toContain('Operating Instructions')
     await click([...container.querySelectorAll('button')].find(item => item.textContent?.startsWith('Stateless'))!)
-    expect(container.textContent).toContain('Context Manager · Stateless')
     expect(container.textContent).toContain('does not preserve Agent Session history')
-    await click(button('Save'))
+    await click(button('Save draft'))
     expect(fixture.save).toHaveBeenCalledWith(expect.objectContaining({ behavior_spec: expect.objectContaining({ objective: 'Resolve invoices' }), session_mode: 'stateless' }))
     expect(fixture.save.mock.calls[0][0]).not.toHaveProperty('system_prompt')
     expect(editor.isDirty).toBe(false)
   })
-  it.each(['Responsibilities', 'Allowed Behaviors', 'Disallowed Behaviors'])('adds, edits and removes independent %s items with explicit add controls', async label => {
+  it('keeps the Network editor on its existing secondary-navigation contract', async () => {
+    await renderEditor('network')
+    const primary = container.querySelector('[aria-label="Agent configuration groups"]')!
+    expect([...primary.querySelectorAll('button')].map(item => item.textContent)).toEqual(['Agent', 'Execution', 'Capabilities', 'Output'])
+    expect([...container.querySelectorAll('[aria-label="Agent configuration sections"] button')].map(item => item.textContent)).toEqual(['Overview', 'Behavior'])
+    expect(container.querySelector('section[aria-label="Agent Identity"]')).toBeTruthy()
+    expect(container.querySelector('section[aria-label="Behavior Summary"]')).toBeTruthy()
+    await click(button('Edit Behavior'))
+    await fill(input('Objective'), 'Resolve invoices')
+    await click(button('Execution'))
+    await click(button('Runtime'))
+    expect(container.querySelector('section[aria-label="Runtime"]')).toBeTruthy()
+    await click([...container.querySelectorAll('button')].find(item => item.textContent?.startsWith('Stateless'))!)
+    await click(button('Save'))
+    expect(fixture.save).toHaveBeenCalledWith(expect.objectContaining({ behavior_spec: expect.objectContaining({ objective: 'Resolve invoices' }), session_mode: 'stateless' }))
+  })
+  it.each(['Responsibilities', 'Allowed Behaviors', 'Disallowed Behaviors'])('adds, edits and removes direct standalone %s rows without a second confirmation', async label => {
     await renderEditor('standalone')
-    await click(button('Behavior'))
+    const labels = ['Responsibilities', 'Allowed Behaviors', 'Disallowed Behaviors']
+    const addIndex = labels.indexOf(label)
 
-    await click(button(`Add ${label.toLowerCase()}`))
-    await fill(input(`New ${label}`), 'First item')
-    await click(button(`Confirm add ${label.toLowerCase()}`))
-    await click(button(`Add ${label.toLowerCase()}`))
-    await fill(input(`New ${label}`), 'Second item')
-    await click(button(`Confirm add ${label.toLowerCase()}`))
+    let addButtons = [...container.querySelectorAll('button')].filter(item => item.textContent?.trim() === 'Add')
+    await click(addButtons[addIndex])
+    await fill(input(`${label} 1`), 'First item')
+    addButtons = [...container.querySelectorAll('button')].filter(item => item.textContent?.trim() === 'Add')
+    await click(addButtons[addIndex])
+    await fill(input(`${label} 2`), 'Second item')
 
+    expect(container.textContent).not.toContain('Confirm add')
     const key = behaviorFields.find(field => field.label === label)!.specKey
     expect((editor.toSnapshot().behavior_spec as Record<string, unknown>)[key]).toEqual(['First item', 'Second item'])
     await fill(input(`${label} 2`), 'Second item edited')
@@ -165,29 +181,42 @@ describe('Behavior editor contracts', () => {
     await click(button(`Remove ${label.toLowerCase()} 1`))
     expect((editor.toSnapshot().behavior_spec as Record<string, unknown>)[key]).toEqual(['Second item edited'])
   })
-  it('edits identity and guidance through explicit Configure/Edit actions', async () => {
+  it('edits standalone identity and guidance directly in the central Draft state', async () => {
     await renderEditor('standalone')
     await fill(input('Name'), 'Auditor')
     await fill(input('Description'), 'Invoice specialist')
-    await click(button('Behavior'))
 
     await click(button('Configure Operating Instructions'))
     await fill(input('Operating Instructions'), 'Check totals')
-    await click(button('Apply Operating Instructions'))
+    expect((editor.toSnapshot().behavior_spec as Record<string, unknown>).operating_instructions).toBe('Check totals')
+    await click(button('Close Operating Instructions'))
 
     await click(button('Configure Response Guidelines'))
     await fill(input('Response Guidelines'), 'Be concise')
-    await click(button('Apply Response Guidelines'))
+    expect((editor.toSnapshot().behavior_spec as Record<string, unknown>).response_guidelines).toBe('Be concise')
+    await click(button('Close Response Guidelines'))
 
+    const advanced = [...container.querySelectorAll('summary')].find(item => item.textContent?.trim() === 'Advanced instructions')!
+    await click(advanced)
     await click(button('Edit Additional Instructions'))
     expect(input('Additional Instructions').value).toBe(agent.system_prompt)
     await fill(input('Additional Instructions'), 'Extra guidance')
-    await click(button('Apply Additional Instructions'))
 
     expect(editor.toSnapshot()).toMatchObject({ name: 'Auditor', description: 'Invoice specialist', behavior_spec: { operating_instructions: 'Check totals', response_guidelines: 'Be concise', additional_instructions: 'Extra guidance' } })
     expect(container.querySelectorAll('span[title][tabindex="0"]').length).toBe(7)
-    expect(button('Edit Operating Instructions')).toBeTruthy()
-    expect(button('Edit Response Guidelines')).toBeTruthy()
+    expect(container.textContent).not.toContain('Apply Operating Instructions')
+  })
+  it('keeps edits made after a save capture dirty when the captured state becomes the baseline', async () => {
+    await render(<AgentEditorProvider agent={agent} projectId="project"><Probe /></AgentEditorProvider>)
+    await act(async () => editor.setField('name', 'Saved name'))
+    const confirmed = editor.state
+    await act(async () => editor.setField('description', 'Changed while saving'))
+    await act(async () => editor.updateBaseline(confirmed))
+    expect(editor.state.name).toBe('Saved name')
+    expect(editor.state.description).toBe('Changed while saving')
+    expect(editor.isDirty).toBe(true)
+    await act(async () => editor.resetToBaseline())
+    expect(editor.state.description).toBe('Review invoices')
   })
 })
 
