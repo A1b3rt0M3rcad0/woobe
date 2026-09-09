@@ -1,5 +1,6 @@
 import { Edit3, Rocket, Save, RotateCcw, Lock } from 'lucide-react'
 import { AgentEditorNavigation, useAgentEditorSection } from '@/features/agents/components/AgentEditorNavigation'
+import { AgentDetailsSettings } from '@/features/agents/components/AgentDetailsSettings'
 import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
 import { InspectorTabs } from './InspectorTabs'
 import { AgentBehaviorSettings } from '@/features/agents/components/AgentBehaviorSettings'
@@ -30,33 +31,12 @@ interface AgentInspectorProps {
   onCollapse?: () => void
 }
 
-
 function titleCaseEnvironment(environment: RuntimeEnvironment) {
   return environment.charAt(0).toUpperCase() + environment.slice(1)
 }
 
-function EditorHeader() {
-  const { loadedReleaseVersion, isDirty } = useAgentEditor()
-  return (
-    <div className="flex items-center justify-between px-3 py-2 border-b border-border/90 bg-background/25 shrink-0">
-      <div className="flex items-center gap-2 min-w-0">
-        <span className="text-[10px] text-muted font-medium whitespace-nowrap">
-          {loadedReleaseVersion ? (
-            <>Draft based on: <span className="text-primary-light">{loadedReleaseVersion}</span></>
-          ) : (
-            'Current Draft'
-          )}
-        </span>
-        {isDirty && (
-          <Badge variant="warning" className="text-[9px] px-1 py-0">Unsaved changes</Badge>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function EditorActions({ agent, projectId }: { agent: Agent; projectId: string }) {
-  const { toSnapshot, updateBaseline, resetToBaseline } = useAgentEditor()
+function EditorToolbar({ agent, projectId }: { agent: Agent; projectId: string }) {
+  const { loadedReleaseVersion, isDirty, toSnapshot, updateBaseline, resetToBaseline } = useAgentEditor()
   const createRelease = useCreateRelease(agent.id)
 
   const handleSaveDraft = async () => {
@@ -98,31 +78,43 @@ function EditorActions({ agent, projectId }: { agent: Agent; projectId: string }
     }
   }
 
-  const handleReset = () => {
-    resetToBaseline()
-  }
-
   return (
-    <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/90 bg-background/20 shrink-0">
-      <Button
-        size="sm"
-        variant="outline"
-        className="text-[11px] flex-1 border-primary/30 bg-primary/10 text-primary-light hover:bg-primary/15 hover:text-white"
-        onClick={handleSaveDraft}
-        loading={createRelease.isPending}
-      >
-        <Save className="mr-1 h-3 w-3" />
-        Save Draft
-      </Button>
-      <Button
-        size="sm"
-        variant="ghost"
-        className="text-[11px] border border-border/80 bg-background/45 hover:bg-surface/70"
-        onClick={handleReset}
-        title="Reset editor to last saved draft state"
-      >
-        <RotateCcw className="h-3 w-3" />
-      </Button>
+    <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border/90 bg-background/25 px-3 py-2">
+      <div className="min-w-0">
+        <p className="truncate text-[10px] font-medium text-muted">
+          {loadedReleaseVersion ? (
+            <>Draft based on <span className="font-mono text-primary-light">{loadedReleaseVersion}</span></>
+          ) : (
+            'Current Draft'
+          )}
+        </p>
+        <p className={isDirty ? 'mt-0.5 text-[9px] text-amber-300/90' : 'mt-0.5 text-[9px] text-muted/60'}>
+          {isDirty ? 'Unsaved changes' : loadedReleaseVersion ? 'Ready to save as Draft' : 'Saved'}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <Button
+          size="sm"
+          variant="ghost"
+          className="h-7 w-7 p-0 text-muted"
+          onClick={resetToBaseline}
+          disabled={!isDirty}
+          title="Reset editor to last saved Draft state"
+          aria-label="Reset Draft"
+        >
+          <RotateCcw className="h-3.5 w-3.5" />
+        </Button>
+        <Button
+          size="sm"
+          className="h-7 px-2.5 text-[10px]"
+          onClick={handleSaveDraft}
+          loading={createRelease.isPending}
+          disabled={!isDirty && !loadedReleaseVersion}
+        >
+          <Save className="mr-1 h-3 w-3" />
+          Save
+        </Button>
+      </div>
     </div>
   )
 }
@@ -131,12 +123,12 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
   const [editorTab, setEditorTab] = useAgentEditorSection()
 
   return (
-    <div className="flex flex-col h-full">
-      <EditorHeader />
-      <EditorActions agent={agent} projectId={projectId} />
+    <div className="flex h-full flex-col">
+      <EditorToolbar agent={agent} projectId={projectId} />
       <AgentEditorNavigation value={editorTab} onChange={setEditorTab} />
-      <ScrollArea className="flex-1 min-h-0">
-        {editorTab === 'agent' && <AgentBehaviorSettings />}
+      <ScrollArea className="min-h-0 flex-1">
+        {editorTab === 'details' && <AgentDetailsSettings />}
+        {editorTab === 'behavior' && <AgentBehaviorSettings />}
         {editorTab === 'runtime' && <AgentRuntimeSettings projectId={projectId} />}
         {editorTab === 'output' && <OutputSettingsTab />}
         {editorTab === 'model' && <ModelSettingsTab projectId={projectId} />}
@@ -214,11 +206,11 @@ export function AgentInspector({
   ]
 
   return (
-    <div className="w-[400px] shrink-0 border-l border-border/90 bg-surface/75 shadow-sm shadow-black/5 flex flex-col">
-      <div className="flex items-center justify-between px-3 py-3 border-b border-border/90 bg-background/25 shrink-0">
-        <p className="text-xs font-semibold text-muted uppercase tracking-wider">Inspector</p>
+    <div className="flex w-[400px] shrink-0 flex-col border-l border-border/90 bg-surface/75 shadow-sm shadow-black/5">
+      <div className="flex shrink-0 items-center justify-between border-b border-border/90 bg-background/25 px-3 py-3">
+        <p className="text-xs font-semibold uppercase tracking-wider text-muted">Inspector</p>
       </div>
-      <div className="flex-1 min-h-0 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden">
         <InspectorTabs tabs={tabs} defaultTab={resolvedActiveTab} onTabChange={onTabChange} />
       </div>
     </div>

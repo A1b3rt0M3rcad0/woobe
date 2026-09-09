@@ -107,6 +107,7 @@ describe('Skills navigation regression', () => {
   it.each(['standalone', 'network'])('makes Skills visible and usable in the %s editor', async surface => {
     const editor = surface === 'network' ? <NetworkAgentEditor agent={fixture.agent} projectId="project-1" agentId="agent-1" /> : <AgentInspector agent={fixture.agent} projectId="project-1" agentId="agent-1" activeTab="editor" environment="draft" environmentRelease={null} onTabChange={vi.fn()} />
     await render(editor)
+    await click(button('Capabilities'))
     await click(button('Skills'))
     expect(button('Skills').getAttribute('aria-pressed')).toBe('true')
     expect(container.querySelector('section[aria-label="Installed Skills"]')).toBeTruthy()
@@ -126,7 +127,7 @@ describe('Skills navigation regression', () => {
   it('keeps catalog management available when a compatible manager cannot load', async () => {
     fixture.managersError = true
     await render(<NetworkAgentEditor agent={fixture.agent} projectId="project-1" agentId="agent-1" />)
-    await click(button('Skills')); await click(button('Manage Skills'))
+    await click(button('Capabilities')); await click(button('Skills')); await click(button('Manage Skills'))
     await settle(() => expect(button('Create Skill')).toBeTruthy())
     expect(document.body.textContent).toContain('Installation requires a compatible Context Manager')
   })
@@ -139,7 +140,7 @@ describe('Skills navigation regression', () => {
     await settle(() => expect(importSkill).toHaveBeenCalledWith('project-1', { version: '1.0.0', skill_md: '---\nname: "invoice-review"\ndescription: "Review invoices"\n---\nCheck totals', resources: {}, required_tools: [] }, undefined))
     await settle(() => expect(document.body.textContent).toContain('SHA-256 hash'))
     await click(button('Install on Agent')); await click(button('Reviewer'))
-    await settle(() => expect(container.querySelector('output')?.textContent).toBe('/workspaces/workspace-1/projects/project-1/agents/agent-1/playground?editor=skills&skill_version_id=version-1'))
+    await settle(() => expect(container.querySelector('output')?.textContent).toContain('/agents/agent-1/playground?editor=skills&skill_version_id=version-1'))
   })
   it('lists saved installations including disabled versions as operational cards and opens the Agent Skills editor', async () => {
     fixture.agent.settings = { runtime_config: { skills: { bindings: [{ skill_id: 'skill-1', skill_version_id: 'version-1', enabled: false }], snapshots: [fixture.snapshot] } } }

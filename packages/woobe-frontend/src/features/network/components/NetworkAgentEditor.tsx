@@ -2,12 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { RotateCcw, Save } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
 import { useCreateRelease } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { AgentEditorNavigation, useAgentEditorSection } from '@/features/agents/components/AgentEditorNavigation'
+import { AgentDetailsSettings } from '@/features/agents/components/AgentDetailsSettings'
 import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
 import { AgentBehaviorSettings } from '@/features/agents/components/AgentBehaviorSettings'
 import { AgentRuntimeSettings } from '@/features/agents/components/AgentRuntimeSettings'
@@ -41,8 +41,24 @@ export function NetworkAgentEditor({ agent, projectId, agentId, onDirtyChange, o
   useEffect(() => { onRegisterSaveAction?.(saveDraft); return () => onRegisterSaveAction?.(null) }, [onRegisterSaveAction, saveDraft])
 
   return <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-    <div className="flex shrink-0 items-center gap-2 border-b border-border/80 bg-background/25 px-3 py-2"><p className="min-w-0 flex-1 truncate text-[10px] text-muted">{loadedReleaseVersion ? <>Draft based on <span className="font-mono text-primary-light">{loadedReleaseVersion}</span></> : 'Current Draft'}</p>{isDirty ? <Badge variant="warning" className="px-1.5 py-0 text-[8px]">Unsaved</Badge> : null}<Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={resetToBaseline} disabled={!isDirty} title="Reset to saved Draft"><RotateCcw className="h-3 w-3" /></Button><Button size="sm" className="h-7 px-2 text-[10px]" onClick={() => void saveDraft()} loading={createRelease.isPending} disabled={!outputValid || (!isDirty && !loadedReleaseVersion)}><Save className="mr-1 h-3 w-3" />Save</Button></div>
+    <div className="flex shrink-0 items-center gap-2 border-b border-border/80 bg-background/25 px-3 py-2">
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-[10px] text-muted">{loadedReleaseVersion ? <>Draft based on <span className="font-mono text-primary-light">{loadedReleaseVersion}</span></> : 'Current Draft'}</p>
+        <p className={isDirty ? 'mt-0.5 text-[9px] text-amber-300/90' : 'mt-0.5 text-[9px] text-muted/60'}>{isDirty ? 'Unsaved changes' : loadedReleaseVersion ? 'Ready to save as Draft' : 'Saved'}</p>
+      </div>
+      <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted" onClick={resetToBaseline} disabled={!isDirty} title="Reset to saved Draft" aria-label="Reset Draft"><RotateCcw className="h-3.5 w-3.5" /></Button>
+      <Button size="sm" className="h-7 px-2.5 text-[10px]" onClick={() => void saveDraft()} loading={createRelease.isPending} disabled={!outputValid || (!isDirty && !loadedReleaseVersion)}><Save className="mr-1 h-3 w-3" />Save</Button>
+    </div>
     <AgentEditorNavigation value={section} onChange={setSection} />
-    <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">{section === 'agent' ? <AgentBehaviorSettings /> : null}{section === 'runtime' ? <AgentRuntimeSettings projectId={projectId} /> : null}{section === 'output' ? <NetworkAgentOutput onValidity={setOutputValid} /> : null}{section === 'model' ? <NetworkAgentModel projectId={projectId} /> : null}{section === 'knowledge' ? <NetworkAgentKnowledge projectId={projectId} agentId={agentId} /> : null}{section === 'skills' ? <div className="p-4"><AgentSkillsSection projectId={projectId} /></div> : null}{section === 'tools' ? <NetworkAgentTools projectId={projectId} agentId={agentId} /> : null}</div>
+    <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      {section === 'details' ? <AgentDetailsSettings /> : null}
+      {section === 'behavior' ? <AgentBehaviorSettings /> : null}
+      {section === 'runtime' ? <AgentRuntimeSettings projectId={projectId} /> : null}
+      {section === 'output' ? <NetworkAgentOutput onValidity={setOutputValid} /> : null}
+      {section === 'model' ? <NetworkAgentModel projectId={projectId} /> : null}
+      {section === 'knowledge' ? <NetworkAgentKnowledge projectId={projectId} agentId={agentId} /> : null}
+      {section === 'skills' ? <div className="p-4"><AgentSkillsSection projectId={projectId} /></div> : null}
+      {section === 'tools' ? <NetworkAgentTools projectId={projectId} agentId={agentId} /> : null}
+    </div>
   </div>
 }
