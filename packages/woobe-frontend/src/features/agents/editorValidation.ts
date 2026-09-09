@@ -18,6 +18,44 @@ function invalid(code: AgentEditorValidationIssue['code'], message: string): Age
   }
 }
 
+function normalizedInactiveSchema(schema: unknown): Record<string, unknown> | null {
+  if (typeof schema === 'string') {
+    if (!schema.trim()) return null
+    try {
+      const parsed = JSON.parse(schema)
+      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+        ? parsed as Record<string, unknown>
+        : null
+    } catch {
+      return null
+    }
+  }
+
+  return schema && typeof schema === 'object' && !Array.isArray(schema)
+    ? schema as Record<string, unknown>
+    : null
+}
+
+function textOutputSnapshot(state: AgentEditorState): Record<string, unknown> {
+  const snapshot = canonicalSnapshot(state)
+  const schema = normalizedInactiveSchema(state.responseFormat.schema)
+  const responseFormat = snapshot.response_format && typeof snapshot.response_format === 'object' && !Array.isArray(snapshot.response_format)
+    ? snapshot.response_format as Record<string, unknown>
+    : {}
+
+  return {
+    ...snapshot,
+    response_format: {
+      ...responseFormat,
+      enabled: false,
+      type: 'text',
+      strict: true,
+      schema,
+    },
+    output_schema: schema,
+  }
+}
+
 export function outputContractError(state: AgentEditorState): string | null {
   if (!state.responseFormat.enabled || state.responseFormat.type !== 'json') return null
 
@@ -42,7 +80,7 @@ export function outputContractError(state: AgentEditorState): string | null {
 
 export function validateAgentEditorState(state: AgentEditorState): AgentEditorValidationResult {
   if (!state.responseFormat.enabled || state.responseFormat.type !== 'json') {
-    return { valid: true, issue: null, snapshot: canonicalSnapshot(state) }
+    return { valid: true, issue: null, snapshot: textOutputSnapshot(state) }
   }
 
   const error = outputContractError(state)
