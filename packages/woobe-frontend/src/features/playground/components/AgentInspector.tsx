@@ -1,6 +1,6 @@
 import { Edit3, Rocket, Save, RotateCcw, Lock } from 'lucide-react'
 import { AgentEditorNavigation, useAgentEditorSection } from '@/features/agents/components/AgentEditorNavigation'
-import { AgentDetailsSettings } from '@/features/agents/components/AgentDetailsSettings'
+import { AgentOverviewSettings } from '@/features/agents/components/AgentOverviewSettings'
 import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
 import { InspectorTabs } from './InspectorTabs'
 import { AgentBehaviorSettings } from '@/features/agents/components/AgentBehaviorSettings'
@@ -127,7 +127,7 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
       <EditorToolbar agent={agent} projectId={projectId} />
       <AgentEditorNavigation value={editorTab} onChange={setEditorTab} />
       <ScrollArea className="min-h-0 flex-1">
-        {editorTab === 'details' && <AgentDetailsSettings />}
+        {editorTab === 'details' && <AgentOverviewSettings onOpenBehavior={() => setEditorTab('behavior')} />}
         {editorTab === 'behavior' && <AgentBehaviorSettings />}
         {editorTab === 'runtime' && <AgentRuntimeSettings projectId={projectId} />}
         {editorTab === 'output' && <OutputSettingsTab />}

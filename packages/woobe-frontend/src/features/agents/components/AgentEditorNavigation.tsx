@@ -19,7 +19,7 @@ const groups: ReadonlyArray<AgentEditorGroup> = [
     label: 'Agent',
     icon: Bot,
     sections: [
-      { id: 'details', label: 'Details' },
+      { id: 'details', label: 'Overview' },
       { id: 'behavior', label: 'Behavior' },
     ],
   },
@@ -51,7 +51,7 @@ const groups: ReadonlyArray<AgentEditorGroup> = [
 ]
 
 function resolveSection(value: string | null): AgentEditorSection {
-  if (value === 'agent') return 'details'
+  if (value === 'agent' || value === 'overview') return 'details'
   for (const group of groups) {
     const section = group.sections.find(item => item.id === value)
     if (section) return section.id

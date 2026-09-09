@@ -109,19 +109,21 @@ describe('Behavior editor contracts', () => {
     expect(behaviorToSpec(state).responsibilities).toEqual(['Second', 'First', 'Second'])
     expect(state.responsibilities).toEqual([' Second ', '', 'First', 'Second'])
   })
-  it.each(['standalone', 'network'])('shares grouped navigation, Behavior and Runtime with save/reset in %s', async surface => {
+  it.each(['standalone', 'network'])('shares Overview, editable Behavior and Runtime with save/reset in %s', async surface => {
     await renderEditor(surface)
     const primary = container.querySelector('[aria-label="Agent configuration groups"]')!
     expect([...primary.querySelectorAll('button')].map(item => item.textContent)).toEqual(['Agent', 'Execution', 'Capabilities', 'Output'])
-    expect([...container.querySelectorAll('[aria-label="Agent configuration sections"] button')].map(item => item.textContent)).toEqual(['Details', 'Behavior'])
+    expect([...container.querySelectorAll('[aria-label="Agent configuration sections"] button')].map(item => item.textContent)).toEqual(['Overview', 'Behavior'])
     expect(container.textContent).not.toContain('System Prompt')
     expect(container.textContent).not.toContain('Context Manager')
+    expect(container.querySelector('section[aria-label="Agent Identity"]')).toBeTruthy()
+    expect(container.querySelector('section[aria-label="Behavior Summary"]')).toBeTruthy()
     expect(input('Name').value).toBe('Reviewer')
     expect(input('Description').value).toBe('Review invoices')
     expect(editor.isDirty).toBe(false)
 
-    await click(button('Behavior'))
-    expect(container.querySelector('details')!.open).toBe(false)
+    await click(button('Edit Behavior'))
+    expect(button('Behavior').getAttribute('aria-pressed')).toBe('true')
     await fill(input('Objective'), 'Resolve invoices')
     expect(editor.isDirty).toBe(true)
     await act(async () => editor.resetToBaseline())
@@ -140,39 +142,54 @@ describe('Behavior editor contracts', () => {
     expect(fixture.save.mock.calls[0][0]).not.toHaveProperty('system_prompt')
     expect(editor.isDirty).toBe(false)
   })
-  it.each(['Responsibilities', 'Allowed Behaviors', 'Disallowed Behaviors'])('adds, edits and removes independent %s items', async label => {
+  it.each(['Responsibilities', 'Allowed Behaviors', 'Disallowed Behaviors'])('adds, edits and removes independent %s items with explicit add controls', async label => {
     await renderEditor('standalone')
     await click(button('Behavior'))
+
     await click(button(`Add ${label.toLowerCase()}`))
-    await fill(input(`${label} 1`), 'First item')
+    await fill(input(`New ${label}`), 'First item')
+    await click(button(`Confirm add ${label.toLowerCase()}`))
     await click(button(`Add ${label.toLowerCase()}`))
-    await fill(input(`${label} 2`), 'Second item')
+    await fill(input(`New ${label}`), 'Second item')
+    await click(button(`Confirm add ${label.toLowerCase()}`))
+
     const key = behaviorFields.find(field => field.label === label)!.specKey
     expect((editor.toSnapshot().behavior_spec as Record<string, unknown>)[key]).toEqual(['First item', 'Second item'])
+    await fill(input(`${label} 2`), 'Second item edited')
+    expect((editor.toSnapshot().behavior_spec as Record<string, unknown>)[key]).toEqual(['First item', 'Second item edited'])
     await click(button(`Remove ${label.toLowerCase()} 1`))
-    expect((editor.toSnapshot().behavior_spec as Record<string, unknown>)[key]).toEqual(['Second item'])
+    expect((editor.toSnapshot().behavior_spec as Record<string, unknown>)[key]).toEqual(['Second item edited'])
   })
-  it('edits identity, communication and operating guidance with progressive disclosure', async () => {
+  it('edits identity and guidance through explicit Configure/Edit actions', async () => {
     await renderEditor('standalone')
     await fill(input('Name'), 'Auditor')
     await fill(input('Description'), 'Invoice specialist')
     await click(button('Behavior'))
+
+    await click(button('Configure Operating Instructions'))
     await fill(input('Operating Instructions'), 'Check totals')
+    await click(button('Apply Operating Instructions'))
+
+    await click(button('Configure Response Guidelines'))
     await fill(input('Response Guidelines'), 'Be concise')
-    const guidanceRows = [...container.querySelectorAll('details')]
-    expect(guidanceRows).toHaveLength(3)
-    await click(guidanceRows[2].querySelector('summary')!)
-    expect(guidanceRows[2].open).toBe(true)
+    await click(button('Apply Response Guidelines'))
+
+    await click(button('Edit Additional Instructions'))
     expect(input('Additional Instructions').value).toBe(agent.system_prompt)
     await fill(input('Additional Instructions'), 'Extra guidance')
+    await click(button('Apply Additional Instructions'))
+
     expect(editor.toSnapshot()).toMatchObject({ name: 'Auditor', description: 'Invoice specialist', behavior_spec: { operating_instructions: 'Check totals', response_guidelines: 'Be concise', additional_instructions: 'Extra guidance' } })
     expect(container.querySelectorAll('span[title][tabindex="0"]').length).toBe(7)
+    expect(button('Edit Operating Instructions')).toBeTruthy()
+    expect(button('Edit Response Guidelines')).toBeTruthy()
   })
 })
 
 describe('Editor navigation and immutable views', () => {
   it.each([
-    ['details', 'Details'],
+    ['details', 'Overview'],
+    ['overview', 'Overview'],
     ['behavior', 'Behavior'],
     ['runtime', 'Runtime'],
     ['model', 'Model'],
@@ -185,10 +202,10 @@ describe('Editor navigation and immutable views', () => {
     const pressed = [...container.querySelectorAll('button[aria-pressed="true"]')].map(item => item.textContent?.trim())
     expect(pressed).toContain(expectedLabel)
   })
-  it('keeps editor=agent as a compatibility alias for Details', async () => {
+  it('keeps editor=agent as a compatibility alias for Overview', async () => {
     await render(<Navigation />, '/workspaces/w/projects/p/agents/a?editor=agent')
     expect(button('Agent').getAttribute('aria-pressed')).toBe('true')
-    expect(button('Details').getAttribute('aria-pressed')).toBe('true')
+    expect(button('Overview').getAttribute('aria-pressed')).toBe('true')
   })
   it('responds to query changes and falls back for invalid sections', async () => {
     await render(<Navigation />)
@@ -197,7 +214,7 @@ describe('Editor navigation and immutable views', () => {
     expect(button('Runtime').getAttribute('aria-pressed')).toBe('true')
     await click(button('Invalid query'))
     expect(button('Agent').getAttribute('aria-pressed')).toBe('true')
-    expect(button('Details').getAttribute('aria-pressed')).toBe('true')
+    expect(button('Overview').getAttribute('aria-pressed')).toBe('true')
   })
   it.each([true, false])('renders structured Behavior or explicit legacy instructions (structured=%s)', async structured => {
     const item = release({ description: 'Frozen role', behavior_spec: structured ? behaviorToSpec({ ...behaviorFromSpec(), objective: 'Frozen objective', responsibilities: ['Check totals'] }) : null, system_prompt: 'Historical instructions' })

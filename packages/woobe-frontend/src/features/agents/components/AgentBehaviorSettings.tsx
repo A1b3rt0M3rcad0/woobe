@@ -1,5 +1,5 @@
-import { useId } from 'react'
-import { ChevronDown, CircleHelp, Plus, X } from 'lucide-react'
+import { useId, useState } from 'react'
+import { Ban, CheckCircle2, CircleHelp, Plus, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
 import { Button } from '@/components/ui/Button'
@@ -8,7 +8,7 @@ import { behaviorFields, type AgentBehavior } from '../behavior'
 import { cn } from '@/lib/utils'
 
 type ListBehaviorKey = 'responsibilities' | 'allowedBehaviors' | 'disallowedBehaviors'
-type TextBehaviorKey = 'objective' | 'operatingInstructions' | 'responseGuidelines' | 'additionalInstructions'
+type GuidanceKey = 'operatingInstructions' | 'responseGuidelines' | 'additionalInstructions'
 
 function fieldDefinition(key: keyof AgentBehavior) {
   return behaviorFields.find(field => field.key === key)!
@@ -27,202 +27,258 @@ function HelpHint({ label, help }: { label: string; help: string }) {
   )
 }
 
-function SectionHeading({ index, title, description }: { index: string; title: string; description: string }) {
-  return (
-    <div className="mb-3">
-      <div className="flex items-center gap-2">
-        <span className="font-mono text-[9px] text-muted/70">{index}</span>
-        <h4 className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">{title}</h4>
-      </div>
-      <p className="mt-1 pl-6 text-[11px] leading-4 text-muted">{description}</p>
-    </div>
-  )
-}
-
-function ListField({
+function ListSetting({
   behavior,
   onChange,
   fieldKey,
   addLabel,
-  numbered = false,
   tone = 'neutral',
 }: {
   behavior: AgentBehavior
   onChange: (behavior: AgentBehavior) => void
   fieldKey: ListBehaviorKey
   addLabel: string
-  numbered?: boolean
   tone?: 'neutral' | 'allowed' | 'disallowed'
 }) {
   const definition = fieldDefinition(fieldKey)
   const items = behavior[fieldKey]
-  const updateItem = (index: number, value: string) => onChange({
-    ...behavior,
-    [fieldKey]: items.map((current, itemIndex) => itemIndex === index ? value : current),
-  })
-  const removeItem = (index: number) => onChange({
-    ...behavior,
-    [fieldKey]: items.filter((_, itemIndex) => itemIndex !== index),
-  })
+  const [adding, setAdding] = useState(false)
+  const [draft, setDraft] = useState('')
+  const configured = items.filter(item => item.trim()).length
+
+  const confirmAdd = () => {
+    if (!draft.trim()) return
+    onChange({ ...behavior, [fieldKey]: [...items, draft] })
+    setDraft('')
+    setAdding(false)
+  }
+
+  const cancelAdd = () => {
+    setDraft('')
+    setAdding(false)
+  }
 
   return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-1.5">
-        <span className="text-xs font-medium text-muted">{definition.label}</span>
-        <HelpHint label={definition.label} help={definition.help} />
+    <div className="space-y-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-medium text-white">{definition.label}</span>
+            <HelpHint label={definition.label} help={definition.help} />
+          </div>
+          <p className="mt-0.5 text-[10px] text-muted">{configured ? `${configured} configured` : `No ${definition.label.toLowerCase()} configured.`}</p>
+        </div>
       </div>
 
       {items.length ? (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
           {items.map((item, index) => (
-            <div key={index} className="flex items-center gap-2 rounded-md border border-border/70 bg-background/30 px-2 py-1.5">
-              {numbered ? (
-                <span className="w-5 shrink-0 font-mono text-[9px] text-muted/70">{String(index + 1).padStart(2, '0')}</span>
-              ) : (
-                <span
-                  aria-hidden="true"
-                  className={cn(
-                    'h-1.5 w-1.5 shrink-0 rounded-full',
-                    tone === 'allowed' && 'bg-emerald-400/80',
-                    tone === 'disallowed' && 'bg-red-400/80',
-                    tone === 'neutral' && 'bg-muted/70',
-                  )}
-                />
-              )}
-              <div className="min-w-0 flex-1">
+            <div key={index} className="rounded-lg border border-border bg-background/35 p-2.5">
+              <div className="flex items-center gap-2">
+                {tone === 'allowed' ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" /> : null}
+                {tone === 'disallowed' ? <Ban className="h-3.5 w-3.5 shrink-0 text-red-400" /> : null}
+                {tone === 'neutral' ? <span className="w-5 shrink-0 font-mono text-[9px] text-muted/70">{String(index + 1).padStart(2, '0')}</span> : null}
                 <Input
                   aria-label={`${definition.label} ${index + 1}`}
                   value={item}
-                  onChange={event => updateItem(index, event.target.value)}
-                  className="h-7 rounded-none border-0 bg-transparent px-0 text-xs shadow-none focus-visible:ring-0"
+                  onChange={event => onChange({ ...behavior, [fieldKey]: items.map((current, itemIndex) => itemIndex === index ? event.target.value : current) })}
+                  className="h-8 min-w-0 flex-1 text-xs"
                 />
+                <button
+                  type="button"
+                  aria-label={`Remove ${definition.label.toLowerCase()} ${index + 1}`}
+                  className="rounded-md p-1.5 text-muted transition-colors hover:bg-accent hover:text-red-400"
+                  onClick={() => onChange({ ...behavior, [fieldKey]: items.filter((_, itemIndex) => itemIndex !== index) })}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
               </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                className="h-7 w-7 shrink-0 p-0 text-muted hover:text-white"
-                aria-label={`Remove ${definition.label.toLowerCase()} ${index + 1}`}
-                onClick={() => removeItem(index)}
-              >
-                <X className="h-3.5 w-3.5" />
-              </Button>
             </div>
           ))}
         </div>
-      ) : (
-        <p className="text-[11px] leading-4 text-muted/70">No {definition.label.toLowerCase()} configured.</p>
-      )}
+      ) : null}
 
-      <Button
-        type="button"
-        size="sm"
-        variant="ghost"
-        className="h-7 px-1.5 text-[11px] text-muted hover:text-white"
-        aria-label={`Add ${definition.label.toLowerCase()}`}
-        onClick={() => onChange({ ...behavior, [fieldKey]: [...items, ''] })}
-      >
-        <Plus className="mr-1 h-3 w-3" />
-        {addLabel}
-      </Button>
+      {adding ? (
+        <div className="rounded-lg border border-primary/30 bg-primary/5 p-3">
+          <Input
+            autoFocus
+            aria-label={`New ${definition.label}`}
+            value={draft}
+            onChange={event => setDraft(event.target.value)}
+            placeholder={fieldKey === 'responsibilities' ? 'Describe a responsibility...' : 'Describe a behavior...'}
+            className="text-xs"
+          />
+          <div className="mt-2 flex justify-end gap-2">
+            <Button type="button" size="sm" variant="ghost" className="h-7 text-[10px]" aria-label={`Cancel add ${definition.label.toLowerCase()}`} onClick={cancelAdd}>Cancel</Button>
+            <Button type="button" size="sm" className="h-7 text-[10px]" aria-label={`Confirm add ${definition.label.toLowerCase()}`} disabled={!draft.trim()} onClick={confirmAdd}>Add</Button>
+          </div>
+        </div>
+      ) : (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          className="w-full justify-center text-[11px]"
+          aria-label={`Add ${definition.label.toLowerCase()}`}
+          onClick={() => setAdding(true)}
+        >
+          <Plus className="mr-1 h-3.5 w-3.5" />
+          {addLabel}
+        </Button>
+      )}
     </div>
   )
 }
 
-function GuidanceField({
-  id,
+function GuidanceSetting({
   behavior,
   onChange,
   fieldKey,
   description,
 }: {
-  id: string
   behavior: AgentBehavior
   onChange: (behavior: AgentBehavior) => void
-  fieldKey: Exclude<TextBehaviorKey, 'objective'>
+  fieldKey: GuidanceKey
   description: string
 }) {
   const definition = fieldDefinition(fieldKey)
   const value = behavior[fieldKey]
   const configured = value.trim().length > 0
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState('')
+
+  const beginEdit = () => {
+    setDraft(value)
+    setEditing(true)
+  }
+
+  const cancelEdit = () => {
+    setDraft(value)
+    setEditing(false)
+  }
+
+  const apply = () => {
+    onChange({ ...behavior, [fieldKey]: draft })
+    setEditing(false)
+  }
 
   return (
-    <details className="group border-t border-border/70 first:border-t-0">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 py-3 [&::-webkit-details-marker]:hidden">
-        <div className="min-w-0">
+    <div className="border-t border-border first:border-t-0">
+      <div className="flex items-start justify-between gap-3 py-3">
+        <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-medium text-muted">{definition.label}</span>
+            <span className="text-xs font-medium text-white">{definition.label}</span>
             <HelpHint label={definition.label} help={definition.help} />
           </div>
-          <p className="mt-0.5 text-[11px] leading-4 text-muted/70">{description}</p>
-        </div>
-        <div className="flex shrink-0 items-center gap-2">
-          <span className={cn('font-mono text-[9px]', configured ? 'text-primary-light' : 'text-muted/60')}>
+          <p className="mt-0.5 text-[10px] leading-4 text-muted">{description}</p>
+          <span className={cn('mt-1 block font-mono text-[9px]', configured ? 'text-primary-light' : 'text-muted/60')}>
             {configured ? 'Configured' : 'Not configured'}
           </span>
-          <ChevronDown className="h-3.5 w-3.5 text-muted transition-transform group-open:rotate-180" />
         </div>
-      </summary>
-      <div className="pb-4">
-        <label className="sr-only" htmlFor={`${id}-${fieldKey}`}>{definition.label}</label>
-        <Textarea
-          id={`${id}-${fieldKey}`}
-          aria-label={definition.label}
-          value={value}
-          onChange={event => onChange({ ...behavior, [fieldKey]: event.target.value })}
-          rows={fieldKey === 'operatingInstructions' || fieldKey === 'additionalInstructions' ? 5 : 4}
-          className="min-h-0 resize-y text-xs leading-5"
-        />
+        {!editing ? (
+          <Button
+            type="button"
+            size="sm"
+            variant="ghost"
+            className="h-7 shrink-0 px-2 text-[10px] text-primary-light"
+            aria-label={`${configured ? 'Edit' : 'Configure'} ${definition.label}`}
+            onClick={beginEdit}
+          >
+            {configured ? 'Edit' : 'Configure'}
+          </Button>
+        ) : null}
       </div>
-    </details>
+
+      {editing ? (
+        <div className="pb-3">
+          <label className="sr-only" htmlFor={`guidance-${fieldKey}`}>{definition.label}</label>
+          <Textarea
+            id={`guidance-${fieldKey}`}
+            aria-label={definition.label}
+            value={draft}
+            onChange={event => setDraft(event.target.value)}
+            rows={fieldKey === 'responseGuidelines' ? 4 : 5}
+            className="min-h-0 resize-y text-xs leading-5"
+            placeholder={definition.help}
+          />
+          <div className="mt-2 flex justify-end gap-2">
+            <Button type="button" size="sm" variant="ghost" className="h-7 text-[10px]" aria-label={`Cancel ${definition.label}`} onClick={cancelEdit}>Cancel</Button>
+            <Button type="button" size="sm" className="h-7 text-[10px]" aria-label={`Apply ${definition.label}`} onClick={apply}>Apply</Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   )
 }
 
 export function AgentBehaviorFields({ behavior, onChange }: { behavior: AgentBehavior; onChange: (behavior: AgentBehavior) => void }) {
   const id = useId()
   const objective = fieldDefinition('objective')
+  const responsibilities = behavior.responsibilities.filter(item => item.trim()).length
+  const rules = behavior.allowedBehaviors.filter(item => item.trim()).length + behavior.disallowedBehaviors.filter(item => item.trim()).length
+  const guidance = [behavior.operatingInstructions, behavior.responseGuidelines, behavior.additionalInstructions].filter(item => item.trim()).length
+  const configured = Boolean(behavior.objective.trim() || responsibilities || rules || guidance)
 
   return (
-    <section aria-label="Behavior" className="space-y-6">
-      <div>
-        <h3 className="text-sm font-semibold text-white">Behavior</h3>
-        <p className="mt-1 text-xs leading-5 text-muted">Define the operating behavior of this Agent.</p>
+    <section aria-label="Behavior" className="rounded-xl border border-border bg-surface">
+      <div className="flex items-center gap-3 p-4">
+        <SlidersHorizontal className="h-4 w-4 shrink-0 text-primary" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold">Behavior</span>
+          <span className="mt-0.5 block text-[11px] text-muted">{configured ? `${responsibilities} responsibilities · ${rules} rules · ${guidance}/3 guidance` : 'Not configured'}</span>
+        </span>
       </div>
 
-      <section aria-label="Purpose">
-        <SectionHeading index="01" title="Purpose" description="Define the primary outcome this Agent should pursue." />
-        <div className="space-y-1.5 pl-0 sm:pl-6">
+      <div className="space-y-5 border-t border-border p-4">
+        <p className="text-xs leading-5 text-muted">Define how this Agent operates, what it is responsible for and the boundaries it must respect.</p>
+
+        <div className="space-y-2">
           <div className="flex items-center gap-1.5">
-            <label htmlFor={`${id}-objective`} className="text-xs font-medium text-muted">{objective.label}</label>
+            <label htmlFor={`${id}-objective`} className="text-xs font-medium text-white">{objective.label}</label>
             <HelpHint label={objective.label} help={objective.help} />
           </div>
+          <p className="text-[10px] leading-4 text-muted">Primary outcome this Agent should pursue.</p>
           <Textarea
             id={`${id}-objective`}
             value={behavior.objective}
             onChange={event => onChange({ ...behavior, objective: event.target.value })}
             rows={4}
             className="min-h-0 resize-y text-xs leading-5"
+            placeholder="Describe the primary outcome this Agent should achieve..."
           />
         </div>
-      </section>
 
-      <section aria-label="Boundaries" className="border-t border-border/70 pt-5">
-        <SectionHeading index="02" title="Boundaries" description="Make responsibilities and behavioral limits explicit." />
-        <div className="space-y-5 pl-0 sm:pl-6">
-          <ListField behavior={behavior} onChange={onChange} fieldKey="responsibilities" addLabel="Add responsibility" numbered />
-          <ListField behavior={behavior} onChange={onChange} fieldKey="allowedBehaviors" addLabel="Add behavior" tone="allowed" />
-          <ListField behavior={behavior} onChange={onChange} fieldKey="disallowedBehaviors" addLabel="Add behavior" tone="disallowed" />
+        <div className="border-t border-border pt-5">
+          <ListSetting behavior={behavior} onChange={onChange} fieldKey="responsibilities" addLabel="Add responsibility" />
         </div>
-      </section>
 
-      <section aria-label="Guidance" className="border-t border-border/70 pt-5">
-        <SectionHeading index="03" title="Guidance" description="Keep detailed execution and response guidance available without dominating the editor." />
-        <div className="pl-0 sm:pl-6">
-          <GuidanceField id={id} behavior={behavior} onChange={onChange} fieldKey="operatingInstructions" description="Specific guidance used while executing tasks." />
-          <GuidanceField id={id} behavior={behavior} onChange={onChange} fieldKey="responseGuidelines" description="Tone, structure and presentation expectations." />
-          <GuidanceField id={id} behavior={behavior} onChange={onChange} fieldKey="additionalInstructions" description="Additional guidance, including instructions preserved from legacy Agents." />
+        <div className="border-t border-border pt-5">
+          <div className="mb-3">
+            <h4 className="text-xs font-semibold text-white">Behavior Rules</h4>
+            <p className="mt-0.5 text-[10px] leading-4 text-muted">Make allowed and disallowed behavior explicit.</p>
+          </div>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-border bg-background/20 p-3">
+              <ListSetting behavior={behavior} onChange={onChange} fieldKey="allowedBehaviors" addLabel="Add allowed behavior" tone="allowed" />
+            </div>
+            <div className="rounded-lg border border-border bg-background/20 p-3">
+              <ListSetting behavior={behavior} onChange={onChange} fieldKey="disallowedBehaviors" addLabel="Add disallowed behavior" tone="disallowed" />
+            </div>
+          </div>
         </div>
-      </section>
+
+        <div className="border-t border-border pt-5">
+          <div className="mb-2">
+            <h4 className="text-xs font-semibold text-white">Guidance</h4>
+            <p className="mt-0.5 text-[10px] leading-4 text-muted">Configure detailed execution and response guidance only when needed.</p>
+          </div>
+          <div className="overflow-hidden rounded-lg border border-border px-3">
+            <GuidanceSetting behavior={behavior} onChange={onChange} fieldKey="operatingInstructions" description="Specific guidance used while executing tasks." />
+            <GuidanceSetting behavior={behavior} onChange={onChange} fieldKey="responseGuidelines" description="Tone, structure and presentation expectations." />
+            <GuidanceSetting behavior={behavior} onChange={onChange} fieldKey="additionalInstructions" description="Additional guidance, including instructions preserved from legacy Agents." />
+          </div>
+        </div>
+      </div>
     </section>
   )
 }

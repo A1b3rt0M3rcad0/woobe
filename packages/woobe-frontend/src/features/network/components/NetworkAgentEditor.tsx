@@ -7,7 +7,7 @@ import { useCreateRelease } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { AgentEditorNavigation, useAgentEditorSection } from '@/features/agents/components/AgentEditorNavigation'
-import { AgentDetailsSettings } from '@/features/agents/components/AgentDetailsSettings'
+import { AgentOverviewSettings } from '@/features/agents/components/AgentOverviewSettings'
 import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
 import { AgentBehaviorSettings } from '@/features/agents/components/AgentBehaviorSettings'
 import { AgentRuntimeSettings } from '@/features/agents/components/AgentRuntimeSettings'
@@ -51,7 +51,7 @@ export function NetworkAgentEditor({ agent, projectId, agentId, onDirtyChange, o
     </div>
     <AgentEditorNavigation value={section} onChange={setSection} />
     <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
-      {section === 'details' ? <AgentDetailsSettings /> : null}
+      {section === 'details' ? <AgentOverviewSettings onOpenBehavior={() => setSection('behavior')} /> : null}
       {section === 'behavior' ? <AgentBehaviorSettings /> : null}
       {section === 'runtime' ? <AgentRuntimeSettings projectId={projectId} /> : null}
       {section === 'output' ? <NetworkAgentOutput onValidity={setOutputValid} /> : null}
