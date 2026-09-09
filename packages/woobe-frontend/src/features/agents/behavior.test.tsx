@@ -25,7 +25,7 @@ vi.mock('@/features/agents/hooks', async original => ({ ...await original<typeof
   useCreateRelease: () => ({ mutateAsync: fixture.save, isPending: false }),
   useCreateAgent: () => ({ mutateAsync: fixture.create, isPending: false }),
   useKnowledgeVersions: () => ({ data: [] }),
-  useContextAssemblers: () => ({ data: [], isLoading: false, isError: false }),
+  useContextAssemblers: () => ({ data: [{ name: 'default', version: 'v1', strategy_name: 'stdcm', strategy_version: 'v1', display_name: 'Standard Context Manager', description: 'General-purpose context assembly.', behavior: '', recommended_for: [], capabilities: [], limitations: [], configuration: '', is_default: true, is_system_default_alias: true, supports_skills: true }], isLoading: false, isPending: false, isError: false }),
 }))
 vi.mock('@/features/provider-credentials/hooks', async original => ({ ...await original<typeof import('@/features/provider-credentials/hooks')>(), useCredentials: () => ({ data: fixture.credentials, refetch: vi.fn() }) }))
 vi.mock('@/features/provider-models/hooks', async original => ({ ...await original<typeof import('@/features/provider-models/hooks')>(),
@@ -133,10 +133,15 @@ describe('Behavior editor contracts', () => {
 
     await click(button('Execution'))
     await click(button('Runtime'))
-    expect(container.textContent?.toLowerCase()).toContain('context manager')
-    expect(container.textContent).toContain('Session Mode')
+    expect(container.querySelector('section[aria-label="Runtime"]')).toBeTruthy()
+    expect(container.querySelector('section[aria-label="Context Manager"]')).toBeTruthy()
+    expect(container.querySelector('section[aria-label="Session Mode"]')).toBeTruthy()
+    expect(container.textContent).toContain('Standard Context Manager')
+    expect(container.textContent).toContain('Context Manager · Stateful')
     expect(container.textContent).not.toContain('Operating Instructions')
     await click([...container.querySelectorAll('button')].find(item => item.textContent?.startsWith('Stateless'))!)
+    expect(container.textContent).toContain('Context Manager · Stateless')
+    expect(container.textContent).toContain('does not preserve Agent Session history')
     await click(button('Save'))
     expect(fixture.save).toHaveBeenCalledWith(expect.objectContaining({ behavior_spec: expect.objectContaining({ objective: 'Resolve invoices' }), session_mode: 'stateless' }))
     expect(fixture.save.mock.calls[0][0]).not.toHaveProperty('system_prompt')
