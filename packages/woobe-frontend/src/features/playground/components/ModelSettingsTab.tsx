@@ -55,9 +55,10 @@ function ModelSummary({ model, credential, onChange, onRemove }: { model: Provid
 
 interface ModelSettingsTabProps {
   projectId: string
+  standalone?: boolean
 }
 
-export function ModelSettingsTab({ projectId }: ModelSettingsTabProps) {
+export function ModelSettingsTab({ projectId, standalone = false }: ModelSettingsTabProps) {
   const { data: credentials = [] } = useCredentials(projectId)
   const { data: providerModels = [] } = useProviderModels(projectId)
   const { state, setField } = useAgentEditor()
@@ -100,32 +101,55 @@ export function ModelSettingsTab({ projectId }: ModelSettingsTabProps) {
     setField('fallbackModel', '')
   }
 
-  return (
-    <div className="space-y-4 p-4">
-      <section className="rounded-xl border border-border bg-surface p-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Model</p>
-        {selectedModel ? (
-          <ModelSummary model={selectedModel} credential={selectedCredential} onChange={() => setTarget('primary')} onRemove={removePrimary} />
-        ) : (
-          <div className="rounded-lg border border-dashed border-border bg-background/45 p-4">
-            <div className="flex items-start gap-3"><Cpu className="mt-0.5 h-4 w-4 text-primary-light" /><div><p className="text-sm font-medium text-white">No primary model selected</p><p className="mt-1 text-xs leading-5 text-muted">Choose or create a reusable Project model.</p></div></div>
-            <Button size="sm" className="mt-3" onClick={() => setTarget('primary')}><Plus className="mr-2 h-3.5 w-3.5" />Select model</Button>
-          </div>
-        )}
-      </section>
+  const primaryContent = selectedModel ? (
+    <ModelSummary model={selectedModel} credential={selectedCredential} onChange={() => setTarget('primary')} onRemove={removePrimary} />
+  ) : (
+    <div className="rounded-lg border border-dashed border-border bg-background/45 p-4">
+      <div className="flex items-start gap-3"><Cpu className="mt-0.5 h-4 w-4 text-primary-light" /><div><p className="text-sm font-medium text-white">No primary model selected</p><p className="mt-1 text-xs leading-5 text-muted">Choose or create a reusable Project model.</p></div></div>
+      <Button size="sm" className="mt-3" onClick={() => setTarget('primary')}><Plus className="mr-2 h-3.5 w-3.5" />Select model</Button>
+    </div>
+  )
 
-      <section className="rounded-xl border border-border bg-surface p-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Fallback</p>
-        {fallbackModel ? (
-          <ModelSummary model={fallbackModel} credential={fallbackCredential} onChange={() => setTarget('fallback')} onRemove={removeFallback} />
-        ) : (
-          <div className="rounded-lg border border-dashed border-border bg-background/45 p-4">
-            <p className="text-sm font-medium text-white">No fallback selected</p>
-            <p className="mt-1 text-xs leading-5 text-muted">Add a fallback only when the runtime should retry another model.</p>
-            <Button size="sm" variant="outline" className="mt-3" onClick={() => setTarget('fallback')}>Add fallback</Button>
+  const fallbackContent = fallbackModel ? (
+    <ModelSummary model={fallbackModel} credential={fallbackCredential} onChange={() => setTarget('fallback')} onRemove={removeFallback} />
+  ) : (
+    <div className="rounded-lg border border-dashed border-border bg-background/45 p-4">
+      <p className="text-sm font-medium text-white">No fallback selected</p>
+      <p className="mt-1 text-xs leading-5 text-muted">Add a fallback only when the runtime should retry another model.</p>
+      <Button size="sm" variant="outline" className="mt-3" onClick={() => setTarget('fallback')}>Add fallback</Button>
+    </div>
+  )
+
+  return (
+    <>
+      {standalone ? (
+        <section aria-label="Model" className="space-y-5 p-4">
+          <div>
+            <p className="text-xs font-semibold text-white">Model</p>
+            <p className="mt-1 text-[11px] leading-4 text-muted">Primary inference model and optional fallback used by this Agent.</p>
           </div>
-        )}
-      </section>
+          <div className="space-y-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Primary</p>
+            {primaryContent}
+          </div>
+          <div className="space-y-2 border-t border-border/80 pt-5">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">Fallback</p>
+            {fallbackContent}
+          </div>
+        </section>
+      ) : (
+        <div className="space-y-4 p-4">
+          <section className="rounded-xl border border-border bg-surface p-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Model</p>
+            {primaryContent}
+          </section>
+
+          <section className="rounded-xl border border-border bg-surface p-4">
+            <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">Fallback</p>
+            {fallbackContent}
+          </section>
+        </div>
+      )}
 
       <NetworkModelManagerModal
         open={target !== null}
@@ -134,6 +158,6 @@ export function ModelSettingsTab({ projectId }: ModelSettingsTabProps) {
         onClose={() => setTarget(null)}
         onUseModel={useModel}
       />
-    </div>
+    </>
   )
 }
