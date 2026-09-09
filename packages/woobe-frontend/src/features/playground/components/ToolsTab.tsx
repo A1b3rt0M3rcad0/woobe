@@ -41,17 +41,19 @@ export function ToolsTab({ projectId, agentId, standalone = false }: ToolsTabPro
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingTool, setEditingTool] = useState<Tool | null>(null)
 
-  const selectedIds = new Set(state.toolIds)
+  const toolIds = state.toolIds ?? []
+  const toolPermissions = state.toolPermissions ?? {}
+  const selectedIds = new Set(toolIds)
   const toolsById = new Map(allTools.map((tool) => [tool.id, tool]))
-  const tools = state.toolIds.map((toolId) => toolsById.get(toolId)).filter((tool): tool is Tool => Boolean(tool))
+  const tools = toolIds.map((toolId) => toolsById.get(toolId)).filter((tool): tool is Tool => Boolean(tool))
   const activeCount = tools.filter((tool) => tool.status === 'active').length
 
   const refreshTools = async () => { await refetch() }
 
   const removeTool = (tool: Tool) => {
-    const permissions = { ...state.toolPermissions }
+    const permissions = { ...toolPermissions }
     delete permissions[tool.id]
-    setState({ ...state, toolIds: state.toolIds.filter((toolId) => toolId !== tool.id), toolPermissions: permissions })
+    setState({ ...state, toolIds: toolIds.filter((toolId) => toolId !== tool.id), toolPermissions: permissions })
     toast.success(`"${tool.name}" removed from draft`)
   }
 
@@ -60,14 +62,14 @@ export function ToolsTab({ projectId, agentId, standalone = false }: ToolsTabPro
     const initialPermissions = initialPermissionsForTool(tool)
     setState({
       ...state,
-      toolIds: [...state.toolIds, tool.id],
-      toolPermissions: { ...state.toolPermissions, [tool.id]: initialPermissions },
+      toolIds: [...toolIds, tool.id],
+      toolPermissions: { ...toolPermissions, [tool.id]: initialPermissions },
     })
     toast.success(`"${tool.name}" added to draft`)
   }
 
   const updatePermissions = (toolId: string, permissions: Record<string, McpToolPermission>) => {
-    setField('toolPermissions', { ...state.toolPermissions, [toolId]: permissions })
+    setField('toolPermissions', { ...toolPermissions, [toolId]: permissions })
   }
 
   if (isLoading) return <LoadingState variant="panel" layout="list" message="Loading tools..." />
@@ -93,7 +95,7 @@ export function ToolsTab({ projectId, agentId, standalone = false }: ToolsTabPro
           onChanged={refreshTools}
           onEdit={() => setEditingTool(tool)}
           onRemove={() => removeTool(tool)}
-          permissionOverrides={state.toolPermissions[tool.id] || {}}
+          permissionOverrides={toolPermissions[tool.id] || {}}
           onPermissionOverridesChange={(permissions) => updatePermissions(tool.id, permissions)}
         />
       ))}
@@ -139,7 +141,7 @@ export function ToolsTab({ projectId, agentId, standalone = false }: ToolsTabPro
           setEditingTool(null)
           const savedConfig = (savedTool?.config || {}) as HttpToolConfig
           if (savedTool && savedTool.type !== 'mcp' && !isHttpToolGroup(savedConfig)) {
-            const permissions = { ...state.toolPermissions }
+            const permissions = { ...toolPermissions }
             delete permissions[savedTool.id]
             setField('toolPermissions', permissions)
           }
