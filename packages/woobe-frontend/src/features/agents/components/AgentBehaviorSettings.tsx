@@ -1,4 +1,4 @@
-import { useId, useState } from 'react'
+import { useId, useRef, useState } from 'react'
 import { Ban, CheckCircle2, CircleHelp, Plus, SlidersHorizontal, Trash2 } from 'lucide-react'
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
@@ -211,6 +211,219 @@ function GuidanceSetting({
   )
 }
 
+function StandaloneListSetting({
+  behavior,
+  onChange,
+  fieldKey,
+  addLabel,
+  tone = 'neutral',
+}: {
+  behavior: AgentBehavior
+  onChange: (behavior: AgentBehavior) => void
+  fieldKey: ListBehaviorKey
+  addLabel: string
+  tone?: 'neutral' | 'allowed' | 'disallowed'
+}) {
+  const definition = fieldDefinition(fieldKey)
+  const items = behavior[fieldKey]
+  const keysRef = useRef<string[]>([])
+  const nextKeyRef = useRef(0)
+
+  while (keysRef.current.length < items.length) {
+    keysRef.current.push(`${fieldKey}-${nextKeyRef.current++}`)
+  }
+  if (keysRef.current.length > items.length) {
+    keysRef.current = keysRef.current.slice(0, items.length)
+  }
+
+  const addItem = () => {
+    const key = `${fieldKey}-${nextKeyRef.current++}`
+    keysRef.current.push(key)
+    onChange({ ...behavior, [fieldKey]: [...items, ''] })
+    const focus = () => document.getElementById(`standalone-${key}`)?.focus()
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(focus)
+    else setTimeout(focus, 0)
+  }
+
+  const removeItem = (index: number) => {
+    keysRef.current.splice(index, 1)
+    onChange({ ...behavior, [fieldKey]: items.filter((_, itemIndex) => itemIndex !== index) })
+  }
+
+  const configured = items.filter(item => item.trim()).length
+
+  return (
+    <div className="space-y-2.5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-medium text-white">{definition.label}</span>
+            <HelpHint label={definition.label} help={definition.help} />
+          </div>
+          <p className="mt-0.5 text-[10px] leading-4 text-muted">{configured ? `${configured} configured` : definition.help}</p>
+        </div>
+        <Button type="button" size="sm" variant="ghost" className="h-7 shrink-0 px-2 text-[10px] text-primary-light" onClick={addItem}>
+          <Plus className="mr-1 h-3.5 w-3.5" />
+          {addLabel}
+        </Button>
+      </div>
+
+      {items.length ? (
+        <div className="space-y-2">
+          {items.map((item, index) => {
+            const key = keysRef.current[index]
+            return (
+              <div key={key} className="flex items-center gap-2">
+                {tone === 'allowed' ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-400" /> : null}
+                {tone === 'disallowed' ? <Ban className="h-3.5 w-3.5 shrink-0 text-red-400" /> : null}
+                {tone === 'neutral' ? <span className="w-5 shrink-0 font-mono text-[9px] text-muted/70">{String(index + 1).padStart(2, '0')}</span> : null}
+                <Input
+                  id={`standalone-${key}`}
+                  aria-label={`${definition.label} ${index + 1}`}
+                  value={item}
+                  onChange={event => onChange({ ...behavior, [fieldKey]: items.map((current, itemIndex) => itemIndex === index ? event.target.value : current) })}
+                  placeholder={fieldKey === 'responsibilities' ? 'Describe a responsibility...' : 'Describe a behavior...'}
+                  className="h-8 min-w-0 flex-1 text-xs"
+                />
+                <button
+                  type="button"
+                  aria-label={`Remove ${definition.label.toLowerCase()} ${index + 1}`}
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-muted transition-colors hover:bg-accent hover:text-red-400"
+                  onClick={() => removeItem(index)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function StandaloneGuidanceSetting({
+  behavior,
+  onChange,
+  fieldKey,
+  description,
+}: {
+  behavior: AgentBehavior
+  onChange: (behavior: AgentBehavior) => void
+  fieldKey: GuidanceKey
+  description: string
+}) {
+  const definition = fieldDefinition(fieldKey)
+  const configured = behavior[fieldKey].trim().length > 0
+  const [editing, setEditing] = useState(false)
+
+  return (
+    <div className="border-t border-border/80 first:border-t-0">
+      <div className="flex items-start justify-between gap-3 py-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-medium text-white">{definition.label}</span>
+            <HelpHint label={definition.label} help={definition.help} />
+          </div>
+          <p className="mt-0.5 text-[10px] leading-4 text-muted">{description}</p>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          className="h-7 shrink-0 px-2 text-[10px] text-primary-light"
+          aria-label={`${editing ? 'Close' : configured ? 'Edit' : 'Configure'} ${definition.label}`}
+          onClick={() => setEditing(current => !current)}
+        >
+          {editing ? 'Done' : configured ? 'Edit' : 'Configure'}
+        </Button>
+      </div>
+
+      {editing ? (
+        <div className="pb-3">
+          <Textarea
+            aria-label={definition.label}
+            value={behavior[fieldKey]}
+            onChange={event => onChange({ ...behavior, [fieldKey]: event.target.value })}
+            rows={fieldKey === 'responseGuidelines' ? 4 : 5}
+            className="min-h-0 resize-y text-xs leading-5"
+            placeholder={definition.help}
+          />
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+function StandaloneAgentBehaviorFields({ behavior, onChange }: { behavior: AgentBehavior; onChange: (behavior: AgentBehavior) => void }) {
+  const id = useId()
+  const objective = fieldDefinition('objective')
+  const responsibilities = behavior.responsibilities.filter(item => item.trim()).length
+  const rules = behavior.allowedBehaviors.filter(item => item.trim()).length + behavior.disallowedBehaviors.filter(item => item.trim()).length
+  const guidance = [behavior.operatingInstructions, behavior.responseGuidelines, behavior.additionalInstructions].filter(item => item.trim()).length
+
+  return (
+    <section aria-label="Behavior" className="space-y-5 p-4">
+      <div>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs font-semibold text-white">Behavior</p>
+            <p className="mt-1 text-[11px] leading-4 text-muted">Objective, responsibilities, boundaries and guidance used to shape this Agent.</p>
+          </div>
+          <span className="shrink-0 font-mono text-[9px] text-muted">{responsibilities} resp · {rules} rules · {guidance}/3</span>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5">
+          <label htmlFor={`${id}-standalone-objective`} className="text-xs font-medium text-white">{objective.label}</label>
+          <HelpHint label={objective.label} help={objective.help} />
+        </div>
+        <p className="text-[10px] leading-4 text-muted">Primary outcome this Agent should pursue.</p>
+        <Textarea
+          id={`${id}-standalone-objective`}
+          value={behavior.objective}
+          onChange={event => onChange({ ...behavior, objective: event.target.value })}
+          rows={4}
+          className="min-h-0 resize-y text-xs leading-5"
+          placeholder="Describe the primary outcome this Agent should achieve..."
+        />
+      </div>
+
+      <div className="border-t border-border/80 pt-5">
+        <StandaloneListSetting behavior={behavior} onChange={onChange} fieldKey="responsibilities" addLabel="Add" />
+      </div>
+
+      <div className="border-t border-border/80 pt-5">
+        <div className="mb-4">
+          <h4 className="text-xs font-semibold text-white">Behavior Rules</h4>
+          <p className="mt-0.5 text-[10px] leading-4 text-muted">Explicitly define acceptable and unacceptable behavior.</p>
+        </div>
+        <div className="space-y-5">
+          <StandaloneListSetting behavior={behavior} onChange={onChange} fieldKey="allowedBehaviors" addLabel="Add" tone="allowed" />
+          <StandaloneListSetting behavior={behavior} onChange={onChange} fieldKey="disallowedBehaviors" addLabel="Add" tone="disallowed" />
+        </div>
+      </div>
+
+      <div className="border-t border-border/80 pt-5">
+        <div className="mb-1">
+          <h4 className="text-xs font-semibold text-white">Guidance</h4>
+          <p className="mt-0.5 text-[10px] leading-4 text-muted">Detailed execution and response instructions. Edits are immediately part of the current Draft state.</p>
+        </div>
+        <StandaloneGuidanceSetting behavior={behavior} onChange={onChange} fieldKey="operatingInstructions" description="Specific guidance used while executing tasks." />
+        <StandaloneGuidanceSetting behavior={behavior} onChange={onChange} fieldKey="responseGuidelines" description="Tone, structure and presentation expectations." />
+
+        <details className="border-t border-border/80 pt-3 text-xs text-muted">
+          <summary className="cursor-pointer select-none text-[11px] font-medium text-muted hover:text-white">Advanced instructions</summary>
+          <div className="mt-1">
+            <StandaloneGuidanceSetting behavior={behavior} onChange={onChange} fieldKey="additionalInstructions" description="Additional guidance, including instructions preserved from legacy Agents." />
+          </div>
+        </details>
+      </div>
+    </section>
+  )
+}
+
 export function AgentBehaviorFields({ behavior, onChange }: { behavior: AgentBehavior; onChange: (behavior: AgentBehavior) => void }) {
   const id = useId()
   const objective = fieldDefinition('objective')
@@ -283,7 +496,10 @@ export function AgentBehaviorFields({ behavior, onChange }: { behavior: AgentBeh
   )
 }
 
-export function AgentBehaviorSettings() {
+export function AgentBehaviorSettings({ standalone = false }: { standalone?: boolean }) {
   const { state, setField } = useAgentEditor()
-  return <div className="p-4"><AgentBehaviorFields behavior={state.behavior} onChange={value => setField('behavior', value)} /></div>
+  const onChange = (value: AgentBehavior) => setField('behavior', value)
+  return standalone
+    ? <StandaloneAgentBehaviorFields behavior={state.behavior} onChange={onChange} />
+    : <div className="p-4"><AgentBehaviorFields behavior={state.behavior} onChange={onChange} /></div>
 }
