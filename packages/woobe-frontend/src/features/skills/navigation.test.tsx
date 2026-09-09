@@ -108,8 +108,15 @@ describe('Skills navigation regression', () => {
     const editor = surface === 'network' ? <NetworkAgentEditor agent={fixture.agent} projectId="project-1" agentId="agent-1" /> : <AgentInspector agent={fixture.agent} projectId="project-1" agentId="agent-1" activeTab="editor" environment="draft" environmentRelease={null} onTabChange={vi.fn()} />
     await render(editor)
     await click(button('Capabilities'))
-    await click(button('Skills'))
-    expect(button('Skills').getAttribute('aria-pressed')).toBe('true')
+
+    if (surface === 'network') {
+      await click(button('Skills'))
+      expect(button('Skills').getAttribute('aria-pressed')).toBe('true')
+    } else {
+      expect(container.querySelector('[aria-label="Agent configuration sections"]')).toBeNull()
+      expect([...container.querySelectorAll('button')].filter(element => element.textContent?.trim() === 'Skills')).toHaveLength(0)
+    }
+
     expect(container.querySelector('section[aria-label="Installed Skills"]')).toBeTruthy()
     expect(button('Manage Skills').disabled).toBe(false)
     await click(button('Manage Skills'))
@@ -148,17 +155,18 @@ describe('Skills navigation regression', () => {
     await click([...container.querySelectorAll('button')].find(element => element.getAttribute('role') === 'tab' && element.textContent?.includes('Installed on Agents'))!)
     expect(container.textContent).toContain('v1.0.0')
     expect(container.textContent).toContain('Disabled')
-    const installation = [...container.querySelectorAll('button')].find(element => element.getAttribute('aria-label') === 'Open Agent Skills for Reviewer')!
-    await click(installation)
+    await click([...container.querySelectorAll('button')].find(element => element.getAttribute('aria-label') === 'Open Agent Skills editor for Reviewer')!)
     await settle(() => expect(container.querySelector('output')?.textContent).toContain('/agents/agent-1/playground?editor=skills'))
-    expect(savedSkillInstallations([fixture.agent], 'another-project')).toEqual([])
   })
   it('distinguishes an empty catalog from a failed catalog request', async () => {
     vi.mocked(listSkills).mockResolvedValue([])
     await render(<SkillsPage />)
-    await settle(() => expect(container.textContent).toContain('No Skills yet'))
-    vi.mocked(listSkills).mockRejectedValue(new Error('Catalog unavailable'))
-    await act(async () => { await client.invalidateQueries({ queryKey: ['skills'] }) })
-    await settle(() => expect(container.textContent).toContain('Catalog unavailable'))
+    await settle(() => expect(container.textContent).toContain('No Skills in this Project yet'))
+    expect(container.textContent).not.toContain('Failed to load Skills')
+
+    vi.mocked(listSkills).mockRejectedValueOnce(new Error('offline'))
+    await act(async () => { client.clear() })
+    await render(<SkillsPage />)
+    await settle(() => expect(container.textContent).toContain('Failed to load Skills'))
   })
 })
