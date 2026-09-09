@@ -1,5 +1,7 @@
 import { canonicalSnapshot, type AgentEditorState } from '@/features/playground/AgentEditorContext'
 
+type ResponseFormatState = AgentEditorState['responseFormat']
+
 export type AgentEditorValidationIssue = {
   section: 'output'
   code: 'output_contract_required' | 'output_contract_invalid'
@@ -15,6 +17,15 @@ function invalid(code: AgentEditorValidationIssue['code'], message: string): Age
     valid: false,
     issue: { section: 'output', code, message },
     snapshot: null,
+  }
+}
+
+function responseFormatState(state: AgentEditorState): ResponseFormatState {
+  return state.responseFormat ?? {
+    enabled: false,
+    type: 'text',
+    strict: true,
+    schema: null,
   }
 }
 
@@ -38,7 +49,8 @@ function normalizedInactiveSchema(schema: unknown): Record<string, unknown> | nu
 
 function textOutputSnapshot(state: AgentEditorState): Record<string, unknown> {
   const snapshot = canonicalSnapshot(state)
-  const dormantSchema = normalizedInactiveSchema(state.responseFormat.schema)
+  const currentFormat = responseFormatState(state)
+  const dormantSchema = normalizedInactiveSchema(currentFormat.schema)
   const responseFormat = snapshot.response_format && typeof snapshot.response_format === 'object' && !Array.isArray(snapshot.response_format)
     ? snapshot.response_format as Record<string, unknown>
     : {}
@@ -59,9 +71,10 @@ function textOutputSnapshot(state: AgentEditorState): Record<string, unknown> {
 }
 
 export function outputContractError(state: AgentEditorState): string | null {
-  if (!state.responseFormat.enabled || state.responseFormat.type !== 'json') return null
+  const responseFormat = responseFormatState(state)
+  if (!responseFormat.enabled || responseFormat.type !== 'json') return null
 
-  const schema = state.responseFormat.schema
+  const schema = responseFormat.schema
   if (typeof schema === 'string') {
     if (!schema.trim()) return 'Define an Output contract before saving or running with JSON output.'
     try {
@@ -81,26 +94,27 @@ export function outputContractError(state: AgentEditorState): string | null {
 }
 
 export function validateAgentEditorState(state: AgentEditorState): AgentEditorValidationResult {
-  if (!state.responseFormat.enabled || state.responseFormat.type !== 'json') {
+  const responseFormat = responseFormatState(state)
+  if (!responseFormat.enabled || responseFormat.type !== 'json') {
     return { valid: true, issue: null, snapshot: textOutputSnapshot(state) }
   }
 
   const error = outputContractError(state)
   if (error) {
     return invalid(
-      state.responseFormat.schema == null || (typeof state.responseFormat.schema === 'string' && !state.responseFormat.schema.trim())
+      responseFormat.schema == null || (typeof responseFormat.schema === 'string' && !responseFormat.schema.trim())
         ? 'output_contract_required'
         : 'output_contract_invalid',
       error,
     )
   }
 
-  const schema = typeof state.responseFormat.schema === 'string'
-    ? JSON.parse(state.responseFormat.schema)
-    : state.responseFormat.schema
+  const schema = typeof responseFormat.schema === 'string'
+    ? JSON.parse(responseFormat.schema)
+    : responseFormat.schema
   const normalizedState: AgentEditorState = {
     ...state,
-    responseFormat: { ...state.responseFormat, strict: true, schema },
+    responseFormat: { ...responseFormat, strict: true, schema },
     outputSchema: schema,
   }
 
