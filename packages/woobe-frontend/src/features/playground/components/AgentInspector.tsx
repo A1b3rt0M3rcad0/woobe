@@ -118,7 +118,7 @@ function EditorToolbar({
         <Button
           size="sm"
           variant="ghost"
-          className="h-7 px-2 text-[10px] text-muted"
+          className="h-8 px-2 text-[10px] text-muted"
           onClick={() => {
             setSaveFailed(false)
             resetToBaseline()
@@ -132,7 +132,7 @@ function EditorToolbar({
         </Button>
         <Button
           size="sm"
-          className="h-7 px-2.5 text-[10px]"
+          className="h-8 px-2.5 text-[10px]"
           onClick={handleSaveDraft}
           loading={createRelease.isPending}
           disabled={!isDirty && !loadedReleaseVersion}
@@ -271,8 +271,8 @@ export function AgentInspector({
     <aside
       aria-label="Agent Inspector"
       className={cn(
-        'flex shrink-0 flex-col border-l border-border/90 bg-surface/75 shadow-sm shadow-black/5 transition-[width,max-width] duration-200',
-        expanded ? 'w-[720px] max-w-[55vw]' : 'w-[400px]',
+        'fixed bottom-0 right-0 top-[3.5rem] z-40 flex w-full max-w-[400px] shrink-0 flex-col border-l border-border/90 bg-surface shadow-xl shadow-black/20 transition-[width,max-width] duration-200 lg:static lg:z-auto lg:bg-surface/75 lg:shadow-sm lg:shadow-black/5',
+        expanded ? 'lg:w-[640px] lg:max-w-[65vw]' : 'lg:w-[400px] lg:max-w-[400px]',
       )}
     >
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border/90 bg-background/25 px-3">
@@ -282,7 +282,7 @@ export function AgentInspector({
         <button
           type="button"
           onClick={() => setExpanded(current => !current)}
-          className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-accent/60 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
+          className="hidden h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-accent/60 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60 lg:flex"
           aria-label={expanded ? 'Restore Inspector width' : 'Expand Inspector'}
           title={expanded ? 'Restore Inspector width' : 'Expand Inspector'}
           aria-pressed={expanded}
@@ -293,7 +293,7 @@ export function AgentInspector({
           <button
             type="button"
             onClick={onCollapse}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-accent/60 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
+            className="flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-accent/60 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
             aria-label="Collapse Inspector"
             title="Collapse Inspector"
           >
@@ -309,7 +309,7 @@ export function AgentInspector({
           aria-selected={resolvedActiveTab === 'editor'}
           onClick={() => onTabChange('editor')}
           className={cn(
-            'flex h-8 items-center justify-center gap-1.5 rounded-md text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
+            'flex h-9 items-center justify-center gap-1.5 rounded-md text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
             resolvedActiveTab === 'editor'
               ? 'bg-background text-white shadow-sm'
               : 'text-muted hover:bg-background/45 hover:text-white',
@@ -324,7 +324,7 @@ export function AgentInspector({
           aria-selected={resolvedActiveTab === 'versions'}
           onClick={() => onTabChange('versions')}
           className={cn(
-            'flex h-8 items-center justify-center gap-1.5 rounded-md text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
+            'flex h-9 items-center justify-center gap-1.5 rounded-md text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
             resolvedActiveTab === 'versions'
               ? 'bg-background text-white shadow-sm'
               : 'text-muted hover:bg-background/45 hover:text-white',
