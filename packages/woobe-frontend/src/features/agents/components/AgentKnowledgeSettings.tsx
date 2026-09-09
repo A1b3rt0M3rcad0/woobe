@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookOpen, Trash2 } from 'lucide-react'
+import { BookOpen, Database, Search, Settings2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/Button'
@@ -69,11 +69,14 @@ export function AgentKnowledgeSettings({ projectId, agentId }: { projectId: stri
   return (
     <div className="space-y-4 p-4">
       <section aria-label="Knowledge" className="rounded-xl border border-border bg-surface">
-        <div className="flex items-center gap-3 p-4"><BookOpen className="h-4 w-4 shrink-0 text-primary" /><div><p className="text-sm font-semibold">Knowledge</p><p className="mt-0.5 text-[11px] text-muted">{active ? 'Snapshot selected' : 'No snapshot selected'}</p></div></div>
+        <div className="flex items-center gap-3 p-4"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light"><BookOpen className="h-4 w-4" /></span><div><p className="text-sm font-semibold">Knowledge</p><p className="mt-0.5 text-[11px] text-muted">{active ? 'Snapshot selected' : 'No snapshot selected'}</p></div></div>
+        <div className="border-t border-border p-4">
+        <p className="text-xs leading-5 text-muted">Choose the knowledge available to this Agent and configure how it is retrieved.</p>
+        <p className="mb-2.5 mt-5 text-xs font-semibold uppercase tracking-wider text-muted">Knowledge source</p>
         {active ? (
-          <div className="border-t border-border p-4">
+          <div className="rounded-lg border border-border bg-background/35 p-3">
             <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface"><BookOpen className="h-4 w-4 text-primary-light" /></div>
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light"><BookOpen className="h-4 w-4 text-primary-light" /></div>
               <div className="min-w-0 flex-1">
                 <p title={collectionName} className="truncate text-xs font-medium text-foreground">{collectionName}</p>
                 <p className="mt-1 text-xs text-muted">Knowledge {active.version} · Vector {vectorVersion}</p>
@@ -81,32 +84,32 @@ export function AgentKnowledgeSettings({ projectId, agentId }: { projectId: stri
               </div>
               <button type="button" onClick={() => setField('knowledgeVersionId', null)} className="rounded-lg border border-border p-2 text-muted hover:border-red-500/30 hover:text-red-300" aria-label="Remove knowledge"><Trash2 className="h-3.5 w-3.5" /></button>
             </div>
-            <div className="mt-3 flex flex-wrap gap-2 border-t border-border/80 pt-3">
-              <Button size="sm" variant="outline" onClick={() => setSelectorOpen(true)}>Change version</Button>
-              <Button size="sm" variant="ghost" onClick={() => setManagerOpen(true)}>Manage</Button>
+            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3">
+              <Button size="sm" variant="outline" className="min-h-8 h-auto whitespace-normal px-2 py-1 text-[11px]" onClick={() => setSelectorOpen(true)}>Change version</Button>
+              <Button size="sm" variant="ghost" className="h-8 text-[11px] text-primary-light" onClick={() => setManagerOpen(true)}>Manage</Button>
             </div>
           </div>
         ) : (
-          <div className="border-t border-border p-4">
-            <p className="text-xs font-medium text-foreground">Connect knowledge</p>
-            <p className="mt-1 text-xs leading-5 text-muted">Choose a Vector Snapshot for this Agent Draft.</p>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <Button size="sm" onClick={() => setSelectorOpen(true)}>Select knowledge</Button>
-              <Button size="sm" variant="outline" onClick={() => setManagerOpen(true)}>Manage</Button>
+          <div className="rounded-lg border border-border bg-background/35 p-3">
+            <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light"><Database className="h-4 w-4" /></span><div><p className="text-sm font-semibold text-foreground">No knowledge selected</p><p className="mt-1 text-[11px] leading-4 text-muted">Link an immutable Vector Snapshot.</p></div></div>
+            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3">
+              <Button size="sm" variant="outline" className="min-h-8 h-auto whitespace-normal px-2 py-1 text-[11px]" onClick={() => setSelectorOpen(true)}><Plus className="mr-1 h-3.5 w-3.5" />Select knowledge</Button>
+              <Button size="sm" variant="ghost" className="h-8 text-[11px] text-primary-light" onClick={() => setManagerOpen(true)}>Manage</Button>
             </div>
           </div>
         )}
-      <div className="border-t border-border p-4">
-        <p className="mb-2 text-[11px] text-muted">Retrieval</p>
-        <button type="button" onClick={() => setRuntimeOpen(true)} className="group flex w-full items-center justify-between gap-2 rounded-md py-1 text-left hover:bg-accent/35">
-          <div className="min-w-0">
-            <p className="text-xs font-medium text-foreground">Search behavior</p>
-            <p className="mt-1 text-xs text-muted">Top {runtime.top_k} from {runtime.candidate_k} candidates</p>
-            <p className="mt-1 truncate text-[11px] text-muted/80">{runtime.query_mode === 'current_message' ? 'Current message' : 'Conversation context'} · {runtime.grounding_policy === 'required' ? 'Required grounding' : 'Optional grounding'}</p>
-          </div>
-          <span className="shrink-0 px-2 text-[11px] text-primary-light">Configure</span>
-        </button>
-        {!active ? <p className="mt-3 text-[11px] text-muted">Applies when a snapshot is linked.</p> : null}
+      <div className="mt-5 border-t border-border/80 pt-5">
+        <p className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-muted">Retrieval</p>
+        <div className="rounded-lg border border-border bg-background/35 p-3">
+          <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light"><Search className="h-4 w-4" /></span><div className="min-w-0">
+            <p className="text-sm font-semibold text-foreground">Search behavior</p>
+            <p className="mt-1 text-[11px] text-muted">Top {runtime.top_k} from {runtime.candidate_k} candidates</p>
+            <p className="mt-2 text-[11px] text-muted">{runtime.query_mode === 'current_message' ? 'Current message' : 'Conversation context'}<br />{runtime.grounding_policy === 'required' ? 'Required grounding' : 'Optional grounding'}</p>
+          </div></div>
+          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3"><Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => setRuntimeOpen(true)}><Settings2 className="mr-1 h-3.5 w-3.5" />Configure</Button></div>
+        </div>
+        {!active ? <p className="mt-3 text-[11px] text-muted">Applied when knowledge is linked.</p> : null}
+      </div>
       </div>
       </section>
 

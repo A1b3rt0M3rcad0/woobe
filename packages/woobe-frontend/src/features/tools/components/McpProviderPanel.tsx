@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { PlugZap, Search } from 'lucide-react'
+import { useMemo, useState, type ReactNode } from 'react'
+import { Settings2, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/Button'
@@ -223,13 +223,15 @@ function PermissionControl({
 }
 
 interface Props {
+  footerActions?: ReactNode
+  summaryNote?: ReactNode
   tool: Tool
   onChanged?: () => void | Promise<void>
   permissionOverrides?: Record<string, McpToolPermission>
   onPermissionOverridesChange?: (permissions: Record<string, McpToolPermission>) => void
 }
 
-export function McpProviderPanel({ tool, onChanged, permissionOverrides, onPermissionOverridesChange }: Props) {
+export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, permissionOverrides, onPermissionOverridesChange }: Props) {
   const [manageOpen, setManageOpen] = useState(false)
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [query, setQuery] = useState('')
@@ -350,27 +352,16 @@ export function McpProviderPanel({ tool, onChanged, permissionOverrides, onPermi
 
   return (
     <div className="mt-2">
-      <button
-        type="button"
-        disabled={!actionable || busyKey !== null}
-        onClick={handleSummaryClick}
-        className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left transition-colors hover:bg-accent/35 disabled:cursor-default disabled:hover:bg-transparent"
-      >
-        <PlugZap className="h-3.5 w-3.5 shrink-0 text-primary-light" />
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-            <span className="font-medium text-white">MCP</span>
-            <span>·</span>
-            <span className={`h-1.5 w-1.5 rounded-full ${statusTone(visibleState)}`} />
-            <span>{visibleLabel}</span>
-            <span>·</span>
-            <span>{state.discovered_count} tools</span>
-            {state.exposed_count > 0 ? <span>· {state.exposed_count} allowed</span> : null}
-          </span>
-          <span title={providerHost(tool)} className="mt-1 block truncate text-[11px] text-muted">{providerHost(tool)}</span>
-        </span>
-        {actionable ? <span className="shrink-0 text-[11px] text-primary-light">{discovered.length > 0 ? 'Manage' : showConnect ? 'Connect' : 'Load tools'}</span> : null}
-      </button>
+      <div className={footerActions ? 'min-w-0 pl-12' : 'min-w-0'}>
+        <p title={providerHost(tool)} className="truncate font-mono text-[11px] text-muted">{providerHost(tool)}</p>
+        <p className="mt-2 text-[11px] text-muted">MCP · {state.discovered_count} tools · {state.exposed_count} allowed</p>
+        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted"><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusTone(visibleState)}`} />{visibleLabel}</p>
+      </div>
+      {summaryNote}
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3">
+        <Button size="sm" variant="outline" className="h-8 text-[11px]" disabled={!actionable || busyKey !== null} onClick={handleSummaryClick}><Settings2 className="mr-1 h-3.5 w-3.5" />{discovered.length > 0 ? 'Configure' : showConnect ? 'Connect' : 'Load tools'}</Button>
+        {footerActions}
+      </div>
 
       {diagnostic ? <p className="mt-1 line-clamp-2 px-1 text-[10px] leading-4 text-amber-200">{state.message}</p> : null}
       {state.oauth_connected ? (
