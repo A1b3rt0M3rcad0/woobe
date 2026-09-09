@@ -124,4 +124,25 @@ describe('Agent editor output validation', () => {
       expect(result.snapshot.output_schema).toBeNull()
     }
   })
+
+  it('normalizes inconsistent disabled JSON mode back to text at the execution boundary', () => {
+    const state = editorState()
+    state.responseFormat = {
+      ...state.responseFormat,
+      enabled: false,
+      type: 'json',
+      schema: '{ "message": "string" }',
+    }
+
+    const result = validateAgentEditorState(state)
+    expect(result.valid).toBe(true)
+    if (result.valid) {
+      expect(result.snapshot.response_format).toMatchObject({
+        enabled: false,
+        type: 'text',
+        schema: { message: 'string' },
+      })
+      expect(result.snapshot.output_schema).toBeNull()
+    }
+  })
 })
