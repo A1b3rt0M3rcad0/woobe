@@ -46,7 +46,7 @@ function EditorToolbar({
   projectId: string
   onInvalidOutput: () => void
 }) {
-  const { state, loadedReleaseVersion, isDirty, updateBaseline, resetToBaseline } = useAgentEditor()
+  const { state, loadedReleaseVersion, setLoadedRelease, isDirty, updateBaseline, resetToBaseline } = useAgentEditor()
   const createRelease = useCreateRelease(agent.id)
   const [saveFailed, setSaveFailed] = useState(false)
   const validation = validateAgentEditorState(state)
@@ -54,7 +54,8 @@ function EditorToolbar({
 
   const handleSaveDraft = async () => {
     setSaveFailed(false)
-    const result = validateAgentEditorState(state)
+    const capturedState = state
+    const result = validateAgentEditorState(capturedState)
     if (!result.valid) {
       onInvalidOutput()
       toast.error(result.issue.message)
@@ -69,7 +70,8 @@ function EditorToolbar({
         ...result.snapshot,
       } as any)
 
-      updateBaseline()
+      updateBaseline(capturedState)
+      setLoadedRelease(null, null)
       toast.success('Draft saved')
     } catch (err) {
       setSaveFailed(true)
@@ -150,8 +152,13 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
 
   useEffect(() => {
     const target = document.getElementById(`standalone-agent-editor-${editorSection}`)
-    if (!target) return
-    const frame = requestAnimationFrame(() => target.scrollIntoView({ block: 'start' }))
+    if (!target || typeof target.scrollIntoView !== 'function') return
+    const scroll = () => target.scrollIntoView({ block: 'start' })
+    if (typeof requestAnimationFrame !== 'function') {
+      const timeout = window.setTimeout(scroll, 0)
+      return () => window.clearTimeout(timeout)
+    }
+    const frame = requestAnimationFrame(scroll)
     return () => cancelAnimationFrame(frame)
   }, [editorSection])
 
@@ -270,7 +277,7 @@ export function AgentInspector({
     >
       <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border/90 bg-background/25 px-3">
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Inspector</p>
+          <p className="truncate text-xs font-semibold text-white">Agent settings</p>
         </div>
         <button
           type="button"
