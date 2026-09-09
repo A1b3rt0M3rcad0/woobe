@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { CircleHelp } from 'lucide-react'
 import { JsonEditor } from '@/components/ui/JsonEditor'
 import { useAgentEditor } from '../AgentEditorContext'
 import { OutputContractHelpModal } from './OutputContractHelpModal'
@@ -22,7 +23,11 @@ function hasMaterializedSchema(schema: unknown): boolean {
 
 function schemaError(schema: unknown): string | null {
   if (!hasMaterializedSchema(schema)) return 'Define an Output contract before saving or running with JSON output.'
-  if (typeof schema !== 'string') return null
+  if (typeof schema !== 'string') {
+    return schema && typeof schema === 'object' && !Array.isArray(schema)
+      ? null
+      : 'Output contract must be a JSON object.'
+  }
   try {
     const parsed = JSON.parse(schema)
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return 'Output contract must be a JSON object.'
@@ -37,11 +42,11 @@ function HelpButton({ label, onClick }: { label: string; onClick: () => void }) 
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-5 w-5 items-center justify-center rounded-full border border-border bg-background text-[10px] font-semibold text-muted transition-colors hover:border-primary/50 hover:text-primary"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-accent/60 hover:text-primary-light focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
       aria-label={label}
       title={label}
     >
-      ?
+      <CircleHelp className="h-3.5 w-3.5" aria-hidden="true" />
     </button>
   )
 }
@@ -88,7 +93,7 @@ export function OutputSettingsTab({ standalone = false }: { standalone?: boolean
                   aria-pressed={active}
                   onClick={() => setMode(mode)}
                   className={cn(
-                    'h-8 rounded-md text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
+                    'h-9 rounded-md text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
                     active ? 'bg-surface text-white shadow-sm' : 'text-muted hover:text-white',
                   )}
                 >
@@ -100,7 +105,7 @@ export function OutputSettingsTab({ standalone = false }: { standalone?: boolean
 
           {responseFormat.enabled && responseFormat.type === 'json' ? (
             <div>
-              <div className="mb-2 flex items-center gap-1.5">
+              <div className="mb-2 flex items-center gap-0.5">
                 <label className="block text-xs font-medium text-white">Output contract</label>
                 <HelpButton label="Explain output contracts" onClick={() => setShowHelp(true)} />
               </div>
@@ -133,8 +138,8 @@ export function OutputSettingsTab({ standalone = false }: { standalone?: boolean
   return (
     <div className="p-4">
       <div className="rounded-xl border border-border bg-surface">
-        <div className="p-4 space-y-3">
-          <p className="text-xs font-semibold text-muted uppercase tracking-wider">JSON Output</p>
+        <div className="space-y-3 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">JSON Output</p>
           <div className="flex items-center gap-2">
             <input
               type="checkbox"
@@ -148,7 +153,7 @@ export function OutputSettingsTab({ standalone = false }: { standalone?: boolean
             </label>
           </div>
           <div>
-            <div className="mb-1 flex items-center gap-1.5">
+            <div className="mb-1 flex items-center gap-0.5">
               <label className="block text-xs font-medium text-muted">Output contract</label>
               <HelpButton label="Explain output contracts" onClick={() => setShowHelp(true)} />
             </div>
