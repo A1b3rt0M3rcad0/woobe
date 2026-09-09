@@ -1,8 +1,7 @@
-import { Edit3, Rocket, Save, RotateCcw, Lock } from 'lucide-react'
+import { ChevronRight, Edit3, Lock, Rocket, RotateCcw, Save } from 'lucide-react'
 import { AgentEditorNavigation, useAgentEditorSection } from '@/features/agents/components/AgentEditorNavigation'
 import { AgentOverviewSettings } from '@/features/agents/components/AgentOverviewSettings'
 import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
-import { InspectorTabs } from './InspectorTabs'
 import { AgentBehaviorSettings } from '@/features/agents/components/AgentBehaviorSettings'
 import { AgentRuntimeSettings } from '@/features/agents/components/AgentRuntimeSettings'
 import { ModelSettingsTab } from './ModelSettingsTab'
@@ -16,6 +15,7 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { useCreateRelease } from '@/features/agents/hooks'
+import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import type { Agent, AgentRelease, RuntimeEnvironment } from '@/features/agents/types'
 
@@ -123,7 +123,7 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
   const [editorTab, setEditorTab] = useAgentEditorSection()
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full min-h-0 flex-col">
       <EditorToolbar agent={agent} projectId={projectId} />
       <AgentEditorNavigation value={editorTab} onChange={setEditorTab} />
       <ScrollArea className="min-h-0 flex-1">
@@ -185,34 +185,73 @@ export function AgentInspector({
   environmentRelease,
   environmentReleaseLoading = false,
   onTabChange,
+  onCollapse,
 }: AgentInspectorProps) {
-  const resolvedActiveTab = activeTab === 'runtime' ? 'editor' : activeTab
+  const resolvedActiveTab = activeTab === 'versions' ? 'versions' : 'editor'
+  const editorLabel = environment === 'draft' ? 'Editor' : 'Snapshot'
   const editorContent = environment === 'draft'
     ? <EditorTabContent agent={agent} projectId={projectId} agentId={agentId} />
     : <EnvironmentSnapshotContent environment={environment} release={environmentRelease} loading={environmentReleaseLoading} />
-  const tabs = [
-    {
-      id: 'editor',
-      label: environment === 'draft' ? 'Editor' : 'Snapshot',
-      icon: environment === 'draft' ? <Edit3 className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />,
-      content: editorContent,
-    },
-    {
-      id: 'versions',
-      label: 'Versions',
-      icon: <Rocket className="h-3.5 w-3.5" />,
-      content: <div className="versions-tab-compact h-full"><ReleaseTab agentId={agentId} projectId={projectId} /></div>,
-    },
-  ]
 
   return (
-    <div className="flex w-[400px] shrink-0 flex-col border-l border-border/90 bg-surface/75 shadow-sm shadow-black/5">
-      <div className="flex shrink-0 items-center justify-between border-b border-border/90 bg-background/25 px-3 py-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted">Inspector</p>
+    <aside aria-label="Agent Inspector" className="flex w-[400px] shrink-0 flex-col border-l border-border/90 bg-surface/75 shadow-sm shadow-black/5">
+      <div className="flex h-11 shrink-0 items-center gap-2 border-b border-border/90 bg-background/25 px-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Inspector</p>
+        </div>
+        {onCollapse ? (
+          <button
+            type="button"
+            onClick={onCollapse}
+            className="flex h-7 w-7 items-center justify-center rounded-md text-muted transition-colors hover:bg-accent/60 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
+            aria-label="Collapse Inspector"
+            title="Collapse Inspector"
+          >
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        ) : null}
       </div>
+
+      <div role="tablist" aria-label="Inspector mode" className="grid shrink-0 grid-cols-2 border-b border-border/90 bg-surface/45 p-1.5">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={resolvedActiveTab === 'editor'}
+          onClick={() => onTabChange('editor')}
+          className={cn(
+            'flex h-8 items-center justify-center gap-1.5 rounded-md text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
+            resolvedActiveTab === 'editor'
+              ? 'bg-background text-white shadow-sm'
+              : 'text-muted hover:bg-background/45 hover:text-white',
+          )}
+        >
+          {environment === 'draft' ? <Edit3 className="h-3.5 w-3.5" /> : <Lock className="h-3.5 w-3.5" />}
+          {editorLabel}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={resolvedActiveTab === 'versions'}
+          onClick={() => onTabChange('versions')}
+          className={cn(
+            'flex h-8 items-center justify-center gap-1.5 rounded-md text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
+            resolvedActiveTab === 'versions'
+              ? 'bg-background text-white shadow-sm'
+              : 'text-muted hover:bg-background/45 hover:text-white',
+          )}
+        >
+          <Rocket className="h-3.5 w-3.5" />
+          Versions
+        </button>
+      </div>
+
       <div className="min-h-0 flex-1 overflow-hidden">
-        <InspectorTabs tabs={tabs} defaultTab={resolvedActiveTab} onTabChange={onTabChange} />
+        {resolvedActiveTab === 'versions' ? (
+          <ScrollArea className="h-full">
+            <div className="versions-tab-compact min-h-full"><ReleaseTab agentId={agentId} projectId={projectId} /></div>
+          </ScrollArea>
+        ) : editorContent}
       </div>
-    </div>
+    </aside>
   )
 }
