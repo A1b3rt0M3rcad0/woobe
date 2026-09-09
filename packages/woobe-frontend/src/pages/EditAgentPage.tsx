@@ -353,7 +353,7 @@ export default function EditAgentPage() {
               </div>
             </div>
 
-            <AgentBehaviorFields behavior={behavior} onChange={setBehavior} />
+            <AgentBehaviorFields behavior={behavior} onChange={setBehavior} agentName={nameValue} />
 
             <div className="flex flex-col items-end gap-1">
               {reason && (

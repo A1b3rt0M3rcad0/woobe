@@ -1,0 +1,130 @@
+import { useEffect, useRef, useState } from 'react'
+import { Pencil, Plus, Trash2 } from 'lucide-react'
+import { Button } from '@/components/ui/Button'
+import { Dialog } from '@/components/ui/Dialog'
+import { Textarea } from '@/components/ui/Textarea'
+import { behaviorFields } from '../behavior'
+
+type Field = (typeof behaviorFields)[number]
+type Value = string | string[]
+
+interface Props {
+  field: Field
+  value: Value
+  agentName: string
+  onApply: (value: Value) => void
+  onClose: () => void
+}
+
+export function AgentBehaviorFieldDialog({ field, value, agentName, onApply, onClose }: Props) {
+  const [initialValue] = useState<Value>(() => Array.isArray(value) ? [...value] : value)
+  const [draft, setDraft] = useState<Value>(() => Array.isArray(value) ? [...value] : value)
+  const [item, setItem] = useState<{ index: number; original: string; text: string } | null>(null)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
+  const bodyRef = useRef<HTMLDivElement>(null)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const returnFocusRef = useRef(document.activeElement as HTMLElement | null)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(initialValue) || Boolean(item && item.text !== item.original)
+
+  useEffect(() => {
+    const trigger = returnFocusRef.current
+    return () => { trigger?.focus() }
+  }, [])
+
+  useEffect(() => {
+    if (confirmDiscard) bodyRef.current?.querySelector('button')?.focus()
+    else if (textareaRef.current) textareaRef.current.focus()
+    else bodyRef.current?.querySelector('button')?.focus()
+  }, [confirmDiscard, item?.index])
+
+  const requestClose = () => {
+    if (dirty) setConfirmDiscard(true)
+    else onClose()
+  }
+
+  const applyItem = () => {
+    if (!item || !Array.isArray(draft) || !item.text.trim()) return
+    setDraft(item.index === -1 ? [...draft, item.text] : draft.map((text, index) => index === item.index ? item.text : text))
+    setItem(null)
+  }
+
+  return (
+    <Dialog
+      open
+      title={field.label}
+      onClose={requestClose}
+      className="flex h-[min(640px,calc(100svh-2rem))] max-w-3xl flex-col overflow-hidden"
+      contentClassName="flex min-h-0 flex-1 flex-col p-0"
+    >
+      <div ref={bodyRef} role="dialog" aria-modal="true" aria-label={`Edit ${field.label}`} className="flex min-h-0 flex-1 flex-col">
+        {confirmDiscard ? (
+          <>
+            <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 overflow-y-auto p-6">
+              <p className="text-sm font-semibold text-white">Discard changes to this field?</p>
+              <p className="text-xs leading-5 text-muted">Your Agent configuration will remain unchanged.</p>
+            </div>
+            <div className="flex shrink-0 justify-end gap-2 border-t border-border p-4">
+              <Button type="button" variant="outline" onClick={() => setConfirmDiscard(false)}>Keep editing</Button>
+              <Button type="button" variant="destructive" onClick={onClose}>Discard changes</Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 sm:p-6">
+              <div className="shrink-0">
+                <p className="truncate text-xs font-medium text-white">{agentName || 'Unnamed Agent'}</p>
+                <p className="mt-1 text-xs leading-5 text-muted">{field.help}</p>
+              </div>
+              {Array.isArray(draft) && !item ? (
+                <>
+                  <div className="flex shrink-0 items-center justify-between gap-3">
+                    <span className="text-xs text-muted">{draft.length} items</span>
+                    <Button type="button" size="sm" onClick={() => setItem({ index: -1, original: '', text: '' })}><Plus className="mr-1 h-3.5 w-3.5" />Add item</Button>
+                  </div>
+                  <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-lg border border-border">
+                    {draft.length === 0 ? <p className="p-4 text-xs text-muted">No items configured.</p> : draft.map((text, index) => (
+                      <div key={index} className="flex items-center gap-3 border-b border-border p-3 last:border-b-0">
+                        <p className="line-clamp-2 min-w-0 flex-1 break-words text-xs leading-5">{text || 'Empty item'}</p>
+                        <div className="flex shrink-0 gap-1">
+                          <Button type="button" size="sm" variant="ghost" aria-label={`Edit ${field.label.toLowerCase()} ${index + 1}`} onClick={() => setItem({ index, original: text, text })}><Pencil className="h-3.5 w-3.5" /></Button>
+                          <Button type="button" size="sm" variant="ghost" aria-label={`Remove ${field.label.toLowerCase()} ${index + 1}`} onClick={() => setDraft(draft.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="h-3.5 w-3.5" /></Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="min-h-0 flex-1 [&>div]:h-full">
+                  <Textarea
+                    ref={textareaRef}
+                    aria-label={item ? `${field.label} item` : field.label}
+                    value={item ? item.text : draft as string}
+                    onChange={event => item ? setItem({ ...item, text: event.target.value }) : setDraft(event.target.value)}
+                    placeholder={item ? 'Describe this item...' : field.help}
+                    className="scrollbar-thin h-full min-h-0 resize-none overflow-y-auto overscroll-contain bg-background/35 text-sm leading-6"
+                  />
+                </div>
+              )}
+            </div>
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border p-4">
+              <p className="text-[11px] text-muted">{item ? 'Apply this item, then apply the field changes.' : 'Apply changes locally, then save the Agent.'}</p>
+              <div className="ml-auto flex gap-2">
+                {item ? (
+                  <>
+                    <Button type="button" variant="outline" onClick={() => setItem(null)}>Cancel item</Button>
+                    <Button type="button" disabled={!item.text.trim()} onClick={applyItem}>{item.index === -1 ? 'Add item' : 'Apply item'}</Button>
+                  </>
+                ) : (
+                  <>
+                    <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+                    <Button type="button" onClick={() => { onApply(draft); onClose() }}>Apply changes</Button>
+                  </>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+      </div>
+    </Dialog>
+  )
+}
