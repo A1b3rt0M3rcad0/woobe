@@ -7,7 +7,7 @@ import { LoadingState } from '@/components/common/LoadingState'
 import { Button } from '@/components/ui/Button'
 import { AgentToolCard } from '@/features/tools/components/AgentToolCard'
 import { isHttpToolGroup } from '@/features/tools/httpToolContract'
-import { useTools, useUpdateToolStatus } from '@/features/tools/hooks'
+import { useTools } from '@/features/tools/hooks'
 import type { HttpToolConfig, McpToolPermission, Tool } from '@/features/tools/types'
 import { toolPermissionsFromTools, useAgentEditor } from '../AgentEditorContext'
 import { CreateToolModal } from './CreateToolModal'
@@ -35,7 +35,6 @@ function initialPermissionsForTool(tool: Tool): Record<string, McpToolPermission
 
 export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
   const { data: allTools = [], isLoading, refetch } = useTools(projectId)
-  const updateStatus = useUpdateToolStatus()
   const { state, setField, setState } = useAgentEditor()
   const [showImportModal, setShowImportModal] = useState(false)
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -47,18 +46,6 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
   const activeCount = tools.filter((tool) => tool.status === 'active').length
 
   const refreshTools = async () => { await refetch() }
-
-  const handleToggleActive = async (tool: Tool) => {
-    if (tool.status === 'deprecated') return
-    try {
-      const newStatus = tool.status === 'active' ? 'inactive' : 'active'
-      await updateStatus.mutateAsync({ toolId: tool.id, data: { status: newStatus } })
-      toast.success(`"${tool.name}" ${newStatus === 'active' ? 'activated' : 'deactivated'}`)
-      await refreshTools()
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Failed to update status')
-    }
-  }
 
   const removeTool = (tool: Tool) => {
     const permissions = { ...state.toolPermissions }
@@ -89,7 +76,7 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-xs font-medium uppercase tracking-wider text-muted">Tools</p>
-          {tools.length > 0 ? <p className="mt-0.5 text-[10px] text-muted">{activeCount} of {tools.length} active</p> : null}
+          {tools.length > 0 ? <p className="mt-0.5 text-[10px] text-muted">{activeCount} of {tools.length} Project Tools active</p> : null}
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={() => setShowCreateModal(true)}><Plus className="mr-1 h-4 w-4" />Create</Button>
@@ -99,7 +86,7 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
 
       {tools.length === 0 ? (
         <div className="rounded-xl border border-border bg-surface p-6">
-          <EmptyState icon={<Wrench className="h-10 w-10" />} title="No tools selected" description="Create or import tools to add them to this Agent draft. Save Draft persists the selection." />
+          <EmptyState icon={<Wrench className="h-10 w-10" />} title="No tools selected" description="Create or import Project Tools to bind them to this Agent draft. Save Draft persists only the Agent binding and permission overrides." />
         </div>
       ) : (
         <div className="space-y-3">
@@ -108,9 +95,7 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
               key={tool.id}
               context="playground"
               tool={tool}
-              statusLoading={updateStatus.isPending}
               onChanged={refreshTools}
-              onToggleActive={() => { void handleToggleActive(tool) }}
               onEdit={() => setEditingTool(tool)}
               onRemove={() => removeTool(tool)}
               permissionOverrides={state.toolPermissions[tool.id] || {}}
@@ -135,7 +120,7 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
             setField('toolPermissions', permissions)
           }
           if (savedTool && savedTool.type !== 'mcp') {
-            toast.info('HTTP Tool updated. Save Draft to refresh this Agent snapshot.')
+            toast.info('Project HTTP Tool updated. Save Draft to refresh this Agent snapshot.')
           }
           void refreshTools()
         }}
