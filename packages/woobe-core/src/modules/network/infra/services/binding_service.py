@@ -641,6 +641,9 @@ class ExplicitBindingNetworkService(NetworkApplicationService):
                 or agent_settings.get("runtime_config")
             )
             snapshot = {
+                "name": getattr(draft_release, "name", None) if draft_release is not None else agent.name,
+                "description": getattr(draft_release, "description", None) if draft_release is not None else agent.description,
+                "behavior_spec": deepcopy(getattr(draft_release if draft_release is not None else agent, "behavior_spec", None)),
                 "system_prompt": (
                     draft_release.system_prompt
                     if draft_release and draft_release.system_prompt is not None

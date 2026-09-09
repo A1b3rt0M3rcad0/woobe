@@ -39,7 +39,7 @@ vi.mock('@/features/agents/hooks', async original => ({ ...await original<typeof
   useUpdateAgent: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 vi.mock('@/features/playground/AgentEditorContext', () => ({ useAgentEditor: () => ({
-  state: { name: 'Reviewer', description: '', systemPrompt: '', sessionMode: 'stateful', runtimeConfig: {} }, setField: fixture.setField,
+  state: { name: 'Reviewer', description: '', behavior: { objective: '', responsibilities: [], allowedBehaviors: [], disallowedBehaviors: [], operatingInstructions: '', responseGuidelines: '', additionalInstructions: '' }, sessionMode: 'stateful', runtimeConfig: {} }, setField: fixture.setField,
   loadedReleaseVersion: null, isDirty: false, toSnapshot: () => ({}), updateBaseline: vi.fn(), resetToBaseline: vi.fn(),
 }) }))
 

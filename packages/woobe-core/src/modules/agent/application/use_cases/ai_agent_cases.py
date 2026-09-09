@@ -16,6 +16,7 @@ from modules.agent.application.dtos.ai_dtos import (
     UpdateAgentInput,
     UpdateAgentOutput,
 )
+from modules.agent.application.dtos.behavior_dtos import canonicalize_behavior_spec
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.application.interfaces.provider_model_repository import (
     ProviderModelRepository,
@@ -24,6 +25,7 @@ from modules.agent.application.interfaces.repositories import (
     AgentRepository,
     ProviderCredentialRepository,
 )
+from modules.agent.application.system_instruction_assembler import assemble_system_instructions
 from modules.agent.domain.entities import Agent
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus
 from modules.agent.domain.events import AgentCreatedV1, AgentUpdatedV1
@@ -59,6 +61,11 @@ class CreateAgentUseCase:
 
     async def execute(self, input_dto: CreateAgentInput) -> Agent:
         agent = Agent(**input_dto.model_dump())
+        if agent.behavior_spec is not None:
+            agent.behavior_spec = canonicalize_behavior_spec(agent.behavior_spec)
+            agent.system_prompt = assemble_system_instructions(
+                agent.name, agent.description, agent.behavior_spec
+            )
         _force_strict_json_settings(
             agent,
             default_context_manager=self._default_context_manager,
@@ -113,6 +120,18 @@ class UpdateAgentUseCase:
             from modules.agent.domain.errors import AgentNotFoundError
             raise AgentNotFoundError(agent_id)
         changes = input_dto.model_dump(exclude_unset=True)
+        if (
+            existing.behavior_spec is not None
+            and "system_prompt" in changes
+            and "behavior_spec" not in changes
+        ):
+            raise ConflictError("Update behavior_spec for an Agent with structured Behavior")
+        if (
+            "behavior_spec" in changes
+            and changes["behavior_spec"] is None
+            and "system_prompt" not in changes
+        ):
+            raise ConflictError("Clearing behavior_spec requires explicit legacy system_prompt")
         requested_status = changes.get("status")
         current_status = getattr(existing.status, "value", existing.status)
         next_status = getattr(requested_status, "value", requested_status)
@@ -136,6 +155,11 @@ class UpdateAgentUseCase:
                 )
         for field, value in changes.items():
             setattr(existing, field, value)
+        if existing.behavior_spec is not None:
+            existing.behavior_spec = canonicalize_behavior_spec(existing.behavior_spec)
+            existing.system_prompt = assemble_system_instructions(
+                existing.name, existing.description, existing.behavior_spec
+            )
         _force_strict_json_settings(existing)
         await _resolve_implicit_provider_model_bindings(existing, self._provider_model_repo)
         await _resolve_provider_model_bindings(
@@ -172,6 +196,7 @@ class UpdateAgentUseCase:
             temperature=saved.temperature,
             max_output_tokens=saved.max_output_tokens,
             session_mode=saved.session_mode,
+            behavior_spec=getattr(saved, "behavior_spec", None),
             system_prompt=saved.system_prompt,
             description=saved.description,
             status=saved.status,
@@ -195,6 +220,7 @@ class ListAgentsUseCase:
                 name=item.name,
                 description=item.description,
                 type=item.type,
+                behavior_spec=getattr(item, "behavior_spec", None),
                 system_prompt=item.system_prompt,
                 provider=item.provider,
                 model=item.model,

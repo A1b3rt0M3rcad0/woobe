@@ -34,16 +34,17 @@ export function AgentDetailsStep({ flow }: AgentDetailsStepProps) {
       </div>
 
       <div>
-        <label className="mb-1.5 block text-sm font-medium text-muted">Instructions</label>
+        <label className="mb-1.5 block text-sm font-medium text-muted">Objective</label>
         <Textarea
-          value={flow.agentInstructions}
-          onChange={(event) => flow.setAgentInstructions(event.target.value)}
-          rows={10}
-          placeholder="You are a customer support Agent. Answer clearly, use the available knowledge and do not invent information."
-          className="min-h-56 resize-none"
+          value={flow.agentObjective}
+          onChange={(event) => flow.setAgentObjective(event.target.value)}
+          aria-label="Objective"
+          rows={4}
+          placeholder="Resolve customer support requests accurately."
+          className="min-h-28 resize-y"
         />
         <p className="mt-2 text-xs leading-5 text-muted">
-          These instructions initialize the Agent Draft and remain editable in the Playground.
+          This objective initializes the Behavior. Configure the full Behavior in the Agent editor.
         </p>
       </div>
     </div>

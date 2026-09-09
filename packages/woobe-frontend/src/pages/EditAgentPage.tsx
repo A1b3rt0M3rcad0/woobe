@@ -1,3 +1,5 @@
+import { AgentBehaviorFields } from '@/features/agents/components/AgentBehaviorSettings'
+import { behaviorFromSpec, behaviorToSpec } from '@/features/agents/behavior'
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
@@ -10,7 +12,6 @@ import { PageHeader } from '@/components/common/PageHeader'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
-import { Textarea } from '@/components/ui/Textarea'
 import { Select } from '@/components/ui/Select'
 import { Badge } from '@/components/ui/Badge'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -73,6 +74,7 @@ export default function EditAgentPage() {
   const { data: credentials = [], refetch: refetchCredentials } = useCredentials(projectId)
   const [showAddCredential, setShowAddCredential] = useState(false)
   const [selectedCredential, setSelectedCredential] = useState<ProviderCredential | null>(null)
+  const [behavior, setBehavior] = useState(() => behaviorFromSpec())
   const [formReady, setFormReady] = useState(false)
   const pendingCredentialId = useRef<string | null>(null)
 
@@ -91,13 +93,13 @@ export default function EditAgentPage() {
       description: agent.description || '',
       provider: agent.provider,
       model: agent.model,
-      system_prompt: agent.system_prompt || '',
       temperature: agent.temperature ?? 0.7,
       max_output_tokens: agent.max_output_tokens ?? 2048,
       provider_credential_id: agent.provider_credential_id || '',
       session_mode: (agent.session_mode === 'stateless' ? 'stateless' : 'stateful') as 'stateful' | 'stateless',
       status: agent.status === 'active' ? 'active' : 'inactive',
     })
+    setBehavior(behaviorFromSpec(agent.behavior_spec, agent.system_prompt))
     setFormReady(true)
   }, [agent, credentials, form, formReady])
 
@@ -172,7 +174,7 @@ export default function EditAgentPage() {
         name: data.name,
         provider: selectedCredential.provider,
         model,
-        system_prompt: data.system_prompt || '',
+        behavior_spec: behaviorToSpec(behavior),
         description: data.description || '',
         temperature: data.temperature,
         max_output_tokens: data.max_output_tokens,
@@ -351,14 +353,7 @@ export default function EditAgentPage() {
               </div>
             </div>
 
-            <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
-              <p className="text-xs font-semibold text-muted uppercase tracking-wider">Prompt</p>
-              <Textarea
-                {...form.register('system_prompt')}
-                placeholder="You are a helpful AI assistant..."
-                className="min-h-[160px] font-mono text-xs leading-relaxed"
-              />
-            </div>
+            <AgentBehaviorFields behavior={behavior} onChange={setBehavior} />
 
             <div className="flex flex-col items-end gap-1">
               {reason && (

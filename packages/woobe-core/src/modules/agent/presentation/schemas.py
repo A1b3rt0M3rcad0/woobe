@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from modules.agent.application.dtos.behavior_dtos import BehaviorSpecification
 from modules.agent.domain.enums import (
     AgentStatus,
     CollectionStatus,
@@ -59,6 +60,7 @@ class CreateAgentRequest(BaseModel):
     name: str
     provider: Provider = Provider.openai
     model: str
+    behavior_spec: BehaviorSpecification | None = None
     system_prompt: str = ""
     description: str = ""
     provider_credential_id: UUID | None = None
@@ -74,6 +76,7 @@ class CreateAgentRequest(BaseModel):
 class UpdateAgentRequest(BaseModel):
     name: str | None = None
     description: str | None = None
+    behavior_spec: BehaviorSpecification | None = None
     system_prompt: str | None = None
     provider: Provider | None = None
     model: str | None = None
@@ -101,6 +104,7 @@ class AgentResponse(BaseModel):
     temperature: float | None = None
     max_output_tokens: int | None = None
     session_mode: SessionMode | None = None
+    behavior_spec: dict[str, Any] | None = None
     system_prompt: str = ""
     description: str = ""
     status: AgentStatus
@@ -237,6 +241,7 @@ class CreateReleaseRequest(BaseModel):
     model_config_version_id: UUID | None = None
     name: str | None = None
     description: str | None = None
+    behavior_spec: BehaviorSpecification | None = None
     system_prompt: str | None = None
     response_format: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None
@@ -266,6 +271,7 @@ class ReleaseResponse(BaseModel):
     model_config_version_id: UUID | None = None
     name: str | None = None
     description: str | None = None
+    behavior_spec: dict[str, Any] | None = None
     system_prompt: str | None = None
     response_format: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None
@@ -298,6 +304,7 @@ class ListReleasesResponse(BaseModel):
     name: str | None = None
     provider: str | None = None
     model: str | None = None
+    behavior_spec: dict[str, Any] | None = None
     system_prompt: str | None = None
     output_schema: dict[str, Any] | None = None
     risk_score: int | None = None

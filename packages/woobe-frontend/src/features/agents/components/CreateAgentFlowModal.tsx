@@ -305,7 +305,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                     <div className="mb-5">
                       <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-light">Agent Draft</p>
                       <h3 className="mt-1 text-base font-semibold text-white">Define the Agent identity</h3>
-                      <p className="mt-1 text-xs leading-5 text-muted">Keep the identity concise. Instructions receive the primary editing space.</p>
+                      <p className="mt-1 text-xs leading-5 text-muted">Define the role and primary outcome. Configure the full Behavior in the Agent editor.</p>
                     </div>
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
@@ -318,10 +318,10 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                       </div>
                       <div className="md:col-span-2">
                         <div className="mb-1 flex items-center justify-between gap-3">
-                          <label className="text-xs font-medium text-muted">Instructions</label>
+                          <label className="text-xs font-medium text-muted">Objective</label>
                           <span className="text-[10px] text-muted">Initial Draft</span>
                         </div>
-                        <Textarea value={flow.agentInstructions} onChange={(event) => flow.setAgentInstructions(event.target.value)} rows={12} placeholder="You are a customer support Agent. Answer clearly and do not invent information." className="min-h-[260px]" />
+                        <Textarea value={flow.agentObjective} onChange={(event) => flow.setAgentObjective(event.target.value)} aria-label="Objective" rows={4} placeholder="Resolve customer support requests accurately." className="min-h-[120px]" />
                       </div>
                     </div>
                   </div>
@@ -348,9 +348,9 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                         <p className="mt-2 truncate font-mono text-[11px] text-muted">{providerLabel(flow.selectedModel.provider)} · {flow.selectedModel.model}</p>
                       </section>
                       <section className="border-t border-border/70 pt-5 md:col-span-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Instructions</p>
+                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Objective</p>
                         <div className="mt-3 max-h-[280px] overflow-y-auto rounded-lg border border-border/70 bg-background/30 p-4">
-                          <p className="whitespace-pre-wrap text-sm leading-6 text-white/90">{flow.agentInstructions}</p>
+                          <p className="whitespace-pre-wrap text-sm leading-6 text-white/90">{flow.agentObjective}</p>
                         </div>
                       </section>
                     </div>

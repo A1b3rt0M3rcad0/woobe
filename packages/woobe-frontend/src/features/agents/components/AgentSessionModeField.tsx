@@ -36,8 +36,8 @@ export function AgentSessionModeField({
     <section className="rounded-xl border border-border bg-surface p-4">
       <div className="flex items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Runtime behavior</p>
-          <p className="mt-1 text-xs text-muted">Session mode is part of the Agent snapshot and changes through the release flow.</p>
+          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Session Mode</p>
+          <p className="mt-1 text-xs text-muted">Controls whether the Agent preserves Session continuity between Runs.</p>
         </div>
         {definedBy ? <span className="shrink-0 rounded border border-border bg-background/50 px-2 py-1 font-mono text-[9px] text-muted">{definedBy}</span> : null}
       </div>

@@ -1,3 +1,4 @@
+import { AgentBehaviorDetails } from '@/features/agents/components/AgentBehaviorDetails'
 import { SkillSnapshotSummary } from '@/features/skills/SkillSnapshotSummary'
 import { ChevronDown } from 'lucide-react'
 
@@ -93,12 +94,7 @@ export function AgentSnapshotDetails({ release }: { release: AgentRelease }) {
         </section>
       ) : null}
 
-      <section>
-        <p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wide text-muted">Instructions</p>
-        <div className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-xl border border-border/75 bg-background/35 p-3 text-[10px] leading-5 text-slate-200 scrollbar-thin">
-          {release.system_prompt || 'No System Prompt configured.'}
-        </div>
-      </section>
+      <AgentBehaviorDetails behavior={release.behavior_spec} legacyPrompt={release.system_prompt} />
 
       <div className="grid gap-3 sm:grid-cols-3">
         <section className="rounded-xl border border-border/75 bg-background/35 p-3">

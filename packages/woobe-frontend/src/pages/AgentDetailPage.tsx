@@ -6,7 +6,7 @@ import { ErrorState } from '@/components/common/ErrorState'
 import { Tabs } from '@/components/ui/Tabs'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { Textarea } from '@/components/ui/Textarea'
+import { AgentBehaviorDetails } from '@/features/agents/components/AgentBehaviorDetails'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { CopyButton } from '@/components/common/CopyButton'
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
@@ -40,21 +40,10 @@ export default function AgentDetailPage() {
       ) : null,
     },
     {
-      id: 'prompt',
-      label: 'Prompt',
+      id: 'behavior',
+      label: 'Behavior',
       content: agent ? (
-        <Card>
-          <CardHeader><CardTitle>System Prompt</CardTitle></CardHeader>
-          <CardContent>
-            <Textarea
-              defaultValue={agent.system_prompt || ''}
-              className="min-h-[200px] font-mono text-sm"
-            />
-            <div className="flex justify-end mt-4">
-              <Button size="sm">Save</Button>
-            </div>
-          </CardContent>
-        </Card>
+        <AgentBehaviorDetails behavior={agent.behavior_spec} legacyPrompt={agent.system_prompt} />
       ) : null,
     },
     {

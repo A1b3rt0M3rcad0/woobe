@@ -3,6 +3,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from modules.agent.application.dtos.behavior_dtos import BehaviorSpecification
 from modules.agent.domain.enums import AgentStatus, AgentType, Provider, SessionMode
 
 
@@ -15,6 +16,7 @@ class CreateAgentInput(BaseModel):
     name: str
     description: str = ""
     type: AgentType = AgentType.chat
+    behavior_spec: BehaviorSpecification | None = None
     system_prompt: str = ""
     provider: Provider = Provider.openai
     model: str = ""
@@ -29,6 +31,7 @@ class CreateAgentInput(BaseModel):
 class UpdateAgentInput(BaseModel):
     name: str | None = None
     description: str | None = None
+    behavior_spec: BehaviorSpecification | None = None
     system_prompt: str | None = None
     provider: Provider | None = None
     model: str | None = None

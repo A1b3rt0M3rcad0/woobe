@@ -1,3 +1,4 @@
+import { behaviorFields } from '@/features/agents/behavior'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -17,7 +18,7 @@ interface ConfirmVersionModalProps {
 const DIFF_FIELDS: { key: string; label: string }[] = [
   { key: 'name', label: 'Name' },
   { key: 'description', label: 'Description' },
-  { key: 'system_prompt', label: 'System Prompt' },
+  ...behaviorFields.map(({ specKey, label }) => ({ key: `behavior_spec.${specKey}`, label })),
   { key: 'provider', label: 'Provider' },
   { key: 'model', label: 'Model' },
   { key: 'temperature', label: 'Temperature' },
@@ -27,6 +28,14 @@ const DIFF_FIELDS: { key: string; label: string }[] = [
   { key: 'output_schema', label: 'Output Schema' },
   { key: 'collection_ids', label: 'Knowledge Collections' },
 ]
+
+function fieldValue(snapshot: Record<string, unknown> | null, key: string): unknown {
+  if (!snapshot) return undefined
+  if (!key.startsWith('behavior_spec.')) return snapshot[key]
+  const field = key.slice('behavior_spec.'.length)
+  const behavior = snapshot.behavior_spec as Record<string, unknown> | undefined
+  return behavior?.[field] ?? (field === 'additional_instructions' ? snapshot.system_prompt : undefined)
+}
 
 function formatValue(val: unknown): string {
   if (val === null || val === undefined) return '—'
@@ -42,8 +51,8 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
   if (!open) return null
 
   const changedFields = DIFF_FIELDS.filter(({ key }) => {
-    const current = currentSnapshot[key]
-    const previous = lastRelease ? (lastRelease as unknown as Record<string, unknown>)[key] : undefined
+    const current = fieldValue(currentSnapshot, key)
+    const previous = fieldValue(lastRelease as unknown as Record<string, unknown> | null, key)
     return changesExist(current, previous)
   })
 
@@ -91,8 +100,8 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
                   </thead>
                   <tbody>
                     {changedFields.map(({ key, label }) => {
-                      const current = currentSnapshot[key]
-                      const previous = lastRelease ? (lastRelease as unknown as Record<string, unknown>)[key] : undefined
+                      const current = fieldValue(currentSnapshot, key)
+                      const previous = fieldValue(lastRelease as unknown as Record<string, unknown> | null, key)
                       return (
                         <tr key={key} className="border-b border-border/50 last:border-b-0">
                           <td className="px-3 py-1.5 text-muted font-medium">{label}</td>

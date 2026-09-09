@@ -5,7 +5,7 @@ export const createAgentSchema = z.object({
   description: z.string().optional(),
   provider: z.string().optional(),
   model: z.string().optional(),
-  system_prompt: z.string().optional(),
+  objective: z.string().optional(),
   temperature: z.coerce.number().min(0).max(2).optional(),
   max_output_tokens: z.coerce.number().min(1).optional(),
   provider_credential_id: z.string().optional(),
