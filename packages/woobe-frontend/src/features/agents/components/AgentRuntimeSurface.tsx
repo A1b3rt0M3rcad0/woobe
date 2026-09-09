@@ -25,7 +25,7 @@ export function AgentRuntimeSurface({ projectId }: { projectId: string }) {
           Controls how this Agent builds context and maintains continuity between Runs.
         </p>
 
-        <AgentContextAssemblerField compact />
+        <AgentContextAssemblerField projectId={projectId} compact />
 
         <div className="border-t border-border/80 pt-5">
           <AgentSessionModeField compact />
