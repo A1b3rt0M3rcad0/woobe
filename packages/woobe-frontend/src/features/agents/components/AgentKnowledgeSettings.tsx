@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react'
-import { BookOpen, ChevronRight, Trash2 } from 'lucide-react'
+import { useState } from 'react'
+import { BookOpen, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/Button'
@@ -11,10 +11,6 @@ import type { VectorSnapshot } from '@/features/knowledge/types'
 import { ManageKnowledgeModal } from '@/features/playground/components/ManageKnowledgeModal'
 import { RagRuntimeSettings } from '@/features/playground/components/RagRuntimeSettings'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return <section className="rounded-xl border border-border bg-surface p-4"><p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">{title}</p>{children}</section>
-}
 
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
@@ -72,45 +68,47 @@ export function AgentKnowledgeSettings({ projectId, agentId }: { projectId: stri
 
   return (
     <div className="space-y-4 p-4">
-      <Section title="Knowledge">
+      <section aria-label="Knowledge" className="rounded-xl border border-border bg-surface">
+        <div className="flex items-center gap-3 p-4"><BookOpen className="h-4 w-4 shrink-0 text-primary" /><div><p className="text-sm font-semibold">Knowledge</p><p className="mt-0.5 text-[11px] text-muted">{active ? 'Snapshot selected' : 'No snapshot selected'}</p></div></div>
         {active ? (
-          <div className="rounded-lg border border-border bg-background p-3">
+          <div className="border-t border-border p-4">
             <div className="flex items-start gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border bg-surface"><BookOpen className="h-4 w-4 text-primary-light" /></div>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-white">{collectionName}</p>
+                <p title={collectionName} className="truncate text-xs font-medium text-foreground">{collectionName}</p>
                 <p className="mt-1 text-xs text-muted">Knowledge {active.version} · Vector {vectorVersion}</p>
-                <p className="mt-1 text-[10px] uppercase text-muted/80">Immutable snapshot</p>
+                <p className="mt-1 text-[11px] uppercase text-muted/80">Immutable snapshot</p>
               </div>
               <button type="button" onClick={() => setField('knowledgeVersionId', null)} className="rounded-lg border border-border p-2 text-muted hover:border-red-500/30 hover:text-red-300" aria-label="Remove knowledge"><Trash2 className="h-3.5 w-3.5" /></button>
             </div>
-            <div className="mt-3 flex gap-2 border-t border-border/80 pt-3">
+            <div className="mt-3 flex flex-wrap gap-2 border-t border-border/80 pt-3">
               <Button size="sm" variant="outline" onClick={() => setSelectorOpen(true)}>Change version</Button>
               <Button size="sm" variant="ghost" onClick={() => setManagerOpen(true)}>Manage</Button>
             </div>
           </div>
         ) : (
-          <div className="rounded-lg border border-dashed border-border bg-background/45 p-4">
-            <p className="text-sm font-medium text-white">No knowledge selected</p>
-            <p className="mt-1 text-xs leading-5 text-muted">Choose an immutable Vector Snapshot for this Agent Draft.</p>
-            <div className="mt-3 flex gap-2">
+          <div className="border-t border-border p-4">
+            <p className="text-xs font-medium text-foreground">Connect knowledge</p>
+            <p className="mt-1 text-xs leading-5 text-muted">Choose a Vector Snapshot for this Agent Draft.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
               <Button size="sm" onClick={() => setSelectorOpen(true)}>Select knowledge</Button>
               <Button size="sm" variant="outline" onClick={() => setManagerOpen(true)}>Manage</Button>
             </div>
           </div>
         )}
-      </Section>
-
-      <Section title="Runtime Retrieval">
-        <button type="button" onClick={() => setRuntimeOpen(true)} className="group flex w-full items-center justify-between rounded-lg border border-border bg-background p-3 text-left hover:border-primary/30">
+      <div className="border-t border-border p-4">
+        <p className="mb-2 text-[11px] text-muted">Retrieval</p>
+        <button type="button" onClick={() => setRuntimeOpen(true)} className="group flex w-full items-center justify-between gap-2 rounded-md py-1 text-left hover:bg-accent/35">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-white">Search behavior</p>
+            <p className="text-xs font-medium text-foreground">Search behavior</p>
             <p className="mt-1 text-xs text-muted">Top {runtime.top_k} from {runtime.candidate_k} candidates</p>
-            <p className="mt-1 truncate text-[10px] text-muted/80">{runtime.query_mode === 'current_message' ? 'Current message' : 'Conversation context'} · {runtime.grounding_policy === 'required' ? 'Required grounding' : 'Optional grounding'}</p>
+            <p className="mt-1 truncate text-[11px] text-muted/80">{runtime.query_mode === 'current_message' ? 'Current message' : 'Conversation context'} · {runtime.grounding_policy === 'required' ? 'Required grounding' : 'Optional grounding'}</p>
           </div>
-          <ChevronRight className="h-4 w-4 shrink-0 text-muted group-hover:text-primary-light" />
+          <span className="shrink-0 px-2 text-[11px] text-primary-light">Configure</span>
         </button>
-      </Section>
+        {!active ? <p className="mt-3 text-[11px] text-muted">Applies when a snapshot is linked.</p> : null}
+      </div>
+      </section>
 
       <SelectKnowledgeVersionModal open={selectorOpen} projectId={projectId} currentSnapshotId={snapshotId} onClose={() => setSelectorOpen(false)} onSelect={(snapshot) => { void applySnapshot(snapshot) }} />
       <ManageKnowledgeModal

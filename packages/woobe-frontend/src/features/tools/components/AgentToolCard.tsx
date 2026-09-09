@@ -99,8 +99,8 @@ export function AgentToolCard({
 
   return (
     <article className={cn(
-      'rounded-xl border px-3 py-2.5 transition-colors',
-      isRetired ? 'border-amber-500/30 bg-amber-500/5' : isActive ? 'border-border bg-background' : 'border-border/60 bg-background/45 opacity-75',
+      'p-4 transition-colors',
+      isRetired ? 'bg-amber-500/5' : isActive ? 'bg-transparent' : 'bg-transparent opacity-75',
     )}>
       <div className="flex items-center gap-2.5">
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-surface/60 text-primary-light">
@@ -108,7 +108,7 @@ export function AgentToolCard({
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-sm font-semibold text-white">{tool.name}</h3>
+            <h3 title={tool.name} className="truncate text-xs font-semibold text-foreground">{tool.name}</h3>
             {isRetired ? (
               <span className="shrink-0 text-[9px] text-amber-200">Retired</span>
             ) : showReadOnlyStatus ? (
@@ -144,7 +144,7 @@ export function AgentToolCard({
       ) : null}
 
       {showRisk ? (
-        <div className="mt-1.5 flex items-center gap-1.5 px-1 text-[10px] capitalize text-amber-200">
+        <div className="mt-1.5 flex items-center gap-1.5 px-1 text-[11px] capitalize text-amber-200">
           <AlertTriangle className="h-3 w-3" />
           {risk} risk
         </div>

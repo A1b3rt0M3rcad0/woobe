@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronRight, Globe2, Search } from 'lucide-react'
+import { Globe2, Search } from 'lucide-react'
 
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -135,9 +135,9 @@ export function HttpProviderPanel({ tool, permissionOverrides, onPermissionOverr
             <span>{allRoutes.length} routes</span>
             {counts.allow > 0 ? <span>· {counts.allow} allowed</span> : null}
           </span>
-          <span className="mt-0.5 block truncate text-[10px] text-muted">{providerHost(tool)}</span>
+          <span title={providerHost(tool)} className="mt-1 block truncate text-[11px] text-muted">{providerHost(tool)}</span>
         </span>
-        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted" />
+        <span className="shrink-0 text-[11px] text-primary-light">Manage</span>
       </button>
 
       <Dialog open={manageOpen} onClose={() => setManageOpen(false)} title={`Manage HTTP routes: ${tool.name}`} className="max-w-3xl" scrollMode="content">

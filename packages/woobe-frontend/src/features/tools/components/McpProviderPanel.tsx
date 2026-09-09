@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { ChevronRight, PlugZap, Search } from 'lucide-react'
+import { PlugZap, Search } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/Button'
@@ -367,9 +367,9 @@ export function McpProviderPanel({ tool, onChanged, permissionOverrides, onPermi
             <span>{state.discovered_count} tools</span>
             {state.exposed_count > 0 ? <span>· {state.exposed_count} allowed</span> : null}
           </span>
-          <span className="mt-0.5 block truncate text-[10px] text-muted">{providerHost(tool)}</span>
+          <span title={providerHost(tool)} className="mt-1 block truncate text-[11px] text-muted">{providerHost(tool)}</span>
         </span>
-        {actionable ? <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted" /> : null}
+        {actionable ? <span className="shrink-0 text-[11px] text-primary-light">{discovered.length > 0 ? 'Manage' : showConnect ? 'Connect' : 'Load tools'}</span> : null}
       </button>
 
       {diagnostic ? <p className="mt-1 line-clamp-2 px-1 text-[10px] leading-4 text-amber-200">{state.message}</p> : null}
