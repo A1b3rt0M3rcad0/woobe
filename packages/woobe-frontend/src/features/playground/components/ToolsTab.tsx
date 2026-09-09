@@ -17,6 +17,7 @@ import { ImportToolsModal } from './ImportToolsModal'
 interface ToolsTabProps {
   projectId: string
   agentId: string
+  standalone?: boolean
 }
 
 function initialPermissionsForTool(tool: Tool): Record<string, McpToolPermission> {
@@ -33,7 +34,7 @@ function initialPermissionsForTool(tool: Tool): Record<string, McpToolPermission
   return permissions
 }
 
-export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
+export function ToolsTab({ projectId, agentId, standalone = false }: ToolsTabProps) {
   const { data: allTools = [], isLoading, refetch } = useTools(projectId)
   const { state, setField, setState } = useAgentEditor()
   const [showImportModal, setShowImportModal] = useState(false)
@@ -71,37 +72,60 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
 
   if (isLoading) return <LoadingState variant="panel" layout="list" message="Loading tools..." />
 
-  return (
-    <div className="space-y-3 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-medium uppercase tracking-wider text-muted">Tools</p>
-          {tools.length > 0 ? <p className="mt-0.5 text-[10px] text-muted">{activeCount} of {tools.length} Project Tools active</p> : null}
-        </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => setShowCreateModal(true)}><Plus className="mr-1 h-4 w-4" />Create</Button>
-          <Button size="sm" variant="outline" onClick={() => setShowImportModal(true)}><Link2 className="mr-1 h-4 w-4" />Import</Button>
-        </div>
-      </div>
+  const actions = (
+    <div className="flex gap-2">
+      <Button size="sm" variant="outline" onClick={() => setShowCreateModal(true)}><Plus className="mr-1 h-4 w-4" />Create</Button>
+      <Button size="sm" variant="outline" onClick={() => setShowImportModal(true)}><Link2 className="mr-1 h-4 w-4" />Import</Button>
+    </div>
+  )
 
-      {tools.length === 0 ? (
-        <div className="rounded-xl border border-border bg-surface p-6">
-          <EmptyState icon={<Wrench className="h-10 w-10" />} title="No tools selected" description="Create or import Project Tools to bind them to this Agent draft. Save Draft persists only the Agent binding and permission overrides." />
-        </div>
+  const toolList = tools.length === 0 ? (
+    <div className={standalone ? 'rounded-lg border border-dashed border-border bg-background/35 p-5' : 'rounded-xl border border-border bg-surface p-6'}>
+      <EmptyState icon={<Wrench className="h-10 w-10" />} title="No tools selected" description="Create or import Project Tools to bind them to this Agent draft. Save Draft persists only the Agent binding and permission overrides." />
+    </div>
+  ) : (
+    <div className="space-y-3">
+      {tools.map((tool) => (
+        <AgentToolCard
+          key={tool.id}
+          context="playground"
+          tool={tool}
+          onChanged={refreshTools}
+          onEdit={() => setEditingTool(tool)}
+          onRemove={() => removeTool(tool)}
+          permissionOverrides={state.toolPermissions[tool.id] || {}}
+          onPermissionOverridesChange={(permissions) => updatePermissions(tool.id, permissions)}
+        />
+      ))}
+    </div>
+  )
+
+  return (
+    <>
+      {standalone ? (
+        <section aria-label="Tools" className="space-y-4 p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-white">Tools</p>
+              <p className="mt-1 text-[11px] leading-4 text-muted">
+                Bind reusable Project Tools to this Agent. Project status remains read-only from the Agent inspector.
+              </p>
+              {tools.length > 0 ? <p className="mt-1 text-[10px] text-muted">{activeCount} of {tools.length} Project Tools active</p> : null}
+            </div>
+            {actions}
+          </div>
+          {toolList}
+        </section>
       ) : (
-        <div className="space-y-3">
-          {tools.map((tool) => (
-            <AgentToolCard
-              key={tool.id}
-              context="playground"
-              tool={tool}
-              onChanged={refreshTools}
-              onEdit={() => setEditingTool(tool)}
-              onRemove={() => removeTool(tool)}
-              permissionOverrides={state.toolPermissions[tool.id] || {}}
-              onPermissionOverridesChange={(permissions) => updatePermissions(tool.id, permissions)}
-            />
-          ))}
+        <div className="space-y-3 p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-muted">Tools</p>
+              {tools.length > 0 ? <p className="mt-0.5 text-[10px] text-muted">{activeCount} of {tools.length} Project Tools active</p> : null}
+            </div>
+            {actions}
+          </div>
+          {toolList}
         </div>
       )}
 
@@ -125,6 +149,6 @@ export function ToolsTab({ projectId, agentId }: ToolsTabProps) {
           void refreshTools()
         }}
       />
-    </div>
+    </>
   )
 }
