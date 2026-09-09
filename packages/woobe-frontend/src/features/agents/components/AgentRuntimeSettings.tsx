@@ -23,7 +23,7 @@ export function AgentRuntimeSettings({ projectId }: { projectId: string }) {
 
         <div className="space-y-5 border-t border-border p-4">
           <p className="text-xs leading-5 text-muted">
-            Controls how this Agent builds context and maintains continuity between Runs.
+            Configure how this Agent assembles context and whether Session continuity is preserved between Runs.
           </p>
 
           <AgentContextAssemblerField projectId={projectId} compact />
