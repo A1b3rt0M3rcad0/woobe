@@ -5,6 +5,7 @@ import { AgentOverviewSettings } from '@/features/agents/components/AgentOvervie
 import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
 import { AgentBehaviorSettings } from '@/features/agents/components/AgentBehaviorSettings'
 import { AgentRuntimeSettings } from '@/features/agents/components/AgentRuntimeSettings'
+import { validateAgentEditorState } from '@/features/agents/editorValidation'
 import { ModelSettingsTab } from './ModelSettingsTab'
 import { KnowledgeTab } from './KnowledgeTab'
 import { ToolsTab } from './ToolsTab'
@@ -36,42 +37,36 @@ function titleCaseEnvironment(environment: RuntimeEnvironment) {
   return environment.charAt(0).toUpperCase() + environment.slice(1)
 }
 
-function EditorToolbar({ agent, projectId }: { agent: Agent; projectId: string }) {
-  const { loadedReleaseVersion, isDirty, toSnapshot, updateBaseline, resetToBaseline } = useAgentEditor()
+function EditorToolbar({
+  agent,
+  projectId,
+  onInvalidOutput,
+}: {
+  agent: Agent
+  projectId: string
+  onInvalidOutput: () => void
+}) {
+  const { state, loadedReleaseVersion, isDirty, updateBaseline, resetToBaseline } = useAgentEditor()
   const createRelease = useCreateRelease(agent.id)
   const [saveFailed, setSaveFailed] = useState(false)
+  const validation = validateAgentEditorState(state)
+  const hasValidationIssue = !validation.valid
 
   const handleSaveDraft = async () => {
     setSaveFailed(false)
-    try {
-      const snapshot = toSnapshot()
-      const rawResponseFormat = snapshot.response_format
-      const responseFormat = rawResponseFormat && typeof rawResponseFormat === 'object' && !Array.isArray(rawResponseFormat)
-        ? rawResponseFormat as Record<string, unknown>
-        : {}
-      const jsonEnabled = responseFormat.enabled === true && responseFormat.type === 'json'
-      const currentSchema = responseFormat.schema
-      const hasSchema = typeof currentSchema === 'string'
-        ? currentSchema.trim().length > 0
-        : Boolean(currentSchema && typeof currentSchema === 'object')
-      const schema = jsonEnabled && !hasSchema
-        ? { message: 'string', confidence: 'float' }
-        : currentSchema
-      const canonicalSnapshot: Record<string, unknown> = {
-        ...snapshot,
-        response_format: {
-          ...responseFormat,
-          strict: true,
-          schema,
-        },
-        output_schema: schema,
-      }
+    const result = validateAgentEditorState(state)
+    if (!result.valid) {
+      onInvalidOutput()
+      toast.error(result.issue.message)
+      return
+    }
 
+    try {
       await createRelease.mutateAsync({
         project_id: projectId,
         agent_id: agent.id,
         version: 'draft',
-        ...canonicalSnapshot,
+        ...result.snapshot,
       } as any)
 
       updateBaseline()
@@ -86,11 +81,13 @@ function EditorToolbar({ agent, projectId }: { agent: Agent; projectId: string }
     ? 'Saving…'
     : saveFailed
       ? 'Save failed'
-      : isDirty
-        ? 'Unsaved changes'
-        : loadedReleaseVersion
-          ? 'Ready to save as Draft'
-          : 'Saved'
+      : hasValidationIssue
+        ? 'Fix Output contract'
+        : isDirty
+          ? 'Unsaved changes'
+          : loadedReleaseVersion
+            ? 'Ready to save as Draft'
+            : 'Saved'
 
   return (
     <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/90 bg-background/25 px-3 py-2.5">
@@ -104,7 +101,7 @@ function EditorToolbar({ agent, projectId }: { agent: Agent; projectId: string }
         </p>
         <p className={cn(
           'mt-0.5 text-[9px] font-medium',
-          saveFailed
+          saveFailed || hasValidationIssue
             ? 'text-red-300'
             : createRelease.isPending
               ? 'text-primary-light'
@@ -137,6 +134,7 @@ function EditorToolbar({ agent, projectId }: { agent: Agent; projectId: string }
           onClick={handleSaveDraft}
           loading={createRelease.isPending}
           disabled={!isDirty && !loadedReleaseVersion}
+          aria-invalid={hasValidationIssue || undefined}
         >
           <Save className="mr-1 h-3.5 w-3.5" />
           Save draft
@@ -159,7 +157,7 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
 
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <EditorToolbar agent={agent} projectId={projectId} />
+      <EditorToolbar agent={agent} projectId={projectId} onInvalidOutput={() => setEditorSection('output')} />
       <AgentEditorNavigation value={editorSection} onChange={setEditorSection} standalone />
       <ScrollArea className="min-h-0 flex-1">
         {activeGroup.id === 'agent' ? (
@@ -200,7 +198,7 @@ function EditorTabContent({ agent, projectId, agentId }: { agent: Agent; project
 
         {activeGroup.id === 'output' ? (
           <div id="standalone-agent-editor-output" className="scroll-mt-3">
-            <OutputSettingsTab />
+            <OutputSettingsTab standalone />
           </div>
         ) : null}
       </ScrollArea>
