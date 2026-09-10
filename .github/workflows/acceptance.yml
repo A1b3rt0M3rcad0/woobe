@@ -24,6 +24,7 @@ jobs:
       WOOBE_CHAT_TOKEN_SIGNING_KEY: acceptance-chat-key-at-least-32-characters
       WOOBE_ENVIRONMENT: test
       WOOBE_DEBUG: "false"
+      WOOBE_RUN_PERSISTENCE_MODE: legacy_finalization
       PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
@@ -245,11 +246,11 @@ jobs:
       - name: Build and start production-shaped Core stack
         run: |
           set -euo pipefail
-          docker compose up -d --build db rabbitmq redis
+          docker compose up -d --build db rabbitmq redis mongodb
           docker compose run --rm migrate
           if ! docker compose up -d api workers web chat-embed; then
             docker compose ps --all || true
-            docker compose logs --no-color api workers || true
+            docker compose logs --no-color api workers mongodb || true
             exit 1
           fi
           for attempt in $(seq 1 60); do
