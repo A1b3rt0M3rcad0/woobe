@@ -1,8 +1,7 @@
 import type { ReactNode } from 'react'
-import { ContextInspector } from '@/features/traces/components/ContextInspector'
 import { useAgentRunDetail } from '@/features/traces/hooks'
 import { AgentResultViewer } from './AgentResultViewer'
-import { TraceDiagnosticsPanel } from './TraceDiagnosticsPanel'
+import { AgentRunAnalyticsPanel } from './AgentRunAnalyticsPanel'
 
 interface AgentRunOperationalViewProps {
   traceId?: string | null
@@ -30,14 +29,11 @@ export function AgentRunOperationalView({
 
   return (
     <div>
-      {runId || traceId ? (
-        <TraceDiagnosticsPanel traceId={traceId} runId={runId} />
-      ) : (
-        <div className="border-b border-border px-4 py-3">
-          <p className="text-xs font-medium text-white">Execution diagnostics</p>
-          <p className="mt-1 text-[10px] text-muted">Execution diagnostics are unavailable until this Agent Run has a durable identity.</p>
-        </div>
-      )}
+      <AgentRunAnalyticsPanel
+        traceId={traceId}
+        runId={runId}
+        finalizing={finalizing}
+      />
 
       {children ? <div className="space-y-4 px-4 py-4">{children}</div> : null}
 
@@ -55,12 +51,6 @@ export function AgentRunOperationalView({
           </div>
         </div>
       ) : null}
-
-      <ContextInspector
-        traceId={runId ? undefined : traceId ?? undefined}
-        runId={runId ?? undefined}
-        finalizing={finalizing}
-      />
     </div>
   )
 }
