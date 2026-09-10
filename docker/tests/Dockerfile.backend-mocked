@@ -18,6 +18,8 @@ WORKDIR /app
 COPY pyproject.toml uv.lock ./
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --all-groups --extra test --no-install-project
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv pip install --python /opt/venv/bin/python "pymongo>=4.11.0"
 
 COPY packages/woobe-core/pyproject.toml packages/woobe-core/pyproject.toml
 COPY packages/woobe-core/alembic.ini packages/woobe-core/alembic.ini

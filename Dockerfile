@@ -20,8 +20,9 @@ RUN --mount=type=cache,target=/root/.cache/uv \
     uv pip install --python /opt/venv/bin/python \
     "python-multipart>=0.0.20" \
     "boto3>=1.35.0" \
+    "pymongo>=4.11.0" \
     "pypdf>=6.0.0"
-RUN /opt/venv/bin/python -c "from pypdf import PdfReader; print('pypdf runtime dependency available')"
+RUN /opt/venv/bin/python -c "from pypdf import PdfReader; from pymongo import AsyncMongoClient; print('runtime dependencies available')"
 
 COPY packages/woobe-core/pyproject.toml packages/woobe-core/pyproject.toml
 COPY packages/woobe-core/src/ packages/woobe-core/src/

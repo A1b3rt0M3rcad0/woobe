@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from pymongo import AsyncMongoClient
+from typing import TYPE_CHECKING, Any
+
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
@@ -10,10 +11,12 @@ from shared.contracts.run_event_journal import RunEventJournalPort
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
-from shared.infra.mongodb_run_event_journal import MongoDBRunEventJournal
 from shared.infra.redis_execution_state import RedisExecutionStateStore
 from shared.infra.redis_run_event_buffer import RedisRunEventBuffer
 from shared.runtime.durability import RunDurabilityBarrier
+
+if TYPE_CHECKING:
+    from pymongo import AsyncMongoClient
 
 
 SETTINGS: Settings = Settings(service_role="api")
@@ -37,9 +40,15 @@ else:
     # should provide WOOBE_REDIS_URL; the Community compose does so by default.
     EXECUTION_STATE_STORE = InMemoryExecutionStateStore()
 
-MONGO_CLIENT: AsyncMongoClient | None = None
+# MongoDB is an event-journal adapter, not a transitive import requirement for
+# legacy/test code paths. Import the driver only when Mongo is actually configured.
+MONGO_CLIENT: Any | None = None
 RUN_EVENT_JOURNAL: RunEventJournalPort | None = None
 if SETTINGS.mongodb_url:
+    from pymongo import AsyncMongoClient
+
+    from shared.infra.mongodb_run_event_journal import MongoDBRunEventJournal
+
     MONGO_CLIENT = AsyncMongoClient(
         SETTINGS.mongodb_url,
         serverSelectionTimeoutMS=max(
