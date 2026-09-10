@@ -153,6 +153,18 @@ class NetworkRuntimeFinalizer:
             if execution.status in {"completed", "failed", "cancelled", "uncertain"}:
                 return True
 
+            if execution.started_at is None:
+                invocation_starts = [
+                    _datetime(item.get("started_at"), fallback=now)
+                    for item in invocation_states
+                    if item.get("started_at")
+                ]
+                execution.started_at = (
+                    min(invocation_starts)
+                    if invocation_starts
+                    else execution.created_at or now
+                )
+
             environment = self._environment(version)
             bindings = self._bindings(version, execution)
             repository = NetworkRuntimeRepository(session)
