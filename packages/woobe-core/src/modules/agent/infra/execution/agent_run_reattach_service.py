@@ -11,6 +11,7 @@ from modules.agent.infra.database.runtime_transaction_runner import (
 )
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError
 from shared.contracts.execution_state import ExecutionStateStore
+from shared.contracts.run_event_journal import RunEventJournalPort
 from shared.runtime import (
     RunReference,
     RuntimeFrame,
@@ -18,6 +19,7 @@ from shared.runtime import (
     RuntimeStreamGapError,
     format_sse_frame,
 )
+from shared.runtime.journal_projection import journal_runtime_state
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
 
 
@@ -37,9 +39,11 @@ class AgentRunReattachService:
         *,
         transactions: AgentRuntimeTransactionRunner,
         state_store: ExecutionStateStore,
+        journal: RunEventJournalPort | None = None,
     ) -> None:
         self._transactions = transactions
         self._state_store = state_store
+        self._journal = journal
         self._observer = RuntimeObserver(state_store)
 
     @staticmethod
@@ -114,6 +118,16 @@ class AgentRunReattachService:
             "updated_at": updated_at.isoformat() if updated_at is not None else None,
         }
 
+    async def _durable_runtime_state(self, run: AgentRun) -> dict:
+        base = self._durable_state(run)
+        replayed = await journal_runtime_state(
+            self._journal,
+            run.id,
+            "agent",
+            base_state=base,
+        )
+        return replayed or base
+
     async def authorize(
         self,
         *,
@@ -152,7 +166,7 @@ class AgentRunReattachService:
     ) -> AsyncIterator[str]:
         async def durable_fallback() -> dict | None:
             latest = await self._load_run(run_id, principal)
-            return self._durable_state(latest)
+            return await self._durable_runtime_state(latest)
 
         try:
             async for frame in self._observer.observe(
@@ -162,18 +176,18 @@ class AgentRunReattachService:
                 yield format_sse_frame(frame)
         except RuntimeStreamGapError:
             latest = await self._load_run(run_id, principal)
-            state = self._durable_state(latest)
+            state = await self._durable_runtime_state(latest)
             state.update(
                 {
                     "run_id": str(run_id),
                     "kind": "AGENT",
-                    "sequence": None,
+                    "sequence": state.get("sequence"),
                     "realtime_available": False,
                     "degraded_reason": "runtime_event_gap",
                 }
             )
             yield format_sse_frame(
-                RuntimeFrame("run.state", state, sequence=None)
+                RuntimeFrame("run.state", state, sequence=state.get("sequence"))
             )
 
     async def cancel(
@@ -196,8 +210,10 @@ class AgentRunReattachService:
 
         if state is None:
             latest = await self._load_run(run_id, principal)
-            if str(latest.status) in _TERMINAL_STATUSES:
-                return {"run_id": str(run_id), "status": str(latest.status)}
+            durable = await self._durable_runtime_state(latest)
+            durable_status = str(durable.get("status") or "")
+            if durable_status in _TERMINAL_STATUSES:
+                return {"run_id": str(run_id), "status": durable_status}
             raise ConflictError(
                 "Agent Run has no active runtime state; cancellation cannot be confirmed safely"
             )
@@ -274,7 +290,7 @@ class AgentRunReattachService:
             session_id=session_id,
             agent_release_id=agent_release_id,
         )
-        return self._durable_state(run)
+        return await self._durable_runtime_state(run)
 
     async def cancel_target_run(
         self,
@@ -302,6 +318,10 @@ class AgentRunReattachService:
                 "cancellation was not requested"
             ) from exc
         if state is None:
+            durable = await self._durable_runtime_state(run)
+            durable_status = str(durable.get("status") or "")
+            if durable_status in _TERMINAL_STATUSES:
+                return {"run_id": str(run_id), "status": durable_status}
             raise ConflictError(
                 "Agent Run has no active runtime state; cancellation cannot be confirmed safely"
             )
