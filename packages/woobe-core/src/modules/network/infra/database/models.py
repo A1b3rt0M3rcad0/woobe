@@ -5,6 +5,7 @@ from typing import Any
 from uuid import UUID
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     CheckConstraint,
     DateTime,
@@ -258,6 +259,16 @@ class NetworkExecutionModel(BaseModel):
     )
     output_message: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(String(32), default="queued")
+    storage_version: Mapped[str] = mapped_column(
+        String(32),
+        default="legacy_v1",
+        server_default=text("'legacy_v1'"),
+    )
+    journal_projected_sequence: Mapped[int] = mapped_column(
+        BigInteger,
+        default=0,
+        server_default=text("0"),
+    )
     idempotency_key: Mapped[str | None] = mapped_column(String(255))
     root_trace_id: Mapped[UUID | None]
     attempt: Mapped[int] = mapped_column(Integer, default=0)
