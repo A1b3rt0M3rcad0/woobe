@@ -27,13 +27,14 @@ Do not make the repository public while this section is incomplete.
 
 ## Core deployment
 
-- [ ] Generate a fresh `.env` using `python scripts/generate_self_host_env.py` and confirm `WOOBE_EDITION=core`.
+- [ ] Generate a fresh `.env` using `python scripts/generate_self_host_env.py` and confirm `WOOBE_EDITION=core` and `WOOBE_RUN_PERSISTENCE_MODE=event_journal`.
 - [ ] Validate `docker compose config --quiet`.
 - [ ] Start the complete Core stack from root `compose.yaml`.
-- [ ] Verify PostgreSQL, RabbitMQ, Redis, migration, API, Workers, Web and ChatSurface behavior.
+- [ ] Verify PostgreSQL, MongoDB, RabbitMQ, Redis, migration, API, Workers, Web and ChatSurface behavior.
+- [ ] Verify the Run journal worker drains Redis into MongoDB and that durability/barrier failures are surfaced rather than silently falling back to legacy persistence.
 - [ ] Exercise production-shaped configuration with secure cookies, exact HTTPS origins, exact trusted hosts and independent strong secrets.
 - [ ] Verify first-owner bootstrap, registration/invite policy and existing-installation bootstrap behavior.
-- [ ] Verify backup/restore for durable database and Knowledge state.
+- [ ] Verify backup/restore for PostgreSQL, MongoDB Run journal/checkpoints and Knowledge state.
 
 ## Quality and security
 
