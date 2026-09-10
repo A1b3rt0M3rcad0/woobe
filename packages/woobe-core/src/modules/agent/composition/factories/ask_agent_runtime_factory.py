@@ -33,10 +33,12 @@ from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRu
 from modules.agent.infra.execution.canonical_execution_snapshot_runtime_resolver import (
     configure_execution_snapshot_runtime,
 )
+from modules.agent.infra.execution.frozen_snapshot_runtime import (
+    FrozenSnapshotStructuredOutputRuntime,
+)
 from modules.agent.infra.execution.instrumented_execution_runner import (
     configure_skill_runtime,
 )
-from modules.agent.infra.execution.journal_aware_runtime import JournalAwareAgentRuntime
 from modules.agent.infra.execution.runtime_preparation import (
     configure_skill_binding_freezer,
 )
@@ -65,7 +67,7 @@ def _build_agent_runtime(
     *,
     internal_tool_handlers: Mapping[UUID, InternalToolHandler] | None = None,
     context_assembler: ContextAssembler | None = None,
-) -> tuple[JournalAwareAgentRuntime, AgentRuntimeTransactionRunner]:
+) -> tuple[FrozenSnapshotStructuredOutputRuntime, AgentRuntimeTransactionRunner]:
     configure_skill_runtime(frozen_enabled_skills, SkillRuntime)
     configure_skill_binding_freezer(freeze_skill_bindings)
     configure_execution_snapshot_runtime(
@@ -80,7 +82,7 @@ def _build_agent_runtime(
         executor,
         internal_tool_handlers=internal_tool_handlers,
     )
-    runtime = JournalAwareAgentRuntime(
+    runtime = FrozenSnapshotStructuredOutputRuntime(
         transactions=transactions,
         llm_factory=LangchainLLMFactory(),
         encryption_key=settings.encryption_key,
@@ -120,7 +122,7 @@ def build_ask_agent_use_case(
     http_executor: HttpToolExecutor | None = None,
     *,
     context_assembler: ContextAssembler | None = None,
-) -> tuple[JournalAwareAgentRuntime, AgentRuntimeTransactionRunner]:
+) -> tuple[FrozenSnapshotStructuredOutputRuntime, AgentRuntimeTransactionRunner]:
     return _build_agent_runtime(
         settings,
         http_executor,
@@ -134,7 +136,7 @@ def build_internal_agent_runtime(
     *,
     internal_tool_handlers: Mapping[UUID, InternalToolHandler] | None = None,
     context_assembler: ContextAssembler | None = None,
-) -> JournalAwareAgentRuntime:
+) -> FrozenSnapshotStructuredOutputRuntime:
     runtime, _transactions = _build_agent_runtime(
         settings,
         http_executor,
