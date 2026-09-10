@@ -13,7 +13,7 @@ from modules.agent.application.interfaces.execution import (
     InstrumentedExecutionError,
 )
 from modules.agent.infra.execution.ask_use_case import _has_tool_calls
-from modules.agent.infra.execution.execution_instrumentation import (
+from modules.agent.infra.execution.durable_execution_instrumentation import (
     execute_tool_call,
     invoke_llm,
 )
