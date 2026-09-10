@@ -145,7 +145,10 @@ async def test_agent_projector_materializes_terminal_read_model_and_message_once
     assert messages.items[message_id].content == "projected answer"
     assert sessions.update_calls == 1
     assert runs.save_calls == 1
-    assert len(outbox.events) == 1
+    assert [item.event_type for item in outbox.events] == [
+        "agent.execution.message.created.v1",
+        "agent.execution.completed.v1",
+    ]
 
 
 @pytest.mark.anyio
