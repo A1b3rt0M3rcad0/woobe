@@ -14,6 +14,7 @@ from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 from shared.infra.redis_execution_state import RedisExecutionStateStore
 from shared.infra.redis_run_event_buffer import RedisRunEventBuffer
 from shared.runtime.durability import RunDurabilityBarrier
+from shared.runtime.journal_observer import configure_runtime_journal
 
 if TYPE_CHECKING:
     from pymongo import AsyncMongoClient
@@ -60,6 +61,11 @@ if SETTINGS.mongodb_url:
         MONGO_CLIENT,
         SETTINGS.mongodb_database,
     )
+
+# Runtime observers are created in several bounded-context hosts. Configure their
+# durable source once here so Agent, Network and ChatSurface reattach paths converge
+# on the same Mongo fallback without importing composition state back into runtime.
+configure_runtime_journal(RUN_EVENT_JOURNAL)
 
 RUN_EVENT_BUFFER: RunEventBufferPort | None = None
 if REDIS_CLIENT is not None:
