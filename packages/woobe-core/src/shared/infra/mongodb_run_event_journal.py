@@ -5,6 +5,7 @@ from typing import Any, Sequence
 from uuid import UUID
 
 from pymongo import ASCENDING, DESCENDING, AsyncMongoClient, ReplaceOne
+from pymongo.errors import DuplicateKeyError
 
 from shared.contracts.run_event_journal import (
     DurableRunEvent,
@@ -110,7 +111,11 @@ class MongoDBRunEventJournal(RunEventJournalPort):
                 RunCheckpoint(
                     run_id=event.run_id,
                     through_sequence=event.sequence,
-                    attempt=int(event.payload.get("attempt") or event.metadata.get("attempt") or 1),
+                    attempt=int(
+                        event.payload.get("attempt")
+                        or event.metadata.get("attempt")
+                        or 1
+                    ),
                     state=dict(raw_state),
                     updated_at=event.occurred_at,
                 )
@@ -130,7 +135,11 @@ class MongoDBRunEventJournal(RunEventJournalPort):
         }
         if through_sequence is not None:
             query["sequence"]["$lte"] = int(through_sequence)
-        cursor = self._events.find(query).sort("sequence", ASCENDING).limit(max(1, int(limit)))
+        cursor = (
+            self._events.find(query)
+            .sort("sequence", ASCENDING)
+            .limit(max(1, int(limit)))
+        )
         return [self._event(document) async for document in cursor]
 
     async def get_state(self, run_id: UUID) -> RunJournalState | None:
@@ -216,25 +225,35 @@ class MongoDBRunEventJournal(RunEventJournalPort):
         )
 
     async def upsert_checkpoint(self, checkpoint: RunCheckpoint) -> None:
-        await self._checkpoints.update_one(
+        checkpoint_id = str(checkpoint.run_id)
+        document = {
+            "_id": checkpoint_id,
+            "run_id": checkpoint_id,
+            "through_sequence": checkpoint.through_sequence,
+            "attempt": checkpoint.attempt,
+            "state": dict(checkpoint.state),
+            "updated_at": checkpoint.updated_at,
+        }
+        result = await self._checkpoints.update_one(
             {
-                "_id": str(checkpoint.run_id),
+                "_id": checkpoint_id,
                 "$or": [
                     {"through_sequence": {"$lte": checkpoint.through_sequence}},
                     {"through_sequence": {"$exists": False}},
                 ],
             },
-            {
-                "$set": {
-                    "run_id": str(checkpoint.run_id),
-                    "through_sequence": checkpoint.through_sequence,
-                    "attempt": checkpoint.attempt,
-                    "state": dict(checkpoint.state),
-                    "updated_at": checkpoint.updated_at,
-                }
-            },
-            upsert=True,
+            {"$set": document},
+            upsert=False,
         )
+        if result.matched_count:
+            return
+
+        try:
+            await self._checkpoints.insert_one(document)
+        except DuplicateKeyError:
+            # Another writer either created the same checkpoint or already moved
+            # this Run to a newer sequence. Never let a late checkpoint regress it.
+            return
 
     async def latest_checkpoint(self, run_id: UUID) -> RunCheckpoint | None:
         document = await self._checkpoints.find_one({"_id": str(run_id)})
