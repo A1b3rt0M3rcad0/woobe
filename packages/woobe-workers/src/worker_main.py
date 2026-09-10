@@ -23,10 +23,12 @@ from woobe_workers.composition.network_agent_persistence import (
 )
 from woobe_workers.composition.network_agent_runtime import ProjectRAIAgentInvoker
 from woobe_workers.settings import WorkerSettings
+from shared.composition_resources import RUN_EVENT_BUFFER, RUN_EVENT_JOURNAL
 from shared.infra.database.session import create_engine
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.observability.logging_config import configure_logging
-from woobe_workers.contracts import ModuleWorkerEntry
+from woobe_workers.contracts import ModuleWorkerEntry, WorkerProtocol
+from woobe_workers.runtime.run_event_persistence_worker import RunEventPersistenceWorker
 from woobe_workers.runtime.runner import WorkerRunner
 
 logger = logging.getLogger(__name__)
@@ -45,6 +47,25 @@ def _configure_http_tool_runtime(settings: WorkerSettings) -> HttpToolExecutor:
     )
     configure_http_tool_executor(executor)
     return executor
+
+
+def _build_runtime_workers(settings: WorkerSettings) -> list[WorkerProtocol]:
+    if settings.run_persistence_mode != "event_journal":
+        return []
+    if RUN_EVENT_BUFFER is None or RUN_EVENT_JOURNAL is None:
+        raise RuntimeError(
+            "event_journal worker runtime requires WOOBE_REDIS_URL and WOOBE_MONGODB_URL"
+        )
+    return [
+        RunEventPersistenceWorker(
+            buffer=RUN_EVENT_BUFFER,
+            journal=RUN_EVENT_JOURNAL,
+            consumer_group=settings.run_event_redis_consumer_group,
+            batch_size=settings.run_event_batch_size,
+            flush_interval_ms=settings.run_event_flush_interval_ms,
+            claim_idle_seconds=settings.run_event_claim_idle_seconds,
+        )
+    ]
 
 
 def _install_shutdown_handlers(
@@ -115,8 +136,15 @@ async def run_workers(
             settings=runtime_settings,
             rabbitmq_manager=rabbitmq_manager,
         )
-        worker_count = sum(len(registry.iter_workers()) for registry in registries)
-        runner = WorkerRunner.from_registries(registries)
+        runtime_workers = _build_runtime_workers(runtime_settings)
+        worker_count = (
+            sum(len(registry.iter_workers()) for registry in registries)
+            + len(runtime_workers)
+        )
+        runner = WorkerRunner.from_registries(
+            registries,
+            extra_workers=runtime_workers,
+        )
         await runner.start()
 
         logger.info(
