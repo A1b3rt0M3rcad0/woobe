@@ -9,6 +9,7 @@ from uuid import UUID, uuid4
 from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput, SourceInfo
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
+from modules.agent.application.interfaces.run_persistence import AgentRunPersistencePort
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.tool_release_snapshots import (
     tool_from_release_snapshot,
@@ -35,18 +36,25 @@ from modules.agent.infra.execution.runtime_preparation import (
 )
 from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
 from shared.contracts.execution_state import ExecutionStateStore
+from shared.contracts.run_event_buffer import RunEventBufferPort
 from shared.infra.crypto import decrypt_secret
+from shared.runtime.durability import RunDurabilityBarrier
+from shared.runtime.event_schema import EVENT_JOURNAL_STORAGE_VERSION, LEGACY_STORAGE_VERSION
+from shared.runtime.journal_recorder import DurableRunEventRecorder
 from shared.runtime_environment import normalize_runtime_environment
 
 logger = logging.getLogger(__name__)
 
 
 class ExplicitRuntimePersistenceMixin:
-    """Exactly one durable Acceptance and one durable terminal write per Agent Run."""
+    """Durable Acceptance plus a selectable legacy or event-journal terminal strategy."""
 
     _execution_state_store: ExecutionStateStore | None = None
     _execution_state_ttl_seconds = 3600
     _execution_terminal_ttl_seconds = 900
+    _run_persistence: AgentRunPersistencePort | None = None
+    _run_event_buffer: RunEventBufferPort | None = None
+    _run_durability_barrier: RunDurabilityBarrier | None = None
 
     def configure_execution_state_store(
         self,
@@ -58,6 +66,82 @@ class ExplicitRuntimePersistenceMixin:
         self._execution_state_store = store
         self._execution_state_ttl_seconds = ttl_seconds
         self._execution_terminal_ttl_seconds = terminal_ttl_seconds
+
+    def configure_run_persistence(self, persistence: AgentRunPersistencePort) -> None:
+        self._run_persistence = persistence
+
+    def configure_run_event_journal(
+        self,
+        buffer: RunEventBufferPort,
+        barrier: RunDurabilityBarrier,
+    ) -> None:
+        self._run_event_buffer = buffer
+        self._run_durability_barrier = barrier
+
+    def _storage_version(self) -> str:
+        persistence = self._run_persistence
+        return persistence.storage_version if persistence is not None else LEGACY_STORAGE_VERSION
+
+    async def _bind_durable_run_recorder(
+        self,
+        *,
+        input_dto: AskInput,
+        agent: Any,
+        session: Any,
+        trace_id: UUID,
+        run_id: UUID,
+        execution_snapshot: dict[str, Any],
+    ) -> None:
+        context = current_execution.get()
+        storage_version = self._storage_version()
+        if context is not None:
+            context.storage_version = storage_version
+        if storage_version != EVENT_JOURNAL_STORAGE_VERSION:
+            return
+        if context is None or self._run_event_buffer is None or self._run_durability_barrier is None:
+            raise RuntimeError("event_journal Agent Run is missing durable journal dependencies")
+        recorder = DurableRunEventRecorder(
+            buffer=self._run_event_buffer,
+            barrier=self._run_durability_barrier,
+            run_id=run_id,
+            run_kind="agent",
+            metadata={
+                "project_id": str(input_dto.project_id),
+                "agent_id": str(agent.id),
+                "session_id": str(session.id) if session else None,
+                "trace_id": str(trace_id),
+                "network_execution_id": (
+                    str(context.network_execution_id)
+                    if context.network_execution_id
+                    else None
+                ),
+                "invocation_id": (
+                    str(context.network_invocation_id)
+                    if context.network_invocation_id
+                    else None
+                ),
+                "visibility": "internal",
+            },
+            attempt=context.run_attempt,
+        )
+        context.run_event_recorder = recorder
+        await recorder.emit(
+            "run.attempt.started",
+            {
+                "attempt": context.run_attempt,
+                "environment": normalize_runtime_environment(input_dto.execution_context),
+                "origin": str((input_dto.metadata or {}).get("source") or "runtime_api"),
+                "input_message": input_dto.message,
+                "execution_snapshot": execution_snapshot,
+                "agent_release_id": str(context.agent_release_id) if context.agent_release_id else None,
+                "agent_release_version": context.agent_release_version,
+            },
+            durable=True,
+        )
+        await recorder.emit(
+            "execution.started",
+            {"attempt": context.run_attempt},
+        )
 
     async def _hot_update(self, values: dict[str, Any]) -> None:
         context = current_execution.get()
@@ -74,7 +158,7 @@ class ExplicitRuntimePersistenceMixin:
         payload: dict[str, Any] = {
             "status": "terminal_pending_persist",
             "terminal_status": terminal_status,
-            "phase": "finalize",
+            "phase": "terminal_event",
         }
         if result is not None:
             payload["terminal_result"] = result
@@ -94,6 +178,34 @@ class ExplicitRuntimePersistenceMixin:
         )
 
     async def _persist_prepare_failure(
+        self,
+        input_dto: AskInput,
+        error: Exception,
+    ) -> None:
+        context = current_execution.get()
+        if context is None or context.run_id is None or context.terminal_persisted:
+            return
+        persistence = self._run_persistence
+        if persistence is not None:
+            try:
+                handled = await persistence.prepare_failure(
+                    self,
+                    input_dto=input_dto,
+                    error=error,
+                )
+                if handled:
+                    return
+            except Exception as persistence_error:
+                logger.warning(
+                    "Failed to persist Agent Run prepare failure through %s: %s",
+                    persistence.storage_version,
+                    persistence_error,
+                )
+                if persistence.storage_version != LEGACY_STORAGE_VERSION:
+                    raise
+        await self._persist_prepare_failure_legacy(input_dto, error)
+
+    async def _persist_prepare_failure_legacy(
         self,
         input_dto: AskInput,
         error: Exception,
@@ -241,6 +353,14 @@ class ExplicitRuntimePersistenceMixin:
             rerun_of_run_id = metadata.get("rerun_of_run_id")
             if rerun_of_run_id and not isinstance(rerun_of_run_id, UUID):
                 rerun_of_run_id = UUID(str(rerun_of_run_id))
+            execution_snapshot = build_execution_snapshot(
+                agent=agent,
+                tools=tools,
+                rag_binding=rag_binding,
+                release_id=release_id,
+                release_version=release_version,
+                tool_to_snapshot=tool_to_release_snapshot,
+            )
 
             run = await repositories.runs.create(
                 AgentRun(
@@ -253,17 +373,11 @@ class ExplicitRuntimePersistenceMixin:
                     environment=environment,
                     origin=source,
                     input_message=input_dto.message,
-                    execution_snapshot=build_execution_snapshot(
-                        agent=agent,
-                        tools=tools,
-                        rag_binding=rag_binding,
-                        release_id=release_id,
-                        release_version=release_version,
-                        tool_to_snapshot=tool_to_release_snapshot,
-                    ),
+                    execution_snapshot=execution_snapshot,
                     network_execution_id=context.network_execution_id if context else None,
                     network_invocation_id=context.network_invocation_id if context else None,
                     rerun_of_run_id=rerun_of_run_id,
+                    storage_version=self._storage_version(),
                     started_at=datetime.now(timezone.utc),
                 )
             )
@@ -279,6 +393,7 @@ class ExplicitRuntimePersistenceMixin:
                 "provider": agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
                 "message_preview": input_dto.message[:200],
                 "has_tools": bool(agent_tools),
+                "storage_version": run.storage_version,
             }
             requested = AgentExecutionRequestedV1.create(
                 agent_id=agent.id,
@@ -294,6 +409,7 @@ class ExplicitRuntimePersistenceMixin:
                         "run_id": str(run.id),
                         "trace_id": str(trace_id),
                         "model": agent.model,
+                        "storage_version": run.storage_version,
                     },
                     correlation_id=requested.correlation_id,
                     causation_id=requested.event_id,
@@ -301,6 +417,7 @@ class ExplicitRuntimePersistenceMixin:
             )
             return (
                 run.id,
+                execution_snapshot,
                 agent,
                 session,
                 trace_id,
@@ -318,6 +435,7 @@ class ExplicitRuntimePersistenceMixin:
 
         (
             run_id,
+            execution_snapshot,
             agent,
             session,
             trace_id,
@@ -333,8 +451,8 @@ class ExplicitRuntimePersistenceMixin:
             history,
         ) = await self._transactions.run(accept_run)
 
-        # Acceptance is durable at this point. Bind the canonical identity before
-        # any decrypt, Redis operation, embedding, vector search or other external work.
+        # Acceptance is durable at this point. Bind canonical identity and journal
+        # ownership before decrypt, Redis hot-state work, RAG or provider I/O.
         context = current_execution.get()
         if context is not None:
             context.run_id = run_id
@@ -342,10 +460,20 @@ class ExplicitRuntimePersistenceMixin:
             context.agent_id = agent.id
             context.session_id = session.id if session else None
             context.trace_id = trace_id
+            context.storage_version = self._storage_version()
 
         stream = current_runtime_stream.get()
         if stream is not None:
             setattr(stream, "run_id", run_id)
+
+        await self._bind_durable_run_recorder(
+            input_dto=input_dto,
+            agent=agent,
+            session=session,
+            trace_id=trace_id,
+            run_id=run_id,
+            execution_snapshot=execution_snapshot,
+        )
 
         try:
             # Decryption and all external work happen after the Acceptance COMMIT.
@@ -390,7 +518,8 @@ class ExplicitRuntimePersistenceMixin:
                         "environment": normalize_runtime_environment(input_dto.execution_context),
                         "network_execution_id": str(context.network_execution_id) if context and context.network_execution_id else None,
                         "network_invocation_id": str(context.network_invocation_id) if context and context.network_invocation_id else None,
-                        "attempt": 1,
+                        "attempt": context.run_attempt if context else 1,
+                        "storage_version": self._storage_version(),
                     },
                     ttl_seconds=self._execution_state_ttl_seconds,
                 )
@@ -405,6 +534,17 @@ class ExplicitRuntimePersistenceMixin:
                 input_dto.message,
                 self._transactions,
             )
+            if context is not None and context.run_event_recorder is not None and sources:
+                await context.run_event_recorder.emit(
+                    "knowledge.retrieval.completed",
+                    {
+                        "source_count": len(sources),
+                        "sources": [
+                            source.model_dump() if hasattr(source, "model_dump") else source
+                            for source in sources
+                        ],
+                    },
+                )
             messages = self._build_messages(
                 agent,
                 rag_context,
@@ -587,6 +727,27 @@ class ExplicitRuntimePersistenceMixin:
     async def _fail(self, trace_id, agent, session, error, input_dto) -> None:
         context = current_execution.get()
         run_id = context.run_id if context else None
+        if (
+            context is not None
+            and context.run_event_recorder is not None
+            and context.storage_version == EVENT_JOURNAL_STORAGE_VERSION
+        ):
+            payload = {
+                "run_id": str(run_id) if run_id else None,
+                "trace_id": str(trace_id) if trace_id else None,
+                "project_id": str(input_dto.project_id),
+                "agent_id": str(agent.id),
+                "session_id": str(session.id) if session else None,
+                "error": error,
+                "failure_code": "runtime_error",
+                "completed_at": datetime.now(timezone.utc).isoformat(),
+            }
+            await self._hot_terminal_pending(terminal_status="failed", result=payload)
+            await context.run_event_recorder.emit("run.failed", payload, durable=True)
+            context.terminal_persisted = True
+            await self._hot_persisted("failed")
+            return
+
         await self._hot_terminal_pending(
             terminal_status="failed",
             result={"error": error, "trace_id": str(trace_id) if trace_id else None},
@@ -660,6 +821,11 @@ class ExplicitRuntimePersistenceMixin:
             "fallback_provider": fallback_provider,
             "fallback_credential_id": str(agent.fallback_credential_id),
         }
+        if context is not None and context.run_event_recorder is not None:
+            await context.run_event_recorder.emit(
+                "fallback.triggered",
+                fallback_info,
+            )
         return fallback_result, fallback_provider, fallback_latency, fallback_info
 
 
