@@ -12,6 +12,9 @@ x-runtime-environment: &runtime-environment
   WOOBE_DB_POOL_SIZE: ${WOOBE_DB_POOL_SIZE:-10}
   WOOBE_DB_MAX_OVERFLOW: ${WOOBE_DB_MAX_OVERFLOW:-10}
   WOOBE_REDIS_URL: redis://redis:6379/0
+  WOOBE_RUN_PERSISTENCE_MODE: ${WOOBE_RUN_PERSISTENCE_MODE:-event_journal}
+  WOOBE_MONGODB_URL: ${WOOBE_MONGODB_URL:-mongodb://mongodb:27017}
+  WOOBE_MONGODB_DATABASE: ${WOOBE_MONGODB_DATABASE:-woobe}
   WOOBE_MCP_SESSION_CACHE_ENABLED: "true"
   WOOBE_STORAGE_DRIVER: local
   WOOBE_UPLOAD_LOCAL_DIR: /app/storage/uploads
@@ -93,6 +96,17 @@ services:
       retries: 10
     restart: unless-stopped
 
+  mongodb:
+    image: mongo:8.0
+    volumes:
+      - woobe_mongodb:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+
   migrate:
     build: .
     env_file:
@@ -131,6 +145,8 @@ services:
         condition: service_completed_successfully
       redis:
         condition: service_healthy
+      mongodb:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
       interval: 10s
@@ -151,6 +167,8 @@ services:
       rabbitmq:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      mongodb:
         condition: service_healthy
 
   web:
@@ -184,4 +202,5 @@ volumes:
   woobe_postgres:
   woobe_rabbitmq:
   woobe_redis:
+  woobe_mongodb:
   woobe_uploads:
