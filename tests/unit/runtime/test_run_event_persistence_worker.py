@@ -30,6 +30,14 @@ class FakeBuffer:
         raise AssertionError("valid events must not be dead-lettered")
 
 
+class FakeProjector:
+    def __init__(self) -> None:
+        self.calls: list[list[int]] = []
+
+    async def project(self, events) -> None:
+        self.calls.append([event.sequence for event in events])
+
+
 def event(*, run_id, sequence: int, cursor: str) -> BufferedRunEvent:
     return BufferedRunEvent(
         cursor=cursor,
@@ -94,6 +102,35 @@ async def test_worker_replay_is_idempotent_and_advances_durable_prefix() -> None
     assert state is not None
     assert state.durable_sequence == 2
     assert buffer.acked == ["1-0", "1-0", "2-0"]
+
+
+@pytest.mark.anyio
+async def test_worker_projects_only_contiguous_mongo_history_before_ack() -> None:
+    run_id = uuid4()
+    buffer = FakeBuffer()
+    journal = InMemoryRunEventJournal()
+    projector = FakeProjector()
+    worker = RunEventPersistenceWorker(
+        buffer=buffer,
+        journal=journal,
+        projector=projector,
+        consumer_group="test-journal",
+        consumer_name="test-worker",
+    )
+
+    await worker._persist_batch(
+        [
+            event(run_id=run_id, sequence=1, cursor="1-0"),
+            event(run_id=run_id, sequence=3, cursor="3-0"),
+        ]
+    )
+    await worker._persist_batch([event(run_id=run_id, sequence=2, cursor="2-0")])
+
+    state = await journal.get_state(run_id)
+    assert state is not None
+    assert state.durable_sequence == 3
+    assert projector.calls == [[1], [2, 3]]
+    assert buffer.acked == ["1-0", "2-0"]
 
 
 def test_run_event_persistence_worker_is_long_lived() -> None:

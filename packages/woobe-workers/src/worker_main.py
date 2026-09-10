@@ -14,6 +14,9 @@ from modules.agent.background_boundary import (
     configure_http_tool_executor,
 )
 from modules.agent.background_boundary import HttpToolExecutor
+from modules.agent.infra.database.runtime_transaction_runner import AgentRuntimeTransactionRunner
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.execution.run_event_projector import AgentRunEventProjector
 from woobe_workers.consumers.network.registry import (
     configure_network_agent_artifact_materializer_factory,
     configure_network_agent_invoker_factory,
@@ -49,17 +52,19 @@ def _configure_http_tool_runtime(settings: WorkerSettings) -> HttpToolExecutor:
     return executor
 
 
-def _build_runtime_workers(settings: WorkerSettings) -> list[WorkerProtocol]:
+def _build_runtime_workers(settings: WorkerSettings, engine) -> list[WorkerProtocol]:
     if settings.run_persistence_mode != "event_journal":
         return []
     if RUN_EVENT_BUFFER is None or RUN_EVENT_JOURNAL is None:
         raise RuntimeError(
             "event_journal worker runtime requires WOOBE_REDIS_URL and WOOBE_MONGODB_URL"
         )
+    transactions = AgentRuntimeTransactionRunner(lambda: AgentUnitOfWork(engine))
     return [
         RunEventPersistenceWorker(
             buffer=RUN_EVENT_BUFFER,
             journal=RUN_EVENT_JOURNAL,
+            projector=AgentRunEventProjector(transactions),
             consumer_group=settings.run_event_redis_consumer_group,
             batch_size=settings.run_event_batch_size,
             flush_interval_ms=settings.run_event_flush_interval_ms,
@@ -136,7 +141,7 @@ async def run_workers(
             settings=runtime_settings,
             rabbitmq_manager=rabbitmq_manager,
         )
-        runtime_workers = _build_runtime_workers(runtime_settings)
+        runtime_workers = _build_runtime_workers(runtime_settings, engine)
         worker_count = (
             sum(len(registry.iter_workers()) for registry in registries)
             + len(runtime_workers)

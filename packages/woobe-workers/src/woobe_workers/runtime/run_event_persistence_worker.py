@@ -8,16 +8,18 @@ from uuid import UUID
 
 from shared.contracts.run_event_buffer import BufferedRunEvent, RunEventBufferPort
 from shared.contracts.run_event_journal import DurableRunEvent, RunEventJournalPort
+from shared.contracts.run_event_projector import RunEventProjectorPort
 
 logger = logging.getLogger(__name__)
 
 
 class RunEventPersistenceWorker:
-    """Drain the reliable Redis Run journal ingress into MongoDB.
+    """Drain the reliable Redis Run journal ingress into MongoDB and read models.
 
     Redis delivery is at-least-once. Mongo writes are idempotent by
-    ``run_id + sequence`` and Redis entries are acknowledged only after the
-    journal reports a contiguous durable prefix that includes the entry.
+    ``run_id + sequence``. PostgreSQL projection happens only through the Mongo
+    contiguous durable watermark, and Redis entries are acknowledged only after
+    both journal persistence and configured projections succeed.
     """
 
     long_lived = True
@@ -28,6 +30,7 @@ class RunEventPersistenceWorker:
         buffer: RunEventBufferPort,
         journal: RunEventJournalPort,
         consumer_group: str,
+        projector: RunEventProjectorPort | None = None,
         batch_size: int = 250,
         flush_interval_ms: int = 200,
         claim_idle_seconds: int = 30,
@@ -35,11 +38,13 @@ class RunEventPersistenceWorker:
     ) -> None:
         self._buffer = buffer
         self._journal = journal
+        self._projector = projector
         self._consumer_group = consumer_group
         self._batch_size = max(1, int(batch_size))
         self._flush_interval_ms = max(10, int(flush_interval_ms))
         self._claim_idle_ms = max(1000, int(claim_idle_seconds) * 1000)
         self._consumer_name = consumer_name or f"{socket.gethostname()}-{id(self):x}"
+        self._projected_hint: dict[UUID, int] = {}
 
     @staticmethod
     def _durable_event(event: BufferedRunEvent) -> DurableRunEvent:
@@ -75,6 +80,18 @@ class RunEventPersistenceWorker:
             )
             durable_sequences[run_id] = state.durable_sequence
 
+            if self._projector is not None:
+                after_sequence = self._projected_hint.get(run_id, 0)
+                if state.durable_sequence > after_sequence:
+                    durable_events = await self._journal.list_events(
+                        run_id,
+                        after_sequence=after_sequence,
+                        through_sequence=state.durable_sequence,
+                    )
+                    if durable_events:
+                        await self._projector.project(durable_events)
+                    self._projected_hint[run_id] = state.durable_sequence
+
         ackable = [
             event.cursor
             for event in events
@@ -109,7 +126,7 @@ class RunEventPersistenceWorker:
             except asyncio.CancelledError:
                 raise
             except Exception:
-                # Do not ACK on any persistence/watermark failure. The pending
-                # Redis entries are reclaimed and replayed idempotently.
+                # Do not ACK on journal/watermark/projection failure. Pending Redis
+                # entries are reclaimed and replayed idempotently.
                 logger.exception("Run event persistence batch failed")
                 await asyncio.sleep(retry_delay)
