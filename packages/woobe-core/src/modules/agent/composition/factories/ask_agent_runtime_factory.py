@@ -20,6 +20,9 @@ from modules.agent.composition.factories.agent_uow_factory import (
     build_agent_read_uow,
     build_agent_uow,
 )
+from modules.agent.composition.factories.run_persistence_factory import (
+    build_agent_run_persistence,
+)
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
@@ -40,7 +43,11 @@ from modules.agent.infra.execution.runtime_preparation import (
     configure_skill_binding_freezer,
 )
 from modules.agent.presentation.controllers.ask_agent_controller import AskAgentController
-from shared.composition_resources import EXECUTION_STATE_STORE
+from shared.composition_resources import (
+    EXECUTION_STATE_STORE,
+    RUN_DURABILITY_BARRIER,
+    RUN_EVENT_BUFFER,
+)
 from shared.infra.best_effort_execution_state import BestEffortExecutionStateStore
 from shared.infra.config import Settings
 from shared.presentation.contracts import OperationRequest
@@ -89,15 +96,26 @@ def _build_agent_runtime(
     runtime.configure_context_assembler(assembler)
     runtime.configure_rag_embedding_factory(LangchainEmbeddingFactory())
     runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
-
     runtime.configure_vector_search_reader(
         AgentRuntimeVectorSearchReader(transactions).search
     )
-    # Standalone Agent execution must remain valid when realtime infrastructure
-    # degrades. Redis is an observability/reattach path here, not the durable Run.
+
+    # Realtime Redis projection remains best-effort. The journal path below is a
+    # separate reliability boundary and never passes through this wrapper.
     runtime.configure_execution_state_store(
         BestEffortExecutionStateStore(EXECUTION_STATE_STORE)
     )
+    run_persistence = build_agent_run_persistence(settings)
+    runtime.configure_run_persistence(run_persistence)
+    if settings.run_persistence_mode == "event_journal":
+        if RUN_EVENT_BUFFER is None or RUN_DURABILITY_BARRIER is None:
+            raise RuntimeError(
+                "event_journal Run persistence requires WOOBE_REDIS_URL and WOOBE_MONGODB_URL"
+            )
+        runtime.configure_run_event_journal(
+            RUN_EVENT_BUFFER,
+            RUN_DURABILITY_BARRIER,
+        )
     return runtime, transactions
 
 
