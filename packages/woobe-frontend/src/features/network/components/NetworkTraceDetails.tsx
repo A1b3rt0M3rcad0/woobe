@@ -4,7 +4,6 @@ import {
   Activity,
   AlertTriangle,
   ArrowLeft,
-  Brain,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -253,7 +252,6 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
   const meta = outcomeMeta(outcome)
   const OutcomeIcon = meta.icon
   const selectedInvocation = selectedSpanId ? findNetworkInvocation(trace.execution.root, selectedSpanId) : null
-  const totalTokens = trace.usage ? trace.usage.total_tokens ?? ((trace.usage.input_tokens ?? 0) + (trace.usage.output_tokens ?? 0)) : null
   const technicalIds = useMemo<Array<readonly [string, string]>>(() => {
     const ids: Array<readonly [string, string]> = [
       ['network session', trace.networkSessionId],
@@ -285,14 +283,6 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
           </div>
           <button type="button" onClick={() => onViewCanvas(trace)} className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-primary/25 bg-primary/10 px-2 py-1.5 text-[9px] text-primary-light hover:text-white"><Play className="h-3 w-3" />Canvas</button>
         </div>
-        <div className="mt-3 grid grid-cols-6 gap-2 border-t border-border/70 pt-3">
-          <MetaItem label="Duration" value={formatLatency(trace.durationMs)} />
-          <MetaItem label="Agent Runs" value={String(agentRuns)} />
-          <MetaItem label="Agents" value={String(agents)} />
-          <MetaItem label="Tools / Skill activity" value={`${tools} / ${skills}`} />
-          <MetaItem label="Tokens" value={totalTokens == null ? 'Unknown' : formatTokens(totalTokens)} />
-          <MetaItem label="Cost" value={trace.costUsd == null ? 'Unknown' : formatCurrency(trace.costUsd)} />
-        </div>
       </header>
 
       <nav className="grid grid-cols-3 border-b border-border/80 bg-background/20 p-1.5" aria-label="Network Run inspector views">
@@ -309,7 +299,13 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
       <div className="space-y-4 p-4">
         {view === 'execution' ? (
           <>
-            <NetworkRunDiagnosticsPanel executionId={trace.id} projectId={session.projectId} running={trace.status === 'running'} mode="execution" />
+            <NetworkRunDiagnosticsPanel
+              executionId={trace.id}
+              projectId={session.projectId}
+              running={trace.status === 'running'}
+              root={trace.execution.root}
+              onOpenAgentRun={openInvocation}
+            />
 
             {trace.execution.root.failure ? (
               <section className="rounded-xl border border-red-500/25 bg-red-500/5 p-3">
@@ -328,14 +324,6 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
             <section className="rounded-xl border border-border/75 bg-background/30 p-3">
               <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Result</p>
               <div className="mt-2"><AgentResultViewer value={trace.answer} title="Network result" subtitle={`${trace.environment} · ${trace.networkVersion}`} compact emptyLabel={outcome === 'running' ? 'The final response is still being generated.' : outcome === 'cancelled' ? 'The Run was cancelled before a final response was produced.' : 'The Run ended without a final response.'} /></div>
-            </section>
-
-            <section className="rounded-xl border border-border/75 bg-background/30 p-3"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Activity</p><div className="mt-2 grid grid-cols-4 gap-3"><MetaItem label="Agent Runs" value={String(agentRuns)} /><MetaItem label="Delegations" value={String(delegations)} /><MetaItem label="Tools / Skill activity" value={`${tools} / ${skills}`} /><MetaItem label="Events" value={String(trace.events.length)} /></div></section>
-
-            <section className="space-y-3 border-t border-border/70 pt-4">
-              <div className="flex items-start gap-2"><Brain className="mt-0.5 h-3.5 w-3.5 text-muted" /><div><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Network Context</p><p className="mt-1 text-[9px] leading-4 text-muted">Aggregated from the actual Model Invocations executed by child Agent Runs.</p></div></div>
-              <NetworkRunDiagnosticsPanel executionId={trace.id} projectId={session.projectId} running={trace.status === 'running'} mode="context" />
-              <p className="rounded-lg border border-border/75 bg-background/25 px-3 py-2 text-[9px] leading-4 text-muted">Open Path to inspect an individual Agent Run, then return directly to the Network execution path without losing this Run context.</p>
             </section>
           </>
         ) : null}
