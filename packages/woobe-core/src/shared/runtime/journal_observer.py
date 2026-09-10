@@ -63,6 +63,20 @@ class JournalAwareRuntimeObserver(BaseRuntimeObserver):
         setattr(resolved, "_woobe_journal_aware", True)
         return resolved
 
+    @staticmethod
+    def _restore_journal_sequence(
+        state: dict[str, Any],
+        cursor: str | None,
+    ) -> None:
+        durable_sequence = state.get("journal_durable_sequence")
+        if (
+            cursor is None
+            and state.get("durable_source") == "mongodb_journal"
+            and isinstance(durable_sequence, int)
+            and not isinstance(durable_sequence, bool)
+        ):
+            state["sequence"] = durable_sequence
+
     async def current_state(
         self,
         run: RunReference,
@@ -73,13 +87,7 @@ class JournalAwareRuntimeObserver(BaseRuntimeObserver):
             run,
             durable_fallback=self._journal_fallback(run, durable_fallback),
         )
-        if (
-            cursor is None
-            and state.get("durable_source") == "mongodb_journal"
-            and isinstance(state.get("journal_durable_sequence"), int)
-            and not isinstance(state.get("journal_durable_sequence"), bool)
-        ):
-            state["sequence"] = int(state["journal_durable_sequence"])
+        self._restore_journal_sequence(state, cursor)
         return state, cursor
 
     async def observe(
@@ -94,6 +102,19 @@ class JournalAwareRuntimeObserver(BaseRuntimeObserver):
             durable_fallback=self._journal_fallback(run, durable_fallback),
             disconnect_check=disconnect_check,
         ):
+            if frame.event_type == "run.state" and frame.sequence is None:
+                data = dict(frame.data)
+                self._restore_journal_sequence(data, None)
+                durable_sequence = data.get("sequence")
+                if (
+                    isinstance(durable_sequence, int)
+                    and not isinstance(durable_sequence, bool)
+                ):
+                    frame = RuntimeFrame(
+                        frame.event_type,
+                        data,
+                        sequence=durable_sequence,
+                    )
             yield frame
 
 
