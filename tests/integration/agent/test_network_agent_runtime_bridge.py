@@ -68,6 +68,7 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
             self._embedding_factory = None
             self._vector_search_reader = None
             self._execution_state_store = None
+            self._run_persistence = None
 
         def configure_context_assembler(self, assembler) -> None:
             self._context_assembler = assembler
@@ -84,8 +85,12 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
         def configure_execution_state_store(self, store) -> None:
             self._execution_state_store = store
 
+        def configure_run_persistence(self, persistence) -> None:
+            self._run_persistence = persistence
+
         async def execute(self, input_dto):
             assert self._context_assembler is not None
+            assert self._run_persistence is not None
             context = current_execution.get()
             assert context is not None
             assert context.project_id == project_id
