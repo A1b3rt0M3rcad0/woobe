@@ -80,6 +80,9 @@ from modules.agent.infra.database.vector_snapshot_repositories import (
 from modules.agent.infra.execution.agent_tool_runtime_gateway import (
     AgentToolRuntimeGateway,
 )
+from modules.agent.infra.execution.run_event_projector import (
+    AgentRunEventProjector,
+)
 from modules.agent.infra.execution.transaction_bounded_structured_output import (
     TransactionBoundedStructuredOutputRuntime,
 )

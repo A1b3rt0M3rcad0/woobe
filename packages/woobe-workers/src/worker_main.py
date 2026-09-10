@@ -5,34 +5,34 @@ import logging
 import signal
 from collections.abc import Sequence
 
-from woobe_workers.composition.registries import (
-    build_registries,
-    discover_module_entries,
-)
 from modules.agent.background_boundary import (
+    AgentRunEventProjector,
+    AgentRuntimeTransactionRunner,
+    AgentUnitOfWork,
+    HttpToolExecutor,
     close_http_tool_executor,
     configure_http_tool_executor,
 )
-from modules.agent.background_boundary import HttpToolExecutor
-from modules.agent.infra.database.runtime_transaction_runner import AgentRuntimeTransactionRunner
-from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
-from modules.agent.infra.execution.run_event_projector import AgentRunEventProjector
-from woobe_workers.consumers.network.registry import (
-    configure_network_agent_artifact_materializer_factory,
-    configure_network_agent_invoker_factory,
-)
-from woobe_workers.composition.network_agent_persistence import (
-    ProjectRAIAgentInvocationArtifactMaterializer,
-)
-from woobe_workers.composition.network_agent_runtime import ProjectRAIAgentInvoker
-from woobe_workers.settings import WorkerSettings
 from shared.composition_resources import RUN_EVENT_BUFFER, RUN_EVENT_JOURNAL
 from shared.infra.database.session import create_engine
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.observability.logging_config import configure_logging
+from woobe_workers.composition.network_agent_persistence import (
+    ProjectRAIAgentInvocationArtifactMaterializer,
+)
+from woobe_workers.composition.network_agent_runtime import ProjectRAIAgentInvoker
+from woobe_workers.composition.registries import (
+    build_registries,
+    discover_module_entries,
+)
+from woobe_workers.consumers.network.registry import (
+    configure_network_agent_artifact_materializer_factory,
+    configure_network_agent_invoker_factory,
+)
 from woobe_workers.contracts import ModuleWorkerEntry, WorkerProtocol
 from woobe_workers.runtime.run_event_persistence_worker import RunEventPersistenceWorker
 from woobe_workers.runtime.runner import WorkerRunner
+from woobe_workers.settings import WorkerSettings
 
 logger = logging.getLogger(__name__)
 
