@@ -28,6 +28,16 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True, slots=True)
+class _RecoveryRunRecord:
+    id: UUID
+    storage_version: str
+    project_id: UUID
+    agent_id: UUID
+    session_id: UUID | None
+    trace_id: UUID
+
+
+@dataclass(frozen=True, slots=True)
 class _JournalRecoveryDecision:
     action: str
     reason: str | None = None
@@ -100,7 +110,11 @@ class AgentRunRecoveryWorker:
                 continue
             await self._recover_or_close(run_id, cutoff)
 
-    async def _read_run(self, run_id: UUID, cutoff: datetime):
+    async def _read_run(
+        self,
+        run_id: UUID,
+        cutoff: datetime,
+    ) -> _RecoveryRunRecord | None:
         async with AgentUnitOfWork(self._engine).mark_read_only() as uow:
             result = await uow.session.execute(
                 select(AgentRunModel).where(AgentRunModel.id == run_id)
@@ -114,13 +128,25 @@ class AgentRunRecoveryWorker:
                 or run.started_at > cutoff
             ):
                 return None
-            return run
+
+            # Never leak an ORM instance outside this read UoW. SQLAlchemy expires
+            # attributes when the transaction ends; a recovery decision must use a
+            # plain immutable snapshot rather than trigger a lazy refresh on a
+            # detached AgentRunModel.
+            return _RecoveryRunRecord(
+                id=run.id,
+                storage_version=str(run.storage_version or "legacy_v1"),
+                project_id=run.project_id,
+                agent_id=run.agent_id,
+                session_id=run.session_id,
+                trace_id=run.trace_id,
+            )
 
     async def _recover_or_close(self, run_id: UUID, cutoff: datetime) -> None:
         run = await self._read_run(run_id, cutoff)
         if run is None:
             return
-        if str(getattr(run, "storage_version", None) or "legacy_v1") != EVENT_JOURNAL_STORAGE_VERSION:
+        if run.storage_version != EVENT_JOURNAL_STORAGE_VERSION:
             await self._mark_uncertain(run_id, cutoff)
             return
 
@@ -251,7 +277,7 @@ class AgentRunRecoveryWorker:
 
     async def _emit_uncertain_journal_terminal(
         self,
-        run,
+        run: _RecoveryRunRecord,
         *,
         state: RunJournalState | None,
         reason: str,
