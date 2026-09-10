@@ -97,7 +97,10 @@ services:
     restart: unless-stopped
 
   mongodb:
-    image: mongo:8.0
+    # MongoDB 8 currently refuses Linux kernels 6.19 through 7.0.13 because of
+    # SERVER-121912. MongoDB 7 provides the journal primitives required here
+    # without relying on an allocator workaround in the supported topology.
+    image: mongo:7.0.41
     volumes:
       - woobe_mongodb:/data/db
     healthcheck:
