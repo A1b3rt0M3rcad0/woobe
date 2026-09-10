@@ -55,6 +55,12 @@ class RequestExecutionContext:
         Callable[[dict], Awaitable[dict]],
     ] | None = None
 
+    # Durable Run journal state. The recorder is runtime-only and is never serialized.
+    storage_version: str = "legacy_v1"
+    run_attempt: int = 1
+    run_event_recorder: Any | None = None
+    resume_state: dict[str, Any] | None = None
+
     # Run-local procedural content, never serialized as Session history.
     skill_context: list[dict[str, Any]] | None = None
 
