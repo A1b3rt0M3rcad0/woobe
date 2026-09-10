@@ -232,6 +232,9 @@ def build_execution_snapshot(
     snapshot: dict[str, Any] = {
         "agent": {
             "id": str(agent.id),
+            "name": getattr(agent, "name", None),
+            "description": getattr(agent, "description", None),
+            "behavior_spec": deepcopy(getattr(agent, "behavior_spec", None)),
             "system_prompt": agent.system_prompt,
             "provider_model_id": str(agent.provider_model_id) if getattr(agent, "provider_model_id", None) else None,
             "provider_credential_id": str(agent.provider_credential_id) if getattr(agent, "provider_credential_id", None) else None,

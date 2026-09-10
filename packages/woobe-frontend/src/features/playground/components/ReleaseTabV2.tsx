@@ -95,19 +95,19 @@ export function ReleaseTab({ agentId, projectId: _projectId }: { agentId: string
   }
 
   if (isLoading) {
-    return <div className="space-y-3 p-4"><Skeleton className="h-5 w-32" /><Skeleton className="h-20 w-full rounded-lg" /><Skeleton className="h-24 w-full rounded-lg" /></div>
+    return <div className="space-y-3 p-4"><Skeleton className="h-5 w-32" /><Skeleton className="h-16 w-full" /><Skeleton className="h-20 w-full" /></div>
   }
 
   return (
-    <div className="space-y-4 p-4">
-      <div>
-        <h2 className="text-sm font-medium text-white">Versions</h2>
-        <p className="mt-1 text-[11px] leading-5 text-muted">Inspect Draft, immutable environments, Releases and Production history. Lifecycle actions live in the header.</p>
+    <div className="p-4">
+      <div className="pb-4">
+        <h2 className="text-xs font-semibold text-white">Version history</h2>
+        <p className="mt-1 text-[11px] leading-4 text-muted">Inspect mutable Draft state, immutable environments, Releases and Production changes.</p>
       </div>
 
-      <section className="rounded-xl border border-border bg-surface/45 p-3">
-        <div className="flex items-start gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-background/40"><FileText className="h-4 w-4 text-primary-light" /></div>
+      <section aria-label="Environment versions" className="border-t border-border/80">
+        <div className="flex items-start gap-3 py-3">
+          <FileText className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
               <p className="text-xs font-medium text-white">Current Draft</p>
@@ -117,92 +117,97 @@ export function ReleaseTab({ agentId, projectId: _projectId }: { agentId: string
               <span className="text-[10px] text-muted">{state.provider || '—'}/{state.model || '—'}</span>
               <SessionModeBadge mode={state.sessionMode} />
             </div>
-            <p className="mt-2 text-[10px] leading-4 text-muted">Editable working configuration. Save changes in the Editor before staging.</p>
           </div>
+        </div>
+
+        <div className="border-t border-border/80">
+          {staging ? (
+            <button type="button" onClick={() => void viewSnapshot(staging)} className="group flex w-full items-start gap-3 py-3 text-left">
+              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-indigo-400" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Staging</p>
+                    <p className="mt-0.5 font-mono text-xs text-white">{staging.version}</p>
+                  </div>
+                  <Eye className={loadingId === staging.id ? 'h-4 w-4 animate-pulse text-primary-light' : 'h-4 w-4 text-muted transition-colors group-hover:text-primary-light'} />
+                </div>
+                <SnapshotMeta release={staging} />
+                <p className="mt-1 text-[10px] text-muted">Immutable validation snapshot.</p>
+              </div>
+            </button>
+          ) : (
+            <div className="py-3 text-[10px] text-muted"><span className="font-semibold uppercase tracking-wide">Staging</span><span className="ml-2">No snapshot created.</span></div>
+          )}
+        </div>
+
+        <div className="border-t border-border/80">
+          {production ? (
+            <button type="button" onClick={() => void viewSnapshot(production)} className="group flex w-full items-start gap-3 py-3 text-left">
+              <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-400" />
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Production</p>
+                    <p className="mt-0.5 font-mono text-xs text-white">{production.version}</p>
+                  </div>
+                  <Eye className={loadingId === production.id ? 'h-4 w-4 animate-pulse text-primary-light' : 'h-4 w-4 text-muted transition-colors group-hover:text-primary-light'} />
+                </div>
+                <SnapshotMeta release={production} />
+                <p className="mt-1 text-[10px] text-emerald-300">Active standalone Agent Production release.</p>
+              </div>
+            </button>
+          ) : (
+            <div className="py-3 text-[10px] text-muted"><span className="font-semibold uppercase tracking-wide">Production</span><span className="ml-2">No active release.</span></div>
+          )}
         </div>
       </section>
 
-      <section>
-        <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted">Current Staging</h3>
-        {staging ? (
-          <button type="button" onClick={() => void viewSnapshot(staging)} className="w-full rounded-xl border border-indigo-500/30 bg-indigo-500/[0.04] p-3 text-left transition-colors hover:border-indigo-400/40 hover:bg-indigo-500/[0.07]">
-            <div className="flex items-start gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="font-mono text-xs text-white">{staging.version}</p>
-                <SnapshotMeta release={staging} />
-                <p className="mt-2 text-[10px] leading-4 text-muted">Immutable validation snapshot.</p>
-              </div>
-              <Badge variant="secondary" className="border-indigo-500/30 text-indigo-300">Staging</Badge>
-            </div>
-            <span className="mt-3 inline-flex items-center text-[10px] text-indigo-300"><Eye className="mr-1 h-3.5 w-3.5" />View snapshot</span>
-          </button>
-        ) : <div className="rounded-xl border border-dashed border-border p-3 text-[10px] text-muted">No Agent Staging snapshot.</div>}
-      </section>
-
-      <section>
-        <h3 className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-muted">Production</h3>
-        {production ? (
-          <button type="button" onClick={() => void viewSnapshot(production)} className="w-full rounded-xl border border-emerald-500/30 bg-emerald-500/[0.04] p-3 text-left transition-colors hover:border-emerald-400/40 hover:bg-emerald-500/[0.07]">
-            <div className="flex items-start gap-3">
-              <div className="min-w-0 flex-1">
-                <p className="font-mono text-xs text-white">{production.version}</p>
-                <SnapshotMeta release={production} />
-                <p className="mt-1 text-[9px] text-emerald-300">Active in standalone Agent Production runtime</p>
-              </div>
-              <Badge variant="success">Production</Badge>
-            </div>
-            <span className="mt-3 inline-flex items-center text-[10px] text-emerald-300"><Eye className="mr-1 h-3.5 w-3.5" />View snapshot</span>
-          </button>
-        ) : <div className="rounded-xl border border-dashed border-border p-3 text-[10px] text-muted">No standalone Agent Production release is active.</div>}
-      </section>
-
-      <section>
+      <section aria-label="Agent Releases" className="border-t border-border/80 py-4">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Package className="h-3.5 w-3.5 text-primary-light" />
             <h3 className="text-[10px] font-semibold uppercase tracking-wide text-muted">Releases</h3>
-            <span className="rounded border border-border px-1.5 py-0.5 text-[9px] text-muted">{availableReleases.length}</span>
+            <span className="font-mono text-[9px] text-muted">{availableReleases.length}</span>
           </div>
-          {availableReleases.length ? <Button size="sm" variant="outline" onClick={() => setReleaseLibraryOpen(true)}>View all</Button> : null}
+          {availableReleases.length ? <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px]" onClick={() => setReleaseLibraryOpen(true)}>View all</Button> : null}
         </div>
         {visibleAvailableReleases.length ? (
-          <div className="space-y-2">
+          <div className="divide-y divide-border/70 border-y border-border/70">
             {visibleAvailableReleases.map((release) => (
               <button
                 type="button"
                 key={release.id}
-                className="w-full rounded-xl border border-border bg-background/35 p-3 text-left transition-colors hover:border-primary/30 hover:bg-background/55"
+                className="group flex w-full items-start gap-3 py-3 text-left"
                 onClick={() => void viewSnapshot(release)}
               >
-                <div className="flex items-start gap-3">
-                  <Package className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-mono text-xs text-white">{release.version}</p>
-                      <SessionModeBadge mode={release.session_mode} />
-                    </div>
-                    <p className="mt-1 text-[10px] text-muted">{release.provider ?? '—'}/{release.model ?? '—'} · {formatReleaseDate(release.created_at)}</p>
-                    {release.release_notes ? <p className="mt-2 line-clamp-2 text-[10px] leading-4 text-slate-300">{release.release_notes}</p> : null}
+                <Package className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-mono text-xs text-white">{release.version}</p>
+                    <SessionModeBadge mode={release.session_mode} />
                   </div>
-                  <Eye className={loadingId === release.id ? 'h-4 w-4 animate-pulse text-primary-light' : 'h-4 w-4 text-muted'} />
+                  <p className="mt-1 text-[10px] text-muted">{release.provider ?? '—'}/{release.model ?? '—'} · {formatReleaseDate(release.created_at)}</p>
+                  {release.release_notes ? <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-slate-300">{release.release_notes}</p> : null}
                 </div>
+                <Eye className={loadingId === release.id ? 'h-4 w-4 animate-pulse text-primary-light' : 'h-4 w-4 text-muted transition-colors group-hover:text-primary-light'} />
               </button>
             ))}
           </div>
-        ) : <div className="rounded-xl border border-dashed border-border p-3 text-[10px] text-muted">No immutable Releases are currently available.</div>}
+        ) : <p className="py-2 text-[10px] text-muted">No immutable Releases are currently available.</p>}
       </section>
 
-      <section>
+      <section aria-label="Production history" className="border-t border-border/80 pt-4">
         <div className="mb-2 flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <History className="h-3.5 w-3.5 text-muted" />
             <h3 className="text-[10px] font-semibold uppercase tracking-wide text-muted">Production history</h3>
-            <span className="rounded border border-border px-1.5 py-0.5 text-[9px] text-muted">{latestProductionChanges.length}</span>
+            <span className="font-mono text-[9px] text-muted">{latestProductionChanges.length}</span>
           </div>
-          {latestProductionChanges.length ? <Button size="sm" variant="outline" onClick={() => openProductionChange()}>View all</Button> : null}
+          {latestProductionChanges.length ? <Button size="sm" variant="ghost" className="h-7 px-2 text-[10px]" onClick={() => openProductionChange()}>View all</Button> : null}
         </div>
-        {activationsLoading ? <Skeleton className="h-16 w-full rounded-lg" /> : visibleProductionChanges.length ? (
-          <div className="space-y-2">
+        {activationsLoading ? <Skeleton className="h-16 w-full" /> : visibleProductionChanges.length ? (
+          <div className="divide-y divide-border/70 border-y border-border/70">
             {visibleProductionChanges.map((activation) => {
               const release = releasesById.get(activation.release_id) ?? null
               const previous = activation.previous_release_id
@@ -213,27 +218,25 @@ export function ReleaseTab({ agentId, projectId: _projectId }: { agentId: string
                 <button
                   type="button"
                   key={activation.id}
-                  className="w-full rounded-xl border border-border bg-background/30 p-3 text-left transition-colors hover:border-primary/30 hover:bg-background/50"
+                  className="flex w-full items-start gap-3 py-3 text-left"
                   onClick={() => openProductionChange(activation)}
                 >
-                  <div className="flex items-start gap-3">
-                    <History className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
-                    <div className="min-w-0 flex-1">
-                      <div className="flex flex-wrap items-center gap-2 text-[10px]">
-                        <Badge variant={activationVariant(activation.action)} className="text-[9px]">{activationLabel(activation.action)}</Badge>
-                        <span className="font-mono text-slate-300">{previous?.version ?? 'No Production'}</span>
-                        <ArrowRight className="h-3 w-3 text-muted" />
-                        <span className="font-mono text-white">{release?.version ?? activation.release_id.slice(0, 8)}</span>
-                      </div>
-                      <p className="mt-2 text-[10px] text-slate-300">{summary}</p>
-                      <p className="mt-1 text-[9px] text-muted">{formatReleaseDate(activation.created_at)}</p>
+                  <History className="mt-0.5 h-4 w-4 shrink-0 text-muted" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2 text-[10px]">
+                      <Badge variant={activationVariant(activation.action)} className="text-[9px]">{activationLabel(activation.action)}</Badge>
+                      <span className="font-mono text-slate-300">{previous?.version ?? 'No Production'}</span>
+                      <ArrowRight className="h-3 w-3 text-muted" />
+                      <span className="font-mono text-white">{release?.version ?? activation.release_id.slice(0, 8)}</span>
                     </div>
+                    <p className="mt-1.5 text-[10px] text-slate-300">{summary}</p>
+                    <p className="mt-1 text-[9px] text-muted">{formatReleaseDate(activation.created_at)}</p>
                   </div>
                 </button>
               )
             })}
           </div>
-        ) : <div className="rounded-xl border border-dashed border-border p-3 text-[10px] text-muted">No Production changes recorded.</div>}
+        ) : <p className="py-2 text-[10px] text-muted">No Production changes recorded.</p>}
       </section>
 
       <ReleaseSnapshotModal open={Boolean(snapshot)} title="Agent Release details" description="Operational configuration stored for this immutable version." release={snapshot} onClose={() => setSnapshot(null)} />

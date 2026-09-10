@@ -1,3 +1,4 @@
+import { behaviorFromSpec, behaviorToSpec } from '@/features/agents/behavior'
 import { useEffect, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
@@ -92,7 +93,7 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
   const [step, setStep] = useState<AgentCreationStep>('details')
   const [agentName, setAgentName] = useState('')
   const [agentDescription, setAgentDescription] = useState('')
-  const [agentInstructions, setAgentInstructions] = useState('')
+  const [agentObjective, setAgentObjective] = useState('')
   const [modelMode, setModelMode] = useState<ModelSelectionMode>('existing')
   const [selectedCredentialId, setSelectedCredentialId] = useState('')
   const [selectedModelId, setSelectedModelId] = useState('')
@@ -106,7 +107,7 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
     setStep('details')
     setAgentName('')
     setAgentDescription('')
-    setAgentInstructions('')
+    setAgentObjective('')
     setModelMode('existing')
     setSelectedCredentialId('')
     setSelectedModelId('')
@@ -186,8 +187,8 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
       toast.error('Agent name is required')
       return false
     }
-    if (!agentInstructions.trim()) {
-      toast.error('Agent instructions are required')
+    if (!agentObjective.trim()) {
+      toast.error('Agent objective is required')
       return false
     }
 
@@ -302,7 +303,7 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
 
   const createAgentFromFlow = async () => {
     if (!agentName.trim()) return toast.error('Agent name is required')
-    if (!agentInstructions.trim()) return toast.error('Agent instructions are required')
+    if (!agentObjective.trim()) return toast.error('Agent objective is required')
     if (!selectedModel) return toast.error('Select a generation model')
 
     try {
@@ -313,7 +314,7 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
         provider_model_id: selectedModel.id,
         provider: selectedModel.provider || 'openai',
         model: selectedModel.model,
-        system_prompt: agentInstructions.trim(),
+        behavior_spec: behaviorToSpec({ ...behaviorFromSpec(), objective: agentObjective.trim() }),
         temperature: 0.7,
         max_output_tokens: 2048,
         provider_credential_id: selectedModel.provider_credential_id,
@@ -338,8 +339,8 @@ export function useAgentCreationFlow({ projectId, onCreated, active = true }: Us
     setAgentName,
     agentDescription,
     setAgentDescription,
-    agentInstructions,
-    setAgentInstructions,
+    agentObjective,
+    setAgentObjective,
     modelMode,
     credentials,
     activeCredentials,

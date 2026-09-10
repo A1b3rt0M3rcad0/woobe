@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link2, Plus, Wrench } from 'lucide-react'
+import { Link2, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/Button'
@@ -26,7 +26,7 @@ function initialPermissionsForTool(tool: Tool): Record<string, McpToolPermission
   return permissions
 }
 
-export function NetworkAgentTools({ projectId, agentId }: { projectId: string; agentId: string }) {
+export function AgentToolsSettings({ projectId, agentId }: { projectId: string; agentId: string }) {
   const toolsQuery = useTools(projectId)
   const tools = toolsQuery.data ?? []
   const { state, setField, setState } = useAgentEditor()
@@ -62,36 +62,29 @@ export function NetworkAgentTools({ projectId, agentId }: { projectId: string; a
   }
 
   return (
-    <div className="space-y-3 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Tools</p>
-          {selected.length ? <p className="mt-0.5 text-[10px] text-muted">{selected.length} bound to this Draft</p> : null}
+    <div className="p-4">
+      <section aria-label="Tools" className="rounded-xl border border-border bg-surface">
+        <div className="flex items-center gap-3 p-4"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light"><Wrench className="h-4 w-4" /></span><div><p className="text-sm font-semibold">Tools</p><p className="mt-0.5 text-[11px] text-muted">{selected.length} bound to this Draft</p></div></div>
+        <div className="border-t border-border p-4">
+        <p className="text-xs leading-5 text-muted">Control which Tools this Agent can use.</p>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => setImportOpen(true)}><Link2 className="mr-1 h-3.5 w-3.5" />Import</Button>
+          <Button size="sm" variant="ghost" className="h-8 text-[11px] text-primary-light" onClick={() => setCreateOpen(true)}>Create</Button>
         </div>
-        <div className="flex gap-2">
-          <Button size="sm" variant="outline" onClick={() => setCreateOpen(true)}><Plus className="mr-1 h-3.5 w-3.5" />Create</Button>
-          <Button size="sm" onClick={() => setImportOpen(true)}><Link2 className="mr-1 h-3.5 w-3.5" />Import</Button>
-        </div>
-      </div>
-
+        <p className="mb-2.5 mt-5 text-xs font-semibold uppercase tracking-wider text-muted">Bound tools</p>
       {toolsQuery.isLoading ? (
-        <p className="text-xs text-muted">Loading Tools...</p>
+        <p role="status" className="text-xs text-muted">Loading Tools...</p>
       ) : selected.length === 0 ? (
-        <div className="rounded-xl border border-dashed border-border bg-surface p-6 text-center">
-          <Wrench className="mx-auto h-5 w-5 text-muted" />
-          <p className="mt-4 text-sm font-medium text-white">No Tools selected</p>
-          <p className="mt-1 text-xs text-muted">Create or import Tools for this Agent Draft.</p>
-          <div className="mt-4 flex justify-center gap-2">
-            <Button size="sm" onClick={() => setCreateOpen(true)}>Create Tool</Button>
-            <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>Import Tool</Button>
-          </div>
+        <div className="rounded-lg border border-border bg-background/35 p-3">
+          <p className="text-xs font-medium">No Tools selected</p>
+          <p className="mt-1 text-[11px] text-muted">Create or import Tools for this Agent Draft.</p>
         </div>
       ) : (
         <div className="space-y-3">
           {selected.map((tool) => (
             <AgentToolCard
               key={tool.id}
-              context="network"
+              context="agent"
               tool={tool}
               onChanged={refreshTools}
               onEdit={() => setEditingTool(tool)}
@@ -103,6 +96,8 @@ export function NetworkAgentTools({ projectId, agentId }: { projectId: string; a
         </div>
       )}
 
+      </div>
+      </section>
       <ImportToolsModal open={importOpen} onClose={() => setImportOpen(false)} projectId={projectId} importedToolIds={selectedIds} onImport={addTool} />
       <CreateToolModal open={createOpen} onClose={() => setCreateOpen(false)} projectId={projectId} agentId={agentId} onCreated={(tool) => { if (tool) addTool(tool); void refreshTools() }} />
       <EditToolModal tool={editingTool} onClose={() => setEditingTool(null)} onSaved={() => { setEditingTool(null); void refreshTools() }} />

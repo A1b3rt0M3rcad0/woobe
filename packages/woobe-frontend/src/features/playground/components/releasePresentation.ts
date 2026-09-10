@@ -1,3 +1,4 @@
+import { behaviorFields, behaviorFromSpec, behaviorToSpec } from '@/features/agents/behavior'
 import type { AgentRelease, AgentReleaseActivation } from '@/features/agents/types'
 
 function timestamp(value?: string) {
@@ -99,8 +100,30 @@ export function describeReleaseChanges(
       `Session Mode changed from ${sessionModeLabel(previous.session_mode)} to ${sessionModeLabel(current.session_mode)}`,
     )
   }
-  if (previous.system_prompt !== current.system_prompt) {
-    changes.push('Agent instructions were updated')
+  if (previous.behavior_spec || current.behavior_spec) {
+    const previousBehavior = behaviorToSpec(behaviorFromSpec(previous.behavior_spec, previous.system_prompt ?? ''))
+    const currentBehavior = behaviorToSpec(behaviorFromSpec(current.behavior_spec, current.system_prompt ?? ''))
+    if (!previous.behavior_spec) changes.push('Behavior was structured from legacy instructions')
+    if (!current.behavior_spec) changes.push('Behavior reverted to legacy instructions')
+    for (const { specKey, label } of behaviorFields) {
+      const before = previousBehavior[specKey]
+      const after = currentBehavior[specKey]
+      if (stableValue(before) === stableValue(after)) continue
+      if (Array.isArray(before) || Array.isArray(after)) {
+        const oldItems = Array.isArray(before) ? before : []
+        const newItems = Array.isArray(after) ? after : []
+        const added = newItems.filter(item => !oldItems.includes(item))
+        const removed = oldItems.filter(item => !newItems.includes(item))
+        added.forEach(item => changes.push(`${label}: added “${item}”`))
+        removed.forEach(item => changes.push(`${label}: removed “${item}”`))
+        if (!added.length && !removed.length) changes.push(`${label}: order or repeated items changed`)
+      } else {
+        changes.push(`${label} was updated`)
+      }
+    }
+    if (previous.name !== current.name || previous.description !== current.description) changes.push('Agent identity was updated')
+  } else if (previous.system_prompt !== current.system_prompt) {
+    changes.push('Legacy Agent instructions were updated')
   }
   if (previous.knowledge_version_id !== current.knowledge_version_id
     || stableValue(previous.collection_ids) !== stableValue(current.collection_ids)) {

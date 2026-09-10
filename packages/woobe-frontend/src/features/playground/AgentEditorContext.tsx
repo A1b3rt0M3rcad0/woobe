@@ -1,3 +1,4 @@
+import { behaviorFromSpec, behaviorToSpec, type AgentBehavior } from '@/features/agents/behavior'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { Agent, AgentRelease } from '@/features/agents/types'
 import { getRelease } from '@/features/agents/api'
@@ -21,7 +22,7 @@ export type AgentToolPermissions = Record<string, Record<string, McpToolPermissi
 export type AgentEditorState = {
   name: string
   description: string
-  systemPrompt: string
+  behavior: AgentBehavior
   sessionMode: AgentSessionMode
   responseFormat: ResponseFormat
   outputSchema: unknown | null
@@ -54,7 +55,7 @@ export interface EditorContextValue {
   isDirty: boolean
   activeSource: 'current_draft' | 'draft_unsaved'
   resetToBaseline: () => void
-  updateBaseline: () => void
+  updateBaseline: (confirmedState?: AgentEditorState) => void
 }
 
 function recordValue(value: unknown): Record<string, unknown> {
@@ -180,7 +181,7 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[], knowl
   return {
     name: agent.name || '',
     description: agent.description || '',
-    systemPrompt: agent.system_prompt || '',
+    behavior: behaviorFromSpec(agent.behavior_spec, agent.system_prompt || ''),
     sessionMode: agent.session_mode === 'stateless' ? 'stateless' : 'stateful',
     responseFormat: {
       enabled: Boolean(responseFormat.enabled && responseFormat.type === 'json'),
@@ -216,7 +217,7 @@ export function releaseToEditorState(release: AgentRelease, current: AgentEditor
     ...current,
     name: release.name ?? current.name,
     description: release.description ?? current.description,
-    systemPrompt: release.system_prompt ?? current.systemPrompt,
+    behavior: behaviorFromSpec(release.behavior_spec, release.system_prompt ?? ''),
     sessionMode: release.session_mode === 'stateless'
       ? 'stateless'
       : release.session_mode === 'stateful'
@@ -252,12 +253,12 @@ export function releaseToEditorState(release: AgentRelease, current: AgentEditor
 export function canonicalSnapshot(state: AgentEditorState): Record<string, unknown> {
   let schema = state.responseFormat.schema
   if (typeof schema === 'string') {
-    try { schema = JSON.parse(schema) } catch { schema = null }
+    try { schema = JSON.parse(schema) } catch { /* Preserve invalid raw editor text until a validation boundary. */ }
   }
   return {
     name: state.name,
     description: state.description,
-    system_prompt: state.systemPrompt,
+    behavior_spec: behaviorToSpec(state.behavior),
     session_mode: state.sessionMode,
     response_format: {
       enabled: state.responseFormat.enabled,
@@ -295,6 +296,10 @@ function mergeHydratedState(
     ;(merged as Record<keyof AgentEditorState, AgentEditorState[keyof AgentEditorState]>)[key] = next[key]
   }
   return merged
+}
+
+function sameEditorValue(left: AgentEditorState[keyof AgentEditorState], right: AgentEditorState[keyof AgentEditorState]) {
+  return JSON.stringify(left) === JSON.stringify(right)
 }
 
 const EditorContext = createContext<EditorContextValue | null>(null)
@@ -445,9 +450,16 @@ export function AgentEditorProvider({ agent, projectId, collectionIds: propColle
     setEditorState(baselineState)
     setLoadedRelease(null, null)
   }, [baselineState, setLoadedRelease])
-  const updateBaseline = useCallback(() => {
-    editedFields.current.clear()
-    setBaselineState(state)
+  const updateBaseline = useCallback((confirmedState: AgentEditorState = state) => {
+    setBaselineState(confirmedState)
+    setEditorState((current) => {
+      const remainingEdits = new Set<keyof AgentEditorState>()
+      for (const key of Object.keys(current) as Array<keyof AgentEditorState>) {
+        if (!sameEditorValue(current[key], confirmedState[key])) remainingEdits.add(key)
+      }
+      editedFields.current = remainingEdits
+      return current
+    })
   }, [state])
 
   return <EditorContext.Provider value={{ state, setField, setState, toSnapshot, loadedReleaseId, loadedReleaseVersion, setLoadedRelease, isDirty, activeSource, resetToBaseline, updateBaseline }}>{children}</EditorContext.Provider>

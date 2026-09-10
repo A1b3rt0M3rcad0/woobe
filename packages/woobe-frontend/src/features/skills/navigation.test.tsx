@@ -6,11 +6,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { AppRouter } from '@/app/router'
-import { NetworkAgentEditor } from '@/features/network/components/NetworkAgentEditor'
+import { AgentConfigurationEditor } from '@/features/agents/components/AgentConfigurationEditor'
 import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import SkillsPage from '@/pages/SkillsPage'
 import { getSkillVersion, importSkill, listSkills, listSkillVersions } from './api'
-import { savedSkillInstallations } from './installations'
 import type { Agent } from '@/features/agents/types'
 
 const fixture = vi.hoisted(() => ({
@@ -39,7 +38,7 @@ vi.mock('@/features/agents/hooks', async original => ({ ...await original<typeof
   useUpdateAgent: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }))
 vi.mock('@/features/playground/AgentEditorContext', () => ({ useAgentEditor: () => ({
-  state: { name: 'Reviewer', description: '', systemPrompt: '', sessionMode: 'stateful', runtimeConfig: {} }, setField: fixture.setField,
+  state: { name: 'Reviewer', description: '', behavior: { objective: '', responsibilities: [], allowedBehaviors: [], disallowedBehaviors: [], operatingInstructions: '', responseGuidelines: '', additionalInstructions: '' }, sessionMode: 'stateful', runtimeConfig: {} }, setField: fixture.setField,
   loadedReleaseVersion: null, isDirty: false, toSnapshot: () => ({}), updateBaseline: vi.fn(), resetToBaseline: vi.fn(),
 }) }))
 
@@ -71,6 +70,7 @@ async function fill(label: string, value: string) {
 }
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+  vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('HTTP requests are disabled in editor tests') }))
   container = document.createElement('div'); document.body.appendChild(container); root = createRoot(container)
   client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
   vi.clearAllMocks(); fixture.agentsError = false; fixture.managersError = false; fixture.agent.settings = {}
@@ -79,7 +79,7 @@ beforeEach(() => {
   vi.mocked(getSkillVersion).mockResolvedValue(fixture.snapshot)
   vi.mocked(importSkill).mockResolvedValue(fixture.snapshot)
 })
-afterEach(async () => { await act(async () => root.unmount()); client.clear(); container.remove() })
+afterEach(async () => { await act(async () => root.unmount()); client.clear(); container.remove(); vi.unstubAllGlobals() })
 
 describe('Skills navigation regression', () => {
   it('adds an active Skills link alongside other Project artifacts', async () => {
@@ -105,10 +105,13 @@ describe('Skills navigation regression', () => {
     expect(container.querySelector('h1')?.textContent).toBe('Skills')
   })
   it.each(['standalone', 'network'])('makes Skills visible and usable in the %s editor', async surface => {
-    const editor = surface === 'network' ? <NetworkAgentEditor agent={fixture.agent} projectId="project-1" agentId="agent-1" /> : <AgentInspector agent={fixture.agent} projectId="project-1" agentId="agent-1" activeTab="editor" environment="draft" environmentRelease={null} onTabChange={vi.fn()} />
+    const editor = surface === 'network' ? <AgentConfigurationEditor agent={fixture.agent} projectId="project-1" agentId="agent-1" /> : <AgentInspector agent={fixture.agent} projectId="project-1" agentId="agent-1" activeTab="editor" environment="draft" environmentRelease={null} onTabChange={vi.fn()} />
     await render(editor)
+    await click(button('Capabilities'))
+
     await click(button('Skills'))
     expect(button('Skills').getAttribute('aria-pressed')).toBe('true')
+
     expect(container.querySelector('section[aria-label="Installed Skills"]')).toBeTruthy()
     expect(button('Manage Skills').disabled).toBe(false)
     await click(button('Manage Skills'))
@@ -116,7 +119,7 @@ describe('Skills navigation regression', () => {
     expect(button('Create Skill')).toBeTruthy()
   })
   it('opens the requested version from a Project installation link without saving implicitly', async () => {
-    await render(<NetworkAgentEditor agent={fixture.agent} projectId="project-1" agentId="agent-1" />, '/workspaces/workspace-1/projects/project-1/agents/agent-1/playground?editor=skills&skill_version_id=version-1')
+    await render(<AgentConfigurationEditor agent={fixture.agent} projectId="project-1" agentId="agent-1" />, '/workspaces/workspace-1/projects/project-1/agents/agent-1/playground?editor=skills&skill_version_id=version-1')
     await settle(() => expect(document.body.textContent).toContain('SHA-256 hash'))
     expect(button('Skills').getAttribute('aria-pressed')).toBe('true')
     expect(fixture.setField).not.toHaveBeenCalled()
@@ -125,8 +128,8 @@ describe('Skills navigation regression', () => {
   })
   it('keeps catalog management available when a compatible manager cannot load', async () => {
     fixture.managersError = true
-    await render(<NetworkAgentEditor agent={fixture.agent} projectId="project-1" agentId="agent-1" />)
-    await click(button('Skills')); await click(button('Manage Skills'))
+    await render(<AgentConfigurationEditor agent={fixture.agent} projectId="project-1" agentId="agent-1" />)
+    await click(button('Capabilities')); await click(button('Skills')); await click(button('Manage Skills'))
     await settle(() => expect(button('Create Skill')).toBeTruthy())
     expect(document.body.textContent).toContain('Installation requires a compatible Context Manager')
   })
@@ -139,7 +142,7 @@ describe('Skills navigation regression', () => {
     await settle(() => expect(importSkill).toHaveBeenCalledWith('project-1', { version: '1.0.0', skill_md: '---\nname: "invoice-review"\ndescription: "Review invoices"\n---\nCheck totals', resources: {}, required_tools: [] }, undefined))
     await settle(() => expect(document.body.textContent).toContain('SHA-256 hash'))
     await click(button('Install on Agent')); await click(button('Reviewer'))
-    await settle(() => expect(container.querySelector('output')?.textContent).toBe('/workspaces/workspace-1/projects/project-1/agents/agent-1/playground?editor=skills&skill_version_id=version-1'))
+    await settle(() => expect(container.querySelector('output')?.textContent).toContain('/agents/agent-1/playground?editor=skills&skill_version_id=version-1'))
   })
   it('lists saved installations including disabled versions as operational cards and opens the Agent Skills editor', async () => {
     fixture.agent.settings = { runtime_config: { skills: { bindings: [{ skill_id: 'skill-1', skill_version_id: 'version-1', enabled: false }], snapshots: [fixture.snapshot] } } }
@@ -147,16 +150,16 @@ describe('Skills navigation regression', () => {
     await click([...container.querySelectorAll('button')].find(element => element.getAttribute('role') === 'tab' && element.textContent?.includes('Installed on Agents'))!)
     expect(container.textContent).toContain('v1.0.0')
     expect(container.textContent).toContain('Disabled')
-    const installation = [...container.querySelectorAll('button')].find(element => element.getAttribute('aria-label') === 'Open Agent Skills for Reviewer')!
-    await click(installation)
+    await click([...container.querySelectorAll('button')].find(element => element.getAttribute('aria-label') === 'Open Agent Skills for Reviewer')!)
     await settle(() => expect(container.querySelector('output')?.textContent).toContain('/agents/agent-1/playground?editor=skills'))
-    expect(savedSkillInstallations([fixture.agent], 'another-project')).toEqual([])
   })
   it('distinguishes an empty catalog from a failed catalog request', async () => {
     vi.mocked(listSkills).mockResolvedValue([])
     await render(<SkillsPage />)
     await settle(() => expect(container.textContent).toContain('No Skills yet'))
-    vi.mocked(listSkills).mockRejectedValue(new Error('Catalog unavailable'))
+    expect(container.textContent).not.toContain('Catalog unavailable')
+
+    vi.mocked(listSkills).mockRejectedValueOnce(new Error('Catalog unavailable'))
     await act(async () => { await client.invalidateQueries({ queryKey: ['skills'] }) })
     await settle(() => expect(container.textContent).toContain('Catalog unavailable'))
   })

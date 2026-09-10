@@ -72,6 +72,7 @@ class Agent:
     name: str = ""
     description: str = ""
     type: AgentType = AgentType.chat
+    behavior_spec: dict[str, Any] | None = None
     system_prompt: str = ""
     provider: Provider = Provider.openai
     model: str = ""
@@ -153,6 +154,7 @@ class AgentRelease:
     fallback_provider_model_id: UUID | None = None
     name: str | None = None
     description: str | None = None
+    behavior_spec: dict[str, Any] | None = None
     system_prompt: str | None = None
     response_format: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None

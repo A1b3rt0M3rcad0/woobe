@@ -9,8 +9,10 @@ from modules.agent.application.context_assembler_registry import (
 )
 from modules.agent.application.context_policy import canonicalize_context_runtime_config
 from modules.agent.application.dtos.ai_dtos import CreateReleaseInput, CreateReleaseOutput
+from modules.agent.application.dtos.behavior_dtos import canonicalize_behavior_spec
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.interfaces.repositories import AgentReleaseRepository
+from modules.agent.application.system_instruction_assembler import assemble_system_instructions
 from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.errors import ReleaseNotFoundError
@@ -22,7 +24,7 @@ _SINGLETON_STATUSES = {ReleaseStatus.draft, ReleaseStatus.staging, ReleaseStatus
 _SNAPSHOT_FIELDS = (
     "project_id", "agent_id", "prompt_version_id", "contract_version_id",
     "knowledge_version_id", "model_config_version_id", "provider_model_id",
-    "fallback_provider_model_id", "name", "description", "system_prompt",
+    "fallback_provider_model_id", "name", "description", "behavior_spec", "system_prompt",
     "response_format", "output_schema", "provider", "model",
     "provider_credential_id", "fallback_provider", "fallback_model",
     "fallback_credential_id", "base_url", "temperature", "max_output_tokens",
@@ -57,6 +59,7 @@ def _release_to_output(saved: AgentRelease) -> CreateReleaseOutput:
         fallback_provider_model_id=getattr(saved, "fallback_provider_model_id", None),
         name=saved.name,
         description=saved.description,
+        behavior_spec=getattr(saved, "behavior_spec", None),
         system_prompt=saved.system_prompt,
         response_format=saved.response_format,
         output_schema=saved.output_schema,
@@ -120,11 +123,17 @@ class AutoCreateReleaseUseCase:
     def _copy_input_to_release(self, input_dto: CreateReleaseInput, release: AgentRelease) -> None:
         for field_name in _SNAPSHOT_FIELDS:
             value = getattr(input_dto, field_name)
-            if field_name == "runtime_config":
+            if field_name == "behavior_spec" and value is not None:
+                value = canonicalize_behavior_spec(value)
+            elif field_name == "runtime_config":
                 value = _canonical_runtime_config(value)
             else:
                 value = deepcopy(value)
             setattr(release, field_name, value)
+        if release.behavior_spec is not None:
+            release.system_prompt = assemble_system_instructions(
+                release.name, release.description, release.behavior_spec
+            )
         release.release_notes = getattr(input_dto, "release_notes", None)
 
 

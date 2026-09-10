@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ChevronLeft, Code2, History, Lock, MessageSquare, PencilLine, RotateCcw, Workflow, type LucideIcon } from 'lucide-react'
@@ -592,16 +592,17 @@ export default function NetworkPage() {
     if (workspaceDefinition.nodes.some((item) => item.id === nodeId)) selectWorkspace({ type: 'node', id: nodeId }, 'agent')
   }
 
-  const updateSelectedAgentDirty = (dirty: boolean) => {
+  const updateSelectedAgentDirty = useCallback((dirty: boolean) => {
     const agentId = selectedAgent?.id
     if (!agentId) return
     setDirtyAgentIds((current) => {
+      if (current.has(agentId) === dirty) return current
       const next = new Set(current)
       if (dirty) next.add(agentId)
       else next.delete(agentId)
       return next
     })
-  }
+  }, [selectedAgent?.id])
 
   const discardAndSwitch = () => {
     if (!pendingNode) return

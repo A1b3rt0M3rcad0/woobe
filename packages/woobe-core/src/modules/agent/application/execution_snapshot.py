@@ -122,6 +122,9 @@ def build_agent_execution_snapshot(source: Any) -> dict[str, Any]:
     )
 
     return {
+        "name": getattr(source, "name", None),
+        "description": getattr(source, "description", None),
+        "behavior_spec": deepcopy(getattr(source, "behavior_spec", None)),
         "system_prompt": getattr(source, "system_prompt", None) or "",
         "response_format": response_format,
         "provider": str(provider),
@@ -163,6 +166,11 @@ def apply_agent_execution_snapshot(agent: Any, snapshot: dict[str, Any]) -> Any:
     if session_mode not in {SessionMode.stateful.value, SessionMode.stateless.value}:
         raise ValidationError("Agent execution snapshot has no valid Session Mode")
 
+    if snapshot.get("name") is not None:
+        agent.name = snapshot["name"]
+    if snapshot.get("description") is not None:
+        agent.description = snapshot["description"]
+    agent.behavior_spec = deepcopy(snapshot.get("behavior_spec"))
     agent.system_prompt = str(snapshot.get("system_prompt") or "")
     agent.provider = Provider(str(provider))
     agent.model = str(model)

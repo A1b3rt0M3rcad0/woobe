@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from copy import deepcopy
+
 import json
 import logging
 import re
@@ -758,6 +760,7 @@ class AskAgentUseCase:
         return agent
 
     def _apply_release_to_agent(self, agent: Agent, release: AgentRelease) -> Agent:
+        agent.behavior_spec = deepcopy(getattr(release, "behavior_spec", None))
         if release.system_prompt is not None:
             agent.system_prompt = release.system_prompt
         if release.response_format is not None:
@@ -805,6 +808,7 @@ class AskAgentUseCase:
         return agent
 
     def _apply_snapshot_override(self, agent: Agent, snapshot: dict) -> Agent:
+        agent.behavior_spec = deepcopy(snapshot.get("behavior_spec"))
         if snapshot.get("system_prompt") is not None:
             agent.system_prompt = snapshot["system_prompt"]
         if snapshot.get("response_format") is not None:

@@ -6,7 +6,7 @@ from uuid import UUID
 
 from modules.agent.domain.enums import Provider, SessionMode
 from modules.agent.domain.errors import AgentNotFoundError
-from shared.contracts.errors import ValidationError
+from shared.contracts.errors import ConflictError, ValidationError
 
 
 def _enum_value(value: Any) -> Any:
@@ -33,6 +33,7 @@ def _draft_defaults_from_agent(agent: Any) -> dict[str, Any]:
     return {
         "name": agent.name,
         "description": agent.description,
+        "behavior_spec": deepcopy(getattr(agent, "behavior_spec", None)),
         "system_prompt": agent.system_prompt,
         "response_format": response_format,
         "output_schema": output_schema,
@@ -58,6 +59,18 @@ def _draft_defaults_from_agent(agent: Any) -> dict[str, Any]:
 
 def _complete_draft_input(input_dto: Any, agent: Any) -> Any:
     fields_set = set(getattr(input_dto, "model_fields_set", set()))
+    if (
+        getattr(agent, "behavior_spec", None) is not None
+        and "system_prompt" in fields_set
+        and "behavior_spec" not in fields_set
+    ):
+        raise ConflictError("Update behavior_spec for an Agent with structured Behavior")
+    if (
+        "behavior_spec" in fields_set
+        and input_dto.behavior_spec is None
+        and "system_prompt" not in fields_set
+    ):
+        raise ConflictError("Clearing behavior_spec requires explicit legacy system_prompt")
     defaults = _draft_defaults_from_agent(agent)
     updates = {
         field_name: value
@@ -71,6 +84,7 @@ def _sync_agent_projection(agent: Any, draft: Any) -> None:
     if draft.name is not None:
         agent.name = draft.name
     agent.description = draft.description if draft.description is not None else ""
+    agent.behavior_spec = deepcopy(getattr(draft, "behavior_spec", None))
     agent.system_prompt = draft.system_prompt if draft.system_prompt is not None else ""
 
     if draft.provider is None or draft.model is None:

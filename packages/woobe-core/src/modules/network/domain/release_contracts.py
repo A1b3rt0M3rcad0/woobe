@@ -19,6 +19,7 @@ _AGENT_SNAPSHOT_FIELDS = (
     "fallback_provider_model_id",
     "name",
     "description",
+    "behavior_spec",
     "system_prompt",
     "response_format",
     "output_schema",
@@ -53,6 +54,7 @@ def agent_snapshot_payload(release: Any) -> dict[str, Any]:
     return {
         field: _normalize(getattr(release, field, None))
         for field in _AGENT_SNAPSHOT_FIELDS
+        if field != "behavior_spec" or getattr(release, field, None) is not None
     }
 
 

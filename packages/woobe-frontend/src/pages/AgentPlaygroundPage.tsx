@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useAgent, useAgentRuntimeEnvironments, useReleases } from '@/features/agents/hooks'
+import { useAgentEditorSection } from '@/features/agents/components/AgentEditorNavigation'
+import { validateAgentEditorState } from '@/features/agents/editorValidation'
 import type { RuntimeEnvironment } from '@/features/agents/types'
 import { usePlaygroundTraces } from '@/features/traces/hooks'
 import { useAskStream, useAgentSessions, useCreateSession, useSessionMessages } from '@/features/playground/hooks'
@@ -134,9 +136,10 @@ function PlaygroundContent() {
   const { workspaceId, projectId, agentId } = useParams<{ workspaceId?: string; projectId: string; agentId: string }>()
   const navigate = useNavigate()
   const { data: agent, isLoading: agentLoading, isError: agentError } = useAgent(agentId)
-  const { data: releases = [] } = useReleases(agentId)
+  const { data: releases = [], isLoading: releasesLoading } = useReleases(agentId)
   const runtimeStatesQuery = useAgentRuntimeEnvironments(agentId, projectId)
-  const { state, toSnapshot, isDirty } = useAgentEditor()
+  const { state, isDirty } = useAgentEditor()
+  const [, setEditorSection] = useAgentEditorSection()
   const { stream, reattach, cancel: cancelStream, disconnect: disconnectStream } = useAskStream()
   const queryClient = useQueryClient()
   const { mutateAsync: createRuntimeSession, isPending: creatingSession } = useCreateSession()
@@ -236,6 +239,15 @@ function PlaygroundContent() {
 
   useEffect(() => () => { mountedRef.current = false }, [])
   useEffect(() => { setPlaygroundSessionId(selectedSessionId) }, [selectedSessionId])
+  useEffect(() => {
+    if (!isDirty) return
+    const handleBeforeUnload = (event: BeforeUnloadEvent) => {
+      event.preventDefault()
+      event.returnValue = ''
+    }
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
+  }, [isDirty])
 
   useEffect(() => {
     if (historyMessages && selectedSessionId && !isSending && !isFetching && syncedSessionRef.current !== selectedSessionId) {
@@ -513,6 +525,19 @@ function PlaygroundContent() {
       return
     }
 
+    let draftSnapshot: Record<string, unknown> | null = null
+    if (environment === 'draft') {
+      const validation = validateAgentEditorState(state)
+      if (!validation.valid) {
+        setEditorSection('output')
+        setRightPanelTab('editor')
+        setShowRightPanel(true)
+        toast.error(validation.issue.message)
+        return
+      }
+      draftSnapshot = validation.snapshot
+    }
+
     accumulatedRef.current = ''
     metadataRef.current = {}
     rawEventsRef.current = []
@@ -531,7 +556,7 @@ function PlaygroundContent() {
           runtime_environment: environment,
           client_sent_at: new Date().toISOString(),
         },
-        ...(environment === 'draft' ? { snapshot_override: toSnapshot() } : {}),
+        ...(draftSnapshot ? { snapshot_override: draftSnapshot } : {}),
       }
       setLastRequestPayload(requestPayload as unknown as Record<string, unknown>)
       await stream(requestPayload, {
@@ -747,7 +772,7 @@ function PlaygroundContent() {
             />
           )}
           <div className="flex-1 min-w-0 flex flex-col"><ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} onStop={handleStop} agentName={agent.name} runtimeBlocked={!runtimeEnabled || !environmentReady} runtimeBlockReason={runtimeBlockReason} /></div>
-          {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={false} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
+          {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={releasesLoading} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
         </div>
       </div>
       <ApiModal open={showApiModal} onClose={() => setShowApiModal(false)} agent={agent} projectId={projectId!} workspaceProjectPathFn={(projId, ...segments) => p(projId, ...segments)} />

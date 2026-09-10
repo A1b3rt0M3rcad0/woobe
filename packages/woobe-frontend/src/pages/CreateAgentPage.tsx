@@ -1,3 +1,4 @@
+import { behaviorFromSpec, behaviorToSpec } from '@/features/agents/behavior'
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
@@ -182,7 +183,7 @@ export default function CreateAgentPage() {
         name: data.name,
         provider: selectedCredential.provider,
         model,
-        system_prompt: data.system_prompt || '',
+        behavior_spec: behaviorToSpec({ ...behaviorFromSpec(), objective: data.objective || '' }),
         description: data.description || '',
         temperature: data.temperature,
         max_output_tokens: data.max_output_tokens,
@@ -344,12 +345,13 @@ export default function CreateAgentPage() {
             </div>
 
             <div className="border-t border-border pt-4">
-              <p className="text-sm font-semibold mb-3">Prompt</p>
+              <p className="text-sm font-semibold mb-3">Behavior</p>
               <div>
-                <label className="block text-sm font-medium text-muted mb-1">System Prompt</label>
+                <label className="block text-sm font-medium text-muted mb-1" htmlFor="agent-objective">Objective</label>
                 <Textarea
-                  {...form.register('system_prompt')}
-                  placeholder="You are a helpful AI assistant..."
+                  id="agent-objective"
+                  {...form.register('objective')}
+                  placeholder="What primary outcome should this Agent achieve?"
                   className="min-h-[120px]"
                 />
               </div>

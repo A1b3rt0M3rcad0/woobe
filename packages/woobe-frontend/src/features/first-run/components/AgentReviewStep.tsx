@@ -35,9 +35,9 @@ export function AgentReviewStep({ flow }: AgentReviewStepProps) {
       </section>
 
       <section className="rounded-xl border border-border/80 bg-background/45 p-5 lg:col-span-2">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Instructions</p>
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Objective</p>
         <p className="mt-3 max-h-44 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-white/90">
-          {flow.agentInstructions.trim()}
+          {flow.agentObjective.trim()}
         </p>
       </section>
     </div>

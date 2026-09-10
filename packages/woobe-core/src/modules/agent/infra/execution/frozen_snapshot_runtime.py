@@ -8,9 +8,11 @@ from uuid import UUID
 
 from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 
+from modules.agent.application.dtos.behavior_dtos import canonicalize_behavior_spec
 from modules.agent.application.dtos.runtime_dtos import UsageInfo
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.enums import Provider, SessionMode
+from modules.agent.domain.system_instructions import assemble_canonical_system_instructions
 from modules.agent.infra.execution.deferred_run_metrics import build_deferred_agent_metrics
 from modules.agent.infra.execution.transaction_bounded_structured_output import (
     TransactionBoundedStructuredOutputRuntime,
@@ -258,8 +260,18 @@ class FrozenSnapshotStructuredOutputRuntime(TransactionBoundedStructuredOutputRu
         # Do not call the compatibility implementation from AskAgentUseCase here.
         # Rerun needs exact replacement semantics, including explicit nulls, and
         # must use the Agent SessionMode enum (stateful/stateless).
+        for field in ("name", "description"):
+            if snapshot.get(field) is not None:
+                setattr(agent, field, snapshot[field])
+        if "behavior_spec" in snapshot or "system_prompt" in snapshot:
+            agent.behavior_spec = deepcopy(snapshot.get("behavior_spec"))
         if "system_prompt" in snapshot:
             agent.system_prompt = snapshot.get("system_prompt") or ""
+        elif snapshot.get("behavior_spec") is not None:
+            agent.behavior_spec = canonicalize_behavior_spec(agent.behavior_spec)
+            agent.system_prompt = assemble_canonical_system_instructions(
+                agent.name, agent.description, agent.behavior_spec
+            )
         if "provider_model_id" in snapshot:
             agent.provider_model_id = _uuid_or_none(snapshot.get("provider_model_id"))
         if "provider_credential_id" in snapshot:

@@ -215,6 +215,7 @@ class SQLAlchemyAgentRepository(
             raise AgentNotFoundError(agent.id)
         model.name = agent.name
         model.description = agent.description
+        model.behavior_spec = agent.behavior_spec
         model.system_prompt = agent.system_prompt
         model.provider = agent.provider.value if hasattr(agent.provider, 'value') else agent.provider
         model.model = agent.model

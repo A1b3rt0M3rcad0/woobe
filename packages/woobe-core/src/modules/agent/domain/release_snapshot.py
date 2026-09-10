@@ -17,6 +17,7 @@ SNAPSHOT_FIELDS = (
     "fallback_provider_model_id",
     "name",
     "description",
+    "behavior_spec",
     "system_prompt",
     "response_format",
     "output_schema",
@@ -59,6 +60,8 @@ def canonical_release_snapshot(release: Any) -> dict[str, Any]:
     snapshot: dict[str, Any] = {}
     for field_name in SNAPSHOT_FIELDS:
         value = getattr(release, field_name, None)
+        if field_name == "behavior_spec" and value is None:
+            continue  # Preserve legacy snapshot hashes.
         if field_name in _EMPTY_OBJECT_FIELDS and value is None:
             value = {}
         if field_name == "collection_ids" and value:

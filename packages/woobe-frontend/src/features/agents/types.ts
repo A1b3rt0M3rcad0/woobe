@@ -1,3 +1,14 @@
+export interface BehaviorSpecification {
+  schema_version: 1
+  objective: string
+  responsibilities: string[]
+  allowed_behaviors: string[]
+  disallowed_behaviors: string[]
+  operating_instructions: string
+  response_guidelines: string
+  additional_instructions: string
+}
+
 export type RuntimeEnvironment = 'draft' | 'staging' | 'production'
 
 export interface RuntimeEnvironmentState {
@@ -32,6 +43,7 @@ export interface Agent {
   name: string
   provider: string
   model: string
+  behavior_spec?: BehaviorSpecification | null
   system_prompt?: string
   description?: string
   temperature?: number
@@ -57,6 +69,7 @@ export interface CreateAgentRequest {
   model?: string
   provider_model_id?: string
   fallback_provider_model_id?: string
+  behavior_spec?: BehaviorSpecification | null
   system_prompt?: string
   description?: string
   temperature?: number
@@ -72,6 +85,7 @@ export interface CreateAgentRequest {
 export interface UpdateAgentRequest {
   name?: string
   description?: string
+  behavior_spec?: BehaviorSpecification | null
   system_prompt?: string
   provider?: string
   model?: string
@@ -237,6 +251,7 @@ export interface AgentRelease {
   // Snapshot fields — complete agent config
   name?: string
   description?: string
+  behavior_spec?: BehaviorSpecification | null
   system_prompt?: string
   response_format?: Record<string, unknown>
   output_schema?: Record<string, unknown>
@@ -288,6 +303,7 @@ export interface CreateReleaseRequest {
   // Snapshot fields — complete agent config
   name?: string
   description?: string
+  behavior_spec?: BehaviorSpecification | null
   system_prompt?: string
   response_format?: Record<string, unknown>
   output_schema?: Record<string, unknown>

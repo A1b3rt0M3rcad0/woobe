@@ -1,31 +1,26 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { HelpCircle } from 'lucide-react'
 
 import { JsonEditor } from '@/components/ui/JsonEditor'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { OutputContractHelpModal } from '@/features/playground/components/OutputContractHelpModal'
+import { outputContractError } from '../editorValidation'
 
 const DEFAULT_SCHEMA = `{
   "message": "string",
   "confidence": "float"
 }`
 
-export function isNetworkOutputValid(value: unknown) {
-  if (value && typeof value === 'object') return true
-  if (typeof value !== 'string' || !value.trim()) return false
-  try { JSON.parse(value); return true } catch { return false }
-}
-
 function schemaText(value: unknown) {
   return typeof value === 'string' ? value : value && typeof value === 'object' ? JSON.stringify(value, null, 2) : DEFAULT_SCHEMA
 }
 
-export function NetworkAgentOutput({ onValidity }: { onValidity: (value: boolean) => void }) {
+export function AgentOutputSettings() {
   const { state, setField } = useAgentEditor()
   const [helpOpen, setHelpOpen] = useState(false)
   const enabled = state.responseFormat.enabled
 
-  useEffect(() => onValidity(!enabled || isNetworkOutputValid(state.responseFormat.schema)), [enabled, onValidity, state.responseFormat.schema])
+  const error = outputContractError(state)
 
   const toggle = (next: boolean) => setField('responseFormat', {
     ...state.responseFormat,
@@ -44,7 +39,8 @@ export function NetworkAgentOutput({ onValidity }: { onValidity: (value: boolean
           <button type="button" onClick={() => setHelpOpen(true)} className="flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted hover:border-primary/40 hover:text-primary-light" aria-label="Explain output contracts"><HelpCircle className="h-3.5 w-3.5" /></button>
         </div>
         <label className="mb-1.5 block text-xs font-medium text-muted">Output contract</label>
-        <JsonEditor value={schemaText(state.responseFormat.schema)} onChange={(value) => setField('responseFormat', { ...state.responseFormat, strict: true, schema: value })} onValidJsonChange={() => onValidity(true)} editable disabled={!enabled} actions={['format', 'validate', 'clear']} minHeight={180} maxHeight={360} placeholder='{ "message": "string" }' />
+        <JsonEditor value={schemaText(state.responseFormat.schema)} onChange={(value) => setField('responseFormat', { ...state.responseFormat, strict: true, schema: value })} editable disabled={!enabled} actions={['format', 'validate', 'clear']} minHeight={180} maxHeight={360} placeholder='{ "message": "string" }' />
+        {error ? <p role="alert" className="mt-2 text-xs text-red-300">{error}</p> : null}
         <p className="mt-2 text-[11px] leading-5 text-muted">Write the response shape directly. Type names such as <code>"string"</code>, <code>"number"</code> and <code>"float"</code> describe expected values.</p>
       </section>
       <OutputContractHelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />

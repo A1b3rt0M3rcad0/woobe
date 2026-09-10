@@ -1,11 +1,11 @@
-import { AlertTriangle, MoreHorizontal, Pencil, Trash2, Wrench } from 'lucide-react'
+import { AlertTriangle, Globe2, PlugZap, Pencil, Trash2, Wrench } from 'lucide-react'
 
 import { HttpProviderPanel, isHttpProviderTool } from '@/features/tools/components/HttpProviderPanel'
 import { McpProviderPanel, isMcpProviderTool } from '@/features/tools/components/McpProviderPanel'
 import type { HttpToolConfig, McpToolPermission, Tool } from '@/features/tools/types'
 import { cn } from '@/lib/utils'
 
-export type AgentToolCardContext = 'playground' | 'network'
+export type AgentToolCardContext = 'playground' | 'agent'
 
 interface AgentToolCardProps {
   tool: Tool
@@ -56,17 +56,17 @@ function ToolStatusToggle({ active, loading, onClick }: { active: boolean; loadi
   )
 }
 
-function ActionsMenu({ canEdit, onEdit, onRemove }: { canEdit: boolean; onEdit?: () => void; onRemove: () => void }) {
+function ActionsMenu({ canEdit, editLabel, onEdit, onRemove }: { canEdit: boolean; editLabel: string; onEdit?: () => void; onRemove: () => void }) {
   return (
     <details className="relative">
-      <summary className="flex h-7 w-7 cursor-pointer list-none items-center justify-center rounded-lg border border-border/80 bg-background/50 text-muted transition-colors hover:bg-accent hover:text-white [&::-webkit-details-marker]:hidden" aria-label="Tool actions">
-        <MoreHorizontal className="h-3.5 w-3.5" />
+      <summary className="flex h-8 cursor-pointer list-none items-center justify-center rounded-md text-[11px] text-primary-light transition-colors hover:bg-accent [&::-webkit-details-marker]:hidden" aria-label="Tool actions">
+        More actions
       </summary>
       <div className="absolute right-0 top-9 z-30 min-w-40 rounded-lg border border-border bg-surface p-1 shadow-xl">
         {canEdit && onEdit ? (
           <button type="button" onClick={onEdit} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-white hover:bg-accent">
             <Pencil className="h-3.5 w-3.5" />
-            Edit API
+            {editLabel}
           </button>
         ) : null}
         <button type="button" onClick={onRemove} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-red-200 hover:bg-red-500/10">
@@ -95,31 +95,41 @@ export function AgentToolCard({
   const isHttpProvider = isHttpProviderTool(tool)
   const risk = effectiveRisk(tool)
   const showRisk = riskScore(risk) >= 2
+  const showReadOnlyStatus = context === 'playground' && !onToggleActive
+
+  const actions = <ActionsMenu canEdit={!isRetired && isHttpProvider} editLabel={context === 'playground' ? 'Edit Project Tool' : 'Edit Tool'} onEdit={onEdit} onRemove={onRemove} />
+  const riskNotice = showRisk ? <div className="mt-2 flex items-center gap-1.5 pl-12 text-[11px] text-amber-200"><AlertTriangle className="h-3 w-3" />{risk} risk</div> : null
 
   return (
     <article className={cn(
-      'rounded-xl border px-3 py-2.5 transition-colors',
-      isRetired ? 'border-amber-500/30 bg-amber-500/5' : isActive ? 'border-border bg-background' : 'border-border/60 bg-background/45 opacity-75',
+      'rounded-lg border border-border bg-background/35 p-3 transition-colors',
+      isRetired ? 'bg-amber-500/5' : isActive ? '' : 'opacity-75',
     )}>
       <div className="flex items-center gap-2.5">
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border/70 bg-surface/60 text-primary-light">
-          <Wrench className="h-3.5 w-3.5" />
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light">
+          {isHttpProvider ? <Globe2 className="h-4 w-4" /> : isMcp ? <PlugZap className="h-4 w-4" /> : <Wrench className="h-4 w-4" />}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
-            <h3 className="truncate text-sm font-semibold text-white">{tool.name}</h3>
-            {isRetired ? <span className="shrink-0 text-[9px] text-amber-200">Retired</span> : context === 'network' ? <span className="shrink-0 text-[9px] capitalize text-muted">{tool.status}</span> : null}
+            <h3 title={tool.name} className="truncate text-sm font-semibold text-foreground">{tool.name}</h3>
+            {isRetired ? (
+              <span className="shrink-0 text-[9px] text-amber-200">Retired</span>
+            ) : showReadOnlyStatus ? (
+              <span className="shrink-0 text-[9px] capitalize text-muted">{tool.status}</span>
+            ) : null}
           </div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           {context === 'playground' && !isRetired && onToggleActive ? <ToolStatusToggle active={isActive} loading={statusLoading} onClick={onToggleActive} /> : null}
-          <ActionsMenu canEdit={!isRetired && isHttpProvider} onEdit={onEdit} onRemove={onRemove} />
+
         </div>
       </div>
 
       {isMcp ? (
         <McpProviderPanel
           tool={tool}
+          footerActions={actions}
+          summaryNote={riskNotice}
           onChanged={onChanged}
           permissionOverrides={permissionOverrides}
           onPermissionOverridesChange={onPermissionOverridesChange}
@@ -129,6 +139,8 @@ export function AgentToolCard({
       {isHttpProvider ? (
         <HttpProviderPanel
           tool={tool}
+          footerActions={actions}
+          summaryNote={riskNotice}
           permissionOverrides={permissionOverrides}
           onPermissionOverridesChange={onPermissionOverridesChange}
         />
@@ -138,12 +150,8 @@ export function AgentToolCard({
         <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-muted">{tool.description || 'HTTP Tool'}</p>
       ) : null}
 
-      {showRisk ? (
-        <div className="mt-1.5 flex items-center gap-1.5 px-1 text-[10px] capitalize text-amber-200">
-          <AlertTriangle className="h-3 w-3" />
-          {risk} risk
-        </div>
-      ) : null}
+      {!isMcp && !isHttpProvider ? <>{riskNotice}<div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3">{actions}</div></> : null}
+
     </article>
   )
 }

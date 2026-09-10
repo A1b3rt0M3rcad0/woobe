@@ -37,6 +37,9 @@ def _draft_snapshot_override(execution_snapshot: dict) -> dict:
         frozen_knowledge_version_id = raw_knowledge["knowledge_version_id"]
 
     return {
+        "name": raw_agent.get("name"),
+        "description": raw_agent.get("description"),
+        "behavior_spec": deepcopy(raw_agent.get("behavior_spec")),
         "system_prompt": raw_agent.get("system_prompt"),
         "response_format": settings.get("response_format"),
         "provider_model_id": raw_agent.get("provider_model_id"),

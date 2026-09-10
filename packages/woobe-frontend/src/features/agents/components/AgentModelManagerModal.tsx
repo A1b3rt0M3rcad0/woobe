@@ -38,7 +38,7 @@ function credentialMetadata(provider: string, baseUrl: string): Record<string, s
   return { provider_family: 'openai', compatibility: 'native', model_discovery_strategy: 'openai_models' }
 }
 
-export function NetworkModelManagerModal({ open, projectId, selectedModelId, onClose, onUseModel }: Props) {
+export function AgentModelManagerModal({ open, projectId, selectedModelId, onClose, onUseModel }: Props) {
   const credentialsQuery = useCredentials(projectId)
   const modelsQuery = useProviderModels(projectId)
   const createCredential = useCreateCredential()

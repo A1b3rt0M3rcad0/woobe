@@ -1,5 +1,6 @@
+import { AgentBehaviorDetails } from '@/features/agents/components/AgentBehaviorDetails'
 import { SkillSnapshotSummary } from '@/features/skills/SkillSnapshotSummary'
-import { FileText, Package, Sparkles } from 'lucide-react'
+import { Package, Sparkles } from 'lucide-react'
 
 import { Badge } from '@/components/ui/Badge'
 import { useKnowledgeVersions } from '@/features/agents/hooks'
@@ -111,16 +112,25 @@ export function ReleaseDetailsView({ release }: ReleaseDetailsViewProps) {
         </section>
       ) : null}
 
+      <section className="space-y-3 rounded-xl border border-border/80 bg-background/35 p-4">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-300">Agent Details</h3>
+        <DetailRow label="Name" value={release.name} />
+        <DetailRow label="Description" value={release.description} />
+      </section>
+      <AgentBehaviorDetails behavior={release.behavior_spec} legacyPrompt={release.system_prompt} />
+      <section className="space-y-3 rounded-xl border border-border/80 bg-background/35 p-4">
+        <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-300">Runtime</h3>
+        <DetailRow label="Session Mode" value={sessionModeLabel(release.session_mode)} />
+        <DetailRow label="Context Manager" value={contextAssemblerLabel(release.runtime_config)} />
+      </section>
+
       <section className="rounded-xl border border-border/80 bg-background/35 p-4">
         <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
-          <Sparkles className="h-3.5 w-3.5" />Model and execution
+          <Sparkles className="h-3.5 w-3.5" />Model
         </div>
         <div className="space-y-2.5">
-          <DetailRow label="Agent" value={release.name} />
           <DetailRow label="Provider" value={release.provider} />
           <DetailRow label="Model" value={release.model} />
-          <DetailRow label="Session Mode" value={sessionModeLabel(release.session_mode)} />
-          <DetailRow label="Context Manager" value={contextAssemblerLabel(release.runtime_config)} />
           <DetailRow label="Temperature" value={release.temperature} />
           <DetailRow label="Maximum output" value={release.max_output_tokens ? `${release.max_output_tokens} tokens` : null} />
           <DetailRow label="Fallback" value={fallback} />
@@ -138,15 +148,6 @@ export function ReleaseDetailsView({ release }: ReleaseDetailsViewProps) {
           <DetailRow label="Minimum relevance" value={ragConfig.min_score} />
           <DetailRow label="Grounding" value={ragConfig.grounding_policy} />
         </div>
-      </section>
-
-      <section className="rounded-xl border border-border/80 bg-background/35 p-4">
-        <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-300">
-          <FileText className="h-3.5 w-3.5" />Agent instructions
-        </div>
-        <p className="max-h-64 overflow-y-auto whitespace-pre-wrap rounded-lg border border-border/60 bg-black/10 p-3 text-xs leading-5 text-slate-200">
-          {release.system_prompt || 'No instructions stored in this Release.'}
-        </p>
       </section>
 
       <section className="rounded-xl border border-border/80 bg-background/35 p-4">

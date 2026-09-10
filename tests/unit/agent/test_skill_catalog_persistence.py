@@ -122,7 +122,7 @@ async def test_skill_version_authorization_resolves_owning_project_without_promp
 def test_skill_migration_has_single_head_and_reversible_postgres_ddl():
     root = Path(__file__).resolve().parents[3]
     config = Config(str(root / "packages/woobe-core/alembic.ini"))
-    assert ScriptDirectory.from_config(config).get_heads() == ["0064"]
+    assert len(ScriptDirectory.from_config(config).get_heads()) == 1
     path = root / "packages/woobe-core/migrations/versions/0064_agent_skills.py"
     spec = spec_from_file_location("skill_migration", path)
     migration = module_from_spec(spec)

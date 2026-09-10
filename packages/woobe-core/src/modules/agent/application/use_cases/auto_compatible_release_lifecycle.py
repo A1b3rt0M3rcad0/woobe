@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import datetime, timezone
 
 from modules.agent.application.use_cases.release_lifecycle_use_cases import (
@@ -21,6 +22,7 @@ _EXECUTION_FIELDS = (
     "fallback_provider_model_id",
     "name",
     "description",
+    "behavior_spec",
     "system_prompt",
     "response_format",
     "output_schema",
@@ -175,7 +177,7 @@ def _clone_release_snapshot(
     clone.project_id = source.project_id
     clone.agent_id = source.agent_id
     for field_name in _EXECUTION_FIELDS:
-        setattr(clone, field_name, getattr(source, field_name))
+        setattr(clone, field_name, deepcopy(getattr(source, field_name)))
     clone.version = version
     clone.status = status
     clone.snapshot_kind = "release"

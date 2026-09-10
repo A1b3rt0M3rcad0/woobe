@@ -4,6 +4,7 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from modules.agent.application.dtos.behavior_dtos import BehaviorSpecification
 from modules.agent.domain.enums import (
     AgentStatus,
     AgentType,
@@ -114,6 +115,7 @@ class CreateAgentInput(BaseModel):
     name: str
     description: str = ""
     type: AgentType = AgentType.chat
+    behavior_spec: BehaviorSpecification | None = None
     system_prompt: str = ""
     provider: Provider = Provider.openai
     model: str
@@ -141,6 +143,7 @@ class CreateAgentOutput(BaseModel):
 class UpdateAgentInput(BaseModel):
     name: str | None = None
     description: str | None = None
+    behavior_spec: BehaviorSpecification | None = None
     system_prompt: str | None = None
     provider: Provider | None = None
     model: str | None = None
@@ -173,6 +176,7 @@ class UpdateAgentOutput(BaseModel):
     temperature: float | None = None
     max_output_tokens: int | None = None
     session_mode: SessionMode
+    behavior_spec: dict[str, Any] | None = None
     system_prompt: str
     description: str
     status: AgentStatus
@@ -191,6 +195,7 @@ class ListAgentsOutput(BaseModel):
     name: str
     description: str = ""
     type: AgentType
+    behavior_spec: dict[str, Any] | None = None
     system_prompt: str = ""
     provider: Provider
     model: str
@@ -367,6 +372,7 @@ class CreateReleaseInput(BaseModel):
     fallback_provider_model_id: UUID | None = None
     name: str | None = None
     description: str | None = None
+    behavior_spec: BehaviorSpecification | None = None
     system_prompt: str | None = None
     response_format: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None
@@ -403,6 +409,7 @@ class CreateReleaseOutput(BaseModel):
     fallback_provider_model_id: UUID | None = None
     name: str | None = None
     description: str | None = None
+    behavior_spec: dict[str, Any] | None = None
     system_prompt: str | None = None
     response_format: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None

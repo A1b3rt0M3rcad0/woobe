@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react'
-import { ChevronRight, Globe2, Search } from 'lucide-react'
+import { useMemo, useState, type ReactNode } from 'react'
+import { Settings2, Search } from 'lucide-react'
 
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -14,6 +14,8 @@ import type {
 } from '@/features/tools/types'
 
 interface HttpProviderPanelProps {
+  footerActions?: ReactNode
+  summaryNote?: ReactNode
   tool: Tool
   permissionOverrides?: Record<string, McpToolPermission>
   onPermissionOverridesChange?: (permissions: Record<string, McpToolPermission>) => void
@@ -85,7 +87,7 @@ function PermissionControl({
   )
 }
 
-export function HttpProviderPanel({ tool, permissionOverrides, onPermissionOverridesChange }: HttpProviderPanelProps) {
+export function HttpProviderPanel({ tool, footerActions, summaryNote, permissionOverrides, onPermissionOverridesChange }: HttpProviderPanelProps) {
   const [manageOpen, setManageOpen] = useState(false)
   const [query, setQuery] = useState('')
   const allRoutes = useMemo(() => routes(tool).filter((route) => route.status !== 'inactive'), [tool])
@@ -119,26 +121,16 @@ export function HttpProviderPanel({ tool, permissionOverrides, onPermissionOverr
 
   return (
     <div className="mt-2">
-      <button
-        type="button"
-        onClick={() => setManageOpen(true)}
-        className="flex w-full items-center gap-2 rounded-lg px-1 py-1.5 text-left transition-colors hover:bg-accent/35"
-      >
-        <Globe2 className="h-3.5 w-3.5 shrink-0 text-primary-light" />
-        <span className="min-w-0 flex-1">
-          <span className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted">
-            <span className="font-medium text-white">HTTP API</span>
-            <span>·</span>
-            <span className={`h-1.5 w-1.5 rounded-full ${ready ? 'bg-emerald-300' : 'bg-amber-300'}`} />
-            <span>{ready ? 'Ready' : 'Needs permission'}</span>
-            <span>·</span>
-            <span>{allRoutes.length} routes</span>
-            {counts.allow > 0 ? <span>· {counts.allow} allowed</span> : null}
-          </span>
-          <span className="mt-0.5 block truncate text-[10px] text-muted">{providerHost(tool)}</span>
-        </span>
-        <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted" />
-      </button>
+      <div className={footerActions ? 'min-w-0 pl-12' : 'min-w-0'}>
+        <p title={providerHost(tool)} className="truncate font-mono text-[11px] text-muted">{providerHost(tool)}</p>
+        <p className="mt-2 text-[11px] text-muted">HTTP · {allRoutes.length} routes · {counts.allow} allowed</p>
+        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted"><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ready ? 'bg-emerald-300' : 'bg-amber-300'}`} />{ready ? 'Ready' : 'Needs permission'}</p>
+      </div>
+      {summaryNote}
+      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3">
+        <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => setManageOpen(true)}><Settings2 className="mr-1 h-3.5 w-3.5" />Configure</Button>
+        {footerActions}
+      </div>
 
       <Dialog open={manageOpen} onClose={() => setManageOpen(false)} title={`Manage HTTP routes: ${tool.name}`} className="max-w-3xl" scrollMode="content">
         <div className="space-y-4">
