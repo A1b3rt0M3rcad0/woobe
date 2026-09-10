@@ -69,10 +69,18 @@ class JournalAwareRuntimeObserver(BaseRuntimeObserver):
         *,
         durable_fallback: DurableFallback,
     ) -> tuple[dict[str, Any], str | None]:
-        return await super().current_state(
+        state, cursor = await super().current_state(
             run,
             durable_fallback=self._journal_fallback(run, durable_fallback),
         )
+        if (
+            cursor is None
+            and state.get("durable_source") == "mongodb_journal"
+            and isinstance(state.get("journal_durable_sequence"), int)
+            and not isinstance(state.get("journal_durable_sequence"), bool)
+        ):
+            state["sequence"] = int(state["journal_durable_sequence"])
+        return state, cursor
 
     async def observe(
         self,
