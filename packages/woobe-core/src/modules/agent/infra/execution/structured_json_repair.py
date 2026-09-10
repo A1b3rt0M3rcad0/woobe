@@ -10,7 +10,7 @@ from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
 )
-from modules.agent.infra.execution.execution_instrumentation import invoke_llm
+from modules.agent.infra.execution.durable_execution_instrumentation import invoke_llm
 from modules.agent.infra.execution.runtime_streaming import runtime_streaming_enabled
 
 
