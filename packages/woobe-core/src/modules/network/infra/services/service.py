@@ -21,6 +21,7 @@ from modules.network.infra.database.models import (
     NetworkVersionModel,
 )
 from shared.infra.errors import ConflictError, NotFoundError, ValidationError
+from shared.runtime.event_schema import LEGACY_STORAGE_VERSION
 
 
 _TERMINAL_EXECUTION_STATUSES = {
@@ -36,17 +37,22 @@ _ACTIVE_EXECUTION_STATUSES = {"queued", "running", "cancel_requested"}
 class NetworkApplicationService(SessionModeNetworkApplicationService):
     """Executes every immutable Network Session against its opening version."""
 
-    def __init__(self, *args, runtime_control: Any | None = None, **kwargs) -> None:
+    def __init__(
+        self,
+        *args,
+        runtime_control: Any | None = None,
+        run_storage_version: str = LEGACY_STORAGE_VERSION,
+        **kwargs,
+    ) -> None:
         super().__init__(*args, **kwargs)
         if runtime_control is None:
             # Transitional default until Network composition owns this dependency.
-            # Application receives only the operational control surface at runtime;
-            # PostgreSQL remains the durable source of truth.
             from modules.network.infra.runtime.redis_store import RedisNetworkExecutionStore
             from shared.composition_resources import EXECUTION_STATE_STORE
 
             runtime_control = RedisNetworkExecutionStore(EXECUTION_STATE_STORE)
         self._runtime_control = runtime_control
+        self._run_storage_version = run_storage_version
 
     async def submit_execution(
         self,
@@ -154,6 +160,7 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                 definition_snapshot=definition_snapshot,
                 resolved_bindings_snapshot=bindings_snapshot,
                 status="queued",
+                storage_version=self._run_storage_version,
                 idempotency_key=idempotency_key,
                 last_event_sequence=1,
             )
@@ -202,6 +209,7 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                             "root_node_id": str(definition.root_node_id),
                             "origin": network_session.origin,
                             "chat_surface_id": chat_surface_id,
+                            "storage_version": self._run_storage_version,
                             "limits": {
                                 "max_depth": definition.limits.max_depth,
                                 "max_invocations": definition.limits.max_invocations,
@@ -257,12 +265,8 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
             await self._runtime_control.request_cancel(execution_id)
             return
 
-        # No operational state exists yet. Preserve the legacy durable cancellation
-        # for an execution that is still waiting for the broker/worker.
         await super().request_cancellation(execution_id, project_id)
 
-        # Close the only relevant race: the worker may have initialized Redis after
-        # the first lookup but before PostgreSQL was marked cancelled.
         state = await self._runtime_control.snapshot(execution_id)
         if state:
             runtime_status = str(state.get("status") or "")

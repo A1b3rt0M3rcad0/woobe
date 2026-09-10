@@ -13,7 +13,15 @@ from modules.agent.background_boundary import (
     close_http_tool_executor,
     configure_http_tool_executor,
 )
-from shared.composition_resources import RUN_EVENT_BUFFER, RUN_EVENT_JOURNAL
+from modules.network.background_boundary import (
+    NetworkRunEventProjector,
+    NetworkRuntimeFinalizer,
+)
+from shared.composition_resources import (
+    RUN_EVENT_BUFFER,
+    RUN_EVENT_JOURNAL,
+    SESSION_FACTORY,
+)
 from shared.infra.database.session import create_engine
 from shared.infra.rabbitmq import RabbitMQManager
 from shared.observability.logging_config import configure_logging
@@ -35,6 +43,15 @@ from woobe_workers.runtime.runner import WorkerRunner
 from woobe_workers.settings import WorkerSettings
 
 logger = logging.getLogger(__name__)
+
+
+class _CompositeRunEventProjector:
+    def __init__(self, *projectors) -> None:
+        self._projectors = projectors
+
+    async def project(self, events) -> None:
+        for projector in self._projectors:
+            await projector.project(events)
 
 
 def _configure_logging(settings: WorkerSettings) -> None:
@@ -60,11 +77,23 @@ def _build_runtime_workers(settings: WorkerSettings, engine) -> list[WorkerProto
             "event_journal worker runtime requires WOOBE_REDIS_URL and WOOBE_MONGODB_URL"
         )
     transactions = AgentRuntimeTransactionRunner(lambda: AgentUnitOfWork(engine))
+    network_finalizer = NetworkRuntimeFinalizer(
+        SESSION_FACTORY,
+        agent_artifact_materializer=ProjectRAIAgentInvocationArtifactMaterializer(),
+    )
+    projector = _CompositeRunEventProjector(
+        AgentRunEventProjector(transactions),
+        NetworkRunEventProjector(
+            SESSION_FACTORY,
+            journal=RUN_EVENT_JOURNAL,
+            finalizer=network_finalizer,
+        ),
+    )
     return [
         RunEventPersistenceWorker(
             buffer=RUN_EVENT_BUFFER,
             journal=RUN_EVENT_JOURNAL,
-            projector=AgentRunEventProjector(transactions),
+            projector=projector,
             consumer_group=settings.run_event_redis_consumer_group,
             batch_size=settings.run_event_batch_size,
             flush_interval_ms=settings.run_event_flush_interval_ms,
