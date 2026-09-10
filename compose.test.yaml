@@ -60,6 +60,17 @@ services:
       retries: 10
     restart: "no"
 
+  mongodb:
+    image: mongo:8.0
+    tmpfs:
+      - /data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    restart: "no"
+
   fake-provider:
     build:
       context: .
@@ -116,6 +127,8 @@ services:
       WOOBE_RABBITMQ_URL: amqp://woobe_test:woobe_test_password@rabbitmq:5672/
       WOOBE_RABBITMQ_EXCHANGE: woobe.test.events
       WOOBE_REDIS_URL: redis://redis:6379/0
+      WOOBE_MONGODB_URL: mongodb://mongodb:27017
+      WOOBE_MONGODB_DATABASE: woobe_test
       WOOBE_TEST_FAKE_PROVIDER_URL: http://fake-provider:8000/v1
     depends_on:
       db:
@@ -123,6 +136,8 @@ services:
       rabbitmq:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      mongodb:
         condition: service_healthy
       fake-provider:
         condition: service_healthy
