@@ -7,15 +7,17 @@ from typing import Any
 from uuid import UUID
 
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
-from modules.agent.application.use_cases.execution_event_factory import (
-    completed_event,
-    fallback_event,
-    llm_event,
-    tool_event,
-)
 from modules.agent.domain.entities import Message
 from modules.agent.domain.enums import MessageRole
-from modules.agent.domain.events import AgentExecutionFailedV1, AgentMessageCreatedV1
+from modules.agent.domain.events import (
+    AgentDomainEvent,
+    AgentExecutionCompletedV1,
+    AgentExecutionFailedV1,
+    AgentExecutionLLMCompletedV1,
+    AgentExecutionToolCompletedV1,
+    AgentFallbackTriggeredV1,
+    AgentMessageCreatedV1,
+)
 from modules.agent.domain.run import AgentRun, AgentRunStatus
 from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
 from modules.agent.infra.database.runtime_transaction_runner import AgentRuntimeTransactionRunner
@@ -56,6 +58,27 @@ def _compat_payload(run: AgentRun, event: DurableRunEvent) -> dict[str, Any]:
         "journal_sequence": event.sequence,
         "storage_version": event.storage_version,
     }
+
+
+def _compat_event(
+    event_cls: type[AgentDomainEvent],
+    run: AgentRun,
+    event: DurableRunEvent,
+    payload: dict[str, Any],
+) -> AgentDomainEvent:
+    """Create one legacy-compatible outbox fact per durable journal sequence."""
+
+    idempotency_key = AgentDomainEvent.compute_idempotency_key(
+        aggregate_type="agent",
+        aggregate_id=run.agent_id,
+        event_type=event_cls.event_type,
+        discriminator=f"{run.id}:{event.sequence}",
+    )
+    return event_cls(
+        payload=payload,
+        idempotency_key=idempotency_key,
+        correlation_id=run.trace_id,
+    )
 
 
 class AgentRunEventProjector(RunEventProjectorPort):
@@ -128,13 +151,19 @@ class AgentRunEventProjector(RunEventProjectorPort):
         payload = _compat_payload(run, event)
 
         if event.event_type == "model.invocation.completed":
-            await outbox.write(llm_event(run.agent_id, payload))
+            await outbox.write(
+                _compat_event(AgentExecutionLLMCompletedV1, run, event, payload)
+            )
             return
         if event.event_type in {"tool.call.completed", "tool.call.failed"}:
-            await outbox.write(tool_event(run.agent_id, payload))
+            await outbox.write(
+                _compat_event(AgentExecutionToolCompletedV1, run, event, payload)
+            )
             return
         if event.event_type == "fallback.triggered":
-            await outbox.write(fallback_event(run.agent_id, payload))
+            await outbox.write(
+                _compat_event(AgentFallbackTriggeredV1, run, event, payload)
+            )
             return
         if event.event_type == "run.completed":
             await self._project_completed_message(repositories, outbox, run, event)
@@ -145,7 +174,9 @@ class AgentRunEventProjector(RunEventProjectorPort):
             run.completed_at = _datetime(event.payload.get("completed_at")) or _datetime(
                 event.occurred_at
             )
-            await outbox.write(completed_event(run.agent_id, payload))
+            await outbox.write(
+                _compat_event(AgentExecutionCompletedV1, run, event, payload)
+            )
             return
         if event.event_type == "run.failed":
             run.status = AgentRunStatus.FAILED
@@ -157,11 +188,7 @@ class AgentRunEventProjector(RunEventProjectorPort):
                 event.occurred_at
             )
             await outbox.write(
-                AgentExecutionFailedV1.create(
-                    agent_id=run.agent_id,
-                    session_id=run.session_id or run.id,
-                    payload=payload,
-                )
+                _compat_event(AgentExecutionFailedV1, run, event, payload)
             )
             return
         if event.event_type == "run.cancelled":
