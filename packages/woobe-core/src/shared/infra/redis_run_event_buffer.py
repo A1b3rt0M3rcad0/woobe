@@ -36,6 +36,17 @@ redis.call('HSET', state_key, 'last_buffer_cursor', cursor, 'updated_at', ARGV[5
 return {cursor, sequence}
 """
 
+_ENSURE_SEQUENCE_SCRIPT = """
+local state_key = KEYS[1]
+local requested = tonumber(ARGV[1])
+local current = tonumber(redis.call('HGET', state_key, 'journal_sequence') or '0')
+if current < requested then
+  redis.call('HSET', state_key, 'journal_sequence', requested)
+  return requested
+end
+return current
+"""
+
 
 class RedisRunEventBuffer(RunEventBufferPort):
     """Untrimmed Redis Stream used only for Redis -> Mongo delivery."""
@@ -122,6 +133,23 @@ class RedisRunEventBuffer(RunEventBufferPort):
             sequence=int(result[1]),
             cursor=str(result[0]),
             occurred_at=occurred_at,
+        )
+
+    async def ensure_sequence_at_least(self, run_id: UUID, sequence: int) -> int:
+        """Reconcile the Redis allocator with an already durable Mongo prefix.
+
+        Recovery may rebuild Redis hot state after the journal already contains events.
+        Moving this counter backwards would reuse ``run_id + sequence`` and corrupt the
+        logical ordering, so reconciliation is monotonic and happens before a new Attempt.
+        """
+
+        return int(
+            await self._client.eval(
+                _ENSURE_SEQUENCE_SCRIPT,
+                1,
+                self._state_key(run_id),
+                max(0, int(sequence)),
+            )
         )
 
     async def ensure_consumer_group(self, group: str) -> None:

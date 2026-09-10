@@ -9,7 +9,12 @@ from woobe_workers.consumers.agent.ask_job_worker import AskJobWorker
 from woobe_workers.consumers.agent.outbox_dispatcher import AgentOutboxDispatcherWorker
 from woobe_workers.consumers.agent.run_recovery_worker import AgentRunRecoveryWorker
 from woobe_workers.consumers.agent.vector_snapshot_worker import VectorSnapshotWorker
-from shared.composition_resources import EXECUTION_STATE_STORE
+from shared.composition_resources import (
+    EXECUTION_STATE_STORE,
+    RUN_DURABILITY_BARRIER,
+    RUN_EVENT_BUFFER,
+    RUN_EVENT_JOURNAL,
+)
 from shared.infra.rabbitmq import RabbitMQManager
 from woobe_workers.contracts import WorkerProtocol, WorkerRegistryProtocol
 
@@ -43,6 +48,9 @@ def register_agent_workers(
                 900.0,
                 float(getattr(settings, "runtime_total_timeout_seconds", 120.0)) * 3,
             ),
+            journal=RUN_EVENT_JOURNAL,
+            buffer=RUN_EVENT_BUFFER,
+            barrier=RUN_DURABILITY_BARRIER,
         )
     )
 
