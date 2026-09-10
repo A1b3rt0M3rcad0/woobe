@@ -1,14 +1,14 @@
 """Add storage version and journal projection cursors to Agent and Network Runs.
 
-Revision ID: 0066_run_event_journal_storage
-Revises: 0065_agent_behavior_spec
+Revision ID: 0066
+Revises: 0065
 """
 
 from alembic import op
 import sqlalchemy as sa
 
-revision = "0066_run_event_journal_storage"
-down_revision = "0065_agent_behavior_spec"
+revision = "0066"
+down_revision = "0065"
 branch_labels = None
 depends_on = None
 
