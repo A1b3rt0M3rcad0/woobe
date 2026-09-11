@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any
 
@@ -7,9 +8,15 @@ import uuid6
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
 from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.domain.entities import Message
+from modules.agent.domain.enums import MessageRole
+from modules.agent.domain.events import AgentMessageCreatedV1
 from modules.agent.infra.execution.agent_run_metrics import build_agent_run_metrics
 from modules.agent.infra.execution.execution_instrumentation import aggregate_usage
+from shared.contracts.time import utc_now
 from shared.runtime.event_schema import EVENT_JOURNAL_STORAGE_VERSION
+
+logger = logging.getLogger(__name__)
 
 
 def _id_text(value: Any) -> str | None:
@@ -28,6 +35,70 @@ def _recorder():
     if recorder is None:
         raise RuntimeError("Durable Agent Run journal recorder is not bound")
     return context, recorder
+
+
+async def _materialize_assistant_session_message(
+    owner: Any,
+    *,
+    message_id: Any,
+    session: Any,
+    agent: Any,
+    answer: str,
+    usage: Any,
+    tool_calls: list[dict[str, Any]],
+    sources: list[dict[str, Any]],
+) -> Any:
+    """Make the completed turn immediately visible to the Session read model.
+
+    The durable ``run.completed`` journal event remains the terminal authority. This
+    short PostgreSQL projection closes the user-visible/context-consistency window
+    between that durable event and the asynchronous journal projector. The async
+    projector keeps the same message id and remains the recovery/idempotency path.
+    """
+
+    async def persist(repositories, outbox):
+        existing = await repositories.messages.get_by_id(message_id)
+        if existing is not None:
+            return existing
+
+        data: dict[str, Any] = {}
+        if tool_calls:
+            data["tool_calls"] = list(tool_calls)
+        if sources:
+            data["sources"] = list(sources)
+        message = Message(
+            id=message_id,
+            project_id=session.project_id,
+            agent_id=session.agent_id,
+            session_id=session.id,
+            role=MessageRole.ASSISTANT,
+            content=answer,
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            cost_usd=usage.cost_usd,
+            data=data or None,
+        )
+        created = await repositories.messages.create(message)
+        session.last_message_at = utc_now()
+        try:
+            await repositories.sessions.update(session)
+        except Exception as exc:
+            logger.warning(
+                "Failed to update Session after synchronous Assistant message projection: %s",
+                exc,
+            )
+        await outbox.write(
+            AgentMessageCreatedV1.create(
+                message_id=created.id,
+                session_id=session.id,
+                project_id=session.project_id,
+                agent_id=agent.id,
+                role="assistant",
+            )
+        )
+        return created
+
+    return await owner._transactions.run(persist)
 
 
 class EventJournalAgentRunPersistence:
@@ -55,6 +126,14 @@ class EventJournalAgentRunPersistence:
         canonical_usage = metrics.usage
         message_id = uuid6.uuid7() if session is not None else None
         sources = kw.get("sources") or []
+        source_payloads = [
+            source.model_dump() if hasattr(source, "model_dump") else source
+            for source in sources
+        ]
+        tool_payloads = [
+            call.model_dump() if hasattr(call, "model_dump") else call
+            for call in execution.tool_calls
+        ]
         payload = {
             "run_id": str(context.run_id),
             "trace_id": str(kw["trace_id"]),
@@ -82,14 +161,8 @@ class EventJournalAgentRunPersistence:
             ),
             "fallback_used": bool(kw["fallback_used"]),
             "fallback_info": kw.get("fallback_info"),
-            "sources": [
-                source.model_dump() if hasattr(source, "model_dump") else source
-                for source in sources
-            ],
-            "tool_calls": [
-                call.model_dump() if hasattr(call, "model_dump") else call
-                for call in execution.tool_calls
-            ],
+            "sources": source_payloads,
+            "tool_calls": tool_payloads,
             # Kept as a compact compatibility summary. Canonical invocation facts are
             # already separate model.invocation.* journal events.
             "llm_calls": list(execution.llm_calls),
@@ -103,6 +176,34 @@ class EventJournalAgentRunPersistence:
         }
         await owner._hot_terminal_pending(terminal_status="completed", result=payload)
         await recorder.emit("run.completed", payload, durable=True)
+
+        # Standalone Session history is an interactive correctness boundary: the
+        # next user turn can start immediately after this method returns. Do not wait
+        # for the asynchronous Mongo -> PostgreSQL Run projector to make the
+        # Assistant turn visible, otherwise the next context assembly can omit it.
+        if session is not None and message_id is not None:
+            try:
+                await _materialize_assistant_session_message(
+                    owner,
+                    message_id=message_id,
+                    session=session,
+                    agent=agent,
+                    answer=kw["answer"],
+                    usage=canonical_usage,
+                    tool_calls=tool_payloads,
+                    sources=source_payloads,
+                )
+            except Exception as exc:
+                # The terminal event is already durable. A projection failure must
+                # not rewrite the completed Run as failed; the async projector will
+                # retry the same deterministic message id.
+                logger.warning(
+                    "Durable Agent Run %s completed but synchronous Assistant Session "
+                    "message projection failed; async projector will retry: %s",
+                    context.run_id,
+                    exc,
+                )
+
         context.terminal_persisted = True
         await owner._hot_persisted("completed")
         output = AskOutput(
