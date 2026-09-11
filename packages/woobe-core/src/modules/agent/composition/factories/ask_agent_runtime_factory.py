@@ -59,21 +59,18 @@ from shared.presentation.contracts import OperationResult
 
 AskRequestHandler = Callable[[OperationRequest], Awaitable[OperationResult]]
 InternalToolHandler = Callable[[dict], Awaitable[dict]]
-RuntimeType = type[FrozenSnapshotStructuredOutputRuntime]
 
 
 def build_agent_runtime_transactions() -> AgentRuntimeTransactionRunner:
     return AgentRuntimeTransactionRunner(build_agent_uow, build_agent_read_uow)
 
 
-def _build_agent_runtime(
+def _build_runtime_components(
     settings: Settings,
-    http_executor: HttpToolExecutor | None = None,
+    http_executor: HttpToolExecutor | None,
     *,
     internal_tool_handlers: Mapping[UUID, InternalToolHandler] | None = None,
-    context_assembler: ContextAssembler | None = None,
-    runtime_type: RuntimeType = FrozenSnapshotStructuredOutputRuntime,
-) -> tuple[FrozenSnapshotStructuredOutputRuntime, AgentRuntimeTransactionRunner]:
+) -> tuple[AgentRuntimeTransactionRunner, AgentToolRuntimeGateway]:
     configure_skill_runtime(frozen_enabled_skills, SkillRuntime)
     configure_skill_binding_freezer(freeze_skill_bindings)
     configure_execution_snapshot_runtime(
@@ -88,12 +85,17 @@ def _build_agent_runtime(
         executor,
         internal_tool_handlers=internal_tool_handlers,
     )
-    runtime = runtime_type(
-        transactions=transactions,
-        llm_factory=LangchainLLMFactory(),
-        encryption_key=settings.encryption_key,
-        tool_executor_factory=tool_runtime.execute_tool,
-    )
+    return transactions, tool_runtime
+
+
+def _configure_agent_runtime(
+    runtime: FrozenSnapshotStructuredOutputRuntime,
+    *,
+    settings: Settings,
+    transactions: AgentRuntimeTransactionRunner,
+    tool_runtime: AgentToolRuntimeGateway,
+    context_assembler: ContextAssembler | None,
+) -> None:
     assembler: ContextAssembler = (
         context_assembler
         if context_assembler is not None
@@ -105,7 +107,6 @@ def _build_agent_runtime(
     runtime.configure_vector_search_reader(
         AgentRuntimeVectorSearchReader(transactions).search
     )
-
     runtime.configure_execution_state_store(
         BestEffortExecutionStateStore(EXECUTION_STATE_STORE)
     )
@@ -120,6 +121,33 @@ def _build_agent_runtime(
             RUN_EVENT_BUFFER,
             RUN_DURABILITY_BARRIER,
         )
+
+
+def _build_agent_runtime(
+    settings: Settings,
+    http_executor: HttpToolExecutor | None = None,
+    *,
+    internal_tool_handlers: Mapping[UUID, InternalToolHandler] | None = None,
+    context_assembler: ContextAssembler | None = None,
+) -> tuple[FrozenSnapshotStructuredOutputRuntime, AgentRuntimeTransactionRunner]:
+    transactions, tool_runtime = _build_runtime_components(
+        settings,
+        http_executor,
+        internal_tool_handlers=internal_tool_handlers,
+    )
+    runtime = FrozenSnapshotStructuredOutputRuntime(
+        transactions=transactions,
+        llm_factory=LangchainLLMFactory(),
+        encryption_key=settings.encryption_key,
+        tool_executor_factory=tool_runtime.execute_tool,
+    )
+    _configure_agent_runtime(
+        runtime,
+        settings=settings,
+        transactions=transactions,
+        tool_runtime=tool_runtime,
+        context_assembler=context_assembler,
+    )
     return runtime, transactions
 
 
@@ -160,11 +188,19 @@ def build_agent_run_recovery_executor(
 ) -> AgentRunRecoveryExecutor:
     if settings.run_persistence_mode != "event_journal":
         raise RuntimeError("Agent Run recovery executor requires event_journal persistence")
-    runtime, _transactions = _build_agent_runtime(
-        settings,
-        http_executor,
+    transactions, tool_runtime = _build_runtime_components(settings, http_executor)
+    runtime = AgentRunRecoveryRuntime(
+        transactions=transactions,
+        llm_factory=LangchainLLMFactory(),
+        encryption_key=settings.encryption_key,
+        tool_executor_factory=tool_runtime.execute_tool,
+    )
+    _configure_agent_runtime(
+        runtime,
+        settings=settings,
+        transactions=transactions,
+        tool_runtime=tool_runtime,
         context_assembler=context_assembler,
-        runtime_type=AgentRunRecoveryRuntime,
     )
     return AgentRunRecoveryExecutor(runtime)
 
