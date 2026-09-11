@@ -100,6 +100,7 @@ def _public_runtime_event(
         public = _pick(
             source,
             "invocation_id",
+            "agent_run_id",
             "parent_invocation_id",
             "node_id",
             "agent_id",
