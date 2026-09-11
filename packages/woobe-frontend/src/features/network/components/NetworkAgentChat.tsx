@@ -173,6 +173,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
   const activeRunIdRef = useRef<string | null>(getStoredNetworkAgentRunId(projectId, agent.id))
   const reattachingRunRef = useRef<string | null>(null)
   const finishedRunRef = useRef<string | null>(null)
+  const mountedRef = useRef(true)
 
   const currentSnapshot = toSnapshot()
   const currentSignature = JSON.stringify(currentSnapshot)
@@ -336,6 +337,10 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     updateLastAssistant,
   ])
 
+  useEffect(() => () => {
+    mountedRef.current = false
+  }, [])
+
   useEffect(() => {
     const nextSessionId = isStateless
       ? null
@@ -424,7 +429,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
         if (terminalObserved && reattachingRunRef.current === runId) {
           reattachingRunRef.current = null
         }
-        if (!disposed) setIsSending(false)
+        if (mountedRef.current) setIsSending(false)
       }
     })()
 
