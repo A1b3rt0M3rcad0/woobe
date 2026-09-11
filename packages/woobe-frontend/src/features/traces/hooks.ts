@@ -69,6 +69,14 @@ export function agentRunDetailRefetchInterval(
   return run && isTerminalStatus(run.status) ? false : TRACE_REFRESH_INTERVAL_MS
 }
 
+export function playgroundTraceRefetchInterval(
+  traces: Trace[] | undefined,
+  liveObservationActive: boolean,
+): number | false {
+  if (liveObservationActive) return false
+  return hasActiveTrace(traces) ? TRACE_REFRESH_INTERVAL_MS : false
+}
+
 export function useTraces(projectId?: string, networkId?: string) {
   return useQuery({
     queryKey: ['traces', { projectId, networkId }],
@@ -200,10 +208,10 @@ export function usePlaygroundTraces(
     },
     enabled: Boolean(projectId) && Boolean(agentId),
     staleTime: 500,
-    refetchInterval: (query) => {
-      if (liveObservationActive) return false
-      return hasActiveTrace(query.state.data) ? TRACE_REFRESH_INTERVAL_MS : false
-    },
+    refetchInterval: (query) => playgroundTraceRefetchInterval(
+      query.state.data,
+      liveObservationActive,
+    ),
     refetchIntervalInBackground: false,
   })
 }
