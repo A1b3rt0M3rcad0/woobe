@@ -29,6 +29,8 @@ def _invocation_payload(event: DurableRunEvent) -> dict[str, Any]:
     nested = payload.get("invocation")
     invocation = nested if isinstance(nested, dict) else {}
     merged = {**invocation, **payload}
+    if merged.get("invocation_id") is None and invocation.get("id") is not None:
+        merged["invocation_id"] = invocation["id"]
     if merged.get("invocation_id") is None:
         merged["invocation_id"] = event.metadata.get("invocation_id")
     return merged
