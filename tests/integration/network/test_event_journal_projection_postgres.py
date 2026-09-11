@@ -4,10 +4,12 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
+from sqlalchemy import select
 
 from modules.agent.infra.database.models import AgentModel
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.network.infra.database.models import (
+    NetworkExecutionEventModel,
     NetworkExecutionModel,
     NetworkModel,
     NetworkSessionModel,
@@ -196,6 +198,18 @@ async def test_network_terminal_journal_projects_agent_run_read_model() -> None:
     async with session_factory() as session:
         execution = await session.get(NetworkExecutionModel, execution_id)
         agent_run = await session.get(AgentRunModel, invocation_id)
+        invocation_events = list(
+            (
+                await session.scalars(
+                    select(NetworkExecutionEventModel)
+                    .where(
+                        NetworkExecutionEventModel.network_execution_id == execution_id,
+                        NetworkExecutionEventModel.invocation_id == invocation_id,
+                    )
+                    .order_by(NetworkExecutionEventModel.sequence)
+                )
+            ).all()
+        )
 
     assert execution is not None
     assert execution.status == "completed"
@@ -211,5 +225,14 @@ async def test_network_terminal_journal_projects_agent_run_read_model() -> None:
     assert agent_run.status == "completed"
     assert agent_run.result["answer"] == "done"
     assert agent_run.usage["total_tokens"] == 5
+
+    assert [event.event_type for event in invocation_events] == [
+        "agent_invocation_started",
+        "agent_invocation_completed",
+    ]
+    assert all(
+        event.payload["agent_run_id"] == str(invocation_id)
+        for event in invocation_events
+    )
 
     await engine.dispose()
