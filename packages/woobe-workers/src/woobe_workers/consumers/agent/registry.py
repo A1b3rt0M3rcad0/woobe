@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.agent.background_boundary import AgentRabbitMQPublisher
-from modules.agent.background_boundary import build_agent_run_recovery_executor
+from modules.agent.entrypoint import build_agent_run_recovery_executor
 from woobe_workers.consumers.agent.ask_job_worker import AskJobWorker
 from woobe_workers.consumers.agent.outbox_dispatcher import AgentOutboxDispatcherWorker
 from woobe_workers.consumers.agent.run_recovery_worker import AgentRunRecoveryWorker
