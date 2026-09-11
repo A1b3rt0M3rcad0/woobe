@@ -66,7 +66,7 @@ function CollapsibleSection({ title, badge, children }: { title: string; badge?:
   const [open, setOpen] = useState(false)
   return (
     <section className="border-t border-border/70 first:border-t-0">
-      <button type="button" onClick={() => setOpen((value) => !open)} className="flex w-full items-center gap-2 py-2.5 text-left text-[10px] font-medium text-muted transition-colors hover:text-white" aria-expanded={open}>
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex w-full items-center gap-2 py-2.5 text-left text-[10px] font-medium text-muted transition-colors hover:text-white" aria-expanded={open}>
         {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         <span>{title}</span>
         {badge ? <span className="ml-auto text-[9px] text-muted">{badge}</span> : null}
