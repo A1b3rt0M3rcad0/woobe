@@ -75,7 +75,8 @@ async def test_observer_replays_terminal_state_from_journal_without_hot_redis(
     state = await anext(stream)
 
     assert state.event_type == "run.state"
-    assert state.sequence == 3
+    assert state.sequence is None
+    assert state.data["sequence"] is None
     assert state.data["status"] == "completed"
     assert state.data["output"] == "journal answer"
     assert state.data["realtime_available"] is False
@@ -84,6 +85,57 @@ async def test_observer_replays_terminal_state_from_journal_without_hot_redis(
 
     with pytest.raises(StopAsyncIteration):
         await anext(stream)
+
+
+@pytest.mark.asyncio
+async def test_observer_rebuilds_partial_agent_output_from_journal_without_hot_redis() -> None:
+    run_id = uuid4()
+    journal = InMemoryRunEventJournal()
+    await journal.write_batch(
+        [
+            _event(
+                run_id=run_id,
+                run_kind="agent",
+                sequence=1,
+                event_type="run.attempt.started",
+            ),
+            _event(
+                run_id=run_id,
+                run_kind="agent",
+                sequence=2,
+                event_type="output.delta.batch",
+                payload={"content": "Hello "},
+            ),
+            _event(
+                run_id=run_id,
+                run_kind="agent",
+                sequence=3,
+                event_type="output.delta.batch",
+                payload={"content": "world"},
+            ),
+        ]
+    )
+    observer = RuntimeObserver(
+        InMemoryExecutionStateStore(),
+        journal=journal,
+        local_poll_seconds=0.01,
+    )
+
+    async def relational_fallback():
+        return {"status": "running", "output": "", "result": None}
+
+    state, cursor = await observer.current_state(
+        RunReference.agent(run_id),
+        durable_fallback=relational_fallback,
+    )
+
+    assert cursor is None
+    assert state["status"] == "running"
+    assert state["output"] == "Hello world"
+    assert state["sequence"] is None
+    assert state["realtime_available"] is False
+    assert state["durable_source"] == "mongodb_journal"
+    assert state["journal_durable_sequence"] == 3
 
 
 @pytest.mark.asyncio
