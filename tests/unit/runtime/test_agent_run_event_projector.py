@@ -5,6 +5,8 @@ from uuid import uuid4
 
 import pytest
 
+from modules.agent.domain.entities import Message
+from modules.agent.domain.enums import MessageRole
 from modules.agent.domain.run import AgentRun, AgentRunStatus
 from modules.agent.infra.execution.run_event_projector import AgentRunEventProjector
 from shared.contracts.run_event_journal import DurableRunEvent
@@ -28,11 +30,13 @@ class FakeRuns:
 class FakeMessages:
     def __init__(self) -> None:
         self.items = {}
+        self.create_calls = 0
 
     async def get_by_id(self, message_id):
         return self.items.get(message_id)
 
     async def create(self, message):
+        self.create_calls += 1
         self.items[message.id] = message
         return message
 
@@ -122,8 +126,7 @@ def completed_event(run: AgentRun, message_id) -> DurableRunEvent:
     )
 
 
-@pytest.mark.anyio
-async def test_agent_projector_materializes_terminal_read_model_and_message_once() -> None:
+def _run_fixture():
     project_id = uuid4()
     agent_id = uuid4()
     session_id = uuid4()
@@ -138,15 +141,20 @@ async def test_agent_projector_materializes_terminal_read_model_and_message_once
         session_id=session_id,
         storage_version=EVENT_JOURNAL_STORAGE_VERSION,
     )
-    messages = FakeMessages()
-    sessions = FakeSessions(
-        SimpleNamespace(
-            id=session_id,
-            project_id=project_id,
-            agent_id=agent_id,
-            last_message_at=None,
-        )
+    session = SimpleNamespace(
+        id=session_id,
+        project_id=project_id,
+        agent_id=agent_id,
+        last_message_at=None,
     )
+    return run, session
+
+
+@pytest.mark.anyio
+async def test_agent_projector_materializes_terminal_read_model_and_message_once() -> None:
+    run, session = _run_fixture()
+    messages = FakeMessages()
+    sessions = FakeSessions(session)
     runs = FakeRuns(run)
     outbox = FakeOutbox()
     projector = AgentRunEventProjector(
@@ -172,10 +180,46 @@ async def test_agent_projector_materializes_terminal_read_model_and_message_once
     assert runs.run.result["sources"][0]["document_id"] == "doc-1"
     assert runs.run.usage["total_tokens"] == 15
     assert messages.items[message_id].content == "projected answer"
+    assert messages.create_calls == 1
     assert sessions.update_calls == 1
     assert runs.save_calls == 1
     assert [item.event_type for item in outbox.events] == [
         "agent.execution.message.created.v1",
+        "agent.execution.completed.v1",
+    ]
+
+
+@pytest.mark.anyio
+async def test_agent_projector_reuses_synchronously_materialized_assistant_message() -> None:
+    run, session = _run_fixture()
+    messages = FakeMessages()
+    sessions = FakeSessions(session)
+    runs = FakeRuns(run)
+    outbox = FakeOutbox()
+    projector = AgentRunEventProjector(
+        FakeTransactions(
+            SimpleNamespace(runs=runs, messages=messages, sessions=sessions),
+            outbox,
+        )
+    )
+    message_id = uuid4()
+    messages.items[message_id] = Message(
+        id=message_id,
+        project_id=run.project_id,
+        agent_id=run.agent_id,
+        session_id=run.session_id,
+        role=MessageRole.ASSISTANT,
+        content="projected answer",
+    )
+
+    await projector.project([completed_event(run, message_id)])
+
+    assert messages.create_calls == 0
+    assert sessions.update_calls == 0
+    assert runs.run.status == AgentRunStatus.COMPLETED
+    assert runs.run.output_message_id == message_id
+    assert runs.run.journal_projected_sequence == 1
+    assert [item.event_type for item in outbox.events] == [
         "agent.execution.completed.v1",
     ]
 
