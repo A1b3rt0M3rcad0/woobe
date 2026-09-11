@@ -72,6 +72,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
       ? traces.find(run => run.id === selectedTraceId) ?? null
       : null
     const traceIdentity = selectedRun ? selectedRun.trace_id || selectedRun.id : null
+    const runIdentity = selectedRun?.run_id ?? null
 
     return (
       <div className="w-[400px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border/90 bg-surface/70 shadow-sm shadow-black/5 flex flex-col">
@@ -100,8 +101,8 @@ export function OperationsPanel(props: OperationsPanelProps) {
                 ))}
               </nav>
 
-              {runDetailView === 'run' ? <AgentRunOperationalView traceId={traceIdentity} /> : null}
-              {runDetailView === 'evidence' ? <div className="p-4"><AgentRunEvidencePanel traceId={traceIdentity} /></div> : null}
+              {runDetailView === 'run' ? <AgentRunOperationalView runId={runIdentity} traceId={traceIdentity} /> : null}
+              {runDetailView === 'evidence' ? <div className="p-4"><AgentRunEvidencePanel runId={runIdentity} traceId={traceIdentity} /></div> : null}
             </>
           ) : (
             <div className="p-4 text-center"><div className="rounded-xl border border-border/80 bg-background/45 px-4 py-8"><p className="text-sm text-muted">Select an Agent Run to inspect its execution, result, Context, and evidence.</p></div></div>
