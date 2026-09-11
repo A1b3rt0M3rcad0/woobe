@@ -57,6 +57,13 @@ export function cancelActiveAskStream() {
   activeStreamController?.abort()
 }
 
+export function shouldRefreshAgentRunList(
+  previousRunId: string | null,
+  nextRunId: string | null | undefined,
+): boolean {
+  return Boolean(nextRunId && previousRunId !== nextRunId)
+}
+
 export interface AgentStreamStopCallbacks {
   onDispatched?: (runId: string) => void
   onConfirmed?: (runId: string) => void
@@ -112,6 +119,7 @@ export function useSessionMessages(sessionId: string | undefined) {
 export function useAskStream() {
   const queryClient = useQueryClient()
   const activeSessionIdRef = useRef<string | null>(null)
+  const refreshedRunIdRef = useRef<string | null>(null)
   const ownedStreamControllerRef = useRef<AbortController | null>(null)
   const stopCallbacksRef = useRef<AgentStreamStopCallbacks>({})
   const cancellationRef = useRef<ReturnType<typeof createAgentStreamCancellationCoordinator> | null>(null)
@@ -140,9 +148,13 @@ export function useAskStream() {
     onMeta: (meta) => {
       if (meta.run_id) {
         cancellation.observeRun(meta.run_id)
-        // One refresh at Acceptance is enough to expose the canonical Run while
-        // the owned SSE remains the source of truth for live execution state.
-        void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
+        // run.state can re-publish the same identity during reattach/reconciliation.
+        // Refresh the SQL Run list once per owned Run instead of turning those
+        // frames into extra HTTP requests while SSE is already authoritative.
+        if (shouldRefreshAgentRunList(refreshedRunIdRef.current, meta.run_id)) {
+          refreshedRunIdRef.current = meta.run_id
+          void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
+        }
       }
       if (meta.session_id) activeSessionIdRef.current = meta.session_id
       callbacks.onMeta(meta)
@@ -208,6 +220,7 @@ export function useAskStream() {
     callbacks: StreamCallbacks,
   ) => {
     activeSessionIdRef.current = data.session_id ?? null
+    refreshedRunIdRef.current = null
     stopCallbacksRef.current = {}
     setAgentStreamStopState('running')
     cancellation.begin()
@@ -225,6 +238,7 @@ export function useAskStream() {
     callbacks: StreamCallbacks,
   ) => {
     activeSessionIdRef.current = null
+    refreshedRunIdRef.current = null
     stopCallbacksRef.current = {}
     setAgentStreamStopState('running')
     cancellation.begin(runId)
