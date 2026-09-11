@@ -140,8 +140,8 @@ export function useAskStream() {
     onMeta: (meta) => {
       if (meta.run_id) {
         cancellation.observeRun(meta.run_id)
-        // Acceptance already committed the AgentRun. Refresh the operational list as
-        // soon as canonical identity arrives instead of waiting for the idle poll.
+        // One refresh at Acceptance is enough to expose the canonical Run while
+        // the owned SSE remains the source of truth for live execution state.
         void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
       }
       if (meta.session_id) activeSessionIdRef.current = meta.session_id
@@ -150,25 +150,20 @@ export function useAskStream() {
     onRunState: (state) => {
       const status = typeof state.status === 'string' ? state.status : ''
       if (status === 'cancel_requested') setAgentStreamStopState('stopping')
-      else if (TERMINAL_AGENT_RUN_STATUSES.has(status)) {
-        resetAgentStreamStopState()
-        void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
-      } else if (status === 'running') setAgentStreamStopState('running')
+      else if (TERMINAL_AGENT_RUN_STATUSES.has(status)) resetAgentStreamStopState()
+      else if (status === 'running') setAgentStreamStopState('running')
       callbacks.onRunState?.(state)
     },
     onDone: (response) => {
       resetAgentStreamStopState()
-      void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
       callbacks.onDone(response)
     },
     onError: (error) => {
       resetAgentStreamStopState()
-      void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
       callbacks.onError(error)
     },
     onCancelled: (event) => {
       resetAgentStreamStopState()
-      void queryClient.invalidateQueries({ queryKey: ['agent-runs'] })
       callbacks.onCancelled?.(event)
     },
   }), [cancellation, queryClient])
@@ -180,10 +175,10 @@ export function useAskStream() {
     const controller = new AbortController()
     activeStreamController = controller
     ownedStreamControllerRef.current = controller
-    const observedSessionId = activeSessionIdRef.current
     try {
       await operation(controller.signal)
     } finally {
+      const observedSessionId = activeSessionIdRef.current
       const ownsCurrentStream = activeStreamController === controller
       if (ownsCurrentStream) {
         activeStreamController = null
