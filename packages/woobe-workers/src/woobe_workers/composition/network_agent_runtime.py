@@ -166,6 +166,14 @@ class ProjectRAIAgentInvoker:
                             {"agent_run_id": str(output.run_id)},
                         )
             except Exception as exc:
+                # Acceptance assigns the Agent Run before model/tool work. Preserve
+                # that durable identity even when the child invocation terminates
+                # before any public Agent event can be forwarded to Network.
+                if stream_handler is not None and context.run_id is not None:
+                    await stream_handler(
+                        "agent_run_identity",
+                        {"agent_run_id": str(context.run_id)},
+                    )
                 if _caused_by_empty_model_output(exc):
                     failure = NetworkRuntimeFailure(
                         code="empty_model_output",
