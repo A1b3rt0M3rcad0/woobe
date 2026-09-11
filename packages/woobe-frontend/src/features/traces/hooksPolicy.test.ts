@@ -4,6 +4,7 @@ import { ApiError } from '@/lib/api/errors'
 import {
   agentRunDetailRefetchInterval,
   playgroundTraceRefetchInterval,
+  shouldRefreshContextEvidence,
 } from './hooks'
 import type { Trace } from './types'
 
@@ -26,6 +27,25 @@ describe('Agent Run detail polling policy', () => {
 
   it('keeps polling while a known Agent Run is still active', () => {
     expect(agentRunDetailRefetchInterval({ status: 'running' }, null)).toBe(1_500)
+  })
+})
+
+describe('Agent Run Context evidence reconciliation', () => {
+  it('refreshes Context evidence when a Run crosses into a terminal state', () => {
+    expect(shouldRefreshContextEvidence('running', 'completed')).toBe(true)
+  })
+
+  it('refreshes once when the first resolved detail is already terminal', () => {
+    expect(shouldRefreshContextEvidence(undefined, 'completed')).toBe(true)
+  })
+
+  it('does not refresh again when the Run remains terminal', () => {
+    expect(shouldRefreshContextEvidence('completed', 'completed')).toBe(false)
+    expect(shouldRefreshContextEvidence('completed', 'failed')).toBe(false)
+  })
+
+  it('does not refresh while the Run remains active', () => {
+    expect(shouldRefreshContextEvidence('running', 'running')).toBe(false)
   })
 })
 

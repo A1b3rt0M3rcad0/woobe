@@ -87,13 +87,36 @@ def completed_event(run: AgentRun, message_id) -> DurableRunEvent:
             "session_id": str(run.session_id),
             "message_id": str(message_id),
             "answer": "projected answer",
+            "provider": "custom",
+            "model": "deepseek-v4-flash",
             "usage": {
                 "input_tokens": 10,
                 "output_tokens": 5,
                 "total_tokens": 15,
                 "cost_usd": 0.001,
             },
+            "diagnostics": {
+                "llm_call_count": 1,
+                "tool_call_count": 0,
+                "agent_runtime_latency_ms": 250,
+                "usage_complete": True,
+                "cost_status": "known",
+            },
+            "llm_calls": [
+                {
+                    "call_id": str(uuid4()),
+                    "call_index": 0,
+                    "phase": "response_generation",
+                    "provider": "custom",
+                    "model": "deepseek-v4-flash",
+                    "status": "completed",
+                    "input_tokens": 10,
+                    "output_tokens": 5,
+                    "total_tokens": 15,
+                }
+            ],
             "tool_calls": [],
+            "sources": [{"document_id": "doc-1"}],
             "completed_at": "2026-09-10T18:10:00+00:00",
         },
     )
@@ -142,6 +165,12 @@ async def test_agent_projector_materializes_terminal_read_model_and_message_once
     assert runs.run.journal_projected_sequence == 1
     assert runs.run.output_message_id == message_id
     assert runs.run.result["answer"] == "projected answer"
+    assert runs.run.result["provider"] == "custom"
+    assert runs.run.result["model"] == "deepseek-v4-flash"
+    assert runs.run.result["diagnostics"]["llm_call_count"] == 1
+    assert runs.run.result["llm_calls"][0]["total_tokens"] == 15
+    assert runs.run.result["sources"][0]["document_id"] == "doc-1"
+    assert runs.run.usage["total_tokens"] == 15
     assert messages.items[message_id].content == "projected answer"
     assert sessions.update_calls == 1
     assert runs.save_calls == 1

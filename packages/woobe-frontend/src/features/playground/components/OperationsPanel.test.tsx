@@ -2,8 +2,8 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('./AgentRunOperationalView', () => ({
-  AgentRunOperationalView: ({ runId, traceId }: { runId?: string | null; traceId?: string | null }) => (
-    <div data-run-id={runId ?? ''} data-trace-id={traceId ?? ''}>Agent Run</div>
+  AgentRunOperationalView: ({ runId, traceId, finalizing }: { runId?: string | null; traceId?: string | null; finalizing?: boolean }) => (
+    <div data-run-id={runId ?? ''} data-trace-id={traceId ?? ''} data-finalizing={finalizing ? 'true' : 'false'}>Agent Run</div>
   ),
 }))
 vi.mock('./AgentRunEvidencePanel', () => ({
@@ -88,5 +88,35 @@ describe('OperationsPanel Agent Run identity', () => {
 
     expect(html).toContain('data-run-id="run-1"')
     expect(html).toContain('data-trace-id="trace-1"')
+    expect(html).toContain('data-finalizing="false"')
+  })
+
+  it('marks active Run details as finalizing while the durable read model converges', () => {
+    const html = renderToStaticMarkup(
+      <OperationsPanel
+        {...baseProps}
+        activeTab="traces"
+        selectedTraceId="trace-running"
+        traces={[{
+          id: 'trace-running',
+          run_id: 'run-running',
+          title: 'Agent Run running',
+          timestamp: '2026-09-11T04:30:00Z',
+          status: 'running',
+          latency_ms: null,
+          model: 'model',
+          provider: 'provider',
+          input_tokens: null,
+          output_tokens: null,
+          total_tokens: null,
+          cost_usd: null,
+          trace_id: 'trace-running',
+          response: null,
+        }]}
+      />,
+    )
+
+    expect(html).toContain('data-run-id="run-running"')
+    expect(html).toContain('data-finalizing="true"')
   })
 })
