@@ -7,6 +7,7 @@ import pytest
 
 from modules.agent.domain.entities import Message
 from modules.agent.domain.enums import MessageRole
+from modules.agent.domain.errors import MessageNotFoundError
 from modules.agent.domain.run import AgentRun, AgentRunStatus
 from modules.agent.infra.execution.run_event_projector import AgentRunEventProjector
 from shared.contracts.run_event_journal import DurableRunEvent
@@ -33,7 +34,10 @@ class FakeMessages:
         self.create_calls = 0
 
     async def get_by_id(self, message_id):
-        return self.items.get(message_id)
+        message = self.items.get(message_id)
+        if message is None:
+            raise MessageNotFoundError(message_id)
+        return message
 
     async def create(self, message):
         self.create_calls += 1
@@ -121,6 +125,9 @@ def completed_event(run: AgentRun, message_id) -> DurableRunEvent:
             ],
             "tool_calls": [],
             "sources": [{"document_id": "doc-1"}],
+            "parsed_output": {"message": "projected answer"},
+            "output_parse_error": None,
+            "latency_ms": 250,
             "completed_at": "2026-09-10T18:10:00+00:00",
         },
     )
@@ -179,7 +186,20 @@ async def test_agent_projector_materializes_terminal_read_model_and_message_once
     assert runs.run.result["llm_calls"][0]["total_tokens"] == 15
     assert runs.run.result["sources"][0]["document_id"] == "doc-1"
     assert runs.run.usage["total_tokens"] == 15
-    assert messages.items[message_id].content == "projected answer"
+    persisted = messages.items[message_id]
+    assert persisted.content == "projected answer"
+    assert persisted.data is not None
+    assert persisted.data["run_id"] == str(run.id)
+    assert persisted.data["trace_id"] == str(run.trace_id)
+    assert persisted.data["provider"] == "custom"
+    assert persisted.data["model"] == "deepseek-v4-flash"
+    assert persisted.data["latency_ms"] == 250
+    assert persisted.data["tool_calls"] == []
+    assert persisted.data["sources"] == [{"document_id": "doc-1"}]
+    assert persisted.data["parsed_output"] == {"message": "projected answer"}
+    assert persisted.data["output_parse_error"] is None
+    assert persisted.data["cancelled"] is False
+    assert persisted.data["partial"] is False
     assert messages.create_calls == 1
     assert sessions.update_calls == 1
     assert runs.save_calls == 1
