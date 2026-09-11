@@ -223,6 +223,10 @@ async def journal_runtime_state(
     PostgreSQL is accepted as a metadata/read-model seed only. Once a journal exists,
     output/status are reconstructed from the journal so a lagging SQL projector cannot
     duplicate output or mask a durable terminal fact.
+
+    ``journal_durable_sequence`` identifies the durable Mongo prefix. It deliberately
+    does not become the public realtime ``sequence`` because Redis/SSE uses a separate
+    cursor domain.
     """
 
     base = deepcopy(base_state) if isinstance(base_state, dict) else None
@@ -305,7 +309,7 @@ async def journal_runtime_state(
         {
             "run_id": str(run_id),
             "kind": run_kind.upper(),
-            "sequence": durable_sequence,
+            "sequence": None,
             "realtime_available": False,
             "durable_source": "mongodb_journal",
             "journal_durable_sequence": durable_sequence,
