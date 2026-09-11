@@ -7,8 +7,8 @@ import {
   acceptRuntimeFrameSequence,
   parseRuntimeFrame,
   reconcileRuntimeOutput,
-  runtimeRetryDelayMs,
   runtimeTerminalStatus,
+  waitForRuntimeRetry,
   type ParsedRuntimeFrame,
   type RuntimeSequenceState,
 } from '@/lib/runtime-stream'
@@ -552,7 +552,7 @@ export async function reattachAgentRunV1(
       if (signal?.aborted || attempt === RUNTIME_STREAM_MAX_ATTEMPTS - 1) throw error
     }
     if (attempt < RUNTIME_STREAM_MAX_ATTEMPTS - 1) {
-      await new Promise((resolve) => setTimeout(resolve, runtimeRetryDelayMs(attempt)))
+      await waitForRuntimeRetry(attempt, signal)
     }
   }
   throw new Error('Run reattach ended without a terminal event')
@@ -578,7 +578,7 @@ export async function askStreamV1(
       // logical execution to recover a transport failure.
       if (!state.runId) throw error
     }
-    await new Promise((resolve) => setTimeout(resolve, runtimeRetryDelayMs(attempt)))
+    await waitForRuntimeRetry(attempt, signal)
   }
   throw new Error('Stream ended without a terminal event')
 }
