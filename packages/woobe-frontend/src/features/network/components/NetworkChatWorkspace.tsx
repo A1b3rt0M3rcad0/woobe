@@ -150,12 +150,17 @@ export function NetworkChatWorkspace({
   const stopRequestRef = useRef(false)
   const reattachExecutionRef = useRef<string | null>(null)
   const previousSessionIdRef = useRef<string | null>(activeSession?.id ?? null)
+  const onSelectSessionRef = useRef(onSelectSession)
   const mountedRef = useRef(true)
   const liveAnswerSchedulerRef = useRef<ReturnType<typeof createNetworkLiveAnswerScheduler> | null>(null)
   if (liveAnswerSchedulerRef.current === null) liveAnswerSchedulerRef.current = createNetworkLiveAnswerScheduler(setLiveAnswer)
 
   const changed = Boolean(activeSession && environment !== 'draft' && activeSession.networkVersion !== currentVersionId)
   const turns = useMemo(() => reconcileNetworkTurns(historyTurns, localTurns), [historyTurns, localTurns])
+
+  useLayoutEffect(() => {
+    onSelectSessionRef.current = onSelectSession
+  }, [onSelectSession])
 
   useLayoutEffect(() => {
     onSessionActionBlockedChange?.(running || creatingSession || !runtimeEnabled)
@@ -251,7 +256,7 @@ export function NetworkChatWorkspace({
       if (!active || disposed || reattachExecutionRef.current === active.execution_id) return
 
       if (!activeSession || activeSession.id !== active.network_session_id) {
-        onSelectSession(active.network_session_id)
+        onSelectSessionRef.current(active.network_session_id)
         return
       }
 
@@ -329,13 +334,19 @@ export function NetworkChatWorkspace({
         const ownsObserver = abortRef.current === controller
         if (ownsObserver) abortRef.current = null
         if (executionIdRef.current === active.execution_id) executionIdRef.current = null
-        if (terminalObserved && reattachExecutionRef.current === active.execution_id) reattachExecutionRef.current = null
+        // Keep a successfully observed terminal execution as a local tombstone. This
+        // prevents a stale SQL active lookup from reopening the same Run while the
+        // asynchronous journal projector catches up. Transport failures clear the
+        // tombstone so a later discovery can retry the observer.
+        if (!terminalObserved && reattachExecutionRef.current === active.execution_id) {
+          reattachExecutionRef.current = null
+        }
         if (ownsObserver && mountedRef.current) clearLiveState()
       }
     })()
 
     return () => { disposed = true }
-  }, [activeSession?.id, creatingSession, environment, networkId, onSelectSession, projectId, running, runtimeEnabled])
+  }, [activeSession?.id, creatingSession, environment, networkId, projectId, running, runtimeEnabled])
 
   const stop = () => {
     if (!running || stopping || stopRequestRef.current) return
