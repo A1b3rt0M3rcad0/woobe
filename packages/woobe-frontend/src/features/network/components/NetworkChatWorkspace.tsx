@@ -200,11 +200,14 @@ export function NetworkChatWorkspace({
     setLiveOutputParseError(null)
   }
 
-  useLayoutEffect(() => () => {
-    mountedRef.current = false
-    liveAnswerSchedulerRef.current?.clear()
-    abortRef.current?.abort()
-    abortRef.current = null
+  useLayoutEffect(() => {
+    mountedRef.current = true
+    return () => {
+      mountedRef.current = false
+      liveAnswerSchedulerRef.current?.clear()
+      abortRef.current?.abort()
+      abortRef.current = null
+    }
   }, [])
 
   useLayoutEffect(() => {
@@ -585,10 +588,12 @@ export function NetworkChatWorkspace({
         content: liveAnswer,
         parsed_output: liveParsedOutput,
         output_parse_error: liveOutputParseError,
-        activity: {
-          status: liveAnswer ? 'generating_answer' : 'working',
-          message: liveActivity[liveActivity.length - 1] ?? 'Executing Network composition…',
-        },
+        activity: liveAnswer
+          ? null
+          : {
+              status: 'working',
+              message: liveActivity[liveActivity.length - 1] ?? 'Executing Network composition…',
+            },
         tool_calls: liveExecution.tools,
         sources: liveExecution.sources,
       }

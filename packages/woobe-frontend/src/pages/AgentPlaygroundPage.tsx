@@ -241,7 +241,10 @@ function PlaygroundContent() {
     if (projectId && agentId) setStoredPlaygroundRunId(projectId, agentId, environment, runId)
   }, [agentId, environment, projectId])
 
-  useEffect(() => () => { mountedRef.current = false }, [])
+  useEffect(() => {
+    mountedRef.current = true
+    return () => { mountedRef.current = false }
+  }, [])
   useEffect(() => { setPlaygroundSessionId(selectedSessionId) }, [selectedSessionId])
   useEffect(() => {
     if (!isDirty) return
@@ -254,7 +257,7 @@ function PlaygroundContent() {
   }, [isDirty])
 
   useEffect(() => {
-    if (historyMessages && selectedSessionId && !isSending && syncedSessionRef.current !== selectedSessionId) {
+    if (historyMessages && selectedSessionId && !isSending && !isFetching && syncedSessionRef.current !== selectedSessionId) {
       const mapped: ChatMessage[] = historyMessages.map((m) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
@@ -268,7 +271,7 @@ function PlaygroundContent() {
       syncedSessionRef.current = selectedSessionId
       setMessages(mapped)
     }
-  }, [historyMessages, selectedSessionId, isSending])
+  }, [historyMessages, selectedSessionId, isSending, isFetching])
 
   const resetConversationView = useCallback(() => {
     syncedSessionRef.current = null
@@ -386,7 +389,7 @@ function PlaygroundContent() {
   }, [])
 
   useEffect(() => {
-    if (!projectId || !agentId || isSending) return
+    if (!projectId || !agentId || isSending || isFetching) return
     if (!isStateless && (!selectedSessionId || syncedSessionRef.current !== selectedSessionId)) return
 
     let disposed = false
@@ -412,7 +415,6 @@ function PlaygroundContent() {
         return [...current, { role: 'assistant', content: '', activity: { status: 'working', message: 'Reattaching to active Run...' } }]
       })
       setIsSending(true)
-      let terminalObserved = false
 
       try {
         await reattach(runId, {
@@ -487,14 +489,13 @@ function PlaygroundContent() {
             updateLastAssistantMessage((last) => ({ ...last, content: '', activity: { status: 'working', message: `Trying ${info.fallback_provider}/${info.fallback_model}...` } }))
           },
         })
-        terminalObserved = true
       } catch (error) {
         if (!(error instanceof DOMException && error.name === 'AbortError')) {
           // Keep the Run id after transport failure. A later reload/reattach can recover it.
           toast.warning(error instanceof Error ? error.message : 'Active Run reattach failed')
         }
       } finally {
-        if (terminalObserved && reattachingRunRef.current === runId) {
+        if (reattachingRunRef.current === runId) {
           reattachingRunRef.current = null
         }
         if (mountedRef.current) setIsSending(false)
@@ -502,7 +503,7 @@ function PlaygroundContent() {
     })()
 
     return () => { disposed = true }
-  }, [agentId, environment, isSending, isStateless, projectId, reattach, reconcileCancelledAssistant, rememberRunId, selectedSessionId, setCurrentSessionId, updateLastAssistantMessage])
+  }, [agentId, environment, isFetching, isSending, isStateless, projectId, reattach, reconcileCancelledAssistant, rememberRunId, selectedSessionId, setCurrentSessionId, updateLastAssistantMessage])
 
   const handleStop = useCallback(() => {
     cancelStream({
