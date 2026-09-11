@@ -60,15 +60,8 @@ class FakeSessionFactory:
         return FakeSession(self.execution)
 
 
-@pytest.mark.anyio
-async def test_network_store_journals_invocation_and_safe_checkpoint() -> None:
-    execution_id = uuid4()
-    project_id = uuid4()
-    network_id = uuid4()
-    network_session_id = uuid4()
-    node_id = uuid4()
-    agent_id = uuid4()
-    execution_model = type(
+def _execution_model(execution_id):
+    return type(
         "Execution",
         (),
         {
@@ -78,6 +71,32 @@ async def test_network_store_journals_invocation_and_safe_checkpoint() -> None:
             "created_at": None,
         },
     )()
+
+
+def _snapshot(execution_id, *, node_id=None) -> NetworkExecutionSnapshot:
+    return NetworkExecutionSnapshot(
+        id=execution_id,
+        network_id=uuid4(),
+        network_version_id=None,
+        network_session_id=uuid4(),
+        project_id=uuid4(),
+        input_message="hello",
+        draft_revision=1,
+        definition_snapshot={"root_node_id": str(node_id)} if node_id else {},
+        resolved_bindings_snapshot={},
+        status="queued",
+    )
+
+
+@pytest.mark.anyio
+async def test_network_store_journals_invocation_and_safe_checkpoint() -> None:
+    execution_id = uuid4()
+    project_id = uuid4()
+    network_id = uuid4()
+    network_session_id = uuid4()
+    node_id = uuid4()
+    agent_id = uuid4()
+    execution_model = _execution_model(execution_id)
     buffer = FakeBuffer()
     barrier = FakeBarrier()
     store = JournaledRedisNetworkExecutionStore(
@@ -141,6 +160,49 @@ async def test_network_store_journals_invocation_and_safe_checkpoint() -> None:
     checkpoint = buffer.events[4]
     assert str(invocation.id) in checkpoint["payload"]["state"]["completed_invocation_ids"]
     assert barrier.waits == [1, 5]
+
+
+@pytest.mark.anyio
+async def test_network_store_journals_partial_root_output_before_terminal() -> None:
+    execution_id = uuid4()
+    execution_model = _execution_model(execution_id)
+    buffer = FakeBuffer()
+    store = JournaledRedisNetworkExecutionStore(
+        InMemoryExecutionStateStore(),
+        session_factory=FakeSessionFactory(execution_model),
+        buffer=buffer,
+        barrier=FakeBarrier(),
+        output_batch_bytes=1024,
+        output_flush_interval_ms=200,
+    )
+    execution = _snapshot(execution_id)
+
+    await store.initialize(execution, ttl_seconds=3600)
+    await store.emit(
+        execution_id,
+        "token",
+        {
+            "content": "partial answer",
+            "visibility": "assistant",
+            "channel": "final",
+            "depth": 0,
+        },
+    )
+    await store.flush_durable_output(execution_id)
+
+    output_events = [
+        item for item in buffer.events if item["event_type"] == "output.delta.batch"
+    ]
+    assert len(output_events) == 1
+    assert output_events[0]["payload"] == {
+        "content": "partial answer",
+        "channel": "final",
+        "visibility": "assistant",
+    }
+    assert not any(
+        item["event_type"].startswith("run.") and item["event_type"] != "run.attempt.started"
+        for item in buffer.events
+    )
 
 
 @pytest.mark.anyio
