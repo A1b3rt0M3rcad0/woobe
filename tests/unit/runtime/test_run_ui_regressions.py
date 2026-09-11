@@ -2,12 +2,14 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import uuid4
 
 import pytest
 
 from modules.agent.domain.run import AgentRun
 from modules.agent.infra.execution.agent_run_reattach_service import AgentRunReattachService
+from modules.network.infra.services.boundary_service import NetworkBoundaryService
 from shared.contracts.run_event_journal import DurableRunEvent, RunJournalState
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 from shared.infra.in_memory_run_event_journal import InMemoryRunEventJournal
@@ -36,20 +38,48 @@ class _Transactions:
 
 
 class _TerminalJournal:
-    def __init__(self, run_id) -> None:
+    def __init__(self, run_id, run_kind: str = "agent") -> None:
         self.run_id = run_id
+        self.run_kind = run_kind
 
     async def get_state(self, run_id):
         if run_id != self.run_id:
             return None
         return RunJournalState(
             run_id=run_id,
-            run_kind="agent",
+            run_kind=self.run_kind,
             storage_version=EVENT_JOURNAL_STORAGE_VERSION,
             durable_sequence=4,
             terminal_sequence=4,
             terminal_status="completed",
         )
+
+
+class _NetworkSessionContext:
+    def __init__(self, execution, network_session) -> None:
+        self.execution = execution
+        self.network_session = network_session
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        return False
+
+    async def scalar(self, _statement):
+        return self.execution
+
+    async def get(self, _model, _identity):
+        return self.network_session
+
+
+class _NetworkSessionFactory:
+    def __init__(self, execution, network_session) -> None:
+        self.execution = execution
+        self.network_session = network_session
+
+    def __call__(self):
+        return _NetworkSessionContext(self.execution, self.network_session)
 
 
 def _direct_run() -> AgentRun:
@@ -109,6 +139,36 @@ async def test_active_agent_run_does_not_return_sql_running_after_durable_termin
     active = await service.active(
         session_id=run.session_id,
         principal=_principal(run),
+    )
+
+    assert active is None
+
+
+@pytest.mark.asyncio
+async def test_active_network_run_does_not_return_sql_running_after_durable_terminal() -> None:
+    execution_id = uuid4()
+    project_id = uuid4()
+    network_id = uuid4()
+    network_session_id = uuid4()
+    execution = SimpleNamespace(
+        id=execution_id,
+        project_id=project_id,
+        network_id=network_id,
+        network_session_id=network_session_id,
+        status="running",
+        storage_version=EVENT_JOURNAL_STORAGE_VERSION,
+    )
+    network_session = SimpleNamespace(id=network_session_id, project_id=project_id)
+    service = object.__new__(NetworkBoundaryService)
+    service._session_factory = _NetworkSessionFactory(execution, network_session)
+    service._run_event_journal = _TerminalJournal(execution_id, "network")
+    service._authorize_execution = AsyncMock(return_value=None)
+
+    active = await service.active_execution(
+        principal=None,
+        network_session_id=network_session_id,
+        network_id=network_id,
+        environment=None,
     )
 
     assert active is None
