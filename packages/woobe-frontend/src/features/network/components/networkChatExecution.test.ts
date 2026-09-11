@@ -81,6 +81,68 @@ describe('Network runtime event projection', () => {
     expect(turn.execution.traceId).toBe('trace-1')
   })
 
+  it('binds the explicit Agent Run identity without treating the Network span as the Run id', () => {
+    const records: RuntimeEventRecord[] = [
+      {
+        eventType: 'agent_invocation_started',
+        event: {
+          protocol_version: 1,
+          execution_id: 'execution-identity',
+          invocation_id: 'span-1',
+          parent_invocation_id: null,
+          node_id: 'node-root',
+          agent_id: 'agent-root',
+          depth: 0,
+          data: { label: 'Root Agent' },
+          sequence: 1,
+          created_at: '2026-09-11T03:00:00.000Z',
+        },
+      },
+      {
+        eventType: 'agent_run_identity',
+        event: {
+          protocol_version: 1,
+          execution_id: 'execution-identity',
+          invocation_id: 'span-1',
+          parent_invocation_id: null,
+          node_id: 'node-root',
+          agent_id: 'agent-root',
+          depth: 0,
+          data: { agent_run_id: 'agent-run-1' },
+          sequence: 2,
+          created_at: '2026-09-11T03:00:00.010Z',
+        },
+      },
+      {
+        eventType: 'agent_invocation_completed',
+        event: {
+          protocol_version: 1,
+          execution_id: 'execution-identity',
+          invocation_id: 'span-1',
+          parent_invocation_id: null,
+          node_id: 'node-root',
+          agent_id: 'agent-root',
+          depth: 0,
+          data: { output: 'done' },
+          sequence: 3,
+          created_at: '2026-09-11T03:00:00.500Z',
+        },
+      },
+    ]
+
+    const turn = buildTurnFromRuntimeEvents({
+      records,
+      environment: 'draft',
+      bindings: { 'node-root': binding },
+      executionId: 'execution-identity',
+      user: 'hello',
+      answer: 'done',
+    })
+
+    expect(turn.execution.root.spanId).toBe('span-1')
+    expect(turn.execution.root.runId).toBe('agent-run-1')
+  })
+
   it('keeps a failed Agent Run causal without inventing telemetry or a Trace', () => {
     const records: RuntimeEventRecord[] = [
       {
