@@ -10,6 +10,7 @@ from modules.agent.application.dtos.runtime_dtos import AskOutput
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.entities import Message
 from modules.agent.domain.enums import MessageRole
+from modules.agent.domain.errors import MessageNotFoundError
 from modules.agent.domain.events import AgentMessageCreatedV1
 from modules.agent.infra.execution.agent_run_metrics import build_agent_run_metrics
 from modules.agent.infra.execution.execution_instrumentation import aggregate_usage
@@ -45,8 +46,7 @@ async def _materialize_assistant_session_message(
     agent: Any,
     answer: str,
     usage: Any,
-    tool_calls: list[dict[str, Any]],
-    sources: list[dict[str, Any]],
+    data: dict[str, Any],
 ) -> Any:
     """Make the completed turn immediately visible to the Session read model.
 
@@ -57,15 +57,13 @@ async def _materialize_assistant_session_message(
     """
 
     async def persist(repositories, outbox):
-        existing = await repositories.messages.get_by_id(message_id)
+        try:
+            existing = await repositories.messages.get_by_id(message_id)
+        except MessageNotFoundError:
+            existing = None
         if existing is not None:
             return existing
 
-        data: dict[str, Any] = {}
-        if tool_calls:
-            data["tool_calls"] = list(tool_calls)
-        if sources:
-            data["sources"] = list(sources)
         message = Message(
             id=message_id,
             project_id=session.project_id,
@@ -76,7 +74,7 @@ async def _materialize_assistant_session_message(
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
             cost_usd=usage.cost_usd,
-            data=data or None,
+            data=dict(data),
         )
         created = await repositories.messages.create(message)
         session.last_message_at = utc_now()
@@ -177,6 +175,23 @@ class EventJournalAgentRunPersistence:
         await owner._hot_terminal_pending(terminal_status="completed", result=payload)
         await recorder.emit("run.completed", payload, durable=True)
 
+        # Standalone and Network Agent chats expose the same semantic Session turn:
+        # user input + persisted Assistant output with the common runtime metadata.
+        # Network adds its own execution/invocation identifiers on top of this shape.
+        assistant_message_data = {
+            "run_id": payload["run_id"],
+            "trace_id": payload["trace_id"],
+            "provider": payload["provider"],
+            "model": payload["model"],
+            "latency_ms": payload["latency_ms"],
+            "tool_calls": list(tool_payloads),
+            "sources": list(source_payloads),
+            "parsed_output": payload["parsed_output"],
+            "output_parse_error": payload["output_parse_error"],
+            "cancelled": False,
+            "partial": False,
+        }
+
         # Standalone Session history is an interactive correctness boundary: the
         # next user turn can start immediately after this method returns. Do not wait
         # for the asynchronous Mongo -> PostgreSQL Run projector to make the
@@ -190,8 +205,7 @@ class EventJournalAgentRunPersistence:
                     agent=agent,
                     answer=kw["answer"],
                     usage=canonical_usage,
-                    tool_calls=tool_payloads,
-                    sources=source_payloads,
+                    data=assistant_message_data,
                 )
             except Exception as exc:
                 # The terminal event is already durable. A projection failure must
