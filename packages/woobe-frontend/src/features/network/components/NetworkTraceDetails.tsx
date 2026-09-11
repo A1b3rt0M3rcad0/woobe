@@ -56,7 +56,7 @@ interface DelegationEvidence {
   id: string
   parent: string
   child: string
-  childRunId: string
+  childSpanId: string
   status: NetworkAgentInvocation['status']
   source: string
   version: string
@@ -66,7 +66,7 @@ function CollapsibleSection({ title, badge, children }: { title: string; badge?:
   const [open, setOpen] = useState(false)
   return (
     <section className="border-t border-border/70 first:border-t-0">
-      <button type="button" onClick={() => setOpen((value) => !value)} className="flex w-full items-center gap-2 py-2.5 text-left text-[10px] font-medium text-muted transition-colors hover:text-white" aria-expanded={open}>
+      <button type="button" onClick={() => setOpen((value) => !open)} className="flex w-full items-center gap-2 py-2.5 text-left text-[10px] font-medium text-muted transition-colors hover:text-white" aria-expanded={open}>
         {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
         <span>{title}</span>
         {badge ? <span className="ml-auto text-[9px] text-muted">{badge}</span> : null}
@@ -126,7 +126,7 @@ function delegationEvidence(root: NetworkAgentInvocation): DelegationEvidence[] 
         id: `${parent.spanId}:${child.spanId}`,
         parent: parent.agentName,
         child: child.agentName,
-        childRunId: child.spanId,
+        childSpanId: child.spanId,
         status: child.status,
         source: child.source,
         version: child.version,
@@ -189,7 +189,7 @@ function AgentRunDetail({ invocation, root, onBack, onOpenAgent, onNetworkEviden
         <div className="overflow-hidden rounded-xl border border-border/75 bg-background/20">
           <AgentRunOperationalView
             traceId={invocation.childTraceId}
-            runId={invocation.spanId}
+            runId={invocation.runId}
             finalizing={finalizing}
             resultTitle={`${invocation.agentName} result`}
             resultSubtitle={`${role} · ${invocation.source} ${invocation.version}`}
@@ -225,7 +225,7 @@ function AgentRunDetail({ invocation, root, onBack, onOpenAgent, onNetworkEviden
         </div>
       ) : null}
 
-      {detailView === 'evidence' ? <AgentRunEvidencePanel runId={invocation.spanId} traceId={invocation.childTraceId} /> : null}
+      {detailView === 'evidence' ? <AgentRunEvidencePanel runId={invocation.runId} traceId={invocation.childTraceId} /> : null}
 
       <button type="button" onClick={onNetworkEvidence} className="inline-flex items-center gap-1.5 text-[9px] font-medium text-muted hover:text-white"><SquareTerminal className="h-3.5 w-3.5" />View Network evidence</button>
     </div>
@@ -347,7 +347,7 @@ export function NetworkTraceDetails({ trace, session, onViewCanvas, onOpenAgent 
               <CollapsibleSection title="Delegations" badge={String(delegationRows.length)}>
                 <div className="space-y-1.5">
                   {delegationRows.length ? delegationRows.map((delegation) => (
-                    <button key={delegation.id} type="button" onClick={() => { setSelectedSpanId(delegation.childRunId); setView('agent') }} className="flex w-full items-center gap-2 rounded-lg bg-background/45 px-2.5 py-2 text-left hover:bg-background/70">
+                    <button key={delegation.id} type="button" onClick={() => { setSelectedSpanId(delegation.childSpanId); setView('agent') }} className="flex w-full items-center gap-2 rounded-lg bg-background/45 px-2.5 py-2 text-left hover:bg-background/70">
                       {compactStatusIcon(delegation.status)}
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[9px] text-slate-200"><span className="text-muted">{delegation.parent}</span> → {delegation.child}</p>
