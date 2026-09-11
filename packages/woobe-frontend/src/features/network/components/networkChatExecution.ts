@@ -8,6 +8,7 @@ export type AgentInvocationStatus = 'pending' | 'running' | 'success' | 'error' 
 
 export interface NetworkAgentInvocation {
   spanId: string
+  runId: string | null
   parentSpanId: string | null
   sequence: number
   nodeId?: AgentNodeId
@@ -299,6 +300,7 @@ function placeholderInvocation(
   const binding = Object.values(bindings)[0]
   return {
     spanId: 'network-root',
+    runId: null,
     parentSpanId: null,
     sequence: 0,
     nodeId: binding?.nodeId,
@@ -355,6 +357,7 @@ export function buildExecutionFromRuntimeEvents({
       const runtimeSource = event.data.source
       invocations.set(invocationId, {
         spanId: invocationId,
+        runId: asString(event.data.agent_run_id),
         parentSpanId: event.parent_invocation_id ?? null,
         sequence: event.sequence ?? invocations.size + 1,
         nodeId: event.node_id ?? undefined,
@@ -403,6 +406,10 @@ export function buildExecutionFromRuntimeEvents({
 
     const current = invocations.get(invocationId)
     if (!current) continue
+
+    const agentRunId = asString(event.data.agent_run_id)
+    if (agentRunId) current.runId = agentRunId
+    if (eventType === 'agent_run_identity') continue
 
     if (eventType === 'tool_call_started') {
       const toolName = asString(event.data.tool_name)
