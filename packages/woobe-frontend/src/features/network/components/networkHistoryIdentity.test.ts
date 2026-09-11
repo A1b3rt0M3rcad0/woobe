@@ -6,6 +6,7 @@ import type { NetworkSession } from './networkSessionTypes'
 import type { NetworkBinding } from './networkWorkspaceTypes'
 
 const invocationId = '01993dc0-7a4a-7000-8000-000000000001'
+const explicitRunId = '01993dc0-7a4a-7000-8000-000000000002'
 
 const binding = {
   nodeId: 'node-root',
@@ -40,7 +41,7 @@ const session: NetworkSession = {
   agentContexts: [],
 }
 
-function execution(): NetworkExecutionHistoryResource {
+function execution(runId?: string): NetworkExecutionHistoryResource {
   return {
     id: 'execution-1',
     status: 'completed',
@@ -61,8 +62,8 @@ function execution(): NetworkExecutionHistoryResource {
         node_id: 'node-root',
         agent_id: 'agent-root',
         depth: 0,
-        // Legacy SQL history written before Agent Run identity became explicit.
         data: {
+          ...(runId ? { agent_run_id: runId } : {}),
           label: 'Root Agent',
           source: 'draft',
           version: 'r1',
@@ -81,6 +82,7 @@ function execution(): NetworkExecutionHistoryResource {
         agent_id: 'agent-root',
         depth: 0,
         data: {
+          ...(runId ? { agent_run_id: runId } : {}),
           trace_id: 'trace-root',
           output: 'done',
           usage: {
@@ -108,41 +110,54 @@ function execution(): NetworkExecutionHistoryResource {
   }
 }
 
+function messages(persisted: NetworkExecutionHistoryResource): NetworkMessageResource[] {
+  return [
+    {
+      id: 'message-user',
+      network_execution_id: persisted.id,
+      role: 'user',
+      content: 'hello',
+      data: null,
+      created_at: persisted.started_at!,
+      execution: persisted,
+    },
+    {
+      id: 'message-assistant',
+      network_execution_id: persisted.id,
+      role: 'assistant',
+      content: 'done',
+      data: null,
+      created_at: persisted.completed_at!,
+      execution: persisted,
+    },
+  ]
+}
+
+function hydrate(persisted: NetworkExecutionHistoryResource) {
+  return hydrateNetworkHistory({
+    messages: messages(persisted),
+    environment: 'draft',
+    bindings: { 'node-root': binding },
+    session,
+    versionLabel: 'Draft r1',
+  })
+}
+
 describe('Network persisted Agent Run identity', () => {
   it('reconstructs the canonical Agent Run id from legacy invocation history after reload', () => {
-    const persisted = execution()
-    const messages: NetworkMessageResource[] = [
-      {
-        id: 'message-user',
-        network_execution_id: persisted.id,
-        role: 'user',
-        content: 'hello',
-        data: null,
-        created_at: persisted.started_at!,
-        execution: persisted,
-      },
-      {
-        id: 'message-assistant',
-        network_execution_id: persisted.id,
-        role: 'assistant',
-        content: 'done',
-        data: null,
-        created_at: persisted.completed_at!,
-        execution: persisted,
-      },
-    ]
-
-    const result = hydrateNetworkHistory({
-      messages,
-      environment: 'draft',
-      bindings: { 'node-root': binding },
-      session,
-      versionLabel: 'Draft r1',
-    })
+    const result = hydrate(execution())
 
     expect(result.turns).toHaveLength(1)
     expect(result.turns[0].execution.root.spanId).toBe(invocationId)
     expect(result.turns[0].execution.root.runId).toBe(invocationId)
     expect(result.traces[0].execution.root.runId).toBe(invocationId)
+  })
+
+  it('prefers an explicit persisted Agent Run id over the legacy invocation fallback', () => {
+    const result = hydrate(execution(explicitRunId))
+
+    expect(result.turns[0].execution.root.spanId).toBe(invocationId)
+    expect(result.turns[0].execution.root.runId).toBe(explicitRunId)
+    expect(result.traces[0].execution.root.runId).toBe(explicitRunId)
   })
 })
