@@ -38,6 +38,8 @@ interface NetworkChatWorkspaceProps {
   versionLabel: string
   currentVersionId: string | null
   bindings: Record<AgentNodeId, NetworkBinding>
+  historyBindings: Record<AgentNodeId, NetworkBinding>
+  historyVersionLabel: string
   activeSession: NetworkSession | null
   historyTurns: NetworkTurn[]
   historyLoading: boolean
@@ -119,6 +121,8 @@ export function NetworkChatWorkspace({
   versionLabel,
   currentVersionId,
   bindings,
+  historyBindings,
+  historyVersionLabel,
   activeSession,
   historyTurns,
   historyLoading,
@@ -284,7 +288,11 @@ export function NetworkChatWorkspace({
 
       const controller = new AbortController()
       abortRef.current = controller
+      const records: RuntimeEventRecord[] = []
+      const reattachBindings = Object.keys(historyBindings).length ? historyBindings : bindings
       let answer = ''
+      let traceId = ''
+      let status: NetworkExecution['status'] = 'success'
       let terminalObserved = false
       try {
         await streamNetworkExecution({
@@ -296,6 +304,7 @@ export function NetworkChatWorkspace({
         }, {
           onExecutionId: (id) => { executionIdRef.current = id },
           onEvent: (eventType, event) => {
+            if (shouldRecordRuntimeEvent(eventType)) records.push({ eventType, event })
             if (updatesLiveExecution(eventType)) setLiveExecution((current) => applyNetworkRuntimeEvent(current, eventType, event))
             if (eventType !== 'token' && eventType !== 'token_retract' && eventType !== 'run.state') {
               setLiveActivity((items) => [...items.slice(-5), activityLabel(eventType, event)])
@@ -321,12 +330,30 @@ export function NetworkChatWorkspace({
               setLiveResponseCommitted(true)
             }
             if (eventType === 'execution_completed') {
+              const id = event.data.trace_id
+              if (typeof id === 'string') traceId = id
+              const output = event.data.output
+              if (typeof output === 'string' && output) answer = output
+              status = 'success'
               flushLiveAnswer(answer)
               setLiveParsedOutput(parsedOutputFromEvent(event))
               setLiveOutputParseError(typeof event.data.output_parse_error === 'string' ? event.data.output_parse_error : null)
               setLiveResponseCommitted(true)
+              setStopping(false)
             }
-            if (eventType === 'execution_failed' || eventType === 'execution_cancelled') {
+            if (eventType === 'execution_failed') {
+              const id = event.data.trace_id
+              if (typeof id === 'string') traceId = id
+              status = 'error'
+              flushLiveAnswer(answer)
+              setStopping(false)
+            }
+            if (eventType === 'execution_cancelled') {
+              const id = event.data.trace_id
+              if (typeof id === 'string') traceId = id
+              const output = event.data.output
+              if (typeof output === 'string') answer = output
+              status = 'cancelled'
               flushLiveAnswer(answer)
               setStopping(false)
             }
@@ -334,6 +361,33 @@ export function NetworkChatWorkspace({
           onHeartbeat: () => setLastHeartbeatAt(Date.now()),
         }, controller.signal)
         terminalObserved = true
+        const turn = buildTurnFromRuntimeEvents({
+          records,
+          environment,
+          bindings: reattachBindings,
+          executionId: active.execution_id,
+          user: active.input_message,
+          answer,
+          fallbackTraceId: traceId,
+          terminalStatus: status,
+        })
+        setLocalTurns((items) => [...items.filter((item) => item.id !== turn.id), turn])
+        onRun(createNetworkTraceRecord({
+          execution: turn.execution,
+          environment,
+          bindings: reattachBindings,
+          networkSessionId: active.network_session_id,
+          title: active.input_message,
+          userMessage: active.input_message,
+          answer: turn.answer,
+          usage: turn.usage,
+          agentContexts: activeSession.agentContexts,
+          parsedOutput: turn.parsedOutput,
+          outputParseError: turn.outputParseError,
+          source: 'runtime',
+          runtimeEvents: records,
+          networkVersion: historyVersionLabel,
+        }))
         await refreshPersistedSession(active.network_session_id)
       } catch (error) {
         if (!controller.signal.aborted) toast.warning(error instanceof Error ? error.message : 'Network Run resume failed')
@@ -353,7 +407,7 @@ export function NetworkChatWorkspace({
     })()
 
     return () => { disposed = true }
-  }, [activeSession?.id, creatingSession, environment, networkId, projectId, running, runtimeEnabled])
+  }, [activeSession?.id, creatingSession, environment, historyBindings, historyVersionLabel, networkId, projectId, running, runtimeEnabled])
 
   const stop = () => {
     if (!running || stopping || stopRequestRef.current) return
