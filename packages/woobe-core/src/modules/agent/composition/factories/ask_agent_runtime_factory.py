@@ -16,6 +16,13 @@ from modules.agent.application.skill_bindings import (
     frozen_enabled_skills,
 )
 from modules.agent.application.skill_runtime import SkillRuntime
+from modules.agent.application.tool_converter import (
+    agent_tools_to_openai_definitions_and_mapping,
+)
+from modules.agent.application.tool_release_snapshots import (
+    tool_from_release_snapshot,
+    tool_with_permission_overrides,
+)
 from modules.agent.composition.factories.agent_uow_factory import (
     build_agent_read_uow,
     build_agent_uow,
@@ -203,6 +210,11 @@ def build_agent_run_recovery_executor(
     )
     runtime.configure_context_assembler(
         _resolve_context_assembler(settings, context_assembler)
+    )
+    runtime.configure_recovery_tool_runtime(
+        tool_from_snapshot=tool_from_release_snapshot,
+        tool_with_permissions=tool_with_permission_overrides,
+        tool_definition_builder=agent_tools_to_openai_definitions_and_mapping,
     )
     _configure_agent_runtime_dependencies(
         runtime,
