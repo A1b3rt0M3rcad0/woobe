@@ -9,7 +9,7 @@ from modules.agent.application.interfaces.project_access_repository import Proje
 from modules.agent.domain.run import AgentRun
 from shared.contracts.errors import NotFoundError
 from shared.contracts.run_event_journal import RunEventJournalPort
-from shared.runtime.event_schema import EVENT_JOURNAL_STORAGE_VERSION
+from shared.contracts.run_event_versions import EVENT_JOURNAL_STORAGE_VERSION
 
 logger = logging.getLogger(__name__)
 
