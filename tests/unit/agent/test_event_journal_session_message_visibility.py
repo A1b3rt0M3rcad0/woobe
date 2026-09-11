@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
+from langchain_core.messages import AIMessage, HumanMessage
 
 from modules.agent.application.dtos.runtime_dtos import AskInput, UsageInfo
 from modules.agent.application.interfaces.execution import InstrumentedExecution
@@ -11,7 +12,7 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
-from modules.agent.domain.entities import Agent, Session
+from modules.agent.domain.entities import Agent, Message, Session
 from modules.agent.domain.enums import MessageRole, Provider
 from modules.agent.infra.execution.event_journal_run_persistence import (
     EventJournalAgentRunPersistence,
@@ -42,6 +43,13 @@ class _Messages:
         self.items[message.id] = message
         return message
 
+    async def list_by_session(self, session_id):
+        return [
+            message
+            for message in self.items.values()
+            if message.session_id == session_id
+        ]
+
 
 class _Sessions:
     def __init__(self) -> None:
@@ -71,40 +79,15 @@ class _Transactions:
         return await operation(self.repositories, self.outbox)
 
 
-@pytest.mark.anyio
-async def test_event_journal_completion_persists_assistant_message_before_return() -> None:
-    project_id = uuid4()
-    agent_id = uuid4()
-    session = Session(
-        id=uuid4(),
-        project_id=project_id,
-        agent_id=agent_id,
-        runtime_environment="draft",
-    )
-    agent = Agent(
-        id=agent_id,
-        project_id=project_id,
-        provider=Provider.custom,
-        model="deepseek-v4-flash",
-    )
-    messages = _Messages()
-    sessions = _Sessions()
-    outbox = _Outbox()
-    owner = StructuredOutputAskAgentUseCase.__new__(StructuredOutputAskAgentUseCase)
-    owner._transactions = _Transactions(
-        SimpleNamespace(messages=messages, sessions=sessions),
-        outbox,
-    )
-
-    async def _hot_terminal_pending(**_kwargs):
-        return None
-
-    async def _hot_persisted(_status: str):
-        return None
-
-    owner._hot_terminal_pending = _hot_terminal_pending
-    owner._hot_persisted = _hot_persisted
-
+async def _complete_turn(
+    *,
+    owner,
+    project_id,
+    agent,
+    session,
+    recorder,
+    answer="Olá. Sou o agente de Faturamento e Contas.",
+):
     execution = InstrumentedExecution(
         result=None,
         llm_calls=[
@@ -115,7 +98,6 @@ async def test_event_journal_completion_persists_assistant_message_before_return
             }
         ],
     )
-    recorder = _Recorder()
     context = new_execution_context()
     context.run_id = uuid4()
     context.execution_context = "draft"
@@ -123,19 +105,19 @@ async def test_event_journal_completion_persists_assistant_message_before_return
     context.run_event_recorder = recorder
     token = current_execution.set(context)
     try:
-        output = await EventJournalAgentRunPersistence().complete(
+        return await EventJournalAgentRunPersistence().complete(
             owner,
             session=session,
             agent=agent,
             input_dto=AskInput(
                 project_id=project_id,
-                agent_id=agent_id,
+                agent_id=agent.id,
                 session_id=session.id,
                 message="Olá",
                 execution_context="draft",
             ),
             trace_id=uuid4(),
-            answer="Olá. Sou o agente de Faturamento e Contas.",
+            answer=answer,
             usage=UsageInfo(
                 input_tokens=10,
                 output_tokens=8,
@@ -157,6 +139,60 @@ async def test_event_journal_completion_persists_assistant_message_before_return
     finally:
         current_execution.reset(token)
 
+
+def _owner(messages, sessions, outbox):
+    owner = StructuredOutputAskAgentUseCase.__new__(StructuredOutputAskAgentUseCase)
+    owner._transactions = _Transactions(
+        SimpleNamespace(messages=messages, sessions=sessions),
+        outbox,
+    )
+
+    async def _hot_terminal_pending(**_kwargs):
+        return None
+
+    async def _hot_persisted(_status: str):
+        return None
+
+    owner._hot_terminal_pending = _hot_terminal_pending
+    owner._hot_persisted = _hot_persisted
+    return owner
+
+
+def _fixtures():
+    project_id = uuid4()
+    agent_id = uuid4()
+    session = Session(
+        id=uuid4(),
+        project_id=project_id,
+        agent_id=agent_id,
+        runtime_environment="draft",
+    )
+    agent = Agent(
+        id=agent_id,
+        project_id=project_id,
+        provider=Provider.custom,
+        model="deepseek-v4-flash",
+    )
+    return project_id, agent, session
+
+
+@pytest.mark.anyio
+async def test_event_journal_completion_persists_assistant_message_before_return() -> None:
+    project_id, agent, session = _fixtures()
+    messages = _Messages()
+    sessions = _Sessions()
+    outbox = _Outbox()
+    owner = _owner(messages, sessions, outbox)
+    recorder = _Recorder()
+
+    output = await _complete_turn(
+        owner=owner,
+        project_id=project_id,
+        agent=agent,
+        session=session,
+        recorder=recorder,
+    )
+
     assert output.message_id is not None
     persisted = messages.items[output.message_id]
     assert persisted.session_id == session.id
@@ -175,3 +211,40 @@ async def test_event_journal_completion_persists_assistant_message_before_return
     assert [event.event_type for event in outbox.events] == [
         "agent.execution.message.created.v1"
     ]
+
+
+@pytest.mark.anyio
+async def test_next_turn_history_contains_completed_assistant_turn_without_waiting_for_projector() -> None:
+    project_id, agent, session = _fixtures()
+    messages = _Messages()
+    sessions = _Sessions()
+    outbox = _Outbox()
+    owner = _owner(messages, sessions, outbox)
+    recorder = _Recorder()
+
+    user_message = Message(
+        project_id=project_id,
+        agent_id=agent.id,
+        session_id=session.id,
+        role=MessageRole.USER,
+        content="Olá",
+    )
+    await messages.create(user_message)
+
+    output = await _complete_turn(
+        owner=owner,
+        project_id=project_id,
+        agent=agent,
+        session=session,
+        recorder=recorder,
+        answer="Olá. Como posso ajudar?",
+    )
+
+    assert output.message_id in messages.items
+    history = await owner._load_history(messages, session)
+
+    assert len(history) == 2
+    assert isinstance(history[0], HumanMessage)
+    assert history[0].content == "Olá"
+    assert isinstance(history[1], AIMessage)
+    assert history[1].content == "Olá. Como posso ajudar?"
