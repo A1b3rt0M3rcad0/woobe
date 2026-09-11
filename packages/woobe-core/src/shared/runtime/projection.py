@@ -18,6 +18,7 @@ STRUCTURAL_RUNTIME_EVENTS = {
     "agent.run.accepted",
     "execution_started",
     "agent_invocation_started",
+    "agent_run_identity",
     "agent_invocation_completed",
     "agent_invocation_failed",
     "agent_invocation_cancelled",
@@ -202,6 +203,19 @@ def reduce_projection(
     state = deepcopy(projection)
     state["sequence"] = sequence
     state["updated_at"] = occurred_at or _now_iso()
+
+    invocation_id = payload.get("invocation_id")
+    agent_run_id = payload.get("agent_run_id")
+    if invocation_id and agent_run_id:
+        state["invocations"] = _upsert_by_key(
+            _as_record_list(state.get("invocations")),
+            key="id",
+            key_value=str(invocation_id),
+            update={
+                "id": str(invocation_id),
+                "agent_run_id": str(agent_run_id),
+            },
+        )
 
     if event_type in {"agent.run.accepted", "execution_started"}:
         state["status"] = "running"
