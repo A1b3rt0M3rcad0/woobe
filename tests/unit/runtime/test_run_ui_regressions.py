@@ -9,7 +9,9 @@ import pytest
 
 from modules.agent.domain.run import AgentRun
 from modules.agent.infra.execution.agent_run_reattach_service import AgentRunReattachService
-from modules.network.infra.services.boundary_service import NetworkBoundaryService
+from modules.network.infra.services.journal_aware_boundary_service import (
+    JournalAwareNetworkBoundaryService,
+)
 from shared.contracts.run_event_journal import DurableRunEvent, RunJournalState
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 from shared.infra.in_memory_run_event_journal import InMemoryRunEventJournal
@@ -159,7 +161,7 @@ async def test_active_network_run_does_not_return_sql_running_after_durable_term
         storage_version=EVENT_JOURNAL_STORAGE_VERSION,
     )
     network_session = SimpleNamespace(id=network_session_id, project_id=project_id)
-    service = object.__new__(NetworkBoundaryService)
+    service = object.__new__(JournalAwareNetworkBoundaryService)
     service._session_factory = _NetworkSessionFactory(execution, network_session)
     service._run_event_journal = _TerminalJournal(execution_id, "network")
     service._authorize_execution = AsyncMock(return_value=None)
