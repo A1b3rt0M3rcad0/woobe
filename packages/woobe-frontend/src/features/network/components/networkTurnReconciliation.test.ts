@@ -22,6 +22,7 @@ function turn(id: string): NetworkTurn {
       path: [],
       root: {
         spanId: id,
+        runId: null,
         parentSpanId: null,
         sequence: 1,
         agentId: id,
