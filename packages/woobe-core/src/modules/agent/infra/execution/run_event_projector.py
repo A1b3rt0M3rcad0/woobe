@@ -9,6 +9,7 @@ from uuid import UUID
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.domain.entities import Message
 from modules.agent.domain.enums import MessageRole
+from modules.agent.domain.errors import MessageNotFoundError
 from modules.agent.domain.events import (
     AgentDomainEvent,
     AgentExecutionCompletedV1,
@@ -237,7 +238,10 @@ class AgentRunEventProjector(RunEventProjectorPort):
         if message_id is None or session_id is None:
             return
 
-        existing = await repositories.messages.get_by_id(message_id)
+        try:
+            existing = await repositories.messages.get_by_id(message_id)
+        except MessageNotFoundError:
+            existing = None
         if existing is not None:
             return
 
@@ -249,6 +253,7 @@ class AgentRunEventProjector(RunEventProjectorPort):
 
         usage = event.payload.get("usage") or {}
         tool_calls = event.payload.get("tool_calls") or []
+        sources = event.payload.get("sources") or []
         message = Message(
             id=message_id,
             project_id=run.project_id,
@@ -271,7 +276,19 @@ class AgentRunEventProjector(RunEventProjectorPort):
                 if usage.get("cost_usd") is not None
                 else None
             ),
-            data={"tool_calls": list(tool_calls)} if tool_calls else None,
+            data={
+                "run_id": str(run.id),
+                "trace_id": str(run.trace_id),
+                "provider": event.payload.get("provider"),
+                "model": event.payload.get("model"),
+                "latency_ms": event.payload.get("latency_ms"),
+                "tool_calls": list(tool_calls),
+                "sources": list(sources),
+                "parsed_output": event.payload.get("parsed_output"),
+                "output_parse_error": event.payload.get("output_parse_error"),
+                "cancelled": False,
+                "partial": False,
+            },
         )
         created = await repositories.messages.create(message)
         session.last_message_at = _datetime(event.payload.get("completed_at")) or _datetime(
