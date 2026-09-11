@@ -58,6 +58,7 @@ def test_runtime_client_owns_protocol_sequence_terminal_output_and_retry_policy(
         "acceptRuntimeFrameSequence",
         "reconcileRuntimeOutput",
         "runtimeRetryDelayMs",
+        "waitForRuntimeRetry",
         "runtimeTerminalStatus",
         "realtime_available",
     ):
@@ -70,7 +71,8 @@ def test_frontend_agent_and_network_consume_runtime_through_thin_adapter() -> No
         assert "@/lib/runtime-stream" in source
         assert "acceptRuntimeFrameSequence" in source
         assert "reconcileRuntimeOutput" in source
-        assert "runtimeRetryDelayMs" in source
+        assert "waitForRuntimeRetry" in source
+        assert "runtimeRetryDelayMs" not in source
         assert "RUNTIME_STREAM_MAX_ATTEMPTS" in source
         assert "runtimeTerminalStatus" in source
         assert "TERMINAL_RUN_STATUSES" not in source
