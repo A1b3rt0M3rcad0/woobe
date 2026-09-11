@@ -14,6 +14,7 @@ from modules.agent.application.interfaces.execution_context import (
 )
 from modules.agent.domain.entities import Agent, Message, Session
 from modules.agent.domain.enums import MessageRole, Provider
+from modules.agent.domain.errors import MessageNotFoundError
 from modules.agent.infra.execution.event_journal_run_persistence import (
     EventJournalAgentRunPersistence,
 )
@@ -36,7 +37,10 @@ class _Messages:
         self.items = {}
 
     async def get_by_id(self, message_id):
-        return self.items.get(message_id)
+        message = self.items.get(message_id)
+        if message is None:
+            raise MessageNotFoundError(message_id)
+        return message
 
     async def create(self, message):
         assert message.id not in self.items
@@ -201,6 +205,17 @@ async def test_event_journal_completion_persists_assistant_message_before_return
     assert persisted.input_tokens == 10
     assert persisted.output_tokens == 8
     assert persisted.cost_usd == 0.001
+    assert persisted.data is not None
+    assert persisted.data["run_id"] == str(output.run_id)
+    assert persisted.data["trace_id"] == str(output.trace_id)
+    assert persisted.data["provider"] == "custom"
+    assert persisted.data["model"] == "deepseek-v4-flash"
+    assert persisted.data["tool_calls"] == []
+    assert persisted.data["sources"] == []
+    assert persisted.data["parsed_output"] is None
+    assert persisted.data["output_parse_error"] is None
+    assert persisted.data["cancelled"] is False
+    assert persisted.data["partial"] is False
     assert sessions.updated == [session]
     assert owner._transactions.calls == 1
 
