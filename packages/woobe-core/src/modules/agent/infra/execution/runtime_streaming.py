@@ -12,6 +12,8 @@ from shared.observability.metrics import runtime_metrics
 
 RUNTIME_STREAM_PROTOCOL_VERSION = 1
 RUNTIME_STREAM_HEARTBEAT_SECONDS = 10.0
+_DURABLE_OUTPUT_BATCH_BYTES = 16_384
+_DURABLE_OUTPUT_FLUSH_INTERVAL_SECONDS = 0.2
 
 _TEXT_BLOCK_TYPES = {"", "text", "output_text"}
 _INTERNAL_BLOCK_TYPES = {
@@ -145,6 +147,13 @@ class RuntimeStreamChannel:
         default_factory=set,
         repr=False,
     )
+    _durable_output_recorder: Any | None = field(default=None, repr=False)
+    _durable_output_parts: list[str] = field(default_factory=list, repr=False)
+    _durable_output_bytes: int = field(default=0, repr=False)
+    _durable_output_last_flush: float = field(
+        default_factory=time.monotonic,
+        repr=False,
+    )
 
     def bind_execution(
         self,
@@ -166,6 +175,82 @@ class RuntimeStreamChannel:
 
     def unsubscribe(self, queue: asyncio.Queue[RuntimeStreamEvent]) -> None:
         self._observer_queues.discard(queue)
+
+    def _resolve_durable_output_recorder(self) -> Any | None:
+        if self._durable_output_recorder is not None:
+            return self._durable_output_recorder
+
+        # Resolve lazily while the Agent execution context is still bound, then keep
+        # the recorder on the channel so cancellation/error cleanup can flush output
+        # even after the request execution ContextVar has already been reset.
+        from modules.agent.application.interfaces.execution_context import current_execution
+
+        context = current_execution.get()
+        recorder = getattr(context, "run_event_recorder", None) if context else None
+        if recorder is not None:
+            self._durable_output_recorder = recorder
+        return recorder
+
+    async def append_durable_output(self, content: str) -> None:
+        recorder = self._resolve_durable_output_recorder()
+        if recorder is None or not content:
+            return
+
+        self._durable_output_parts.append(content)
+        self._durable_output_bytes += len(content.encode("utf-8"))
+        elapsed = time.monotonic() - self._durable_output_last_flush
+        if (
+            self._durable_output_bytes >= _DURABLE_OUTPUT_BATCH_BYTES
+            or elapsed >= _DURABLE_OUTPUT_FLUSH_INTERVAL_SECONDS
+        ):
+            await self.flush_durable_output()
+
+    async def flush_durable_output(self) -> None:
+        recorder = self._resolve_durable_output_recorder()
+        if recorder is None or not self._durable_output_parts:
+            return
+
+        content = "".join(self._durable_output_parts)
+        self._durable_output_parts = []
+        self._durable_output_bytes = 0
+        self._durable_output_last_flush = time.monotonic()
+        await recorder.emit(
+            "output.delta.batch",
+            {
+                "content": content,
+                "channel": "final",
+                "visibility": "assistant",
+            },
+        )
+
+    async def retract_durable_output(
+        self,
+        *,
+        content_length: int,
+        token_count: int,
+        phase: str,
+        reason: str,
+        provider: str,
+        model_name: str,
+    ) -> None:
+        recorder = self._resolve_durable_output_recorder()
+        if recorder is None or content_length <= 0:
+            return
+
+        # The durable projection must observe the candidate output before the
+        # retraction that invalidates it, matching the public runtime stream order.
+        await self.flush_durable_output()
+        await recorder.emit(
+            "output.retracted",
+            {
+                "content_length": content_length,
+                "token_count": token_count,
+                "phase": phase,
+                "reason": reason,
+                "provider": provider,
+                "model": model_name,
+            },
+        )
 
     def _capture_public_state(self, event_type: str, payload: dict[str, Any]) -> None:
         if event_type == "token":
@@ -388,6 +473,7 @@ async def _emit_visible_token(
         provider=provider,
         model_name=model_name,
     )
+    await channel.append_durable_output(content)
 
 
 async def _retract_streamed_tokens(
@@ -401,12 +487,21 @@ async def _retract_streamed_tokens(
 ) -> None:
     if not streamed_visible_tokens:
         return
+    content_length = sum(len(content) for content in streamed_visible_tokens)
     await channel.emit(
         "token_retract",
         phase=phase,
         reason=reason,
-        content_length=sum(len(content) for content in streamed_visible_tokens),
+        content_length=content_length,
         token_count=len(streamed_visible_tokens),
+        provider=provider,
+        model_name=model_name,
+    )
+    await channel.retract_durable_output(
+        content_length=content_length,
+        token_count=len(streamed_visible_tokens),
+        phase=phase,
+        reason=reason,
         provider=provider,
         model_name=model_name,
     )
@@ -470,9 +565,9 @@ async def invoke_model_with_optional_streaming(
                     pending_visible_tokens.append(visible_content)
     except asyncio.CancelledError:
         # Once assistant text was made public, user cancellation must preserve the
-        # visible partial answer. Cancellation is terminal; there is no later capability
-        # decision that can invalidate already-observed output. Tool selection remains
-        # the only normal path that retracts optimistic capability text.
+        # visible partial answer. Flush the last bounded batch before ownership moves
+        # to cancellation/finalization so reattach can recover the same prefix.
+        await channel.flush_durable_output()
         raise
     except Exception:
         if _is_capability_selection_phase(phase):
@@ -484,6 +579,7 @@ async def invoke_model_with_optional_streaming(
                 provider=provider,
                 model_name=model_name,
             )
+        await channel.flush_durable_output()
         runtime_metrics.increment_provider_failure(
             provider=provider,
             model=model_name,
@@ -535,4 +631,8 @@ async def invoke_model_with_optional_streaming(
                 model_name=model_name,
             )
 
+    # A completed provider invocation is a natural durability boundary. This keeps
+    # the durable output at most one small batch behind the realtime Redis stream and
+    # guarantees terminal Run facts are appended after every visible output delta.
+    await channel.flush_durable_output()
     return accumulated
