@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
@@ -12,13 +13,6 @@ from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
-)
-from modules.agent.application.tool_converter import (
-    agent_tools_to_openai_definitions_and_mapping,
-)
-from modules.agent.application.tool_release_snapshots import (
-    tool_from_release_snapshot,
-    tool_with_permission_overrides,
 )
 from modules.agent.domain.enums import Provider, SessionMode
 from modules.agent.infra.execution.frozen_snapshot_runtime import (
@@ -42,6 +36,13 @@ from shared.runtime.event_schema import EVENT_JOURNAL_STORAGE_VERSION
 from shared.runtime_environment import normalize_runtime_environment
 
 logger = logging.getLogger(__name__)
+
+RecoveryToolFromSnapshot = Callable[[dict[str, Any]], Any]
+RecoveryToolWithPermissions = Callable[[Any, Any], Any]
+RecoveryToolDefinitionBuilder = Callable[
+    [list[Any]],
+    tuple[list[dict[str, Any]], dict[str, str]],
+]
 
 
 def _uuid_or_none(value: Any) -> UUID | None:
@@ -96,6 +97,41 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
     Acceptance outbox pair. The existing Run identity is supplied through the
     RequestExecutionContext by AgentRunRecoveryExecutor.
     """
+
+    _recovery_tool_from_snapshot: RecoveryToolFromSnapshot | None = None
+    _recovery_tool_with_permissions: RecoveryToolWithPermissions | None = None
+    _recovery_tool_definition_builder: RecoveryToolDefinitionBuilder | None = None
+
+    def configure_recovery_tool_runtime(
+        self,
+        *,
+        tool_from_snapshot: RecoveryToolFromSnapshot,
+        tool_with_permissions: RecoveryToolWithPermissions,
+        tool_definition_builder: RecoveryToolDefinitionBuilder,
+    ) -> None:
+        """Inject Tool materialization owned by the composition boundary."""
+        self._recovery_tool_from_snapshot = tool_from_snapshot
+        self._recovery_tool_with_permissions = tool_with_permissions
+        self._recovery_tool_definition_builder = tool_definition_builder
+
+    def _require_recovery_tool_runtime(
+        self,
+    ) -> tuple[
+        RecoveryToolFromSnapshot,
+        RecoveryToolWithPermissions,
+        RecoveryToolDefinitionBuilder,
+    ]:
+        if (
+            self._recovery_tool_from_snapshot is None
+            or self._recovery_tool_with_permissions is None
+            or self._recovery_tool_definition_builder is None
+        ):
+            raise RuntimeError("Agent Run recovery Tool runtime is not configured")
+        return (
+            self._recovery_tool_from_snapshot,
+            self._recovery_tool_with_permissions,
+            self._recovery_tool_definition_builder,
+        )
 
     @staticmethod
     def _validate_recovery_source(input_dto: AskInput) -> None:
@@ -255,6 +291,11 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
         context = current_execution.get()
         if context is None:
             raise RuntimeError("Agent Run recovery context disappeared")
+        (
+            tool_from_snapshot,
+            tool_with_permissions,
+            tool_definition_builder,
+        ) = self._require_recovery_tool_runtime()
 
         async def read_prepare(repositories, _outbox):
             run = await repositories.runs.get_by_id(accepted.run_id)
@@ -282,8 +323,8 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
             tools, encrypted_tool_secrets = await prepare_tool_state(
                 repositories,
                 agent=agent,
-                tool_from_snapshot=tool_from_release_snapshot,
-                tool_with_permissions=tool_with_permission_overrides,
+                tool_from_snapshot=tool_from_snapshot,
+                tool_with_permissions=tool_with_permissions,
             )
             await prepare_skill_state(repositories, agent=agent)
             rag_binding = await prepare_rag_binding(repositories, agent=agent)
@@ -325,7 +366,7 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
                 and response_format.get("type") == "json"
             )
             definitions, name_to_id = (
-                agent_tools_to_openai_definitions_and_mapping(tools)
+                tool_definition_builder(tools)
                 if tools
                 else ([], {})
             )
