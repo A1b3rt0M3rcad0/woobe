@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
-import { useAgentRunDetail } from '@/features/traces/hooks'
+import { useEffect, useRef, type ReactNode } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { shouldRefreshContextEvidence, useAgentRunDetail } from '@/features/traces/hooks'
 import { AgentResultViewer } from './AgentResultViewer'
 import { AgentRunAnalyticsPanel } from './AgentRunAnalyticsPanel'
 
@@ -22,10 +23,29 @@ export function AgentRunOperationalView({
   resultTitle = 'Agent result',
   resultSubtitle,
 }: AgentRunOperationalViewProps) {
+  const queryClient = useQueryClient()
   const { data: run } = useAgentRunDetail({
     runId: runId ?? undefined,
     traceId: runId ? undefined : traceId ?? undefined,
   })
+  const previousStatus = useRef<string | undefined>(undefined)
+  const identityKind = runId ? 'run' : traceId ? 'trace' : null
+  const identityId = runId ?? traceId ?? null
+
+  useEffect(() => {
+    const currentStatus = run?.status
+    if (
+      identityKind
+      && identityId
+      && shouldRefreshContextEvidence(previousStatus.current, currentStatus)
+    ) {
+      void queryClient.invalidateQueries({
+        queryKey: ['context-evidence', { kind: identityKind, id: identityId }],
+        exact: true,
+      })
+    }
+    previousStatus.current = currentStatus
+  }, [identityId, identityKind, queryClient, run?.status])
 
   return (
     <div>

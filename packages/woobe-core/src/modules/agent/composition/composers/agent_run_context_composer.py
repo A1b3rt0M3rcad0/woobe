@@ -3,7 +3,7 @@ from __future__ import annotations
 from modules.agent.application.use_cases.read_agent_run_context import (
     ReadAgentRunContextUseCase,
 )
-from modules.agent.composition.resources import DATABASE_ENGINE
+from modules.agent.composition.resources import DATABASE_ENGINE, RUN_EVENT_JOURNAL
 from modules.agent.infra.database.agent_run_repository import SQLAlchemyAgentRunRepository
 from modules.agent.infra.database.project_access_repository import (
     SQLAlchemyProjectAccessRepository,
@@ -22,6 +22,7 @@ def agent_run_context_composer() -> TransactionalHandler:
     use_case = ReadAgentRunContextUseCase(
         run_repository,
         project_access_repository,
+        RUN_EVENT_JOURNAL,
     )
     controller = AgentRunContextController(use_case)
     return TransactionalHandler(uow, controller.handle_by_run)
@@ -34,6 +35,7 @@ def agent_run_context_by_trace_composer() -> TransactionalHandler:
     use_case = ReadAgentRunContextUseCase(
         run_repository,
         project_access_repository,
+        RUN_EVENT_JOURNAL,
     )
     controller = AgentRunContextController(use_case)
     return TransactionalHandler(uow, controller.handle_by_trace)
@@ -46,6 +48,7 @@ def agent_run_detail_composer() -> TransactionalHandler:
     use_case = ReadAgentRunContextUseCase(
         run_repository,
         project_access_repository,
+        RUN_EVENT_JOURNAL,
     )
     controller = AgentRunContextController(use_case)
     return TransactionalHandler(uow, controller.handle_detail_by_run)
@@ -58,7 +61,7 @@ def agent_run_detail_by_trace_composer() -> TransactionalHandler:
     use_case = ReadAgentRunContextUseCase(
         run_repository,
         project_access_repository,
+        RUN_EVENT_JOURNAL,
     )
     controller = AgentRunContextController(use_case)
     return TransactionalHandler(uow, controller.handle_detail_by_trace)
-

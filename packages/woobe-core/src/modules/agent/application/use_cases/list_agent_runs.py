@@ -1,11 +1,24 @@
 from __future__ import annotations
 
+import logging
 from typing import Any
 from uuid import UUID
 
 from modules.agent.application.interfaces.agent_run_repository import AgentRunRepository
 from modules.agent.application.interfaces.project_access_repository import ProjectAccessRepository
-from modules.agent.domain.run import AgentRun
+from modules.agent.domain.run import AgentRun, AgentRunStatus
+from shared.contracts.run_event_journal import RunEventJournalPort
+from shared.runtime.event_schema import EVENT_JOURNAL_STORAGE_VERSION
+
+logger = logging.getLogger(__name__)
+
+_TERMINAL_JOURNAL_STATUSES = {
+    "completed",
+    "failed",
+    "cancelled",
+    "timed_out",
+    "uncertain",
+}
 
 
 def _iso(value: Any) -> str | None:
@@ -48,14 +61,110 @@ def _summary(run: AgentRun) -> dict[str, Any]:
     }
 
 
+def _number_or_none(value: Any) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (int, float)):
+        return max(0, round(float(value)))
+    return None
+
+
+def _payload_time(value: Any) -> str | None:
+    if value is None:
+        return None
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    text = str(value).strip()
+    return text or None
+
+
 class ListAgentRunsUseCase:
     def __init__(
         self,
         runs: AgentRunRepository,
         project_access: ProjectAccessRepository,
+        journal: RunEventJournalPort | None = None,
     ) -> None:
         self._runs = runs
         self._project_access = project_access
+        self._journal = journal
+
+    async def _terminal_summary(
+        self,
+        run: AgentRun,
+        summary: dict[str, Any],
+    ) -> dict[str, Any]:
+        # Avoid one Mongo read per historical row. Only SQL rows that still look
+        # active can contradict a terminal durable journal fact.
+        if (
+            self._journal is None
+            or run.status != AgentRunStatus.RUNNING
+            or run.storage_version != EVENT_JOURNAL_STORAGE_VERSION
+        ):
+            return summary
+
+        try:
+            state = await self._journal.get_state(run.id)
+            if (
+                state is None
+                or state.run_kind != "agent"
+                or state.storage_version != EVENT_JOURNAL_STORAGE_VERSION
+                or state.terminal_sequence is None
+                or state.terminal_status not in _TERMINAL_JOURNAL_STATUSES
+                or state.terminal_sequence > state.durable_sequence
+            ):
+                return summary
+
+            terminal_sequence = state.terminal_sequence
+            events = await self._journal.list_events(
+                run.id,
+                after_sequence=max(0, terminal_sequence - 1),
+                through_sequence=terminal_sequence,
+                limit=2,
+            )
+            event = next(
+                (
+                    item
+                    for item in events
+                    if item.sequence == terminal_sequence
+                    and item.run_kind == "agent"
+                    and item.storage_version == EVENT_JOURNAL_STORAGE_VERSION
+                ),
+                None,
+            )
+            if event is None:
+                return summary
+
+            payload = dict(event.payload)
+            merged = dict(summary)
+            merged["status"] = str(state.terminal_status)
+            if payload.get("provider") is not None:
+                merged["provider"] = payload.get("provider")
+            if payload.get("model") is not None:
+                merged["model"] = payload.get("model")
+            if isinstance(payload.get("usage"), dict):
+                merged["usage"] = dict(payload["usage"])
+            latency = _number_or_none(payload.get("latency_ms"))
+            if latency is not None:
+                merged["latency_ms"] = latency
+            started_at = _payload_time(payload.get("started_at"))
+            completed_at = _payload_time(payload.get("completed_at"))
+            if started_at is not None:
+                merged["started_at"] = started_at
+            if completed_at is not None:
+                merged["completed_at"] = completed_at
+            if payload.get("failure_code") is not None:
+                merged["failure_code"] = str(payload.get("failure_code"))
+            if payload.get("error") is not None:
+                merged["failure_detail"] = str(payload.get("error"))
+            return merged
+        except Exception as exc:
+            logger.warning(
+                "Failed to reconcile Agent Run list item %s with durable journal: %s",
+                run.id,
+                exc,
+            )
+            return summary
 
     async def execute(
         self,
@@ -78,4 +187,7 @@ class ListAgentRunsUseCase:
             environment=environment,
             limit=limit,
         )
-        return [_summary(run) for run in runs]
+        result: list[dict[str, Any]] = []
+        for run in runs:
+            result.append(await self._terminal_summary(run, _summary(run)))
+        return result

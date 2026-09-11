@@ -73,6 +73,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
       : null
     const traceIdentity = selectedRun ? selectedRun.trace_id || selectedRun.id : null
     const runIdentity = selectedRun?.run_id ?? null
+    const runFinalizing = selectedRun?.status === 'running' || selectedRun?.status === 'pending'
 
     return (
       <div className="w-[400px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border/90 bg-surface/70 shadow-sm shadow-black/5 flex flex-col">
@@ -101,7 +102,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
                 ))}
               </nav>
 
-              {runDetailView === 'run' ? <AgentRunOperationalView runId={runIdentity} traceId={traceIdentity} /> : null}
+              {runDetailView === 'run' ? <AgentRunOperationalView runId={runIdentity} traceId={traceIdentity} finalizing={runFinalizing} /> : null}
               {runDetailView === 'evidence' ? <div className="p-4"><AgentRunEvidencePanel runId={runIdentity} traceId={traceIdentity} /></div> : null}
             </>
           ) : (

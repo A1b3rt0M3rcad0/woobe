@@ -35,6 +35,13 @@ function isTerminalStatus(status: string | undefined): boolean {
   ].includes(status.toLowerCase())
 }
 
+export function shouldRefreshContextEvidence(
+  previousStatus: string | undefined,
+  currentStatus: string | undefined,
+): boolean {
+  return isTerminalStatus(currentStatus) && !isTerminalStatus(previousStatus)
+}
+
 function isTerminalTrace(trace: TraceDetail | undefined): boolean {
   return Boolean(trace && isTerminalStatus(trace.status))
 }
