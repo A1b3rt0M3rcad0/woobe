@@ -17,6 +17,8 @@ import type { Agent } from '@/features/agents/types'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { ChatMessage } from '@/features/playground/components/ChatMessage'
 import { useAgentSessions, useAskStream, useSessionMessages } from '@/features/playground/hooks'
+import { getActiveAgentRun } from '@/features/playground/reattach-api'
+import type { StreamCallbacks } from '@/features/playground/stream-client'
 import type {
   AskResponse,
   ChatMessage as ChatMessageType,
@@ -26,6 +28,12 @@ import type {
   UsageInfo,
 } from '@/features/playground/types'
 import { cn } from '@/lib/utils'
+import {
+  getStoredNetworkAgentRunId,
+  getStoredNetworkAgentSessionId,
+  setStoredNetworkAgentRunId,
+  setStoredNetworkAgentSessionId,
+} from './networkAgentChatRuntimeStore'
 
 interface NetworkAgentChatProps {
   agent: Agent
@@ -141,15 +149,20 @@ function nearBottom(element: HTMLDivElement) {
 
 export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkAgentChatProps) {
   const { toSnapshot, isDirty } = useAgentEditor()
-  const { stream, cancel } = useAskStream()
+  const { stream, reattach, cancel } = useAskStream()
+  const isStateless = agent.session_mode === 'stateless'
+  const isInactive = agent.status === 'inactive'
+  const initialSessionId = isStateless
+    ? null
+    : getStoredNetworkAgentSessionId(projectId, agent.id)
   const [messages, setMessages] = useState<ChatMessageType[]>([])
   const [input, setInput] = useState('')
   const [isSending, setIsSending] = useState(false)
-  const [sessionId, setSessionId] = useState<string | null>(null)
+  const [sessionId, setSessionId] = useState<string | null>(() => initialSessionId)
   const [sessionSnapshot, setSessionSnapshot] = useState<Record<string, unknown> | null>(null)
   const [pinnedPreviousSnapshot, setPinnedPreviousSnapshot] = useState(false)
   const [sessionsOpen, setSessionsOpen] = useState(false)
-  const [sessionToLoad, setSessionToLoad] = useState<string | null>(null)
+  const [sessionToLoad, setSessionToLoad] = useState<string | null>(() => initialSessionId)
   const [historicalSessionPending, setHistoricalSessionPending] = useState(false)
   const messagesRef = useRef<HTMLDivElement>(null)
   const sessionMenuRef = useRef<HTMLDivElement>(null)
@@ -157,13 +170,14 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
   const accumulatedRef = useRef('')
   const metadataRef = useRef<Partial<AskResponse>>({})
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const activeRunIdRef = useRef<string | null>(getStoredNetworkAgentRunId(projectId, agent.id))
+  const reattachingRunRef = useRef<string | null>(null)
+  const finishedRunRef = useRef<string | null>(null)
 
   const currentSnapshot = toSnapshot()
   const currentSignature = JSON.stringify(currentSnapshot)
   const sessionSignature = sessionSnapshot ? JSON.stringify(sessionSnapshot) : null
   const configurationChanged = Boolean(sessionSignature && currentSignature !== sessionSignature)
-  const isStateless = agent.session_mode === 'stateless'
-  const isInactive = agent.status === 'inactive'
   const effectiveSnapshot = pinnedPreviousSnapshot && sessionSnapshot ? sessionSnapshot : currentSnapshot
   const suggestions = useMemo(() => suggestionsForAgent(agent), [agent])
 
@@ -182,6 +196,21 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
   }, [sessionsQuery.data])
   const historyQuery = useSessionMessages(sessionToLoad ?? undefined)
 
+  const rememberSessionId = useCallback((nextSessionId: string | null) => {
+    setSessionId(nextSessionId)
+    setStoredNetworkAgentSessionId(projectId, agent.id, nextSessionId)
+  }, [agent.id, projectId])
+
+  const rememberRunId = useCallback((runId: string | null) => {
+    activeRunIdRef.current = runId
+    setStoredNetworkAgentRunId(projectId, agent.id, runId)
+  }, [agent.id, projectId])
+
+  const finishActiveRun = useCallback(() => {
+    if (activeRunIdRef.current) finishedRunRef.current = activeRunIdRef.current
+    rememberRunId(null)
+  }, [rememberRunId])
+
   const updateLastAssistant = useCallback((updater: (message: ChatMessageType) => ChatMessageType) => {
     setMessages((previous) => {
       const next = [...previous]
@@ -190,6 +219,139 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
       return next
     })
   }, [])
+
+  const runtimeCallbacks = useCallback((): StreamCallbacks => ({
+    onMeta: (meta) => {
+      if (meta.run_id) rememberRunId(meta.run_id)
+      if (!isStateless && meta.session_id) rememberSessionId(meta.session_id)
+      if (meta.trace_id) metadataRef.current.trace_id = meta.trace_id
+    },
+    onAgentActivity: (activity) => updateLastAssistant((last) => ({ ...last, activity })),
+    onToken: (token) => {
+      if (token.visibility !== 'assistant' || token.channel !== 'final') return
+      accumulatedRef.current += token.content
+      updateLastAssistant((last) => ({ ...last, content: accumulatedRef.current, activity: null }))
+    },
+    onTokenRetract: (info) => {
+      if (info.content_length > 0) {
+        accumulatedRef.current = accumulatedRef.current.slice(
+          0,
+          Math.max(0, accumulatedRef.current.length - info.content_length),
+        )
+      }
+      updateLastAssistant((last) => ({
+        ...last,
+        content: accumulatedRef.current,
+        activity: { status: 'planning_tools', message: 'Checking Tools…' },
+      }))
+    },
+    onInternalToken: () => undefined,
+    onSources: (sources) => { metadataRef.current.sources = sources },
+    onToolCallStarted: (tool) => updateLastAssistant((last) => ({
+      ...last,
+      activity: {
+        status: 'calling_tool',
+        message: `Calling ${tool.tool_name}…`,
+        tool_name: tool.tool_name,
+      },
+      tool_calls: upsertToolCall(last.tool_calls, { ...tool, status: tool.status || 'running' }),
+    })),
+    onToolCallCompleted: (tool) => updateLastAssistant((last) => ({
+      ...last,
+      activity: {
+        status: 'processing_tool_result',
+        message: 'Processing Tool result…',
+        tool_name: tool.tool_name,
+      },
+      tool_calls: upsertToolCall(last.tool_calls, tool),
+    })),
+    onFallback: (info) => {
+      accumulatedRef.current = ''
+      updateLastAssistant((last) => ({
+        ...last,
+        content: '',
+        activity: { status: 'working', message: 'Trying fallback model…' },
+      }))
+      toast.info(`Primary model failed. Retrying with ${info.fallback_provider}/${info.fallback_model}.`)
+    },
+    onDone: (response) => {
+      const finalContent = response.answer || accumulatedRef.current || ''
+      if (!isStateless && response.session_id) rememberSessionId(response.session_id)
+      const usage = (response.usage ?? null) as UsageInfo | null
+      setMessages((previous) => {
+        const next = [...previous]
+        const last = next[next.length - 1]
+        if (last?.role === 'assistant') {
+          next[next.length - 1] = {
+            ...last,
+            content: finalContent,
+            activity: null,
+            usage,
+            sources: (response.sources ?? metadataRef.current.sources ?? null) as ChatMessageType['sources'],
+            tool_calls: (response.tool_calls ?? last.tool_calls ?? null) as ChatMessageType['tool_calls'],
+            model: response.model ?? null,
+            provider: response.provider ?? null,
+            latency_ms: response.latency_ms ?? null,
+            trace_id: response.trace_id ?? metadataRef.current.trace_id ?? null,
+            parsed_output: response.parsed_output ?? null,
+            output_parse_error: response.output_parse_error ?? null,
+          }
+        }
+        return next
+      })
+      finishActiveRun()
+      if (!isStateless) void sessionsQuery.refetch()
+      if (finalContent.trim() && !response.output_parse_error) onChatCompleted()
+    },
+    onError: (error) => {
+      finishActiveRun()
+      toast.error(error.message)
+      updateLastAssistant((last) => ({
+        ...last,
+        activity: null,
+        content: last.content || `Error: ${error.message}`,
+        output_parse_error: error.message,
+        trace_id: metadataRef.current.trace_id ?? null,
+      }))
+    },
+    onCancelled: (event) => {
+      const output = typeof event.output === 'string' ? event.output : accumulatedRef.current
+      accumulatedRef.current = output
+      finishActiveRun()
+      updateLastAssistant((last) => ({
+        ...last,
+        content: output || last.content,
+        activity: null,
+      }))
+      if (!isStateless) void sessionsQuery.refetch()
+      toast.info('Agent Run cancelled')
+    },
+  }), [
+    finishActiveRun,
+    isStateless,
+    onChatCompleted,
+    rememberRunId,
+    rememberSessionId,
+    sessionsQuery,
+    updateLastAssistant,
+  ])
+
+  useEffect(() => {
+    const nextSessionId = isStateless
+      ? null
+      : getStoredNetworkAgentSessionId(projectId, agent.id)
+    activeRunIdRef.current = getStoredNetworkAgentRunId(projectId, agent.id)
+    reattachingRunRef.current = null
+    finishedRunRef.current = null
+    setMessages([])
+    setSessionId(nextSessionId)
+    setSessionToLoad(nextSessionId)
+    setSessionSnapshot(null)
+    setPinnedPreviousSnapshot(false)
+    setHistoricalSessionPending(false)
+    accumulatedRef.current = ''
+    metadataRef.current = {}
+  }, [agent.id, isStateless, projectId])
 
   useEffect(() => {
     if (!sessionsOpen) return
@@ -203,21 +365,81 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
   useEffect(() => {
     if (!sessionToLoad || historyQuery.isFetching || !historyQuery.data) return
     setMessages(historyQuery.data.map(persistedMessageToChat))
-    setSessionId(sessionToLoad)
+    rememberSessionId(sessionToLoad)
     setSessionSnapshot(null)
     setPinnedPreviousSnapshot(false)
     setHistoricalSessionPending(true)
     setSessionToLoad(null)
     shouldStickRef.current = true
-  }, [historyQuery.data, historyQuery.isFetching, sessionToLoad])
+  }, [historyQuery.data, historyQuery.isFetching, rememberSessionId, sessionToLoad])
 
   useEffect(() => {
     if (!isStateless) return
     setSessionsOpen(false)
     setSessionToLoad(null)
     setSessionId(null)
+    setStoredNetworkAgentSessionId(projectId, agent.id, null)
     setHistoricalSessionPending(false)
-  }, [isStateless])
+  }, [agent.id, isStateless, projectId])
+
+  useEffect(() => {
+    if (sessionToLoad || historyQuery.isFetching || isSending || reattachingRunRef.current) return
+    let disposed = false
+
+    void (async () => {
+      let runId = getStoredNetworkAgentRunId(projectId, agent.id)
+      if (!runId && sessionId) {
+        try {
+          const active = await getActiveAgentRun(sessionId)
+          if (active?.agent_id === agent.id) runId = active.run_id
+        } catch {
+          return
+        }
+      }
+      if (!runId || disposed || finishedRunRef.current === runId) return
+
+      reattachingRunRef.current = runId
+      rememberRunId(runId)
+      accumulatedRef.current = ''
+      metadataRef.current = {}
+      setHistoricalSessionPending(false)
+      setMessages((current) => {
+        const last = current[current.length - 1]
+        if (last?.role === 'assistant') return current
+        return [
+          ...current,
+          { role: 'assistant', content: '', activity: { status: 'working', message: 'Reattaching to active Run…' } },
+        ]
+      })
+      setIsSending(true)
+      let terminalObserved = false
+      try {
+        await reattach(runId, runtimeCallbacks())
+        terminalObserved = true
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) {
+          toast.warning(error instanceof Error ? error.message : 'Active Agent Run reattach failed')
+        }
+      } finally {
+        if (terminalObserved && reattachingRunRef.current === runId) {
+          reattachingRunRef.current = null
+        }
+        if (!disposed) setIsSending(false)
+      }
+    })()
+
+    return () => { disposed = true }
+  }, [
+    agent.id,
+    historyQuery.isFetching,
+    isSending,
+    projectId,
+    reattach,
+    rememberRunId,
+    runtimeCallbacks,
+    sessionId,
+    sessionToLoad,
+  ])
 
   useLayoutEffect(() => {
     const element = messagesRef.current
@@ -227,8 +449,10 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
 
   const startNewChat = useCallback(() => {
     cancel()
+    finishActiveRun()
+    rememberSessionId(null)
+    reattachingRunRef.current = null
     setMessages([])
-    setSessionId(null)
     setSessionToLoad(null)
     setSessionSnapshot(currentSnapshot)
     setPinnedPreviousSnapshot(false)
@@ -239,7 +463,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     metadataRef.current = {}
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     toast.success('New isolated Agent chat started')
-  }, [cancel, currentSignature])
+  }, [cancel, currentSignature, finishActiveRun, rememberSessionId])
 
   const selectSession = (nextSessionId: string) => {
     if (isSending || isStateless || nextSessionId === sessionId) {
@@ -247,6 +471,8 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
       return
     }
     cancel()
+    finishActiveRun()
+    reattachingRunRef.current = null
     setSessionToLoad(nextSessionId)
     setMessages([])
     setHistoricalSessionPending(false)
@@ -271,6 +497,9 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
 
     const snapshot = effectiveSnapshot
     if (!sessionSnapshot) setSessionSnapshot(snapshot)
+    finishedRunRef.current = null
+    rememberRunId(null)
+    reattachingRunRef.current = null
     accumulatedRef.current = ''
     metadataRef.current = {}
     setMessages((previous) => [
@@ -291,98 +520,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
         execution_context: 'playground',
         metadata: { source: 'network_agent_chat', client_sent_at: new Date().toISOString() },
         snapshot_override: snapshot,
-      } as any, {
-        onMeta: (meta) => {
-          if (!isStateless && meta.session_id) setSessionId(meta.session_id)
-          if (meta.trace_id) metadataRef.current.trace_id = meta.trace_id
-        },
-        onAgentActivity: (activity) => updateLastAssistant((last) => ({ ...last, activity })),
-        onToken: (token) => {
-          if (token.visibility !== 'assistant' || token.channel !== 'final') return
-          accumulatedRef.current += token.content
-          updateLastAssistant((last) => ({ ...last, content: accumulatedRef.current, activity: null }))
-        },
-        onTokenRetract: (info) => {
-          if (info.content_length > 0) {
-            accumulatedRef.current = accumulatedRef.current.slice(
-              0,
-              Math.max(0, accumulatedRef.current.length - info.content_length),
-            )
-          }
-          updateLastAssistant((last) => ({
-            ...last,
-            content: accumulatedRef.current,
-            activity: { status: 'planning_tools', message: 'Checking Tools…' },
-          }))
-        },
-        onInternalToken: () => undefined,
-        onSources: (sources) => { metadataRef.current.sources = sources },
-        onToolCallStarted: (tool) => updateLastAssistant((last) => ({
-          ...last,
-          activity: {
-            status: 'calling_tool',
-            message: `Calling ${tool.tool_name}…`,
-            tool_name: tool.tool_name,
-          },
-          tool_calls: upsertToolCall(last.tool_calls, { ...tool, status: tool.status || 'running' }),
-        })),
-        onToolCallCompleted: (tool) => updateLastAssistant((last) => ({
-          ...last,
-          activity: {
-            status: 'processing_tool_result',
-            message: 'Processing Tool result…',
-            tool_name: tool.tool_name,
-          },
-          tool_calls: upsertToolCall(last.tool_calls, tool),
-        })),
-        onFallback: (info) => {
-          accumulatedRef.current = ''
-          updateLastAssistant((last) => ({
-            ...last,
-            content: '',
-            activity: { status: 'working', message: 'Trying fallback model…' },
-          }))
-          toast.info(`Primary model failed. Retrying with ${info.fallback_provider}/${info.fallback_model}.`)
-        },
-        onDone: (response) => {
-          const finalContent = response.answer || accumulatedRef.current || ''
-          if (!isStateless && response.session_id) setSessionId(response.session_id)
-          const usage = (response.usage ?? null) as UsageInfo | null
-          setMessages((previous) => {
-            const next = [...previous]
-            const last = next[next.length - 1]
-            if (last?.role === 'assistant') {
-              next[next.length - 1] = {
-                ...last,
-                content: finalContent,
-                activity: null,
-                usage,
-                sources: (response.sources ?? metadataRef.current.sources ?? null) as ChatMessageType['sources'],
-                tool_calls: (response.tool_calls ?? last.tool_calls ?? null) as ChatMessageType['tool_calls'],
-                model: response.model ?? null,
-                provider: response.provider ?? null,
-                latency_ms: response.latency_ms ?? null,
-                trace_id: response.trace_id ?? metadataRef.current.trace_id ?? null,
-                parsed_output: response.parsed_output ?? null,
-                output_parse_error: response.output_parse_error ?? null,
-              }
-            }
-            return next
-          })
-          if (!isStateless) void sessionsQuery.refetch()
-          if (finalContent.trim() && !response.output_parse_error) onChatCompleted()
-        },
-        onError: (error) => {
-          toast.error(error.message)
-          updateLastAssistant((last) => ({
-            ...last,
-            activity: null,
-            content: last.content || `Error: ${error.message}`,
-            output_parse_error: error.message,
-            trace_id: metadataRef.current.trace_id ?? null,
-          }))
-        },
-      })
+      } as any, runtimeCallbacks())
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
         toast.error(error instanceof Error ? error.message : 'Agent Chat failed')
