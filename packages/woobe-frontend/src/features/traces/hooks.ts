@@ -15,7 +15,6 @@ import {
 import type { AgentRunDetail, ContextModelInvocation, Trace, TraceDetail } from './types'
 
 const TRACE_REFRESH_INTERVAL_MS = 1_500
-const PLAYGROUND_IDLE_TRACE_LIST_REFRESH_INTERVAL_MS = 3_000
 const IDLE_TRACE_LIST_REFRESH_INTERVAL_MS = 10_000
 const TRACE_NOT_FOUND_RETRIES = 20
 const CONTEXT_EVIDENCE_NOT_FOUND_RETRIES = 6
@@ -23,9 +22,17 @@ const AGENT_RUN_DETAIL_NOT_FOUND_RETRIES = 6
 
 function isTerminalStatus(status: string | undefined): boolean {
   if (!status) return false
-  return ['completed', 'success', 'failed', 'error', 'cancelled', 'canceled'].includes(
-    status.toLowerCase(),
-  )
+  return [
+    'completed',
+    'success',
+    'failed',
+    'error',
+    'cancelled',
+    'canceled',
+    'timed_out',
+    'timeout',
+    'uncertain',
+  ].includes(status.toLowerCase())
 }
 
 function isTerminalTrace(trace: TraceDetail | undefined): boolean {
@@ -146,6 +153,7 @@ export function usePlaygroundTraces(
   agentId?: string,
   sessionId?: string | null,
   environment?: string | null,
+  liveObservationActive = false,
 ) {
   return useQuery<Trace[]>({
     queryKey: ['agent-runs', { projectId, agentId, sessionId, environment }],
@@ -184,9 +192,10 @@ export function usePlaygroundTraces(
     },
     enabled: Boolean(projectId) && Boolean(agentId),
     staleTime: 500,
-    refetchInterval: (query) => hasActiveTrace(query.state.data)
-      ? TRACE_REFRESH_INTERVAL_MS
-      : PLAYGROUND_IDLE_TRACE_LIST_REFRESH_INTERVAL_MS,
+    refetchInterval: (query) => {
+      if (liveObservationActive) return false
+      return hasActiveTrace(query.state.data) ? TRACE_REFRESH_INTERVAL_MS : false
+    },
     refetchIntervalInBackground: false,
   })
 }
