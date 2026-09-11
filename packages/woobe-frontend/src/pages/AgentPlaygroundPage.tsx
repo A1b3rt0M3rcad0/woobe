@@ -222,10 +222,14 @@ function PlaygroundContent() {
     isError: tracesError,
     error: tracesQueryError,
     refetch: refetchTraces,
-  } = usePlaygroundTraces(projectId, agentId, selectedSessionId, environment)
+  } = usePlaygroundTraces(projectId, agentId, selectedSessionId, environment, isSending)
 
   const { data: historyMessages, isFetching } = useSessionMessages(selectedSessionId ?? undefined)
-  const isSessionLoading = messages.length === 0 && Boolean(selectedSessionId) && isFetching && syncedSessionRef.current !== selectedSessionId
+  const isSessionLoading = messages.length === 0
+    && Boolean(selectedSessionId)
+    && historyMessages === undefined
+    && isFetching
+    && syncedSessionRef.current !== selectedSessionId
 
   const setCurrentSessionId = useCallback((sessionId: string | null) => {
     setActiveSessionIdByEnvironment((current) => ({ ...current, [environment]: sessionId }))
@@ -250,7 +254,7 @@ function PlaygroundContent() {
   }, [isDirty])
 
   useEffect(() => {
-    if (historyMessages && selectedSessionId && !isSending && !isFetching && syncedSessionRef.current !== selectedSessionId) {
+    if (historyMessages && selectedSessionId && !isSending && syncedSessionRef.current !== selectedSessionId) {
       const mapped: ChatMessage[] = historyMessages.map((m) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
@@ -264,7 +268,7 @@ function PlaygroundContent() {
       syncedSessionRef.current = selectedSessionId
       setMessages(mapped)
     }
-  }, [historyMessages, selectedSessionId, isSending, isFetching])
+  }, [historyMessages, selectedSessionId, isSending])
 
   const resetConversationView = useCallback(() => {
     syncedSessionRef.current = null
@@ -382,7 +386,7 @@ function PlaygroundContent() {
   }, [])
 
   useEffect(() => {
-    if (!projectId || !agentId || isSending || isFetching) return
+    if (!projectId || !agentId || isSending) return
     if (!isStateless && (!selectedSessionId || syncedSessionRef.current !== selectedSessionId)) return
 
     let disposed = false
@@ -464,16 +468,12 @@ function PlaygroundContent() {
             setRawEvents([...rawEventsRef.current])
             setLastResponse(response as AskResponse)
             rememberRunId(null)
-            if (!isStateless) void refetchSessions()
-            void refetchTraces()
-            if (selectedSessionId) void queryClient.invalidateQueries({ queryKey: ['session-messages', selectedSessionId] })
           },
           onError: (error) => {
             rememberRunId(null)
             setRawEvents([...rawEventsRef.current])
             updateLastAssistantMessage((last) => ({ ...last, activity: null, output_parse_error: error.message }))
             toast.error(error.message)
-            void refetchTraces()
           },
           onCancelled: (event) => {
             rawEventsRef.current.push({ type: 'cancelled', timestamp: new Date().toISOString(), payload: event })
@@ -481,9 +481,6 @@ function PlaygroundContent() {
             reconcileCancelledAssistant(event)
             rememberRunId(null)
             toast.info('Agent Run cancelled')
-            void refetchTraces()
-            if (!isStateless) void refetchSessions()
-            if (selectedSessionId) void queryClient.invalidateQueries({ queryKey: ['session-messages', selectedSessionId] })
           },
           onFallback: (info) => {
             accumulatedRef.current = ''
@@ -505,7 +502,7 @@ function PlaygroundContent() {
     })()
 
     return () => { disposed = true }
-  }, [agentId, environment, isFetching, isSending, isStateless, projectId, queryClient, reattach, reconcileCancelledAssistant, refetchSessions, refetchTraces, rememberRunId, selectedSessionId, setCurrentSessionId, updateLastAssistantMessage])
+  }, [agentId, environment, isSending, isStateless, projectId, reattach, reconcileCancelledAssistant, rememberRunId, selectedSessionId, setCurrentSessionId, updateLastAssistantMessage])
 
   const handleStop = useCallback(() => {
     cancelStream({
@@ -610,12 +607,7 @@ function PlaygroundContent() {
           })
           setLastResponse(meta as AskResponse)
           rememberRunId(null)
-          if (!isStateless) refetchSessions()
-          refetchTraces()
-          if (!isStateless && meta.session_id) {
-            queryClient.invalidateQueries({ queryKey: ['session-messages', meta.session_id] })
-            syncedSessionRef.current = meta.session_id
-          }
+          if (!isStateless && meta.session_id) syncedSessionRef.current = meta.session_id
           if (meta.trace_id) setTimeout(() => setSelectedTraceId(meta.trace_id!), 100)
         },
         onError: (error) => {
@@ -624,7 +616,6 @@ function PlaygroundContent() {
           rememberRunId(null)
           toast.error(error.message)
           updateLastAssistantMessage((last) => ({ ...last, activity: null, content: last.content || `Error: ${error.message}`, output_parse_error: error.message, trace_id: metadataRef.current.trace_id ?? null }))
-          refetchTraces()
         },
         onCancelled: (event) => {
           rawEventsRef.current.push({ type: 'cancelled', timestamp: new Date().toISOString(), payload: event })
@@ -632,9 +623,6 @@ function PlaygroundContent() {
           reconcileCancelledAssistant(event)
           rememberRunId(null)
           toast.info('Agent Run cancelled')
-          if (!isStateless) refetchSessions()
-          refetchTraces()
-          if (!isStateless && selectedSessionId) queryClient.invalidateQueries({ queryKey: ['session-messages', selectedSessionId] })
           if (metadataRef.current.trace_id) setTimeout(() => setSelectedTraceId(metadataRef.current.trace_id!), 100)
         },
         onFallback: (info) => {
@@ -669,7 +657,7 @@ function PlaygroundContent() {
         const traceData = (t.data ?? {}) as Record<string, unknown>
         const mapStatus = (s: string): TraceItem['status'] => {
           if (s === 'completed' || s === 'success') return 'success'
-          if (s === 'failed' || s === 'error') return 'error'
+          if (s === 'failed' || s === 'error' || s === 'timed_out' || s === 'timeout') return 'error'
           if (s === 'running' || s === 'processing') return 'running'
           if (s === 'pending' || s === 'queued') return 'pending'
           if (s === 'cancelled' || s === 'canceled') return 'cancelled'
