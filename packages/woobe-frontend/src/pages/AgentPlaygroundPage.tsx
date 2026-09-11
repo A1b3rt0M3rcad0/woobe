@@ -663,7 +663,7 @@ function PlaygroundContent() {
           if (s === 'cancelled' || s === 'canceled') return 'cancelled'
           return 'warning'
         }
-        return { id: t.id, title: t.status === 'failed' ? `Failed (${t.error?.slice(0, 40) || 'error'})` : `Agent Run ${t.status}`, timestamp: t.created_at ?? new Date().toISOString(), status: mapStatus(t.status), latency_ms: t.total_latency_ms ?? null, model: t.model ?? null, provider: t.provider ?? null, input_tokens: (traceData.input_tokens as number) ?? null, output_tokens: (traceData.output_tokens as number) ?? null, total_tokens: (traceData.total_tokens as number) ?? null, cost_usd: (traceData.cost_usd as number) ?? t.total_cost_usd ?? null, trace_id: t.id, response: null, project_id: t.project_id, agent_id: t.agent_id }
+        return { id: t.id, run_id: typeof traceData.agent_run_id === 'string' ? traceData.agent_run_id : null, title: t.status === 'failed' ? `Failed (${t.error?.slice(0, 40) || 'error'})` : `Agent Run ${t.status}`, timestamp: t.created_at ?? new Date().toISOString(), status: mapStatus(t.status), latency_ms: t.total_latency_ms ?? null, model: t.model ?? null, provider: t.provider ?? null, input_tokens: (traceData.input_tokens as number) ?? null, output_tokens: (traceData.output_tokens as number) ?? null, total_tokens: (traceData.total_tokens as number) ?? null, cost_usd: (traceData.cost_usd as number) ?? t.total_cost_usd ?? null, trace_id: t.id, response: null, project_id: t.project_id, agent_id: t.agent_id }
       })
     mapped.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
     return mapped
