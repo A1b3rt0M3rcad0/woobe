@@ -7,10 +7,13 @@ from uuid import UUID, uuid4
 
 from shared.contracts.run_event_buffer import BufferedRunEvent
 from shared.contracts.run_event_journal import DurableRunEvent
+from shared.contracts.run_event_versions import (
+    EVENT_JOURNAL_STORAGE_VERSION,
+    LEGACY_RUN_STORAGE_VERSION,
+)
 
 RUN_EVENT_SCHEMA_VERSION = 1
-EVENT_JOURNAL_STORAGE_VERSION = "event_journal_v1"
-LEGACY_STORAGE_VERSION = "legacy_v1"
+LEGACY_STORAGE_VERSION = LEGACY_RUN_STORAGE_VERSION
 
 TERMINAL_EVENT_TYPES = {
     "run.completed": "completed",
