@@ -17,6 +17,9 @@ from modules.agent.application.interfaces.embedding_errors import (
 from modules.agent.application.use_cases.vector_snapshot_use_cases import (
     BuildVectorSnapshotUseCase,
 )
+from modules.agent.composition.factories.ask_agent_runtime_factory import (
+    build_agent_run_recovery_executor,
+)
 from modules.agent.domain.entities import (
     AskJob,
 )
@@ -76,6 +79,10 @@ from modules.agent.infra.database.vector_snapshot_models import (
 )
 from modules.agent.infra.database.vector_snapshot_repositories import (
     SQLAlchemyVectorSnapshotRepository,
+)
+from modules.agent.infra.execution.agent_run_recovery_runtime import (
+    AgentRunRecoveryExecutor,
+    AgentRunRecoveryRequest,
 )
 from modules.agent.infra.execution.agent_tool_runtime_gateway import (
     AgentToolRuntimeGateway,

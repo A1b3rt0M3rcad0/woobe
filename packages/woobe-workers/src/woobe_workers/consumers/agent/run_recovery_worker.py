@@ -1,14 +1,18 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Awaitable, Callable
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
+from typing import Any
 from uuid import UUID, uuid4
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.agent.background_boundary import AgentExecutionFailedV1
+from modules.agent.background_boundary import AgentRunRecoveryRequest
 from modules.agent.background_boundary import SQLAlchemyAgentOutboxEventWriter
 from modules.agent.background_boundary import AgentRunModel
 from modules.agent.background_boundary import AgentUnitOfWork
@@ -26,6 +30,8 @@ from shared.runtime.journal_recorder import DurableRunEventRecorder
 
 logger = logging.getLogger(__name__)
 
+ResumeAgentRun = Callable[[AgentRunRecoveryRequest], Awaitable[Any]]
+
 
 @dataclass(frozen=True, slots=True)
 class _RecoveryRunRecord:
@@ -34,7 +40,11 @@ class _RecoveryRunRecord:
     project_id: UUID
     agent_id: UUID
     session_id: UUID | None
+    input_message_id: UUID | None
     trace_id: UUID
+    agent_release_id: UUID | None
+    environment: str
+    input_message: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -50,8 +60,8 @@ class AgentRunRecoveryWorker:
 
     Legacy Runs keep the previous PostgreSQL-only uncertain behavior. Event-journal
     Runs are classified from their durable Mongo prefix so recovery never guesses an
-    external Tool outcome. Actual re-execution is a separate step and only receives
-    Runs classified as resumable.
+    external Tool outcome. Runs with a safe boundary continue under the same Run id
+    with a new Attempt; unsafe prefixes terminate as uncertain.
     """
 
     def __init__(
@@ -64,6 +74,7 @@ class AgentRunRecoveryWorker:
         journal: RunEventJournalPort | None = None,
         buffer: RunEventBufferPort | None = None,
         barrier: RunDurabilityBarrier | None = None,
+        resume_run: ResumeAgentRun | None = None,
         recovery_lease_seconds: int = 120,
     ) -> None:
         self._engine = async_engine
@@ -73,6 +84,7 @@ class AgentRunRecoveryWorker:
         self._journal = journal
         self._buffer = buffer
         self._barrier = barrier
+        self._resume_run = resume_run
         self._recovery_lease_seconds = max(30, int(recovery_lease_seconds))
         self._worker_id = f"agent-run-recovery-{uuid4()}"
 
@@ -139,7 +151,11 @@ class AgentRunRecoveryWorker:
                 project_id=run.project_id,
                 agent_id=run.agent_id,
                 session_id=run.session_id,
+                input_message_id=run.input_message_id,
                 trace_id=run.trace_id,
+                agent_release_id=run.agent_release_id,
+                environment=str(run.environment),
+                input_message=str(run.input_message),
             )
 
     async def _recover_or_close(self, run_id: UUID, cutoff: datetime) -> None:
@@ -174,18 +190,7 @@ class AgentRunRecoveryWorker:
         checkpoint = await self._journal.latest_checkpoint(run_id)
         decision = self._classify_journal_prefix(state, events, checkpoint)
         if decision.action == "resumable":
-            logger.warning(
-                "Agent Run has a safe durable recovery boundary but re-execution is not wired yet",
-                extra={
-                    "run_id": str(run_id),
-                    "checkpoint_sequence": (
-                        decision.checkpoint.through_sequence
-                        if decision.checkpoint is not None
-                        else 0
-                    ),
-                    "attempt": decision.attempt,
-                },
-            )
+            await self._resume_journal_run(run, state=state, decision=decision)
             return
         if decision.action != "uncertain":
             return
@@ -195,6 +200,85 @@ class AgentRunRecoveryWorker:
             state=state,
             reason=decision.reason or "unsafe_recovery_boundary",
             attempt=decision.attempt,
+        )
+
+    async def _resume_journal_run(
+        self,
+        run: _RecoveryRunRecord,
+        *,
+        state: RunJournalState | None,
+        decision: _JournalRecoveryDecision,
+    ) -> None:
+        if self._resume_run is None or self._buffer is None:
+            logger.error(
+                "Event-journal Agent Run has a safe boundary but no recovery executor is configured run_id=%s",
+                run.id,
+            )
+            return
+
+        next_attempt = max(1, int(decision.attempt)) + 1
+        await self._state_store.create(
+            run.id,
+            {
+                "status": "recovering",
+                "phase": "resume_pending",
+                "attempt": next_attempt,
+                "storage_version": EVENT_JOURNAL_STORAGE_VERSION,
+            },
+            ttl_seconds=self._recovery_lease_seconds,
+        )
+        lease = await self._state_store.acquire_lease(
+            run.id,
+            worker_id=self._worker_id,
+            ttl_seconds=self._recovery_lease_seconds,
+        )
+        if lease is None:
+            return
+
+        durable_sequence = state.durable_sequence if state is not None else 0
+        await self._buffer.ensure_sequence_at_least(run.id, durable_sequence)
+        request = AgentRunRecoveryRequest(
+            run_id=run.id,
+            project_id=run.project_id,
+            agent_id=run.agent_id,
+            session_id=run.session_id,
+            input_message_id=run.input_message_id,
+            trace_id=run.trace_id,
+            agent_release_id=run.agent_release_id,
+            environment=run.environment,
+            input_message=run.input_message,
+            attempt=next_attempt,
+            checkpoint=(
+                deepcopy(decision.checkpoint.state)
+                if decision.checkpoint is not None
+                else None
+            ),
+        )
+        try:
+            await self._resume_run(request)
+        except Exception:
+            # The recovery runtime owns any durable failure after its new Attempt is
+            # journaled. Failures before that boundary leave this short-lived hot
+            # recovery marker to expire and be retried instead of inventing outcome.
+            logger.exception(
+                "Failed to resume event-journal Agent Run run_id=%s attempt=%s",
+                run.id,
+                next_attempt,
+            )
+            return
+
+        logger.info(
+            "Resumed event-journal Agent Run under the same logical Run",
+            extra={
+                "run_id": str(run.id),
+                "trace_id": str(run.trace_id),
+                "attempt": next_attempt,
+                "checkpoint_sequence": (
+                    decision.checkpoint.through_sequence
+                    if decision.checkpoint is not None
+                    else 0
+                ),
+            },
         )
 
     @staticmethod

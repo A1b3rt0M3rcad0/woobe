@@ -29,6 +29,10 @@ from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFacto
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.database.runtime_transaction_runner import AgentRuntimeTransactionRunner
 from modules.agent.infra.database.runtime_vector_search_reader import AgentRuntimeVectorSearchReader
+from modules.agent.infra.execution.agent_run_recovery_runtime import (
+    AgentRunRecoveryExecutor,
+    AgentRunRecoveryRuntime,
+)
 from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.infra.execution.canonical_execution_snapshot_runtime_resolver import (
     configure_execution_snapshot_runtime,
@@ -55,6 +59,7 @@ from shared.presentation.contracts import OperationResult
 
 AskRequestHandler = Callable[[OperationRequest], Awaitable[OperationResult]]
 InternalToolHandler = Callable[[dict], Awaitable[dict]]
+RuntimeType = type[FrozenSnapshotStructuredOutputRuntime]
 
 
 def build_agent_runtime_transactions() -> AgentRuntimeTransactionRunner:
@@ -67,6 +72,7 @@ def _build_agent_runtime(
     *,
     internal_tool_handlers: Mapping[UUID, InternalToolHandler] | None = None,
     context_assembler: ContextAssembler | None = None,
+    runtime_type: RuntimeType = FrozenSnapshotStructuredOutputRuntime,
 ) -> tuple[FrozenSnapshotStructuredOutputRuntime, AgentRuntimeTransactionRunner]:
     configure_skill_runtime(frozen_enabled_skills, SkillRuntime)
     configure_skill_binding_freezer(freeze_skill_bindings)
@@ -82,7 +88,7 @@ def _build_agent_runtime(
         executor,
         internal_tool_handlers=internal_tool_handlers,
     )
-    runtime = FrozenSnapshotStructuredOutputRuntime(
+    runtime = runtime_type(
         transactions=transactions,
         llm_factory=LangchainLLMFactory(),
         encryption_key=settings.encryption_key,
@@ -144,6 +150,23 @@ def build_internal_agent_runtime(
         context_assembler=context_assembler,
     )
     return runtime
+
+
+def build_agent_run_recovery_executor(
+    settings: Settings,
+    http_executor: HttpToolExecutor | None = None,
+    *,
+    context_assembler: ContextAssembler | None = None,
+) -> AgentRunRecoveryExecutor:
+    if settings.run_persistence_mode != "event_journal":
+        raise RuntimeError("Agent Run recovery executor requires event_journal persistence")
+    runtime, _transactions = _build_agent_runtime(
+        settings,
+        http_executor,
+        context_assembler=context_assembler,
+        runtime_type=AgentRunRecoveryRuntime,
+    )
+    return AgentRunRecoveryExecutor(runtime)
 
 
 def build_ask_agent_handler(
