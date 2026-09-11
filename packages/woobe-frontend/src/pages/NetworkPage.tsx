@@ -45,6 +45,7 @@ import type { AgentNodeId, Environment, NetworkBinding } from '@/features/networ
 import { Badge, NetworkOperationsPanel, NetworkOperationsRail, type PanelTab } from '@/features/network/components/NetworkOperations'
 import { createNetworkTraceRecord } from '@/features/network/components/networkObservabilityFactory'
 import type { NetworkTraceRecord } from '@/features/network/components/networkObservabilityTypes'
+import { reconcileNetworkTraces } from '@/features/network/components/networkTraceReconciliation'
 import type { ActiveSessionByEnvironment, NetworkSession, NetworkSessionsByEnvironment } from '@/features/network/components/networkSessionTypes'
 import { NetworkApiModal } from '@/features/network/components/NetworkApiModal'
 import { UnsavedAgentSwitchDialog, type ReleaseAction } from '@/features/network/components/NetworkReleaseDialogs'
@@ -500,8 +501,11 @@ export default function NetworkPage() {
 
   useEffect(() => {
     if (!activeSession) return
-    const hydratedIds = new Set(hydratedHistory.traces.map((trace) => trace.id))
-    setTraces((current) => [...hydratedHistory.traces, ...current.filter((trace) => trace.networkSessionId !== activeSession.id || !hydratedIds.has(trace.id))])
+    setTraces((current) => reconcileNetworkTraces(
+      hydratedHistory.traces,
+      current,
+      activeSession.id,
+    ))
   }, [activeSession?.id, hydratedHistory.traces])
 
   const activeTraces = useMemo(() => activeSession
@@ -790,17 +794,19 @@ export default function NetworkPage() {
 
   const handleCompletedTrace = (trace: NetworkTraceRecord) => {
     setTraces((current) => [trace, ...current.filter((item) => item.id !== trace.id)])
-    setSessionsByEnvironment((current) => ({
-      ...current,
-      [trace.environment]: current[trace.environment].map((session) => session.id === trace.networkSessionId ? {
-        ...session,
-        title: session.messageCount === 0 ? trace.title : session.title,
-        lastMessageAt: trace.completedAt ?? trace.startedAt,
-        messageCount: session.messageCount + 2,
-        traceCount: session.traceCount + 1,
-        agentContexts: trace.agentContexts,
-      } : session),
-    }))
+    if (trace.source === 'chat') {
+      setSessionsByEnvironment((current) => ({
+        ...current,
+        [trace.environment]: current[trace.environment].map((session) => session.id === trace.networkSessionId ? {
+          ...session,
+          title: session.messageCount === 0 ? trace.title : session.title,
+          lastMessageAt: trace.completedAt ?? trace.startedAt,
+          messageCount: session.messageCount + 2,
+          traceCount: session.traceCount + 1,
+          agentContexts: trace.agentContexts,
+        } : session),
+      }))
+    }
     if (trace.status === 'error') {
       selectTrace(trace)
       setPanelTab('traces')
@@ -903,6 +909,8 @@ export default function NetworkPage() {
       versionLabel={versionLabel}
       currentVersionId={currentVersionId}
       bindings={runtimeBindings}
+      historyBindings={historyBindings}
+      historyVersionLabel={activeSessionVersion?.version ?? versionLabel}
       activeSession={activeSession}
       historyTurns={hydratedHistory.turns}
       historyLoading={Boolean(activeSession && sessionMessagesQuery.isLoading)}
