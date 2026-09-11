@@ -111,6 +111,7 @@ function snapshotInvocationEvent(
   const invocationId = asString(invocation.id)
   if (!invocationId) return null
   const data: Record<string, unknown> = {
+    agent_run_id: invocation.agent_run_id ?? null,
     label: invocation.label ?? invocation.agent_id ?? 'Agent',
     provider: invocation.provider ?? null,
     model: invocation.model ?? null,
