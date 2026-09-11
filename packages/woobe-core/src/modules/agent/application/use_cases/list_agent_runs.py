@@ -8,7 +8,7 @@ from modules.agent.application.interfaces.agent_run_repository import AgentRunRe
 from modules.agent.application.interfaces.project_access_repository import ProjectAccessRepository
 from modules.agent.domain.run import AgentRun, AgentRunStatus
 from shared.contracts.run_event_journal import RunEventJournalPort
-from shared.runtime.event_schema import EVENT_JOURNAL_STORAGE_VERSION
+from shared.contracts.run_event_versions import EVENT_JOURNAL_STORAGE_VERSION
 
 logger = logging.getLogger(__name__)
 
