@@ -25,7 +25,10 @@ import { createNetworkTraceRecord } from './networkObservabilityFactory'
 import type { NetworkTraceRecord } from './networkObservabilityTypes'
 import type { NetworkSession } from './networkSessionTypes'
 import { applyNetworkRuntimeEvent, emptyLiveNetworkExecution } from './networkLiveExecution'
-import { reconcileNetworkTurns } from './networkTurnReconciliation'
+import {
+  persistedTurnSupersedesLocal,
+  reconcileNetworkTurns,
+} from './networkTurnReconciliation'
 
 interface NetworkChatWorkspaceProps {
   networkId: string
@@ -214,8 +217,12 @@ export function NetworkChatWorkspace({
   }, [activeSession?.id, creatingSession, running])
 
   useLayoutEffect(() => {
-    const persistedIds = new Set(historyTurns.map((turn) => turn.id))
-    if (persistedIds.size) setLocalTurns((current) => current.filter((turn) => !persistedIds.has(turn.id)))
+    if (!historyTurns.length) return
+    const persistedById = new Map(historyTurns.map((turn) => [turn.id, turn]))
+    setLocalTurns((current) => current.filter((local) => {
+      const persisted = persistedById.get(local.id)
+      return !persisted || !persistedTurnSupersedesLocal(persisted, local)
+    }))
   }, [historyTurns])
 
   const refreshPersistedSession = async (sessionId: string) => {
