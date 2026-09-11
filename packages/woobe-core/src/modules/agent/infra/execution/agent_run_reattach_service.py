@@ -19,6 +19,7 @@ from shared.runtime import (
     RuntimeStreamGapError,
     format_sse_frame,
 )
+from shared.runtime.event_schema import EVENT_JOURNAL_STORAGE_VERSION
 from shared.runtime.journal_projection import journal_runtime_state
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
 
@@ -147,16 +148,29 @@ class AgentRunReattachService:
             if run is None:
                 return None
             await self._authorize_run(repositories, principal, run)
-            return {
-                "run_id": str(run.id),
-                "status": str(run.status),
-                "session_id": str(run.session_id) if run.session_id else None,
-                "agent_id": str(run.agent_id),
-                "environment": run.environment,
-                "created_at": run.created_at,
-            }
+            return run
 
-        return await self._transactions.read(read_active)
+        run = await self._transactions.read(read_active)
+        if run is None:
+            return None
+
+        # PostgreSQL is an asynchronously projected read model for event-journal
+        # Runs. A durable terminal journal fact wins over a stale SQL RUNNING row,
+        # otherwise the Control Plane repeatedly discovers and reattaches the same
+        # already-finished Run until the projector catches up.
+        if self._journal is not None and run.storage_version == EVENT_JOURNAL_STORAGE_VERSION:
+            journal_state = await self._journal.get_state(run.id)
+            if journal_state is not None and journal_state.terminal_status in _TERMINAL_STATUSES:
+                return None
+
+        return {
+            "run_id": str(run.id),
+            "status": str(run.status),
+            "session_id": str(run.session_id) if run.session_id else None,
+            "agent_id": str(run.agent_id),
+            "environment": run.environment,
+            "created_at": run.created_at,
+        }
 
     async def stream_sse(
         self,
