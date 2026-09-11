@@ -88,20 +88,24 @@ def _build_runtime_components(
     return transactions, tool_runtime
 
 
-def _configure_agent_runtime(
+def _resolve_context_assembler(
+    settings: Settings,
+    context_assembler: ContextAssembler | None,
+) -> ContextAssembler:
+    return (
+        context_assembler
+        if context_assembler is not None
+        else build_runtime_context_assembler(settings.default_context_manager)
+    )
+
+
+def _configure_agent_runtime_dependencies(
     runtime: FrozenSnapshotStructuredOutputRuntime,
     *,
     settings: Settings,
     transactions: AgentRuntimeTransactionRunner,
     tool_runtime: AgentToolRuntimeGateway,
-    context_assembler: ContextAssembler | None,
 ) -> None:
-    assembler: ContextAssembler = (
-        context_assembler
-        if context_assembler is not None
-        else build_runtime_context_assembler(settings.default_context_manager)
-    )
-    runtime.configure_context_assembler(assembler)
     runtime.configure_rag_embedding_factory(LangchainEmbeddingFactory())
     runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
     runtime.configure_vector_search_reader(
@@ -141,12 +145,14 @@ def _build_agent_runtime(
         encryption_key=settings.encryption_key,
         tool_executor_factory=tool_runtime.execute_tool,
     )
-    _configure_agent_runtime(
+    runtime.configure_context_assembler(
+        _resolve_context_assembler(settings, context_assembler)
+    )
+    _configure_agent_runtime_dependencies(
         runtime,
         settings=settings,
         transactions=transactions,
         tool_runtime=tool_runtime,
-        context_assembler=context_assembler,
     )
     return runtime, transactions
 
@@ -195,12 +201,14 @@ def build_agent_run_recovery_executor(
         encryption_key=settings.encryption_key,
         tool_executor_factory=tool_runtime.execute_tool,
     )
-    _configure_agent_runtime(
+    runtime.configure_context_assembler(
+        _resolve_context_assembler(settings, context_assembler)
+    )
+    _configure_agent_runtime_dependencies(
         runtime,
         settings=settings,
         transactions=transactions,
         tool_runtime=tool_runtime,
-        context_assembler=context_assembler,
     )
     return AgentRunRecoveryExecutor(runtime)
 
