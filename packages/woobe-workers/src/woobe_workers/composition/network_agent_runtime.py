@@ -158,12 +158,13 @@ class ProjectRAIAgentInvoker:
                             await stream_handler(event.event_type, payload)
 
                     output = await execution_task
+                    output_run_id = getattr(output, "run_id", None) or context.run_id
                     # Guarantee that even a Run with no intermediate public event exposes
                     # the durable Agent Run identity to the parent Network invocation.
-                    if output.run_id is not None:
+                    if output_run_id is not None:
                         await stream_handler(
                             "agent_run_identity",
-                            {"agent_run_id": str(output.run_id)},
+                            {"agent_run_id": str(output_run_id)},
                         )
             except Exception as exc:
                 # Acceptance assigns the Agent Run before model/tool work. Preserve
@@ -190,6 +191,7 @@ class ProjectRAIAgentInvoker:
                 )
                 raise failure from exc
 
+            output_run_id = getattr(output, "run_id", None) or context.run_id
             usage = output.usage.model_dump() if output.usage else None
             result = AgentInvocationResult(
                 answer=output.answer,
@@ -216,7 +218,7 @@ class ProjectRAIAgentInvoker:
                 "llm_calls",
                 llm_calls if isinstance(llm_calls, list) else [],
             )
-            object.__setattr__(result, "run_id", output.run_id)
+            object.__setattr__(result, "run_id", output_run_id)
             object.__setattr__(result, "started_at", getattr(output, "run_started_at", None))
             object.__setattr__(result, "completed_at", getattr(output, "run_completed_at", None))
             return result
