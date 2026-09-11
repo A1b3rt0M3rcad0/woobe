@@ -117,6 +117,9 @@ from modules.agent.composition.public_api import (
     upload_document_composer,
     upload_document_file_composer,
 )
+from modules.agent.composition.factories.ask_agent_runtime_factory import (
+    build_agent_run_recovery_executor,
+)
 
 __all__ = [
     "skill_catalog_composer",
@@ -128,6 +131,7 @@ __all__ = [
     'ask_agent_composer',
     'AskInput',
     'attach_collection_composer',
+    'build_agent_run_recovery_executor',
     'build_agent_run_reattach_operations',
     'build_agent_stream_components',
     'build_agent_stream_service',
