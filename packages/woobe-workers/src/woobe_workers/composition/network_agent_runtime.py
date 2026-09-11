@@ -145,6 +145,8 @@ class ProjectRAIAgentInvoker:
                             continue
 
                         payload = dict(event.payload)
+                        if context.run_id is not None:
+                            payload["agent_run_id"] = str(context.run_id)
                         if event.event_type == "token":
                             if not _is_public_runtime_token(payload):
                                 continue
@@ -156,6 +158,13 @@ class ProjectRAIAgentInvoker:
                             await stream_handler(event.event_type, payload)
 
                     output = await execution_task
+                    # Guarantee that even a Run with no intermediate public event exposes
+                    # the durable Agent Run identity to the parent Network invocation.
+                    if output.run_id is not None:
+                        await stream_handler(
+                            "agent_run_identity",
+                            {"agent_run_id": str(output.run_id)},
+                        )
             except Exception as exc:
                 if _caused_by_empty_model_output(exc):
                     failure = NetworkRuntimeFailure(
@@ -199,6 +208,7 @@ class ProjectRAIAgentInvoker:
                 "llm_calls",
                 llm_calls if isinstance(llm_calls, list) else [],
             )
+            object.__setattr__(result, "run_id", output.run_id)
             object.__setattr__(result, "started_at", getattr(output, "run_started_at", None))
             object.__setattr__(result, "completed_at", getattr(output, "run_completed_at", None))
             return result
