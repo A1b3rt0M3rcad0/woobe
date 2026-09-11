@@ -61,6 +61,14 @@ function shouldRetryAgentRunDetail(failureCount: number, error: Error): boolean 
   return error.status >= 500 && failureCount < 2
 }
 
+export function agentRunDetailRefetchInterval(
+  run: Pick<AgentRunDetail, 'status'> | undefined,
+  error: Error | null,
+): number | false {
+  if (error instanceof ApiError && error.status === 404) return false
+  return run && isTerminalStatus(run.status) ? false : TRACE_REFRESH_INTERVAL_MS
+}
+
 export function useTraces(projectId?: string, networkId?: string) {
   return useQuery({
     queryKey: ['traces', { projectId, networkId }],
@@ -114,10 +122,10 @@ export function useAgentRunDetail({
     retry: shouldRetryAgentRunDetail,
     retryDelay: (failureCount) => Math.min(300 * 2 ** failureCount, 1_200),
     staleTime: 30_000,
-    refetchInterval: (query) => {
-      const run = query.state.data
-      return run && isTerminalStatus(run.status) ? false : TRACE_REFRESH_INTERVAL_MS
-    },
+    refetchInterval: (query) => agentRunDetailRefetchInterval(
+      query.state.data,
+      query.state.error,
+    ),
     refetchIntervalInBackground: false,
   })
 }
