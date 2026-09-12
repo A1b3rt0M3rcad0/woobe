@@ -32,20 +32,20 @@ export function OperationsRail({
   const normalizedActiveTab = activeTab === 'debug' ? 'traces' : activeTab
 
   return (
-    <div className="w-[58px] shrink-0 flex flex-col items-center border-r border-border/90 bg-surface/75 py-3 gap-1 shadow-sm shadow-black/5">
+    <div className="flex w-[52px] shrink-0 flex-col items-center gap-1 border-r border-border bg-surface/[0.78] py-2">
       <button
         type="button"
         onClick={() => void onNewSession()}
         disabled={newSessionDisabled || newSessionPending}
         title={newSessionDisabledReason ?? 'New Session'}
         aria-label="New Session"
-        className="mb-1 flex w-12 flex-col items-center gap-0.5 rounded-lg border border-primary/40 bg-primary/10 py-2 text-primary-light shadow-sm shadow-primary/5 transition-colors hover:border-primary/60 hover:bg-primary/15 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-45"
+        className="mb-1 flex h-[42px] w-[42px] flex-col items-center justify-center gap-0.5 rounded-control border border-primary/35 bg-primary/[0.08] font-mono text-[7px] leading-[9px] text-primary-light transition-colors hover:bg-primary/[0.13] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-45"
       >
-        {newSessionPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <MessageSquarePlus className="h-4 w-4" />}
-        <span className="text-center text-[9px] leading-[10px]">New<br />Session</span>
+        {newSessionPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageSquarePlus className="h-3.5 w-3.5" />}
+        <span>New</span>
       </button>
 
-      <div className="my-0.5 h-px w-8 bg-border/80" aria-hidden="true" />
+      <div className="my-0.5 h-px w-7 bg-border" aria-hidden="true" />
 
       {items.map((item) => {
         const Icon = item.icon
@@ -56,15 +56,15 @@ export function OperationsRail({
             key={item.id}
             onClick={() => onTabChange(item.id)}
             className={cn(
-              'flex w-12 flex-col items-center gap-0.5 rounded-lg border py-2 text-xs transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50',
+              'flex h-[42px] w-[42px] flex-col items-center justify-center gap-0.5 rounded-control border font-mono text-[7px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
               isActive
-                ? 'border-primary/35 bg-primary/10 text-primary-light shadow-sm shadow-primary/5'
-                : 'border-transparent text-muted hover:border-border/80 hover:bg-background/60 hover:text-white',
+                ? 'border-primary/35 bg-primary/[0.10] text-primary-light'
+                : 'border-transparent text-muted-foreground hover:border-border hover:bg-control/60 hover:text-slate-50',
             )}
             title={item.label}
           >
-            <Icon className="h-4 w-4" />
-            <span className="text-[9px] leading-tight">{item.label}</span>
+            <Icon className="h-3.5 w-3.5" />
+            <span className="leading-[9px]">{item.label}</span>
           </button>
         )
       })}
