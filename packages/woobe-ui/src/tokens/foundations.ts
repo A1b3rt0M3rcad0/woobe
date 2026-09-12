@@ -27,6 +27,7 @@ export const woobeControl = {
     segment: '1.6875rem',
     compact: '1.875rem',
     default: '2.125rem',
+    navigation: '2.25rem',
     large: '2.375rem',
     row: '2.625rem',
     header: '3rem',
@@ -41,6 +42,7 @@ export const woobeControl = {
     small: '0.75rem',
     default: '0.875rem',
     large: '1rem',
+    brand: '1.25rem',
   },
 } as const
 
@@ -54,8 +56,13 @@ export const woobeBreakpoints = {
 
 export const woobeLayout = {
   projectSidebar: '16.125rem',
+  projectSidebarHeader: '4.5rem',
+  sidebarContextMenuMaxHeight: '26.25rem',
   playgroundRail: '3.25rem',
   playgroundInspectorTop: '8rem',
+  playgroundAgentNameMax: '13.75rem',
+  playgroundAgentMetaMax: '18.75rem',
+  playgroundTraceListMaxHeight: '14.875rem',
   operationsPanel: '23.25rem',
   inspector: '23.75rem',
   inspectorExpanded: '38.75rem',
@@ -68,6 +75,8 @@ export const woobeLayout = {
   dialogContentMax: '47.5rem',
   dialogMaxHeight: 'calc(100svh - 2rem)',
   dialogWorkspaceHeight: 'min(40rem, calc(100svh - 7rem))',
+  codeEditorCompact: '11.25rem',
+  codeEditorMax: '22.5rem',
 } as const
 
 export const woobeShadow = {
