@@ -1,14 +1,14 @@
 /*
- * Woobe dialog typography and danger-state contract.
+ * Woobe dialog typography, density and danger-state contract.
  *
  * Inter = readable prose and long-form user-entered content.
  * JetBrains Mono = system UI: headings, labels, controls, compact values,
  * navigation and metadata. One-line inputs are controls and therefore mono;
  * textareas/contenteditable remain Inter unless explicitly marked as technical.
  *
- * The second selector intentionally covers legacy modal surfaces that predate
- * the shared Dialog primitive. This keeps the migration incremental without
- * forcing domain workflows to be rewritten just to inherit typography.
+ * The legacy selector intentionally covers older modal surfaces that predate
+ * the shared Dialog primitive. This keeps migration incremental without
+ * rewriting feature behavior only to inherit presentation.
  */
 
 :where(
@@ -71,6 +71,40 @@
   [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
 ) [contenteditable='true']:not(.font-mono) {
   font-family: 'Inter', system-ui, sans-serif;
+}
+
+/* Shared geometry for feature dialogs that still carry legacy Tailwind classes. */
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) [class*='rounded-2xl'],
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) [class*='rounded-xl'] {
+  border-radius: 4px !important;
+}
+
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) [class*='rounded-lg'] {
+  border-radius: 3px !important;
+}
+
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) [class*='shadow-lg'],
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) [class*='shadow-xl'],
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) [class*='shadow-2xl'] {
+  box-shadow: none !important;
 }
 
 /*
