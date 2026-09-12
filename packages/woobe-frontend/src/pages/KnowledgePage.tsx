@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Database, Plus } from 'lucide-react'
+import { Button } from '@woobe/ui'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -14,7 +15,6 @@ import {
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
 import { StatusBadge } from '@/components/common/StatusBadge'
-import { Button } from '@/components/ui/Button'
 import { CollectionDetailsModal } from '@/features/knowledge/components/CollectionDetailsModalV2'
 import { KnowledgeEmbeddingPanel } from '@/features/knowledge/components/CollectionVectorWorkspace'
 import { CreateCollectionModal } from '@/features/knowledge/components/CreateCollectionModal'
@@ -67,7 +67,7 @@ export default function KnowledgePage() {
             else setShowCreateEmbeddingModel(true)
           }}
         >
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
           {section === 'collections' ? 'New Collection' : 'Add Embedding Model'}
         </Button>
       )}
@@ -101,9 +101,9 @@ export default function KnowledgePage() {
           {isLoading ? (
             <LoadingState message="Loading Collections" variant="panel" layout="compact-cards" />
           ) : isError ? (
-            <ErrorState error={error} onRetry={refetch} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
+            <ErrorState error={error} onRetry={refetch} className="rounded-container border border-border bg-surface/70 py-10" />
           ) : visibleCollections.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {visibleCollections.map((collection: Collection) => (
                 <ResourceCard
                   key={collection.id}
