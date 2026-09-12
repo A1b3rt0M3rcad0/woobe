@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ExternalLink, Key, Pencil, Play } from 'lucide-react'
 import { CodePanel, SectionBlock } from '@woobe/ui'
@@ -12,7 +13,7 @@ import { StatusBadge } from '@/components/common/StatusBadge'
 import { CopyButton } from '@/components/common/CopyButton'
 import { workspaceProjectPath } from '@/lib/constants/routes'
 
-function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
   return <div className="flex items-center justify-between gap-4 border-b border-border py-2 last:border-b-0"><span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted">{label}</span><span className="min-w-0 text-right font-sans text-xs text-slate-200">{value}</span></div>
 }
 
