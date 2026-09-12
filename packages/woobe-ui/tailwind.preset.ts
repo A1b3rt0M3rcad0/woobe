@@ -10,6 +10,7 @@ import {
   woobeSpacing,
   woobeTypography,
   woobeTypographyScale,
+  woobeTypographyTracking,
 } from './src/tokens'
 
 const woobeTailwindPreset = {
@@ -33,8 +34,13 @@ const woobeTailwindPreset = {
         'heading-lg': woobeTypographyScale.headingLarge,
         metric: woobeTypographyScale.metric,
       },
+      letterSpacing: {
+        'ui-label': woobeTypographyTracking.label,
+        'ui-eyebrow': woobeTypographyTracking.eyebrow,
+      },
       spacing: {
         'ui-hairline': woobeSpacing.hairline,
+        'ui-control-inset': woobeSpacing.controlInset,
         'ui-xs': woobeSpacing.xs,
         'ui-sm': woobeSpacing.sm,
         'ui-md': woobeSpacing.md,
