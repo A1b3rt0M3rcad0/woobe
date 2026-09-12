@@ -3,7 +3,7 @@ import { cn } from '../lib/cn'
 
 const Field = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('grid gap-1.5', className)} {...props} />
+    <div ref={ref} className={cn('grid gap-ui-sm', className)} {...props} />
   ),
 )
 Field.displayName = 'Field'
@@ -13,7 +13,7 @@ const FieldLabel = forwardRef<HTMLLabelElement, LabelHTMLAttributes<HTMLLabelEle
     <label
       ref={ref}
       className={cn(
-        'font-mono text-[10px] font-medium uppercase leading-none tracking-[0.08em] text-muted-foreground',
+        'font-mono text-system-control font-medium uppercase leading-none tracking-[0.08em] text-muted-foreground',
         className,
       )}
       {...props}
@@ -24,14 +24,14 @@ FieldLabel.displayName = 'FieldLabel'
 
 const FieldDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => (
-    <p ref={ref} className={cn('font-mono text-[9px] leading-4 text-muted-foreground', className)} {...props} />
+    <p ref={ref} className={cn('font-sans text-product-caption text-muted-foreground', className)} {...props} />
   ),
 )
 FieldDescription.displayName = 'FieldDescription'
 
 const FieldError = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => (
-    <p ref={ref} className={cn('font-mono text-[9px] leading-4 text-red-400', className)} {...props} />
+    <p ref={ref} className={cn('font-sans text-product-caption text-red-400', className)} {...props} />
   ),
 )
 FieldError.displayName = 'FieldError'
