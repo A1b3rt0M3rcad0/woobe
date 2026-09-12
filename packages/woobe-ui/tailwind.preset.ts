@@ -84,6 +84,7 @@ const woobeTailwindPreset = {
       maxHeight: {
         dialog: woobeLayout.dialogMaxHeight,
         'sidebar-context': woobeLayout.sidebarContextMenuMaxHeight,
+        popover: woobeLayout.popoverMaxHeight,
         'trace-list': woobeLayout.playgroundTraceListMaxHeight,
         'code-editor': woobeLayout.codeEditorMax,
         multiline: woobeControl.maxHeight.multiline,
@@ -126,6 +127,7 @@ const woobeTailwindPreset = {
       },
       minWidth: {
         popover: woobeLayout.popoverCompactMinWidth,
+        'content-table-cell': woobeLayout.contentTableCellMin,
       },
       inset: {
         'playground-inspector': woobeLayout.playgroundInspectorTop,
