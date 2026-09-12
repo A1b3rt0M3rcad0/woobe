@@ -16,7 +16,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
         invalid={Boolean(error)}
         options={options}
         placeholder={placeholder}
-        className={cn(className)}
+        className={cn('!h-[34px]', className)}
         {...props}
       />
       {error && <p className="mt-1 font-mono text-[9px] text-red-300">{error}</p>}
