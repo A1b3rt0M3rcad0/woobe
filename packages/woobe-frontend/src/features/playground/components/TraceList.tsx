@@ -1,5 +1,5 @@
 import { ChevronRight, Filter, RefreshCw, AlertCircle, Activity } from 'lucide-react'
-import { EmptyStatePanel, TechnicalListItem } from '@woobe/ui'
+import { Button, EmptyStatePanel, TechnicalListItem } from '@woobe/ui'
 import { cn } from '@/lib/utils'
 import { formatLatency, formatDateTime } from '@/lib/formatters/number'
 import type { TraceItem } from '@/features/playground/types'
@@ -44,15 +44,30 @@ function getDateGroup(dateStr: string): string {
 
 export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, isError, errorMessage, onRetry }: TraceListProps) {
   if (isLoading) {
-    return <div className="p-3"><EmptyStatePanel compact icon={<RefreshCw className="h-4 w-4 animate-spin" />} title="Loading Agent Runs" /></div>
+    return <div className="p-ui-md"><EmptyStatePanel compact icon={<RefreshCw className="h-icon-lg w-icon-lg animate-spin" />} title="Loading Agent Runs" /></div>
   }
 
   if (isError) {
-    return <div className="p-3"><EmptyStatePanel compact icon={<AlertCircle className="h-4 w-4 text-red-300" />} title="Failed to load Agent Runs" description={errorMessage || 'The Runs list could not be loaded.'} action={onRetry ? <button type="button" onClick={onRetry} className="inline-flex h-[27px] items-center gap-1.5 rounded-control border border-border bg-control/35 px-2.5 font-mono text-[8px] text-slate-200"><RefreshCw className="h-3 w-3" />Retry</button> : undefined} /></div>
+    return (
+      <div className="p-ui-md">
+        <EmptyStatePanel
+          compact
+          icon={<AlertCircle className="h-icon-lg w-icon-lg text-red-300" />}
+          title="Failed to load Agent Runs"
+          description={errorMessage || 'The Runs list could not be loaded.'}
+          action={onRetry ? (
+            <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+              <RefreshCw className="h-icon-sm w-icon-sm" />
+              Retry
+            </Button>
+          ) : undefined}
+        />
+      </div>
+    )
   }
 
   if (traces.length === 0) {
-    return <div className="p-3"><EmptyStatePanel compact icon={<Activity className="h-4 w-4" />} title="No Agent Runs yet" description="Send a message to create an Agent Run." /></div>
+    return <div className="p-ui-md"><EmptyStatePanel compact icon={<Activity className="h-icon-lg w-icon-lg" />} title="No Agent Runs yet" description="Send a message to create an Agent Run." /></div>
   }
 
   const grouped = traces.reduce<Record<string, TraceItem[]>>((acc, trace) => {
@@ -64,23 +79,26 @@ export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, i
   const groupOrder = ['Today', 'Yesterday', 'This Week', 'Older']
 
   return (
-    <div className="p-3">
-      <div className="mb-3 flex items-center justify-between gap-3 border-b border-border/70 pb-2.5">
+    <div className="p-ui-md">
+      <div className="mb-ui-md flex items-center justify-between gap-ui-md border-b border-border/70 pb-ui-sm">
         <div>
-          <h3 className="font-mono text-[10px] font-semibold text-slate-50">Agent Runs</h3>
-          <p className="mt-0.5 font-sans text-[9px] leading-4 text-muted-foreground">One Run for each Agent execution.</p>
+          <h3 className="font-mono text-system-control font-semibold text-slate-50">Agent Runs</h3>
+          <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">One Run for each Agent execution.</p>
         </div>
-        <button type="button" className="inline-flex h-[27px] items-center gap-1 rounded-control border border-transparent px-2 font-mono text-[8px] text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50"><Filter className="h-3 w-3" />Filter</button>
+        <Button type="button" size="sm" variant="ghost" className="text-muted-foreground">
+          <Filter className="h-icon-sm w-icon-sm" />
+          Filter
+        </Button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-ui-md">
         {groupOrder.map((group) => {
           const items = grouped[group]
           if (!items?.length) return null
           return (
             <div key={group}>
-              <p className="mb-1.5 font-mono text-[8px] uppercase tracking-[0.08em] text-muted-foreground">{group}</p>
-              <div className="space-y-1.5">
+              <p className="mb-ui-sm font-mono text-system-meta uppercase tracking-[0.08em] text-muted-foreground">{group}</p>
+              <div className="space-y-ui-sm">
                 {items.map((trace) => (
                   <TechnicalListItem
                     key={trace.id}
@@ -89,7 +107,7 @@ export function TraceList({ traces, selectedTraceId, onSelectTrace, isLoading, i
                     label={`Agent Run · ${trace.status}`}
                     leading={<span className={cn('h-2 w-2 rounded-full', statusDot[trace.status] || 'bg-slate-400')} />}
                     meta={<span>{formatDateTime(trace.timestamp)}</span>}
-                    trailing={<span className="flex items-center gap-2"><span className="font-mono text-[8px] text-muted-foreground">{formatLatency(trace.latency_ms)}</span><ChevronRight className={cn('h-3 w-3', selectedTraceId === trace.id ? 'text-primary-light' : 'text-muted-foreground')} /></span>}
+                    trailing={<span className="flex items-center gap-ui-sm"><span className="font-mono text-system-meta text-muted-foreground">{formatLatency(trace.latency_ms)}</span><ChevronRight className={cn('h-icon-sm w-icon-sm', selectedTraceId === trace.id ? 'text-primary-light' : 'text-muted-foreground')} /></span>}
                   />
                 ))}
               </div>
