@@ -82,24 +82,24 @@ export function JsonCodeBlock({
     <>
       {actions.includes('collapse') && displayText ? <ActionButton label={collapsed ? 'Expand' : 'Collapse'} title={collapsed ? 'Expand' : 'Collapse'} onClick={() => setCollapsed(value => !value)}>{collapsed ? <ChevronRight className="h-icon-sm w-icon-sm" /> : <ChevronDown className="h-icon-sm w-icon-sm" />}</ActionButton> : null}
       {actions.includes('format') && displayText ? <ActionButton label="Format JSON" title="Format JSON" onClick={() => {}}><Paintbrush className="h-icon-sm w-icon-sm" /></ActionButton> : null}
-      {actions.includes('copy') && displayText ? <ActionButton label="Copy JSON" title={copied ? 'Copied!' : 'Copy'} onClick={handleCopy}>{copied ? <Check className="h-icon-sm w-icon-sm text-emerald-300" /> : <Copy className="h-icon-sm w-icon-sm" />}</ActionButton> : null}
+      {actions.includes('copy') && displayText ? <ActionButton label="Copy JSON" title={copied ? 'Copied!' : 'Copy'} onClick={handleCopy}>{copied ? <Check className="h-icon-sm w-icon-sm text-success" /> : <Copy className="h-icon-sm w-icon-sm" />}</ActionButton> : null}
       {actions.includes('expand') && displayText ? <ActionButton label="Expand JSON" title="Expand JSON" onClick={() => setExpanded(true)}><Maximize2 className="h-icon-sm w-icon-sm" /></ActionButton> : null}
     </>
   )
 
   return (
     <>
-      <CodePanel title={title || 'JSON'} badge={isInvalid ? <span className="text-red-300">INVALID</span> : 'JSON'} actions={panelActions} density="compact" className={cn(className)}>
+      <CodePanel title={title || 'JSON'} badge={isInvalid ? <span className="text-error">INVALID</span> : 'JSON'} actions={panelActions} density="compact" className={cn(className)}>
         {visible && displayText ? <div className="scrollbar-thin overflow-auto bg-background/20" style={{ maxHeight: typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight }}><CodeMirror value={displayText} extensions={cmExtensions} readOnly basicSetup={cmBasicSetup} className="cm-custom-scroll" theme="none" /></div> : null}
         {visible && !displayText ? <div className="p-ui-md"><EmptyStatePanel compact title="No JSON data" /></div> : null}
       </CodePanel>
 
       {expanded && createPortal(
-        <div ref={overlayRef} className="fixed inset-0 z-focus flex items-center justify-center bg-background/82 p-ui-lg backdrop-blur-[2px]" onClick={(event) => { if (event.target === overlayRef.current) setExpanded(false) }}>
+        <div ref={overlayRef} className="fixed inset-0 z-focus flex items-center justify-center bg-background/82 p-ui-lg backdrop-blur-sm" onClick={(event) => { if (event.target === overlayRef.current) setExpanded(false) }}>
           <div role="dialog" aria-modal="true" aria-label={title || 'JSON'} className="flex h-focus-workspace w-focus-workspace flex-col overflow-hidden rounded-container border border-border bg-surface shadow-overlay">
             <div className="flex min-h-panel-header shrink-0 items-center justify-between border-b border-border px-ui-md">
-              <div className="flex min-w-0 items-center gap-ui-sm"><span className="truncate font-mono text-system-control font-semibold text-slate-50">{title || 'Raw JSON'}</span><span className="rounded-technical border border-primary/25 bg-primary/[0.08] px-ui-xs py-ui-hairline font-mono text-system-meta uppercase tracking-[0.08em] text-primary-light">JSON</span></div>
-              <div className="flex items-center gap-ui-xs"><ActionButton label="Copy JSON" title={copied ? 'Copied!' : 'Copy'} onClick={handleCopy}>{copied ? <Check className="h-icon-sm w-icon-sm text-emerald-300" /> : <Copy className="h-icon-sm w-icon-sm" />}</ActionButton><ActionButton label="Close" title="Close" onClick={() => setExpanded(false)}><X className="h-icon-sm w-icon-sm" /></ActionButton></div>
+              <div className="flex min-w-0 items-center gap-ui-sm"><span className="truncate font-mono text-system-control font-semibold text-accent-foreground">{title || 'Raw JSON'}</span><span className="rounded-technical border border-primary/25 bg-primary/[0.08] px-ui-xs py-ui-hairline font-mono text-system-meta uppercase tracking-wide text-primary-light">JSON</span></div>
+              <div className="flex items-center gap-ui-xs"><ActionButton label="Copy JSON" title={copied ? 'Copied!' : 'Copy'} onClick={handleCopy}>{copied ? <Check className="h-icon-sm w-icon-sm text-success" /> : <Copy className="h-icon-sm w-icon-sm" />}</ActionButton><ActionButton label="Close" title="Close" onClick={() => setExpanded(false)}><X className="h-icon-sm w-icon-sm" /></ActionButton></div>
             </div>
             <div className="min-h-0 flex-1 bg-background/20"><CodeMirror value={displayText} extensions={cmExtensions} readOnly basicSetup={cmBasicSetup} theme="none" height="100%" className="h-full" /></div>
           </div>
