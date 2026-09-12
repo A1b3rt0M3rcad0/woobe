@@ -9,28 +9,17 @@ export function AgentRuntimeSettings({ projectId }: { projectId: string }) {
   const sessionLabel = state.sessionMode === 'stateless' ? 'Stateless' : 'Stateful'
 
   return (
-    <div className="p-4">
-      <section aria-label="Runtime" className="rounded-xl border border-border bg-surface">
-        <div className="flex items-center gap-3 p-4">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light">
-            <ServerCog className="h-4 w-4" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold text-foreground">Runtime</span>
-            <span className="mt-0.5 block text-[11px] text-muted">Context Manager · {sessionLabel}</span>
-          </span>
+    <div className="p-3">
+      <section aria-label="Runtime" className="rounded-container border border-border bg-surface/[0.72]">
+        <div className="flex items-start gap-2.5 border-b border-border p-3">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light"><ServerCog className="h-3.5 w-3.5" /></span>
+          <div className="min-w-0 flex-1"><p className="font-mono text-[9px] font-bold text-slate-50">Runtime</p><p className="mt-0.5 font-sans text-[9px] leading-4 text-muted-foreground">Context Manager · {sessionLabel}</p></div>
         </div>
 
-        <div className="space-y-5 border-t border-border p-4">
-          <p className="text-xs leading-5 text-muted">
-            Configure how this Agent assembles context and whether Session continuity is preserved between Runs.
-          </p>
-
-          <AgentContextAssemblerField projectId={projectId} compact />
-
-          <div className="border-t border-border/80 pt-5">
-            <AgentSessionModeField compact />
-          </div>
+        <div className="space-y-4 p-3">
+          <p className="font-sans text-[9px] leading-4 text-muted-foreground">Configure how this Agent assembles context and whether Session continuity is preserved between Runs.</p>
+          <div className="rounded-container border border-border bg-background/20 p-3"><AgentContextAssemblerField projectId={projectId} compact /></div>
+          <div className="rounded-container border border-border bg-background/20 p-3"><AgentSessionModeField compact /></div>
         </div>
       </section>
     </div>
