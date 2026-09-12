@@ -81,6 +81,10 @@ export const woobeLayout = {
   dialogWorkspaceHeight: 'min(40rem, calc(100svh - 7rem))',
   focusWorkspaceWidth: 'min(94vw, 93.75rem)',
   focusWorkspaceHeight: 'min(88svh, 57.5rem)',
+  codeSnippetCompact: '5.25rem',
+  codeSnippetDefault: '7.5rem',
+  codeStructuredCompact: '13.75rem',
+  codeStructuredDefault: '21.25rem',
   codeEditorCompact: '11.25rem',
   codeEditorMax: '22.5rem',
 } as const
