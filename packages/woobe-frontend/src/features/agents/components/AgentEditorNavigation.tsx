@@ -90,12 +90,8 @@ export function AgentEditorNavigation({
   const activeGroup = groupForAgentEditorSection(value)
 
   return (
-    <nav aria-label="Agent configuration" className="shrink-0 border-b border-border/80 bg-surface/45">
-      <div
-        role="group"
-        aria-label="Agent configuration groups"
-        className="grid grid-cols-4 px-2 pt-1.5"
-      >
+    <nav aria-label="Agent configuration" className="shrink-0 border-b border-border bg-surface/55">
+      <div role="group" aria-label="Agent configuration groups" className="grid grid-cols-4 gap-[3px] border-b border-border/60 p-[3px]">
         {agentEditorGroups.map(group => {
           const Icon = group.icon
           const active = activeGroup.id === group.id
@@ -106,12 +102,13 @@ export function AgentEditorNavigation({
               aria-pressed={active}
               onClick={() => onChange(group.sections[0].id)}
               className={cn(
-                'relative flex min-w-0 items-center justify-center border-b-2 border-transparent font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
-                'gap-1.5 px-1.5 py-2 text-[10px]',
-                active ? 'border-primary text-white' : 'text-muted hover:text-white',
+                'flex h-[30px] min-w-0 items-center justify-center gap-1 rounded-technical border px-1.5 font-mono text-[8px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
+                active
+                  ? 'border-primary/35 bg-primary/[0.10] text-slate-50'
+                  : 'border-transparent text-muted-foreground hover:bg-control/45 hover:text-slate-50',
               )}
             >
-              <Icon className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-primary-light' : 'text-muted')} />
+              <Icon className={cn('h-3 w-3 shrink-0', active ? 'text-primary-light' : 'text-muted-foreground')} />
               <span className="truncate">{group.label}</span>
             </button>
           )
@@ -127,8 +124,10 @@ export function AgentEditorNavigation({
               aria-pressed={value === section.id}
               onClick={() => onChange(section.id)}
               className={cn(
-                'rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
-                value === section.id ? 'bg-primary/10 text-primary-light' : 'text-muted hover:bg-background/45 hover:text-white',
+                'flex h-[27px] items-center rounded-technical border px-2.5 font-mono text-[8px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
+                value === section.id
+                  ? 'border-primary/35 bg-primary/[0.10] text-primary-light'
+                  : 'border-transparent text-muted-foreground hover:border-border hover:bg-control/45 hover:text-slate-50',
               )}
             >
               {section.label}
