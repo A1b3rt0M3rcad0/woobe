@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { History, RotateCcw, X } from 'lucide-react'
 
+import { dialogTypographyClass } from '@/components/ui/Dialog'
 import type { NetworkVersion } from '../types'
 import { cn } from '@/lib/utils'
 
@@ -25,7 +26,7 @@ export function NetworkRollbackDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[86vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-label="Select a historical Network release" className={`${dialogTypographyClass} flex max-h-[86vh] w-full max-w-xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl`}>
         <header className="flex items-start gap-3 border-b border-border p-5">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-500/25 bg-amber-500/10 text-amber-300"><History className="h-4 w-4" /></div>
           <div className="min-w-0 flex-1">
