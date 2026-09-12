@@ -54,6 +54,7 @@ export {
   woobeSpacing,
   woobeTypography,
   woobeTypographyScale,
+  woobeTypographyTracking,
   type WoobeCodeTheme,
   type WoobeColors,
 } from './tokens'
