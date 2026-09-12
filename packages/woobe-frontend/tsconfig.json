@@ -23,7 +23,8 @@
       "@woobe/ui": ["../woobe-ui/src/index.ts"],
       "@woobe/ui/*": ["../woobe-ui/src/*"],
       "react": ["./node_modules/@types/react/index.d.ts"],
-      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime.d.ts"]
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime.d.ts"],
+      "tailwind-merge": ["./node_modules/tailwind-merge"]
     }
   },
   "include": ["src", "../woobe-ui/src"]
