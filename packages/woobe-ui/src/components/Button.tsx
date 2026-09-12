@@ -7,17 +7,17 @@ export type ButtonSize = 'default' | 'sm' | 'lg' | 'icon'
 const variantClasses: Record<ButtonVariant, string> = {
   default: 'border border-primary bg-primary text-white hover:border-primary-hover hover:bg-primary-hover',
   secondary: 'border border-border bg-accent text-accent-foreground hover:bg-border',
-  outline: 'border border-border bg-control text-slate-200 hover:border-slate-600 hover:bg-[#13203a] hover:text-white',
+  outline: 'border border-border bg-control text-slate-200 hover:border-slate-600 hover:bg-accent hover:text-white',
   ghost: 'border border-transparent bg-transparent text-slate-300 hover:bg-accent hover:text-accent-foreground',
   destructive: 'border border-red-500/40 bg-red-500/[0.10] text-red-200 hover:border-red-500/55 hover:bg-red-500/[0.16] hover:text-red-100',
   link: 'border border-transparent bg-transparent p-0 text-primary-light underline-offset-4 hover:underline',
 }
 
 const sizeClasses: Record<ButtonSize, string> = {
-  default: 'h-[34px] px-3',
-  sm: 'h-[30px] px-2.5 text-[9px]',
-  lg: 'h-[38px] px-4',
-  icon: 'h-[34px] w-[34px] p-0',
+  default: 'h-control px-ui-md',
+  sm: 'h-control-sm px-ui-sm text-system-label',
+  lg: 'h-control-lg px-ui-lg',
+  icon: 'h-control w-[2.125rem] p-0',
 }
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -33,7 +33,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cn(
-        'inline-flex items-center justify-center whitespace-nowrap rounded-control font-mono text-[10px] font-medium transition-colors',
+        'inline-flex items-center justify-center whitespace-nowrap rounded-control font-mono text-system-control font-medium transition-colors',
         'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-background',
         'disabled:pointer-events-none disabled:opacity-50',
         variantClasses[variant],
@@ -45,7 +45,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       {loading && (
         <span
           aria-hidden="true"
-          className="mr-2 h-3 w-3 animate-spin rounded-full border border-current border-r-transparent"
+          className="mr-ui-sm h-3 w-3 animate-spin rounded-full border border-current border-r-transparent"
         />
       )}
       {children}
