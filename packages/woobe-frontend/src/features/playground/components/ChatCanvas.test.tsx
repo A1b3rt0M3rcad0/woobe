@@ -108,7 +108,7 @@ describe('ChatCanvas shared Agent and Network surface', () => {
 
     expect(html).toContain('Network answer')
     expect(html).toContain('lucide-workflow')
-    expect(html).toContain('rounded-container px-3 py-2.5 text-[13px] leading-5')
+    expect(html).toContain('rounded-container px-ui-md py-ui-sm text-product-body')
     expect(html).not.toContain('rounded-xl rounded-bl-md')
     expect(html).not.toContain('rounded-lg rounded-bl-sm')
   })
