@@ -15,8 +15,8 @@ const CodePanel = forwardRef<HTMLDivElement, CodePanelProps>(
       <div className={cn('flex items-center justify-between gap-ui-md border-b border-border bg-control/25', density === 'compact' ? 'min-h-control px-ui-lg' : 'min-h-control-row px-ui-md')}>
         <div className="flex min-w-0 items-center gap-ui-sm">
           {icon ? <span className="shrink-0 text-primary-light">{icon}</span> : null}
-          <span className="truncate font-mono text-system-label font-semibold text-slate-100">{title}</span>
-          {badge ? <span className="shrink-0 rounded-technical border border-primary/25 bg-primary/[0.08] px-ui-xs py-ui-hairline font-mono text-system-meta uppercase tracking-[0.08em] text-primary-light">{badge}</span> : null}
+          <span className="truncate font-mono text-system-label font-semibold text-accent-foreground/90">{title}</span>
+          {badge ? <span className="shrink-0 rounded-technical border border-primary/25 bg-primary/[0.08] px-ui-xs py-ui-hairline font-mono text-system-meta uppercase tracking-ui-label text-primary-light">{badge}</span> : null}
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-ui-xs">{actions}</div> : null}
       </div>
