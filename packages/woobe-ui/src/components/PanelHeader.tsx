@@ -34,7 +34,7 @@ export function PanelHeader({
           </span>
         ) : null}
         <div className="min-w-0">
-          <div className="font-mono text-system-label font-bold text-slate-50">{title}</div>
+          <div className="font-mono text-system-label font-bold text-accent-foreground">{title}</div>
           {description ? <div className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{description}</div> : null}
         </div>
       </div>
