@@ -70,26 +70,28 @@ export function Dialog({
 
   const dialogContent = (
     <div
+      role={presentation === 'modal' ? 'dialog' : undefined}
+      aria-modal={presentation === 'modal' ? true : undefined}
       className={cn(
-        'dialog-scrollbars relative w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl',
+        'dialog-scrollbars relative w-full max-w-lg rounded-container border border-border bg-surface text-accent-foreground shadow-[0_12px_40px_rgba(0,0,0,0.24)]',
         contentScroll && 'flex max-h-[calc(100svh-2rem)] flex-col overflow-hidden',
         className,
       )}
     >
-      <div className="flex shrink-0 items-center justify-between border-b border-border px-6 py-4">
-        {title && <h2 className="text-lg font-semibold">{title}</h2>}
+      <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-border px-5">
+        {title ? <h2 className="font-mono text-xs font-bold tracking-[0.015em] text-slate-50">{title}</h2> : <span />}
         <button
           type="button"
           onClick={onClose}
-          className="ml-auto rounded-lg p-1 transition-colors hover:bg-accent"
+          className="ml-auto flex h-7 w-7 items-center justify-center rounded-technical border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
           aria-label="Close dialog"
         >
-          <X className="h-4 w-4" />
+          <X className="h-3.5 w-3.5" />
         </button>
       </div>
       <div
         className={cn(
-          'p-6',
+          'p-5',
           contentClassName,
           contentScroll && `min-h-0 flex-1 overflow-y-auto overscroll-contain ${INTERNAL_SCROLLBAR}`,
         )}
@@ -107,7 +109,7 @@ export function Dialog({
     <div
       ref={overlayRef}
       className={cn(
-        'fixed inset-0 flex min-h-svh w-screen items-center justify-center bg-black/70 p-4 backdrop-blur-md',
+        'fixed inset-0 flex min-h-svh w-screen items-center justify-center bg-background/80 p-4 backdrop-blur-sm',
         contentScroll ? 'overflow-hidden' : 'overflow-y-auto',
         UI_LAYER_CLASS[layer],
       )}
