@@ -10,18 +10,8 @@ type DialogScrollMode = 'overlay' | 'content'
 
 const DialogPresentationContext = createContext<DialogPresentation>('modal')
 
-export function DialogPresentationProvider({
-  presentation,
-  children,
-}: {
-  presentation: DialogPresentation
-  children: ReactNode
-}) {
-  return (
-    <DialogPresentationContext.Provider value={presentation}>
-      {children}
-    </DialogPresentationContext.Provider>
-  )
+export function DialogPresentationProvider({ presentation, children }: { presentation: DialogPresentation; children: ReactNode }) {
+  return <DialogPresentationContext.Provider value={presentation}>{children}</DialogPresentationContext.Provider>
 }
 
 interface DialogProps {
@@ -40,8 +30,8 @@ const INTERNAL_SCROLLBAR = 'scrollbar-thin'
 export const dialogTypographyClass = [
   'font-sans',
   '[&_h1]:font-mono [&_h2]:font-mono [&_h3]:font-mono [&_h4]:font-mono [&_h5]:font-mono [&_h6]:font-mono',
-  '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_input]:font-mono [&_input]:text-[10px] [&_select]:font-mono',
-  '[&_select]:h-[34px] [&_select]:rounded-control [&_select]:border-border [&_select]:bg-control [&_select]:text-[10px] [&_select]:text-slate-100',
+  '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_input]:font-mono [&_input]:text-system-control [&_select]:font-mono',
+  '[&_select]:h-control [&_select]:rounded-control [&_select]:border-border [&_select]:bg-control [&_select]:text-system-control [&_select]:text-slate-100',
   '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
   '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono [&_.font-medium]:font-mono [&_.font-semibold]:font-mono [&_aside]:font-mono',
 ].join(' ')
@@ -83,46 +73,38 @@ export function Dialog({
       role={presentation === 'modal' ? 'dialog' : undefined}
       aria-modal={presentation === 'modal' ? true : undefined}
       className={cn(
-        'dialog-scrollbars relative w-full max-w-lg rounded-container border border-border bg-surface text-accent-foreground shadow-[0_12px_40px_rgba(0,0,0,0.24)]',
+        'dialog-scrollbars relative w-full max-w-dialog-compact rounded-container border border-border bg-surface text-accent-foreground shadow-overlay',
         dialogTypographyClass,
         '[&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-control [&_.rounded-md]:rounded-technical',
         '[&_.shadow-sm]:shadow-none [&_.shadow-lg]:shadow-none [&_.shadow-xl]:shadow-none [&_.shadow-2xl]:shadow-none',
-        contentScroll && 'flex max-h-[calc(100svh-2rem)] flex-col overflow-hidden',
+        contentScroll && 'flex max-h-dialog flex-col overflow-hidden',
         className,
       )}
     >
-      <div className="flex h-[52px] shrink-0 items-center justify-between border-b border-border px-5">
-        {title ? <h2 className="font-mono text-xs font-bold tracking-[0.015em] text-slate-50">{title}</h2> : <span />}
+      <div className="flex h-dialog-header shrink-0 items-center justify-between border-b border-border px-ui-xl">
+        {title ? <h2 className="font-mono text-system-heading font-bold text-slate-50">{title}</h2> : <span />}
         <button
           type="button"
           onClick={onClose}
-          className="ml-auto flex h-7 w-7 items-center justify-center rounded-technical border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+          className="ml-auto flex h-control-sm w-control-sm items-center justify-center rounded-technical border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
           aria-label="Close dialog"
         >
           <X className="h-3.5 w-3.5" />
         </button>
       </div>
-      <div
-        className={cn(
-          'p-5',
-          contentClassName,
-          contentScroll && `min-h-0 flex-1 overflow-y-auto overscroll-contain ${INTERNAL_SCROLLBAR}`,
-        )}
-      >
+      <div className={cn('p-ui-xl', contentClassName, contentScroll && `min-h-0 flex-1 overflow-y-auto overscroll-contain ${INTERNAL_SCROLLBAR}`)}>
         {children}
       </div>
     </div>
   )
 
-  if (presentation === 'embedded') {
-    return dialogContent
-  }
+  if (presentation === 'embedded') return dialogContent
 
   return createPortal(
     <div
       ref={overlayRef}
       className={cn(
-        'fixed inset-0 flex min-h-svh w-screen items-center justify-center bg-background/80 p-4 backdrop-blur-sm',
+        'fixed inset-0 flex min-h-svh w-screen items-center justify-center bg-background/80 p-ui-lg backdrop-blur-sm',
         contentScroll ? 'overflow-hidden' : 'overflow-y-auto',
         UI_LAYER_CLASS[layer],
       )}
