@@ -5,6 +5,7 @@ import { Badge, Button, Card, Input } from '@woobe/ui'
 import { toast } from 'sonner'
 
 import { CreateProjectDialog } from '@/components/forms/CreateProjectDialog'
+import { WorkspaceSettingsDialog } from '@/features/workspaces/components/WorkspaceSettingsDialog'
 import { useWorkspaceDetail } from '@/features/workspaces/hooks'
 import { useCreateProject, useProjects } from '@/features/projects/hooks'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
@@ -180,6 +181,7 @@ export default function WorkspaceProjectsPage() {
   const createProject = useCreateProject(workspaceId)
   const [query, setQuery] = useState('')
   const [showCreate, setShowCreate] = useState(false)
+  const [showWorkspaceSettings, setShowWorkspaceSettings] = useState(false)
 
   const items = projects ?? []
   const currentRole = currentWorkspace?.membership_role
@@ -261,7 +263,7 @@ export default function WorkspaceProjectsPage() {
             <ArrowLeft className="h-3.5 w-3.5" />
             Change Workspace
           </Button>
-          <Button type="button" variant="outline" onClick={() => navigate(`/workspaces/${workspaceId}/settings`)}>
+          <Button type="button" variant="outline" onClick={() => setShowWorkspaceSettings(true)}>
             <Building2 className="h-3.5 w-3.5" />
             Workspace
           </Button>
@@ -333,6 +335,14 @@ export default function WorkspaceProjectsPage() {
         onSubmit={handleCreate}
         loading={createProject.isPending}
       />
+
+      {showWorkspaceSettings && (
+        <WorkspaceSettingsDialog
+          open
+          workspaceId={workspaceId}
+          onClose={() => setShowWorkspaceSettings(false)}
+        />
+      )}
     </div>
   )
 }
