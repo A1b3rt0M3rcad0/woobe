@@ -58,6 +58,10 @@ const woobeTailwindPreset = {
         'workspace-header': woobeControl.height.workspaceHeader,
         'project-sidebar-header': woobeLayout.projectSidebarHeader,
         'dialog-workspace': woobeLayout.dialogWorkspaceHeight,
+        'icon-sm': woobeControl.icon.small,
+        icon: woobeControl.icon.default,
+        'icon-lg': woobeControl.icon.large,
+        'icon-brand': woobeControl.icon.brand,
       },
       minHeight: {
         'control-segment': woobeControl.height.segment,
@@ -69,6 +73,7 @@ const woobeTailwindPreset = {
         'panel-header': woobeControl.height.header,
         'textarea-compact': woobeControl.minHeight.textareaCompact,
         textarea: woobeControl.minHeight.textarea,
+        'code-editor': woobeLayout.codeEditorCompact,
       },
       maxHeight: {
         dialog: woobeLayout.dialogMaxHeight,
@@ -105,9 +110,6 @@ const woobeTailwindPreset = {
         'inspector-expanded': woobeLayout.inspectorExpanded,
         'playground-agent-name': woobeLayout.playgroundAgentNameMax,
         'playground-agent-meta': woobeLayout.playgroundAgentMetaMax,
-      },
-      minWidth: {
-        'code-editor': woobeLayout.codeEditorCompact,
       },
       inset: {
         'playground-inspector': woobeLayout.playgroundInspectorTop,
