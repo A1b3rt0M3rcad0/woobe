@@ -13,7 +13,7 @@ const FieldLabel = forwardRef<HTMLLabelElement, LabelHTMLAttributes<HTMLLabelEle
     <label
       ref={ref}
       className={cn(
-        'font-mono text-system-control font-medium uppercase leading-none tracking-[0.08em] text-muted-foreground',
+        'font-mono text-system-control font-medium uppercase leading-none tracking-ui-label text-muted-foreground',
         className,
       )}
       {...props}
@@ -31,7 +31,7 @@ FieldDescription.displayName = 'FieldDescription'
 
 const FieldError = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => (
-    <p ref={ref} className={cn('font-sans text-product-caption text-red-400', className)} {...props} />
+    <p ref={ref} className={cn('font-sans text-product-caption text-error', className)} {...props} />
   ),
 )
 FieldError.displayName = 'FieldError'
