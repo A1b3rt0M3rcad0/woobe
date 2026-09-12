@@ -88,7 +88,7 @@ describe('ChatCanvas shared Agent and Network surface', () => {
     expect(html).toContain('Enter to send')
   })
 
-  it('renders Network messages with the same comfortable message geometry as standalone Chat', () => {
+  it('renders Network messages with the same compact message geometry as standalone Chat', () => {
     const html = renderToStaticMarkup(
       <ChatCanvas
         entries={[
@@ -108,8 +108,8 @@ describe('ChatCanvas shared Agent and Network surface', () => {
 
     expect(html).toContain('Network answer')
     expect(html).toContain('lucide-workflow')
-    expect(html).toContain('rounded-xl rounded-bl-md')
-    expect(html).toContain('text-sm leading-relaxed')
+    expect(html).toContain('rounded-container px-3 py-2.5 text-[13px] leading-5')
+    expect(html).not.toContain('rounded-xl rounded-bl-md')
     expect(html).not.toContain('rounded-lg rounded-bl-sm')
   })
 })
