@@ -24,7 +24,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           className={cn(isLegacyTechnicalSecret && '[-webkit-text-security:disc]', className)}
           {...props}
         />
-        {error && <p className="mt-1 font-mono text-[9px] text-red-300">{error}</p>}
+        {error && <p className="mt-ui-xs font-mono text-system-label text-red-300">{error}</p>}
       </div>
     )
   },
