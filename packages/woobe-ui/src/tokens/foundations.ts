@@ -12,8 +12,14 @@ export const woobeTypographyScale = {
   metric: ['1.25rem', { lineHeight: '1.5rem', letterSpacing: '-0.02em' }],
 } as const
 
+export const woobeTypographyTracking = {
+  label: '0.08em',
+  eyebrow: '0.12em',
+} as const
+
 export const woobeSpacing = {
   hairline: '0.125rem',
+  controlInset: '0.1875rem',
   xs: '0.25rem',
   sm: '0.5rem',
   md: '0.75rem',
