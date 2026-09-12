@@ -39,7 +39,7 @@ export function AgentBehaviorFieldDialog({ field, value, agentName, onApply, onC
   return <Dialog open title={field.label} onClose={requestClose} className="flex h-[min(640px,calc(100svh-2rem))] max-w-3xl flex-col overflow-hidden" contentClassName="flex min-h-0 flex-1 flex-col p-0">
     <div ref={bodyRef} aria-label={`Edit ${field.label}`} className="flex min-h-0 flex-1 flex-col">
       {confirmDiscard ? <>
-        <div className="flex min-h-0 flex-1 flex-col justify-center gap-2 overflow-y-auto p-5"><p className="font-mono text-[10px] font-bold text-slate-50">Discard changes?</p><p className="font-sans text-[9px] leading-4 text-muted-foreground">Your Agent configuration will remain unchanged.</p></div>
+        <div className="flex min-h-0 flex-1 flex-col justify-center gap-2 overflow-y-auto p-5"><p className="font-mono text-[10px] font-bold text-slate-50">Discard changes to this field?</p><p className="font-sans text-[9px] leading-4 text-muted-foreground">Your Agent configuration will remain unchanged.</p></div>
         <div className="flex min-h-[56px] shrink-0 justify-end gap-2 border-t border-border bg-surface/[0.98] px-4 py-3"><Button type="button" variant="outline" onClick={() => setConfirmDiscard(false)}>Keep editing</Button><Button type="button" variant="destructive" onClick={onClose}>Discard changes</Button></div>
       </> : <>
         <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden p-4">
