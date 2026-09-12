@@ -27,6 +27,13 @@
   font-family: 'Inter', system-ui, sans-serif;
 }
 
+:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) input[type='checkbox'] {
+  width: 0.875rem;
+  height: 0.875rem;
+  border-radius: 2px;
+  accent-color: #3b82f6;
+}
+
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) [class*='rounded-2xl'],
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) [class*='rounded-xl'] {
   border-radius: 4px !important;
