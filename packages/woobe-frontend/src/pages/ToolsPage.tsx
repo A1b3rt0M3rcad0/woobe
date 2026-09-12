@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Plus, Wrench } from 'lucide-react'
+import { Button, Select } from '@woobe/ui'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -14,8 +15,6 @@ import {
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
 import { StatusBadge } from '@/components/common/StatusBadge'
-import { Button } from '@/components/ui/Button'
-import { Select } from '@/components/ui/Select'
 import { ToolSettingsModal } from '@/features/tools/components/ToolSettingsModal'
 import { useTools } from '@/features/tools/hooks'
 import type { McpToolConfig, Tool } from '@/features/tools/types'
@@ -94,7 +93,7 @@ export default function ToolsPage() {
       description="Connect and govern external capabilities available to Agents in this Project."
       action={(
         <Button type="button" onClick={() => setShowCreate(true)}>
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
           New Tool
         </Button>
       )}
@@ -111,12 +110,11 @@ export default function ToolsPage() {
             { value: 'deprecated', label: 'Retired', count: statusCounts.deprecated },
           ]}
         />
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_160px]">
+        <div className="grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_180px_160px]">
           <ResourceSearch value={query} onChange={setQuery} placeholder="Search Tools, protocols or risk..." label="Search Tools" />
           <Select
             value={protocolFilter}
             onChange={(event) => setProtocolFilter(event.target.value as ToolProtocolFilter)}
-            className="h-10"
             options={[
               { value: 'all', label: 'All protocols' },
               { value: 'mcp', label: 'MCP' },
@@ -127,7 +125,6 @@ export default function ToolsPage() {
           <Select
             value={riskFilter}
             onChange={(event) => setRiskFilter(event.target.value as ToolRiskFilter)}
-            className="h-10"
             options={[
               { value: 'all', label: 'All risks' },
               { value: 'low', label: 'Low risk' },
@@ -149,9 +146,9 @@ export default function ToolsPage() {
         {isLoading ? (
           <LoadingState message="Loading Tools" variant="panel" layout="compact-cards" />
         ) : isError ? (
-          <ErrorState error={error} onRetry={refetch} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
+          <ErrorState error={error} onRetry={refetch} className="rounded-container border border-border bg-surface/70 py-10" />
         ) : visibleTools.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {visibleTools.map((tool) => (
               <ResourceCard
                 key={tool.id}
