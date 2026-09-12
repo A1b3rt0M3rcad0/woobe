@@ -137,7 +137,7 @@ function TimeUnitControl({
       <Button type="button" variant="ghost" size="iconSm" onClick={onDecrease} className="text-muted-foreground" aria-label={`Decrease ${unit}`}>
         <Minus className="h-icon w-icon" />
       </Button>
-      <span className="w-control-nav text-center font-mono text-metric font-semibold tabular-nums text-slate-50">
+      <span className="w-control-nav text-center font-mono text-metric font-semibold tabular-nums text-accent-foreground">
         {String(value).padStart(2, '0')}
       </span>
       <Button type="button" variant="ghost" size="iconSm" onClick={onIncrease} className="text-muted-foreground" aria-label={`Increase ${unit}`}>
@@ -257,7 +257,7 @@ export function WoobeDateTimePicker({
         <span className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control border border-border bg-background/55 text-primary-light">
           <CalendarDays className="h-icon w-icon" />
         </span>
-        <span className="min-w-0 flex-1 truncate font-sans text-product-small text-slate-100">
+        <span className="min-w-0 flex-1 truncate font-sans text-product-small text-accent-foreground/90">
           {value ? formatWoobeDateTime(value) : 'Select date and time'}
         </span>
         <span className="shrink-0 font-mono text-system-control text-muted-foreground">
@@ -277,7 +277,7 @@ export function WoobeDateTimePicker({
             <Button type="button" variant="outline" size="iconSm" onClick={() => changeMonth(-1)} className="text-muted-foreground" aria-label="Previous month">
               <ChevronLeft className="h-icon-lg w-icon-lg" />
             </Button>
-            <p className="font-mono text-system-control font-semibold text-slate-50">{monthLabel(visibleMonth)}</p>
+            <p className="font-mono text-system-control font-semibold text-accent-foreground">{monthLabel(visibleMonth)}</p>
             <Button type="button" variant="outline" size="iconSm" onClick={() => changeMonth(1)} className="text-muted-foreground" aria-label="Next month">
               <ChevronRight className="h-icon-lg w-icon-lg" />
             </Button>
@@ -302,9 +302,9 @@ export function WoobeDateTimePicker({
                   className={cn(
                     'relative flex h-control-sm items-center justify-center rounded-control font-mono text-system-control transition-colors',
                     outsideMonth && 'text-muted-foreground/40',
-                    !outsideMonth && !selected && 'text-muted-foreground hover:bg-accent hover:text-slate-50',
-                    today && !selected && 'ring-1 ring-inset ring-primary/35 text-slate-50',
-                    selected && 'bg-primary text-white',
+                    !outsideMonth && !selected && 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+                    today && !selected && 'ring-1 ring-inset ring-primary/35 text-accent-foreground',
+                    selected && 'bg-primary text-accent-foreground hover:bg-primary-hover',
                     disabled && 'cursor-not-allowed opacity-20 hover:bg-transparent hover:text-muted-foreground',
                   )}
                 >
@@ -330,7 +330,7 @@ export function WoobeDateTimePicker({
             </div>
 
             <div className="mt-ui-sm text-center">
-              <p className={cn('font-sans text-product-small font-medium', isValid ? 'text-slate-50' : 'text-red-300')}>
+              <p className={cn('font-sans text-product-small font-medium', isValid ? 'text-accent-foreground' : 'text-error')}>
                 {isValid ? formatWoobeDateTime(draft) : 'Choose a future date and time'}
               </p>
               <p className="mt-ui-xs font-mono text-system-control text-muted-foreground">{timeZoneLabel(draft)}</p>
