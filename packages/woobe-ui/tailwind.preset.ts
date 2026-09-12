@@ -55,6 +55,7 @@ const woobeTailwindPreset = {
         'panel-header': woobeControl.height.header,
         'dialog-header': woobeControl.height.dialogHeader,
         'workspace-header': woobeControl.height.workspaceHeader,
+        'dialog-workspace': woobeLayout.dialogWorkspaceHeight,
       },
       minHeight: {
         'control-segment': woobeControl.height.segment,
@@ -63,6 +64,7 @@ const woobeTailwindPreset = {
         'control-lg': woobeControl.height.large,
         'control-row': woobeControl.height.row,
         'panel-header': woobeControl.height.header,
+        'textarea-compact': woobeControl.minHeight.textareaCompact,
         textarea: woobeControl.minHeight.textarea,
       },
       width: {
@@ -76,6 +78,7 @@ const woobeTailwindPreset = {
         'operations-panel': woobeLayout.operationsPanel,
         inspector: woobeLayout.inspector,
         'inspector-expanded': woobeLayout.inspectorExpanded,
+        'dialog-sidebar': woobeLayout.dialogSidebar,
       },
       maxWidth: {
         resource: woobeLayout.resourceMax,
@@ -83,6 +86,7 @@ const woobeTailwindPreset = {
         'dialog-compact': woobeLayout.dialogCompact,
         dialog: woobeLayout.dialogDefault,
         'dialog-wide': woobeLayout.dialogWide,
+        'dialog-content': woobeLayout.dialogContentMax,
         inspector: woobeLayout.inspector,
         'inspector-expanded': woobeLayout.inspectorExpanded,
       },
