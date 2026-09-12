@@ -73,12 +73,12 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <div className="flex min-h-[38px] shrink-0 items-center gap-2 border-b border-border bg-background/20 px-3 py-2">
+      <div className="flex min-h-control-lg shrink-0 items-center gap-ui-sm border-b border-border bg-background/20 px-ui-md py-ui-sm">
         <div className="min-w-0 flex-1">
-          <p className="truncate font-mono text-[8px] text-muted-foreground">{loadedReleaseVersion ? <>Draft based on <span className="text-primary-light">{loadedReleaseVersion}</span></> : 'Current Draft'}</p>
-          <p role="status" className={cn('mt-0.5 font-mono text-[8px]', saveFailed || hasValidationIssue ? 'text-red-300' : isDirty ? 'text-amber-300/90' : 'text-muted-foreground')}>{status}</p>
+          <p className="truncate font-mono text-system-meta text-muted-foreground">{loadedReleaseVersion ? <>Draft based on <span className="text-primary-light">{loadedReleaseVersion}</span></> : 'Current Draft'}</p>
+          <p role="status" className={cn('mt-ui-xs font-mono text-system-meta', saveFailed || hasValidationIssue ? 'text-red-300' : isDirty ? 'text-amber-300/90' : 'text-muted-foreground')}>{status}</p>
         </div>
-        <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-muted-foreground" onClick={() => { setSaveFailed(false); resetToBaseline() }} disabled={!isDirty || createRelease.isPending} title="Reset to saved Draft" aria-label="Reset Draft"><RotateCcw className="h-3.5 w-3.5" /></Button>
+        <Button size="sm" variant="ghost" className="w-control-sm p-0 text-muted-foreground" onClick={() => { setSaveFailed(false); resetToBaseline() }} disabled={!isDirty || createRelease.isPending} title="Reset to saved Draft" aria-label="Reset Draft"><RotateCcw className="h-3.5 w-3.5" /></Button>
         <Button size="sm" onClick={() => void saveDraft()} loading={createRelease.isPending} disabled={!isDirty && !loadedReleaseVersion} aria-invalid={hasValidationIssue || undefined}><Save className="h-3 w-3" />Save</Button>
       </div>
       <AgentEditorNavigation value={section} onChange={setSection} />
@@ -89,7 +89,7 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
         {section === 'output' ? <AgentOutputSettings /> : null}
         {section === 'model' ? <AgentModelSettings projectId={projectId} /> : null}
         {section === 'knowledge' ? <AgentKnowledgeSettings projectId={projectId} agentId={agentId} /> : null}
-        {section === 'skills' ? <div className="p-3"><AgentSkillsSection projectId={projectId} /></div> : null}
+        {section === 'skills' ? <div className="p-ui-md"><AgentSkillsSection projectId={projectId} /></div> : null}
         {section === 'tools' ? <AgentToolsSettings projectId={projectId} agentId={agentId} /> : null}
       </div>
     </div>
