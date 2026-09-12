@@ -2,7 +2,7 @@ import { forwardRef, type ButtonHTMLAttributes } from 'react'
 import { cn } from '../lib/cn'
 
 export type ButtonVariant = 'default' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'link'
-export type ButtonSize = 'default' | 'sm' | 'lg' | 'icon'
+export type ButtonSize = 'xs' | 'default' | 'sm' | 'lg' | 'icon' | 'iconSm' | 'iconXs'
 
 const variantClasses: Record<ButtonVariant, string> = {
   default: 'border border-primary bg-primary text-white hover:border-primary-hover hover:bg-primary-hover',
@@ -14,10 +14,13 @@ const variantClasses: Record<ButtonVariant, string> = {
 }
 
 const sizeClasses: Record<ButtonSize, string> = {
+  xs: 'h-control-xs px-ui-sm text-system-meta',
   default: 'h-control px-ui-md',
   sm: 'h-control-sm px-ui-sm text-system-label',
   lg: 'h-control-lg px-ui-lg',
   icon: 'h-control w-control p-0',
+  iconSm: 'h-control-sm w-control-sm p-0',
+  iconXs: 'h-control-xs w-control-xs p-0',
 }
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -45,7 +48,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       {loading && (
         <span
           aria-hidden="true"
-          className="mr-ui-sm h-3 w-3 animate-spin rounded-full border border-current border-r-transparent"
+          className="mr-ui-sm h-icon-sm w-icon-sm animate-spin rounded-full border border-current border-r-transparent"
         />
       )}
       {children}
