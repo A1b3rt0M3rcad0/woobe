@@ -44,7 +44,7 @@ export function ResourceCard({
           </span>
           <span className="min-w-0 pt-px">
             <span className="block truncate font-mono text-[11px] font-bold text-slate-50">{title}</span>
-            {subtitle && <span className="mt-1 block truncate text-[10px] leading-4 text-muted-foreground">{subtitle}</span>}
+            {subtitle && <span className="mt-1 block truncate font-mono text-[9px] leading-4 text-muted-foreground">{subtitle}</span>}
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-1.5">
@@ -81,7 +81,7 @@ export function ResourcePill({
     primary: 'border-primary/30 bg-primary/[0.08] text-primary-light',
     success: 'border-emerald-500/25 bg-emerald-500/[0.07] text-emerald-300',
     warning: 'border-amber-500/25 bg-amber-500/[0.07] text-amber-200',
-    danger: 'border-red-500/25 bg-red-500/[0.07] text-red-200',
+    danger: 'border-red-500/20 bg-red-500/[0.05] text-red-300',
   }[tone]
 
   return (
