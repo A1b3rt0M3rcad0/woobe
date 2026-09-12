@@ -1,15 +1,17 @@
 import { AgentBehaviorFields } from '@/features/agents/components/AgentBehaviorSettings'
 import { behaviorFromSpec, behaviorToSpec } from '@/features/agents/behavior'
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { ArrowLeft } from 'lucide-react'
+import { toast } from 'sonner'
+import { Alert, AlertDescription, EmptyStatePanel, Field, FieldError, FieldLabel, SectionBlock, TechnicalListItem } from '@woobe/ui'
 import { useAgent, useUpdateAgent } from '@/features/agents/hooks'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import { createAgentSchema, type CreateAgentFormData } from '@/features/agents/schemas'
 import { AddProviderCredentialModal } from '@/features/provider-credentials/components/AddProviderCredentialModal'
 import { PageHeader } from '@/components/common/PageHeader'
-import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
@@ -17,54 +19,18 @@ import { Badge } from '@/components/ui/Badge'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { workspaceProjectPath } from '@/lib/constants/routes'
-import { toast } from 'sonner'
-import { ArrowLeft } from 'lucide-react'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 
 const modelOptions: Record<string, { value: string; label: string }[]> = {
-  openai: [
-    { value: 'gpt-4o-mini', label: 'GPT-4o Mini' },
-    { value: 'gpt-4o', label: 'GPT-4o' },
-    { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' },
-    { value: 'gpt-4.1', label: 'GPT-4.1' },
-  ],
-  anthropic: [
-    { value: 'claude-3-5-sonnet-latest', label: 'Claude 3.5 Sonnet' },
-    { value: 'claude-3-5-haiku-latest', label: 'Claude 3.5 Haiku' },
-    { value: 'claude-3-opus-latest', label: 'Claude 3 Opus' },
-  ],
-  google: [
-    { value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' },
-    { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' },
-    { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' },
-  ],
+  openai: [{ value: 'gpt-4o-mini', label: 'GPT-4o Mini' }, { value: 'gpt-4o', label: 'GPT-4o' }, { value: 'gpt-4.1-mini', label: 'GPT-4.1 Mini' }, { value: 'gpt-4.1', label: 'GPT-4.1' }],
+  anthropic: [{ value: 'claude-3-5-sonnet-latest', label: 'Claude 3.5 Sonnet' }, { value: 'claude-3-5-haiku-latest', label: 'Claude 3.5 Haiku' }, { value: 'claude-3-opus-latest', label: 'Claude 3 Opus' }],
+  google: [{ value: 'gemini-1.5-flash', label: 'Gemini 1.5 Flash' }, { value: 'gemini-1.5-pro', label: 'Gemini 1.5 Pro' }, { value: 'gemini-2.0-flash', label: 'Gemini 2.0 Flash' }],
 }
-
-const defaultModels: Record<string, string> = {
-  openai: 'gpt-4o-mini',
-  anthropic: 'claude-3-5-haiku-latest',
-  google: 'gemini-1.5-flash',
-}
-
-const providerLabels: Record<string, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  google: 'Google',
-  custom: 'Custom',
-}
-
-const statusOptions = [
-  { value: 'active', label: 'Active' },
-  { value: 'inactive', label: 'Inactive' },
-]
-
-function getCredentialModel(credential: ProviderCredential): string {
-  return credential.metadata?.model || credential.metadata?.model_name || ''
-}
-
-function getCredentialBaseUrl(credential: ProviderCredential): string {
-  return credential.metadata?.base_url || ''
-}
+const defaultModels: Record<string, string> = { openai: 'gpt-4o-mini', anthropic: 'claude-3-5-haiku-latest', google: 'gemini-1.5-flash' }
+const providerLabels: Record<string, string> = { openai: 'OpenAI', anthropic: 'Anthropic', google: 'Google', custom: 'Custom' }
+const statusOptions = [{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]
+function getCredentialModel(credential: ProviderCredential): string { return credential.metadata?.model || credential.metadata?.model_name || '' }
+function getCredentialBaseUrl(credential: ProviderCredential): string { return credential.metadata?.base_url || '' }
 
 export default function EditAgentPage() {
   const { workspaceId, projectId, agentId } = useParams<{ workspaceId?: string; projectId: string; agentId: string }>()
@@ -77,28 +43,14 @@ export default function EditAgentPage() {
   const [behavior, setBehavior] = useState(() => behaviorFromSpec())
   const [formReady, setFormReady] = useState(false)
   const pendingCredentialId = useRef<string | null>(null)
-
   const p = (projId: string, ...segments: string[]) => workspaceProjectPath(workspaceId, projId, ...segments)
-
-  const form = useForm<CreateAgentFormData>({
-    resolver: zodResolver(createAgentSchema),
-  })
+  const form = useForm<CreateAgentFormData>({ resolver: zodResolver(createAgentSchema) })
 
   useEffect(() => {
     if (!agent || !credentials.length || formReady) return
     const cred = credentials.find(c => c.id === agent.provider_credential_id) || null
     setSelectedCredential(cred)
-    form.reset({
-      name: agent.name,
-      description: agent.description || '',
-      provider: agent.provider,
-      model: agent.model,
-      temperature: agent.temperature ?? 0.7,
-      max_output_tokens: agent.max_output_tokens ?? 2048,
-      provider_credential_id: agent.provider_credential_id || '',
-      session_mode: (agent.session_mode === 'stateless' ? 'stateless' : 'stateful') as 'stateful' | 'stateless',
-      status: agent.status === 'active' ? 'active' : 'inactive',
-    })
+    form.reset({ name: agent.name, description: agent.description || '', provider: agent.provider, model: agent.model, temperature: agent.temperature ?? 0.7, max_output_tokens: agent.max_output_tokens ?? 2048, provider_credential_id: agent.provider_credential_id || '', session_mode: (agent.session_mode === 'stateless' ? 'stateless' : 'stateful') as 'stateful' | 'stateless', status: agent.status === 'active' ? 'active' : 'inactive' })
     setBehavior(behaviorFromSpec(agent.behavior_spec, agent.system_prompt))
     setFormReady(true)
   }, [agent, credentials, form, formReady])
@@ -113,90 +65,34 @@ export default function EditAgentPage() {
     const provider = selectedCredential.provider
     form.setValue('provider', provider)
     form.setValue('provider_credential_id', selectedCredential.id)
-    if (provider === 'custom') {
-      form.setValue('model', getCredentialModel(selectedCredential))
-    } else {
-      form.setValue('model', defaultModels[provider] || '')
-    }
+    form.setValue('model', provider === 'custom' ? getCredentialModel(selectedCredential) : defaultModels[provider] || '')
   }, [selectedCredential, form])
 
-  const handleCredentialCreated = async (newId: string) => {
-    setShowAddCredential(false)
-    pendingCredentialId.current = newId
-    await refetchCredentials()
-  }
-
+  const handleCredentialCreated = async (newId: string) => { setShowAddCredential(false); pendingCredentialId.current = newId; await refetchCredentials() }
   useEffect(() => {
     if (pendingCredentialId.current) {
       const match = credentials.find(c => c.id === pendingCredentialId.current)
-      if (match) {
-        setSelectedCredential(match)
-        pendingCredentialId.current = null
-        return
-      }
+      if (match) { setSelectedCredential(match); pendingCredentialId.current = null; return }
     }
     if (!selectedCredential) return
     const match = credentials.find(c => c.id === selectedCredential.id)
-    if (match) {
-      setSelectedCredential(match)
-    }
+    if (match) setSelectedCredential(match)
   }, [credentials])
 
-  const handleSelectCredential = (id: string) => {
-    const cred = credentials.find(c => c.id === id)
-    if (cred) {
-      setSelectedCredential(cred)
-    }
-  }
-
-  const handleChangeCredential = () => {
-    setShowAddCredential(true)
-  }
-
-  const handleRemoveCredential = () => {
-    setSelectedCredential(null)
-    form.setValue('provider_credential_id', '')
-    form.setValue('provider', '')
-    form.setValue('model', '')
-  }
+  const handleSelectCredential = (id: string) => { const cred = credentials.find(c => c.id === id); if (cred) setSelectedCredential(cred) }
+  const handleRemoveCredential = () => { setSelectedCredential(null); form.setValue('provider_credential_id', ''); form.setValue('provider', ''); form.setValue('model', '') }
 
   const onSubmit = async (data: CreateAgentFormData) => {
-    if (!selectedCredential) {
-      toast.error('Select a provider credential first')
-      return
-    }
+    if (!selectedCredential) { toast.error('Select a provider credential first'); return }
     try {
-      const model = isCustom
-        ? getCredentialModel(selectedCredential)
-        : data.model
-
-      const payload: Record<string, unknown> = {
-        name: data.name,
-        provider: selectedCredential.provider,
-        model,
-        behavior_spec: behaviorToSpec(behavior),
-        description: data.description || '',
-        temperature: data.temperature,
-        max_output_tokens: data.max_output_tokens,
-        provider_credential_id: selectedCredential.id,
-        session_mode: data.session_mode || 'stateful',
-        status: data.status,
-      }
-      if (isCustom) {
-        const baseUrl = getCredentialBaseUrl(selectedCredential)
-        if (baseUrl) {
-          payload.settings = { base_url: baseUrl }
-        }
-      }
+      const payload: Record<string, unknown> = { name: data.name, provider: selectedCredential.provider, model: isCustom ? getCredentialModel(selectedCredential) : data.model, behavior_spec: behaviorToSpec(behavior), description: data.description || '', temperature: data.temperature, max_output_tokens: data.max_output_tokens, provider_credential_id: selectedCredential.id, session_mode: data.session_mode || 'stateful', status: data.status }
+      if (isCustom) { const baseUrl = getCredentialBaseUrl(selectedCredential); if (baseUrl) payload.settings = { base_url: baseUrl } }
       await updateAgent.mutateAsync(payload as any)
       toast.success('Agent updated')
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to update agent')
-    }
+    } catch (err) { toast.error(err instanceof Error ? err.message : 'Failed to update agent') }
   }
 
   const nameValue = form.watch('name')
-
   const disabledReason = () => {
     if (!selectedCredential) return 'Select a provider credential to continue.'
     if (!nameValue) return 'Agent name is required.'
@@ -208,175 +104,35 @@ export default function EditAgentPage() {
     if (isStandard && !form.watch('model')) return 'Select a model to continue.'
     return null
   }
-
   const reason = disabledReason()
-  const customMissingModel = isCustom && selectedCredential && !getCredentialModel(selectedCredential)
-  const customMissingBaseUrl = isCustom && selectedCredential && !getCredentialBaseUrl(selectedCredential)
+  const customMissingModel = Boolean(isCustom && selectedCredential && !getCredentialModel(selectedCredential))
+  const customMissingBaseUrl = Boolean(isCustom && selectedCredential && !getCredentialBaseUrl(selectedCredential))
 
   if (isLoading) return <LoadingState />
   if (isError) return <ErrorState error={error} onRetry={() => navigate(p(projectId!, 'agents'))} />
   if (!agent) return <ErrorState message="Agent not found" />
 
   return (
-    <div>
-      <PageHeader
-        title="Edit Agent"
-        description={`Update configuration for ${agent.name}`}
-        actions={
-          <Button variant="ghost" size="sm" onClick={() => navigate(p(projectId!, 'agents', agentId!, 'playground'))}>
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Back to Playground
-          </Button>
-        }
-      />
+    <div className="max-w-4xl">
+      <PageHeader title="Edit Agent" description={`Update configuration for ${agent.name}`} eyebrow="Build / Agent" actions={<Button variant="ghost" size="sm" onClick={() => navigate(p(projectId!, 'agents', agentId!, 'playground'))}><ArrowLeft className="mr-1 h-3.5 w-3.5" />Back to Playground</Button>} />
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
+        <SectionBlock title="Agent details" density="compact"><div className="grid gap-3 sm:grid-cols-2"><Field><FieldLabel>Name</FieldLabel><Input {...form.register('name')} error={form.formState.errors.name?.message} placeholder="My Agent" />{form.formState.errors.name?.message ? <FieldError>{form.formState.errors.name.message}</FieldError> : null}</Field><Field><FieldLabel>Status</FieldLabel><Select {...form.register('status')} options={statusOptions} /></Field></div><Field className="mt-3"><FieldLabel>Description</FieldLabel><Input {...form.register('description')} placeholder="Optional description" /></Field></SectionBlock>
 
-      <Card className="max-w-2xl">
-        <CardContent className="p-6">
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-            <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
-              <p className="text-xs font-semibold text-muted uppercase tracking-wider">Agent Details</p>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-medium text-muted mb-1">Name</label>
-                  <Input {...form.register('name')} error={form.formState.errors.name?.message} placeholder="My Agent" />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted mb-1">Status</label>
-                  <Select {...form.register('status')} options={statusOptions} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted mb-1">Description</label>
-                <Input {...form.register('description')} placeholder="Optional description" />
-              </div>
-            </div>
+        <SectionBlock title="Model credential" density="compact">
+          {selectedCredential ? <TechnicalListItem label={selectedCredential.name} description={providerLabels[selectedCredential.provider] || selectedCredential.provider} meta={isCustom ? [getCredentialModel(selectedCredential) || 'model not configured', getCredentialBaseUrl(selectedCredential) || 'base URL not configured'].join(' · ') : undefined} leading={<Badge variant="secondary">{providerLabels[selectedCredential.provider] || selectedCredential.provider}</Badge>} trailing={<div className="flex items-center gap-1.5"><Badge variant={selectedCredential.status === 'active' ? 'success' : 'secondary'}>{selectedCredential.status || 'active'}</Badge><Button type="button" size="sm" variant="outline" onClick={() => setShowAddCredential(true)}>Change</Button><Button type="button" size="sm" variant="ghost" onClick={handleRemoveCredential}>Remove</Button></div>} /> : credentials.length > 0 ? <div className="flex flex-col gap-2 sm:flex-row sm:items-center"><Select value="" onChange={(e) => handleSelectCredential(e.target.value)} options={[{ value: '', label: 'Select a credential' }, ...credentials.map(c => ({ value: c.id, label: `${c.name} (${providerLabels[c.provider] || c.provider})` }))]} className="sm:max-w-md" /><Button type="button" size="sm" variant="outline" onClick={() => setShowAddCredential(true)}>Add credential</Button></div> : <EmptyStatePanel compact title="No provider credential" description="Add an API key to connect this Agent to a model provider." action={<Button type="button" size="sm" variant="outline" onClick={() => setShowAddCredential(true)}>Add credential</Button>} />}
+        </SectionBlock>
 
-            <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
-              <p className="text-xs font-semibold text-muted uppercase tracking-wider">Model Credential</p>
-              {selectedCredential ? (
-                <div className="rounded-lg border border-border bg-background p-3 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Badge variant="secondary">{providerLabels[selectedCredential.provider] || selectedCredential.provider}</Badge>
-                      <span className="text-sm font-medium">{selectedCredential.name}</span>
-                    </div>
-                    <Badge variant={selectedCredential.status === 'active' ? 'success' : 'secondary'}>
-                      {selectedCredential.status || 'active'}
-                    </Badge>
-                  </div>
-                  {isCustom && (
-                    <div className="text-xs text-muted space-y-1">
-                      {getCredentialModel(selectedCredential) ? (
-                        <p>Model: <code className="bg-background px-1 rounded">{getCredentialModel(selectedCredential)}</code></p>
-                      ) : (
-                        <p className="text-red-400">Model not configured</p>
-                      )}
-                      {getCredentialBaseUrl(selectedCredential) ? (
-                        <p>Base URL: <code className="bg-background px-1 rounded">{getCredentialBaseUrl(selectedCredential)}</code></p>
-                      ) : (
-                        <p className="text-red-400">Base URL not configured</p>
-                      )}
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                    <Button type="button" size="sm" variant="outline" onClick={handleChangeCredential}>Change</Button>
-                    <Button type="button" size="sm" variant="ghost" onClick={handleRemoveCredential}>Remove</Button>
-                  </div>
-                </div>
-              ) : credentials.length > 0 ? (
-                <div className="space-y-2">
-                  <Select
-                    value=""
-                    onChange={(e) => handleSelectCredential(e.target.value)}
-                    options={[
-                      { value: '', label: 'Select a credential' },
-                      ...credentials.map(c => ({
-                        value: c.id,
-                        label: `${c.name} (${providerLabels[c.provider] || c.provider})`,
-                      })),
-                    ]}
-                  />
-                  <Button type="button" size="sm" variant="outline" onClick={() => setShowAddCredential(true)}>
-                    Add credential
-                  </Button>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-border bg-background p-3">
-                  <p className="text-xs text-muted mb-2">No provider credential available. Add an API key to connect this agent to a model provider.</p>
-                  <Button type="button" size="sm" variant="outline" onClick={() => setShowAddCredential(true)}>
-                    Add credential
-                  </Button>
-                </div>
-              )}
-            </div>
+        {customMissingModel ? <Alert variant="destructive"><AlertDescription>This custom credential is missing a model. Recreate the credential with a model name.</AlertDescription></Alert> : null}
+        {customMissingBaseUrl ? <Alert variant="destructive"><AlertDescription>This custom credential is missing a base URL. Recreate the credential with a base URL.</AlertDescription></Alert> : null}
+        {isStandard ? <SectionBlock title="Model" density="compact"><Field><FieldLabel>Generation model</FieldLabel><Select value={form.watch('model')} onChange={(e) => form.setValue('model', e.target.value)} options={availableModels} /></Field></SectionBlock> : null}
 
-            {selectedCredential && customMissingModel && (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
-                <p className="text-xs text-red-400">This custom credential is missing a model. Recreate the credential with a model name.</p>
-              </div>
-            )}
+        <SectionBlock title="Generation settings" density="compact"><div className="grid gap-3 sm:grid-cols-3"><Field><FieldLabel>Session mode</FieldLabel><Select {...form.register('session_mode')} options={[{ value: 'stateful', label: 'Stateful' }, { value: 'stateless', label: 'Stateless' }]} /></Field><Field><FieldLabel>Temperature</FieldLabel><Input type="number" step="0.1" min="0" max="2" {...form.register('temperature')} /></Field><Field><FieldLabel>Max output tokens</FieldLabel><Input type="number" step="1" min="1" {...form.register('max_output_tokens')} /></Field></div></SectionBlock>
 
-            {selectedCredential && customMissingBaseUrl && (
-              <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3">
-                <p className="text-xs text-red-400">This custom credential is missing a base URL. Recreate the credential with a base URL.</p>
-              </div>
-            )}
+        <AgentBehaviorFields behavior={behavior} onChange={setBehavior} agentName={nameValue} />
+        <div className="flex flex-col items-end gap-1 border-t border-border pt-3">{reason ? <p className="font-sans text-[11px] text-muted">{reason}</p> : null}<div className="flex gap-2"><Button type="button" variant="outline" onClick={() => navigate(p(projectId!, 'agents', agentId!, 'playground'))}>Back</Button><Button type="submit" loading={updateAgent.isPending} disabled={Boolean(reason)}>Save Changes</Button></div></div>
+      </form>
 
-            {isStandard && (
-              <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
-                <p className="text-xs font-semibold text-muted uppercase tracking-wider">Model</p>
-                <Select value={form.watch('model')} onChange={(e) => form.setValue('model', e.target.value)} options={availableModels} />
-              </div>
-            )}
-
-            <div className="rounded-xl border border-border bg-surface p-4 space-y-3">
-              <p className="text-xs font-semibold text-muted uppercase tracking-wider">Generation Settings</p>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-medium text-muted mb-1">Session Mode</label>
-                  <Select
-                    {...form.register('session_mode')}
-                    options={[
-                      { value: 'stateful', label: 'Stateful' },
-                      { value: 'stateless', label: 'Stateless' },
-                    ]}
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-medium text-muted mb-1">Temperature</label>
-                  <Input type="number" step="0.1" min="0" max="2" {...form.register('temperature')} />
-                </div>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-muted mb-1">Max Output Tokens</label>
-                <Input type="number" step="1" min="1" {...form.register('max_output_tokens')} />
-              </div>
-            </div>
-
-            <AgentBehaviorFields behavior={behavior} onChange={setBehavior} agentName={nameValue} />
-
-            <div className="flex flex-col items-end gap-1">
-              {reason && (
-                <p className="text-xs text-muted">{reason}</p>
-              )}
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => navigate(p(projectId!, 'agents', agentId!, 'playground'))}>Back</Button>
-                <Button type="submit" loading={updateAgent.isPending} disabled={!!reason}>
-                  Save Changes
-                </Button>
-              </div>
-            </div>
-          </form>
-        </CardContent>
-      </Card>
-
-      <AddProviderCredentialModal
-        open={showAddCredential}
-        onClose={() => setShowAddCredential(false)}
-        projectId={projectId!}
-        credential={selectedCredential}
-        onCredentialCreated={handleCredentialCreated}
-      />
+      <AddProviderCredentialModal open={showAddCredential} onClose={() => setShowAddCredential(false)} projectId={projectId!} credential={selectedCredential} onCredentialCreated={handleCredentialCreated} />
     </div>
   )
 }
