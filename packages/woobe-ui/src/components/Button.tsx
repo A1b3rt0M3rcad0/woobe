@@ -5,11 +5,11 @@ export type ButtonVariant = 'default' | 'secondary' | 'outline' | 'ghost' | 'des
 export type ButtonSize = 'xs' | 'default' | 'sm' | 'lg' | 'icon' | 'iconSm' | 'iconXs'
 
 const variantClasses: Record<ButtonVariant, string> = {
-  default: 'border border-primary bg-primary text-white hover:border-primary-hover hover:bg-primary-hover',
+  default: 'border border-primary bg-primary text-accent-foreground hover:border-primary-hover hover:bg-primary-hover',
   secondary: 'border border-border bg-accent text-accent-foreground hover:bg-border',
-  outline: 'border border-border bg-control text-slate-200 hover:border-slate-600 hover:bg-accent hover:text-white',
-  ghost: 'border border-transparent bg-transparent text-slate-300 hover:bg-accent hover:text-accent-foreground',
-  destructive: 'border border-red-500/40 bg-red-500/[0.10] text-red-200 hover:border-red-500/55 hover:bg-red-500/[0.16] hover:text-red-100',
+  outline: 'border border-border bg-control text-accent-foreground/85 hover:border-muted hover:bg-accent hover:text-accent-foreground',
+  ghost: 'border border-transparent bg-transparent text-accent-foreground/75 hover:bg-accent hover:text-accent-foreground',
+  destructive: 'border border-error/40 bg-error/10 text-error hover:border-error/55 hover:bg-error/[0.16] hover:text-error',
   link: 'border border-transparent bg-transparent p-0 text-primary-light underline-offset-4 hover:underline',
 }
 
