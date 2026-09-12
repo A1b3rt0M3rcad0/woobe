@@ -62,6 +62,7 @@ export const woobeBreakpoints = {
   lg: '64rem',
   xl: '80rem',
   '2xl': '96rem',
+  '2k': '128rem',
 } as const
 
 export const woobeLayout = {
