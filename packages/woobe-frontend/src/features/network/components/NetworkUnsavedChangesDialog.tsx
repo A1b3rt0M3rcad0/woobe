@@ -1,4 +1,5 @@
 import { AlertTriangle, Save } from 'lucide-react'
+import { dialogTypographyClass } from '@/components/ui/Dialog'
 
 import type { Environment } from './networkWorkspaceTypes'
 
@@ -19,7 +20,7 @@ export function NetworkUnsavedChangesDialog({
 }) {
   return (
     <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-border/90 bg-surface shadow-2xl shadow-black/40">
+      <div role="dialog" aria-modal="true" aria-label="Save Draft changes" className={`${dialogTypographyClass} w-full max-w-lg overflow-hidden rounded-2xl border border-border/90 bg-surface shadow-2xl shadow-black/40`}>
         <div className="border-b border-border/90 p-5">
           <div className="flex items-start gap-3">
             <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
