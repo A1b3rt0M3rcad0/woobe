@@ -32,6 +32,15 @@ function runtimeConfig(value: Record<string, unknown>): RagRuntimeConfig {
   }
 }
 
+function PanelHeader({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
+  return (
+    <div className="flex items-start gap-2.5 border-b border-border p-3">
+      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light">{icon}</span>
+      <div className="min-w-0"><p className="font-mono text-[9px] font-bold text-slate-50">{title}</p><p className="mt-0.5 font-sans text-[9px] leading-4 text-muted-foreground">{description}</p></div>
+    </div>
+  )
+}
+
 export function AgentKnowledgeSettings({ projectId, agentId }: { projectId: string; agentId: string }) {
   const { data: versions = [] } = useKnowledgeVersions(agentId)
   const { data: collections = [] } = useCollections(projectId)
@@ -51,11 +60,7 @@ export function AgentKnowledgeSettings({ projectId, agentId }: { projectId: stri
 
   const applySnapshot = async (snapshot: VectorSnapshot): Promise<boolean> => {
     try {
-      const created = await createKnowledgeVersion.mutateAsync({
-        project_id: projectId,
-        agent_id: agentId,
-        snapshot_metadata: { vector_snapshot_id: snapshot.id },
-      } as any)
+      const created = await createKnowledgeVersion.mutateAsync({ project_id: projectId, agent_id: agentId, snapshot_metadata: { vector_snapshot_id: snapshot.id } } as any)
       setField('knowledgeVersionId', created.id)
       setSelectorOpen(false)
       toast.success(`${snapshot.version} applied to the Agent Draft`)
@@ -67,61 +72,51 @@ export function AgentKnowledgeSettings({ projectId, agentId }: { projectId: stri
   }
 
   return (
-    <div className="space-y-4 p-4">
-      <section aria-label="Knowledge" className="rounded-xl border border-border bg-surface">
-        <div className="flex items-center gap-3 p-4"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light"><BookOpen className="h-4 w-4" /></span><div><p className="text-sm font-semibold">Knowledge</p><p className="mt-0.5 text-[11px] text-muted">{active ? 'Snapshot selected' : 'No snapshot selected'}</p></div></div>
-        <div className="border-t border-border p-4">
-        <p className="text-xs leading-5 text-muted">Choose the knowledge available to this Agent and configure how it is retrieved.</p>
-        <p className="mb-2.5 mt-5 text-xs font-semibold uppercase tracking-wider text-muted">Knowledge source</p>
-        {active ? (
-          <div className="rounded-lg border border-border bg-background/35 p-3">
-            <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light"><BookOpen className="h-4 w-4 text-primary-light" /></div>
-              <div className="min-w-0 flex-1">
-                <p title={collectionName} className="truncate text-xs font-medium text-foreground">{collectionName}</p>
-                <p className="mt-1 text-xs text-muted">Knowledge {active.version} · Vector {vectorVersion}</p>
-                <p className="mt-1 text-[11px] uppercase text-muted/80">Immutable snapshot</p>
+    <div className="p-3">
+      <section aria-label="Knowledge" className="rounded-container border border-border bg-surface/[0.72]">
+        <PanelHeader icon={<BookOpen className="h-3.5 w-3.5" />} title="Knowledge" description={active ? 'Immutable snapshot selected for this Draft.' : 'No immutable snapshot selected.'} />
+        <div className="p-3">
+          <p className="font-sans text-[9px] leading-4 text-muted-foreground">Choose the knowledge available to this Agent and configure how it is retrieved.</p>
+          <p className="mb-2 mt-4 font-mono text-[8px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Knowledge source</p>
+          {active ? (
+            <div className="rounded-container border border-border bg-background/20 p-3">
+              <div className="flex items-start gap-2.5">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light"><BookOpen className="h-3.5 w-3.5" /></span>
+                <div className="min-w-0 flex-1">
+                  <p title={collectionName} className="truncate font-mono text-[9px] font-semibold text-slate-100">{collectionName}</p>
+                  <p className="mt-1 font-mono text-[8px] text-muted-foreground">Knowledge {active.version} · Vector {vectorVersion}</p>
+                  <p className="mt-1 font-mono text-[8px] uppercase tracking-[0.08em] text-muted-foreground">Immutable snapshot</p>
+                </div>
+                <button type="button" onClick={() => setField('knowledgeVersionId', null)} className="flex h-7 w-7 items-center justify-center rounded-control border border-border text-muted-foreground transition-colors hover:border-red-500/30 hover:text-red-300" aria-label="Remove knowledge"><Trash2 className="h-3.5 w-3.5" /></button>
               </div>
-              <button type="button" onClick={() => setField('knowledgeVersionId', null)} className="rounded-lg border border-border p-2 text-muted hover:border-red-500/30 hover:text-red-300" aria-label="Remove knowledge"><Trash2 className="h-3.5 w-3.5" /></button>
+              <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/70 pt-3">
+                <Button size="sm" variant="outline" className="min-h-[30px] h-auto whitespace-normal px-2 py-1" onClick={() => setSelectorOpen(true)}>Change version</Button>
+                <Button size="sm" variant="ghost" className="text-primary-light" onClick={() => setManagerOpen(true)}>Manage</Button>
+              </div>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3">
-              <Button size="sm" variant="outline" className="min-h-8 h-auto whitespace-normal px-2 py-1 text-[11px]" onClick={() => setSelectorOpen(true)}>Change version</Button>
-              <Button size="sm" variant="ghost" className="h-8 text-[11px] text-primary-light" onClick={() => setManagerOpen(true)}>Manage</Button>
+          ) : (
+            <div className="rounded-container border border-dashed border-border bg-background/20 p-3">
+              <div className="flex items-start gap-2.5"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light"><Database className="h-3.5 w-3.5" /></span><div><p className="font-mono text-[9px] font-semibold text-slate-100">No knowledge selected</p><p className="mt-1 font-sans text-[9px] leading-4 text-muted-foreground">Link an immutable Vector Snapshot.</p></div></div>
+              <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/70 pt-3">
+                <Button size="sm" variant="outline" className="min-h-[30px] h-auto whitespace-normal px-2 py-1" onClick={() => setSelectorOpen(true)}><Plus className="h-3.5 w-3.5" />Select knowledge</Button>
+                <Button size="sm" variant="ghost" className="text-primary-light" onClick={() => setManagerOpen(true)}>Manage</Button>
+              </div>
             </div>
+          )}
+
+          <div className="mt-4 border-t border-border pt-4">
+            <p className="mb-2 font-mono text-[8px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Retrieval</p>
+            <div className="rounded-container border border-border bg-background/20 p-3">
+              <div className="flex items-start gap-2.5"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light"><Search className="h-3.5 w-3.5" /></span><div className="min-w-0"><p className="font-mono text-[9px] font-semibold text-slate-100">Search behavior</p><p className="mt-1 font-mono text-[8px] text-muted-foreground">Top {runtime.top_k} from {runtime.candidate_k} candidates</p><p className="mt-1.5 font-sans text-[9px] leading-4 text-muted-foreground">{runtime.query_mode === 'current_message' ? 'Current message' : 'Conversation context'} · {runtime.grounding_policy === 'required' ? 'Required grounding' : 'Optional grounding'}</p></div></div>
+              <div className="mt-3 border-t border-border/70 pt-3"><Button size="sm" variant="outline" onClick={() => setRuntimeOpen(true)}><Settings2 className="h-3.5 w-3.5" />Configure</Button></div>
+            </div>
+            {!active ? <p className="mt-2 font-sans text-[8px] text-muted-foreground">Applied when knowledge is linked.</p> : null}
           </div>
-        ) : (
-          <div className="rounded-lg border border-border bg-background/35 p-3">
-            <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light"><Database className="h-4 w-4" /></span><div><p className="text-sm font-semibold text-foreground">No knowledge selected</p><p className="mt-1 text-[11px] leading-4 text-muted">Link an immutable Vector Snapshot.</p></div></div>
-            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3">
-              <Button size="sm" variant="outline" className="min-h-8 h-auto whitespace-normal px-2 py-1 text-[11px]" onClick={() => setSelectorOpen(true)}><Plus className="mr-1 h-3.5 w-3.5" />Select knowledge</Button>
-              <Button size="sm" variant="ghost" className="h-8 text-[11px] text-primary-light" onClick={() => setManagerOpen(true)}>Manage</Button>
-            </div>
-          </div>
-        )}
-      <div className="mt-5 border-t border-border/80 pt-5">
-        <p className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-muted">Retrieval</p>
-        <div className="rounded-lg border border-border bg-background/35 p-3">
-          <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light"><Search className="h-4 w-4" /></span><div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground">Search behavior</p>
-            <p className="mt-1 text-[11px] text-muted">Top {runtime.top_k} from {runtime.candidate_k} candidates</p>
-            <p className="mt-2 text-[11px] text-muted">{runtime.query_mode === 'current_message' ? 'Current message' : 'Conversation context'}<br />{runtime.grounding_policy === 'required' ? 'Required grounding' : 'Optional grounding'}</p>
-          </div></div>
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3"><Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => setRuntimeOpen(true)}><Settings2 className="mr-1 h-3.5 w-3.5" />Configure</Button></div>
         </div>
-        {!active ? <p className="mt-3 text-[11px] text-muted">Applied when knowledge is linked.</p> : null}
-      </div>
-      </div>
       </section>
 
       <SelectKnowledgeVersionModal open={selectorOpen} projectId={projectId} currentSnapshotId={snapshotId} onClose={() => setSelectorOpen(false)} onSelect={(snapshot) => { void applySnapshot(snapshot) }} />
-      <ManageKnowledgeModal
-        open={managerOpen}
-        projectId={projectId}
-        activeBinding={active ? { collectionId, collectionName, knowledgeVersion: active.version, vectorVersion } : null}
-        currentSnapshotId={snapshotId}
-        onClose={() => setManagerOpen(false)}
-        onUseSnapshot={applySnapshot}
-      />
+      <ManageKnowledgeModal open={managerOpen} projectId={projectId} activeBinding={active ? { collectionId, collectionName, knowledgeVersion: active.version, vectorVersion } : null} currentSnapshotId={snapshotId} onClose={() => setManagerOpen(false)} onUseSnapshot={applySnapshot} />
       <RagRuntimeSettings open={runtimeOpen} value={runtime} onClose={() => setRuntimeOpen(false)} onApply={(value) => setField('runtimeConfig', { ...state.runtimeConfig, rag: value })} />
     </div>
   )
