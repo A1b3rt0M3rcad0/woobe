@@ -9,7 +9,7 @@ const variantClasses: Record<ButtonVariant, string> = {
   secondary: 'border border-border bg-accent text-accent-foreground hover:bg-border',
   outline: 'border border-border bg-control text-slate-200 hover:border-slate-600 hover:bg-[#13203a] hover:text-white',
   ghost: 'border border-transparent bg-transparent text-slate-300 hover:bg-accent hover:text-accent-foreground',
-  destructive: 'border border-red-600 bg-red-600 text-white hover:border-red-700 hover:bg-red-700',
+  destructive: 'border border-red-500/40 bg-red-500/[0.10] text-red-200 hover:border-red-500/55 hover:bg-red-500/[0.16] hover:text-red-100',
   link: 'border border-transparent bg-transparent p-0 text-primary-light underline-offset-4 hover:underline',
 }
 
