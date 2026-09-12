@@ -23,7 +23,7 @@ const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
     >
       <div className="min-w-0">
         {eyebrow ? (
-          <div className="mb-ui-xs font-mono text-system-label uppercase tracking-system text-primary-light">
+          <div className="mb-ui-xs font-mono text-system-label uppercase tracking-ui-eyebrow text-primary-light">
             {eyebrow}
           </div>
         ) : null}
