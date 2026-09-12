@@ -63,6 +63,7 @@ export const woobeLayout = {
   projectSidebarHeader: '4.5rem',
   sidebarContextMenuMaxHeight: '26.25rem',
   popoverCompactMinWidth: '12.5rem',
+  popoverMaxHeight: '17.5rem',
   playgroundRail: '3.25rem',
   playgroundInspectorTop: '8rem',
   playgroundAgentNameMax: '13.75rem',
