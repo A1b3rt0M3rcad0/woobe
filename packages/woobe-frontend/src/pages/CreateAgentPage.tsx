@@ -11,7 +11,6 @@ import {
   Checkbox,
   EmptyStatePanel,
   Field,
-  FieldError,
   FieldLabel,
   SectionBlock,
   TechnicalListItem,
@@ -130,7 +129,7 @@ export default function CreateAgentPage() {
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3">
         <SectionBlock title="Agent details" density="compact">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field><FieldLabel>Name</FieldLabel><Input {...form.register('name')} error={form.formState.errors.name?.message} placeholder="My Agent" />{form.formState.errors.name?.message ? <FieldError>{form.formState.errors.name.message}</FieldError> : null}</Field>
+            <Field><FieldLabel>Name</FieldLabel><Input {...form.register('name')} error={form.formState.errors.name?.message} placeholder="My Agent" /></Field>
             <Field><FieldLabel>Description</FieldLabel><Input {...form.register('description')} placeholder="Optional description" /></Field>
           </div>
         </SectionBlock>
