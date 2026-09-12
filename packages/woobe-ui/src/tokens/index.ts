@@ -5,6 +5,7 @@ export {
   woobeDensity,
   woobeLayers,
   woobeLayout,
+  woobePattern,
   woobeShadow,
   woobeSpacing,
   woobeTypographyScale,
