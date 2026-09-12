@@ -1,26 +1,28 @@
-import type { HTMLAttributes, ReactNode } from 'react'
+import type { ReactNode } from 'react'
 import { cn } from '../lib/cn'
 
-export interface MathSurfaceProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
+export interface MathSurfaceProps {
   children: ReactNode
   display?: boolean
-  inlineClassName?: string
+  className?: string
+  title?: string
 }
 
 export function MathSurface({
   children,
   display = false,
   className,
-  inlineClassName,
-  ...props
+  title,
 }: MathSurfaceProps) {
   if (!display) {
     return (
       <span
         className={cn(
-          'whitespace-nowrap font-mono text-[0.94em] leading-none text-primary-light',
-          inlineClassName,
+          'mx-ui-0.5 inline-flex max-w-full align-middle [&_math]:max-w-full [&_math]:font-serif [&_math]:text-[1.05em] [&_math]:text-slate-50',
+          className,
         )}
+        data-math-inline="true"
+        title={title}
       >
         {children}
       </span>
@@ -30,10 +32,11 @@ export function MathSurface({
   return (
     <div
       className={cn(
-        'my-ui-sm overflow-x-auto rounded-container border border-border bg-control px-ui-md py-ui-sm font-mono text-product-body leading-relaxed text-slate-100',
+        'my-ui-md max-w-full overflow-x-auto rounded-container border border-border bg-control/70 px-ui-md py-ui-sm text-center [&_math]:min-w-max [&_math]:max-w-full [&_math]:font-serif [&_math]:text-[1.08em] [&_math]:text-slate-50',
         className,
       )}
-      {...props}
+      data-math-display="true"
+      title={title}
     >
       {children}
     </div>
