@@ -29,7 +29,7 @@ export function PanelHeader({
     >
       <div className="flex min-w-0 items-start gap-ui-sm">
         {icon ? (
-          <span className="flex h-control-segment w-[1.6875rem] shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light">
+          <span className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light">
             {icon}
           </span>
         ) : null}
