@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Bot, FileJson, Puzzle, ServerCog } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { SegmentedControl } from '@woobe/ui'
 
 export type AgentEditorSection = 'details' | 'behavior' | 'runtime' | 'model' | 'output' | 'knowledge' | 'tools' | 'skills'
 export type AgentEditorGroupId = 'agent' | 'execution' | 'capabilities' | 'output'
@@ -91,48 +91,31 @@ export function AgentEditorNavigation({
 
   return (
     <nav aria-label="Agent configuration" className="shrink-0 border-b border-border bg-surface/55">
-      <div role="group" aria-label="Agent configuration groups" className="grid grid-cols-4 gap-[3px] border-b border-border/60 p-[3px]">
-        {agentEditorGroups.map(group => {
-          const Icon = group.icon
-          const active = activeGroup.id === group.id
-          return (
-            <button
-              key={group.id}
-              type="button"
-              aria-pressed={active}
-              onClick={() => onChange(group.sections[0].id)}
-              className={cn(
-                'flex h-[30px] min-w-0 items-center justify-center gap-1 rounded-technical border px-1.5 font-mono text-[8px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
-                active
-                  ? 'border-primary/35 bg-primary/[0.10] text-slate-50'
-                  : 'border-transparent text-muted-foreground hover:bg-control/45 hover:text-slate-50',
-              )}
-            >
-              <Icon className={cn('h-3 w-3 shrink-0', active ? 'text-primary-light' : 'text-muted-foreground')} />
-              <span className="truncate">{group.label}</span>
-            </button>
-          )
-        })}
+      <div className="border-b border-border/60 p-[3px]">
+        <SegmentedControl
+          ariaLabel="Agent configuration groups"
+          stretch
+          value={activeGroup.id}
+          onValueChange={(groupId) => {
+            const group = agentEditorGroups.find((item) => item.id === groupId)
+            if (group) onChange(group.sections[0].id)
+          }}
+          items={agentEditorGroups.map((group) => {
+            const Icon = group.icon
+            return { value: group.id, label: group.label, icon: <Icon className="h-3 w-3" /> }
+          })}
+          className="w-full border-0 bg-transparent p-0"
+        />
       </div>
 
       {activeGroup.sections.length > 1 ? (
-        <div role="group" aria-label="Agent configuration sections" className="flex items-center gap-1 px-3 py-2">
-          {activeGroup.sections.map(section => (
-            <button
-              key={section.id}
-              type="button"
-              aria-pressed={value === section.id}
-              onClick={() => onChange(section.id)}
-              className={cn(
-                'flex h-[27px] items-center rounded-technical border px-2.5 font-mono text-[8px] transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
-                value === section.id
-                  ? 'border-primary/35 bg-primary/[0.10] text-primary-light'
-                  : 'border-transparent text-muted-foreground hover:border-border hover:bg-control/45 hover:text-slate-50',
-              )}
-            >
-              {section.label}
-            </button>
-          ))}
+        <div className="px-ui-md py-ui-sm">
+          <SegmentedControl
+            ariaLabel="Agent configuration sections"
+            value={value}
+            onValueChange={(section) => onChange(section as AgentEditorSection)}
+            items={activeGroup.sections.map((section) => ({ value: section.id, label: section.label }))}
+          />
         </div>
       ) : null}
     </nav>
