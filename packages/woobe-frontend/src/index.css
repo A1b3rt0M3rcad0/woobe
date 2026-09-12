@@ -124,29 +124,6 @@
   display: none;
 }
 
-/* Run Activity keeps Agent Runs as the primary line and renders Network Runs as thin event stems. */
-svg[aria-label="Agent Run line and Network Run bars by time bucket"] rect[fill="#8b5cf6"] {
-  transform-box: fill-box;
-  transform-origin: center bottom;
-  transform: scaleX(0.22);
-  rx: 999px;
-  fill-opacity: 0.86;
-  filter: drop-shadow(0 0 1.5px rgb(139 92 246 / 0.34));
-  transition: transform 120ms ease, fill-opacity 120ms ease, filter 120ms ease;
-}
-
-svg[aria-label="Agent Run line and Network Run bars by time bucket"] rect[fill="#8b5cf6"]:hover {
-  transform: scaleX(0.32);
-  fill-opacity: 1;
-  filter: drop-shadow(0 0 3px rgb(167 139 250 / 0.48));
-}
-
-.h-3.w-2.rounded-sm.bg-violet-500\/80 {
-  width: 0.125rem;
-  border-radius: 9999px;
-  box-shadow: 0 0 3px rgb(139 92 246 / 0.28);
-}
-
 .h-3.overflow-hidden.rounded-full.bg-background.ring-1.ring-border\/80 {
   display: flex;
 }
