@@ -58,6 +58,7 @@ const woobeTailwindPreset = {
         'workspace-header': woobeControl.height.workspaceHeader,
         'project-sidebar-header': woobeLayout.projectSidebarHeader,
         'dialog-workspace': woobeLayout.dialogWorkspaceHeight,
+        'focus-workspace': woobeLayout.focusWorkspaceHeight,
         'icon-sm': woobeControl.icon.small,
         icon: woobeControl.icon.default,
         'icon-lg': woobeControl.icon.large,
@@ -80,6 +81,7 @@ const woobeTailwindPreset = {
         'sidebar-context': woobeLayout.sidebarContextMenuMaxHeight,
         'trace-list': woobeLayout.playgroundTraceListMaxHeight,
         'code-editor': woobeLayout.codeEditorMax,
+        multiline: woobeControl.maxHeight.multiline,
       },
       width: {
         'control-segment': woobeControl.height.segment,
@@ -98,6 +100,7 @@ const woobeTailwindPreset = {
         inspector: woobeLayout.inspector,
         'inspector-expanded': woobeLayout.inspectorExpanded,
         'dialog-sidebar': woobeLayout.dialogSidebar,
+        'focus-workspace': woobeLayout.focusWorkspaceWidth,
       },
       maxWidth: {
         resource: woobeLayout.resourceMax,
@@ -110,6 +113,9 @@ const woobeTailwindPreset = {
         'inspector-expanded': woobeLayout.inspectorExpanded,
         'playground-agent-name': woobeLayout.playgroundAgentNameMax,
         'playground-agent-meta': woobeLayout.playgroundAgentMetaMax,
+      },
+      minWidth: {
+        popover: woobeLayout.popoverCompactMinWidth,
       },
       inset: {
         'playground-inspector': woobeLayout.playgroundInspectorTop,
