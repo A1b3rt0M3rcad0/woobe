@@ -3,6 +3,7 @@ import CodeMirror from '@uiw/react-codemirror'
 import { json } from '@codemirror/lang-json'
 import { EditorView } from '@codemirror/view'
 import { Braces, Check, Copy, Maximize2, X } from 'lucide-react'
+import { CodePanel, EmptyStatePanel } from '@woobe/ui'
 
 import { jsonDarkTheme, jsonSyntaxHighlight } from '@/components/ui/json-cm-theme'
 import { cn } from '@/lib/utils'
@@ -15,6 +16,30 @@ interface StructuredJsonResponseProps {
   density?: 'comfortable' | 'compact'
 }
 
+function IconButton({
+  label,
+  title,
+  onClick,
+  children,
+}: {
+  label: string
+  title: string
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="flex h-7 w-7 items-center justify-center rounded-control border border-border bg-control/35 text-muted-foreground transition-colors hover:border-primary/30 hover:bg-control hover:text-slate-50"
+      title={title}
+      aria-label={label}
+    >
+      {children}
+    </button>
+  )
+}
+
 export function StructuredJsonResponse({
   value,
   maxHeight,
@@ -25,7 +50,7 @@ export function StructuredJsonResponse({
   const [expanded, setExpanded] = useState(false)
   const overlayRef = useRef<HTMLDivElement>(null)
   const compact = density === 'compact'
-  const resolvedMaxHeight = maxHeight ?? (compact ? 260 : 420)
+  const resolvedMaxHeight = maxHeight ?? (compact ? 220 : 340)
 
   const displayText = useMemo(() => {
     if (value == null) return ''
@@ -42,14 +67,6 @@ export function StructuredJsonResponse({
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }, [displayText])
-
-  const handleExpand = useCallback(() => {
-    setExpanded(true)
-  }, [])
-
-  const handleCloseExpand = useCallback(() => {
-    setExpanded(false)
-  }, [])
 
   useEffect(() => {
     if (!expanded) return
@@ -76,82 +93,30 @@ export function StructuredJsonResponse({
     highlightActiveLineGutter: false,
   }
 
+  const actions = displayText ? (
+    <>
+      <IconButton label="Copy JSON" title={copied ? 'Copied!' : 'Copy'} onClick={handleCopy}>
+        {copied ? <Check className="h-3 w-3 text-emerald-300" /> : <Copy className="h-3 w-3" />}
+      </IconButton>
+      <IconButton label="Expand JSON" title="Expand JSON" onClick={() => setExpanded(true)}>
+        <Maximize2 className="h-3 w-3" />
+      </IconButton>
+    </>
+  ) : null
+
   return (
     <>
-      <div
-        className={cn(
-          'overflow-hidden border border-[rgba(148,163,184,0.22)] bg-[#0f172a]',
-          compact ? 'rounded-lg' : 'rounded-xl',
-          className,
-        )}
+      <CodePanel
+        title="Structured response"
+        icon={<Braces className="h-3.5 w-3.5" />}
+        badge="JSON"
+        actions={actions}
+        density={compact ? 'compact' : 'default'}
+        className={className}
       >
-        <div
-          className={cn(
-            'flex items-center justify-between gap-2 border-b border-[rgba(148,163,184,0.1)] bg-[rgba(30,41,59,0.45)]',
-            compact ? 'h-10 px-3' : 'h-14 px-4',
-          )}
-        >
-          <div className={cn('flex min-w-0 flex-1 items-center', compact ? 'gap-2' : 'gap-2.5')}>
-            <Braces className={cn('shrink-0 text-[#818cf8]', compact ? 'h-3.5 w-3.5' : 'h-4 w-4')} />
-            <span
-              className={cn(
-                'truncate font-medium text-[rgba(226,232,240,0.92)]',
-                compact ? 'text-[10px]' : 'text-sm',
-              )}
-            >
-              Structured response
-            </span>
-          </div>
-
-          <div className={cn('flex shrink-0 items-center', compact ? 'gap-1' : 'gap-1.5')}>
-            <span
-              className={cn(
-                'rounded bg-[rgba(99,102,241,0.12)] font-semibold uppercase tracking-wider text-[#a5b4fc]',
-                compact ? 'px-1.5 py-0.5 text-[8px]' : 'px-1.5 py-0.5 text-[10px]',
-              )}
-            >
-              JSON
-            </span>
-
-            {displayText && (
-              <button
-                type="button"
-                onClick={handleCopy}
-                className={cn(
-                  'rounded-md border border-[rgba(148,163,184,0.18)] text-[rgba(148,163,184,0.88)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white',
-                  compact ? 'p-1' : 'p-1.5',
-                )}
-                title={copied ? 'Copied!' : 'Copy'}
-                aria-label="Copy JSON"
-              >
-                {copied ? (
-                  <Check className={cn('text-emerald-400', compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
-                ) : (
-                  <Copy className={compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
-                )}
-              </button>
-            )}
-
-            {displayText && (
-              <button
-                type="button"
-                onClick={handleExpand}
-                className={cn(
-                  'rounded-md border border-[rgba(148,163,184,0.18)] text-[rgba(148,163,184,0.88)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white',
-                  compact ? 'p-1' : 'p-1.5',
-                )}
-                title="Expand JSON"
-                aria-label="Expand JSON"
-              >
-                <Maximize2 className={compact ? 'h-3 w-3' : 'h-3.5 w-3.5'} />
-              </button>
-            )}
-          </div>
-        </div>
-
-        {displayText && (
+        {displayText ? (
           <div
-            className={cn('scrollbar-thin overflow-auto', compact && 'text-[10px]')}
+            className={cn('scrollbar-thin overflow-auto bg-background/20', compact && 'text-[10px]')}
             style={{ maxHeight: typeof resolvedMaxHeight === 'number' ? `${resolvedMaxHeight}px` : resolvedMaxHeight }}
           >
             <CodeMirror
@@ -163,45 +128,36 @@ export function StructuredJsonResponse({
               theme="none"
             />
           </div>
-        )}
-
-        {!displayText && (
-          <div className={compact ? 'px-3 py-4 text-center' : 'px-4 py-6 text-center'}>
-            <p className={cn('text-[rgba(148,163,184,0.6)]', compact ? 'text-[9px]' : 'text-xs')}>No data</p>
+        ) : (
+          <div className="p-3">
+            <EmptyStatePanel compact title="No structured output" description="This Run did not persist a structured response payload." />
           </div>
         )}
-      </div>
+      </CodePanel>
 
       {expanded && (
         <div
           ref={overlayRef}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#020617]/72 backdrop-blur-sm"
-          onClick={(event) => { if (event.target === overlayRef.current) handleCloseExpand() }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-background/82 p-4 backdrop-blur-[2px]"
+          onClick={(event) => { if (event.target === overlayRef.current) setExpanded(false) }}
         >
-          <div className="relative flex h-[90vh] w-[95vw] max-w-[1600px] flex-col rounded-xl border border-[rgba(148,163,184,0.22)] bg-[#0f172a] shadow-2xl">
-            <div className="flex shrink-0 items-center justify-between border-b border-[rgba(148,163,184,0.1)] px-5 py-4">
-              <span className="text-sm font-medium text-[rgba(226,232,240,0.92)]">Structured response</span>
+          <div role="dialog" aria-modal="true" aria-label="Structured response JSON" className="flex h-[min(88svh,900px)] w-[min(94vw,1500px)] flex-col overflow-hidden rounded-container border border-border bg-surface">
+            <div className="flex min-h-[44px] shrink-0 items-center justify-between border-b border-border px-3">
+              <div className="flex min-w-0 items-center gap-2">
+                <Braces className="h-3.5 w-3.5 shrink-0 text-primary-light" />
+                <span className="truncate font-mono text-[10px] font-semibold text-slate-50">Structured response</span>
+                <span className="rounded-technical border border-primary/25 bg-primary/[0.08] px-1.5 py-0.5 font-mono text-[8px] uppercase tracking-[0.08em] text-primary-light">JSON</span>
+              </div>
               <div className="flex items-center gap-1">
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="rounded-md border border-[rgba(148,163,184,0.18)] p-1.5 text-[rgba(148,163,184,0.88)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
-                  title={copied ? 'Copied!' : 'Copy'}
-                  aria-label="Copy JSON"
-                >
-                  {copied ? <Check className="h-4 w-4 text-emerald-400" /> : <Copy className="h-4 w-4" />}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleCloseExpand}
-                  className="rounded-md border border-[rgba(148,163,184,0.18)] p-1.5 text-[rgba(148,163,184,0.88)] transition-colors hover:bg-[rgba(255,255,255,0.05)] hover:text-white"
-                  aria-label="Close"
-                >
-                  <X className="h-4 w-4" />
-                </button>
+                <IconButton label="Copy JSON" title={copied ? 'Copied!' : 'Copy'} onClick={handleCopy}>
+                  {copied ? <Check className="h-3 w-3 text-emerald-300" /> : <Copy className="h-3 w-3" />}
+                </IconButton>
+                <IconButton label="Close" title="Close" onClick={() => setExpanded(false)}>
+                  <X className="h-3 w-3" />
+                </IconButton>
               </div>
             </div>
-            <div className="min-h-0 flex-1">
+            <div className="min-h-0 flex-1 bg-background/20">
               <CodeMirror
                 value={displayText}
                 extensions={cmExtensions}
