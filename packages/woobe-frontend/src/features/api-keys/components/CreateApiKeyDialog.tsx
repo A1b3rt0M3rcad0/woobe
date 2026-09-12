@@ -2,10 +2,9 @@ import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from 're
 import { useQuery } from '@tanstack/react-query'
 import { Activity, Bot, Check, KeyRound, Network, Search, ShieldCheck, Zap } from 'lucide-react'
 import { toast } from 'sonner'
+import { Button, Input, Textarea } from '@woobe/ui'
 
-import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
 import { useAgents, useReleases } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
 import { useCreateApiKey, useCreateRuntimeApiKey } from '@/features/api-keys/hooks'
@@ -60,7 +59,19 @@ function targetTypeLabel(targetType: RuntimeTargetType): string {
   return targetType === 'network' ? 'Network' : 'Agent'
 }
 
-function SelectionCard({
+function SectionHeader({ title, description, trailing }: { title: string; description?: string; trailing?: ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <h3 className="font-mono text-[10px] font-bold text-slate-50">{title}</h3>
+        {description ? <p className="mt-1 font-sans text-[10px] leading-4 text-muted-foreground">{description}</p> : null}
+      </div>
+      {trailing}
+    </div>
+  )
+}
+
+function CompactChoice({
   selected,
   title,
   description,
@@ -80,23 +91,20 @@ function SelectionCard({
       type="button"
       disabled={disabled}
       onClick={onClick}
-      className={`rounded-xl border p-4 text-left transition-colors ${
+      className={`flex min-h-[48px] items-center gap-2.5 rounded-control border px-3 text-left transition-colors ${
         selected
-          ? 'border-primary/45 bg-primary/10'
-          : 'border-border/85 bg-background/50 hover:border-primary/30'
-      } disabled:cursor-default disabled:opacity-70`}
+          ? 'border-primary/45 bg-primary/[0.10] text-slate-50'
+          : 'border-border bg-control/35 text-muted-foreground hover:border-slate-600 hover:bg-control/60 hover:text-slate-200'
+      } disabled:cursor-default disabled:opacity-60`}
     >
-      <span className="flex items-start gap-3">
-        <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${
-          selected ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-border bg-background text-muted'
-        }`}>
-          {icon}
-        </span>
-        <span className="min-w-0">
-          <span className="block text-sm font-semibold text-white">{title}</span>
-          <span className="mt-1 block text-[11px] leading-4 text-muted">{description}</span>
-        </span>
+      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-control border ${selected ? 'border-primary/35 bg-primary/[0.08] text-primary-light' : 'border-border bg-control text-muted-foreground'}`}>
+        {icon}
       </span>
+      <span className="min-w-0">
+        <span className="block font-mono text-[9px] font-semibold">{title}</span>
+        <span className="mt-0.5 block truncate font-sans text-[9px] text-muted-foreground">{description}</span>
+      </span>
+      <span className={`ml-auto h-2 w-2 shrink-0 rounded-full border ${selected ? 'border-primary bg-primary' : 'border-border bg-background'}`} />
     </button>
   )
 }
@@ -140,27 +148,27 @@ function TargetList({
   }, [items, locked, query, selectedTargetId])
 
   if (loading) {
-    return <div className="rounded-xl border border-border/80 bg-background/55 px-4 py-6 text-center text-sm text-muted">Loading {targetTypeLabel(targetType)}s...</div>
+    return <div className="border border-border bg-control/25 px-3 py-5 text-center font-mono text-[9px] text-muted-foreground">Loading {targetTypeLabel(targetType)}s...</div>
   }
 
   if (items.length === 0) {
     return (
-      <div className="rounded-xl border border-dashed border-border/80 bg-background/35 px-4 py-6 text-center">
-        <p className="text-sm font-medium text-white">No {targetTypeLabel(targetType)}s available</p>
-        <p className="mt-1 text-xs leading-5 text-muted">Create a {targetTypeLabel(targetType)} before creating this Runtime Key.</p>
+      <div className="border border-dashed border-border bg-control/20 px-4 py-6 text-center">
+        <p className="font-mono text-[9px] font-medium text-slate-100">No {targetTypeLabel(targetType)}s available</p>
+        <p className="mt-1 font-sans text-[10px] leading-4 text-muted-foreground">Create a {targetTypeLabel(targetType)} before creating this Runtime Key.</p>
       </div>
     )
   }
 
   return (
-    <div className="space-y-3">
-      {!locked && items.length > 5 && (
+    <div className="space-y-2.5">
+      {!locked && items.length > 5 ? (
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${targetTypeLabel(targetType)}s`} className="pl-9" />
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${targetTypeLabel(targetType)}s`} className="pl-8" />
         </div>
-      )}
-      <div className="scrollbar-thin max-h-[260px] space-y-2 overflow-y-auto pr-1">
+      ) : null}
+      <div className="scrollbar-thin max-h-[250px] divide-y divide-border overflow-y-auto border border-border bg-background/25">
         {visibleItems.map((item) => {
           const selected = item.id === selectedTargetId
           return (
@@ -169,18 +177,16 @@ function TargetList({
               type="button"
               aria-pressed={selected}
               onClick={() => { if (!locked) onSelect(item.id) }}
-              className={`flex w-full items-start justify-between gap-4 rounded-xl border px-4 py-3 text-left transition-colors ${
-                selected
-                  ? 'border-primary/55 bg-primary/8'
-                  : 'border-border/85 bg-background/55 hover:border-primary/30 hover:bg-background/80'
+              className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors ${
+                selected ? 'bg-primary/[0.08]' : 'hover:bg-control/35'
               } ${locked ? 'cursor-default' : ''}`}
             >
-              <span className="min-w-0">
-                <span className="block truncate text-sm font-medium text-white">{item.name}</span>
-                <span className="mt-1 block truncate text-xs text-muted">{item.description}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-mono text-[9px] font-medium text-slate-100">{item.name}</span>
+                <span className="mt-0.5 block truncate font-mono text-[8px] text-muted-foreground">{item.description}</span>
               </span>
-              <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-primary bg-primary text-white' : 'border-border bg-background'}`}>
-                {selected && <Check className="h-3 w-3" />}
+              <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-primary bg-primary text-white' : 'border-border bg-background'}`}>
+                {selected ? <Check className="h-2.5 w-2.5" /> : null}
               </span>
             </button>
           )
@@ -190,17 +196,11 @@ function TargetList({
   )
 }
 
-function RuntimeInterfaces({
-  interfaces,
-  onToggle,
-}: {
-  interfaces: RuntimeInterface[]
-  onToggle: (runtimeInterface: RuntimeInterface) => void
-}) {
+function RuntimeInterfaces({ interfaces, onToggle }: { interfaces: RuntimeInterface[]; onToggle: (runtimeInterface: RuntimeInterface) => void }) {
   return (
-    <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-      <p className="text-xs font-medium text-muted">Allowed interfaces</p>
-      <div className="mt-2 grid auto-rows-fr grid-cols-2 gap-2">
+    <section className="border-b border-border pb-4">
+      <SectionHeader title="Allowed interfaces" description="Choose how this Runtime Key can invoke the deployment." />
+      <div className="mt-3 grid grid-cols-2 gap-2">
         {AVAILABLE_RUNTIME_INTERFACES.map((item) => {
           const selected = interfaces.includes(item.value)
           return (
@@ -208,17 +208,17 @@ function RuntimeInterfaces({
               key={item.value}
               type="button"
               onClick={() => onToggle(item.value)}
-              className={`min-h-[72px] rounded-lg border p-3 text-left ${selected ? 'border-primary/35 bg-primary/10' : 'border-border/80 bg-background/45'}`}
+              className={`min-h-[46px] rounded-control border px-3 py-2 text-left transition-colors ${selected ? 'border-primary/40 bg-primary/[0.10]' : 'border-border bg-control/25 hover:bg-control/45'}`}
             >
-              <p className="text-xs font-medium text-white">{item.label}</p>
-              <p className="mt-1 text-[10px] leading-4 text-muted">{item.description}</p>
+              <p className="font-mono text-[9px] font-medium text-slate-100">{item.label}</p>
+              <p className="mt-0.5 font-sans text-[9px] leading-4 text-muted-foreground">{item.description}</p>
             </button>
           )
         })}
       </div>
-      <div className="mt-3 flex items-center justify-between border-t border-border/65 pt-3 text-[10px] text-muted/70">
+      <div className="mt-2.5 flex items-center justify-between font-mono text-[8px] text-muted-foreground">
         <span>Jobs</span>
-        <span className="rounded-full border border-border/70 bg-background/35 px-2 py-0.5 uppercase tracking-wide">Coming soon</span>
+        <span className="rounded-technical border border-border bg-control/40 px-2 py-0.5 uppercase tracking-[0.1em]">Coming soon</span>
       </div>
     </section>
   )
@@ -276,12 +276,7 @@ export function CreateApiKeyDialog({
   const targetsLoading = targetType === 'agent' ? agentsLoading : networksQuery.isLoading
   const kindLocked = initialKind !== undefined
   const targetLocked = Boolean(effectiveLockedType && effectiveLockedId)
-  const contextualRuntime = Boolean(
-    initialKind === 'runtime'
-    && effectiveLockedType
-    && effectiveLockedId
-    && initialEnvironment,
-  )
+  const contextualRuntime = Boolean(initialKind === 'runtime' && effectiveLockedType && effectiveLockedId && initialEnvironment)
   const isPending = createProjectKey.isPending || createRuntimeKey.isPending
   const TargetIcon = targetType === 'network' ? Network : Bot
 
@@ -403,18 +398,14 @@ export function CreateApiKeyDialog({
       : 'Create API Key'
 
   const identitySection = (
-    <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-semibold text-white">Key identity</h3>
-          <p className="mt-1 text-xs leading-5 text-muted">Name the integration and document its purpose.</p>
-        </div>
-        {!contextualRuntime && (
-          <span className="rounded-full border border-primary/25 bg-primary/10 px-2.5 py-1 text-[10px] font-medium text-primary-light">{kind === 'runtime' ? 'Runtime Key' : 'Project Key'}</span>
-        )}
-      </div>
-      <div className="mt-4 grid gap-3">
-        <label className="grid gap-1.5 text-xs font-medium text-muted">
+    <section className="border-b border-border pb-4">
+      <SectionHeader
+        title="Key identity"
+        description="Name the integration and document its purpose."
+        trailing={!contextualRuntime ? <span className="rounded-technical border border-primary/30 bg-primary/[0.08] px-2 py-1 font-mono text-[8px] text-primary-light">{kind === 'runtime' ? 'Runtime Key' : 'Project Key'}</span> : undefined}
+      />
+      <div className="mt-3 grid gap-3">
+        <label className="grid gap-1.5 font-mono text-[8px] font-medium text-muted-foreground">
           Name
           <Input
             value={name}
@@ -428,191 +419,161 @@ export function CreateApiKeyDialog({
             autoFocus
           />
         </label>
-        <label className="grid gap-1.5 text-xs font-medium text-muted">
+        <label className="grid gap-1.5 font-mono text-[8px] font-medium text-muted-foreground">
           <span className="flex items-center justify-between gap-3">
-            <span>Description <span className="font-normal text-muted/70">Optional</span></span>
-            <span className="text-[10px] font-normal text-muted/70">{description.length}/500</span>
+            <span>Description <span className="font-sans font-normal text-muted-foreground/70">Optional</span></span>
+            <span className="font-mono text-[8px] font-normal text-muted-foreground/70">{description.length}/500</span>
           </span>
-          <textarea
+          <Textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             placeholder="Which service or integration uses this key?"
             maxLength={500}
             rows={contextualRuntime ? 3 : 2}
-            className="w-full resize-none rounded-lg border border-border/80 bg-background/70 px-3 py-2.5 text-sm text-white outline-none placeholder:text-muted/60 focus:border-primary/40"
           />
         </label>
       </div>
     </section>
   )
 
+  const summary = kind === 'runtime'
+    ? `${selectedTargetName || `Select ${targetTypeLabel(targetType)}`} · ${environmentLabel(environment)} · ${interfaces.length ? interfaces.map((item) => item.toUpperCase()).join(' + ') : 'No interfaces'}`
+    : `Project operations · ${permissions.length ? permissions.join(' + ') : 'No permissions'}`
+
   return (
     <Dialog
       open={open}
       onClose={close}
       title={title}
-      className={createdKey
-        ? 'max-w-2xl'
-        : contextualRuntime
-          ? 'max-h-[calc(100svh-2rem)] max-w-[880px] overflow-hidden'
-          : 'max-h-[calc(100svh-2rem)] max-w-[1120px] overflow-hidden'}
+      className={createdKey ? 'max-w-2xl' : 'flex h-[min(760px,calc(100svh-2rem))] max-w-[1080px] flex-col overflow-hidden'}
+      contentClassName={createdKey ? undefined : 'min-h-0 flex-1 p-0'}
       layer={layer}
     >
       {createdKey ? (
         <div>
           <ApiKeySecretReveal apiKey={createdKey} targetName={selectedTargetName} />
-          <div className="mt-5 flex justify-end border-t border-border/80 pt-4"><Button onClick={close}>Done</Button></div>
+          <div className="mt-5 flex justify-end border-t border-border pt-4"><Button onClick={close}>Done</Button></div>
         </div>
       ) : (
-        <form className="flex max-h-[calc(100svh-10rem)] min-h-0 flex-col" onSubmit={handleSubmit}>
-          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto pr-1">
+        <form className="flex h-full min-h-0 flex-col" onSubmit={handleSubmit}>
+          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto px-5 py-4">
             {contextualRuntime ? (
-              <div className="space-y-4">
-                <section className="flex flex-col gap-3 rounded-xl border border-border/80 bg-background/35 p-4 sm:flex-row sm:items-center">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary-light">
-                    <TargetIcon className="h-4 w-4" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-white">{selectedTargetName ?? `Loading ${targetTypeLabel(targetType)}…`}</p>
-                    <p className="mt-1 text-[11px] leading-4 text-muted">
-                      {targetTypeLabel(targetType)} · {environmentLabel(environment)} · Runtime Key
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2 text-[10px] text-muted">
-                    <span className={`h-1.5 w-1.5 rounded-full ${deploymentAvailable ? 'bg-emerald-400' : 'bg-muted'}`} />
-                    <span>{targetsLoading || (targetType === 'agent' && releasesLoading) ? 'Checking deployment' : deploymentAvailable ? 'Deployment available' : 'Not deployed'}</span>
-                  </div>
-                </section>
-
-                <div className="grid items-start gap-4 lg:grid-cols-2">
-                  {identitySection}
-                  <div className="space-y-4">
-                    <RuntimeInterfaces interfaces={interfaces} onToggle={toggleInterface} />
-                    <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-                      <ApiKeyExpirationField value={expiration} onChange={(nextValue) => { setExpiration(nextValue); setExpirationError(null) }} error={expirationError} />
-                    </section>
-                  </div>
+              <div className="mb-4 flex items-center gap-3 border border-border bg-control/25 px-3 py-2.5">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light"><TargetIcon className="h-3.5 w-3.5" /></span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-mono text-[9px] font-semibold text-slate-100">{selectedTargetName ?? `Loading ${targetTypeLabel(targetType)}…`}</p>
+                  <p className="mt-0.5 font-mono text-[8px] text-muted-foreground">{targetTypeLabel(targetType)} · {environmentLabel(environment)} · Runtime Key</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-1.5 font-mono text-[8px] text-muted-foreground">
+                  <span className={`h-1.5 w-1.5 rounded-full ${deploymentAvailable ? 'bg-emerald-400' : 'bg-muted-foreground'}`} />
+                  {targetsLoading || (targetType === 'agent' && releasesLoading) ? 'Checking deployment' : deploymentAvailable ? 'Deployment available' : 'Not deployed'}
                 </div>
               </div>
-            ) : (
-              <div className={kindLocked ? '' : 'grid gap-4 lg:grid-cols-[200px_minmax(0,1fr)]'}>
-                {!kindLocked && (
-                  <aside className="space-y-3 lg:sticky lg:top-0 lg:self-start">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/75">Key type</p>
-                    <SelectionCard selected={kind === 'runtime'} title="Runtime Key" description="Execute one Agent or Network deployment." icon={<Zap className="h-4 w-4" />} onClick={() => { setKind('runtime'); setError(null) }} />
-                    <SelectionCard selected={kind === 'project'} title="Project Key" description="Read operational Project APIs." icon={<ShieldCheck className="h-4 w-4" />} onClick={() => { setKind('project'); setError(null) }} />
-                  </aside>
-                )}
+            ) : null}
 
-                <main className="min-w-0">
-                  <div className="grid items-start gap-4 lg:grid-cols-2">
-                    <div className="space-y-4">
-                      {identitySection}
+            {!kindLocked ? (
+              <section className="mb-4 border-b border-border pb-4">
+                <SectionHeader title="Key type" description="Choose whether this credential executes Runtime or reads Project operations." />
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <CompactChoice selected={kind === 'runtime'} title="Runtime Key" description="Execute one Agent or Network deployment." icon={<Zap className="h-3.5 w-3.5" />} onClick={() => { setKind('runtime'); setError(null) }} />
+                  <CompactChoice selected={kind === 'project'} title="Project Key" description="Read operational Project APIs." icon={<ShieldCheck className="h-3.5 w-3.5" />} onClick={() => { setKind('project'); setError(null) }} />
+                </div>
+              </section>
+            ) : null}
 
-                      {kind === 'runtime' ? (
-                        <>
-                          <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-                            <div className="mb-3">
-                              <h3 className="text-sm font-semibold text-white">Runtime target</h3>
-                              <p className="mt-1 text-xs leading-5 text-muted">The key can execute exactly one target in one environment.</p>
-                            </div>
-                            <div className="grid gap-2 sm:grid-cols-2">
-                              <SelectionCard selected={targetType === 'agent'} title="Agent" description="Creates one Agent Run per request." icon={<Bot className="h-4 w-4" />} disabled={Boolean(effectiveLockedType)} onClick={() => { setTargetType('agent'); setTargetId(''); setEnvironmentTouched(false); setError(null) }} />
-                              <SelectionCard selected={targetType === 'network'} title="Network" description="Creates one Network Run composed of Agent Runs." icon={<Network className="h-4 w-4" />} disabled={Boolean(effectiveLockedType)} onClick={() => { setTargetType('network'); setTargetId(''); setEnvironmentTouched(false); setError(null) }} />
-                            </div>
-                          </section>
+            <div className="grid gap-5 lg:grid-cols-2">
+              <div className="space-y-4 lg:pr-1">
+                {identitySection}
 
-                          <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-                            <div className="mb-4">
-                              <h3 className="text-sm font-semibold text-white">{targetTypeLabel(targetType)}</h3>
-                              <p className="mt-1 text-xs leading-5 text-muted">Choose which {targetTypeLabel(targetType)} deployment this credential can execute.</p>
-                            </div>
-                            <TargetList targetType={targetType} agents={agents} networks={networks} selectedTargetId={targetId} loading={targetsLoading} locked={targetLocked} onSelect={(nextTargetId) => { setTargetId(nextTargetId); setEnvironmentTouched(false); setError(null) }} />
-                          </section>
-                        </>
-                      ) : (
-                        <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-                          <h3 className="text-sm font-semibold text-white">Permissions</h3>
-                          <p className="mt-1 text-xs leading-5 text-muted">Choose which Project operations this key can access.</p>
-                          <div className="mt-4 grid gap-2">
-                            {PROJECT_PERMISSIONS.map((item) => {
-                              const selected = permissions.includes(item.value)
-                              return (
-                                <button key={item.value} type="button" onClick={() => togglePermission(item.value)} className={`rounded-xl border p-4 text-left ${selected ? 'border-primary/35 bg-primary/10' : 'border-border/80 bg-background/45'}`}>
-                                  <div className="flex items-center gap-2"><Activity className="h-4 w-4 text-primary-light" /><p className="text-sm font-medium text-white">{item.label}</p></div>
-                                  <p className="mt-2 text-xs leading-5 text-muted">{item.description}</p>
-                                </button>
-                              )
-                            })}
-                          </div>
-                        </section>
-                      )}
-                    </div>
-
-                    <div className="space-y-4">
-                      {kind === 'runtime' && (
-                        <>
-                          <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-                            <p className="text-xs font-medium text-muted">Environment</p>
-                            <div className="mt-2 grid grid-cols-2 gap-2">
-                              {(['staging', 'production'] as RuntimeEnvironment[]).map((item) => (
-                                <button
-                                  key={item}
-                                  type="button"
-                                  onClick={() => { setEnvironment(item); setEnvironmentTouched(true); setError(null) }}
-                                  className={`h-10 rounded-lg border text-xs font-medium ${environment === item ? 'border-primary/40 bg-primary/10 text-primary-light' : 'border-border bg-background/45 text-muted'}`}
-                                >
-                                  {environmentLabel(item)}
-                                </button>
-                              ))}
-                            </div>
-                            <div className="mt-3 rounded-lg border border-border/75 bg-background/45 px-3 py-2.5">
-                              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Current deployment</p>
-                              {!targetId
-                                ? <p className="mt-1.5 text-xs text-muted">Select a target to inspect this environment.</p>
-                                : releasesLoading && targetType === 'agent'
-                                  ? <p className="mt-1.5 text-xs text-muted">Checking current deployment…</p>
-                                  : deploymentAvailable
-                                    ? <p className="mt-1.5 text-xs text-white">{environmentLabel(environment)} · <span className="font-medium">Available</span></p>
-                                    : <p className="mt-1.5 text-xs leading-5 text-muted">{environmentLabel(environment)} · Not deployed. Deploy a release to enable Runtime requests.</p>}
-                            </div>
-                          </section>
-
-                          <RuntimeInterfaces interfaces={interfaces} onToggle={toggleInterface} />
-                        </>
-                      )}
-
-                      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-                        <ApiKeyExpirationField value={expiration} onChange={(nextValue) => { setExpiration(nextValue); setExpirationError(null) }} error={expirationError} />
-                      </section>
-
-                      <section className="rounded-xl border border-border/80 bg-background/35 px-4 py-3">
-                        <div className="flex items-start gap-3">
-                          <KeyRound className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
-                          <div className="min-w-0 flex-1">
-                            {kind === 'runtime' ? (
-                              <>
-                                <p className="text-xs leading-5 text-white"><span className="font-medium">{selectedTargetName || `Selected ${targetTypeLabel(targetType)}`}</span> · {environmentLabel(environment)} · {interfaces.length ? interfaces.join(', ') : 'No interfaces'}</p>
-                                <p className="mt-0.5 text-[11px] leading-5 text-muted">Target type: {targetType}. Deploys and rollbacks keep the same key.</p>
-                              </>
-                            ) : (
-                              <>
-                                <p className="text-xs leading-5 text-white">Project operations · {permissions.length ? permissions.join(', ') : 'No permissions'}</p>
-                                <p className="mt-0.5 text-[11px] leading-5 text-muted">Project Keys cannot execute Agents or Networks.</p>
-                              </>
-                            )}
-                          </div>
+                {kind === 'runtime' ? (
+                  <>
+                    {!contextualRuntime ? (
+                      <section className="border-b border-border pb-4">
+                        <SectionHeader title="Runtime target" description="A Runtime Key executes exactly one target in one environment." />
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                          <CompactChoice selected={targetType === 'agent'} title="Agent" description="Creates one Agent Run per request." icon={<Bot className="h-3.5 w-3.5" />} disabled={Boolean(effectiveLockedType)} onClick={() => { setTargetType('agent'); setTargetId(''); setEnvironmentTouched(false); setError(null) }} />
+                          <CompactChoice selected={targetType === 'network'} title="Network" description="Creates one Network Run composed of Agent Runs." icon={<Network className="h-3.5 w-3.5" />} disabled={Boolean(effectiveLockedType)} onClick={() => { setTargetType('network'); setTargetId(''); setEnvironmentTouched(false); setError(null) }} />
                         </div>
                       </section>
+                    ) : null}
+
+                    {!contextualRuntime ? (
+                      <section>
+                        <SectionHeader title={targetTypeLabel(targetType)} description={`Choose which ${targetTypeLabel(targetType)} deployment this credential can execute.`} />
+                        <div className="mt-3">
+                          <TargetList targetType={targetType} agents={agents} networks={networks} selectedTargetId={targetId} loading={targetsLoading} locked={targetLocked} onSelect={(nextTargetId) => { setTargetId(nextTargetId); setEnvironmentTouched(false); setError(null) }} />
+                        </div>
+                      </section>
+                    ) : null}
+                  </>
+                ) : (
+                  <section>
+                    <SectionHeader title="Permissions" description="Choose which Project operations this key can access." />
+                    <div className="mt-3 divide-y divide-border border border-border bg-background/25">
+                      {PROJECT_PERMISSIONS.map((item) => {
+                        const selected = permissions.includes(item.value)
+                        return (
+                          <button key={item.value} type="button" onClick={() => togglePermission(item.value)} className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors ${selected ? 'bg-primary/[0.08]' : 'hover:bg-control/35'}`}>
+                            <Activity className="h-3.5 w-3.5 text-primary-light" />
+                            <span className="min-w-0 flex-1"><span className="block font-mono text-[9px] font-medium text-slate-100">{item.label}</span><span className="mt-0.5 block font-sans text-[9px] text-muted-foreground">{item.description}</span></span>
+                            <span className={`flex h-4 w-4 items-center justify-center rounded-full border ${selected ? 'border-primary bg-primary text-white' : 'border-border'}`}>{selected ? <Check className="h-2.5 w-2.5" /> : null}</span>
+                          </button>
+                        )
+                      })}
+                    </div>
+                  </section>
+                )}
+              </div>
+
+              <div className="space-y-4 lg:border-l lg:border-border lg:pl-5">
+                {kind === 'runtime' ? (
+                  <>
+                    {!contextualRuntime ? (
+                      <section className="border-b border-border pb-4">
+                        <SectionHeader title="Environment" description="Bind this key to one deployable environment." />
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          {(['staging', 'production'] as RuntimeEnvironment[]).map((item) => (
+                            <button key={item} type="button" onClick={() => { setEnvironment(item); setEnvironmentTouched(true); setError(null) }} className={`h-[34px] rounded-control border font-mono text-[9px] font-medium ${environment === item ? 'border-primary/40 bg-primary/[0.10] text-primary-light' : 'border-border bg-control/25 text-muted-foreground hover:bg-control/45'}`}>
+                              {environmentLabel(item)}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-2.5 border border-border bg-control/20 px-3 py-2.5">
+                          <p className="font-mono text-[8px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Current deployment</p>
+                          {!targetId
+                            ? <p className="mt-1 font-sans text-[9px] text-muted-foreground">Select a target to inspect this environment.</p>
+                            : releasesLoading && targetType === 'agent'
+                              ? <p className="mt-1 font-sans text-[9px] text-muted-foreground">Checking current deployment…</p>
+                              : deploymentAvailable
+                                ? <p className="mt-1 font-mono text-[9px] text-slate-100">{environmentLabel(environment)} · Available</p>
+                                : <p className="mt-1 font-sans text-[9px] leading-4 text-muted-foreground">{environmentLabel(environment)} · Not deployed. Deploy a release to enable Runtime requests.</p>}
+                        </div>
+                      </section>
+                    ) : null}
+                    <RuntimeInterfaces interfaces={interfaces} onToggle={toggleInterface} />
+                  </>
+                ) : null}
+
+                <section className="border-b border-border pb-4">
+                  <ApiKeyExpirationField value={expiration} onChange={(nextValue) => { setExpiration(nextValue); setExpirationError(null) }} error={expirationError} />
+                </section>
+
+                <section>
+                  <SectionHeader title="Key contract" description="Review exactly what this credential will be allowed to do." />
+                  <div className="mt-3 flex items-start gap-2.5 border border-primary/25 bg-primary/[0.05] px-3 py-2.5">
+                    <KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary-light" />
+                    <div className="min-w-0">
+                      <p className="font-mono text-[9px] font-medium text-slate-100">{summary}</p>
+                      <p className="mt-1 font-sans text-[9px] leading-4 text-muted-foreground">{kind === 'runtime' ? `Target type: ${targetType}. Deploys and rollbacks keep the same key.` : 'Project Keys cannot execute Agents or Networks.'}</p>
                     </div>
                   </div>
-                </main>
+                </section>
               </div>
-            )}
+            </div>
           </div>
 
-          <div className="mt-5 flex min-h-12 shrink-0 items-center justify-between gap-4 border-t border-border/80 pt-4">
-            <div className="min-w-0 flex-1">{error && <p className="text-xs text-red-300">{error}</p>}</div>
+          <div className="flex min-h-[58px] shrink-0 items-center gap-4 border-t border-border bg-surface/[0.98] px-5 py-3">
+            <div className="min-w-0 flex-1">{error ? <p className="font-mono text-[9px] text-red-300">{error}</p> : <p className="truncate font-mono text-[8px] text-muted-foreground">{summary}</p>}</div>
             <div className="flex shrink-0 gap-2">
               <Button type="button" variant="secondary" onClick={close}>Cancel</Button>
               <Button type="submit" loading={isPending}>Create {kind === 'runtime' ? 'Runtime' : 'Project'} Key</Button>
