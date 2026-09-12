@@ -32,7 +32,7 @@ export function AgentOverviewSettings({ onOpenBehavior }: AgentOverviewSettingsP
           </div>
           <div className="space-y-ui-sm">
             <label className="block font-mono text-system-meta font-medium uppercase tracking-[0.1em] text-muted-foreground" htmlFor={`${id}-description`}>Description</label>
-            <Textarea id={`${id}-description`} rows={2} className="min-h-[78px] resize-y font-sans text-product-small" value={state.description} onChange={event => setField('description', event.target.value)} placeholder="Role and specialization" />
+            <Textarea id={`${id}-description`} rows={2} className="min-h-textarea-compact resize-y font-sans text-product-small" value={state.description} onChange={event => setField('description', event.target.value)} placeholder="Role and specialization" />
           </div>
         </div>
       </section>
