@@ -13,10 +13,13 @@ export const buttonVariants = cva('', {
       link: '',
     },
     size: {
+      xs: '',
       default: '',
       sm: '',
       lg: '',
       icon: '',
+      iconSm: '',
+      iconXs: '',
     },
   },
   defaultVariants: {
