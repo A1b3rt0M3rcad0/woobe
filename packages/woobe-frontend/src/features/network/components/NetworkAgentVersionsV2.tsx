@@ -3,6 +3,7 @@ import { ExternalLink, Eye, GitBranch, Package } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 
+import { dialogTypographyClass } from '@/components/ui/Dialog'
 import { getRelease } from '@/features/agents/api'
 import { useReleases } from '@/features/agents/hooks'
 import type { Agent, AgentRelease } from '@/features/agents/types'
@@ -19,7 +20,7 @@ interface NetworkAgentVersionsProps {
 
 function SnapshotModal({ release, onClose }: { release: AgentRelease | null; onClose: () => void }) {
   if (!release) return null
-  return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4"><div className="flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-surface"><header className="flex items-start gap-3 border-b border-border p-4"><div className="min-w-0 flex-1"><p className="text-[9px] uppercase tracking-wider text-primary-light">Agent snapshot</p><h2 className="mt-1 truncate text-sm font-semibold text-white">{release.name || 'Agent'} · {release.version}</h2><p className="mt-1 text-[9px] text-muted">Immutable configuration. Viewing it does not change Agent or Network Production.</p></div><button type="button" onClick={onClose} className="rounded-lg border border-border px-2 py-1 text-[9px] text-muted hover:text-white">Close</button></header><div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-4"><AgentSnapshotDetails release={release} /></div></div></div>
+  return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4"><div role="dialog" aria-modal="true" aria-label={`${release.name || 'Agent'} ${release.version} snapshot`} className={`${dialogTypographyClass} flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-surface`}><header className="flex items-start gap-3 border-b border-border p-4"><div className="min-w-0 flex-1"><p className="text-[9px] uppercase tracking-wider text-primary-light">Agent snapshot</p><h2 className="mt-1 truncate text-sm font-semibold text-white">{release.name || 'Agent'} · {release.version}</h2><p className="mt-1 text-[9px] text-muted">Immutable configuration. Viewing it does not change Agent or Network Production.</p></div><button type="button" onClick={onClose} className="rounded-lg border border-border px-2 py-1 text-[9px] text-muted hover:text-white">Close</button></header><div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-4"><AgentSnapshotDetails release={release} /></div></div></div>
 }
 
 function ReleaseRow({ release, label, onView, loading }: { release: AgentRelease; label: string; onView: () => void; loading: boolean }) {
