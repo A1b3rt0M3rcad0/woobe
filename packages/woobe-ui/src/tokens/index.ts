@@ -9,6 +9,7 @@ export {
   woobeShadow,
   woobeSpacing,
   woobeTypographyScale,
+  woobeTypographyTracking,
 } from './foundations'
 
 export const woobeTypography = {
