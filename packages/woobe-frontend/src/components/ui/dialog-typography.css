@@ -91,6 +91,14 @@
 :where(
   [role='dialog'],
   [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) :is(h3.text-\[11px\], h4.text-\[11px\]) {
+  font-size: 10px !important;
+  line-height: 1rem !important;
+}
+
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
 ) :is(p.text-xs, span.text-xs, code.text-xs) {
   font-size: 10px !important;
   line-height: 1rem !important;
