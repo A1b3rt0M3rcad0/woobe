@@ -8,7 +8,7 @@ const variantClasses: Record<AlertVariant, string> = {
   info: 'border-primary/30 bg-primary/[0.07] text-primary-light',
   success: 'border-emerald-500/30 bg-emerald-500/[0.07] text-emerald-300',
   warning: 'border-amber-500/30 bg-amber-500/[0.07] text-amber-300',
-  destructive: 'border-red-500/30 bg-red-500/[0.07] text-red-200',
+  destructive: 'border-red-500/25 bg-control/80 text-red-200',
 }
 
 export interface AlertProps extends HTMLAttributes<HTMLDivElement> {
@@ -33,14 +33,14 @@ Alert.displayName = 'Alert'
 
 const AlertTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
-    <h5 ref={ref} className={cn('mb-1 font-medium leading-none', className)} {...props} />
+    <h5 ref={ref} className={cn('mb-1 font-mono text-[10px] font-medium leading-none', className)} {...props} />
   ),
 )
 AlertTitle.displayName = 'AlertTitle'
 
 const AlertDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => (
-    <p ref={ref} className={cn('opacity-90', className)} {...props} />
+    <p ref={ref} className={cn('font-sans opacity-90', className)} {...props} />
   ),
 )
 AlertDescription.displayName = 'AlertDescription'
