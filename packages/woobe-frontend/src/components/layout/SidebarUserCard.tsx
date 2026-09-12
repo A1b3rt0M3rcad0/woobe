@@ -13,13 +13,45 @@ function getInitials(email?: string) {
     .join('') || 'U'
 }
 
-export function SidebarUserCard() {
+export function SidebarUserCard({ variant = 'default' }: { variant?: 'default' | 'technical' }) {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
 
   async function handleSignOut() {
     await logout()
     window.location.replace('/login')
+  }
+
+  if (variant === 'technical') {
+    return (
+      <div className="border-t border-border p-3">
+        <div className="flex items-center gap-2 rounded-container border border-border bg-surface p-2">
+          <button
+            type="button"
+            className="group flex min-w-0 flex-1 items-center gap-2.5 text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+            onClick={() => navigate('/settings')}
+            aria-label="Open account settings"
+          >
+            <div className="flex h-[30px] w-[30px] shrink-0 items-center justify-center rounded-full border border-primary/30 bg-control font-mono text-[9px] font-bold text-slate-100">
+              {getInitials(user?.email)}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-[11px] font-medium text-slate-100">{user?.email?.split('@')[0] || 'User'}</p>
+              <p className="mt-0.5 truncate text-[9px] text-muted-foreground">{user?.email || 'Signed in'}</p>
+            </div>
+            <Settings className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-colors group-hover:text-slate-100" />
+          </button>
+          <button
+            type="button"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-technical border border-border bg-control text-muted-foreground transition-colors hover:border-slate-600 hover:text-slate-100 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+            onClick={handleSignOut}
+            aria-label="Log out"
+          >
+            <LogOut className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      </div>
+    )
   }
 
   return (
