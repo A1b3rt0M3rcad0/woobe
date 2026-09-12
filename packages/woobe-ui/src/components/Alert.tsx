@@ -21,7 +21,7 @@ const Alert = forwardRef<HTMLDivElement, AlertProps>(
       ref={ref}
       role="alert"
       className={cn(
-        'relative w-full rounded-container border px-3 py-2.5 text-xs leading-5',
+        'relative w-full rounded-container border px-ui-md py-ui-sm font-sans text-product-small',
         variantClasses[variant],
         className,
       )}
@@ -33,14 +33,14 @@ Alert.displayName = 'Alert'
 
 const AlertTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
-    <h5 ref={ref} className={cn('mb-1 font-mono text-[10px] font-medium leading-none', className)} {...props} />
+    <h5 ref={ref} className={cn('mb-ui-xs font-mono text-system-control font-medium', className)} {...props} />
   ),
 )
 AlertTitle.displayName = 'AlertTitle'
 
 const AlertDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => (
-    <p ref={ref} className={cn('font-sans opacity-90', className)} {...props} />
+    <p ref={ref} className={cn('font-sans text-product-small opacity-90', className)} {...props} />
   ),
 )
 AlertDescription.displayName = 'AlertDescription'
