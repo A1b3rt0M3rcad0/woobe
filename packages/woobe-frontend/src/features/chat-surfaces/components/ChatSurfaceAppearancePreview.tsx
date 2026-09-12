@@ -44,9 +44,12 @@ export function ChatSurfaceAppearancePreview({
   }, [appearance, embedOrigin])
 
   return (
-    <section className="min-w-0 self-start overflow-hidden rounded-xl border border-border/80 bg-surface/65 p-4 sm:p-5">
-      <div className="flex min-w-0 flex-wrap items-center justify-between gap-3">
-        <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Preview</p>
+    <section className="min-w-0 self-start overflow-hidden rounded-container border border-border bg-surface/[0.92]">
+      <div className="flex h-[46px] min-w-0 items-center justify-between gap-3 border-b border-border px-3.5">
+        <div className="min-w-0">
+          <p className="font-mono text-[8px] font-semibold uppercase tracking-[0.13em] text-muted-foreground">Preview</p>
+          <p className="mt-0.5 truncate font-mono text-[9px] text-slate-300">Production renderer</p>
+        </div>
         {onTest ? (
           <Button
             type="button"
@@ -57,27 +60,29 @@ export function ChatSurfaceAppearancePreview({
             title={testDisabledReason ?? 'Open a live test using the pinned Production Release'}
             onClick={onTest}
           >
-            <Maximize2 className="mr-2 h-3.5 w-3.5" />
+            <Maximize2 className="mr-1.5 h-3 w-3" />
             Test live
           </Button>
         ) : null}
       </div>
-      <div className="mt-4 min-w-0 overflow-hidden rounded-xl border border-border/80 bg-background">
-        <iframe
-          ref={frameRef}
-          src={previewUrl}
-          title="ChatSurface appearance preview"
-          sandbox="allow-scripts allow-same-origin"
-          className="block h-[280px] w-full min-w-0 border-0 sm:h-[320px]"
-          onLoad={syncAppearance}
-        />
+
+      <iframe
+        ref={frameRef}
+        src={previewUrl}
+        title="ChatSurface appearance preview"
+        sandbox="allow-scripts allow-same-origin"
+        className="block h-[340px] w-full min-w-0 border-0 bg-background"
+        onLoad={syncAppearance}
+      />
+
+      <div className="border-t border-border px-3.5 py-3">
+        <p className="font-sans text-[10px] leading-4 text-muted-foreground">
+          Same ChatSurface renderer used by the production embed. Preview does not create a Session or execute the target.
+        </p>
+        {testDisabledReason ? (
+          <p className="mt-2 font-mono text-[9px] leading-4 text-amber-200/80">{testDisabledReason}</p>
+        ) : null}
       </div>
-      <p className="mt-3 break-words text-[11px] leading-5 text-muted">
-        Rendered by the same ChatSurface UI package used by the production embed. It does not create a Session or execute the target.
-      </p>
-      {testDisabledReason ? (
-        <p className="mt-2 break-words text-[11px] leading-5 text-amber-200/80">{testDisabledReason}</p>
-      ) : null}
     </section>
   )
 }
