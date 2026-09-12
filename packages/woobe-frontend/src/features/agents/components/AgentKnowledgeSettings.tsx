@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { BookOpen, Database, Search, Settings2, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { PanelHeader } from '@woobe/ui'
 
 import { Button } from '@/components/ui/Button'
 import { useCreateKnowledgeVersion, useKnowledgeVersions } from '@/features/agents/hooks'
@@ -30,15 +31,6 @@ function runtimeConfig(value: Record<string, unknown>): RagRuntimeConfig {
     history_turns: typeof rag.history_turns === 'number' ? rag.history_turns : DEFAULT_RETRIEVAL_CONFIG.history_turns,
     grounding_policy: rag.grounding_policy === 'required' ? 'required' : 'optional',
   }
-}
-
-function PanelHeader({ icon, title, description }: { icon: React.ReactNode; title: string; description: string }) {
-  return (
-    <div className="flex items-start gap-2.5 border-b border-border p-3">
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light">{icon}</span>
-      <div className="min-w-0"><p className="font-mono text-[9px] font-bold text-slate-50">{title}</p><p className="mt-0.5 font-sans text-[9px] leading-4 text-muted-foreground">{description}</p></div>
-    </div>
-  )
 }
 
 export function AgentKnowledgeSettings({ projectId, agentId }: { projectId: string; agentId: string }) {
@@ -72,45 +64,45 @@ export function AgentKnowledgeSettings({ projectId, agentId }: { projectId: stri
   }
 
   return (
-    <div className="p-3">
+    <div className="p-ui-md">
       <section aria-label="Knowledge" className="rounded-container border border-border bg-surface/[0.72]">
         <PanelHeader icon={<BookOpen className="h-3.5 w-3.5" />} title="Knowledge" description={active ? 'Immutable snapshot selected for this Draft.' : 'No immutable snapshot selected.'} />
-        <div className="p-3">
-          <p className="font-sans text-[9px] leading-4 text-muted-foreground">Choose the knowledge available to this Agent and configure how it is retrieved.</p>
-          <p className="mb-2 mt-4 font-mono text-[8px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Knowledge source</p>
+        <div className="p-ui-md">
+          <p className="font-sans text-product-caption text-muted-foreground">Choose the knowledge available to this Agent and configure how it is retrieved.</p>
+          <p className="mb-ui-sm mt-ui-lg font-mono text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">Knowledge source</p>
           {active ? (
-            <div className="rounded-container border border-border bg-background/20 p-3">
-              <div className="flex items-start gap-2.5">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light"><BookOpen className="h-3.5 w-3.5" /></span>
+            <div className="rounded-container border border-border bg-background/20 p-ui-md">
+              <div className="flex items-start gap-ui-sm">
+                <span className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light"><BookOpen className="h-3.5 w-3.5" /></span>
                 <div className="min-w-0 flex-1">
-                  <p title={collectionName} className="truncate font-mono text-[9px] font-semibold text-slate-100">{collectionName}</p>
-                  <p className="mt-1 font-mono text-[8px] text-muted-foreground">Knowledge {active.version} · Vector {vectorVersion}</p>
-                  <p className="mt-1 font-mono text-[8px] uppercase tracking-[0.08em] text-muted-foreground">Immutable snapshot</p>
+                  <p title={collectionName} className="truncate font-mono text-system-label font-semibold text-slate-100">{collectionName}</p>
+                  <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">Knowledge {active.version} · Vector {vectorVersion}</p>
+                  <p className="mt-ui-xs font-mono text-system-meta uppercase tracking-[0.08em] text-muted-foreground">Immutable snapshot</p>
                 </div>
-                <button type="button" onClick={() => setField('knowledgeVersionId', null)} className="flex h-7 w-7 items-center justify-center rounded-control border border-border text-muted-foreground transition-colors hover:border-red-500/30 hover:text-red-300" aria-label="Remove knowledge"><Trash2 className="h-3.5 w-3.5" /></button>
+                <button type="button" onClick={() => setField('knowledgeVersionId', null)} className="flex h-control-segment w-control-segment items-center justify-center rounded-control border border-border text-muted-foreground transition-colors hover:border-red-500/30 hover:text-red-300" aria-label="Remove knowledge"><Trash2 className="h-3.5 w-3.5" /></button>
               </div>
-              <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/70 pt-3">
-                <Button size="sm" variant="outline" className="min-h-[30px] h-auto whitespace-normal px-2 py-1" onClick={() => setSelectorOpen(true)}>Change version</Button>
+              <div className="mt-ui-md grid grid-cols-2 gap-ui-sm border-t border-border/70 pt-ui-md">
+                <Button size="sm" variant="outline" className="h-auto min-h-control-sm whitespace-normal px-ui-sm py-ui-xs" onClick={() => setSelectorOpen(true)}>Change version</Button>
                 <Button size="sm" variant="ghost" className="text-primary-light" onClick={() => setManagerOpen(true)}>Manage</Button>
               </div>
             </div>
           ) : (
-            <div className="rounded-container border border-dashed border-border bg-background/20 p-3">
-              <div className="flex items-start gap-2.5"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light"><Database className="h-3.5 w-3.5" /></span><div><p className="font-mono text-[9px] font-semibold text-slate-100">No knowledge selected</p><p className="mt-1 font-sans text-[9px] leading-4 text-muted-foreground">Link an immutable Vector Snapshot.</p></div></div>
-              <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/70 pt-3">
-                <Button size="sm" variant="outline" className="min-h-[30px] h-auto whitespace-normal px-2 py-1" onClick={() => setSelectorOpen(true)}><Plus className="h-3.5 w-3.5" />Select knowledge</Button>
+            <div className="rounded-container border border-dashed border-border bg-background/20 p-ui-md">
+              <div className="flex items-start gap-ui-sm"><span className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light"><Database className="h-3.5 w-3.5" /></span><div><p className="font-mono text-system-label font-semibold text-slate-100">No knowledge selected</p><p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Link an immutable Vector Snapshot.</p></div></div>
+              <div className="mt-ui-md grid grid-cols-2 gap-ui-sm border-t border-border/70 pt-ui-md">
+                <Button size="sm" variant="outline" className="h-auto min-h-control-sm whitespace-normal px-ui-sm py-ui-xs" onClick={() => setSelectorOpen(true)}><Plus className="h-3.5 w-3.5" />Select knowledge</Button>
                 <Button size="sm" variant="ghost" className="text-primary-light" onClick={() => setManagerOpen(true)}>Manage</Button>
               </div>
             </div>
           )}
 
-          <div className="mt-4 border-t border-border pt-4">
-            <p className="mb-2 font-mono text-[8px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Retrieval</p>
-            <div className="rounded-container border border-border bg-background/20 p-3">
-              <div className="flex items-start gap-2.5"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light"><Search className="h-3.5 w-3.5" /></span><div className="min-w-0"><p className="font-mono text-[9px] font-semibold text-slate-100">Search behavior</p><p className="mt-1 font-mono text-[8px] text-muted-foreground">Top {runtime.top_k} from {runtime.candidate_k} candidates</p><p className="mt-1.5 font-sans text-[9px] leading-4 text-muted-foreground">{runtime.query_mode === 'current_message' ? 'Current message' : 'Conversation context'} · {runtime.grounding_policy === 'required' ? 'Required grounding' : 'Optional grounding'}</p></div></div>
-              <div className="mt-3 border-t border-border/70 pt-3"><Button size="sm" variant="outline" onClick={() => setRuntimeOpen(true)}><Settings2 className="h-3.5 w-3.5" />Configure</Button></div>
+          <div className="mt-ui-lg border-t border-border pt-ui-lg">
+            <p className="mb-ui-sm font-mono text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">Retrieval</p>
+            <div className="rounded-container border border-border bg-background/20 p-ui-md">
+              <div className="flex items-start gap-ui-sm"><span className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light"><Search className="h-3.5 w-3.5" /></span><div className="min-w-0"><p className="font-mono text-system-label font-semibold text-slate-100">Search behavior</p><p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">Top {runtime.top_k} from {runtime.candidate_k} candidates</p><p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{runtime.query_mode === 'current_message' ? 'Current message' : 'Conversation context'} · {runtime.grounding_policy === 'required' ? 'Required grounding' : 'Optional grounding'}</p></div></div>
+              <div className="mt-ui-md border-t border-border/70 pt-ui-md"><Button size="sm" variant="outline" onClick={() => setRuntimeOpen(true)}><Settings2 className="h-3.5 w-3.5" />Configure</Button></div>
             </div>
-            {!active ? <p className="mt-2 font-sans text-[8px] text-muted-foreground">Applied when knowledge is linked.</p> : null}
+            {!active ? <p className="mt-ui-sm font-sans text-product-caption text-muted-foreground">Applied when knowledge is linked.</p> : null}
           </div>
         </div>
       </section>
