@@ -1,5 +1,6 @@
-import { Component, type ReactNode, type ErrorInfo } from 'react'
-import { AlertTriangle, RefreshCw, ArrowLeft } from 'lucide-react'
+import { Component, type ErrorInfo, type ReactNode } from 'react'
+import { AlertTriangle, ArrowLeft, RefreshCw } from 'lucide-react'
+import { EmptyStatePanel } from '@woobe/ui'
 import { Button } from '@/components/ui/Button'
 
 interface ErrorBoundaryProps {
@@ -38,28 +39,24 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
   render() {
     if (this.state.hasError) {
-      if (this.props.fallback) {
-        return this.props.fallback
-      }
+      if (this.props.fallback) return this.props.fallback
 
       return (
-        <div className="flex flex-col items-center justify-center py-16 text-center">
-          <AlertTriangle className="h-10 w-10 text-red-400" />
-          <h3 className="mt-3 text-lg font-semibold text-white">Something went wrong</h3>
-          <p className="mt-1 text-sm text-muted max-w-md">
-            An unexpected error occurred. Please try again or return to the dashboard.
-          </p>
-          <div className="flex gap-3 mt-4">
-            <Button variant="outline" size="sm" onClick={this.handleReload}>
-              <RefreshCw className="mr-2 h-4 w-4" />
-              Reload
-            </Button>
-            <Button variant="outline" size="sm" onClick={this.handleBackToDashboard}>
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to dashboard
-            </Button>
-          </div>
-        </div>
+        <EmptyStatePanel
+          icon={<AlertTriangle className="h-4 w-4 text-red-300" />}
+          title="Something went wrong"
+          description="An unexpected error occurred. Try again or return to the dashboard."
+          action={(
+            <div className="flex flex-wrap justify-center gap-2">
+              <Button variant="outline" size="sm" onClick={this.handleReload}>
+                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Reload
+              </Button>
+              <Button variant="outline" size="sm" onClick={this.handleBackToDashboard}>
+                <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />Back to dashboard
+              </Button>
+            </div>
+          )}
+        />
       )
     }
 
