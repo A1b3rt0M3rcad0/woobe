@@ -18,7 +18,7 @@ export function ResourcePage({ title, description, action, children, className }
       className={cn(
         'resource-page-shell mx-auto w-full max-w-[1500px] space-y-4 font-sans',
         '[&_h1]:font-mono [&_h2]:font-mono [&_h3]:font-mono [&_h4]:font-mono',
-        '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_select]:font-mono [&_input]:font-mono',
+        '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_select]:font-mono [&_input]:font-mono [&_input]:text-[10px]',
         '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
         '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono [&_.font-medium]:font-mono [&_.font-semibold]:font-mono',
         '[&_textarea]:font-sans',
