@@ -1,7 +1,7 @@
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { Puzzle, Trash2 } from 'lucide-react'
-import { EmptyStatePanel, PanelHeader } from '@woobe/ui'
+import { Checkbox, EmptyStatePanel, PanelHeader } from '@woobe/ui'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useContextAssemblers } from '@/features/agents/hooks'
@@ -49,7 +49,7 @@ export function AgentSkillsSection({ projectId }: { projectId: string }) {
           return <div key={binding.skill_id} className="p-ui-md">
             <div className="flex items-start gap-ui-sm">
               <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-ui-sm">
-                <input type="checkbox" checked={binding.enabled} disabled={!binding.enabled && !manager} className="mt-ui-xs h-3.5 w-3.5 accent-primary" onChange={event => {
+                <Checkbox checked={binding.enabled} disabled={!binding.enabled && !manager} className="mt-ui-xs" onChange={event => {
                   const nextEnabled = event.target.checked
                   const runtime = nextEnabled && manager ? enableSkillsContext(state.runtimeConfig, manager) : state.runtimeConfig
                   setField('runtimeConfig', { ...runtime, skills: { ...config, bindings: config.bindings.map(item => item.skill_id === binding.skill_id ? { ...item, enabled: nextEnabled } : item) } })

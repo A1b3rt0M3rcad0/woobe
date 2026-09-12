@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { FileJson2, HelpCircle } from 'lucide-react'
-import { PanelHeader } from '@woobe/ui'
+import { Checkbox, PanelHeader } from '@woobe/ui'
 
 import { JsonEditor } from '@/components/ui/JsonEditor'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
@@ -43,7 +43,7 @@ export function AgentOutputSettings() {
         <div className="space-y-ui-md p-ui-md">
           <label className="flex min-h-control items-center justify-between gap-ui-md rounded-container border border-border bg-background/20 px-ui-md py-ui-sm">
             <span><span className="block font-mono text-system-label font-semibold text-slate-100">Enable JSON output</span><span className="mt-ui-xs block font-sans text-product-caption text-muted-foreground">Strict validation remains enabled when the contract is active.</span></span>
-            <input type="checkbox" checked={enabled} onChange={(event) => toggle(event.target.checked)} className="h-3.5 w-3.5 shrink-0 accent-primary" />
+            <Checkbox checked={enabled} onChange={(event) => toggle(event.target.checked)} />
           </label>
 
           <div>
