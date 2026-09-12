@@ -25,23 +25,23 @@ function FlowItem({ title, description, icon: Icon, active, disabled, compact, o
       onClick={onClick}
       title={description}
       className={cn(
-        'group flex h-9 w-full items-center gap-2.5 rounded-technical border px-2.5 text-left font-mono text-[11px] transition-colors',
+        'group flex h-control-nav w-full items-center gap-ui-sm rounded-technical border px-ui-sm text-left font-mono text-product-small transition-colors',
         active
           ? 'border-primary/40 bg-primary/[0.12] text-slate-50'
           : 'border-transparent text-slate-300 hover:border-border hover:bg-accent/40 hover:text-slate-50',
         disabled && 'cursor-not-allowed opacity-40 hover:border-transparent hover:bg-transparent hover:text-slate-300',
-        compact && 'justify-center px-3 sm:justify-start',
+        compact && 'justify-center px-ui-md sm:justify-start',
       )}
     >
       <Icon
         className={cn(
-          'h-[15px] w-[15px] shrink-0',
+          'h-icon w-icon shrink-0',
           active ? 'text-primary-light' : 'text-muted-foreground group-hover:text-slate-200',
           disabled && 'group-hover:text-muted-foreground',
         )}
       />
       <span className={cn('truncate', compact && 'hidden sm:inline')}>{title}</span>
-      {!compact && disabled && <span className="ml-auto text-[8px] uppercase tracking-[0.08em] text-muted">locked</span>}
+      {!compact && disabled && <span className="ml-auto text-system-meta uppercase tracking-[0.08em] text-muted-foreground">locked</span>}
     </button>
   )
 }
@@ -80,28 +80,28 @@ export function WorkspaceSelectionSidebar({ compact = false }: { compact?: boole
   if (compact) {
     return (
       <div className="border-b border-border bg-surface lg:hidden">
-        <div className="grid grid-cols-2 gap-1 p-2">{flowItems}</div>
+        <div className="grid grid-cols-2 gap-ui-xs p-ui-sm">{flowItems}</div>
       </div>
     )
   }
 
   return (
-    <aside className="flex w-[258px] shrink-0 flex-col border-r border-border bg-surface">
-      <header className="flex h-[72px] shrink-0 items-center gap-2.5 border-b border-border px-[18px]">
-        <div className="flex h-[29px] w-[29px] items-center justify-center text-slate-50" aria-hidden="true">
-          <Orbit className="h-[21px] w-[21px]" strokeWidth={1.7} />
+    <aside className="flex w-project-sidebar shrink-0 flex-col border-r border-border bg-surface">
+      <header className="flex h-project-sidebar-header shrink-0 items-center gap-ui-sm border-b border-border px-ui-xl">
+        <div className="flex h-control-sm w-control-sm items-center justify-center text-slate-50" aria-hidden="true">
+          <Orbit className="h-icon-brand w-icon-brand" strokeWidth={1.7} />
         </div>
         <div className="min-w-0">
-          <p className="font-mono text-sm font-bold tracking-[0.02em] text-slate-50">WOOBE</p>
-          <p className="mt-px font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">control plane</p>
+          <p className="font-mono text-heading-sm font-bold tracking-[0.02em] text-slate-50">WOOBE</p>
+          <p className="mt-ui-hairline font-mono text-system-label uppercase tracking-[0.12em] text-muted-foreground">control plane</p>
         </div>
       </header>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4" aria-label="Workspace navigation">
-        <p className="mb-2 px-2 font-mono text-[9px] font-bold uppercase tracking-[0.15em] text-muted">
+      <nav className="flex-1 overflow-y-auto px-ui-md py-ui-lg" aria-label="Workspace navigation">
+        <p className="mb-ui-sm px-ui-sm font-mono text-system-label font-bold uppercase tracking-[0.15em] text-muted-foreground">
           Workspace
         </p>
-        <div className="grid gap-[3px]">{flowItems}</div>
+        <div className="grid gap-ui-hairline">{flowItems}</div>
       </nav>
 
       <SidebarUserCard variant="technical" />
