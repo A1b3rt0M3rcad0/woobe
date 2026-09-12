@@ -10,15 +10,15 @@ const environmentLabels: Record<OperationalEnvironment, string> = {
 
 const liveStyles: Record<OperationalEnvironment, { pill: string; dot: string }> = {
   draft: {
-    pill: 'border-blue-500/30 bg-blue-500/10 text-blue-200',
-    dot: 'bg-blue-400',
+    pill: 'border-slate-500/30 bg-slate-500/[0.08] text-slate-300',
+    dot: 'bg-slate-400',
   },
   staging: {
-    pill: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-200',
+    pill: 'border-indigo-500/30 bg-indigo-500/[0.08] text-indigo-200',
     dot: 'bg-indigo-400',
   },
   production: {
-    pill: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+    pill: 'border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-300',
     dot: 'bg-emerald-400',
   },
 }
@@ -53,10 +53,10 @@ export function RuntimeEnvironmentPill({
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium',
-        neutral && 'border-border/80 bg-background/55 text-muted',
-        !neutral && !available && 'border-border/70 bg-background/35 text-muted/80',
-        !neutral && off && 'border-slate-500/25 bg-slate-500/[0.08] text-slate-300',
+        'inline-flex items-center gap-1.5 rounded-technical border px-2 py-1 font-mono text-[8px] font-medium leading-none',
+        neutral && 'border-border bg-control/70 text-muted-foreground',
+        !neutral && !available && 'border-border/80 bg-control/40 text-muted-foreground/80',
+        !neutral && off && 'border-slate-500/25 bg-slate-500/[0.06] text-slate-400',
         !neutral && live && liveStyles[environment].pill,
       )}
       aria-label={text}
@@ -66,7 +66,7 @@ export function RuntimeEnvironmentPill({
           'h-1.5 w-1.5 shrink-0 rounded-full',
           neutral && 'bg-slate-500',
           !neutral && !available && 'bg-slate-600',
-          !neutral && off && 'bg-slate-400',
+          !neutral && off && 'bg-slate-500',
           !neutral && live && liveStyles[environment].dot,
         )}
         aria-hidden="true"
