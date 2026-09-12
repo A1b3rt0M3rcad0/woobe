@@ -19,24 +19,27 @@ export function Tabs({ tabs, defaultTab, className }: TabsProps) {
 
   return (
     <div className={cn('w-full', className)}>
-      <ScrollArea orientation="horizontal" className="flex border-b border-border">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActive(tab.id)}
-            className={cn(
-              'px-4 py-2 text-sm font-medium transition-colors border-b-2 -mb-[1px] whitespace-nowrap',
-              active === tab.id
-                ? 'border-primary text-primary border-b-2'
-                : 'border-transparent text-muted hover:text-white',
-            )}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <ScrollArea orientation="horizontal" className="border-b border-border pb-3">
+        <div className="inline-flex min-w-max rounded-control border border-border bg-control p-[3px]">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActive(tab.id)}
+              className={cn(
+                'flex h-[27px] items-center whitespace-nowrap rounded-technical border px-2.5 font-mono text-[9px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
+                active === tab.id
+                  ? 'border-primary/35 bg-primary/[0.12] text-slate-50'
+                  : 'border-transparent text-muted-foreground hover:bg-accent/45 hover:text-slate-200',
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </ScrollArea>
       <div className="mt-4">
-        {tabs.find((t) => t.id === active)?.content}
+        {tabs.find((tab) => tab.id === active)?.content}
       </div>
     </div>
   )
