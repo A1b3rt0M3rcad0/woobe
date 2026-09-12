@@ -42,6 +42,7 @@ export {
 } from './components/WoobeDateTimePicker'
 export {
   woobeBreakpoints,
+  woobeCodeTheme,
   woobeColors,
   woobeControl,
   woobeDensity,
@@ -53,5 +54,6 @@ export {
   woobeSpacing,
   woobeTypography,
   woobeTypographyScale,
+  type WoobeCodeTheme,
   type WoobeColors,
 } from './tokens'
