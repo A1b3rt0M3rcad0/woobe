@@ -19,6 +19,15 @@ function CloseIcon() {
   )
 }
 
+const DIALOG_TYPOGRAPHY = [
+  'font-sans',
+  '[&_h1]:font-mono [&_h2]:font-mono [&_h3]:font-mono [&_h4]:font-mono [&_h5]:font-mono [&_h6]:font-mono',
+  '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_select]:font-mono',
+  '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
+  '[&_.uppercase]:font-mono [&_aside]:font-mono',
+  '[&_input]:font-sans [&_textarea]:font-sans',
+].join(' ')
+
 export function Dialog({ open, onClose, title, children, className, contentClassName }: DialogProps) {
   const overlayRef = useRef<HTMLDivElement>(null)
   const titleId = useId()
@@ -56,6 +65,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
         aria-labelledby={title ? titleId : undefined}
         className={cn(
           'w-full max-w-lg rounded-container border border-border bg-surface text-accent-foreground shadow-[0_12px_40px_rgba(0,0,0,0.24)]',
+          DIALOG_TYPOGRAPHY,
           className,
         )}
       >
