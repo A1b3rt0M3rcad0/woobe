@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import CodeMirror from '@uiw/react-codemirror'
 import { json } from '@codemirror/lang-json'
@@ -19,7 +19,7 @@ interface JsonCodeBlockProps {
   collapsed?: boolean
 }
 
-function ActionButton({ label, title, onClick, children }: { label: string; title: string; onClick: () => void; children: React.ReactNode }) {
+function ActionButton({ label, title, onClick, children }: { label: string; title: string; onClick: () => void; children: ReactNode }) {
   return <button type="button" onClick={onClick} className="flex h-7 w-7 items-center justify-center rounded-control border border-border bg-control/30 text-muted-foreground transition-colors hover:bg-control hover:text-slate-50" title={title} aria-label={label}>{children}</button>
 }
 
@@ -86,18 +86,8 @@ export function JsonCodeBlock({
 
   return (
     <>
-      <CodePanel
-        title={title || 'JSON'}
-        badge={isInvalid ? <span className="text-red-300">INVALID</span> : 'JSON'}
-        actions={panelActions}
-        density="compact"
-        className={cn(className)}
-      >
-        {visible && displayText ? (
-          <div className="scrollbar-thin overflow-auto bg-background/20" style={{ maxHeight: typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight }}>
-            <CodeMirror value={displayText} extensions={cmExtensions} readOnly basicSetup={cmBasicSetup} className="cm-custom-scroll" theme="none" />
-          </div>
-        ) : null}
+      <CodePanel title={title || 'JSON'} badge={isInvalid ? <span className="text-red-300">INVALID</span> : 'JSON'} actions={panelActions} density="compact" className={cn(className)}>
+        {visible && displayText ? <div className="scrollbar-thin overflow-auto bg-background/20" style={{ maxHeight: typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight }}><CodeMirror value={displayText} extensions={cmExtensions} readOnly basicSetup={cmBasicSetup} className="cm-custom-scroll" theme="none" /></div> : null}
         {visible && !displayText ? <div className="p-3"><EmptyStatePanel compact title="No JSON data" /></div> : null}
       </CodePanel>
 
