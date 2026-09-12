@@ -14,7 +14,14 @@ interface ResourcePageProps {
 
 export function ResourcePage({ title, description, action, children, className }: ResourcePageProps) {
   return (
-    <div className={cn('mx-auto w-full max-w-[1500px] space-y-4', className)}>
+    <div
+      className={cn(
+        'resource-page-shell mx-auto w-full max-w-[1500px] space-y-4',
+        '[&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-control [&_.rounded-md]:rounded-technical',
+        '[&_.shadow-sm]:shadow-none [&_.shadow-lg]:shadow-none [&_.shadow-xl]:shadow-none [&_.shadow-2xl]:shadow-none',
+        className,
+      )}
+    >
       <ResourcePageHeader title={title} description={description} action={action} />
       {children}
     </div>
