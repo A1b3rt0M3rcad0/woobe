@@ -56,7 +56,7 @@ const operateNavItems: NavItem[] = [
 
 function SidebarSectionTitle({ children }: { children: string }) {
   return (
-    <p className="mb-2 px-2 font-mono text-[9px] font-bold uppercase tracking-[0.15em] text-muted">
+    <p className="mb-ui-sm px-ui-sm font-mono text-system-label font-bold uppercase tracking-[0.15em] text-muted-foreground">
       {children}
     </p>
   )
@@ -71,14 +71,14 @@ function SidebarNavLink({ item, href }: { item: NavItem; href: string }) {
       end={item.end}
       className={({ isActive }) =>
         cn(
-          'group flex h-9 items-center gap-2.5 rounded-technical border px-2.5 font-mono text-[11px] transition-colors',
+          'group flex h-control-nav items-center gap-ui-sm rounded-technical border px-ui-sm font-mono text-product-small transition-colors',
           isActive
             ? 'border-primary/45 bg-primary/[0.12] text-slate-50'
             : 'border-transparent text-slate-300 hover:border-border hover:bg-accent/45 hover:text-slate-50',
         )
       }
     >
-      <Icon className="h-[15px] w-[15px] shrink-0 text-muted-foreground transition-colors group-hover:text-slate-200" />
+      <Icon className="h-icon w-icon shrink-0 text-muted-foreground transition-colors group-hover:text-slate-200" />
       <span className="truncate">{item.label}</span>
     </NavLink>
   )
@@ -88,7 +88,7 @@ function ProjectNavGroup({ title, items, workspaceId, projId }: { title: string;
   return (
     <section>
       <SidebarSectionTitle>{title}</SidebarSectionTitle>
-      <div className="grid gap-[3px]">
+      <div className="grid gap-ui-hairline">
         {items.map((item) => {
           const href = typeof item.href === 'function' ? item.href(workspaceId, projId) : item.href
           return <SidebarNavLink key={item.label} item={item} href={href} />
@@ -104,16 +104,16 @@ function ContextMenuItem({ icon: Icon, title, description, active, onClick }: { 
       type="button"
       onClick={onClick}
       className={cn(
-        'flex w-full items-start gap-2.5 rounded-control border px-2.5 py-2 text-left font-mono transition-colors',
+        'flex w-full items-start gap-ui-sm rounded-control border px-ui-sm py-ui-sm text-left font-mono transition-colors',
         active
           ? 'border-primary/35 bg-primary/[0.1] text-slate-50'
           : 'border-transparent text-slate-300 hover:border-border hover:bg-control hover:text-slate-50',
       )}
     >
-      <Icon className="mt-0.5 h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+      <Icon className="mt-ui-hairline h-icon w-icon shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[10px] font-medium">{title}</span>
-        {description && <span className="mt-0.5 block truncate text-[8px] text-muted-foreground">{description}</span>}
+        <span className="block truncate text-system-control font-medium">{title}</span>
+        {description && <span className="mt-ui-xs block truncate text-system-meta text-muted-foreground">{description}</span>}
       </span>
     </button>
   )
@@ -169,31 +169,31 @@ function ProjectContextCard({
         type="button"
         onClick={() => setOpen((value) => !value)}
         className={cn(
-          'group w-full rounded-container border bg-control/45 px-3 py-2.5 text-left transition-colors',
+          'group w-full rounded-container border bg-control/45 px-ui-md py-ui-sm text-left transition-colors',
           open ? 'border-primary/40 bg-primary/[0.08]' : 'border-border hover:border-slate-600 hover:bg-control',
         )}
       >
-        <span className="flex items-center justify-between gap-2">
+        <span className="flex items-center justify-between gap-ui-sm">
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-mono text-[11px] font-bold text-slate-50">{currentProject.name}</span>
-            <span className="mt-0.5 block truncate font-mono text-[8px] text-muted-foreground">{currentWorkspace.name}</span>
+            <span className="block truncate font-mono text-product-small font-bold text-slate-50">{currentProject.name}</span>
+            <span className="mt-ui-xs block truncate font-mono text-system-meta text-muted-foreground">{currentWorkspace.name}</span>
           </span>
-          <ChevronDown className={cn('h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180 text-primary-light')} />
+          <ChevronDown className={cn('h-icon w-icon shrink-0 text-muted-foreground transition-transform', open && 'rotate-180 text-primary-light')} />
         </span>
       </button>
 
       <div
         aria-hidden={!open}
         className={cn(
-          'absolute left-0 right-0 top-full z-40 mt-1.5 origin-top rounded-container border border-border bg-surface p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.28)] transition-[opacity,transform] duration-150',
+          'absolute left-0 right-0 top-full z-popover mt-ui-xs origin-top rounded-container border border-border bg-surface p-ui-xs shadow-popup transition-[opacity,transform] duration-150',
           open ? 'pointer-events-auto translate-y-0 opacity-100' : 'pointer-events-none -translate-y-1 opacity-0',
         )}
       >
-        <div className="max-h-[420px] overflow-y-auto scrollbar-thin">
-          <p className="px-2 pb-1.5 pt-1 font-mono text-[8px] font-bold uppercase tracking-[0.14em] text-muted">Switch project</p>
-          <div className="grid gap-[2px]">
+        <div className="max-h-sidebar-context overflow-y-auto scrollbar-thin">
+          <p className="px-ui-sm pb-ui-xs pt-ui-xs font-mono text-system-meta font-bold uppercase tracking-[0.14em] text-muted-foreground">Switch project</p>
+          <div className="grid gap-ui-hairline">
             {projects.length === 0 ? (
-              <p className="px-2 py-2 font-mono text-[9px] text-muted-foreground">No projects available</p>
+              <p className="px-ui-sm py-ui-sm font-mono text-system-label text-muted-foreground">No projects available</p>
             ) : projects.map((project) => (
               <ContextMenuItem
                 key={project.id}
@@ -206,12 +206,12 @@ function ProjectContextCard({
             ))}
           </div>
 
-          <div className="my-1.5 border-t border-border pt-1.5">
+          <div className="my-ui-xs border-t border-border pt-ui-xs">
             <ContextMenuItem icon={List} title="Manage projects" description="Select or create Projects" onClick={() => navigateAndClose(`/workspaces/${currentWorkspace.id}/projects`)} />
           </div>
 
-          <div className="border-t border-border pt-1.5">
-            <p className="px-2 pb-1.5 pt-1 font-mono text-[8px] font-bold uppercase tracking-[0.14em] text-muted">Workspace</p>
+          <div className="border-t border-border pt-ui-xs">
+            <p className="px-ui-sm pb-ui-xs pt-ui-xs font-mono text-system-meta font-bold uppercase tracking-[0.14em] text-muted-foreground">Workspace</p>
             {workspaces.map((workspace) => (
               <ContextMenuItem
                 key={workspace.id}
@@ -235,12 +235,12 @@ function ConfigButton({ icon: Icon, label, description, onClick }: { icon: Lucid
     <button
       type="button"
       onClick={onClick}
-      className="group flex min-h-9 w-full items-center gap-2.5 rounded-technical border border-transparent px-2.5 py-2 text-left transition-colors hover:border-border hover:bg-accent/45"
+      className="group flex min-h-control-nav w-full items-center gap-ui-sm rounded-technical border border-transparent px-ui-sm py-ui-sm text-left transition-colors hover:border-border hover:bg-accent/45"
     >
-      <Icon className="h-[15px] w-[15px] shrink-0 text-muted-foreground transition-colors group-hover:text-slate-200" />
+      <Icon className="h-icon w-icon shrink-0 text-muted-foreground transition-colors group-hover:text-slate-200" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-mono text-[10px] font-medium text-slate-300 transition-colors group-hover:text-slate-50">{label}</span>
-        <span className="mt-0.5 block truncate font-mono text-[8px] text-muted-foreground">{description}</span>
+        <span className="block truncate font-mono text-system-control font-medium text-slate-300 transition-colors group-hover:text-slate-50">{label}</span>
+        <span className="mt-ui-xs block truncate font-sans text-product-caption text-muted-foreground">{description}</span>
       </span>
     </button>
   )
@@ -248,12 +248,12 @@ function ConfigButton({ icon: Icon, label, description, onClick }: { icon: Lucid
 
 function ProjectContextSkeleton() {
   return (
-    <div className="space-y-3" aria-label="Loading workspace">
-      <div className="h-[54px] animate-pulse rounded-container border border-border bg-control/40" />
-      <div className="space-y-[3px]">
-        <div className="h-9 animate-pulse rounded-technical bg-control/50" />
-        <div className="h-9 animate-pulse rounded-technical bg-control/50" />
-        <div className="h-9 animate-pulse rounded-technical bg-control/50" />
+    <div className="space-y-ui-md" aria-label="Loading workspace">
+      <div className="h-workspace-header animate-pulse rounded-container border border-border bg-control/40" />
+      <div className="space-y-ui-hairline">
+        <div className="h-control-nav animate-pulse rounded-technical bg-control/50" />
+        <div className="h-control-nav animate-pulse rounded-technical bg-control/50" />
+        <div className="h-control-nav animate-pulse rounded-technical bg-control/50" />
       </div>
     </div>
   )
@@ -261,9 +261,9 @@ function ProjectContextSkeleton() {
 
 function NoWorkspaceState() {
   return (
-    <div className="rounded-container border border-border bg-control/35 p-4 text-center">
-      <p className="font-mono text-[10px] font-bold text-slate-100">Workspace required</p>
-      <p className="mt-1 font-mono text-[8px] leading-4 text-muted-foreground">Select a Workspace before opening a Project.</p>
+    <div className="rounded-container border border-border bg-control/35 p-ui-lg text-center">
+      <p className="font-mono text-system-control font-bold text-slate-100">Workspace required</p>
+      <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Select a Workspace before opening a Project.</p>
     </div>
   )
 }
@@ -294,19 +294,19 @@ export function Sidebar() {
 
   return (
     <>
-      <aside className="flex w-[258px] shrink-0 flex-col border-r border-border bg-surface">
-        <header className="flex h-[72px] shrink-0 items-center gap-2.5 border-b border-border px-[18px]">
-          <div className="flex h-[29px] w-[29px] items-center justify-center text-slate-50" aria-hidden="true">
-            <Orbit className="h-[21px] w-[21px]" strokeWidth={1.7} />
+      <aside className="flex w-project-sidebar shrink-0 flex-col border-r border-border bg-surface">
+        <header className="flex h-project-sidebar-header shrink-0 items-center gap-ui-sm border-b border-border px-ui-xl">
+          <div className="flex h-control-sm w-control-sm items-center justify-center text-slate-50" aria-hidden="true">
+            <Orbit className="h-icon-brand w-icon-brand" strokeWidth={1.7} />
           </div>
           <div className="min-w-0">
-            <p className="font-mono text-sm font-bold tracking-[0.02em] text-slate-50">WOOBE</p>
-            <p className="mt-px font-mono text-[9px] uppercase tracking-[0.12em] text-muted-foreground">control plane</p>
+            <p className="font-mono text-heading-sm font-bold tracking-[0.02em] text-slate-50">WOOBE</p>
+            <p className="mt-ui-hairline font-mono text-system-label uppercase tracking-[0.12em] text-muted-foreground">control plane</p>
           </div>
         </header>
 
         <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin">
-          <nav className="space-y-5 px-3 py-4">
+          <nav className="space-y-ui-xl px-ui-md py-ui-lg">
             {isResolvingProjectContext ? (
               <ProjectContextSkeleton />
             ) : !workspaceId || !currentWorkspace ? (
@@ -333,9 +333,9 @@ export function Sidebar() {
         </div>
 
         {workspaceId && (
-          <section className="border-t border-border px-3 py-3">
+          <section className="border-t border-border px-ui-md py-ui-md">
             <SidebarSectionTitle>Config</SidebarSectionTitle>
-            <div className="grid gap-[2px]">
+            <div className="grid gap-ui-hairline">
               {projId && (
                 <ConfigButton
                   icon={Settings}
