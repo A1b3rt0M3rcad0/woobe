@@ -20,9 +20,9 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
         disabled={disabled}
         aria-invalid={invalid || props['aria-invalid'] || undefined}
         className={cn(
-          'flex h-control w-full appearance-none rounded-control border border-border bg-control px-ui-md py-ui-xs pr-8 font-mono text-system-control text-slate-100',
-          'transition-[border-color,box-shadow,background-color] hover:border-slate-600 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30',
-          'aria-[invalid=true]:border-red-500/70 aria-[invalid=true]:focus-visible:ring-red-500/30',
+          'flex h-control w-full appearance-none rounded-control border border-border bg-control px-ui-md py-ui-xs pr-8 font-mono text-system-control text-accent-foreground',
+          'transition-[border-color,box-shadow,background-color] hover:border-muted focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30',
+          'aria-[invalid=true]:border-error/70 aria-[invalid=true]:focus-visible:ring-error/30',
           'disabled:cursor-not-allowed disabled:bg-background/30 disabled:text-muted-foreground disabled:opacity-60',
           className,
         )}
@@ -30,7 +30,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
       >
         {placeholder ? <option value="" disabled>{placeholder}</option> : null}
         {options.map((option) => (
-          <option key={option.value} value={option.value} className="bg-surface text-slate-100">
+          <option key={option.value} value={option.value} className="bg-surface text-accent-foreground">
             {option.label}
           </option>
         ))}
