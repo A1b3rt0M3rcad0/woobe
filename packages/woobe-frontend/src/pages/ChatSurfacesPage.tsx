@@ -1,21 +1,20 @@
 import { useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
-import { MessageSquare, Plus } from 'lucide-react'
+import type { FormEvent, ReactNode } from 'react'
+import { Bot, Check, MessageSquare, Network, Plus } from 'lucide-react'
 import { useParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { Button, Input, Select, Textarea } from '@woobe/ui'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
-import { ResourceCard } from '@/components/common/OperationalResourceCard'
+import { ResourceCard, ResourcePill } from '@/components/common/OperationalResourceCard'
 import {
   ResourceEmptyState,
   ResourcePage,
   ResourceSectionHeader,
 } from '@/components/common/ResourcePage'
 import { StatusBadge } from '@/components/common/StatusBadge'
-import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
 import { useAgents } from '@/features/agents/hooks'
 import { createDefaultChatSurfaceAppearance } from '@/features/chat-surfaces/appearance'
 import { ChatSurfaceDetailsModal } from '@/features/chat-surfaces/components/ChatSurfaceDetailsModal'
@@ -39,6 +38,65 @@ function targetName(
   const candidates = surface.target_type === 'agent' ? agents : networks
   return candidates.find((item) => item.id === surface.target_id)?.name
     ?? surface.target_id
+}
+
+function FormSectionHeader({ title, description }: { title: string; description: string }) {
+  return (
+    <div>
+      <h3 className="font-mono text-[10px] font-bold text-slate-50">{title}</h3>
+      <p className="mt-1 font-sans text-[10px] leading-4 text-muted-foreground">{description}</p>
+    </div>
+  )
+}
+
+function FormField({ label, description, children }: { label: string; description?: string; children: ReactNode }) {
+  return (
+    <label className="grid min-w-0 gap-1.5">
+      <span className="font-mono text-[8px] font-medium uppercase tracking-[0.1em] text-muted-foreground">{label}</span>
+      {children}
+      {description ? <span className="font-sans text-[9px] leading-4 text-muted-foreground">{description}</span> : null}
+    </label>
+  )
+}
+
+function TargetTypeChoice({
+  type,
+  active,
+  title,
+  description,
+  icon,
+  onClick,
+}: {
+  type: ChatSurfaceTargetType
+  active: boolean
+  title: string
+  description: string
+  icon: ReactNode
+  onClick: (type: ChatSurfaceTargetType) => void
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={() => onClick(type)}
+      className={`flex min-h-[48px] items-center gap-2.5 rounded-control border px-3 text-left transition-colors ${
+        active
+          ? 'border-primary/45 bg-primary/[0.10] text-slate-50'
+          : 'border-border bg-control/25 text-muted-foreground hover:border-slate-600 hover:bg-control/45 hover:text-slate-200'
+      }`}
+    >
+      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-control border ${active ? 'border-primary/35 bg-primary/[0.08] text-primary-light' : 'border-border bg-control text-muted-foreground'}`}>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block font-mono text-[9px] font-semibold">{title}</span>
+        <span className="mt-0.5 block font-sans text-[9px] leading-4 text-muted-foreground">{description}</span>
+      </span>
+      <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${active ? 'border-primary bg-primary text-white' : 'border-border bg-background'}`}>
+        {active ? <Check className="h-2.5 w-2.5" /> : null}
+      </span>
+    </button>
+  )
 }
 
 function CreateSurfaceDialog({
@@ -66,7 +124,7 @@ function CreateSurfaceDialog({
   const [origin, setOrigin] = useState('')
   const [displayTitle, setDisplayTitle] = useState('')
   const [theme, setTheme] = useState<ChatSurfaceTheme>('system')
-  const [primaryColor, setPrimaryColor] = useState('#5B47E0')
+  const [primaryColor, setPrimaryColor] = useState('#3B82F6')
   const [placeholder, setPlaceholder] = useState('Type a message…')
   const [welcomeMessage, setWelcomeMessage] = useState('')
   const targets = targetType === 'agent' ? agents : networks
@@ -94,129 +152,127 @@ function CreateSurfaceDialog({
   }
 
   return (
-    <Dialog open onClose={onClose} title="Publish ChatSurface">
-      <form onSubmit={(event) => void submit(event)} className="space-y-5">
-        <label className="block" htmlFor="surface-name">
-          <span className="text-xs font-medium text-slate-200">Name</span>
-          <Input
-            id="surface-name"
-            autoFocus
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Product support chat"
-            className="mt-2"
-          />
-        </label>
+    <Dialog open onClose={onClose} title="Create ChatSurface" className="max-w-[900px]">
+      <form onSubmit={(event) => void submit(event)}>
+        <section className="border-b border-border pb-4">
+          <FormSectionHeader title="Surface identity" description="Name the embedded conversation and bind it to one immutable Production target." />
+          <div className="mt-3 grid gap-4 lg:grid-cols-2">
+            <FormField label="Name">
+              <Input
+                id="surface-name"
+                autoFocus
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Product support chat"
+              />
+            </FormField>
+            <FormField label="Production target">
+              <Select
+                id="surface-target"
+                value={targetId}
+                onChange={(event) => setTargetId(event.target.value)}
+                placeholder="Select target"
+                options={targets.map((target) => ({ value: target.id, label: target.name }))}
+              />
+            </FormField>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <TargetTypeChoice
+              type="agent"
+              active={targetType === 'agent'}
+              title="Agent"
+              description="Expose one Production Agent through the Surface."
+              icon={<Bot className="h-3.5 w-3.5" />}
+              onClick={(next) => { setTargetType(next); setTargetId('') }}
+            />
+            <TargetTypeChoice
+              type="network"
+              active={targetType === 'network'}
+              title="Network"
+              description="Expose one Production Network through the Surface."
+              icon={<Network className="h-3.5 w-3.5" />}
+              onClick={(next) => { setTargetType(next); setTargetId('') }}
+            />
+          </div>
+        </section>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <label className="block" htmlFor="surface-target-type">
-            <span className="text-xs font-medium text-slate-200">Target type</span>
-            <select
-              id="surface-target-type"
-              value={targetType}
-              onChange={(event) => {
-                setTargetType(event.target.value as ChatSurfaceTargetType)
-                setTargetId('')
-              }}
-              className="mt-2 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"
-            >
-              <option value="agent">Agent</option>
-              <option value="network">Network</option>
-            </select>
-          </label>
-          <label className="block" htmlFor="surface-target">
-            <span className="text-xs font-medium text-slate-200">Production target</span>
-            <select
-              id="surface-target"
-              value={targetId}
-              onChange={(event) => setTargetId(event.target.value)}
-              className="mt-2 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"
-            >
-              <option value="">Select target</option>
-              {targets.map((target) => (
-                <option key={target.id} value={target.id}>{target.name}</option>
-              ))}
-            </select>
-          </label>
-        </div>
+        <section className="border-b border-border py-4">
+          <FormSectionHeader title="Origin access" description="Authorize the exact browser origin allowed to request ChatSurface Sessions." />
+          <div className="mt-3">
+            <FormField label="Allowed origin" description="Exact HTTPS origin. Local HTTP is accepted only when enabled by the deployment.">
+              <Input
+                id="surface-origin"
+                value={origin}
+                onChange={(event) => setOrigin(event.target.value)}
+                placeholder="https://app.example.com"
+              />
+            </FormField>
+          </div>
+        </section>
 
-        <label className="block" htmlFor="surface-origin">
-          <span className="text-xs font-medium text-slate-200">Allowed origin</span>
-          <Input
-            id="surface-origin"
-            value={origin}
-            onChange={(event) => setOrigin(event.target.value)}
-            placeholder="https://app.example.com"
-            className="mt-2"
-          />
-          <span className="mt-1 block text-xs text-muted">
-            Exact HTTPS origin. Local HTTP is accepted only when enabled by the deployment.
-          </span>
-        </label>
-
-        <div className="border-t border-border pt-5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Embed appearance</p>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="block" htmlFor="surface-display-title">
-              <span className="text-xs font-medium text-slate-200">Display title</span>
+        <section className="py-4">
+          <FormSectionHeader title="Embed appearance" description="Initial visual identity. Fine-grained appearance remains editable after creation." />
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <FormField label="Display title">
               <Input
                 id="surface-display-title"
                 value={displayTitle}
                 onChange={(event) => setDisplayTitle(event.target.value)}
                 placeholder={name.trim() || 'Woobe'}
-                className="mt-2"
               />
-            </label>
-            <label className="block" htmlFor="surface-theme">
-              <span className="text-xs font-medium text-slate-200">Theme</span>
-              <select
+            </FormField>
+            <FormField label="Theme">
+              <Select
                 id="surface-theme"
                 value={theme}
                 onChange={(event) => setTheme(event.target.value as ChatSurfaceTheme)}
-                className="mt-2 h-10 w-full rounded-lg border border-border bg-background px-3 text-sm"
-              >
-                <option value="system">System</option>
-                <option value="light">Light</option>
-                <option value="dark">Dark</option>
-              </select>
-            </label>
-            <label className="block" htmlFor="surface-color">
-              <span className="text-xs font-medium text-slate-200">Primary color</span>
-              <input
-                id="surface-color"
-                type="color"
-                value={primaryColor}
-                onChange={(event) => setPrimaryColor(event.target.value.toUpperCase())}
-                className="mt-2 h-10 w-full rounded-lg border border-border bg-background p-1"
+                options={[
+                  { value: 'system', label: 'System' },
+                  { value: 'light', label: 'Light' },
+                  { value: 'dark', label: 'Dark' },
+                ]}
               />
-            </label>
-            <label className="block" htmlFor="surface-placeholder">
-              <span className="text-xs font-medium text-slate-200">Placeholder</span>
+            </FormField>
+            <FormField label="Primary color">
+              <div className="flex h-[34px] items-center gap-2 rounded-control border border-border bg-control px-2.5">
+                <input
+                  id="surface-color"
+                  type="color"
+                  value={primaryColor}
+                  onChange={(event) => setPrimaryColor(event.target.value.toUpperCase())}
+                  className="h-6 w-7 shrink-0 rounded-technical border border-border bg-control p-0.5"
+                />
+                <code className="font-mono text-[9px] text-muted-foreground">{primaryColor}</code>
+              </div>
+            </FormField>
+            <FormField label="Placeholder">
               <Input
                 id="surface-placeholder"
                 value={placeholder}
                 onChange={(event) => setPlaceholder(event.target.value)}
-                className="mt-2"
               />
-            </label>
+            </FormField>
           </div>
-          <label className="mt-4 block" htmlFor="surface-welcome">
-            <span className="text-xs font-medium text-slate-200">Welcome message</span>
-            <textarea
-              id="surface-welcome"
-              value={welcomeMessage}
-              onChange={(event) => setWelcomeMessage(event.target.value)}
-              rows={3}
-              maxLength={500}
-              placeholder="How can I help?"
-              className="mt-2 w-full resize-none rounded-lg border border-border bg-background px-3 py-2 text-sm"
-            />
-          </label>
-        </div>
+          <div className="mt-4">
+            <FormField label="Welcome message" description="Optional initial assistant message shown before the first user message.">
+              <Textarea
+                id="surface-welcome"
+                value={welcomeMessage}
+                onChange={(event) => setWelcomeMessage(event.target.value)}
+                rows={3}
+                maxLength={500}
+                placeholder="How can I help?"
+              />
+            </FormField>
+          </div>
+        </section>
 
-        <div className="flex justify-end gap-2 border-t border-border pt-4">
-          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
-          <Button type="submit" loading={pending}>Create draft</Button>
+        <div className="flex items-center justify-between gap-4 border-t border-border pt-3">
+          <p className="hidden font-mono text-[8px] text-muted-foreground sm:block">Production binding is immutable after creation.</p>
+          <div className="ml-auto flex gap-2">
+            <Button type="button" variant="secondary" onClick={onClose}>Cancel</Button>
+            <Button type="submit" loading={pending}>Create draft</Button>
+          </div>
         </div>
       </form>
     </Dialog>
@@ -254,7 +310,7 @@ export default function ChatSurfacesPage() {
       description="Publish immutable Production Agents and Networks as secure embedded conversations."
       action={(
         <Button type="button" onClick={() => setCreating(true)}>
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
           Publish ChatSurface
         </Button>
       )}
@@ -272,7 +328,7 @@ export default function ChatSurfacesPage() {
           <ErrorState
             error={surfacesQuery.error}
             onRetry={surfacesQuery.refetch}
-            className="rounded-xl border border-border/80 bg-surface/40 py-10"
+            className="rounded-container border border-border bg-surface/40 py-10"
           />
         ) : surfaces.length === 0 ? (
           <ResourceEmptyState
@@ -286,7 +342,7 @@ export default function ChatSurfacesPage() {
             )}
           />
         ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {surfaces.map((surface) => (
               <ResourceCard
                 key={surface.id}
@@ -298,19 +354,12 @@ export default function ChatSurfacesPage() {
                 status={<StatusBadge status={surface.status} size="compact" />}
                 metadata={(
                   <>
-                    <span className="rounded-full border border-border px-2 py-1 text-xs text-muted">Production</span>
-                    <span
-                      className="rounded-full border border-border px-2 py-1 font-mono text-xs text-muted"
-                      title={surface.target_release_id}
-                    >
-                      Release {surface.target_release_id.slice(0, 8)}
-                    </span>
-                    <span className="rounded-full border border-border px-2 py-1 text-xs text-muted">
-                      {surface.allowed_origins.length} {surface.allowed_origins.length === 1 ? 'origin' : 'origins'}
-                    </span>
+                    <ResourcePill tone="primary">Production</ResourcePill>
+                    <ResourcePill>Release {surface.target_release_id.slice(0, 8)}</ResourcePill>
+                    <ResourcePill>{surface.allowed_origins.length} {surface.allowed_origins.length === 1 ? 'origin' : 'origins'}</ResourcePill>
                   </>
                 )}
-                footer={<span className="truncate font-mono text-xs">{surface.public_id}</span>}
+                footer={<span className="truncate font-mono text-[8px]">{surface.public_id}</span>}
                 className="h-full"
               />
             ))}
