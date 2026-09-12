@@ -13,7 +13,11 @@ export default defineConfig({
         __dirname,
         '../woobe-runtime-client/src/index.ts',
       ),
+      '@woobe/ui': path.resolve(__dirname, '../woobe-ui/src/index.ts'),
+      react: path.resolve(__dirname, './node_modules/react'),
+      'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
     },
+    dedupe: ['react', 'react-dom'],
   },
   server: {
     port: 5173,
