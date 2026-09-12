@@ -84,7 +84,7 @@ export default function LoginPage() {
         Don&apos;t have an account?{' '}
         <Link
           to="/register"
-          className="font-medium text-primary-light transition-colors hover:text-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/35"
+          className="font-medium text-primary-light transition-colors hover:text-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
         >
           Create workspace
         </Link>
