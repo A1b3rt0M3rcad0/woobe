@@ -65,41 +65,27 @@ export function AgentControlsPopover({
         type="button"
         onClick={() => setOpen((value) => !value)}
         className={cn(
-          'inline-flex h-8 items-center gap-2 rounded-lg border px-2.5 text-xs font-medium transition-colors',
+          'inline-flex h-[30px] items-center gap-1.5 rounded-control border px-2.5 font-mono text-[8px] transition-colors',
           open
-            ? 'border-primary/30 bg-primary/10 text-white shadow-sm shadow-primary/5'
-            : 'border-border/80 bg-background/55 text-muted hover:border-primary/30 hover:bg-primary/5 hover:text-white',
+            ? 'border-primary/35 bg-primary/[0.10] text-slate-50'
+            : 'border-border bg-control/40 text-muted-foreground hover:bg-control hover:text-slate-50',
         )}
         title="Agent runtime environments"
       >
-        <span
-          className={cn(
-            'h-1.5 w-1.5 rounded-full',
-            enabledCount === environments.length
-              ? 'bg-emerald-400'
-              : enabledCount === 0
-                ? 'bg-slate-500'
-                : 'bg-amber-400',
-          )}
-        />
-        <span className="text-slate-200">Runtime</span>
-        <span className="text-muted">{enabledCount}/{environments.length}</span>
-        <ChevronDown className={cn('h-3.5 w-3.5 text-muted transition-transform', open && 'rotate-180')} />
+        <span className={cn('h-1.5 w-1.5 rounded-full', enabledCount === environments.length ? 'bg-emerald-400' : enabledCount === 0 ? 'bg-slate-500' : 'bg-amber-400')} />
+        <span>Runtime</span>
+        <span className="text-muted-foreground">{enabledCount}/{environments.length}</span>
+        <ChevronDown className={cn('h-3 w-3 text-muted-foreground transition-transform', open && 'rotate-180')} />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-10 z-[1000] w-[310px] overflow-hidden rounded-xl border border-border/90 bg-surface/95 shadow-xl shadow-black/30 backdrop-blur-md">
-          <div className="flex items-center justify-between border-b border-border/80 px-3 py-2.5">
+        <div className="absolute right-0 top-9 z-[1000] w-[300px] overflow-hidden rounded-container border border-border bg-surface/[0.98]">
+          <div className="flex min-h-[42px] items-center justify-between border-b border-border px-3 py-2">
             <div>
-              <p className="text-xs font-semibold text-white">Agent runtime</p>
-              <p className="mt-0.5 text-[11px] text-muted">Control direct Agent Runs by environment.</p>
+              <p className="font-mono text-[9px] font-bold text-slate-50">Agent runtime</p>
+              <p className="mt-0.5 font-sans text-[9px] text-muted-foreground">Control direct Agent Runs by environment.</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setOpen(false)}
-              className="rounded-md p-1 text-muted hover:bg-background/60 hover:text-white"
-              aria-label="Close runtime controls"
-            >
+            <button type="button" onClick={() => setOpen(false)} className="flex h-7 w-7 items-center justify-center rounded-control border border-transparent text-muted-foreground hover:border-border hover:bg-control hover:text-slate-50" aria-label="Close runtime controls">
               <X className="h-3.5 w-3.5" />
             </button>
           </div>
@@ -107,14 +93,13 @@ export function AgentControlsPopover({
           <div className="divide-y divide-border/70">
             {environments.map((environment) => {
               const enabled = statesQuery.data?.[environment]?.enabled ?? true
-
               return (
-                <div key={environment} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                <div key={environment} className="flex min-h-[46px] items-center justify-between gap-3 px-3 py-2">
                   <div className="flex min-w-0 items-center gap-2.5">
                     <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', enabled ? 'bg-emerald-400' : 'bg-slate-500')} />
                     <div className="min-w-0">
-                      <p className="text-xs font-medium text-white">{titleCase(environment)}</p>
-                      <p className="text-[10px] text-muted">{enabled ? 'Runs allowed' : 'Runs blocked'}</p>
+                      <p className="font-mono text-[9px] font-semibold text-slate-100">{titleCase(environment)}</p>
+                      <p className="mt-0.5 font-sans text-[9px] text-muted-foreground">{enabled ? 'Runs allowed' : 'Runs blocked'}</p>
                     </div>
                   </div>
 
@@ -123,25 +108,17 @@ export function AgentControlsPopover({
                     aria-pressed={enabled}
                     disabled={updateRuntime.isPending || statesQuery.isLoading}
                     onClick={() => void updateEnabled(environment, !enabled)}
-                    className={cn(
-                      'relative h-5 w-9 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60',
-                      enabled ? 'border-emerald-400/40 bg-emerald-500/25' : 'border-border/80 bg-surface/70',
-                    )}
+                    className={cn('relative h-4 w-8 shrink-0 rounded-full border transition-colors disabled:cursor-not-allowed disabled:opacity-60', enabled ? 'border-emerald-400/35 bg-emerald-500/[0.16]' : 'border-border bg-control')}
                     title={enabled ? `Disable ${environment} runtime` : `Enable ${environment} runtime`}
                   >
-                    <span
-                      className={cn(
-                        'absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
-                        enabled ? 'translate-x-4' : 'translate-x-0',
-                      )}
-                    />
+                    <span className={cn('absolute left-0.5 top-0.5 h-3 w-3 rounded-full bg-slate-100 transition-transform', enabled ? 'translate-x-4' : 'translate-x-0')} />
                   </button>
                 </div>
               )
             })}
           </div>
 
-          <p className="border-t border-border/80 px-3 py-2 text-[10px] leading-4 text-muted/80">
+          <p className="border-t border-border px-3 py-2 font-sans text-[8px] leading-4 text-muted-foreground">
             Existing Runs continue. Network executions use the Network runtime.
           </p>
         </div>
