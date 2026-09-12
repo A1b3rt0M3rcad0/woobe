@@ -1,8 +1,6 @@
 :root {
   color-scheme: light dark;
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
 * {
@@ -21,68 +19,70 @@ body {
 }
 
 #woobe-chat {
-  --woobe-primary: #5b47e0;
-  --woobe-background: #f7f8fb;
+  --woobe-primary: #3b82f6;
+  --woobe-background: #f8fafc;
   --woobe-surface: #ffffff;
-  --woobe-text: #172033;
-  --woobe-subtle-text: #667085;
-  --woobe-muted-border: #e2e5ec;
-  --woobe-input-border: #cbd1dc;
-  --woobe-danger-surface: #fff6f5;
-  --woobe-danger-border: #f2c6c3;
-  --woobe-danger-text: #8f2f2a;
-  --woobe-warning-surface: #fff9eb;
-  --woobe-warning-border: #ecd69f;
-  --woobe-warning-text: #74520b;
+  --woobe-control: #f1f5f9;
+  --woobe-text: #0f172a;
+  --woobe-subtle-text: #64748b;
+  --woobe-muted-border: #cbd5e1;
+  --woobe-input-border: #94a3b8;
+  --woobe-danger-surface: #fffafa;
+  --woobe-danger-border: #fecaca;
+  --woobe-danger-text: #b91c1c;
+  --woobe-warning-surface: #fffbeb;
+  --woobe-warning-border: #fde68a;
+  --woobe-warning-text: #92400e;
 
-  --woobe-chat-border-width: 0px;
-  --woobe-chat-border-radius: 0px;
+  --woobe-chat-border-width: 1px;
+  --woobe-chat-border-radius: 4px;
   --woobe-chat-shadow: none;
-  --woobe-header-border-width: 0px;
-  --woobe-header-height: 56px;
-  --woobe-header-padding: 20px;
+  --woobe-header-border-width: 1px;
+  --woobe-header-height: 48px;
+  --woobe-header-padding: 14px;
   --woobe-header-alignment: left;
-  --woobe-conversation-padding: 20px;
-  --woobe-message-gap: 10px;
+  --woobe-conversation-padding: 16px;
+  --woobe-message-gap: 8px;
   --woobe-conversation-content-width: 100%;
   --woobe-user-message-border-width: 0px;
-  --woobe-user-message-border-radius: 14px;
-  --woobe-user-message-padding-y: 10px;
-  --woobe-user-message-padding-x: 13px;
-  --woobe-user-message-max-width: 84%;
+  --woobe-user-message-border-radius: 6px;
+  --woobe-user-message-padding-y: 8px;
+  --woobe-user-message-padding-x: 11px;
+  --woobe-user-message-max-width: 80%;
   --woobe-assistant-message-border-width: 1px;
-  --woobe-assistant-message-border-radius: 14px;
-  --woobe-assistant-message-padding-y: 10px;
-  --woobe-assistant-message-padding-x: 13px;
-  --woobe-assistant-message-max-width: 84%;
+  --woobe-assistant-message-border-radius: 6px;
+  --woobe-assistant-message-padding-y: 8px;
+  --woobe-assistant-message-padding-x: 11px;
+  --woobe-assistant-message-max-width: 80%;
   --woobe-system-message-border-width: 1px;
-  --woobe-system-message-border-radius: 14px;
-  --woobe-system-message-padding-y: 10px;
-  --woobe-system-message-padding-x: 13px;
+  --woobe-system-message-border-radius: 4px;
+  --woobe-system-message-padding-y: 8px;
+  --woobe-system-message-padding-x: 10px;
   --woobe-system-message-max-width: 100%;
-  --woobe-composer-padding: 12px;
-  --woobe-input-border-radius: 10px;
+  --woobe-composer-padding: 10px;
+  --woobe-input-border-radius: 4px;
   --woobe-input-font-size: 14px;
-  --woobe-input-padding-y: 10px;
-  --woobe-input-padding-x: 12px;
-  --woobe-send-border-width: 0px;
-  --woobe-send-border-radius: 10px;
+  --woobe-input-padding-y: 8px;
+  --woobe-input-padding-x: 10px;
+  --woobe-send-border-width: 1px;
+  --woobe-send-border-radius: 4px;
 }
 
 #woobe-chat[data-theme="dark"] {
   color-scheme: dark;
-  --woobe-background: #10131a;
-  --woobe-surface: #1a1f2a;
-  --woobe-text: #f2f4f8;
-  --woobe-subtle-text: #9aa4b5;
-  --woobe-muted-border: #303746;
-  --woobe-input-border: #485166;
-  --woobe-danger-surface: #28191c;
-  --woobe-danger-border: #61343b;
-  --woobe-danger-text: #ffb4b8;
-  --woobe-warning-surface: #292315;
-  --woobe-warning-border: #5a4b26;
-  --woobe-warning-text: #efd38d;
+  --woobe-background: #020817;
+  --woobe-surface: #0f1729;
+  --woobe-control: #0b1220;
+  --woobe-text: #f8fafc;
+  --woobe-subtle-text: #94a3b8;
+  --woobe-muted-border: #1e293b;
+  --woobe-input-border: #334155;
+  --woobe-danger-surface: #0b1220;
+  --woobe-danger-border: #7f1d1d;
+  --woobe-danger-text: #fca5a5;
+  --woobe-warning-surface: #0b1220;
+  --woobe-warning-border: #78350f;
+  --woobe-warning-text: #fcd34d;
 }
 
 #woobe-chat[data-theme="light"] {
@@ -92,18 +92,19 @@ body {
 @media (prefers-color-scheme: dark) {
   #woobe-chat[data-theme="system"] {
     color-scheme: dark;
-    --woobe-background: #10131a;
-    --woobe-surface: #1a1f2a;
-    --woobe-text: #f2f4f8;
-    --woobe-subtle-text: #9aa4b5;
-    --woobe-muted-border: #303746;
-    --woobe-input-border: #485166;
-    --woobe-danger-surface: #28191c;
-    --woobe-danger-border: #61343b;
-    --woobe-danger-text: #ffb4b8;
-    --woobe-warning-surface: #292315;
-    --woobe-warning-border: #5a4b26;
-    --woobe-warning-text: #efd38d;
+    --woobe-background: #020817;
+    --woobe-surface: #0f1729;
+    --woobe-control: #0b1220;
+    --woobe-text: #f8fafc;
+    --woobe-subtle-text: #94a3b8;
+    --woobe-muted-border: #1e293b;
+    --woobe-input-border: #334155;
+    --woobe-danger-surface: #0b1220;
+    --woobe-danger-border: #7f1d1d;
+    --woobe-danger-text: #fca5a5;
+    --woobe-warning-surface: #0b1220;
+    --woobe-warning-border: #78350f;
+    --woobe-warning-text: #fcd34d;
   }
 }
 
@@ -126,12 +127,15 @@ body {
   align-items: center;
   justify-content: var(--woobe-header-alignment);
   overflow: hidden;
+  color: var(--woobe-header-text-custom, var(--woobe-text));
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
   font-weight: 700;
-  color: var(--woobe-header-text-custom, #ffffff);
+  letter-spacing: 0.01em;
   text-align: var(--woobe-header-alignment);
   text-overflow: ellipsis;
   white-space: nowrap;
-  background: var(--woobe-header-background-custom, var(--woobe-primary));
+  background: var(--woobe-header-background-custom, var(--woobe-surface));
   border-bottom: var(--woobe-header-border-width) solid var(--woobe-header-border-custom, var(--woobe-muted-border));
 }
 
@@ -147,10 +151,27 @@ body {
   padding: var(--woobe-conversation-padding);
   background: var(--woobe-conversation-background-custom, transparent);
   scroll-behavior: smooth;
+  scrollbar-color: color-mix(in srgb, var(--woobe-subtle-text) 32%, transparent) transparent;
+  scrollbar-width: thin;
+}
+
+.chat__messages::-webkit-scrollbar {
+  width: 6px;
+}
+
+.chat__messages::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.chat__messages::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--woobe-subtle-text) 28%, transparent);
+  border-radius: 2px;
 }
 
 .message {
   position: relative;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  font-size: 14px;
   line-height: 1.5;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -171,7 +192,7 @@ body {
   max-width: min(var(--woobe-assistant-message-max-width), var(--woobe-conversation-content-width));
   padding: var(--woobe-assistant-message-padding-y) var(--woobe-assistant-message-padding-x);
   color: var(--woobe-assistant-message-text-custom, var(--woobe-text));
-  background: var(--woobe-assistant-message-background-custom, var(--woobe-surface));
+  background: var(--woobe-assistant-message-background-custom, var(--woobe-control));
   border: var(--woobe-assistant-message-border-width) solid var(--woobe-assistant-message-border-custom, var(--woobe-muted-border));
   border-radius: var(--woobe-assistant-message-border-radius);
 }
@@ -185,11 +206,12 @@ body {
   align-items: center;
   justify-items: center;
   vertical-align: middle;
-  font-size: 10px;
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-size: 9px;
   font-weight: 700;
   border: 1px solid currentColor;
-  border-radius: 999px;
-  opacity: 0.7;
+  border-radius: 3px;
+  opacity: 0.65;
 }
 
 .message--user[data-show-avatar="true"]::before {
@@ -226,19 +248,20 @@ body {
 .message__content h1,
 .message__content h2,
 .message__content h3 {
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
   line-height: 1.25;
 }
 
 .message__content h1 {
-  font-size: 1.25em;
+  font-size: 1.18em;
 }
 
 .message__content h2 {
-  font-size: 1.14em;
+  font-size: 1.1em;
 }
 
 .message__content h3 {
-  font-size: 1.05em;
+  font-size: 1.02em;
 }
 
 .message__content ul,
@@ -252,11 +275,11 @@ body {
 
 .message__content code {
   padding: 0.12em 0.34em;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-  font-size: 0.9em;
-  background: color-mix(in srgb, currentColor 8%, transparent);
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.88em;
+  background: color-mix(in srgb, currentColor 7%, transparent);
   border: 1px solid color-mix(in srgb, currentColor 12%, transparent);
-  border-radius: 5px;
+  border-radius: 2px;
 }
 
 .message__content pre {
@@ -265,9 +288,9 @@ body {
   overflow-x: auto;
   color: var(--woobe-text);
   white-space: pre;
-  background: var(--woobe-background);
+  background: var(--woobe-control);
   border: 1px solid var(--woobe-muted-border);
-  border-radius: 8px;
+  border-radius: 4px;
 }
 
 .message__content pre code {
@@ -293,7 +316,7 @@ body {
   max-width: 100%;
   overflow-x: auto;
   border: 1px solid var(--woobe-muted-border);
-  border-radius: 8px;
+  border-radius: 4px;
 }
 
 .message-table table {
@@ -310,9 +333,11 @@ body {
 }
 
 .message-table th {
-  font-weight: 650;
   color: var(--woobe-subtle-text);
-  background: color-mix(in srgb, var(--woobe-surface) 78%, var(--woobe-background));
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-size: 0.88em;
+  font-weight: 650;
+  background: var(--woobe-control);
 }
 
 .message-table tr:last-child td {
@@ -321,8 +346,8 @@ body {
 
 .message--pending {
   display: flex;
-  min-width: 58px;
-  min-height: 42px;
+  min-width: 48px;
+  min-height: 34px;
   align-items: center;
   justify-content: center;
 }
@@ -331,13 +356,13 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  height: 12px;
+  height: 10px;
 }
 
 .typing-indicator span {
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
+  width: 5px;
+  height: 5px;
+  border-radius: 2px;
   background: var(--woobe-subtle-text);
   animation: woobe-typing 1.15s ease-in-out infinite;
 }
@@ -353,19 +378,20 @@ body {
 .activity-status {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
   color: var(--woobe-subtle-text);
-  font-size: 12px;
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-size: 10px;
   line-height: 1.35;
 }
 
 .activity-status__spinner {
-  width: 13px;
-  height: 13px;
+  width: 11px;
+  height: 11px;
   flex: 0 0 auto;
-  border: 2px solid color-mix(in srgb, var(--woobe-primary) 25%, transparent);
+  border: 1px solid color-mix(in srgb, var(--woobe-primary) 30%, transparent);
   border-top-color: var(--woobe-primary);
-  border-radius: 999px;
+  border-radius: 50%;
   animation: woobe-spin 0.8s linear infinite;
 }
 
@@ -388,13 +414,14 @@ body {
   gap: 4px;
   padding: var(--woobe-system-message-padding-y) var(--woobe-system-message-padding-x);
   color: var(--woobe-system-message-text-custom, var(--woobe-text));
-  background: var(--woobe-system-message-background-custom, var(--woobe-surface));
+  background: var(--woobe-system-message-background-custom, var(--woobe-control));
   border: var(--woobe-system-message-border-width) solid var(--woobe-system-message-border-custom, var(--woobe-muted-border));
   border-radius: var(--woobe-system-message-border-radius);
 }
 
 .message--system strong {
-  font-size: 13px;
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-size: 11px;
 }
 
 .message--system span {
@@ -419,58 +446,70 @@ body {
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 8px;
   padding: var(--woobe-composer-padding);
+  align-items: end;
   background: var(--woobe-composer-background-custom, var(--woobe-surface));
   border-top: 1px solid var(--woobe-composer-border-custom, var(--woobe-muted-border));
 }
 
 textarea {
-  min-height: 42px;
+  min-height: 36px;
+  max-height: 120px;
   padding: var(--woobe-input-padding-y) var(--woobe-input-padding-x);
   color: var(--woobe-input-text-custom, var(--woobe-text));
-  font: inherit;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
   font-size: var(--woobe-input-font-size);
+  line-height: 1.35;
   resize: none;
-  background: var(--woobe-input-background-custom, var(--woobe-surface));
+  background: var(--woobe-input-background-custom, var(--woobe-control));
   border: 1px solid var(--woobe-input-border-custom, var(--woobe-input-border));
   border-radius: var(--woobe-input-border-radius);
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
 }
 
 textarea::placeholder {
   color: var(--woobe-input-placeholder-custom, var(--woobe-subtle-text));
 }
 
+textarea:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--woobe-subtle-text) 60%, var(--woobe-muted-border));
+}
+
 textarea:focus-visible {
   border-color: var(--woobe-input-focus-border-custom, var(--woobe-primary));
-  outline: 3px solid color-mix(in srgb, var(--woobe-input-focus-border-custom, var(--woobe-primary)) 28%, transparent);
-  outline-offset: 1px;
+  outline: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--woobe-input-focus-border-custom, var(--woobe-primary)) 28%, transparent);
 }
 
 button:focus-visible {
-  outline: 3px solid color-mix(in srgb, var(--woobe-primary) 45%, transparent);
-  outline-offset: 2px;
+  outline: none;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--woobe-primary) 42%, transparent);
 }
 
 .chat__send {
   display: inline-flex;
-  min-width: 44px;
-  min-height: 42px;
-  padding: 0 16px;
+  min-width: 42px;
+  min-height: 36px;
+  padding: 0 12px;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 6px;
   color: var(--woobe-send-text-custom, #ffffff);
-  font: inherit;
-  font-size: 13px;
-  font-weight: 650;
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 600;
   background: var(--woobe-send-background-custom, var(--woobe-primary));
-  border: var(--woobe-send-border-width) solid var(--woobe-send-border-custom, transparent);
+  border: var(--woobe-send-border-width) solid var(--woobe-send-border-custom, var(--woobe-primary));
   border-radius: var(--woobe-send-border-radius);
   cursor: pointer;
-  transition: opacity 120ms ease, transform 120ms ease;
+  transition: background-color 120ms ease, border-color 120ms ease, opacity 120ms ease, transform 120ms ease;
+}
+
+.chat__send:not(:disabled):hover {
+  background: color-mix(in srgb, var(--woobe-send-background-custom, var(--woobe-primary)) 88%, #000000);
 }
 
 .send-button__icon {
-  font-size: 18px;
+  font-size: 14px;
   line-height: 1;
 }
 
@@ -481,7 +520,7 @@ button:not(:disabled):active {
 button:disabled,
 textarea:disabled {
   cursor: wait;
-  opacity: 0.65;
+  opacity: 0.55;
 }
 
 .sr-only {
@@ -502,7 +541,7 @@ textarea:disabled {
     opacity: 0.45;
   }
   30% {
-    transform: translateY(-3px);
+    transform: translateY(-2px);
     opacity: 1;
   }
 }
@@ -524,7 +563,7 @@ textarea:disabled {
 
 @media (max-width: 520px) {
   .chat__messages {
-    padding: min(var(--woobe-conversation-padding), 16px);
+    padding: min(var(--woobe-conversation-padding), 14px);
   }
 
   .message--user,
@@ -533,7 +572,7 @@ textarea:disabled {
   }
 
   .chat__composer {
-    padding: min(var(--woobe-composer-padding), 10px);
+    padding: min(var(--woobe-composer-padding), 8px);
   }
 }
 
@@ -553,5 +592,15 @@ textarea:disabled {
   }
 }
 
-.skill-activity { margin-top: 8px; border-top: 1px solid currentColor; padding-top: 6px; font-size: 12px; opacity: .8; }
-.skill-activity p { margin: 3px 0; }
+.skill-activity {
+  margin-top: 8px;
+  padding-top: 6px;
+  color: var(--woobe-subtle-text);
+  font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  font-size: 10px;
+  border-top: 1px solid var(--woobe-muted-border);
+}
+
+.skill-activity p {
+  margin: 3px 0;
+}
