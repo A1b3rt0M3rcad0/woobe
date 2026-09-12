@@ -19,7 +19,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
         className={cn('!h-control', className)}
         {...props}
       />
-      {error && <p className="mt-ui-xs font-mono text-system-label text-red-300">{error}</p>}
+      {error && <p className="mt-ui-xs font-mono text-system-label text-error">{error}</p>}
     </div>
   ),
 )
