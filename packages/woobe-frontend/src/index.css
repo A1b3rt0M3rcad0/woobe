@@ -124,11 +124,7 @@
   display: none;
 }
 
-/*
- * Run Activity keeps Agent Runs as the primary line and renders Network Runs
- * as thin, rounded event stems. The original geometry remains unchanged, so
- * bucket position, value, hover, and selection behavior are preserved.
- */
+/* Run Activity keeps Agent Runs as the primary line and renders Network Runs as thin event stems. */
 svg[aria-label="Agent Run line and Network Run bars by time bucket"] rect[fill="#8b5cf6"] {
   transform-box: fill-box;
   transform-origin: center bottom;
@@ -145,14 +141,12 @@ svg[aria-label="Agent Run line and Network Run bars by time bucket"] rect[fill="
   filter: drop-shadow(0 0 3px rgb(167 139 250 / 0.48));
 }
 
-/* Match the legend to the lighter Network Run event-stem vocabulary. */
 .h-3.w-2.rounded-sm.bg-violet-500\/80 {
   width: 0.125rem;
   border-radius: 9999px;
   box-shadow: 0 0 3px rgb(139 92 246 / 0.28);
 }
 
-/* Keep composition segments out of inline baseline layout. */
 .h-3.overflow-hidden.rounded-full.bg-background.ring-1.ring-border\/80 {
   display: flex;
 }
@@ -185,11 +179,144 @@ div[class*="h-[calc(100vh-3.5rem)]"] > div.flex.flex-1.min-h-0.overflow-hidden >
   display: none;
 }
 
-/*
- * The agent playground used to subtract the old topbar height with
- * h-[calc(100vh-3.5rem)]. The topbar is now removed, so keep that legacy
- * fullscreen container aligned to the full viewport.
- */
 .h-\[calc\(100vh-3\.5rem\)\] {
   height: 100svh !important;
+}
+
+/* Project Overview — Woobe control-plane treatment. The dashboard behavior and data model stay untouched. */
+.project-overview-main {
+  background-color: #020817;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.025) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.project-overview-main section,
+.project-overview-main header {
+  border-radius: 4px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.018) !important;
+}
+
+.project-overview-main .rounded-xl {
+  border-radius: 4px !important;
+}
+
+.project-overview-main .rounded-lg {
+  border-radius: 3px !important;
+}
+
+.project-overview-main .rounded-md {
+  border-radius: 2px !important;
+}
+
+.project-overview-main header.relative {
+  border-color: #1e293b !important;
+  background: rgba(15, 23, 41, 0.96) !important;
+  padding: 15px !important;
+}
+
+.project-overview-main header.relative h1 {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 16px !important;
+  line-height: 1.4 !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+}
+
+.project-overview-main header.relative p,
+.project-overview-main header.relative span,
+.project-overview-main header.relative button,
+.project-overview-main header.relative select {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.project-overview-main header.relative select,
+.project-overview-main header.relative > div button {
+  border-radius: 3px !important;
+}
+
+.project-overview-main header.relative select,
+.project-overview-main header.relative button:not([aria-pressed]) {
+  min-height: 34px;
+  font-size: 10px !important;
+}
+
+.project-overview-main section[class*="bg-surface"] {
+  background: rgba(15, 23, 41, 0.96) !important;
+  border-color: #1e293b !important;
+}
+
+.project-overview-main section > div:first-child h2 {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.015em;
+}
+
+.project-overview-main section > div:first-child .text-muted {
+  color: #94a3b8 !important;
+}
+
+.project-overview-main .space-y-5 > .pt-2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px !important;
+}
+
+.project-overview-main .space-y-5 > .pt-2::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  background: #3b82f6;
+}
+
+.project-overview-main .space-y-5 > .pt-2::after {
+  content: '';
+  height: 1px;
+  flex: 1 1 auto;
+  background: #1e293b;
+}
+
+.project-overview-main .space-y-5 > .pt-2 h2 {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #f8fafc;
+}
+
+.project-overview-main .grid.grid-cols-1.gap-4.sm\:grid-cols-2.xl\:grid-cols-3.\32xl\:grid-cols-6 section {
+  min-height: 112px !important;
+}
+
+.project-overview-main .grid.grid-cols-1.gap-4.sm\:grid-cols-2.xl\:grid-cols-3.\32xl\:grid-cols-6 section p {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.project-overview-main .grid.grid-cols-1.gap-4.sm\:grid-cols-2.xl\:grid-cols-3.\32xl\:grid-cols-6 section .text-2xl {
+  font-size: 28px !important;
+  line-height: 1 !important;
+}
+
+.project-overview-main section button,
+.project-overview-main section select,
+.project-overview-main section code,
+.project-overview-main section [class*="text-[10px]"] {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.project-overview-main section .bg-background\/45,
+.project-overview-main section .bg-background\/50,
+.project-overview-main section .bg-background\/70,
+.project-overview-main section .bg-background\/75 {
+  background-color: rgba(11, 18, 32, 0.78) !important;
+}
+
+.project-overview-main section [class*="shadow-"] {
+  box-shadow: none !important;
 }
