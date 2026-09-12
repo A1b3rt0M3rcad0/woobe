@@ -44,24 +44,27 @@ export function AgentRunOperationalView({
     previousStatus.current = currentStatus
   }, [identityId, identityKind, queryClient, run?.status])
 
+  const structuredResult = run?.parsed_output != null
+  const resultMeta = resultSubtitle || `${run?.provider || '—'}/${run?.model || '—'}`
+
   return (
     <div>
       <AgentRunAnalyticsPanel traceId={traceId} runId={runId} finalizing={finalizing} />
       {children ? <div className="space-y-3 px-3 py-3">{children}</div> : null}
-      {showResult && (run?.answer || run?.parsed_output != null) ? (
+      {showResult && (run?.answer || structuredResult) ? (
         <div className="border-t border-border px-3 py-3">
           <SectionBlock
             density="compact"
             eyebrow="Result"
-            title={resultTitle}
-            description={resultSubtitle || `${run.provider || '—'}/${run.model || '—'}`}
+            title={structuredResult ? undefined : resultTitle}
+            description={resultMeta}
             className="bg-background/20"
           >
             <AgentResultViewer
-              value={run.answer}
-              parsedOutput={run.parsed_output}
+              value={run?.answer}
+              parsedOutput={run?.parsed_output}
               title={resultTitle}
-              subtitle={resultSubtitle || `${run.provider || '—'}/${run.model || '—'}`}
+              subtitle={resultMeta}
               compact
             />
           </SectionBlock>
