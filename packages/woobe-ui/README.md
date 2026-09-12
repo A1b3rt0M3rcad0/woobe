@@ -20,7 +20,7 @@ packages/woobe-frontend
 
 ## Initial surface
 
-The package starts with the primitives required by the authentication experience: Button, Input, Field, Alert, Badge and Card. Additional shadcn-derived primitives should only be incorporated when a real reusable use case appears.
+The package currently contains the reusable primitives introduced by the first migration increments: Button, Input, Field, Alert, Badge, Card and Dialog. Additional shadcn-derived primitives should only be incorporated when a real reusable use case appears.
 
 ## Visual foundations
 
