@@ -1,8 +1,8 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, ArrowRight, LockKeyhole } from 'lucide-react'
-import { Alert, Badge, Button, Field, FieldError, FieldLabel, Input } from '@woobe/ui'
+import { AlertTriangle } from 'lucide-react'
+import { Alert, Button, Field, FieldError, FieldLabel, Input } from '@woobe/ui'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { loginSchema, type LoginFormData } from '@/features/auth/schemas'
 
@@ -23,16 +23,7 @@ export default function LoginPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <Badge variant="outline" className="font-mono uppercase tracking-[0.1em]">
-          <LockKeyhole className="h-3 w-3 text-primary-light" />
-          Control plane access
-        </Badge>
-        <h2 className="mt-5 text-[22px] font-semibold tracking-[-0.02em] text-slate-50">Sign in to Woobe</h2>
-        <p className="mt-1.5 text-sm leading-5 text-muted-foreground">
-          Authenticate to access your workspace and production operations.
-        </p>
-      </div>
+      <h1 className="mb-6 text-xl font-semibold tracking-tight text-slate-50">Sign in to Woobe</h1>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <Field>
@@ -74,9 +65,8 @@ export default function LoginPage() {
           </Alert>
         )}
 
-        <Button type="submit" loading={isSubmitting} className="mt-1 h-10 w-full">
+        <Button type="submit" loading={isSubmitting} className="h-10 w-full">
           Sign in
-          <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </form>
 
