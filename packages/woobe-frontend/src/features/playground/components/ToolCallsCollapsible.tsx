@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { woobeLayout } from '@woobe/ui'
 import { operationGroups, operationLabel } from '@/features/skills/operations'
 import { CheckCircle, ChevronDown, ChevronRight, Loader2, Puzzle, Wrench, XCircle } from 'lucide-react'
 
@@ -46,10 +47,10 @@ function OperationGroup({ toolCalls, variant = 'playground', label, kind }: Tool
         type="button"
         onClick={() => setOpen(!open)}
         aria-expanded={open}
-        className={cn('flex min-h-[34px] w-full items-center gap-1.5 px-2.5 py-2 font-mono text-[8px] transition-colors hover:bg-control/25', hasFailedTool ? 'text-red-300' : 'text-muted-foreground hover:text-slate-50')}
+        className={cn('flex min-h-control w-full items-center gap-ui-sm px-ui-sm py-ui-sm font-mono text-system-meta transition-colors hover:bg-control/25', hasFailedTool ? 'text-red-300' : 'text-muted-foreground hover:text-slate-50')}
       >
-        {open ? <ChevronDown className="h-3 w-3 shrink-0" /> : <ChevronRight className="h-3 w-3 shrink-0" />}
-        {hasRunningTool ? <Loader2 className="h-3 w-3 shrink-0 animate-spin" /> : hasFailedTool ? <XCircle className="h-3 w-3 shrink-0" /> : kind === 'skill' ? <Puzzle className="h-3 w-3 shrink-0 text-primary-light" /> : <Wrench className="h-3 w-3 shrink-0 text-primary-light" />}
+        {open ? <ChevronDown className="h-icon-sm w-icon-sm shrink-0" /> : <ChevronRight className="h-icon-sm w-icon-sm shrink-0" />}
+        {hasRunningTool ? <Loader2 className="h-icon-sm w-icon-sm shrink-0 animate-spin" /> : hasFailedTool ? <XCircle className="h-icon-sm w-icon-sm shrink-0" /> : kind === 'skill' ? <Puzzle className="h-icon-sm w-icon-sm shrink-0 text-primary-light" /> : <Wrench className="h-icon-sm w-icon-sm shrink-0 text-primary-light" />}
         <span className="truncate font-semibold">{summaryLabel(toolCalls, label)}</span>
       </button>
 
@@ -60,24 +61,24 @@ function OperationGroup({ toolCalls, variant = 'playground', label, kind }: Tool
             const isSuccess = !isRunning && !isFailedTool(toolCall)
             const failureLabel = toolCall.error_code || toolCall.error
             return (
-              <div key={toolCall.tool_call_id ?? index} className="border-t border-border/50 px-2.5 py-2.5 first:border-t-0">
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 flex-1 items-center gap-1.5">
-                    {isRunning ? <Loader2 className="h-3 w-3 shrink-0 animate-spin text-muted-foreground" /> : isSuccess ? <CheckCircle className="h-3 w-3 shrink-0 text-emerald-400" /> : <XCircle className="h-3 w-3 shrink-0 text-red-400" />}
-                    <span className="truncate font-mono text-[8px] font-semibold text-slate-200">{operationLabel(toolCall)}</span>
+              <div key={toolCall.tool_call_id ?? index} className="border-t border-border/50 px-ui-sm py-ui-sm first:border-t-0">
+                <div className="flex items-center justify-between gap-ui-sm">
+                  <div className="flex min-w-0 flex-1 items-center gap-ui-sm">
+                    {isRunning ? <Loader2 className="h-icon-sm w-icon-sm shrink-0 animate-spin text-muted-foreground" /> : isSuccess ? <CheckCircle className="h-icon-sm w-icon-sm shrink-0 text-emerald-400" /> : <XCircle className="h-icon-sm w-icon-sm shrink-0 text-red-400" />}
+                    <span className="truncate font-mono text-system-meta font-semibold text-slate-200">{operationLabel(toolCall)}</span>
                   </div>
-                  <div className="flex shrink-0 items-center gap-2 font-mono text-[8px]">
+                  <div className="flex shrink-0 items-center gap-ui-sm font-mono text-system-meta">
                     {isRunning ? <span className="text-muted-foreground">running</span> : null}
-                    {!isSuccess && !isRunning && failureLabel ? <span className="max-w-[120px] truncate text-red-300" title={toolCall.error || toolCall.error_code || undefined}>{failureLabel}</span> : null}
+                    {!isSuccess && !isRunning && failureLabel ? <span className="max-w-[7.5rem] truncate text-red-300" title={toolCall.error || toolCall.error_code || undefined}>{failureLabel}</span> : null}
                     {toolCall.duration_ms != null ? <span className="text-muted-foreground">{formatLatency(toolCall.duration_ms)}</span> : null}
                   </div>
                 </div>
 
                 {(toolCall.input != null || toolCall.output != null || (toolCall.error && !isSuccess && !isRunning)) ? (
-                  <div className={cn('mt-2 space-y-1.5', compact && 'space-y-1')}>
-                    {toolCall.input != null ? <JsonCodeBlock title="Input" value={toolCall.input as Record<string, unknown>} maxHeight={compact ? 84 : 120} /> : null}
-                    {toolCall.output != null ? <JsonCodeBlock title="Output" value={toolCall.output as Record<string, unknown>} maxHeight={compact ? 84 : 120} /> : null}
-                    {toolCall.error && !isSuccess && !isRunning ? <div className="rounded-container border border-red-500/20 bg-background/25 px-2.5 py-2 font-mono text-[8px] leading-4 text-red-300">{toolCall.error_code ? `${toolCall.error_code}: ` : ''}{toolCall.error}</div> : null}
+                  <div className={cn('mt-ui-sm space-y-ui-sm', compact && 'space-y-ui-xs')}>
+                    {toolCall.input != null ? <JsonCodeBlock title="Input" value={toolCall.input as Record<string, unknown>} maxHeight={compact ? woobeLayout.codeSnippetCompact : woobeLayout.codeSnippetDefault} /> : null}
+                    {toolCall.output != null ? <JsonCodeBlock title="Output" value={toolCall.output as Record<string, unknown>} maxHeight={compact ? woobeLayout.codeSnippetCompact : woobeLayout.codeSnippetDefault} /> : null}
+                    {toolCall.error && !isSuccess && !isRunning ? <div className="rounded-container border border-red-500/20 bg-background/25 px-ui-sm py-ui-sm font-mono text-system-meta text-red-300">{toolCall.error_code ? `${toolCall.error_code}: ` : ''}{toolCall.error}</div> : null}
                   </div>
                 ) : null}
               </div>
@@ -90,5 +91,5 @@ function OperationGroup({ toolCalls, variant = 'playground', label, kind }: Tool
 }
 
 export function ToolCallsCollapsible({ toolCalls, variant }: ToolCallsCollapsibleProps) {
-  return <div className="space-y-1.5">{operationGroups(toolCalls ?? []).map(group => <OperationGroup key={group.kind} toolCalls={group.calls} variant={variant} label={group.label} kind={group.kind} />)}</div>
+  return <div className="space-y-ui-sm">{operationGroups(toolCalls ?? []).map(group => <OperationGroup key={group.kind} toolCalls={group.calls} variant={variant} label={group.label} kind={group.kind} />)}</div>
 }
