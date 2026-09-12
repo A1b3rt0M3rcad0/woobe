@@ -1,7 +1,7 @@
 import { forwardRef, type HTMLAttributes, type ReactNode } from 'react'
 import { cn } from '../lib/cn'
 
-export interface CodePanelProps extends HTMLAttributes<HTMLDivElement> {
+export interface CodePanelProps extends Omit<HTMLAttributes<HTMLDivElement>, 'title'> {
   title: ReactNode
   icon?: ReactNode
   badge?: ReactNode
