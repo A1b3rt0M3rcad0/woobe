@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import { Search, X } from 'lucide-react'
-import { Input } from '@woobe/ui'
+import { EmptyStatePanel, Input, SegmentedControl } from '@woobe/ui'
 
 import { cn } from '@/lib/utils'
 
@@ -16,12 +16,12 @@ export function ResourcePage({ title, description, action, children, className }
   return (
     <div
       className={cn(
-        'resource-page-shell mx-auto w-full max-w-[1500px] space-y-4 font-sans',
+        'resource-page-shell mx-auto w-full max-w-resource space-y-ui-lg font-sans',
         '[&_h1]:font-mono [&_h2]:font-mono [&_h3]:font-mono [&_h4]:font-mono',
-        '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_select]:font-mono [&_input]:font-mono [&_input]:text-[10px]',
-        '[&_select]:text-[10px] [&_select]:text-slate-100 [&_select]:outline-none',
+        '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_select]:font-mono [&_input]:font-mono [&_input]:text-system-control',
+        '[&_select]:text-system-control [&_select]:text-slate-100 [&_select]:outline-none',
         '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
-        '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono [&_.font-medium]:font-mono [&_.font-semibold]:font-mono',
+        '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono',
         '[&_textarea]:font-sans',
         '[&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-control [&_.rounded-md]:rounded-technical',
         '[&_.shadow-sm]:shadow-none [&_.shadow-lg]:shadow-none [&_.shadow-xl]:shadow-none [&_.shadow-2xl]:shadow-none',
@@ -40,15 +40,15 @@ export function ResourcePageHeader({
   action,
 }: Pick<ResourcePageProps, 'title' | 'description' | 'action'>) {
   return (
-    <header className="border border-border bg-surface/[0.96] px-4 py-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.018)]">
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+    <header className="border border-border bg-surface/[0.96] px-ui-lg py-ui-md shadow-none">
+      <div className="flex flex-col gap-ui-md md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
-          <div className="mb-1.5 flex items-center gap-2 font-mono text-[8px] font-bold uppercase tracking-[0.13em] text-muted-foreground">
+          <div className="mb-ui-sm flex items-center gap-ui-sm font-mono text-system-meta font-bold uppercase tracking-[0.13em] text-muted-foreground">
             <span className="h-1.5 w-1.5 bg-primary" />
             Project resource
           </div>
-          <h1 className="font-mono text-base font-bold tracking-[0.01em] text-slate-50">{title}</h1>
-          <p className="mt-1 max-w-3xl font-mono text-[9px] leading-4 text-muted-foreground">{description}</p>
+          <h1 className="font-mono text-heading font-bold text-slate-50">{title}</h1>
+          <p className="mt-ui-xs max-w-3xl font-sans text-product-caption text-muted-foreground">{description}</p>
         </div>
         {action && <div className="shrink-0">{action}</div>}
       </div>
@@ -58,7 +58,7 @@ export function ResourcePageHeader({
 
 export function ResourceToolbar({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('flex flex-col gap-3 border border-border bg-surface/[0.9] p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.012)]', className)}>
+    <div className={cn('flex flex-col gap-ui-md border border-border bg-surface/[0.9] p-ui-md shadow-none', className)}>
       {children}
     </div>
   )
@@ -83,29 +83,20 @@ export function ResourceTabs<T extends string>({
 }) {
   return (
     <div className="scrollbar-thin min-w-0 overflow-x-auto">
-      <div className="inline-flex min-w-max rounded-control border border-border bg-control p-[3px]" role="tablist" aria-label={label}>
-        {tabs.map((tab) => {
-          const active = value === tab.value
-          return (
-            <button
-              key={tab.value}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => onChange(tab.value)}
-              className={cn(
-                'flex h-[27px] items-center gap-1.5 rounded-technical border px-2.5 font-mono text-[9px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
-                active
-                  ? 'border-primary/35 bg-primary/[0.12] text-slate-50'
-                  : 'border-transparent text-muted-foreground hover:bg-accent/45 hover:text-slate-200',
-              )}
-            >
-              {tab.label}
-              {tab.count !== undefined && <span className="font-mono text-[8px] tabular-nums text-muted-foreground">{tab.count}</span>}
-            </button>
-          )
-        })}
-      </div>
+      <SegmentedControl
+        ariaLabel={label}
+        value={value}
+        onValueChange={(next) => onChange(next as T)}
+        items={tabs.map((tab) => ({
+          value: tab.value,
+          label: (
+            <span className="flex items-center gap-ui-xs">
+              <span>{tab.label}</span>
+              {tab.count !== undefined ? <span className="font-mono text-system-meta tabular-nums text-muted-foreground">{tab.count}</span> : null}
+            </span>
+          ),
+        }))}
+      />
     </div>
   )
 }
@@ -138,7 +129,7 @@ export function ResourceSearch({
         }}
         placeholder={placeholder}
         aria-label={label}
-        className="pl-8 pr-8 font-mono text-[10px]"
+        className="pl-8 pr-8 font-mono text-system-control"
       />
       {value && (
         <button
@@ -164,14 +155,14 @@ export function ResourceSectionHeader({
   count?: ReactNode
 }) {
   return (
-    <div className="mb-3 flex items-center gap-2.5">
+    <div className="mb-ui-md flex items-center gap-ui-md">
       <span className="h-1.5 w-1.5 shrink-0 bg-primary" />
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
-          <h2 className="font-mono text-[10px] font-bold uppercase tracking-[0.11em] text-slate-50">{title}</h2>
-          {count !== undefined && <span className="font-mono text-[8px] tabular-nums text-muted-foreground">{count}</span>}
+        <div className="flex items-center gap-ui-sm">
+          <h2 className="font-mono text-system-control font-bold uppercase tracking-[0.11em] text-slate-50">{title}</h2>
+          {count !== undefined && <span className="font-mono text-system-meta tabular-nums text-muted-foreground">{count}</span>}
         </div>
-        {description && <p className="mt-1 font-mono text-[8px] leading-4 text-muted-foreground">{description}</p>}
+        {description && <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{description}</p>}
       </div>
       <div className="h-px flex-1 bg-border" />
     </div>
@@ -191,12 +182,5 @@ export function ResourceEmptyState({
   action?: ReactNode
   className?: string
 }) {
-  return (
-    <div className={cn('border border-dashed border-border bg-surface/[0.72] px-6 py-9 text-center', className)}>
-      {icon && <div className="mx-auto flex h-8 w-8 items-center justify-center rounded-control border border-border bg-control text-muted-foreground">{icon}</div>}
-      <h2 className={cn('font-mono text-[11px] font-bold text-slate-50', icon && 'mt-3')}>{title}</h2>
-      <p className="mx-auto mt-1 max-w-lg font-mono text-[9px] leading-4 text-muted-foreground">{description}</p>
-      {action && <div className="mt-4 flex justify-center">{action}</div>}
-    </div>
-  )
+  return <EmptyStatePanel icon={icon} title={title} description={description} action={action} className={className} />
 }
