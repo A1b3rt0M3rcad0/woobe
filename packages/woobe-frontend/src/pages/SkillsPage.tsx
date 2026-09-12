@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Bot, Plus, Puzzle, Upload } from 'lucide-react'
+import { Button } from '@woobe/ui'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -14,7 +15,6 @@ import {
   ResourceTabs,
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
-import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { useAgents } from '@/features/agents/hooks'
 import { listSkills } from '@/features/skills/api'
@@ -104,8 +104,8 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
     title="Skills"
     description="Create, import and version reusable procedures that Agents can load on demand."
     action={<div className="flex flex-wrap justify-end gap-2">
-      <Button variant="outline" onClick={() => openCatalog('import', 'Import Skill')}><Upload className="mr-2 h-4 w-4" />Import Skill</Button>
-      <Button onClick={() => openCatalog('create', 'Create Skill')}><Plus className="mr-2 h-4 w-4" />Create Skill</Button>
+      <Button variant="outline" onClick={() => openCatalog('import', 'Import Skill')}><Upload className="h-3.5 w-3.5" />Import Skill</Button>
+      <Button onClick={() => openCatalog('create', 'Create Skill')}><Plus className="h-3.5 w-3.5" />Create Skill</Button>
     </div>}
   >
     <ResourceToolbar>
@@ -132,8 +132,8 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
         description="Open a Skill to inspect its current version, history, resources and installation options."
         count={offset ? `Page ${offset / 20 + 1}` : items.length < 20 ? items.length : undefined}
       />
-      {skills.isPending ? <LoadingState message="Loading Skills" variant="panel" layout="compact-cards" /> : skills.isError ? <ErrorState error={skills.error} onRetry={() => void skills.refetch()} className="rounded-xl border border-border/80 bg-surface/40 py-10" /> : items.length ? <>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {skills.isPending ? <LoadingState message="Loading Skills" variant="panel" layout="compact-cards" /> : skills.isError ? <ErrorState error={skills.error} onRetry={() => void skills.refetch()} className="rounded-container border border-border bg-surface/70 py-10" /> : items.length ? <>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
           {items.map(skill => {
             const installedOn = installedAgentCounts.get(skill.id) ?? 0
             return <ResourceCard
@@ -159,7 +159,7 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
         </div>
         {(offset > 0 || items.length >= 20) && <div className="mt-4 flex items-center justify-end gap-2">
           <Button size="sm" variant="ghost" disabled={!offset || skills.isFetching} onClick={() => setOffset(current => Math.max(0, current - 20))}>Previous</Button>
-          <span className="text-xs text-muted">Page {offset / 20 + 1}</span>
+          <span className="font-mono text-[9px] text-muted-foreground">Page {offset / 20 + 1}</span>
           <Button size="sm" variant="ghost" disabled={items.length < 20 || skills.isFetching} onClick={() => setOffset(current => current + 20)}>Next</Button>
         </div>}
       </> : <ResourceEmptyState
@@ -174,7 +174,7 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
         description="Saved Agent configurations only. Unsaved edits and historical Releases are not shown."
         count={normalizedQuery ? `${filteredInstallations.length} of ${installations.length}` : installations.length}
       />
-      {agents.isPending ? <LoadingState message="Loading installed Skills" variant="panel" layout="compact-cards" /> : agents.isError ? <ErrorState error={agents.error} onRetry={() => void agents.refetch()} className="rounded-xl border border-border/80 bg-surface/40 py-10" /> : filteredInstallations.length ? <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {agents.isPending ? <LoadingState message="Loading installed Skills" variant="panel" layout="compact-cards" /> : agents.isError ? <ErrorState error={agents.error} onRetry={() => void agents.refetch()} className="rounded-container border border-border bg-surface/70 py-10" /> : filteredInstallations.length ? <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
         {filteredInstallations.map(({ agent, binding, snapshot }) => <ResourceCard
           key={`${agent.id}:${binding.skill_id}`}
           aria-label={`Open Agent Skills for ${agent.name}`}
@@ -208,11 +208,11 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
       onInstall={version => { setAgentQuery(''); setPending(version) }}
     />}
 
-    {pending && <Dialog open onClose={() => setPending(null)} title="Choose an Agent" scrollMode="content">
+    {pending && <Dialog open onClose={() => setPending(null)} title="Choose an Agent" scrollMode="content" className="max-w-[620px]">
       <div className="space-y-4">
-        <p className="text-sm text-muted">Open the Agent’s Skills editor to review <span className="font-medium text-foreground">{pending.package.name} {pending.version}</span> and save the installation in its draft.</p>
+        <p className="font-mono text-[9px] leading-4 text-muted-foreground">Open the Agent’s Skills editor to review <span className="font-medium text-slate-100">{pending.package.name} {pending.version}</span> and save the installation in its draft.</p>
         <ResourceSearch label="Search Agents for Skill installation" placeholder="Search Agents…" value={agentQuery} onChange={setAgentQuery} />
-        {agents.isPending ? <LoadingState message="Loading Agents" /> : agents.isError ? <ErrorState error={agents.error} onRetry={() => void agents.refetch()} /> : availableAgents.length ? <div className="space-y-2">{availableAgents.map(agent => <Button key={agent.id} variant="outline" className="w-full justify-start" onClick={() => navigate(agentPath(agent.id, pending.skill_version_id))}><Bot className="mr-2 h-4 w-4" />{agent.name}</Button>)}</div> : <p className="text-sm text-muted">{agentQuery ? 'No matching Agents.' : 'Create an Agent before installing this Skill.'}</p>}
+        {agents.isPending ? <LoadingState message="Loading Agents" /> : agents.isError ? <ErrorState error={agents.error} onRetry={() => void agents.refetch()} /> : availableAgents.length ? <div className="divide-y divide-border overflow-hidden rounded-container border border-border bg-control/35">{availableAgents.map(agent => <button key={agent.id} type="button" onClick={() => navigate(agentPath(agent.id, pending.skill_version_id))} className="flex min-h-10 w-full items-center gap-2.5 px-3 py-2.5 text-left font-mono text-[10px] text-slate-200 transition-colors hover:bg-accent/45"><Bot className="h-3.5 w-3.5 text-primary-light" /><span className="truncate">{agent.name}</span></button>)}</div> : <p className="font-mono text-[9px] text-muted-foreground">{agentQuery ? 'No matching Agents.' : 'Create an Agent before installing this Skill.'}</p>}
       </div>
     </Dialog>}
   </ResourcePage>
