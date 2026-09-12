@@ -1,4 +1,4 @@
-import { woobeLayers } from '@woobe/ui'
+import { woobeLayers, type DialogLayer } from '@woobe/ui'
 
 export const UI_LAYER_Z_INDEX = {
   playgroundChrome: woobeLayers.playgroundChrome,
@@ -14,4 +14,4 @@ export const UI_LAYER_CLASS = {
   focus: 'z-focus',
 } as const
 
-export type DialogLayer = 'modal' | 'nestedModal'
+export type { DialogLayer } from '@woobe/ui'
