@@ -67,6 +67,9 @@ const woobeTailwindPreset = {
         'textarea-compact': woobeControl.minHeight.textareaCompact,
         textarea: woobeControl.minHeight.textarea,
       },
+      maxHeight: {
+        dialog: woobeLayout.dialogMaxHeight,
+      },
       width: {
         'control-segment': woobeControl.height.segment,
         'control-sm': woobeControl.height.compact,
