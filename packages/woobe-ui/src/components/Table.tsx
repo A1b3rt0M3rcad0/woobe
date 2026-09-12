@@ -34,7 +34,7 @@ export function Table<T>({
             {columns.map((column) => (
               <th
                 key={column.key}
-                className={cn('px-ui-lg py-ui-md text-left font-mono text-system-label font-semibold text-muted-foreground', column.className)}
+                className={cn('px-ui-lg py-ui-md text-left font-mono text-system-label font-semibold uppercase tracking-ui-label text-muted-foreground', column.className)}
               >
                 {column.header}
               </th>
@@ -59,7 +59,7 @@ export function Table<T>({
                 )}
               >
                 {columns.map((column) => (
-                  <td key={column.key} className={cn('px-ui-lg py-ui-md align-middle text-slate-200', column.className)}>
+                  <td key={column.key} className={cn('px-ui-lg py-ui-md align-middle text-accent-foreground/85', column.className)}>
                     {column.render ? column.render(item) : String((item as Record<string, unknown>)[column.key] ?? '')}
                   </td>
                 ))}
