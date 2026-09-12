@@ -55,8 +55,8 @@ function SourcesCollapsible({
         type="button"
         onClick={() => setOpen(!open)}
         className={cn(
-          'flex items-center gap-1 text-primary-light transition-colors hover:text-white',
-          compact ? 'text-[9px]' : 'text-xs',
+          'flex items-center gap-1 font-mono text-primary-light transition-colors hover:text-white',
+          compact ? 'text-[8px]' : 'text-[9px]',
         )}
       >
         {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
@@ -68,19 +68,19 @@ function SourcesCollapsible({
             <div
               key={source.chunk_id || `${source.document_id || 'source'}-${index}`}
               className={cn(
-                'rounded-lg border border-border/80 bg-background/60',
-                compact ? 'p-2 text-[9px] leading-4' : 'p-2 text-xs',
+                'rounded-container border border-border/80 bg-background/50',
+                compact ? 'p-2 text-[9px] leading-4' : 'p-2.5 text-[10px] leading-4',
               )}
             >
-              <p className="truncate font-medium text-white">{source.document_title || 'Untitled'}</p>
+              <p className="truncate font-mono text-[9px] font-semibold text-slate-100">{source.document_title || 'Untitled'}</p>
               {(source.page_number != null || source.score != null) && (
-                <div className="mt-0.5 flex flex-wrap gap-x-2 text-muted">
+                <div className="mt-0.5 flex flex-wrap gap-x-2 font-mono text-[8px] text-muted-foreground">
                   {source.page_number != null && <span>Page {source.page_number}</span>}
                   {source.score != null && <span>Score {formatNumber(source.score, 3)}</span>}
                 </div>
               )}
               {source.content_preview && (
-                <p className={cn('mt-1 italic text-muted', compact ? 'line-clamp-3' : '')}>
+                <p className={cn('mt-1 font-sans italic text-muted-foreground', compact ? 'line-clamp-3 text-[9px]' : 'text-[10px]')}>
                   &quot;{source.content_preview.slice(0, compact ? 160 : 200)}{source.content_preview.length > (compact ? 160 : 200) ? '…' : ''}&quot;
                 </p>
               )}
@@ -115,13 +115,13 @@ function ActivityBubble({
   return (
     <div
       className={cn(
-        'inline-flex items-center border border-border/80 bg-surface/70 text-muted shadow-sm shadow-black/5',
+        'inline-flex items-center border border-border/80 bg-surface/65 font-sans text-muted-foreground',
         compact
-          ? 'gap-1.5 rounded-lg px-2.5 py-2 text-[10px] leading-4'
-          : 'gap-2 rounded-xl px-4 py-3 text-sm',
+          ? 'gap-1.5 rounded-control px-2.5 py-2 text-[9px] leading-4'
+          : 'gap-2 rounded-container px-3 py-2.5 text-[10px] leading-4',
       )}
     >
-      <Loader2 className={cn('animate-spin text-primary-light', compact ? 'h-3 w-3' : 'h-4 w-4')} />
+      <Loader2 className={cn('animate-spin text-primary-light', compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
       {activityMessage(activity)}
     </div>
   )
@@ -161,10 +161,10 @@ function AssistantContent({
     return (
       <div
         className={cn(
-          'border border-border/80 bg-surface/75 text-white shadow-sm shadow-black/5',
+          'border border-border/80 bg-surface/72 font-sans text-slate-100',
           compact
-            ? 'rounded-lg rounded-bl-sm px-2.5 py-2 text-[10px] leading-4'
-            : 'rounded-xl rounded-bl-md px-4 py-3 text-sm leading-relaxed',
+            ? 'rounded-control px-2.5 py-2 text-[10px] leading-4'
+            : 'rounded-container px-3 py-2.5 text-[13px] leading-5',
         )}
       >
         <MarkdownMessage
@@ -179,10 +179,10 @@ function AssistantContent({
   return (
     <div
       className={cn(
-        'border border-border/80 bg-surface/75 text-white shadow-sm shadow-black/5',
+        'border border-border/80 bg-surface/72 font-sans text-slate-100',
         compact
-          ? 'rounded-lg rounded-bl-sm px-2.5 py-2 text-[10px] leading-4'
-          : 'rounded-xl rounded-bl-md px-4 py-3 text-sm leading-relaxed',
+          ? 'rounded-control px-2.5 py-2 text-[10px] leading-4'
+          : 'rounded-container px-3 py-2.5 text-[13px] leading-5',
       )}
     >
       <div className={compact ? 'space-y-1.5' : 'space-y-2'}>
@@ -201,7 +201,7 @@ function AssistantContent({
         )}
         {isStreaming && (
           <span
-            className="inline-flex h-3 w-1.5 translate-y-0.5 animate-pulse rounded-sm bg-primary/80"
+            className="inline-flex h-3 w-1.5 translate-y-0.5 animate-pulse rounded-technical bg-primary/80"
             aria-label="Streaming"
           />
         )}
@@ -227,14 +227,14 @@ export function ChatMessage({
 
   if (isUser) {
     return (
-      <div className={cn('flex justify-end overflow-hidden', compact ? 'gap-2' : 'gap-3')}>
+      <div className={cn('flex justify-end overflow-hidden', compact ? 'gap-2' : 'gap-2.5')}>
         <div className={compact ? 'max-w-[88%]' : 'max-w-[80%]'}>
           <div
             className={cn(
-              'whitespace-pre-wrap break-words border border-primary/25 bg-primary/10 text-white shadow-sm shadow-black/5',
+              'whitespace-pre-wrap break-words border border-primary/25 bg-primary/[0.09] font-sans text-slate-100',
               compact
-                ? 'rounded-lg rounded-br-sm px-2.5 py-2 text-[10px] leading-4'
-                : 'rounded-xl rounded-br-md px-4 py-3 text-sm leading-relaxed',
+                ? 'rounded-control px-2.5 py-2 text-[10px] leading-4'
+                : 'rounded-container px-3 py-2.5 text-[13px] leading-5',
             )}
           >
             {message.content}
@@ -242,11 +242,11 @@ export function ChatMessage({
         </div>
         <div
           className={cn(
-            'flex shrink-0 items-center justify-center border border-primary/25 bg-primary/10',
-            compact ? 'h-6 w-6 rounded-md' : 'h-8 w-8 rounded-full',
+            'flex shrink-0 items-center justify-center rounded-control border border-primary/25 bg-primary/[0.08]',
+            compact ? 'h-6 w-6' : 'h-7 w-7',
           )}
         >
-          <User className={cn('text-primary-light', compact ? 'h-3 w-3' : 'h-4 w-4')} />
+          <User className={cn('text-primary-light', compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
         </div>
       </div>
     )
@@ -266,19 +266,19 @@ export function ChatMessage({
 
   return (
     <div className={cn('flex flex-col', compact ? 'gap-1' : 'gap-1.5')}>
-      <div className={cn('flex justify-start overflow-hidden', compact ? 'gap-2' : 'gap-3')}>
-        <div className={cn('flex shrink-0 flex-col items-center', compact ? 'w-6 gap-1' : 'w-14 gap-1.5')}>
+      <div className={cn('flex justify-start overflow-hidden', compact ? 'gap-2' : 'gap-2.5')}>
+        <div className={cn('flex shrink-0 flex-col items-center', compact ? 'w-6 gap-1' : 'w-12 gap-1.5')}>
           <div
             className={cn(
-              'flex shrink-0 items-center justify-center border border-border bg-surface',
-              compact ? 'h-6 w-6 rounded-md' : 'h-8 w-8 rounded-full',
+              'flex shrink-0 items-center justify-center rounded-control border border-border bg-control',
+              compact ? 'h-6 w-6' : 'h-7 w-7',
             )}
           >
-            <AssistantIcon className={cn('text-primary-light', compact ? 'h-3 w-3' : 'h-4 w-4')} />
+            <AssistantIcon className={cn('text-primary-light', compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
           </div>
           {!compact && agentName && (
             <span
-              className="w-full truncate text-center text-[10px] leading-tight text-muted"
+              className="w-full truncate text-center font-mono text-[7px] leading-tight text-muted-foreground"
               title={agentName}
             >
               {agentName}
@@ -288,7 +288,7 @@ export function ChatMessage({
 
         <div className={cn('min-w-0 space-y-1.5', compact ? 'flex-1' : 'max-w-[80%]')}>
           {compact && agentName && (
-            <p className="truncate text-[8px] font-medium text-muted" title={agentName}>
+            <p className="truncate font-mono text-[8px] text-muted-foreground" title={agentName}>
               {agentName}
             </p>
           )}
@@ -300,13 +300,13 @@ export function ChatMessage({
       </div>
 
       {message.tool_calls && message.tool_calls.length > 0 && (
-        <div className={cn('space-y-1.5', compact ? 'pl-8' : 'pl-16')}>
+        <div className={cn('space-y-1.5', compact ? 'pl-8' : 'pl-[58px]')}>
           <ToolCallsCollapsible toolCalls={message.tool_calls} variant={variant} />
         </div>
       )}
 
       {message.sources && message.sources.length > 0 && (
-        <div className={cn('space-y-1.5', compact ? 'pl-8' : 'pl-16')}>
+        <div className={cn('space-y-1.5', compact ? 'pl-8' : 'pl-[58px]')}>
           <SourcesCollapsible sources={message.sources} variant={variant} />
         </div>
       )}
@@ -314,24 +314,24 @@ export function ChatMessage({
       {details}
 
       {!isStreaming && (
-        <div className={cn('space-y-1.5', compact ? 'pl-8' : 'pl-16')}>
+        <div className={cn('space-y-1.5', compact ? 'pl-8' : 'pl-[58px]')}>
           {message.output_parse_error && (
             <div
               className={cn(
-                'flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 leading-relaxed text-amber-200',
-                compact ? 'px-2 py-1.5 text-[9px]' : 'px-2.5 py-1.5 text-[11px]',
+                'flex items-start gap-1.5 border border-amber-500/25 bg-amber-500/[0.07] leading-relaxed text-amber-200',
+                compact ? 'rounded-control px-2 py-1.5 text-[9px]' : 'rounded-container px-2.5 py-1.5 text-[10px]',
               )}
             >
               <AlertCircle className={cn('mt-0.5 shrink-0', compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
-              <span>{message.output_parse_error}</span>
+              <span className="font-sans">{message.output_parse_error}</span>
             </div>
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
             <div
               className={cn(
-                'flex min-w-0 flex-wrap items-center text-muted',
-                compact ? 'gap-x-2 gap-y-1 text-[9px]' : 'gap-3 text-[11px]',
+                'flex min-w-0 flex-wrap items-center font-mono text-muted-foreground',
+                compact ? 'gap-x-2 gap-y-1 text-[8px]' : 'gap-3 text-[8px]',
               )}
             >
               {message.model && (
@@ -346,7 +346,7 @@ export function ChatMessage({
                 </span>
               )}
               {message.trace_id && (
-                <span className="font-mono">trace {message.trace_id.slice(0, 8)}…</span>
+                <span>trace {message.trace_id.slice(0, 8)}…</span>
               )}
               {footerMeta}
             </div>
@@ -356,8 +356,8 @@ export function ChatMessage({
                 type="button"
                 onClick={() => void copyResponse()}
                 className={cn(
-                  'inline-flex h-6 items-center justify-center gap-1 rounded-md border border-transparent text-muted transition-colors hover:border-border/80 hover:bg-background/70 hover:text-white',
-                  compact ? 'px-1.5 text-[9px]' : 'w-6',
+                  'inline-flex h-6 items-center justify-center gap-1 rounded-technical border border-transparent font-mono text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50',
+                  compact ? 'px-1.5 text-[8px]' : 'w-6',
                 )}
                 title={copied ? 'Copied' : 'Copy response'}
               >
@@ -369,14 +369,14 @@ export function ChatMessage({
                 <>
                   <button
                     type="button"
-                    className="flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-300"
+                    className="flex h-6 w-6 items-center justify-center rounded-technical border border-transparent text-muted-foreground transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/[0.07] hover:text-emerald-300"
                     title="Good response"
                   >
                     <ThumbsUp className="h-3 w-3" />
                   </button>
                   <button
                     type="button"
-                    className="flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-300"
+                    className="flex h-6 w-6 items-center justify-center rounded-technical border border-transparent text-muted-foreground transition-colors hover:border-red-500/30 hover:bg-red-500/[0.07] hover:text-red-300"
                     title="Bad response"
                   >
                     <ThumbsDown className="h-3 w-3" />
