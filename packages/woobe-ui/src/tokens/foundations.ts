@@ -24,6 +24,7 @@ export const woobeSpacing = {
 
 export const woobeControl = {
   height: {
+    technical: '1.5rem',
     segment: '1.6875rem',
     compact: '1.875rem',
     default: '2.125rem',
@@ -70,6 +71,12 @@ export const woobeLayout = {
   operationsPanel: '23.25rem',
   inspector: '23.75rem',
   inspectorExpanded: '38.75rem',
+  conversationRailCompact: '1.5rem',
+  conversationRail: '3rem',
+  conversationIndentCompact: '2rem',
+  conversationIndent: '3.625rem',
+  conversationContentMax: '80%',
+  conversationContentCompactMax: '88%',
   resourceMax: '93.75rem',
   resourceWideMax: '100rem',
   dialogCompact: '32.5rem',
@@ -83,6 +90,8 @@ export const woobeLayout = {
   focusWorkspaceHeight: 'min(88svh, 57.5rem)',
   codeSnippetCompact: '5.25rem',
   codeSnippetDefault: '7.5rem',
+  codeInlineCompact: '8.75rem',
+  codeInlineDefault: '10rem',
   codeStructuredCompact: '13.75rem',
   codeStructuredDefault: '21.25rem',
   codeEditorCompact: '11.25rem',
