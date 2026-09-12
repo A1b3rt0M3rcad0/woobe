@@ -34,6 +34,7 @@ export const woobeControl = {
     workspaceHeader: '3.375rem',
   },
   minHeight: {
+    textareaCompact: '4.875rem',
     textarea: '5.75rem',
   },
   icon: {
@@ -63,6 +64,9 @@ export const woobeLayout = {
   dialogCompact: '32.5rem',
   dialogDefault: '45rem',
   dialogWide: '68.75rem',
+  dialogSidebar: '15.625rem',
+  dialogContentMax: '47.5rem',
+  dialogWorkspaceHeight: 'min(40rem, calc(100svh - 7rem))',
 } as const
 
 export const woobeShadow = {
