@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { SectionBlock } from '@woobe/ui'
 import { shouldRefreshContextEvidence, useAgentRunDetail } from '@/features/traces/hooks'
 import { AgentResultViewer } from './AgentResultViewer'
 import { AgentRunAnalyticsPanel } from './AgentRunAnalyticsPanel'
@@ -34,11 +35,7 @@ export function AgentRunOperationalView({
 
   useEffect(() => {
     const currentStatus = run?.status
-    if (
-      identityKind
-      && identityId
-      && shouldRefreshContextEvidence(previousStatus.current, currentStatus)
-    ) {
+    if (identityKind && identityId && shouldRefreshContextEvidence(previousStatus.current, currentStatus)) {
       void queryClient.invalidateQueries({
         queryKey: ['context-evidence', { kind: identityKind, id: identityId }],
         exact: true,
@@ -49,18 +46,17 @@ export function AgentRunOperationalView({
 
   return (
     <div>
-      <AgentRunAnalyticsPanel
-        traceId={traceId}
-        runId={runId}
-        finalizing={finalizing}
-      />
-
-      {children ? <div className="space-y-4 px-4 py-4">{children}</div> : null}
-
+      <AgentRunAnalyticsPanel traceId={traceId} runId={runId} finalizing={finalizing} />
+      {children ? <div className="space-y-3 px-3 py-3">{children}</div> : null}
       {showResult && (run?.answer || run?.parsed_output != null) ? (
-        <div className="border-t border-border px-4 py-4">
-          <p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Result</p>
-          <div className="mt-2">
+        <div className="border-t border-border px-3 py-3">
+          <SectionBlock
+            density="compact"
+            eyebrow="Result"
+            title={resultTitle}
+            description={resultSubtitle || `${run.provider || '—'}/${run.model || '—'}`}
+            className="bg-background/20"
+          >
             <AgentResultViewer
               value={run.answer}
               parsedOutput={run.parsed_output}
@@ -68,7 +64,7 @@ export function AgentRunOperationalView({
               subtitle={resultSubtitle || `${run.provider || '—'}/${run.model || '—'}`}
               compact
             />
-          </div>
+          </SectionBlock>
         </div>
       ) : null}
     </div>
