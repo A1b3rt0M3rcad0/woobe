@@ -72,8 +72,8 @@ export function ChatComposer({
           : statusText ?? 'Enter to send · Shift+Enter for new line'
 
   return (
-    <div className="border-t border-border/90 bg-surface/70 p-4 shadow-[0_-18px_50px_rgba(0,0,0,0.10)]">
-      <div className="rounded-xl border border-border/90 bg-background/75 shadow-lg shadow-black/10 transition-colors focus-within:border-primary/35 focus-within:ring-1 focus-within:ring-primary/10">
+    <div className="border-t border-border bg-surface/[0.78] px-3 py-3">
+      <div className="rounded-container border border-border bg-control/40 transition-colors focus-within:border-primary/45 focus-within:ring-1 focus-within:ring-primary/15">
         <textarea
           ref={textareaRef}
           value={input}
@@ -81,22 +81,22 @@ export function ChatComposer({
           onKeyDown={handleKeyDown}
           placeholder={runtimeBlocked ? (runtimeBlockReason ?? 'Runtime blocked') : placeholder}
           rows={1}
-          className="min-h-[44px] max-h-[160px] w-full resize-none bg-transparent px-4 py-3 text-sm text-white outline-none placeholder:text-muted"
+          className="min-h-[42px] max-h-[160px] w-full resize-none bg-transparent px-3 py-2.5 font-sans text-[13px] leading-5 text-slate-100 outline-none placeholder:text-muted-foreground"
           disabled={blocked}
         />
-        <div className="flex items-center justify-between px-3 pb-2">
+        <div className="flex items-center justify-between border-t border-border/60 px-2.5 py-2">
           <div className="flex items-center gap-1">
-            <button type="button" className="flex items-center gap-1 rounded-md border border-transparent px-2 py-1 text-xs text-muted transition-colors hover:border-border/80 hover:bg-surface/70 hover:text-white disabled:opacity-40" disabled={blocked}>
-              <Paperclip className="h-3.5 w-3.5" />
+            <button type="button" className="flex h-[27px] items-center gap-1 rounded-technical border border-transparent px-2 font-mono text-[8px] text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50 disabled:opacity-40" disabled={blocked}>
+              <Paperclip className="h-3 w-3" />
               Attach
             </button>
-            <button type="button" className="flex items-center gap-1 rounded-md border border-transparent px-2 py-1 text-xs text-muted transition-colors hover:border-border/80 hover:bg-surface/70 hover:text-white disabled:opacity-40" disabled={blocked}>
-              <Wrench className="h-3.5 w-3.5" />
+            <button type="button" className="flex h-[27px] items-center gap-1 rounded-technical border border-transparent px-2 font-mono text-[8px] text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50 disabled:opacity-40" disabled={blocked}>
+              <Wrench className="h-3 w-3" />
               Tools
             </button>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="hidden text-[11px] text-muted/80 sm:inline">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="hidden max-w-[280px] truncate font-mono text-[8px] text-muted-foreground sm:inline">
               {resolvedStatus}
             </span>
             {isSending ? (
@@ -105,19 +105,19 @@ export function ChatComposer({
                 onClick={onStop}
                 disabled={isStopping}
                 aria-label={isStopping ? 'Stopping generation' : 'Stop generation'}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/35 bg-red-500/15 text-red-100 transition-colors hover:bg-red-500/25 disabled:cursor-wait disabled:opacity-55"
+                className="flex h-[30px] w-[30px] items-center justify-center rounded-control border border-red-500/35 bg-red-500/[0.09] text-red-200 transition-colors hover:bg-red-500/[0.14] disabled:cursor-wait disabled:opacity-55"
               >
-                <Square className="h-3.5 w-3.5 fill-current" />
+                <Square className="h-3 w-3 fill-current" />
               </button>
             ) : (
               <button
                 type="button"
                 onClick={handleSend}
                 disabled={!input.trim() || blocked}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/35 bg-primary/90 text-white transition-colors hover:bg-primary disabled:cursor-not-allowed disabled:border-border disabled:bg-surface disabled:text-muted disabled:opacity-50"
+                className="flex h-[30px] w-[30px] items-center justify-center rounded-control border border-primary/40 bg-primary text-white transition-colors hover:bg-primary-hover disabled:cursor-not-allowed disabled:border-border disabled:bg-control disabled:text-muted-foreground disabled:opacity-50"
                 aria-label={isPreparing ? preparingText : 'Send message'}
               >
-                {isPreparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                {isPreparing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
               </button>
             )}
           </div>
