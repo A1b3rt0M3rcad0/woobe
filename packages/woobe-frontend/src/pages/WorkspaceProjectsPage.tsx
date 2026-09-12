@@ -332,7 +332,6 @@ export default function WorkspaceProjectsPage() {
         onClose={() => setShowCreate(false)}
         onSubmit={handleCreate}
         loading={createProject.isPending}
-        firstProject={items.length === 0}
       />
     </div>
   )
