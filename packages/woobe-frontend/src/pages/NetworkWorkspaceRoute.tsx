@@ -106,30 +106,40 @@ export default function NetworkWorkspaceRoute() {
   return (
     <NetworkIdentityProvider value={networkName || 'Network'}>
       <div
-        className="network-workspace-shell relative h-screen overflow-hidden"
+        className="network-workspace-shell relative h-screen overflow-hidden bg-background"
         style={shellStyle}
       >
         <style>{`
           .network-workspace-shell > div > header {
             overflow-x: auto;
             overflow-y: hidden;
+            border-color: #1e293b;
+            background: rgba(15, 23, 41, 0.96);
           }
           .network-workspace-shell > div > header > div > h1 {
             font-size: 0;
           }
           .network-workspace-shell > div > header > div > h1::after {
             content: var(--network-workspace-name);
-            font-size: 0.875rem;
-            line-height: 1.25rem;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.75rem;
+            line-height: 1rem;
+            font-weight: 700;
+            letter-spacing: 0.015em;
           }
           .network-workspace-shell > div > header > div > p {
             font-size: 0;
           }
           .network-workspace-shell > div > header > div > p::after {
             content: 'Network workspace · isolated within this Project';
-            font-size: 0.625rem;
-            line-height: 0.875rem;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 0.5rem;
+            line-height: 0.75rem;
+            color: #94a3b8;
           }
+          .network-workspace-shell .rounded-xl { border-radius: 4px !important; }
+          .network-workspace-shell .rounded-lg { border-radius: 3px !important; }
+          .network-workspace-shell .rounded-md { border-radius: 2px !important; }
         `}</style>
 
         <button
@@ -137,9 +147,9 @@ export default function NetworkWorkspaceRoute() {
           aria-label="Back to Networks"
           title="Back to Networks"
           onClick={() => navigate(networksPath)}
-          className="absolute left-3 top-3 z-[70] flex h-8 w-8 items-center justify-center rounded-lg border border-border bg-surface/95 text-muted transition-colors hover:border-primary/30 hover:text-white"
+          className="absolute left-3 top-3 z-[70] flex h-[34px] w-[34px] items-center justify-center rounded-control border border-border bg-control text-muted-foreground transition-colors hover:border-slate-600 hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-3.5 w-3.5" />
         </button>
 
         <WorkspaceContext.Provider value={{ ...workspace, currentProject: displayProject }}>
