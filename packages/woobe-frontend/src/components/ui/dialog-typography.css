@@ -73,6 +73,76 @@
   font-family: 'Inter', system-ui, sans-serif;
 }
 
+/*
+ * Legacy modal density normalization.
+ * New Woobe forms already use explicit 8-10px technical scales. Older feature
+ * dialogs often used text-sm/text-xs or 11px labels; normalize those patterns
+ * so they visually match the Create API Key composition without rewriting
+ * domain behavior.
+ */
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) :is(h3.text-sm, h4.text-sm, .text-sm.font-medium, .text-sm.font-semibold) {
+  font-size: 10px !important;
+  line-height: 1rem !important;
+}
+
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) :is(p.text-xs, span.text-xs, code.text-xs) {
+  font-size: 10px !important;
+  line-height: 1rem !important;
+}
+
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) .text-\[11px\].font-medium,
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) .text-\[11px\].uppercase {
+  font-size: 8px !important;
+  line-height: 0.875rem !important;
+  letter-spacing: 0.1em !important;
+}
+
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) aside nav button {
+  min-height: 32px;
+  border-radius: 3px !important;
+  font-size: 9px !important;
+  line-height: 1rem !important;
+}
+
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) aside nav :is(.uppercase, [class*='tracking-']) {
+  font-size: 8px !important;
+  letter-spacing: 0.12em !important;
+}
+
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) aside :is(h3.text-sm, p.text-xs) {
+  font-size: 9px !important;
+  line-height: 1rem !important;
+}
+
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) aside .text-\[11px\] {
+  font-size: 8px !important;
+  line-height: 0.875rem !important;
+}
+
 /* Red communicates destructive state; it must not become a dominant surface. */
 :where(
   [role='dialog'],
