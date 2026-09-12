@@ -2,7 +2,10 @@ export { Alert, AlertDescription, AlertTitle, type AlertProps, type AlertVariant
 export { Badge, type BadgeProps, type BadgeVariant } from './components/Badge'
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './components/Button'
 export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './components/Card'
+export { Checkbox, type CheckboxProps } from './components/Checkbox'
 export { CodePanel, type CodePanelProps } from './components/CodePanel'
+export { CopyButton, type CopyButtonProps } from './components/CopyButton'
+export { DangerConfirmDialog, type DangerConfirmDialogProps } from './components/DangerConfirmDialog'
 export {
   Dialog,
   DialogPresentationProvider,
@@ -20,6 +23,7 @@ export { Field, FieldDescription, FieldError, FieldLabel } from './components/Fi
 export { Input, type InputProps } from './components/Input'
 export { MathSurface, type MathSurfaceProps } from './components/MathSurface'
 export { MetricTile, type MetricTileProps } from './components/MetricTile'
+export { PageHeader, type PageHeaderProps } from './components/PageHeader'
 export { PanelHeader, type PanelHeaderProps } from './components/PanelHeader'
 export { ScrollArea, type ScrollAreaProps } from './components/ScrollArea'
 export { SectionBlock, type SectionBlockProps } from './components/SectionBlock'
