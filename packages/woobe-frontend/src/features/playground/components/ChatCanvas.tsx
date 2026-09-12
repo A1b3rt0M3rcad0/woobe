@@ -80,23 +80,23 @@ function isEmptyTerminalAssistantPlaceholder(
 function SessionMessagesLoading() {
   return (
     <div className="relative flex h-full items-center justify-center px-6">
-      <div className="w-full max-w-2xl space-y-4">
-        <div className="flex justify-start gap-3">
-          <div className="h-8 w-8 shrink-0 animate-pulse rounded-full border border-border bg-surface" />
-          <div className="w-[72%] space-y-2 rounded-xl rounded-bl-md border border-border/80 bg-surface/70 px-4 py-3 shadow-sm shadow-black/5">
-            <div className="h-3 w-1/2 animate-pulse rounded-full bg-white/[0.07]" />
-            <div className="h-3 w-full animate-pulse rounded-full bg-white/[0.07]" />
-            <div className="h-3 w-2/3 animate-pulse rounded-full bg-white/[0.07]" />
+      <div className="w-full max-w-2xl space-y-3">
+        <div className="flex justify-start gap-2.5">
+          <div className="h-7 w-7 shrink-0 animate-pulse rounded-control border border-border bg-control" />
+          <div className="w-[72%] space-y-2 rounded-container border border-border bg-surface/60 px-3 py-2.5">
+            <div className="h-2.5 w-1/2 animate-pulse rounded-technical bg-white/[0.07]" />
+            <div className="h-2.5 w-full animate-pulse rounded-technical bg-white/[0.07]" />
+            <div className="h-2.5 w-2/3 animate-pulse rounded-technical bg-white/[0.07]" />
           </div>
         </div>
-        <div className="flex justify-end gap-3">
-          <div className="w-[52%] space-y-2 rounded-xl rounded-br-md border border-primary/20 bg-primary/10 px-4 py-3 shadow-sm shadow-black/5">
-            <div className="ml-auto h-3 w-full animate-pulse rounded-full bg-white/[0.08]" />
-            <div className="ml-auto h-3 w-2/3 animate-pulse rounded-full bg-white/[0.08]" />
+        <div className="flex justify-end gap-2.5">
+          <div className="w-[52%] space-y-2 rounded-container border border-primary/20 bg-primary/[0.08] px-3 py-2.5">
+            <div className="ml-auto h-2.5 w-full animate-pulse rounded-technical bg-white/[0.08]" />
+            <div className="ml-auto h-2.5 w-2/3 animate-pulse rounded-technical bg-white/[0.08]" />
           </div>
-          <div className="h-8 w-8 shrink-0 animate-pulse rounded-full border border-primary/25 bg-primary/10" />
+          <div className="h-7 w-7 shrink-0 animate-pulse rounded-control border border-primary/25 bg-primary/[0.08]" />
         </div>
-        <p className="pt-2 text-center text-xs font-medium text-muted">Loading session messages...</p>
+        <p className="pt-1 text-center font-mono text-[8px] text-muted-foreground">Loading session messages...</p>
       </div>
     </div>
   )
@@ -217,41 +217,39 @@ export function ChatCanvas({
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
       <ScrollArea ref={messagesContainerRef} className="relative min-h-0 flex-1" onScroll={handleScroll}>
         <div
-          className="pointer-events-none absolute inset-0"
-          style={{
-            backgroundImage: 'radial-gradient(ellipse at 50% 0%, rgba(59,130,246,0.045) 0%, transparent 68%)',
-          }}
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-100 [background-image:linear-gradient(rgba(148,163,184,0.02)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.02)_1px,transparent_1px)] [background-size:32px_32px]"
         />
 
         {isSessionLoading ? (
           <SessionMessagesLoading />
         ) : isEmpty ? (
           <div className="relative flex h-full flex-col items-center justify-center px-6 text-center">
-            <div className="mb-4 rounded-2xl border border-primary/25 bg-primary/10 p-4 shadow-lg shadow-primary/5">
-              <EmptyIcon className="h-8 w-8 text-primary-light" />
+            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-control border border-border bg-control text-primary-light">
+              <EmptyIcon className="h-4 w-4" />
             </div>
-            <h2 className="mb-1 text-lg font-semibold tracking-tight text-white">{emptyTitle}</h2>
-            <p className="mb-6 max-w-md text-sm text-muted">
+            <h2 className="font-mono text-[11px] font-bold text-slate-50">{emptyTitle}</h2>
+            <p className="mt-1.5 max-w-md font-sans text-[10px] leading-4 text-muted-foreground">
               {runtimeBlocked ? runtimeBlockReason : emptyDescription}
             </p>
             {!runtimeBlocked && (
-              <div className="flex w-full max-w-sm flex-col gap-2">
+              <div className="mt-5 w-full max-w-md divide-y divide-border/60 overflow-hidden rounded-container border border-border bg-surface/45 text-left">
                 {suggestions.map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"
                     onClick={() => handleSend(suggestion)}
-                    className="group flex items-center justify-between rounded-xl border border-border/80 bg-surface/45 px-4 py-3 text-left text-sm text-muted shadow-sm shadow-black/5 transition-all hover:border-primary/35 hover:bg-primary/5 hover:text-white"
+                    className="group flex min-h-[42px] w-full items-center justify-between gap-3 px-3 py-2.5 font-sans text-[10px] leading-4 text-muted-foreground transition-colors hover:bg-control/45 hover:text-slate-100"
                   >
                     <span>{suggestion}</span>
-                    <ArrowRight className="ml-2 h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" />
+                    <ArrowRight className="h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary-light" />
                   </button>
                 ))}
               </div>
             )}
           </div>
         ) : (
-          <div ref={messagesContentRef} className="relative space-y-4 p-4 pb-2">
+          <div ref={messagesContentRef} className="relative space-y-3 p-4 pb-2">
             {visibleEntries.map((entry, index) => {
               const content = (
                 <ChatMessage
@@ -271,11 +269,11 @@ export function ChatCanvas({
                 : <Fragment key={key}>{content}</Fragment>
             })}
             {showFirstRunSuccess && (
-              <div className="mx-auto flex max-w-2xl items-start gap-3 rounded-xl border border-primary/25 bg-primary/[0.05] p-4 text-left">
-                <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
+              <div className="mx-auto flex max-w-2xl items-start gap-2.5 border-l-2 border-l-primary bg-primary/[0.045] px-3 py-2.5 text-left">
+                <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary-light" />
                 <div>
-                  <p className="text-sm font-medium text-white">First test completed</p>
-                  <p className="mt-1 text-xs leading-5 text-muted">Your Agent Draft responded successfully. Continue testing or configure Versions when you are ready.</p>
+                  <p className="font-mono text-[9px] font-semibold text-slate-100">First test completed</p>
+                  <p className="mt-1 font-sans text-[9px] leading-4 text-muted-foreground">Your Agent Draft responded successfully. Continue testing or configure Versions when you are ready.</p>
                 </div>
               </div>
             )}
