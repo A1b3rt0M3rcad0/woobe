@@ -32,7 +32,7 @@ export function SegmentedControl({
       role="group"
       aria-label={ariaLabel}
       className={cn(
-        'inline-flex items-center rounded-control border border-border bg-control p-[3px]',
+        'inline-flex items-center rounded-control border border-border bg-control p-ui-control-inset',
         stretch && 'flex w-full',
         className,
       )}
@@ -51,8 +51,8 @@ export function SegmentedControl({
               size === 'segment' ? 'h-control-segment text-system-meta' : 'h-control-sm text-system-label',
               stretch && 'flex-1',
               active
-                ? 'border-primary/35 bg-primary/[0.10] text-slate-50'
-                : 'border-transparent text-muted-foreground hover:bg-accent/45 hover:text-slate-50',
+                ? 'border-primary/35 bg-primary/[0.10] text-accent-foreground'
+                : 'border-transparent text-muted-foreground hover:bg-accent/45 hover:text-accent-foreground',
             )}
           >
             {item.icon ? <span className="shrink-0">{item.icon}</span> : null}
