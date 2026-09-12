@@ -297,3 +297,101 @@ div[class*="h-[calc(100vh-3.5rem)]"] > div.flex.flex-1.min-h-0.overflow-hidden >
 .project-overview-main section [class*="shadow-"] {
   box-shadow: none !important;
 }
+
+/* Reliability & Performance — compact operational density. */
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 {
+  padding: 12px !important;
+  background: rgba(11, 18, 32, 0.64) !important;
+  border-color: rgba(30, 41, 59, 0.95) !important;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .flex.items-start.justify-between {
+  align-items: center !important;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(30, 41, 59, 0.78);
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .flex.items-start.justify-between > div:first-child > p:first-child {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .flex.items-start.justify-between > div:first-child > p.mt-1 {
+  margin-top: 3px !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+  line-height: 1.35 !important;
+  color: #94a3b8 !important;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .flex.items-start.justify-between > .text-right > p:first-child {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 16px !important;
+  line-height: 1 !important;
+  font-weight: 700 !important;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .flex.items-start.justify-between > .text-right > p:last-child {
+  margin-top: 3px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .mt-3 {
+  margin-top: 10px !important;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 .flex.h-2\.5.overflow-hidden.rounded-full.bg-background.ring-1.ring-border\/80 {
+  height: 4px !important;
+  border-radius: 2px !important;
+  background: #0b1220 !important;
+  box-shadow: inset 0 0 0 1px rgba(30, 41, 59, 0.82) !important;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 .mt-2.flex.flex-wrap.gap-x-3.gap-y-1.text-\[10px\].text-muted {
+  margin-top: 7px !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .mt-3.grid.grid-cols-3 {
+  gap: 0 !important;
+  padding-top: 10px;
+  border-top: 1px solid rgba(30, 41, 59, 0.78);
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .mt-3.grid.grid-cols-3 > span {
+  min-width: 0;
+  padding: 0 10px;
+  border-left: 1px solid rgba(30, 41, 59, 0.78);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+  line-height: 1.25 !important;
+  color: #64748b !important;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .mt-3.grid.grid-cols-3 > span:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .mt-3.grid.grid-cols-3 > span:last-child {
+  padding-right: 0;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .mt-3.grid.grid-cols-3 > span > b {
+  margin-top: 4px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  font-weight: 650 !important;
+  color: #f8fafc !important;
+}
