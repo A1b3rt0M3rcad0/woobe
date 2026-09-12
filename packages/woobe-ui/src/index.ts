@@ -8,8 +8,11 @@ export { EmptyStatePanel, type EmptyStatePanelProps } from './components/EmptySt
 export { Field, FieldDescription, FieldError, FieldLabel } from './components/Field'
 export { Input, type InputProps } from './components/Input'
 export { MetricTile, type MetricTileProps } from './components/MetricTile'
+export { PanelHeader, type PanelHeaderProps } from './components/PanelHeader'
 export { SectionBlock, type SectionBlockProps } from './components/SectionBlock'
+export { SegmentedControl, type SegmentedControlItem, type SegmentedControlProps } from './components/SegmentedControl'
 export { Select, type SelectOption, type SelectProps } from './components/Select'
+export { Tabs, type TabItem, type TabsProps } from './components/Tabs'
 export { TechnicalListItem, type TechnicalListItemProps } from './components/TechnicalListItem'
 export { Textarea, type TextareaProps } from './components/Textarea'
 export {
