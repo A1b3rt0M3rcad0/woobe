@@ -22,6 +22,7 @@ export {
   woobeDensity,
   woobeLayers,
   woobeLayout,
+  woobePattern,
   woobeRadius,
   woobeShadow,
   woobeSpacing,
