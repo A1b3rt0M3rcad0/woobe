@@ -30,10 +30,10 @@ type InlineRenderContext = 'body' | 'table'
 
 function inlineCodeClass(context: InlineRenderContext): string {
   if (context === 'table') {
-    return 'rounded border border-border/80 bg-surface/70 px-1.5 py-[1px] font-mono text-[0.82em] font-medium leading-none text-slate-100'
+    return 'rounded-technical border border-border/80 bg-surface/70 px-ui-sm py-ui-hairline font-mono text-[0.82em] font-medium leading-none text-slate-100'
   }
 
-  return 'rounded border border-white/10 bg-white/[0.06] px-1 py-[1px] font-mono text-[0.86em] font-medium leading-none text-slate-100'
+  return 'rounded-technical border border-white/10 bg-white/[0.06] px-ui-xs py-ui-hairline font-mono text-[0.86em] font-medium leading-none text-slate-100'
 }
 
 function isEscaped(value: string, index: number): boolean {
@@ -310,7 +310,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
       <ListTag
         key={`list-${currentKey}`}
         className={cn(
-          'space-y-1 pl-5 leading-relaxed',
+          'space-y-ui-xs pl-ui-xl leading-relaxed',
           pendingList.ordered ? 'list-decimal' : 'list-disc',
         )}
       >
@@ -331,7 +331,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
     blocks.push(
       <pre
         key={`code-${currentKey}`}
-        className="my-2 overflow-x-auto rounded-lg border border-border bg-background/80 px-3 py-2 text-xs leading-relaxed text-slate-200"
+        className="my-ui-sm overflow-x-auto rounded-container border border-border bg-background/80 px-ui-md py-ui-sm font-mono text-system-control text-slate-200"
       >
         <code data-language={language || undefined}>{codeFence.lines.join('\n')}</code>
       </pre>,
@@ -344,7 +344,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
     blocks.push(
       <hr
         key={`hr-${currentKey}`}
-        className="my-3 border-0 border-t border-border/80"
+        className="my-ui-md border-0 border-t border-border/80"
       />,
     )
   }
@@ -363,15 +363,15 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
   const pushTable = (table: MarkdownTable) => {
     const currentKey = key++
     blocks.push(
-      <div key={`table-${currentKey}`} className="my-3 overflow-x-auto rounded-lg border border-border bg-background/35">
-        <table className="min-w-full border-collapse text-xs leading-relaxed">
-          <thead className="bg-surface/70 text-muted">
+      <div key={`table-${currentKey}`} className="my-ui-md overflow-x-auto rounded-container border border-border bg-background/35">
+        <table className="min-w-full border-collapse font-sans text-product-small">
+          <thead className="bg-surface/70 font-mono text-system-label text-muted-foreground">
             <tr>
               {table.headers.map((header, headerIndex) => (
                 <th
                   key={`table-${currentKey}-h-${headerIndex}`}
                   className={cn(
-                    'border-b border-border px-3 py-2 font-semibold uppercase tracking-wide',
+                    'border-b border-border px-ui-md py-ui-sm font-semibold uppercase tracking-wide',
                     alignmentClass(table.alignments[headerIndex] ?? 'left'),
                   )}
                 >
@@ -387,7 +387,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
                   <td
                     key={`table-${currentKey}-r-${rowIndex}-c-${cellIndex}`}
                     className={cn(
-                      'min-w-[9rem] px-3 py-2 align-top text-white/90',
+                      'min-w-content-table-cell px-ui-md py-ui-sm align-top text-white/90',
                       alignmentClass(table.alignments[cellIndex] ?? 'left'),
                     )}
                   >
@@ -464,10 +464,10 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
         <HeadingTag
           key={`h-${currentKey}`}
           className={cn(
-            'font-semibold leading-tight text-white',
-            level === 1 && 'text-lg mt-1',
-            level === 2 && 'text-base mt-1',
-            level === 3 && 'text-sm mt-1',
+            'mt-ui-xs font-sans font-semibold text-slate-50',
+            level === 1 && 'text-heading-lg',
+            level === 2 && 'text-heading',
+            level === 3 && 'text-heading-sm',
           )}
         >
           {renderInline(text, `h-${currentKey}`)}
@@ -484,7 +484,7 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
       blocks.push(
         <blockquote
           key={`quote-${currentKey}`}
-          className="border-l-2 border-primary/60 pl-3 text-muted leading-relaxed"
+          className="border-l-2 border-primary/60 pl-ui-md font-sans text-muted-foreground"
         >
           {renderInline(quoteMatch[1], `quote-${currentKey}`)}
         </blockquote>,
@@ -515,10 +515,10 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
   flushCode()
 
   return (
-    <div className={cn('space-y-2 break-words', className)}>
+    <div className={cn('space-y-ui-sm break-words', className)}>
       {blocks.length > 0 ? blocks : <p>{content}</p>}
       {isStreaming && (
-        <span className="inline-flex h-3 w-1.5 translate-y-0.5 animate-pulse rounded-sm bg-primary/80" aria-label="Streaming" />
+        <span className="inline-flex h-icon-sm w-1.5 translate-y-0.5 animate-pulse rounded-technical bg-primary/80" aria-label="Streaming" />
       )}
     </div>
   )
