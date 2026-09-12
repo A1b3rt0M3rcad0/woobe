@@ -3,14 +3,7 @@ import { cn } from '../lib/cn'
 
 const Card = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div
-      ref={ref}
-      className={cn(
-        'rounded-container border border-border bg-surface shadow-none',
-        className,
-      )}
-      {...props}
-    />
+    <div ref={ref} className={cn('rounded-container border border-border bg-surface shadow-none', className)} {...props} />
   ),
 )
 Card.displayName = 'Card'
@@ -24,7 +17,7 @@ CardHeader.displayName = 'CardHeader'
 
 const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
-    <h3 ref={ref} className={cn('font-mono text-system-control font-bold text-slate-50', className)} {...props} />
+    <h3 ref={ref} className={cn('font-mono text-system-control font-bold text-accent-foreground', className)} {...props} />
   ),
 )
 CardTitle.displayName = 'CardTitle'
