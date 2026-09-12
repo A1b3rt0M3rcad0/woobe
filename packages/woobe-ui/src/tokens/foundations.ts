@@ -76,13 +76,15 @@ export const woobeShadow = {
 } as const
 
 export const woobeLayers = {
-  base: '0',
-  sticky: '20',
-  workspace: '40',
-  popover: '200',
-  overlay: '900',
-  modal: '1000',
-  toast: '1100',
+  base: 0,
+  sticky: 20,
+  workspace: 40,
+  popover: 100,
+  playgroundChrome: 200,
+  modal: 300,
+  nestedModal: 400,
+  focus: 500,
+  toast: 1100,
 } as const
 
 export const woobeDensity = {
