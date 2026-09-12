@@ -25,7 +25,6 @@ const DIALOG_TYPOGRAPHY = [
   '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_input]:font-mono [&_select]:font-mono',
   '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
   '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono [&_aside]:font-mono',
-  '[&_textarea]:font-sans',
 ].join(' ')
 
 export function Dialog({ open, onClose, title, children, className, contentClassName }: DialogProps) {
