@@ -20,7 +20,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
         disabled={disabled}
         aria-invalid={invalid || props['aria-invalid'] || undefined}
         className={cn(
-          'flex h-[34px] w-full appearance-none rounded-control border border-border bg-control px-3 py-1.5 pr-8 font-mono text-[10px] text-slate-100',
+          'flex h-control w-full appearance-none rounded-control border border-border bg-control px-ui-md py-ui-xs pr-8 font-mono text-system-control text-slate-100',
           'transition-[border-color,box-shadow,background-color] hover:border-slate-600 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30',
           'aria-[invalid=true]:border-red-500/70 aria-[invalid=true]:focus-visible:ring-red-500/30',
           'disabled:cursor-not-allowed disabled:bg-background/30 disabled:text-muted-foreground disabled:opacity-60',
