@@ -490,9 +490,22 @@ function RuntimeAssets({ model }: { model: DashboardViewModel }) {
     ['Networks in Production', model.assets.productionNetworks],
   ]
   return (
-    <Panel className="h-full min-h-[250px]">
+    <Panel className="flex h-full min-h-[230px] flex-col overflow-hidden">
       <PanelHeader title="Runtime Assets" />
-      <div className="grid grid-cols-2 gap-x-5 gap-y-1 px-5 pb-5">{rows.map(([label, value]) => <div key={label} className="flex items-center justify-between gap-3 border-b border-border/50 py-2 text-xs last:border-b-0"><span className="text-slate-300">{label}</span><span className="font-semibold text-white">{value}</span></div>)}</div>
+      <div className="grid flex-1 grid-cols-1 border-t border-border/70 sm:grid-cols-2">
+        {rows.map(([label, value], index) => {
+          const isLast = index === rows.length - 1
+          return (
+            <div
+              key={label}
+              className={`flex min-h-10 items-center justify-between gap-3 border-b border-border/60 px-4 py-2.5 ${!isLast && index % 2 === 0 ? 'sm:border-r' : ''} ${isLast ? 'sm:col-span-2' : ''}`}
+            >
+              <span className="min-w-0 truncate font-mono text-[9px] text-muted-foreground">{label}</span>
+              <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-slate-50">{value}</span>
+            </div>
+          )
+        })}
+      </div>
     </Panel>
   )
 }
@@ -507,9 +520,25 @@ function KnowledgeBase({ model, onOpen }: { model: DashboardViewModel; onOpen: (
     { label: 'Storage', value: model.knowledge.storage, icon: Database, tone: 'text-violet-300' },
   ]
   return (
-    <Panel className="h-full min-h-[250px]">
+    <Panel className="flex h-full min-h-[230px] flex-col overflow-hidden">
       <PanelHeader title="Knowledge" />
-      <div className="grid grid-cols-2 gap-2 px-5 pb-5">{entries.map((entry) => { const Icon = entry.icon; return <div key={entry.label} className="rounded-xl border border-border/80 bg-background/50 p-3"><div className="flex items-center gap-2"><Icon className={`h-4 w-4 ${entry.tone}`} /><p className="truncate text-xs text-muted">{entry.label}</p></div><p className={`mt-2 text-lg font-semibold ${entry.tone}`}>{entry.value}</p></div> })}<div className="col-span-2 pt-1"><MiniLink label="Open Knowledge" onClick={onOpen} /></div></div>
+      <div className="grid flex-1 grid-cols-2 border-t border-border/70">
+        {entries.map((entry, index) => {
+          const Icon = entry.icon
+          return (
+            <div key={entry.label} className={`min-h-[62px] border-b border-border/60 px-4 py-3 ${index % 2 === 0 ? 'border-r' : ''}`}>
+              <div className="flex min-w-0 items-center gap-2">
+                <Icon className={`h-3.5 w-3.5 shrink-0 ${entry.tone}`} />
+                <p className="truncate font-mono text-[9px] text-muted-foreground">{entry.label}</p>
+              </div>
+              <p className={`mt-1.5 truncate font-mono text-base font-semibold leading-none tabular-nums ${entry.tone}`}>{entry.value}</p>
+            </div>
+          )
+        })}
+      </div>
+      <div className="border-t border-border/70 px-4 py-3">
+        <MiniLink label="Open Knowledge" onClick={onOpen} />
+      </div>
     </Panel>
   )
 }
@@ -518,13 +547,29 @@ function ToolsIntegrations({ model, onOpen }: { model: DashboardViewModel; onOpe
   const items = [
     { label: 'Tools', value: model.tools.total, icon: Wrench, tone: 'text-blue-300' },
     { label: 'Active', value: model.tools.active, icon: CheckCircle2, tone: 'text-emerald-300' },
-    { label: 'Inactive', value: model.tools.inactive, icon: Workflow, tone: 'text-slate-300' },
-    { label: 'Recent failures', value: String(model.tools.recentFailures), icon: XCircle, tone: model.tools.recentFailures > 0 ? 'text-red-300' : 'text-slate-300' },
+    { label: 'Inactive', value: model.tools.inactive, icon: Workflow, tone: 'text-slate-400' },
+    { label: 'Recent failures', value: String(model.tools.recentFailures), icon: XCircle, tone: model.tools.recentFailures > 0 ? 'text-red-300' : 'text-slate-400' },
   ]
   return (
-    <Panel className="h-full min-h-[250px]">
+    <Panel className="flex h-full min-h-[230px] flex-col overflow-hidden">
       <PanelHeader title="Tools" />
-      <div className="space-y-1 px-5 pb-5">{items.map((item) => { const Icon = item.icon; return <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg px-1 py-2.5 text-sm"><span className="flex items-center gap-2 text-slate-200"><Icon className={`h-4 w-4 ${item.tone}`} />{item.label}</span><span className={`font-semibold ${item.tone}`}>{item.value}</span></div> })}<div className="pt-2"><MiniLink label="Manage Tools" onClick={onOpen} /></div></div>
+      <div className="flex-1 border-t border-border/70">
+        {items.map((item) => {
+          const Icon = item.icon
+          return (
+            <div key={item.label} className="flex min-h-10 items-center justify-between gap-3 border-b border-border/60 px-4 py-2.5">
+              <span className="flex min-w-0 items-center gap-2 font-mono text-[9px] text-muted-foreground">
+                <Icon className={`h-3.5 w-3.5 shrink-0 ${item.tone}`} />
+                <span className="truncate">{item.label}</span>
+              </span>
+              <span className={`shrink-0 font-mono text-xs font-semibold tabular-nums ${item.tone}`}>{item.value}</span>
+            </div>
+          )
+        })}
+      </div>
+      <div className="border-t border-border/70 px-4 py-3">
+        <MiniLink label="Manage Tools" onClick={onOpen} />
+      </div>
     </Panel>
   )
 }
@@ -575,7 +620,7 @@ export function DashboardDataState({ model, environment = 'all', onNavigate, onO
       <ChangesInPeriod model={model} environment={environment} onNavigate={onNavigate} />
 
       <StorySectionHeader title="Current Project State" description="Current deployable resources. Knowledge and Tools are Project-wide, not historical environment snapshots." />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3"><RuntimeAssets model={model} /><KnowledgeBase model={model} onOpen={() => onNavigate('knowledge')} /><ToolsIntegrations model={model} onOpen={() => onNavigate('tools')} /></div>
+      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-3"><RuntimeAssets model={model} /><KnowledgeBase model={model} onOpen={() => onNavigate('knowledge')} /><ToolsIntegrations model={model} onOpen={() => onNavigate('tools')} /></div>
 
       <StorySectionHeader title="Latest executions" description="A compact operational handoff to the detailed Agent or Network workspace." />
       <RecentRuns model={model} onOpen={onOpenRun} onViewAll={() => onNavigate('traces')} />
