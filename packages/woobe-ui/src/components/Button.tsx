@@ -17,7 +17,7 @@ const sizeClasses: Record<ButtonSize, string> = {
   default: 'h-control px-ui-md',
   sm: 'h-control-sm px-ui-sm text-system-label',
   lg: 'h-control-lg px-ui-lg',
-  icon: 'h-control w-[2.125rem] p-0',
+  icon: 'h-control w-control p-0',
 }
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
