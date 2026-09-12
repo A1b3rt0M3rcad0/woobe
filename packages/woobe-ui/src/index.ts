@@ -3,7 +3,16 @@ export { Badge, type BadgeProps, type BadgeVariant } from './components/Badge'
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from './components/Button'
 export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from './components/Card'
 export { CodePanel, type CodePanelProps } from './components/CodePanel'
-export { Dialog, type DialogProps } from './components/Dialog'
+export {
+  Dialog,
+  DialogPresentationProvider,
+  dialogTypographyClass,
+  type DialogLayer,
+  type DialogPresentation,
+  type DialogPresentationProviderProps,
+  type DialogProps,
+  type DialogScrollMode,
+} from './components/Dialog'
 export { Drawer, type DrawerProps } from './components/Drawer'
 export { Dropdown, type DropdownHandle, type DropdownProps } from './components/Dropdown'
 export { EmptyStatePanel, type EmptyStatePanelProps } from './components/EmptyStatePanel'
