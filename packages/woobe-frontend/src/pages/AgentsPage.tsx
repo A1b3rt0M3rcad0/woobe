@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Bot, Plus } from 'lucide-react'
+import { Button } from '@woobe/ui'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -15,7 +16,6 @@ import {
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
 import { StatusBadge } from '@/components/common/StatusBadge'
-import { Button } from '@/components/ui/Button'
 import { CreateAgentFlowModal } from '@/features/agents/components/CreateAgentFlowModal'
 import { useAgentRuntimeEnvironments, useAgents, useReleases } from '@/features/agents/hooks'
 import type { Agent } from '@/features/agents/types'
@@ -155,7 +155,7 @@ export default function AgentsPage() {
       description="Create and operate model-backed Agents for this Project."
       action={(
         <Button type="button" onClick={() => setShowCreateAgent(true)}>
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="h-3.5 w-3.5" />
           Create Agent
         </Button>
       )}
@@ -190,9 +190,9 @@ export default function AgentsPage() {
         {isLoading ? (
           <LoadingState message="Loading Agents" variant="panel" layout="compact-cards" />
         ) : isError ? (
-          <ErrorState error={error} onRetry={refetch} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
+          <ErrorState error={error} onRetry={refetch} className="rounded-container border border-border bg-surface/70 py-10" />
         ) : visibleAgents.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
             {visibleAgents.map((agent) => (
               <AgentOperationalCard
                 key={agent.id}
