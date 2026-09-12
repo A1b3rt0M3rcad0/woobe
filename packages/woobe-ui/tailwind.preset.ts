@@ -23,6 +23,7 @@ const woobeTailwindPreset = {
         'system-meta': woobeTypographyScale.systemMeta,
         'system-label': woobeTypographyScale.systemLabel,
         'system-control': woobeTypographyScale.systemControl,
+        'system-heading': woobeTypographyScale.systemHeading,
         'product-caption': woobeTypographyScale.productCaption,
         'product-small': woobeTypographyScale.productSmall,
         'product-body': woobeTypographyScale.productBody,
@@ -52,6 +53,7 @@ const woobeTailwindPreset = {
         'control-lg': woobeControl.height.large,
         'control-row': woobeControl.height.row,
         'panel-header': woobeControl.height.header,
+        'dialog-header': woobeControl.height.dialogHeader,
         'workspace-header': woobeControl.height.workspaceHeader,
       },
       minHeight: {
@@ -61,8 +63,12 @@ const woobeTailwindPreset = {
         'control-lg': woobeControl.height.large,
         'control-row': woobeControl.height.row,
         'panel-header': woobeControl.height.header,
+        textarea: woobeControl.minHeight.textarea,
       },
       width: {
+        'control-sm': woobeControl.height.compact,
+        control: woobeControl.height.default,
+        'control-lg': woobeControl.height.large,
         'project-sidebar': woobeLayout.projectSidebar,
         'playground-rail': woobeLayout.playgroundRail,
         'operations-panel': woobeLayout.operationsPanel,
