@@ -6,10 +6,10 @@ export type BadgeVariant = 'default' | 'outline' | 'success' | 'warning' | 'dest
 const variantClasses: Record<BadgeVariant, string> = {
   default: 'border-primary/30 bg-primary/[0.08] text-primary-light',
   outline: 'border-border bg-background/50 text-muted-foreground',
-  success: 'border-emerald-500/30 bg-emerald-500/[0.08] text-emerald-300',
-  warning: 'border-amber-500/30 bg-amber-500/[0.08] text-amber-300',
-  destructive: 'border-red-500/25 bg-red-500/[0.06] text-red-300',
-  network: 'border-violet-500/30 bg-violet-500/[0.08] text-violet-300',
+  success: 'border-success/30 bg-success/[0.08] text-success',
+  warning: 'border-warning/30 bg-warning/[0.08] text-warning',
+  destructive: 'border-error/25 bg-error/[0.06] text-error',
+  network: 'border-network/30 bg-network/[0.08] text-network',
 }
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
