@@ -27,8 +27,8 @@ function FlowItem({ title, description, icon: Icon, active, disabled, compact, o
       className={cn(
         'group flex h-9 w-full items-center gap-2.5 rounded-technical border px-2.5 text-left font-mono text-[11px] transition-colors',
         active
-          ? 'border-primary/45 bg-primary/[0.12] text-slate-50'
-          : 'border-transparent text-slate-300 hover:border-border hover:bg-accent/45 hover:text-slate-50',
+          ? 'border-primary/40 bg-primary/[0.12] text-slate-50'
+          : 'border-transparent text-slate-300 hover:border-border hover:bg-accent/40 hover:text-slate-50',
         disabled && 'cursor-not-allowed opacity-40 hover:border-transparent hover:bg-transparent hover:text-slate-300',
         compact && 'justify-center px-3 sm:justify-start',
       )}
