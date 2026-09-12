@@ -1,6 +1,7 @@
 export const woobeColors = {
   background: '#020817',
   surface: '#0f1729',
+  control: '#0b1220',
   border: '#1e293b',
   primary: {
     DEFAULT: '#3b82f6',
@@ -15,7 +16,7 @@ export const woobeColors = {
     DEFAULT: '#1e293b',
     foreground: '#f8fafc',
   },
-  success: '#10b981',
+  success: '#34d399',
   warning: '#f59e0b',
   error: '#ef4444',
   network: '#8b5cf6',
