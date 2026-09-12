@@ -1,0 +1,65 @@
+/*
+ * Woobe dialog typography contract.
+ *
+ * Inter = readable product content and user-entered values.
+ * JetBrains Mono = system UI: headings, labels, controls, navigation and metadata.
+ *
+ * The second selector intentionally covers legacy modal surfaces that predate
+ * the shared Dialog primitive. This keeps the migration incremental without
+ * forcing domain workflows to be rewritten just to inherit typography.
+ */
+
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) :is(
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  label,
+  legend,
+  button,
+  select,
+  th,
+  dt,
+  [role='tab'],
+  [role='menuitem'],
+  .uppercase,
+  .tracking-wide,
+  .tracking-wider,
+  .tracking-widest,
+  .tabular-nums
+) {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) :is(aside, nav) {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) :is(code, pre, kbd, samp, .font-mono) {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) :is(input, textarea, [contenteditable='true']) {
+  font-family: 'Inter', system-ui, sans-serif;
+}
