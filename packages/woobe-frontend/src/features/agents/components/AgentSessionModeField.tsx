@@ -1,4 +1,5 @@
 import { Activity, Database } from 'lucide-react'
+import { SegmentedControl } from '@woobe/ui'
 
 import { useAgentEditor, type AgentSessionMode } from '@/features/playground/AgentEditorContext'
 import { cn } from '@/lib/utils'
@@ -37,42 +38,34 @@ export function AgentSessionModeField({
   const selectedOption = options.find(option => option.value === state.sessionMode) ?? options[0]
 
   return (
-    <section className={cn(!compact && 'rounded-xl border border-border bg-surface p-4')} aria-label="Session Mode">
-      <div className="flex items-start justify-between gap-3">
+    <section className={cn(!compact && 'rounded-container border border-border bg-surface p-ui-lg')} aria-label="Session Mode">
+      <div className="flex items-start justify-between gap-ui-md">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Session Mode</p>
-          <p className="mt-1 text-xs leading-5 text-muted">Controls continuity between Runs.</p>
+          <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">Session Mode</p>
+          <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Controls continuity between Runs.</p>
         </div>
-        {definedBy ? <span className="shrink-0 rounded border border-border bg-background/50 px-2 py-1 font-mono text-[9px] text-muted">{definedBy}</span> : null}
+        {definedBy ? <span className="shrink-0 rounded-technical border border-border bg-background/50 px-ui-sm py-ui-xs font-mono text-system-meta text-muted-foreground">{definedBy}</span> : null}
       </div>
 
-      <div role="group" aria-label="Session mode options" className="mt-3 grid grid-cols-2 gap-1 rounded-lg border border-border bg-background/35 p-1">
-        {options.map(({ value, title, icon: Icon }) => {
-          const selected = state.sessionMode === value
-          return (
-            <button
-              key={value}
-              type="button"
-              disabled={readOnly}
-              onClick={() => setField('sessionMode', value)}
-              className={cn(
-                'flex min-w-0 items-center justify-center gap-2 rounded-md border border-transparent px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-default',
-                selected
-                  ? 'border-primary/35 bg-primary/10 text-white'
-                  : 'text-muted hover:bg-accent/25 hover:text-white',
-                readOnly && !selected && 'opacity-45',
-              )}
-              aria-pressed={selected}
-            >
-              <Icon className={cn('h-3.5 w-3.5 shrink-0', selected ? 'text-primary-light' : 'text-muted')} />
-              <span>{title}</span>
-            </button>
-          )
-        })}
+      <div className="mt-ui-md">
+        <SegmentedControl
+          ariaLabel="Session mode options"
+          value={state.sessionMode}
+          onValueChange={(value) => setField('sessionMode', value as AgentSessionMode)}
+          stretch
+          size="compact"
+          items={options.map(({ value, title, icon: Icon }) => ({
+            value,
+            label: title,
+            icon: <Icon className="h-3.5 w-3.5" />,
+            disabled: readOnly,
+          }))}
+          className="w-full"
+        />
       </div>
 
-      <div className="mt-3 rounded-lg border border-border/70 bg-background/25 px-3 py-2.5">
-        <p className="text-[11px] leading-5 text-muted">{selectedOption.description}</p>
+      <div className="mt-ui-md rounded-container border border-border/70 bg-background/25 px-ui-md py-ui-sm">
+        <p className="font-sans text-product-small text-muted-foreground">{selectedOption.description}</p>
       </div>
     </section>
   )
