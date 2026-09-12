@@ -4,7 +4,7 @@
  * Inter = readable prose and long-form user-entered content.
  * JetBrains Mono = system UI: headings, labels, controls, compact values,
  * navigation and metadata. One-line inputs are controls and therefore mono;
- * textareas/contenteditable remain Inter because they commonly hold prose.
+ * textareas/contenteditable remain Inter unless explicitly marked as technical.
  *
  * The second selector intentionally covers legacy modal surfaces that predate
  * the shared Dialog primitive. This keeps the migration incremental without
@@ -65,7 +65,11 @@
 :where(
   [role='dialog'],
   [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
-) :is(textarea, [contenteditable='true']) {
+) textarea:not(.font-mono),
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) [contenteditable='true']:not(.font-mono) {
   font-family: 'Inter', system-ui, sans-serif;
 }
 
