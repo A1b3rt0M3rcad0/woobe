@@ -20,6 +20,7 @@ function invocation(spanId: string, overrides: Partial<NetworkAgentInvocation> =
     sources: [],
     children: [],
     ...overrides,
+    runId: overrides.runId ?? null,
   }
 }
 

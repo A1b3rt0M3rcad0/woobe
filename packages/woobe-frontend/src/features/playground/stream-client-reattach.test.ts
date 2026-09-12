@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/api/client', () => ({
@@ -19,6 +20,10 @@ function sse(sequence: number, event: string, payload: Record<string, unknown>) 
       ...payload,
     })}\n\n`,
   )
+}
+
+function setOnline(value: boolean) {
+  vi.stubGlobal('navigator', { onLine: value })
 }
 
 afterEach(() => {
@@ -161,5 +166,62 @@ describe('standalone Agent Run reattach streaming', () => {
     }))
     expect(onDone).not.toHaveBeenCalled()
     expect(onError).not.toHaveBeenCalled()
+  })
+
+  it('waits while the browser is offline and resumes the same Run after connectivity returns', async () => {
+    setOnline(false)
+    const recoveredBody = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(sse(31, 'run.state', {
+          run_id: 'run-offline',
+          status: 'running',
+          output: 'partial recovered',
+        }))
+        controller.enqueue(sse(32, 'done', {
+          run_id: 'run-offline',
+          answer: 'partial recovered done',
+        }))
+        controller.close()
+      },
+    })
+    const fetchMock = vi.fn()
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(new Response(recoveredBody, {
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+      }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const onToken = vi.fn()
+    const onDone = vi.fn()
+    const reattach = reattachAgentRunV1('run-offline', {
+      onToken,
+      onSources: vi.fn(),
+      onMeta: vi.fn(),
+      onDone,
+      onError: vi.fn(),
+    })
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+
+    setOnline(true)
+    window.dispatchEvent(new Event('online'))
+    await reattach
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(fetchMock.mock.calls.every((call) =>
+      String(call[0]).includes('/runtime/runs/run-offline/stream')
+    )).toBe(true)
+    expect(fetchMock.mock.calls.every((call) =>
+      (call[1] as RequestInit).method === 'GET'
+    )).toBe(true)
+    expect(onToken).toHaveBeenCalledWith(expect.objectContaining({
+      content: 'partial recovered',
+    }))
+    expect(onDone).toHaveBeenCalledWith(expect.objectContaining({
+      answer: 'partial recovered done',
+    }))
   })
 })

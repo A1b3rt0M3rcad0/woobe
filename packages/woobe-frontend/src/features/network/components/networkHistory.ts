@@ -9,23 +9,33 @@ import type { AgentNodeId, Environment, NetworkBinding } from './networkWorkspac
 function historyRecords(message: NetworkMessageResource, sessionId: string): RuntimeEventRecord[] {
   const execution = message.execution
   if (!execution) return []
-  return execution.events.map((item) => ({
-    eventType: item.event_type,
-    event: {
-      protocol_version: 1,
-      event_id: item.id,
-      sequence: item.sequence,
-      execution_id: execution.id,
-      network_session_id: sessionId,
-      invocation_id: item.invocation_id,
-      parent_invocation_id: item.parent_invocation_id,
-      node_id: item.node_id,
-      agent_id: item.agent_id,
-      depth: item.depth,
-      data: item.data,
-      created_at: item.created_at,
-    },
-  }))
+  return execution.events.map((item) => {
+    // Network-deferred Agent Runs use the invocation UUID as their canonical Run UUID.
+    // New SQL history persists agent_run_id explicitly, while this fallback keeps
+    // history written by older builds inspectable after a full page reload.
+    const data = item.invocation_id
+      && item.event_type.startsWith('agent_invocation_')
+      && typeof item.data.agent_run_id !== 'string'
+      ? { ...item.data, agent_run_id: item.invocation_id }
+      : item.data
+    return {
+      eventType: item.event_type,
+      event: {
+        protocol_version: 1,
+        event_id: item.id,
+        sequence: item.sequence,
+        execution_id: execution.id,
+        network_session_id: sessionId,
+        invocation_id: item.invocation_id,
+        parent_invocation_id: item.parent_invocation_id,
+        node_id: item.node_id,
+        agent_id: item.agent_id,
+        depth: item.depth,
+        data,
+        created_at: item.created_at,
+      },
+    }
+  })
 }
 
 function terminalStatus(status: string): NetworkExecution['status'] {

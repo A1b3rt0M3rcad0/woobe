@@ -79,6 +79,31 @@ def _completion_event_payload(
     }
 
 
+def _completion_projection_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    """Normalize legacy and journal completion shapes before trace projection.
+
+    Durable ``run.completed`` keeps canonical telemetry under ``diagnostics`` and
+    ``usage`` while the legacy observability projector historically consumed the
+    same fields at the payload root. Resolve that compatibility boundary here so a
+    known journal cost cannot be downgraded to unknown during projection.
+    """
+
+    resolved = dict(payload)
+    raw_diagnostics = payload.get("diagnostics")
+    if isinstance(raw_diagnostics, dict):
+        for field, value in raw_diagnostics.items():
+            if resolved.get(field) is None and value is not None:
+                resolved[field] = value
+
+    raw_usage = payload.get("usage")
+    if isinstance(raw_usage, dict):
+        for field in ("input_tokens", "output_tokens", "total_tokens", "cost_usd"):
+            if resolved.get(field) is None and raw_usage.get(field) is not None:
+                resolved[field] = raw_usage[field]
+
+    return resolved
+
+
 def _apply_provider_model_refs(trace: Trace, payload: dict[str, Any]) -> None:
     trace.provider_model_id = _uuid(payload.get("provider_model_id")) or trace.provider_model_id
     trace.provider_credential_id = _uuid(payload.get("provider_credential_id")) or trace.provider_credential_id
@@ -203,7 +228,8 @@ async def project_agent_event(
         await trace_repo.save(trace)
         return
 
-    diagnostics = build(payload)
+    projection_payload = _completion_projection_payload(payload)
+    diagnostics = build(projection_payload)
     data = dict(trace.data or {})
     for field in (
         "message_id", "answer_length", "input_tokens", "output_tokens",
@@ -218,19 +244,19 @@ async def project_agent_event(
         "agent_release_id", "agent_release_version", "llm_call_count",
         "tool_call_count",
     ):
-        value = payload.get(field)
+        value = projection_payload.get(field)
         if value is None and field in diagnostics:
             value = diagnostics.get(field)
         data[field] = value
-    data["cost_usd"] = payload.get("cost_usd")
+    data["cost_usd"] = projection_payload.get("cost_usd")
     data["diagnostics"] = diagnostics
     trace.data = data
     trace.total_cost_usd = (
-        payload.get("cost_usd")
-        if payload.get("cost_status") == "known"
+        projection_payload.get("cost_usd")
+        if diagnostics.get("cost_status") == "known"
         else None
     )
-    trace.total_latency_ms = payload.get("total_latency_ms") or payload.get("latency_ms")
+    trace.total_latency_ms = projection_payload.get("total_latency_ms") or projection_payload.get("latency_ms")
     await trace_repo.save(trace)
 
     await _save_event(
@@ -255,5 +281,5 @@ async def project_agent_event(
         kind=TraceEventType.info,
         latency_ms=trace.total_latency_ms,
         cost_usd=trace.total_cost_usd,
-        payload=_completion_event_payload(payload, diagnostics),
+        payload=_completion_event_payload(projection_payload, diagnostics),
     )

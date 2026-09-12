@@ -245,6 +245,7 @@ export interface RawStreamEvent {
 
 export interface TraceItem {
   id: string
+  run_id?: string | null
   title: string
   timestamp: string
   status: 'success' | 'error' | 'warning' | 'running' | 'pending' | 'cancelled'

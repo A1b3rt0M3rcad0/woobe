@@ -48,6 +48,8 @@ def _to_model(run: AgentRun) -> AgentRunModel:
         environment=run.environment,
         origin=run.origin,
         status=run.status.value,
+        storage_version=run.storage_version,
+        journal_projected_sequence=run.journal_projected_sequence,
         input_message=run.input_message,
         execution_snapshot=run.execution_snapshot,
         usage=run.usage,
@@ -76,6 +78,8 @@ def _to_entity(model: AgentRunModel) -> AgentRun:
         environment=model.environment,
         origin=model.origin,
         status=AgentRunStatus(model.status),
+        storage_version=str(model.storage_version or "legacy_v1"),
+        journal_projected_sequence=int(model.journal_projected_sequence or 0),
         input_message=model.input_message,
         execution_snapshot=dict(model.execution_snapshot or {}),
         usage=dict(model.usage) if model.usage is not None else None,
@@ -294,6 +298,8 @@ class SQLAlchemyAgentRunRepository(AgentRunRepository):
         model.input_message_id = run.input_message_id
         model.output_message_id = run.output_message_id
         model.status = incoming_status
+        model.storage_version = run.storage_version
+        model.journal_projected_sequence = run.journal_projected_sequence
         model.execution_snapshot = run.execution_snapshot
         model.usage = run.usage
         model.result = run.result

@@ -18,6 +18,7 @@ dependencies = [
     "psycopg2-binary>=2.9.12",
     "pydantic>=2.13.4",
     "pydantic-settings>=2.14.1",
+    "pymongo>=4.11.0",
     "pypdf>=6.0.0",
     "pyyaml>=6.0.3",
     "python-multipart>=0.0.20",

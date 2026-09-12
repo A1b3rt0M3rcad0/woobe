@@ -12,8 +12,14 @@ from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
     InstrumentedExecutionError,
 )
+from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.infra.execution.agent_recovery_checkpoint import (
+    checkpoint_agent_boundary,
+    clone_execution,
+    load_agent_execution_resume,
+)
 from modules.agent.infra.execution.ask_use_case import _has_tool_calls
-from modules.agent.infra.execution.execution_instrumentation import (
+from modules.agent.infra.execution.durable_execution_instrumentation import (
     execute_tool_call,
     invoke_llm,
 )
@@ -211,6 +217,73 @@ def _failure_context(
     }
 
 
+async def _invoke_terminal_recovery(
+    *,
+    execution: InstrumentedExecution,
+    base_messages: list,
+    stopped_reason: str,
+    call_index: int,
+    final_model: Any | None,
+    final_model_factory: Callable[[], Any] | None,
+    final_json_instruction: str | None,
+    provider: str,
+    model_name: str,
+    pricing_snapshot: dict[str, Any] | None,
+    context_assembler: ContextAssembler | None,
+) -> Any:
+    terminal_model = final_model
+    if terminal_model is None and final_model_factory is not None:
+        terminal_model = final_model_factory()
+    if terminal_model is None:
+        raise InstrumentedExecutionError(
+            stopped_reason,
+            llm_calls=execution.llm_calls,
+            tool_calls=execution.tool_calls,
+            timeline=execution.timeline,
+            tool_wall_latency_ms=execution.tool_wall_latency_ms,
+            tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
+            failure_context=_failure_context(
+                execution.failure_context,
+                partial_result_available=bool(execution.tool_calls),
+            ),
+        )
+
+    try:
+        result, call = await invoke_llm(
+            model=terminal_model,
+            messages=_terminal_response_messages(
+                base_messages,
+                final_json_instruction,
+                execution.tool_calls,
+                stopped_reason,
+            ),
+            phase="final_response_generation",
+            call_index=call_index,
+            provider=provider,
+            model_name=model_name,
+            pricing_snapshot=pricing_snapshot,
+            context_assembler=context_assembler,
+        )
+    except InstrumentedExecutionError as exc:
+        raise InstrumentedExecutionError(
+            str(exc),
+            llm_calls=execution.llm_calls + exc.llm_calls,
+            tool_calls=execution.tool_calls,
+            timeline=execution.timeline + exc.timeline,
+            tool_wall_latency_ms=execution.tool_wall_latency_ms,
+            tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
+            failure_context=_failure_context(
+                exc.failure_context or execution.failure_context,
+                partial_result_available=bool(execution.tool_calls),
+            ),
+        ) from exc
+    execution.llm_calls.append(call)
+    execution.timeline.append(
+        {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
+    )
+    return result
+
+
 async def run_tool_loop(
     *,
     model: Any,
@@ -227,56 +300,117 @@ async def run_tool_loop(
     pricing_snapshot: dict[str, Any] | None = None,
     context_assembler: ContextAssembler | None = None,
 ) -> tuple[InstrumentedExecution, int]:
-    """Execute one real response invocation and continue only for capability calls.
+    """Execute or safely resume one capability-aware Agent model loop."""
 
-    ``initial_tool_call`` is an optional runtime-owned preflight capability. It is
-    executed before the first provider invocation and does not consume a model Tool
-    round. The terminal model is recovery-only and is constructed lazily when a
-    supplied ``final_model_factory`` is needed.
-    """
-
-    execution = InstrumentedExecution(result=None)
     base_messages = _sanitize_base_messages(messages)
-    tool_loop_messages = list(base_messages)
+    base_message_count = len(base_messages)
+    context = current_execution.get()
+    resume = load_agent_execution_resume(
+        getattr(context, "resume_state", None) if context is not None else None
+    )
 
-    if initial_tool_call is not None:
-        preflight = AIMessage(content="", tool_calls=[initial_tool_call])
-        tool_loop_messages.append(preflight)
-        started = time.monotonic()
-        info, message, payload = await execute_tool_call(
-            execute=execute_single_tool,
-            tool_call=initial_tool_call,
-            resolved_tool_id=tool_name_to_id.get(
-                initial_tool_call["name"], initial_tool_call["name"]
-            ),
+    if resume is not None:
+        execution = resume.execution
+        tool_loop_messages = [*base_messages, *resume.capability_messages]
+        round_index = resume.round_index
+        consecutive_failure_rounds = resume.consecutive_failure_rounds
+        stopped_reason = resume.stopped_reason
+        call_index = resume.next_call_index
+        # Keep the live failure/fallback accumulator aware of the previous durable
+        # attempt without sharing the same mutable instance used by this loop.
+        if context is not None:
+            context.execution = clone_execution(execution)
+            context.resume_state = None
+
+        if resume.next_phase == "final_response_generation":
+            if not stopped_reason:
+                raise InstrumentedExecutionError(
+                    "Agent recovery checkpoint is missing terminal stop reason",
+                    llm_calls=execution.llm_calls,
+                    tool_calls=execution.tool_calls,
+                    timeline=execution.timeline,
+                )
+            result = await _invoke_terminal_recovery(
+                execution=execution,
+                base_messages=base_messages,
+                stopped_reason=stopped_reason,
+                call_index=call_index,
+                final_model=final_model,
+                final_model_factory=final_model_factory,
+                final_json_instruction=final_json_instruction,
+                provider=provider,
+                model_name=model_name,
+                pricing_snapshot=pricing_snapshot,
+                context_assembler=context_assembler,
+            )
+            execution.result = result
+            return execution, call_index
+
+        result, call = await invoke_llm(
+            model=model,
+            messages=tool_loop_messages,
+            phase=resume.next_phase,
+            call_index=call_index,
+            provider=provider,
+            model_name=model_name,
+            pricing_snapshot=pricing_snapshot,
+            context_assembler=context_assembler,
         )
-        execution.tool_wall_latency_ms += round((time.monotonic() - started) * 1000)
-        execution.tool_calls.append(info)
-        execution.tool_call_duration_sum_ms += int(info.duration_ms or 0)
+        execution.llm_calls.append(call)
         execution.timeline.append(
-            {"kind": "tool", "occurred_at": payload["occurred_at"], "payload": payload}
+            {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
         )
-        tool_loop_messages.append(message)
+    else:
+        execution = InstrumentedExecution(result=None)
+        tool_loop_messages = list(base_messages)
+        round_index = 0
+        consecutive_failure_rounds = 0
+        stopped_reason: str | None = None
+        call_index = 1
 
-    call_index = 1
-    result, call = await invoke_llm(
-        model=model,
-        messages=tool_loop_messages,
-        phase=initial_phase,
-        call_index=call_index,
-        provider=provider,
-        model_name=model_name,
-        pricing_snapshot=pricing_snapshot,
-        context_assembler=context_assembler,
-    )
-    execution.llm_calls.append(call)
-    execution.timeline.append(
-        {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
-    )
+        if initial_tool_call is not None:
+            preflight = AIMessage(content="", tool_calls=[initial_tool_call])
+            tool_loop_messages.append(preflight)
+            started = time.monotonic()
+            info, message, payload = await execute_tool_call(
+                execute=execute_single_tool,
+                tool_call=initial_tool_call,
+                resolved_tool_id=tool_name_to_id.get(
+                    initial_tool_call["name"], initial_tool_call["name"]
+                ),
+            )
+            execution.tool_wall_latency_ms += round((time.monotonic() - started) * 1000)
+            execution.tool_calls.append(info)
+            execution.tool_call_duration_sum_ms += int(info.duration_ms or 0)
+            execution.timeline.append(
+                {"kind": "tool", "occurred_at": payload["occurred_at"], "payload": payload}
+            )
+            tool_loop_messages.append(message)
+            await checkpoint_agent_boundary(
+                phase="agent_preflight_boundary",
+                tool_loop_messages=tool_loop_messages,
+                base_message_count=base_message_count,
+                execution=execution,
+                next_phase=initial_phase,
+                next_call_index=1,
+                round_index=0,
+                consecutive_failure_rounds=0,
+            )
 
-    round_index = 0
-    consecutive_failure_rounds = 0
-    stopped_reason: str | None = None
+        result, call = await invoke_llm(
+            model=model,
+            messages=tool_loop_messages,
+            phase=initial_phase,
+            call_index=call_index,
+            provider=provider,
+            model_name=model_name,
+            pricing_snapshot=pricing_snapshot,
+            context_assembler=context_assembler,
+        )
+        execution.llm_calls.append(call)
+        execution.timeline.append(
+            {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
+        )
 
     while _has_tool_calls(result) and round_index < MAX_TOOL_ROUNDS:
         round_index += 1
@@ -309,19 +443,41 @@ async def run_tool_loop(
         consecutive_failure_rounds = (
             consecutive_failure_rounds + 1 if round_failed else 0
         )
+        stopped_reason = None
         if consecutive_failure_rounds >= MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS:
             stopped_reason = "repeated semantic capability failures"
-            break
-        if round_index >= MAX_TOOL_ROUNDS:
+        elif round_index >= MAX_TOOL_ROUNDS:
             stopped_reason = "capability round limit reached"
+
+        next_call_index = call_index + 1
+        next_phase = (
+            "final_response_generation"
+            if stopped_reason
+            else f"tool_followup_{round_index}"
+        )
+        # All Tool results in this boundary were durably journaled by
+        # execute_tool_call before it returned. Persist the continuation state before
+        # allowing the next provider invocation to begin.
+        await checkpoint_agent_boundary(
+            phase="agent_tool_boundary",
+            tool_loop_messages=tool_loop_messages,
+            base_message_count=base_message_count,
+            execution=execution,
+            next_phase=next_phase,
+            next_call_index=next_call_index,
+            round_index=round_index,
+            consecutive_failure_rounds=consecutive_failure_rounds,
+            stopped_reason=stopped_reason,
+        )
+        if stopped_reason:
             break
 
-        call_index += 1
+        call_index = next_call_index
         try:
             result, call = await invoke_llm(
                 model=model,
                 messages=tool_loop_messages,
-                phase=f"tool_followup_{round_index}",
+                phase=next_phase,
                 call_index=call_index,
                 provider=provider,
                 model_name=model_name,
@@ -346,56 +502,19 @@ async def run_tool_loop(
 
     requires_terminal_recovery = bool(stopped_reason) and _has_tool_calls(result)
     if requires_terminal_recovery:
-        terminal_model = final_model
-        if terminal_model is None and final_model_factory is not None:
-            terminal_model = final_model_factory()
-        if terminal_model is None:
-            raise InstrumentedExecutionError(
-                stopped_reason or "Capability execution could not complete",
-                llm_calls=execution.llm_calls,
-                tool_calls=execution.tool_calls,
-                timeline=execution.timeline,
-                tool_wall_latency_ms=execution.tool_wall_latency_ms,
-                tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
-                failure_context=_failure_context(
-                    execution.failure_context,
-                    partial_result_available=bool(execution.tool_calls),
-                ),
-            )
-
         call_index += 1
-        try:
-            result, call = await invoke_llm(
-                model=terminal_model,
-                messages=_terminal_response_messages(
-                    base_messages,
-                    final_json_instruction,
-                    execution.tool_calls,
-                    stopped_reason,
-                ),
-                phase="final_response_generation",
-                call_index=call_index,
-                provider=provider,
-                model_name=model_name,
-                pricing_snapshot=pricing_snapshot,
-                context_assembler=context_assembler,
-            )
-        except InstrumentedExecutionError as exc:
-            raise InstrumentedExecutionError(
-                str(exc),
-                llm_calls=execution.llm_calls + exc.llm_calls,
-                tool_calls=execution.tool_calls,
-                timeline=execution.timeline + exc.timeline,
-                tool_wall_latency_ms=execution.tool_wall_latency_ms,
-                tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
-                failure_context=_failure_context(
-                    exc.failure_context or execution.failure_context,
-                    partial_result_available=bool(execution.tool_calls),
-                ),
-            ) from exc
-        execution.llm_calls.append(call)
-        execution.timeline.append(
-            {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
+        result = await _invoke_terminal_recovery(
+            execution=execution,
+            base_messages=base_messages,
+            stopped_reason=stopped_reason or "Capability execution could not complete",
+            call_index=call_index,
+            final_model=final_model,
+            final_model_factory=final_model_factory,
+            final_json_instruction=final_json_instruction,
+            provider=provider,
+            model_name=model_name,
+            pricing_snapshot=pricing_snapshot,
+            context_assembler=context_assembler,
         )
 
     execution.result = result

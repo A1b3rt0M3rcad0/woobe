@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -32,17 +33,25 @@ class WorkerRunner:
         self._stop_event = asyncio.Event()
 
     @classmethod
-    def from_registries(cls, registries: list[WorkerRegistryProtocol]) -> WorkerRunner:
+    def from_registries(
+        cls,
+        registries: list[WorkerRegistryProtocol],
+        *,
+        extra_workers: Sequence[WorkerProtocol] = (),
+    ) -> WorkerRunner:
         workers: list[WorkerProtocol] = []
         for registry in registries:
             workers.extend(registry.iter_workers())
+        workers.extend(extra_workers)
         return cls(workers=workers)
 
     def _health_key(self, worker: WorkerProtocol) -> str:
         return type(worker).__name__
 
     def _classify(self, worker: WorkerProtocol) -> str:
-        if isinstance(worker, BaseInboxConsumer):
+        if isinstance(worker, BaseInboxConsumer) or bool(
+            getattr(worker, "long_lived", False)
+        ):
             return "long-lived"
         return "poller"
 

@@ -15,6 +15,7 @@ from modules.network.infra.database.models import (
     NetworkSessionModel,
 )
 from shared.infra.errors import ConflictError, NotFoundError
+from shared.runtime.event_schema import LEGACY_STORAGE_VERSION
 
 
 _ACTIVE_STATUSES = {"queued", "running", "cancel_requested"}
@@ -23,8 +24,14 @@ _ACTIVE_STATUSES = {"queued", "running", "cancel_requested"}
 class NetworkRerunService:
     """Accept a new Network Run from a previous terminal execution."""
 
-    def __init__(self, session_factory: async_sessionmaker[AsyncSession]) -> None:
+    def __init__(
+        self,
+        session_factory: async_sessionmaker[AsyncSession],
+        *,
+        run_storage_version: str = LEGACY_STORAGE_VERSION,
+    ) -> None:
         self._session_factory = session_factory
+        self._run_storage_version = run_storage_version
 
     async def execute(
         self,
@@ -83,6 +90,7 @@ class NetworkRerunService:
                 definition_snapshot=deepcopy(source.definition_snapshot),
                 resolved_bindings_snapshot=deepcopy(source.resolved_bindings_snapshot),
                 status="queued",
+                storage_version=self._run_storage_version,
                 idempotency_key=idempotency_key,
                 last_event_sequence=1,
             )
@@ -93,6 +101,7 @@ class NetworkRerunService:
                 "rerun_of_execution_id": str(source.id),
                 "rerun_semantics": "new_logical_run",
                 "session_semantics": "continue_existing_session",
+                "storage_version": self._run_storage_version,
             }
             session.add_all(
                 [
@@ -119,6 +128,7 @@ class NetworkRerunService:
                             ),
                             "draft_revision": source.draft_revision,
                             "session_semantics": "continue_existing_session",
+                            "storage_version": self._run_storage_version,
                         },
                     ),
                     NetworkOutboxEventModel(
@@ -143,4 +153,3 @@ class NetworkRerunService:
             )
             network_session.last_message_at = datetime.now(timezone.utc)
             return rerun
-

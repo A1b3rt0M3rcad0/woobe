@@ -37,6 +37,8 @@ class AgentRun:
     network_invocation_id: UUID | None = None
     parent_run_id: UUID | None = None
     rerun_of_run_id: UUID | None = None
+    storage_version: str = "legacy_v1"
+    journal_projected_sequence: int = 0
     status: AgentRunStatus = AgentRunStatus.RUNNING
     usage: dict[str, Any] | None = None
     result: dict[str, Any] | None = None

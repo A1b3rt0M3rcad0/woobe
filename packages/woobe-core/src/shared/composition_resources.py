@@ -1,13 +1,23 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 from redis.asyncio import Redis
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker
 
 from shared.contracts.execution_state import ExecutionStateStore
+from shared.contracts.run_event_buffer import RunEventBufferPort
+from shared.contracts.run_event_journal import RunEventJournalPort
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 from shared.infra.redis_execution_state import RedisExecutionStateStore
+from shared.infra.redis_run_event_buffer import RedisRunEventBuffer
+from shared.runtime.durability import RunDurabilityBarrier
+from shared.runtime.journal_observer import configure_runtime_journal
+
+if TYPE_CHECKING:
+    from pymongo import AsyncMongoClient
 
 
 SETTINGS: Settings = Settings(service_role="api")
@@ -30,3 +40,50 @@ else:
     # Tests and explicit no-Redis development remain importable. Runtime deployments
     # should provide WOOBE_REDIS_URL; the Community compose does so by default.
     EXECUTION_STATE_STORE = InMemoryExecutionStateStore()
+
+# MongoDB is an event-journal adapter, not a transitive import requirement for
+# legacy/test code paths. Import the driver only when Mongo is actually configured.
+MONGO_CLIENT: Any | None = None
+RUN_EVENT_JOURNAL: RunEventJournalPort | None = None
+if SETTINGS.mongodb_url:
+    from pymongo import AsyncMongoClient
+
+    from shared.infra.mongodb_run_event_journal import MongoDBRunEventJournal
+
+    MONGO_CLIENT = AsyncMongoClient(
+        SETTINGS.mongodb_url,
+        serverSelectionTimeoutMS=max(
+            100,
+            int(SETTINGS.redis_connect_timeout_seconds * 1000),
+        ),
+    )
+    RUN_EVENT_JOURNAL = MongoDBRunEventJournal(
+        MONGO_CLIENT,
+        SETTINGS.mongodb_database,
+    )
+
+# Runtime observers are created in several bounded-context hosts. Configure their
+# durable source once here so Agent, Network and ChatSurface reattach paths converge
+# on the same Mongo fallback without importing composition state back into runtime.
+configure_runtime_journal(RUN_EVENT_JOURNAL)
+
+RUN_EVENT_BUFFER: RunEventBufferPort | None = None
+if REDIS_CLIENT is not None:
+    RUN_EVENT_BUFFER = RedisRunEventBuffer(
+        REDIS_CLIENT,
+        stream_key=SETTINGS.run_event_redis_stream,
+        dead_letter_key=SETTINGS.run_event_dead_letter_stream,
+    )
+
+RUN_DURABILITY_BARRIER: RunDurabilityBarrier | None = None
+if RUN_EVENT_JOURNAL is not None:
+    RUN_DURABILITY_BARRIER = RunDurabilityBarrier(
+        RUN_EVENT_JOURNAL,
+        timeout_seconds=SETTINGS.run_event_durability_timeout_seconds,
+    )
+
+
+def durable_run_journal_ready() -> bool:
+    """Return whether event-journal mode has all mandatory runtime adapters."""
+
+    return RUN_EVENT_BUFFER is not None and RUN_EVENT_JOURNAL is not None

@@ -6,6 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.network.background_boundary import AgentInvoker
 from modules.network.background_boundary import AgentInvocationArtifactMaterializer
+from modules.network.background_boundary import JournaledRedisNetworkExecutionStore
+from modules.network.background_boundary import NetworkJournalTerminalFinalizer
+from modules.network.background_boundary import NetworkRunPersistenceFinalizer
 from modules.network.background_boundary import NetworkRuntimeFinalizer
 from modules.network.background_boundary import NetworkRuntimeLoader
 from modules.network.background_boundary import RedisNetworkExecutionStore
@@ -15,7 +18,13 @@ from woobe_workers.consumers.network.execution_worker import (
     NetworkLeaseRecoveryWorker,
 )
 from woobe_workers.consumers.network.outbox_dispatcher import NetworkOutboxDispatcherWorker
-from shared.composition_resources import EXECUTION_STATE_STORE, SESSION_FACTORY
+from shared.composition_resources import (
+    EXECUTION_STATE_STORE,
+    RUN_DURABILITY_BARRIER,
+    RUN_EVENT_BUFFER,
+    RUN_EVENT_JOURNAL,
+    SESSION_FACTORY,
+)
 from woobe_workers.settings import WorkerSettings
 from shared.infra.rabbitmq import RabbitMQManager
 from woobe_workers.contracts import WorkerProtocol, WorkerRegistryProtocol
@@ -69,11 +78,40 @@ def register_network_workers(
         )
 
     loader = NetworkRuntimeLoader(SESSION_FACTORY)
-    finalizer = NetworkRuntimeFinalizer(
+    legacy_finalizer = NetworkRuntimeFinalizer(
         SESSION_FACTORY,
         agent_artifact_materializer=_AGENT_ARTIFACT_MATERIALIZER_FACTORY(),
     )
-    state_store = RedisNetworkExecutionStore(EXECUTION_STATE_STORE)
+
+    journal_terminal = None
+    if (
+        RUN_EVENT_BUFFER is not None
+        and RUN_EVENT_JOURNAL is not None
+        and RUN_DURABILITY_BARRIER is not None
+    ):
+        state_store = JournaledRedisNetworkExecutionStore(
+            EXECUTION_STATE_STORE,
+            session_factory=SESSION_FACTORY,
+            buffer=RUN_EVENT_BUFFER,
+            barrier=RUN_DURABILITY_BARRIER,
+            output_batch_bytes=settings.run_event_output_batch_bytes,
+            output_flush_interval_ms=settings.run_event_output_flush_interval_ms,
+        )
+        journal_terminal = NetworkJournalTerminalFinalizer(
+            SESSION_FACTORY,
+            buffer=RUN_EVENT_BUFFER,
+            journal=RUN_EVENT_JOURNAL,
+            barrier=RUN_DURABILITY_BARRIER,
+            flush_output=state_store.flush_durable_output,
+        )
+    else:
+        state_store = RedisNetworkExecutionStore(EXECUTION_STATE_STORE)
+
+    finalizer = NetworkRunPersistenceFinalizer(
+        SESSION_FACTORY,
+        legacy=legacy_finalizer,
+        event_journal=journal_terminal,
+    )
     processor = NetworkExecutionProcessor(
         loader=loader,
         store=state_store,

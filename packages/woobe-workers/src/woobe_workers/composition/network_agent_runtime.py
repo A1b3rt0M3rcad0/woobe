@@ -145,6 +145,8 @@ class ProjectRAIAgentInvoker:
                             continue
 
                         payload = dict(event.payload)
+                        if context.run_id is not None:
+                            payload["agent_run_id"] = str(context.run_id)
                         if event.event_type == "token":
                             if not _is_public_runtime_token(payload):
                                 continue
@@ -156,7 +158,23 @@ class ProjectRAIAgentInvoker:
                             await stream_handler(event.event_type, payload)
 
                     output = await execution_task
+                    output_run_id = getattr(output, "run_id", None) or context.run_id
+                    # Guarantee that even a Run with no intermediate public event exposes
+                    # the durable Agent Run identity to the parent Network invocation.
+                    if output_run_id is not None:
+                        await stream_handler(
+                            "agent_run_identity",
+                            {"agent_run_id": str(output_run_id)},
+                        )
             except Exception as exc:
+                # Acceptance assigns the Agent Run before model/tool work. Preserve
+                # that durable identity even when the child invocation terminates
+                # before any public Agent event can be forwarded to Network.
+                if stream_handler is not None and context.run_id is not None:
+                    await stream_handler(
+                        "agent_run_identity",
+                        {"agent_run_id": str(context.run_id)},
+                    )
                 if _caused_by_empty_model_output(exc):
                     failure = NetworkRuntimeFailure(
                         code="empty_model_output",
@@ -173,6 +191,7 @@ class ProjectRAIAgentInvoker:
                 )
                 raise failure from exc
 
+            output_run_id = getattr(output, "run_id", None) or context.run_id
             usage = output.usage.model_dump() if output.usage else None
             result = AgentInvocationResult(
                 answer=output.answer,
@@ -199,6 +218,7 @@ class ProjectRAIAgentInvoker:
                 "llm_calls",
                 llm_calls if isinstance(llm_calls, list) else [],
             )
+            object.__setattr__(result, "run_id", output_run_id)
             object.__setattr__(result, "started_at", getattr(output, "run_started_at", None))
             object.__setattr__(result, "completed_at", getattr(output, "run_completed_at", None))
             return result

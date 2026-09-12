@@ -5,11 +5,17 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.agent.background_boundary import AgentRabbitMQPublisher
+from modules.agent.entrypoint import build_agent_run_recovery_executor
 from woobe_workers.consumers.agent.ask_job_worker import AskJobWorker
 from woobe_workers.consumers.agent.outbox_dispatcher import AgentOutboxDispatcherWorker
 from woobe_workers.consumers.agent.run_recovery_worker import AgentRunRecoveryWorker
 from woobe_workers.consumers.agent.vector_snapshot_worker import VectorSnapshotWorker
-from shared.composition_resources import EXECUTION_STATE_STORE
+from shared.composition_resources import (
+    EXECUTION_STATE_STORE,
+    RUN_DURABILITY_BARRIER,
+    RUN_EVENT_BUFFER,
+    RUN_EVENT_JOURNAL,
+)
 from shared.infra.rabbitmq import RabbitMQManager
 from woobe_workers.contracts import WorkerProtocol, WorkerRegistryProtocol
 
@@ -35,6 +41,16 @@ def register_agent_workers(
     # Ask jobs, Vector Snapshot builds and orphan Run recovery can remain pending.
     registry.register(AskJobWorker(async_engine=engine, settings=settings))
     registry.register(VectorSnapshotWorker(async_engine=engine))
+
+    recovery_executor = None
+    if (
+        getattr(settings, "run_persistence_mode", None) == "event_journal"
+        and RUN_EVENT_BUFFER is not None
+        and RUN_EVENT_JOURNAL is not None
+        and RUN_DURABILITY_BARRIER is not None
+    ):
+        recovery_executor = build_agent_run_recovery_executor(settings).execute
+
     registry.register(
         AgentRunRecoveryWorker(
             async_engine=engine,
@@ -43,6 +59,10 @@ def register_agent_workers(
                 900.0,
                 float(getattr(settings, "runtime_total_timeout_seconds", 120.0)) * 3,
             ),
+            journal=RUN_EVENT_JOURNAL,
+            buffer=RUN_EVENT_BUFFER,
+            barrier=RUN_DURABILITY_BARRIER,
+            resume_run=recovery_executor,
         )
     )
 

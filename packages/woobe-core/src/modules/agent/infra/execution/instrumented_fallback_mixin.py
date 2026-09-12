@@ -9,7 +9,7 @@ from modules.agent.application.interfaces.execution import (
     InstrumentedExecutionError,
 )
 from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.infra.execution.execution_instrumentation import (
+from modules.agent.infra.execution.durable_execution_instrumentation import (
     aggregate_usage,
     invoke_llm,
     resolve_effective_output_tokens,

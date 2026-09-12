@@ -1,6 +1,17 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+vi.mock('./AgentRunOperationalView', () => ({
+  AgentRunOperationalView: ({ runId, traceId, finalizing }: { runId?: string | null; traceId?: string | null; finalizing?: boolean }) => (
+    <div data-run-id={runId ?? ''} data-trace-id={traceId ?? ''} data-finalizing={finalizing ? 'true' : 'false'}>Agent Run</div>
+  ),
+}))
+vi.mock('./AgentRunEvidencePanel', () => ({
+  AgentRunEvidencePanel: ({ runId, traceId }: { runId?: string | null; traceId?: string | null }) => (
+    <div data-evidence-run-id={runId ?? ''} data-evidence-trace-id={traceId ?? ''}>Evidence</div>
+  ),
+}))
+
 import { resetAgentStreamStopState, setAgentStreamStopState } from '@/features/playground/stream-stop-state'
 import { OperationsPanel } from './OperationsPanel'
 
@@ -46,5 +57,66 @@ describe('OperationsPanel Session lifecycle guard', () => {
     expect(html).not.toContain('An Agent Run is active')
     expect(html).not.toContain('Stopping the active Agent Run')
     expect(html).not.toContain('pointer-events-none opacity-60')
+  })
+})
+
+describe('OperationsPanel Agent Run identity', () => {
+  it('opens Run details with the canonical Agent Run id and keeps Trace as fallback evidence', () => {
+    const html = renderToStaticMarkup(
+      <OperationsPanel
+        {...baseProps}
+        activeTab="traces"
+        selectedTraceId="trace-1"
+        traces={[{
+          id: 'trace-1',
+          run_id: 'run-1',
+          title: 'Agent Run completed',
+          timestamp: '2026-09-10T20:00:00Z',
+          status: 'success',
+          latency_ms: 100,
+          model: 'model',
+          provider: 'provider',
+          input_tokens: 10,
+          output_tokens: 5,
+          total_tokens: 15,
+          cost_usd: 0.001,
+          trace_id: 'trace-1',
+          response: null,
+        }]}
+      />,
+    )
+
+    expect(html).toContain('data-run-id="run-1"')
+    expect(html).toContain('data-trace-id="trace-1"')
+    expect(html).toContain('data-finalizing="false"')
+  })
+
+  it('marks active Run details as finalizing while the durable read model converges', () => {
+    const html = renderToStaticMarkup(
+      <OperationsPanel
+        {...baseProps}
+        activeTab="traces"
+        selectedTraceId="trace-running"
+        traces={[{
+          id: 'trace-running',
+          run_id: 'run-running',
+          title: 'Agent Run running',
+          timestamp: '2026-09-11T04:30:00Z',
+          status: 'running',
+          latency_ms: null,
+          model: 'model',
+          provider: 'provider',
+          input_tokens: null,
+          output_tokens: null,
+          total_tokens: null,
+          cost_usd: null,
+          trace_id: 'trace-running',
+          response: null,
+        }]}
+      />,
+    )
+
+    expect(html).toContain('data-run-id="run-running"')
+    expect(html).toContain('data-finalizing="true"')
   })
 })

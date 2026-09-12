@@ -6,6 +6,7 @@ from uuid import UUID
 
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
+from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.domain.enums import ToolStatus
 from modules.agent.domain.errors import ToolNotFoundError
@@ -36,6 +37,13 @@ class AgentToolRuntimeGateway:
         self._executor = executor or get_http_tool_executor()
         self._internal_tool_handlers = dict(internal_tool_handlers or {})
         self._secret_resolver = RuntimeToolSecretResolver()
+
+    def build_tool_definitions(
+        self,
+        tools: list[Any],
+    ) -> tuple[list[dict[str, Any]], dict[str, str]]:
+        """Compile runtime Tool definitions behind the infrastructure boundary."""
+        return agent_tools_to_openai_definitions_and_mapping(tools)
 
     async def read_runtime_tools(self, tool_ids: list[UUID]):
         context = current_execution.get()

@@ -347,6 +347,7 @@ class NetworkRuntimeFinalizer:
                         0,
                         "agent_invocation_started",
                         {
+                            "agent_run_id": str(invocation_id),
                             "provider": item.get("provider"),
                             "model": item.get("model"),
                             "session_mode": binding.get("session_mode"),
@@ -433,6 +434,7 @@ class NetworkRuntimeFinalizer:
                         "started_at": started_at.isoformat(),
                         "completed_at": completed_at.isoformat(),
                     }
+                terminal_payload["agent_run_id"] = str(invocation_id)
                 durable_invocation_events.append(
                     (
                         completed_at,

@@ -9,8 +9,8 @@ import {
   acceptRuntimeFrameSequence,
   parseRuntimeFrame,
   reconcileRuntimeOutput,
-  runtimeRetryDelayMs,
   runtimeTerminalStatus,
+  waitForRuntimeRetry,
   type ParsedRuntimeFrame,
   type RuntimeSequenceState,
 } from '@/lib/runtime-stream'
@@ -111,6 +111,7 @@ function snapshotInvocationEvent(
   const invocationId = asString(invocation.id)
   if (!invocationId) return null
   const data: Record<string, unknown> = {
+    agent_run_id: invocation.agent_run_id ?? null,
     label: invocation.label ?? invocation.agent_id ?? 'Agent',
     provider: invocation.provider ?? null,
     model: invocation.model ?? null,
@@ -469,7 +470,9 @@ export async function streamNetworkExecution(
       if (signal?.aborted || attempt === RUNTIME_STREAM_MAX_ATTEMPTS - 1) throw error
       if (!stableInput.executionId && attempt > 0) throw error
     }
-    await new Promise((resolve) => setTimeout(resolve, runtimeRetryDelayMs(attempt)))
+    if (attempt < RUNTIME_STREAM_MAX_ATTEMPTS - 1) {
+      await waitForRuntimeRetry(attempt, signal)
+    }
   }
   throw new Error('Network stream ended before a terminal event')
 }

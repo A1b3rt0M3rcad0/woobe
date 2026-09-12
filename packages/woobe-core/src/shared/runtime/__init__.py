@@ -7,10 +7,13 @@ from shared.runtime.contracts import (
     RuntimeLiveSource,
     TERMINAL_RUN_STATUSES,
 )
+from shared.runtime.journal_observer import (
+    JournalAwareRuntimeObserver as RuntimeObserver,
+    configure_runtime_journal,
+)
 from shared.runtime.observer import (
     DurableFallback,
     RuntimeLocalSubscription,
-    RuntimeObserver,
     RuntimeStreamGapError,
     RuntimeStreamReader,
 )
@@ -31,5 +34,6 @@ __all__ = [
     "RuntimeStreamGapError",
     "RuntimeStreamReader",
     "TERMINAL_RUN_STATUSES",
+    "configure_runtime_journal",
     "format_sse_frame",
 ]

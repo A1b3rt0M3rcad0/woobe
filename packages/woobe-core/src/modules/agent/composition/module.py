@@ -50,6 +50,7 @@ from modules.agent.infra.execution.runtime_streaming import (
 from modules.agent.infra.execution.transaction_bounded_structured_output import (
     TransactionBoundedStructuredOutputRuntime,
 )
+from shared.composition_resources import RUN_EVENT_JOURNAL
 
 
 def build_http_tool_executor() -> HttpToolExecutor:
@@ -93,6 +94,7 @@ def build_agent_run_reattach_operations() -> AgentRunReattachService:
     return AgentRunReattachService(
         transactions=transactions,
         state_store=EXECUTION_STATE_STORE,
+        journal=RUN_EVENT_JOURNAL,
     )
 
 

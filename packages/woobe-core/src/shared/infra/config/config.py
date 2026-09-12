@@ -90,6 +90,14 @@ class Settings(BaseSettings):
     runtime_max_snapshot_override_bytes: int = Field(default=32768, gt=0, le=4194304)
     runtime_max_request_bytes: int = Field(default=262144, gt=0, le=8388608)
     runtime_total_timeout_seconds: float = Field(default=120.0, gt=0, le=600)
+    run_persistence_mode: str = "event_journal"
+    mongodb_url: str | None = None
+    mongodb_database: str = "woobe"
+    run_event_durability_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
+    run_event_redis_stream: str = "woobe:runtime:journal:persistence"
+    run_event_dead_letter_stream: str = "woobe:runtime:journal:dead"
+    run_event_output_batch_bytes: int = Field(default=16384, ge=1024, le=1048576)
+    run_event_output_flush_interval_ms: int = Field(default=200, ge=10, le=5000)
     default_context_manager: str = "stdcm:v1"
     chat_surface_enabled: bool = True
     chat_surface_allow_insecure_origins: bool = False
@@ -164,6 +172,16 @@ class Settings(BaseSettings):
             raise ValueError("WOOBE_EDITION must be 'core' in the Core distribution")
         return normalized
 
+    @field_validator("run_persistence_mode", mode="before")
+    @classmethod
+    def validate_run_persistence_mode(cls, value: object) -> str:
+        normalized = str(value).strip().lower()
+        if normalized not in {"event_journal", "legacy_finalization"}:
+            raise ValueError(
+                "WOOBE_RUN_PERSISTENCE_MODE must be 'event_journal' or 'legacy_finalization'"
+            )
+        return normalized
+
     @field_validator("default_context_manager", mode="before")
     @classmethod
     def validate_default_context_manager(cls, value: object) -> str:
@@ -215,6 +233,28 @@ class Settings(BaseSettings):
             schemes={"redis", "rediss"},
             variable="WOOBE_REDIS_URL",
         )
+
+    @field_validator("mongodb_url")
+    @classmethod
+    def validate_mongodb_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            return None
+        return _validate_connection_url(
+            normalized,
+            schemes={"mongodb", "mongodb+srv"},
+            variable="WOOBE_MONGODB_URL",
+        )
+
+    @field_validator("mongodb_database")
+    @classmethod
+    def validate_mongodb_database(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized or any(char in normalized for char in '/\\. "'):
+            raise ValueError("WOOBE_MONGODB_DATABASE must be a valid MongoDB database name")
+        return normalized
 
     @field_validator("s3_endpoint_url")
     @classmethod

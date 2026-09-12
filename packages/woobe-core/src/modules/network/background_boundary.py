@@ -30,11 +30,21 @@ from modules.network.infra.runtime.agent_artifacts import (
 from modules.network.infra.runtime.finalizer import (
     NetworkRuntimeFinalizer,
 )
+from modules.network.infra.runtime.journal_store import (
+    JournaledRedisNetworkExecutionStore,
+)
 from modules.network.infra.runtime.loader import (
     NetworkRuntimeLoader,
 )
 from modules.network.infra.runtime.redis_store import (
     RedisNetworkExecutionStore,
+)
+from modules.network.infra.runtime.run_event_projector import (
+    NetworkRunEventProjector,
+)
+from modules.network.infra.runtime.run_persistence import (
+    NetworkJournalTerminalFinalizer,
+    NetworkRunPersistenceFinalizer,
 )
 
 install_structured_output_persistence()
@@ -45,10 +55,14 @@ __all__ = [
     "AgentInvocationResult",
     "AgentInvoker",
     "InternalDelegationTool",
+    "JournaledRedisNetworkExecutionStore",
     "NetworkBudgetExceeded",
     "NetworkExecutionCancelled",
     "NetworkExecutor",
+    "NetworkJournalTerminalFinalizer",
     "NetworkOutboxEventModel",
+    "NetworkRunEventProjector",
+    "NetworkRunPersistenceFinalizer",
     "NetworkRuntimeFailure",
     "NetworkRuntimeFinalizer",
     "NetworkRuntimeLoader",

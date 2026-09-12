@@ -15,7 +15,6 @@ import {
 import type { AgentRunDetail, ContextModelInvocation, Trace, TraceDetail } from './types'
 
 const TRACE_REFRESH_INTERVAL_MS = 1_500
-const PLAYGROUND_IDLE_TRACE_LIST_REFRESH_INTERVAL_MS = 3_000
 const IDLE_TRACE_LIST_REFRESH_INTERVAL_MS = 10_000
 const TRACE_NOT_FOUND_RETRIES = 20
 const CONTEXT_EVIDENCE_NOT_FOUND_RETRIES = 6
@@ -23,9 +22,24 @@ const AGENT_RUN_DETAIL_NOT_FOUND_RETRIES = 6
 
 function isTerminalStatus(status: string | undefined): boolean {
   if (!status) return false
-  return ['completed', 'success', 'failed', 'error', 'cancelled', 'canceled'].includes(
-    status.toLowerCase(),
-  )
+  return [
+    'completed',
+    'success',
+    'failed',
+    'error',
+    'cancelled',
+    'canceled',
+    'timed_out',
+    'timeout',
+    'uncertain',
+  ].includes(status.toLowerCase())
+}
+
+export function shouldRefreshContextEvidence(
+  previousStatus: string | undefined,
+  currentStatus: string | undefined,
+): boolean {
+  return isTerminalStatus(currentStatus) && !isTerminalStatus(previousStatus)
 }
 
 function isTerminalTrace(trace: TraceDetail | undefined): boolean {
@@ -52,6 +66,22 @@ function shouldRetryAgentRunDetail(failureCount: number, error: Error): boolean 
   if (!(error instanceof ApiError)) return false
   if (error.status === 404) return failureCount < AGENT_RUN_DETAIL_NOT_FOUND_RETRIES
   return error.status >= 500 && failureCount < 2
+}
+
+export function agentRunDetailRefetchInterval(
+  run: Pick<AgentRunDetail, 'status'> | undefined,
+  error: Error | null,
+): number | false {
+  if (error instanceof ApiError && error.status === 404) return false
+  return run && isTerminalStatus(run.status) ? false : TRACE_REFRESH_INTERVAL_MS
+}
+
+export function playgroundTraceRefetchInterval(
+  traces: Trace[] | undefined,
+  liveObservationActive: boolean,
+): number | false {
+  if (liveObservationActive) return false
+  return hasActiveTrace(traces) ? TRACE_REFRESH_INTERVAL_MS : false
 }
 
 export function useTraces(projectId?: string, networkId?: string) {
@@ -107,10 +137,10 @@ export function useAgentRunDetail({
     retry: shouldRetryAgentRunDetail,
     retryDelay: (failureCount) => Math.min(300 * 2 ** failureCount, 1_200),
     staleTime: 30_000,
-    refetchInterval: (query) => {
-      const run = query.state.data
-      return run && isTerminalStatus(run.status) ? false : TRACE_REFRESH_INTERVAL_MS
-    },
+    refetchInterval: (query) => agentRunDetailRefetchInterval(
+      query.state.data,
+      query.state.error,
+    ),
     refetchIntervalInBackground: false,
   })
 }
@@ -146,6 +176,7 @@ export function usePlaygroundTraces(
   agentId?: string,
   sessionId?: string | null,
   environment?: string | null,
+  liveObservationActive = false,
 ) {
   return useQuery<Trace[]>({
     queryKey: ['agent-runs', { projectId, agentId, sessionId, environment }],
@@ -184,9 +215,10 @@ export function usePlaygroundTraces(
     },
     enabled: Boolean(projectId) && Boolean(agentId),
     staleTime: 500,
-    refetchInterval: (query) => hasActiveTrace(query.state.data)
-      ? TRACE_REFRESH_INTERVAL_MS
-      : PLAYGROUND_IDLE_TRACE_LIST_REFRESH_INTERVAL_MS,
+    refetchInterval: (query) => playgroundTraceRefetchInterval(
+      query.state.data,
+      liveObservationActive,
+    ),
     refetchIntervalInBackground: false,
   })
 }

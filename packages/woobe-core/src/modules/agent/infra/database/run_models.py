@@ -4,7 +4,7 @@ from datetime import datetime
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Index, String, Text
+from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Index, String, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -57,6 +57,16 @@ class AgentRunModel(BaseModel):
     environment: Mapped[str] = mapped_column(String(32))
     origin: Mapped[str] = mapped_column(String(64), default="runtime_api")
     status: Mapped[str] = mapped_column(String(32), default="running")
+    storage_version: Mapped[str] = mapped_column(
+        String(32),
+        default="legacy_v1",
+        server_default=text("'legacy_v1'"),
+    )
+    journal_projected_sequence: Mapped[int] = mapped_column(
+        BigInteger,
+        default=0,
+        server_default=text("0"),
+    )
     input_message: Mapped[str] = mapped_column(Text)
     execution_snapshot: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
     usage: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)

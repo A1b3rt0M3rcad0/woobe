@@ -16,6 +16,7 @@ x-backend-test-common: &backend-test-common
   WOOBE_REFRESH_COOKIE_SECURE: "false"
   WOOBE_TRUSTED_HOSTS: test,localhost,127.0.0.1
   WOOBE_CORS_ORIGINS: http://test
+  WOOBE_RUN_PERSISTENCE_MODE: legacy_finalization
   PYTHONPATH: /app/packages/woobe-core/src:/app/packages/woobe-api/src:/app/packages/woobe-workers/src:/app/tooling/woobe-testkit/src:/app/tooling/woobe-mock/src:/app/tooling/quality-gate/src:/app
 
 services:
@@ -57,6 +58,20 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    restart: "no"
+
+  mongodb:
+    # MongoDB 8 currently refuses Linux kernels 6.19 through 7.0.13 because of
+    # SERVER-121912. MongoDB 7 provides every journal primitive Woobe needs and
+    # keeps the self-host/test topology portable across the current CI runners.
+    image: mongo:7.0.41
+    tmpfs:
+      - /data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
     restart: "no"
 
   fake-provider:
@@ -115,6 +130,8 @@ services:
       WOOBE_RABBITMQ_URL: amqp://woobe_test:woobe_test_password@rabbitmq:5672/
       WOOBE_RABBITMQ_EXCHANGE: woobe.test.events
       WOOBE_REDIS_URL: redis://redis:6379/0
+      WOOBE_MONGODB_URL: mongodb://mongodb:27017
+      WOOBE_MONGODB_DATABASE: woobe_test
       WOOBE_TEST_FAKE_PROVIDER_URL: http://fake-provider:8000/v1
     depends_on:
       db:
@@ -122,6 +139,8 @@ services:
       rabbitmq:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      mongodb:
         condition: service_healthy
       fake-provider:
         condition: service_healthy

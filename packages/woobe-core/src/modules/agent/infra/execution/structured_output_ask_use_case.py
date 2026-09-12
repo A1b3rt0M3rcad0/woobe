@@ -29,6 +29,7 @@ from modules.agent.infra.execution.session_continuity_runtime_resolver import (
     SessionContinuityReleaseRuntimeResolver,
 )
 from shared.contracts.time import utc_now
+from shared.runtime.event_schema import EVENT_JOURNAL_STORAGE_VERSION
 
 
 _OUTPUT_CONTRACT_RUNTIME_RULES = (
@@ -241,6 +242,27 @@ class StructuredOutputAskAgentUseCase(
 
     async def _fail(self, trace_id, agent, session, error, input_dto) -> None:
         context = current_execution.get()
+        persistence = getattr(self, "_run_persistence", None)
+        if (
+            context is not None
+            and context.storage_version == EVENT_JOURNAL_STORAGE_VERSION
+            and not getattr(context, "defer_persistence", False)
+            and context.execution is not None
+            and persistence is not None
+        ):
+            await persistence.fail(
+                self,
+                session=session,
+                agent=agent,
+                input_dto=input_dto,
+                trace_id=trace_id,
+                error=error,
+                execution=context.execution,
+                started_at=context.started_at,
+                prepare_latency_ms=context.prepare_latency_ms,
+            )
+            return
+
         if context and context.execution and context.execution.llm_calls:
             try:
                 await finalize_failed_instrumented_execution(
@@ -402,6 +424,33 @@ class StructuredOutputAskAgentUseCase(
                 json_format_latency_ms,
             )
         aggregate, complete, cost_status = aggregate_usage(context.execution.llm_calls)
+        persistence = getattr(self, "_run_persistence", None)
+        if (
+            context.storage_version == EVENT_JOURNAL_STORAGE_VERSION
+            and not getattr(context, "defer_persistence", False)
+            and persistence is not None
+        ):
+            return await persistence.complete(
+                self,
+                session=session,
+                agent=agent,
+                input_dto=input_dto,
+                trace_id=trace_id,
+                answer=answer,
+                usage=aggregate,
+                response_model=response_model,
+                response_provider=response_provider,
+                sources=sources or [],
+                parsed_output=parsed_output,
+                output_parse_error=output_parse_error,
+                execution=context.execution,
+                fallback_used=fallback_used,
+                fallback_info=fallback_info_result,
+                started_at=context.started_at,
+                prepare_latency_ms=context.prepare_latency_ms,
+                usage_complete=complete,
+                cost_status=cost_status,
+            )
         return await finalize_instrumented_execution(
             self,
             session=session,
