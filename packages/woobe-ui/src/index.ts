@@ -18,6 +18,7 @@ export { Dropdown, type DropdownHandle, type DropdownProps } from './components/
 export { EmptyStatePanel, type EmptyStatePanelProps } from './components/EmptyStatePanel'
 export { Field, FieldDescription, FieldError, FieldLabel } from './components/Field'
 export { Input, type InputProps } from './components/Input'
+export { MathSurface, type MathSurfaceProps } from './components/MathSurface'
 export { MetricTile, type MetricTileProps } from './components/MetricTile'
 export { PanelHeader, type PanelHeaderProps } from './components/PanelHeader'
 export { ScrollArea, type ScrollAreaProps } from './components/ScrollArea'
