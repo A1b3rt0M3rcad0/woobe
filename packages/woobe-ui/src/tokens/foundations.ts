@@ -85,6 +85,11 @@ export const woobeLayout = {
   codeEditorMax: '22.5rem',
 } as const
 
+export const woobePattern = {
+  technicalGridImage: 'linear-gradient(rgb(148 163 184 / 0.02) 1px, transparent 1px), linear-gradient(90deg, rgb(148 163 184 / 0.02) 1px, transparent 1px)',
+  technicalGridSize: '2rem 2rem',
+} as const
+
 export const woobeShadow = {
   none: 'none',
   popup: '0 12px 32px rgb(0 0 0 / 0.28)',
