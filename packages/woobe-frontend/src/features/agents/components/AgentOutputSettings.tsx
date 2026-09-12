@@ -48,7 +48,7 @@ export function AgentOutputSettings() {
 
           <div>
             <label className="mb-ui-sm block font-mono text-system-meta font-medium uppercase tracking-[0.1em] text-muted-foreground">Output contract</label>
-            <JsonEditor value={schemaText(state.responseFormat.schema)} onChange={(value) => setField('responseFormat', { ...state.responseFormat, strict: true, schema: value })} editable disabled={!enabled} actions={['format', 'validate', 'clear']} minHeight={180} maxHeight={360} placeholder='{ "message": "string" }' />
+            <JsonEditor value={schemaText(state.responseFormat.schema)} onChange={(value) => setField('responseFormat', { ...state.responseFormat, strict: true, schema: value })} editable disabled={!enabled} actions={['format', 'validate', 'clear']} placeholder='{ "message": "string" }' />
             {error ? <p role="alert" className="mt-ui-sm border-l-2 border-l-red-400 bg-red-500/[0.04] px-ui-sm py-ui-sm font-sans text-product-caption text-red-200">{error}</p> : null}
             <p className="mt-ui-sm font-sans text-product-caption text-muted-foreground">Type declarations such as <code>"string"</code>, <code>"number"</code> and <code>"float"</code> describe the expected values.</p>
           </div>
