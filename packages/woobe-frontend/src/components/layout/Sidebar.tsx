@@ -24,6 +24,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
 import { WorkspaceSettingsDialog } from '@/features/workspaces/components/WorkspaceSettingsDialog'
+import { ProjectSettingsDialog } from '@/features/projects/components/ProjectSettingsDialog'
 import { workspaceProjectPath } from '@/lib/constants/routes'
 import type { WorkspaceShape, ProjectShape } from '@/features/workspace/types'
 import { SidebarUserCard } from './SidebarUserCard'
@@ -125,7 +126,6 @@ function ProjectContextCard({
   projects,
   selectWorkspace,
   selectProject,
-  onWorkspaceSettings,
 }: {
   currentWorkspace: WorkspaceShape
   currentProject: ProjectShape
@@ -133,7 +133,6 @@ function ProjectContextCard({
   projects: ProjectShape[]
   selectWorkspace: (workspace: WorkspaceShape) => void
   selectProject: (project: ProjectShape) => void
-  onWorkspaceSettings: () => void
 }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -162,11 +161,6 @@ function ProjectContextCard({
   const navigateAndClose = (href: string) => {
     navigate(href)
     setOpen(false)
-  }
-
-  const openWorkspaceSettings = () => {
-    setOpen(false)
-    onWorkspaceSettings()
   }
 
   return (
@@ -214,12 +208,10 @@ function ProjectContextCard({
 
           <div className="my-1.5 border-t border-border pt-1.5">
             <ContextMenuItem icon={List} title="Manage projects" description="Select or create Projects" onClick={() => navigateAndClose(`/workspaces/${currentWorkspace.id}/projects`)} />
-            <ContextMenuItem icon={Settings} title="Project settings" description="Configure this Project" onClick={() => navigateAndClose(`/workspaces/${currentWorkspace.id}/projects/${currentProject.id}/settings`)} />
           </div>
 
           <div className="border-t border-border pt-1.5">
             <p className="px-2 pb-1.5 pt-1 font-mono text-[8px] font-bold uppercase tracking-[0.14em] text-muted">Workspace</p>
-            <ContextMenuItem icon={Settings} title="Workspace settings" description="People, access and configuration" onClick={openWorkspaceSettings} />
             {workspaces.map((workspace) => (
               <ContextMenuItem
                 key={workspace.id}
@@ -235,6 +227,22 @@ function ProjectContextCard({
         </div>
       </div>
     </div>
+  )
+}
+
+function ConfigButton({ icon: Icon, label, description, onClick }: { icon: LucideIcon; label: string; description: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group flex min-h-9 w-full items-center gap-2.5 rounded-technical border border-transparent px-2.5 py-2 text-left transition-colors hover:border-border hover:bg-accent/45"
+    >
+      <Icon className="h-[15px] w-[15px] shrink-0 text-muted-foreground transition-colors group-hover:text-slate-200" />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-mono text-[10px] font-medium text-slate-300 transition-colors group-hover:text-slate-50">{label}</span>
+        <span className="mt-0.5 block truncate font-mono text-[8px] text-muted-foreground">{description}</span>
+      </span>
+    </button>
   )
 }
 
@@ -272,6 +280,7 @@ export function Sidebar() {
     isLoadingWorkspaces,
     isLoadingProjects,
   } = useWorkspace()
+  const [showProjectSettings, setShowProjectSettings] = useState(false)
   const [showWorkspaceSettings, setShowWorkspaceSettings] = useState(false)
   const workspaceId = currentWorkspace?.id
   const projId = currentProject?.id
@@ -313,7 +322,6 @@ export function Sidebar() {
                     projects={projects}
                     selectWorkspace={selectWorkspace}
                     selectProject={selectProject}
-                    onWorkspaceSettings={() => setShowWorkspaceSettings(true)}
                   />
                 </section>
 
@@ -326,19 +334,36 @@ export function Sidebar() {
 
         {workspaceId && (
           <section className="border-t border-border px-3 py-3">
-            <SidebarSectionTitle>Workspace</SidebarSectionTitle>
-            <button
-              type="button"
-              onClick={() => setShowWorkspaceSettings(true)}
-              className="group flex h-9 w-full items-center gap-2.5 rounded-technical border border-transparent px-2.5 text-left font-mono text-[11px] text-slate-300 transition-colors hover:border-border hover:bg-accent/45 hover:text-slate-50"
-            >
-              <Building2 className="h-[15px] w-[15px] shrink-0 text-muted-foreground group-hover:text-slate-200" />
-              <span className="truncate">Workspace</span>
-            </button>
+            <SidebarSectionTitle>Config</SidebarSectionTitle>
+            <div className="grid gap-[2px]">
+              {projId && (
+                <ConfigButton
+                  icon={Settings}
+                  label="Project settings"
+                  description="Identity and project configuration"
+                  onClick={() => setShowProjectSettings(true)}
+                />
+              )}
+              <ConfigButton
+                icon={Building2}
+                label="Workspace settings"
+                description="People, access and workspace configuration"
+                onClick={() => setShowWorkspaceSettings(true)}
+              />
+            </div>
           </section>
         )}
         <SidebarUserCard variant="technical" />
       </aside>
+
+      {workspaceId && projId && (
+        <ProjectSettingsDialog
+          open={showProjectSettings}
+          workspaceId={workspaceId}
+          projectId={projId}
+          onClose={() => setShowProjectSettings(false)}
+        />
+      )}
 
       {workspaceId && (
         <WorkspaceSettingsDialog
