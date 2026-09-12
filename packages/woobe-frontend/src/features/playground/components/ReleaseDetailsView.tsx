@@ -57,7 +57,7 @@ export function ReleaseDetailsView({ release }: ReleaseDetailsViewProps) {
     </section>
 
     {release.release_notes ? <Section title="Release description"><p className="whitespace-pre-wrap font-sans text-[9px] leading-4 text-slate-200">{release.release_notes}</p></Section> : null}
-    <Section title="Agent details"><DetailRow label="Name" value={release.name} /><DetailRow label="Description" value={release.description} /></Section>
+    <Section title="Agent Details"><DetailRow label="Name" value={release.name} /><DetailRow label="Description" value={release.description} /></Section>
     <AgentBehaviorDetails behavior={release.behavior_spec} legacyPrompt={release.system_prompt} />
     <Section title="Runtime"><DetailRow label="Session Mode" value={sessionModeLabel(release.session_mode)} /><DetailRow label="Context Manager" value={contextAssemblerLabel(release.runtime_config)} /></Section>
     <Section title="Model" icon={<Sparkles className="h-3 w-3" />}><DetailRow label="Provider" value={release.provider} /><DetailRow label="Model" value={release.model} /><DetailRow label="Temperature" value={release.temperature} /><DetailRow label="Maximum output" value={release.max_output_tokens ? `${release.max_output_tokens} tokens` : null} /><DetailRow label="Fallback" value={fallback} /></Section>
