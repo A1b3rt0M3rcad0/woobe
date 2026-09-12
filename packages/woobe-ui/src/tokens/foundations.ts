@@ -54,6 +54,7 @@ export const woobeBreakpoints = {
 export const woobeLayout = {
   projectSidebar: '16.125rem',
   playgroundRail: '3.25rem',
+  playgroundInspectorTop: '8rem',
   operationsPanel: '23.25rem',
   inspector: '23.75rem',
   inspectorExpanded: '38.75rem',
