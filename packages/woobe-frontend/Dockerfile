@@ -14,6 +14,7 @@ ARG VITE_CHAT_EMBED_URL
 ARG VITE_WOOBE_EDITION=core
 COPY packages/woobe-frontend ./
 COPY packages/woobe-runtime-client ../woobe-runtime-client
+COPY packages/woobe-ui ../woobe-ui
 RUN test -n "${VITE_API_URL}" \
     && test -n "${VITE_CHAT_EMBED_URL}" \
     && test "${VITE_WOOBE_EDITION}" = "core" \
