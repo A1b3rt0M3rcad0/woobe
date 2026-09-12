@@ -41,6 +41,8 @@ const woobeTailwindPreset = {
         'ui-lg': woobeSpacing.lg,
         'ui-xl': woobeSpacing.xl,
         'ui-xxl': woobeSpacing.xxl,
+        'conversation-indent': woobeLayout.conversationIndent,
+        'conversation-indent-compact': woobeLayout.conversationIndentCompact,
       },
       borderRadius: {
         technical: woobeRadius.technical,
@@ -48,6 +50,7 @@ const woobeTailwindPreset = {
         container: woobeRadius.container,
       },
       height: {
+        'control-xs': woobeControl.height.technical,
         'control-segment': woobeControl.height.segment,
         'control-sm': woobeControl.height.compact,
         control: woobeControl.height.default,
@@ -66,6 +69,7 @@ const woobeTailwindPreset = {
         'icon-brand': woobeControl.icon.brand,
       },
       minHeight: {
+        'control-xs': woobeControl.height.technical,
         'control-segment': woobeControl.height.segment,
         'control-sm': woobeControl.height.compact,
         control: woobeControl.height.default,
@@ -85,6 +89,7 @@ const woobeTailwindPreset = {
         multiline: woobeControl.maxHeight.multiline,
       },
       width: {
+        'control-xs': woobeControl.height.technical,
         'control-segment': woobeControl.height.segment,
         'control-sm': woobeControl.height.compact,
         control: woobeControl.height.default,
@@ -102,6 +107,8 @@ const woobeTailwindPreset = {
         'inspector-expanded': woobeLayout.inspectorExpanded,
         'dialog-sidebar': woobeLayout.dialogSidebar,
         'focus-workspace': woobeLayout.focusWorkspaceWidth,
+        'conversation-rail': woobeLayout.conversationRail,
+        'conversation-rail-compact': woobeLayout.conversationRailCompact,
       },
       maxWidth: {
         resource: woobeLayout.resourceMax,
@@ -114,6 +121,8 @@ const woobeTailwindPreset = {
         'inspector-expanded': woobeLayout.inspectorExpanded,
         'playground-agent-name': woobeLayout.playgroundAgentNameMax,
         'playground-agent-meta': woobeLayout.playgroundAgentMetaMax,
+        conversation: woobeLayout.conversationContentMax,
+        'conversation-compact': woobeLayout.conversationContentCompactMax,
       },
       minWidth: {
         popover: woobeLayout.popoverCompactMinWidth,
