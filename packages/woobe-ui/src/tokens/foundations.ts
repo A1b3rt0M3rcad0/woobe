@@ -38,6 +38,9 @@ export const woobeControl = {
     textareaCompact: '4.875rem',
     textarea: '5.75rem',
   },
+  maxHeight: {
+    multiline: '10rem',
+  },
   icon: {
     small: '0.75rem',
     default: '0.875rem',
@@ -58,6 +61,7 @@ export const woobeLayout = {
   projectSidebar: '16.125rem',
   projectSidebarHeader: '4.5rem',
   sidebarContextMenuMaxHeight: '26.25rem',
+  popoverCompactMinWidth: '12.5rem',
   playgroundRail: '3.25rem',
   playgroundInspectorTop: '8rem',
   playgroundAgentNameMax: '13.75rem',
@@ -75,6 +79,8 @@ export const woobeLayout = {
   dialogContentMax: '47.5rem',
   dialogMaxHeight: 'calc(100svh - 2rem)',
   dialogWorkspaceHeight: 'min(40rem, calc(100svh - 7rem))',
+  focusWorkspaceWidth: 'min(94vw, 93.75rem)',
+  focusWorkspaceHeight: 'min(88svh, 57.5rem)',
   codeEditorCompact: '11.25rem',
   codeEditorMax: '22.5rem',
 } as const
