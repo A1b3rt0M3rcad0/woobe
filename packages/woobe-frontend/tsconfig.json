@@ -19,8 +19,12 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"],
-      "@woobe/runtime-client": ["../woobe-runtime-client/src/index.ts"]
+      "@woobe/runtime-client": ["../woobe-runtime-client/src/index.ts"],
+      "@woobe/ui": ["../woobe-ui/src/index.ts"],
+      "@woobe/ui/*": ["../woobe-ui/src/*"],
+      "react": ["./node_modules/@types/react/index.d.ts"],
+      "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime.d.ts"]
     }
   },
-  "include": ["src"]
+  "include": ["src", "../woobe-ui/src"]
 }
