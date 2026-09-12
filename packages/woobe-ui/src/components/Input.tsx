@@ -12,10 +12,10 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
       disabled={disabled}
       aria-invalid={invalid || props['aria-invalid'] || undefined}
       className={cn(
-        'flex h-[34px] w-full rounded-control border border-border bg-control px-3 py-1.5 text-sm text-slate-100',
+        'flex h-[34px] w-full rounded-control border border-border bg-control px-3 py-1.5 font-mono text-[10px] text-slate-100',
         'placeholder:text-muted-foreground/70 transition-[border-color,box-shadow,background-color]',
         'hover:border-slate-600 focus-visible:border-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/30',
-        'aria-[invalid=true]:border-red-500/70 aria-[invalid=true]:focus-visible:ring-red-500/30',
+        'aria-[invalid=true]:border-red-500/55 aria-[invalid=true]:focus-visible:ring-red-500/20',
         'disabled:cursor-not-allowed disabled:bg-background/30 disabled:text-muted-foreground disabled:opacity-60',
         className,
       )}
