@@ -1,9 +1,9 @@
-import { Badge, type BadgeVariant } from '@woobe/ui'
+import { Badge, type BadgeSize, type BadgeVariant } from '@woobe/ui'
 import { cn } from '@/lib/utils'
 
 interface StatusBadgeProps {
   status: string
-  size?: 'default' | 'compact'
+  size?: BadgeSize
   className?: string
 }
 
@@ -31,14 +31,7 @@ const statusMap: Record<string, BadgeVariant> = {
 export function StatusBadge({ status, size = 'default', className }: StatusBadgeProps) {
   const variant = statusMap[status.toLowerCase()] || 'default'
   return (
-    <Badge
-      variant={variant}
-      className={cn(
-        'font-mono uppercase tracking-[0.06em]',
-        size === 'compact' && 'px-1.5 py-0.5 text-[8px]',
-        className,
-      )}
-    >
+    <Badge variant={variant} size={size} className={cn('uppercase tracking-ui-label', className)}>
       {status}
     </Badge>
   )
