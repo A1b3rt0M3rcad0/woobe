@@ -5,6 +5,7 @@ export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 export { Checkbox, type CheckboxProps } from './components/Checkbox'
 export { CodePanel, type CodePanelProps } from './components/CodePanel'
 export { CopyButton, type CopyButtonProps } from './components/CopyButton'
+export { CreateResourceCard, type CreateResourceCardProps, type CreateResourceCardSize } from './components/CreateResourceCard'
 export { DangerConfirmDialog, type DangerConfirmDialogProps } from './components/DangerConfirmDialog'
 export {
   Dialog,
