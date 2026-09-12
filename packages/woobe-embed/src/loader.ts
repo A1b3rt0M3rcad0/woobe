@@ -90,7 +90,7 @@ function mount(options: WoobeChatOptions): WoobeChatInstance {
   iframe.dataset.woobeChat = instanceId;
   iframe.style.cssText =
     options.mode === "floating"
-      ? "position:fixed;right:24px;bottom:24px;width:min(420px,calc(100vw - 32px));height:min(680px,calc(100vh - 48px));border:0;border-radius:16px;box-shadow:0 18px 60px rgba(0,0,0,.2);z-index:2147483000"
+      ? "position:fixed;right:24px;bottom:24px;width:min(420px,calc(100vw - 32px));height:min(680px,calc(100vh - 48px));border:1px solid #1e293b;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,.18);background:#020817;z-index:2147483000"
       : "width:100%;height:100%;min-height:480px;border:0";
   let token = options.sessionToken;
   let opened = true;
@@ -152,8 +152,8 @@ function mount(options: WoobeChatOptions): WoobeChatInstance {
     close() {
       if (destroyed || !opened) return;
       opened = false;
-      send("close");
       iframe.hidden = true;
+      send("close");
     },
     destroy() {
       if (destroyed) return;
