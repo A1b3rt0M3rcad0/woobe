@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { json } from '@codemirror/lang-json'
 import { Copy, Check, Paintbrush, AlertCircle, X } from 'lucide-react'
-import { woobeLayout } from '@woobe/ui'
+import { Button, woobeLayout } from '@woobe/ui'
 import { cn } from '@/lib/utils'
 import { formatJsonSafely, validateJson, type ValidationResult } from '@/lib/json-utils'
 import { jsonDarkTheme, jsonSyntaxHighlight } from './json-cm-theme'
@@ -87,7 +87,7 @@ export function JsonEditor({
   }, [internalValue, onValidJsonChange])
 
   const handleCopy = useCallback(() => {
-    navigator.clipboard.writeText(internalValue)
+    void navigator.clipboard.writeText(internalValue)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
   }, [internalValue])
@@ -121,24 +121,25 @@ export function JsonEditor({
           {editable && actions.length > 0 && (
             <div className="flex shrink-0 items-center gap-ui-xs">
               {actions.includes('format') && (
-                <button type="button" onClick={handleFormat} className="inline-flex h-control-segment items-center gap-ui-xs rounded-control border border-transparent px-ui-sm font-mono text-system-meta text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-slate-50" title="Format JSON">
-                  <Paintbrush className="h-3 w-3" />Format
-                </button>
+                <Button type="button" variant="ghost" size="xs" onClick={handleFormat} className="gap-ui-xs text-muted-foreground" title="Format JSON">
+                  <Paintbrush className="h-icon-sm w-icon-sm" />Format
+                </Button>
               )}
               {actions.includes('validate') && (
-                <button type="button" onClick={handleValidate} className="inline-flex h-control-segment items-center gap-ui-xs rounded-control border border-transparent px-ui-sm font-mono text-system-meta text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-slate-50" title={`Validate JSON${validationSuccess ? ' — Valid!' : ''}`}>
-                  <AlertCircle className="h-3 w-3" />Validate{validationSuccess && <Check className="h-3 w-3 text-emerald-400" />}
-                </button>
+                <Button type="button" variant="ghost" size="xs" onClick={handleValidate} className="gap-ui-xs text-muted-foreground" title={`Validate JSON${validationSuccess ? ' — Valid!' : ''}`}>
+                  <AlertCircle className="h-icon-sm w-icon-sm" />Validate
+                  {validationSuccess && <Check className="h-icon-sm w-icon-sm text-success" />}
+                </Button>
               )}
               {actions.includes('copy') && internalValue && (
-                <button type="button" onClick={handleCopy} className="flex h-control-segment w-control-segment items-center justify-center rounded-control border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-slate-50" title={copied ? 'Copied!' : 'Copy'}>
-                  {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
-                </button>
+                <Button type="button" variant="ghost" size="iconXs" onClick={handleCopy} className="text-muted-foreground" title={copied ? 'Copied!' : 'Copy'} aria-label="Copy JSON">
+                  {copied ? <Check className="h-icon-sm w-icon-sm text-success" /> : <Copy className="h-icon-sm w-icon-sm" />}
+                </Button>
               )}
               {actions.includes('clear') && internalValue && (
-                <button type="button" onClick={handleClear} className="flex h-control-segment w-control-segment items-center justify-center rounded-control border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-slate-50" title="Clear">
-                  <X className="h-3.5 w-3.5" />
-                </button>
+                <Button type="button" variant="ghost" size="iconXs" onClick={handleClear} className="text-muted-foreground" title="Clear" aria-label="Clear JSON">
+                  <X className="h-icon-sm w-icon-sm" />
+                </Button>
               )}
             </div>
           )}
@@ -147,7 +148,7 @@ export function JsonEditor({
       <div
         className={cn(
           'overflow-auto rounded-container border bg-background/30 scrollbar-thin transition-colors',
-          errorMessage ? 'border-red-500/50' : validationSuccess ? 'border-emerald-500/50' : 'border-border',
+          errorMessage ? 'border-error/50' : validationSuccess ? 'border-success/50' : 'border-border',
         )}
         style={{ minHeight: cssSize(minHeight), maxHeight: cssSize(maxHeight) }}
       >
@@ -163,15 +164,15 @@ export function JsonEditor({
         />
       </div>
       {!hideError && errorMessage && (
-        <div className="flex items-start gap-ui-xs rounded-container border border-red-500/20 bg-red-500/10 px-ui-sm py-ui-sm">
-          <AlertCircle className="mt-ui-hairline h-3.5 w-3.5 shrink-0 text-red-400" />
-          <p className="font-sans text-product-small text-red-300">{errorMessage}</p>
+        <div className="flex items-start gap-ui-xs rounded-container border border-error/20 bg-error/10 px-ui-sm py-ui-sm">
+          <AlertCircle className="mt-ui-hairline h-icon w-icon shrink-0 text-error" />
+          <p className="font-sans text-product-small text-error">{errorMessage}</p>
         </div>
       )}
       {!hideError && validationSuccess && (
-        <div className="flex items-center gap-ui-xs rounded-container border border-emerald-500/20 bg-emerald-500/10 px-ui-sm py-ui-sm">
-          <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
-          <p className="font-sans text-product-small text-emerald-300">Valid JSON</p>
+        <div className="flex items-center gap-ui-xs rounded-container border border-success/20 bg-success/10 px-ui-sm py-ui-sm">
+          <Check className="h-icon w-icon shrink-0 text-success" />
+          <p className="font-sans text-product-small text-success">Valid JSON</p>
         </div>
       )}
     </div>
