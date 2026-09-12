@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Activity, SquareTerminal, X } from 'lucide-react'
+import { EmptyStatePanel } from '@woobe/ui'
 import type { LeftPanelTab } from './OperationsRail'
 import { AgentRunEvidencePanel } from './AgentRunEvidencePanel'
 import { AgentRunOperationalView } from './AgentRunOperationalView'
@@ -68,9 +69,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
   if (!activeTab) return null
 
   if (activeTab === 'traces' || activeTab === 'debug') {
-    const selectedRun = selectedTraceId
-      ? traces.find(run => run.id === selectedTraceId) ?? null
-      : null
+    const selectedRun = selectedTraceId ? traces.find(run => run.id === selectedTraceId) ?? null : null
     const traceIdentity = selectedRun ? selectedRun.trace_id || selectedRun.id : null
     const runIdentity = selectedRun?.run_id ?? null
     const runFinalizing = selectedRun?.status === 'running' || selectedRun?.status === 'pending'
@@ -92,10 +91,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
               </div>
 
               <nav className="flex border-b border-border bg-background/15 p-[3px]" aria-label="Agent Run detail views">
-                {([
-                  ['run', Activity, 'Run'],
-                  ['evidence', SquareTerminal, 'Evidence'],
-                ] as const).map(([target, Icon, label]) => (
+                {([['run', Activity, 'Run'], ['evidence', SquareTerminal, 'Evidence']] as const).map(([target, Icon, label]) => (
                   <button key={target} type="button" onClick={() => setRunDetailView(target)} className={cn('flex h-[27px] flex-1 items-center justify-center gap-1.5 rounded-technical border font-mono text-[8px] transition-colors', runDetailView === target ? 'border-primary/35 bg-primary/[0.10] text-primary-light' : 'border-transparent text-muted-foreground hover:bg-control/45 hover:text-slate-50')}>
                     <Icon className="h-3 w-3" />{label}
                   </button>
@@ -106,7 +102,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
               {runDetailView === 'evidence' ? <div className="p-3"><AgentRunEvidencePanel runId={runIdentity} traceId={traceIdentity} /></div> : null}
             </>
           ) : (
-            <div className="p-3"><div className="rounded-container border border-dashed border-border bg-background/20 px-4 py-8 text-center"><p className="font-sans text-[10px] leading-4 text-muted-foreground">Select an Agent Run to inspect execution, result, context and evidence.</p></div></div>
+            <div className="p-3"><EmptyStatePanel compact title="Select an Agent Run" description="Inspect execution, result, Context and evidence from one place." /></div>
           )}
         </ScrollArea>
       </div>
@@ -115,13 +111,7 @@ export function OperationsPanel(props: OperationsPanelProps) {
 
   return (
     <div className="flex h-full min-h-0 w-[372px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface/[0.74]">
-      {sessionInteractionBlocked ? (
-        <div className="shrink-0 border-b border-border bg-background/25 px-3 py-2 font-sans text-[9px] leading-4 text-muted-foreground">
-          {streamState === 'stopping'
-            ? 'Stopping the active Agent Run. Session changes unlock after terminal finalization.'
-            : 'An Agent Run is active. Session changes unlock after the Run reaches a terminal state.'}
-        </div>
-      ) : null}
+      {sessionInteractionBlocked ? <div className="shrink-0 border-b border-border bg-background/25 px-3 py-2 font-sans text-[9px] leading-4 text-muted-foreground">{streamState === 'stopping' ? 'Stopping the active Agent Run. Session changes unlock after terminal finalization.' : 'An Agent Run is active. Session changes unlock after the Run reaches a terminal state.'}</div> : null}
       <ScrollArea className={cn('min-h-0 flex-1', sessionInteractionBlocked && 'pointer-events-none opacity-60')}>
         <SessionsPanel sessions={sessions} currentSessionId={sessionId} sessionMode={sessionMode} onSelectSession={onSelectSession} onLoadMoreSessions={onLoadMoreSessions} hasMoreSessions={hasMoreSessions} isInitialLoading={sessionsLoading} isLoadingMore={sessionsLoadingMore} isError={sessionsError} errorMessage={sessionsErrorMessage} onRetry={onSessionsRetry} />
       </ScrollArea>
