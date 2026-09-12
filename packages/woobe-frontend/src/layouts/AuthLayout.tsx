@@ -23,7 +23,7 @@ export function AuthLayout() {
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/45 to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/40 to-transparent"
       />
 
       <main className="relative mx-auto grid min-h-svh w-full max-w-[1440px] lg:grid-cols-[minmax(0,1fr)_480px]">
@@ -55,7 +55,7 @@ export function AuthLayout() {
                 One control surface for configuration, releases, execution, traces, cost and runtime operations.
               </p>
 
-              <Card className="mt-8 overflow-hidden bg-surface/55 shadow-none">
+              <Card className="mt-8 overflow-hidden bg-surface/[0.55] shadow-none">
                 <div className="flex items-center justify-between border-b border-border px-4 py-2.5">
                   <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-muted-foreground">control topology</span>
                   <span className="font-mono text-[10px] text-muted">woobe://control-plane</span>
@@ -104,7 +104,7 @@ export function AuthLayout() {
               <span>secure session</span>
             </div>
 
-            <Card className="border-border/95 bg-surface/88 p-5 shadow-xl shadow-black/15 sm:p-6">
+            <Card className="border-border/95 bg-surface/[0.88] p-5 shadow-xl shadow-black/20 sm:p-6">
               <Outlet />
             </Card>
 
