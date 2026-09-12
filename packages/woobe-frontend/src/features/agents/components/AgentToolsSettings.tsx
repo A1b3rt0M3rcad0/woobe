@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link2, Wrench } from 'lucide-react'
 import { toast } from 'sonner'
+import { EmptyStatePanel, PanelHeader } from '@woobe/ui'
 
 import { Button } from '@/components/ui/Button'
 import { CreateToolModal } from '@/features/playground/components/CreateToolModal'
@@ -57,28 +58,22 @@ export function AgentToolsSettings({ projectId, agentId }: { projectId: string; 
   }
 
   return (
-    <div className="p-3">
+    <div className="p-ui-md">
       <section aria-label="Tools" className="rounded-container border border-border bg-surface/[0.72]">
-        <div className="flex items-start gap-2.5 border-b border-border p-3">
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light"><Wrench className="h-3.5 w-3.5" /></span>
-          <div className="min-w-0"><p className="font-mono text-[9px] font-bold text-slate-50">Tools</p><p className="mt-0.5 font-sans text-[9px] leading-4 text-muted-foreground">{selected.length} bound to this Draft</p></div>
-        </div>
-        <div className="p-3">
-          <p className="font-sans text-[9px] leading-4 text-muted-foreground">Control which Tools this Agent can use.</p>
-          <div className="mt-3 grid grid-cols-2 gap-2">
+        <PanelHeader icon={<Wrench className="h-3.5 w-3.5" />} title="Tools" description={`${selected.length} bound to this Draft`} />
+        <div className="p-ui-md">
+          <p className="font-sans text-product-caption text-muted-foreground">Control which Tools this Agent can use.</p>
+          <div className="mt-ui-md grid grid-cols-2 gap-ui-sm">
             <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}><Link2 className="h-3.5 w-3.5" />Import</Button>
             <Button size="sm" variant="ghost" className="text-primary-light" onClick={() => setCreateOpen(true)}>Create</Button>
           </div>
-          <p className="mb-2 mt-4 font-mono text-[8px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">Bound tools</p>
+          <p className="mb-ui-sm mt-ui-lg font-mono text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">Bound tools</p>
           {toolsQuery.isLoading ? (
-            <p role="status" className="font-mono text-[8px] text-muted-foreground">Loading Tools...</p>
+            <p role="status" className="font-mono text-system-meta text-muted-foreground">Loading Tools...</p>
           ) : selected.length === 0 ? (
-            <div className="rounded-container border border-dashed border-border bg-background/20 p-3">
-              <p className="font-mono text-[9px] font-semibold text-slate-100">No Tools selected</p>
-              <p className="mt-1 font-sans text-[9px] text-muted-foreground">Create or import Tools for this Agent Draft.</p>
-            </div>
+            <EmptyStatePanel compact title="No Tools selected" description="Create or import Tools for this Agent Draft." />
           ) : (
-            <div className="space-y-2.5">
+            <div className="space-y-ui-sm">
               {selected.map((tool) => (
                 <AgentToolCard key={tool.id} context="agent" tool={tool} onChanged={refreshTools} onEdit={() => setEditingTool(tool)} onRemove={() => removeTool(tool)} permissionOverrides={state.toolPermissions[tool.id] || {}} onPermissionOverridesChange={(permissions) => updatePermissions(tool.id, permissions)} />
               ))}
