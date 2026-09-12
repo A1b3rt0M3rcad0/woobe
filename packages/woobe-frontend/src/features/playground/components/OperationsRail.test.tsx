@@ -14,7 +14,7 @@ describe('OperationsRail Session actions', () => {
       />,
     )
 
-    const newSession = html.indexOf('New<br/>Session')
+    const newSession = html.indexOf('aria-label="New Session"')
     const runs = html.indexOf('>Runs<')
     const sessions = html.indexOf('>Sessions<')
 
@@ -22,7 +22,7 @@ describe('OperationsRail Session actions', () => {
     expect(newSession).toBeLessThan(runs)
     expect(runs).toBeLessThan(sessions)
     expect(html).not.toContain('>Debug<')
-    expect(html).toContain('border-primary/40 bg-primary/10')
+    expect(html).toContain('border-primary/35 bg-primary/[0.10]')
   })
 
   it('disables New Session without turning it into a navigation tab', () => {
