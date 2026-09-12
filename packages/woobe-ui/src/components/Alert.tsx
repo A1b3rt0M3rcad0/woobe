@@ -5,10 +5,10 @@ export type AlertVariant = 'default' | 'info' | 'success' | 'warning' | 'destruc
 
 const variantClasses: Record<AlertVariant, string> = {
   default: 'border-border bg-surface text-slate-200',
-  info: 'border-primary/35 bg-primary/[0.07] text-primary-light',
-  success: 'border-emerald-500/35 bg-emerald-500/[0.07] text-emerald-300',
-  warning: 'border-amber-500/35 bg-amber-500/[0.07] text-amber-300',
-  destructive: 'border-red-500/35 bg-red-500/[0.07] text-red-200',
+  info: 'border-primary/30 bg-primary/[0.07] text-primary-light',
+  success: 'border-emerald-500/30 bg-emerald-500/[0.07] text-emerald-300',
+  warning: 'border-amber-500/30 bg-amber-500/[0.07] text-amber-300',
+  destructive: 'border-red-500/30 bg-red-500/[0.07] text-red-200',
 }
 
 export interface AlertProps extends HTMLAttributes<HTMLDivElement> {
@@ -40,7 +40,7 @@ AlertTitle.displayName = 'AlertTitle'
 
 const AlertDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(
   ({ className, ...props }, ref) => (
-    <p ref={ref} className={cn('text-current/90', className)} {...props} />
+    <p ref={ref} className={cn('opacity-90', className)} {...props} />
   ),
 )
 AlertDescription.displayName = 'AlertDescription'
