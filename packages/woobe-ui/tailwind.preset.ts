@@ -86,6 +86,9 @@ const woobeTailwindPreset = {
         inspector: woobeLayout.inspector,
         'inspector-expanded': woobeLayout.inspectorExpanded,
       },
+      inset: {
+        'playground-inspector': woobeLayout.playgroundInspectorTop,
+      },
       screens: woobeBreakpoints,
       boxShadow: {
         none: woobeShadow.none,
