@@ -59,7 +59,7 @@ export function ChatComposer({
     setInput(event.target.value)
     const element = event.target
     element.style.height = 'auto'
-    element.style.height = `${Math.min(element.scrollHeight, 160)}px`
+    element.style.height = `${element.scrollHeight}px`
   }
 
   const resolvedStatus = runtimeBlocked
