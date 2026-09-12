@@ -15,15 +15,15 @@ const EmptyStatePanel = forwardRef<HTMLDivElement, EmptyStatePanelProps>(
       ref={ref}
       className={cn(
         'flex flex-col items-center justify-center rounded-container border border-dashed border-border bg-background/20 text-center',
-        compact ? 'min-h-[92px] px-4 py-4' : 'min-h-[132px] px-5 py-5',
+        compact ? 'min-h-24 px-ui-lg py-ui-lg' : 'min-h-32 px-ui-xl py-ui-xl',
         className,
       )}
       {...props}
     >
-      {icon ? <div className="mb-2 text-muted-foreground">{icon}</div> : null}
-      <div className="font-mono text-[9px] font-semibold leading-4 text-slate-200">{title}</div>
-      {description ? <div className="mt-1 max-w-md font-sans text-[9px] leading-4 text-muted-foreground">{description}</div> : null}
-      {action ? <div className="mt-3">{action}</div> : null}
+      {icon ? <div className="mb-ui-sm text-muted-foreground">{icon}</div> : null}
+      <div className="font-mono text-system-label font-semibold text-slate-200">{title}</div>
+      {description ? <div className="mt-ui-xs max-w-md font-sans text-product-caption text-muted-foreground">{description}</div> : null}
+      {action ? <div className="mt-ui-md">{action}</div> : null}
     </div>
   ),
 )
