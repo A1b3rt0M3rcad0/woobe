@@ -36,7 +36,7 @@ interface DialogProps {
 
 const INTERNAL_SCROLLBAR = 'scrollbar-thin'
 
-const DIALOG_TYPOGRAPHY = [
+export const dialogTypographyClass = [
   'font-sans',
   '[&_h1]:font-mono [&_h2]:font-mono [&_h3]:font-mono [&_h4]:font-mono [&_h5]:font-mono [&_h6]:font-mono',
   '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_select]:font-mono',
@@ -83,7 +83,7 @@ export function Dialog({
       aria-modal={presentation === 'modal' ? true : undefined}
       className={cn(
         'dialog-scrollbars relative w-full max-w-lg rounded-container border border-border bg-surface text-accent-foreground shadow-[0_12px_40px_rgba(0,0,0,0.24)]',
-        DIALOG_TYPOGRAPHY,
+        dialogTypographyClass,
         '[&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-control [&_.rounded-md]:rounded-technical',
         '[&_.shadow-sm]:shadow-none [&_.shadow-lg]:shadow-none [&_.shadow-xl]:shadow-none [&_.shadow-2xl]:shadow-none',
         contentScroll && 'flex max-h-[calc(100svh-2rem)] flex-col overflow-hidden',
