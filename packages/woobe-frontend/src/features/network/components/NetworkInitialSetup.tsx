@@ -22,14 +22,27 @@ export function NetworkInitialSetup({
         icon={<Bot className="h-4 w-4" />}
         title="Choose the entry Agent"
         description="This Agent receives the requests sent to the Network. You can add specialists and delegation paths after validating the first test."
-        actionLabel={hasAgents ? 'Choose Agent' : 'Create first Agent'}
-        onAction={hasAgents ? onChooseAgent : onCreateAgent}
-        secondaryAction={hasAgents ? (
-          <Button type="button" variant="outline" disabled={pending} onClick={onCreateAgent}>
-            <Plus className="mr-1.5 h-3.5 w-3.5" />
-            Create new Agent
-          </Button>
-        ) : undefined}
+        secondaryAction={(
+          <div className="flex flex-col items-center justify-center gap-2 sm:flex-row">
+            {hasAgents ? (
+              <Button type="button" disabled={pending} onClick={onChooseAgent}>
+                <Bot className="mr-1.5 h-3.5 w-3.5" />
+                Choose Agent
+              </Button>
+            ) : (
+              <Button type="button" disabled={pending} onClick={onCreateAgent}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Create first Agent
+              </Button>
+            )}
+            {hasAgents ? (
+              <Button type="button" variant="outline" disabled={pending} onClick={onCreateAgent}>
+                <Plus className="mr-1.5 h-3.5 w-3.5" />
+                Create new Agent
+              </Button>
+            ) : null}
+          </div>
+        )}
         next={[
           'The first node and entry point are persisted together.',
           'A single entry Agent already creates a valid Network for testing.',
