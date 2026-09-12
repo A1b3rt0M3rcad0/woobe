@@ -1,7 +1,7 @@
 import { forwardRef, type HTMLAttributes, type ReactNode } from 'react'
 import { cn } from '../lib/cn'
 
-export interface SectionBlockProps extends HTMLAttributes<HTMLElement> {
+export interface SectionBlockProps extends Omit<HTMLAttributes<HTMLElement>, 'title'> {
   title?: ReactNode
   description?: ReactNode
   actions?: ReactNode
