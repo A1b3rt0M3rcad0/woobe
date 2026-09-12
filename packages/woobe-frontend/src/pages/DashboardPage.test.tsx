@@ -52,7 +52,7 @@ describe('DashboardPage states', () => {
   it('renders distinct Run activity, reliability, issues, and contextual changes', () => {
     const markup = renderToStaticMarkup(<DashboardDataState model={adaptProjectOverview(cloneFixture())} onNavigate={vi.fn()} onOpenRun={vi.fn()} />)
     expect(markup).toContain('Run Activity')
-    expect(markup).toContain('Agent Run line and Network Run bars')
+    expect(markup).toContain('Agent Run area and Network Run bars')
     expect(markup).toContain('Reliability &amp; Performance')
     expect(markup).toContain('operational issue')
     expect(markup).toContain('Released to Production')
