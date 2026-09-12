@@ -70,6 +70,7 @@ const woobeTailwindPreset = {
         'control-sm': woobeControl.height.compact,
         control: woobeControl.height.default,
         'control-lg': woobeControl.height.large,
+        'control-row': woobeControl.height.row,
         'project-sidebar': woobeLayout.projectSidebar,
         'playground-rail': woobeLayout.playgroundRail,
         'operations-panel': woobeLayout.operationsPanel,
