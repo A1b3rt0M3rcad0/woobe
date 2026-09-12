@@ -43,7 +43,7 @@ export const dialogTypographyClass = [
   'font-sans',
   '[&_h1]:font-mono [&_h2]:font-mono [&_h3]:font-mono [&_h4]:font-mono [&_h5]:font-mono [&_h6]:font-mono',
   '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_input]:font-mono [&_input]:text-system-control [&_select]:font-mono',
-  '[&_select]:h-control [&_select]:rounded-control [&_select]:border-border [&_select]:bg-control [&_select]:text-system-control [&_select]:text-slate-100',
+  '[&_select]:h-control [&_select]:rounded-control [&_select]:border-border [&_select]:bg-control [&_select]:text-system-control [&_select]:text-accent-foreground',
   '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
   '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono [&_.font-medium]:font-mono [&_.font-semibold]:font-mono [&_aside]:font-mono',
 ].join(' ')
@@ -98,7 +98,7 @@ export function Dialog({
     >
       <div className="flex h-dialog-header shrink-0 items-center justify-between border-b border-border px-ui-xl">
         {title ? (
-          <h2 id={presentation === 'modal' ? titleId : undefined} className="min-w-0 truncate font-mono text-system-heading font-bold text-slate-50">
+          <h2 id={presentation === 'modal' ? titleId : undefined} className="min-w-0 truncate font-mono text-system-heading font-bold text-accent-foreground">
             {title}
           </h2>
         ) : <span />}
