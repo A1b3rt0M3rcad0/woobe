@@ -1,4 +1,4 @@
-export { woobeColors, type WoobeColors } from './colors'
+export { woobeCodeTheme, woobeColors, type WoobeCodeTheme, type WoobeColors } from './colors'
 export {
   woobeBreakpoints,
   woobeControl,
