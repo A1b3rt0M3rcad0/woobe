@@ -2,6 +2,7 @@ export const woobeTypographyScale = {
   systemMeta: ['0.5rem', { lineHeight: '0.875rem', letterSpacing: '0.02em' }],
   systemLabel: ['0.5625rem', { lineHeight: '0.875rem', letterSpacing: '0.01em' }],
   systemControl: ['0.625rem', { lineHeight: '1rem', letterSpacing: '0' }],
+  systemHeading: ['0.75rem', { lineHeight: '1rem', letterSpacing: '0.01em' }],
   productCaption: ['0.5625rem', { lineHeight: '1rem', letterSpacing: '0' }],
   productSmall: ['0.6875rem', { lineHeight: '1rem', letterSpacing: '0' }],
   productBody: ['0.8125rem', { lineHeight: '1.25rem', letterSpacing: '0' }],
@@ -29,7 +30,11 @@ export const woobeControl = {
     large: '2.375rem',
     row: '2.625rem',
     header: '3rem',
+    dialogHeader: '3.25rem',
     workspaceHeader: '3.375rem',
+  },
+  minHeight: {
+    textarea: '5.75rem',
   },
   icon: {
     small: '0.75rem',
