@@ -16,16 +16,12 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
     const contentGap = hasChildren ? (density === 'compact' ? 'mb-ui-md' : 'mb-ui-lg') : undefined
 
     return (
-      <section
-        ref={ref}
-        className={cn('rounded-container border border-border bg-surface/70', spacing, className)}
-        {...props}
-      >
+      <section ref={ref} className={cn('rounded-container border border-border bg-surface/70', spacing, className)} {...props}>
         {(title || description || actions || eyebrow) ? (
           <div className={cn('flex items-start justify-between gap-ui-md', contentGap)}>
             <div className="min-w-0">
-              {eyebrow ? <div className="mb-ui-xs font-mono text-system-meta uppercase tracking-[0.12em] text-muted-foreground">{eyebrow}</div> : null}
-              {title ? <div className="font-mono text-system-control font-semibold text-slate-50">{title}</div> : null}
+              {eyebrow ? <div className="mb-ui-xs font-mono text-system-meta uppercase tracking-ui-eyebrow text-muted-foreground">{eyebrow}</div> : null}
+              {title ? <div className="font-mono text-system-control font-semibold text-accent-foreground">{title}</div> : null}
               {description ? <div className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{description}</div> : null}
             </div>
             {actions ? <div className="shrink-0">{actions}</div> : null}
