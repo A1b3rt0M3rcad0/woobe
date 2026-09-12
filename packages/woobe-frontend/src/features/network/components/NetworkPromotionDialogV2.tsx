@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Bot, CheckCircle2, Crown, GitBranch, ShieldCheck, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 
+import { dialogTypographyClass } from '@/components/ui/Dialog'
 import type { Agent } from '@/features/agents/types'
 import { previewNetworkPromotion } from '../api'
 import type { NetworkDefinition, PromotionPreview, PromotionPreviewNode } from '../types'
@@ -96,13 +97,15 @@ export function NetworkPromotionDialog({
     ? `${preview?.draft_promotions ?? actionCount} Draft promotion${(preview?.draft_promotions ?? actionCount) === 1 ? '' : 's'} · ${preview?.staging_retained ?? 0} Staging retained · ${preview?.releases_retained ?? 0} Release${(preview?.releases_retained ?? 0) === 1 ? '' : 's'} retained`
     : `${preview?.release_promotions ?? actionCount} Agent Release${(preview?.release_promotions ?? actionCount) === 1 ? '' : 's'} created · ${preview?.releases_retained ?? 0} existing Release${(preview?.releases_retained ?? 0) === 1 ? '' : 's'} retained · 0 Agent Productions changed`
 
+  const title = environment === 'staging' ? 'Create immutable Network Staging?' : 'Publish immutable Network Release?'
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl">
+      <div role="dialog" aria-modal="true" aria-label={title} className={`${dialogTypographyClass} flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl`}>
         <header className="flex items-start gap-3 border-b border-border p-5">
           <div className="min-w-0 flex-1">
             <p className="text-[9px] font-semibold uppercase tracking-widest text-primary-light">{environment === 'staging' ? 'Draft → Network Staging' : 'Network Staging → Network Release'}</p>
-            <h2 className="mt-1 text-base font-semibold text-white">{environment === 'staging' ? 'Create immutable Network Staging?' : 'Publish immutable Network Release?'}</h2>
+            <h2 className="mt-1 text-base font-semibold text-white">{title}</h2>
             <p className="mt-1 text-[10px] leading-4 text-muted">The source Network snapshot remains unchanged. Only incompatible Agent bindings require a new snapshot.</p>
           </div>
           <button type="button" onClick={onClose} className="rounded-lg border border-border p-2 text-muted hover:text-white"><X className="h-4 w-4" /></button>
