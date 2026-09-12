@@ -12,14 +12,15 @@ interface TabsProps {
   tabs: Tab[]
   defaultTab?: string
   className?: string
+  contentClassName?: string
 }
 
-export function Tabs({ tabs, defaultTab, className }: TabsProps) {
+export function Tabs({ tabs, defaultTab, className, contentClassName }: TabsProps) {
   const [active, setActive] = useState(defaultTab || tabs[0]?.id)
 
   return (
     <div className={cn('w-full', className)}>
-      <ScrollArea orientation="horizontal" className="border-b border-border pb-3">
+      <ScrollArea orientation="horizontal" className="shrink-0 border-b border-border pb-3">
         <div className="inline-flex min-w-max rounded-control border border-border bg-control p-[3px]">
           {tabs.map((tab) => (
             <button
@@ -38,7 +39,7 @@ export function Tabs({ tabs, defaultTab, className }: TabsProps) {
           ))}
         </div>
       </ScrollArea>
-      <div className="mt-4">
+      <div className={cn('mt-4', contentClassName)}>
         {tabs.find((tab) => tab.id === active)?.content}
       </div>
     </div>
