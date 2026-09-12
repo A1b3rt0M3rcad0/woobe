@@ -5,4 +5,6 @@ export { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 export { Dialog, type DialogProps } from './components/Dialog'
 export { Field, FieldDescription, FieldError, FieldLabel } from './components/Field'
 export { Input, type InputProps } from './components/Input'
+export { Select, type SelectOption, type SelectProps } from './components/Select'
+export { Textarea, type TextareaProps } from './components/Textarea'
 export { woobeColors, woobeRadius, woobeTypography, type WoobeColors } from './tokens'
