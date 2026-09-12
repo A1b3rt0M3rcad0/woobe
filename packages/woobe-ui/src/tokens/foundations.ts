@@ -78,6 +78,7 @@ export const woobeLayout = {
   conversationIndent: '3.625rem',
   conversationContentMax: '80%',
   conversationContentCompactMax: '88%',
+  contentTableCellMin: '9rem',
   resourceMax: '93.75rem',
   resourceWideMax: '100rem',
   dialogCompact: '32.5rem',
