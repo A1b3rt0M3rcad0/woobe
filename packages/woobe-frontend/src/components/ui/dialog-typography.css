@@ -107,13 +107,16 @@
   box-shadow: none !important;
 }
 
-/*
- * Legacy modal density normalization.
- * New Woobe forms already use explicit 8-10px technical scales. Older feature
- * dialogs often used text-sm/text-xs or 11px labels; normalize those patterns
- * so they visually match the Create API Key composition without rewriting
- * domain behavior.
- */
+/* Legacy modal density normalization. */
+:where(
+  [role='dialog'],
+  [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
+) :is(h2.text-base, h2.text-lg, h3.text-base, h3.text-lg) {
+  font-size: 11px !important;
+  line-height: 1rem !important;
+  letter-spacing: 0.01em;
+}
+
 :where(
   [role='dialog'],
   [class~='fixed'][class~='inset-0'] > [class*='bg-surface']
