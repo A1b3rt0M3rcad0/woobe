@@ -1,0 +1,16 @@
+{
+  "name": "@woobe/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./components/*": "./src/components/*.tsx",
+    "./tokens": "./src/tokens/index.ts",
+    "./tailwind-preset": "./tailwind.preset.ts"
+  },
+  "peerDependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  }
+}
