@@ -66,6 +66,7 @@ export const woobeLayout = {
   dialogWide: '68.75rem',
   dialogSidebar: '15.625rem',
   dialogContentMax: '47.5rem',
+  dialogMaxHeight: 'calc(100svh - 2rem)',
   dialogWorkspaceHeight: 'min(40rem, calc(100svh - 7rem))',
 } as const
 
