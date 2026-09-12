@@ -23,7 +23,9 @@ export default function LoginPage() {
 
   return (
     <div>
-      <h1 className="mb-6 text-xl font-semibold tracking-tight text-slate-50">Sign in to Woobe</h1>
+      <h1 className="mb-6 font-mono text-base font-bold tracking-[0.01em] text-slate-50">
+        Sign in to Woobe
+      </h1>
 
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
         <Field>
@@ -59,22 +61,22 @@ export default function LoginPage() {
         </Field>
 
         {errors.root && (
-          <Alert variant="destructive" className="flex items-start gap-2.5">
+          <Alert variant="destructive" className="flex items-start gap-2.5 font-mono text-[9px]">
             <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-300" />
             <p>{errors.root.message}</p>
           </Alert>
         )}
 
-        <Button type="submit" loading={isSubmitting} className="h-10 w-full">
+        <Button type="submit" loading={isSubmitting} className="w-full">
           Sign in
         </Button>
       </form>
 
-      <div className="mt-6 border-t border-border pt-4 text-center text-xs text-muted-foreground">
+      <div className="mt-6 border-t border-border pt-4 text-center font-mono text-[10px] text-muted-foreground">
         Don&apos;t have an account?{' '}
         <Link
           to="/register"
-          className="font-medium text-primary-light transition-colors hover:text-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
+          className="font-medium text-primary-light transition-colors hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
         >
           Create workspace
         </Link>
