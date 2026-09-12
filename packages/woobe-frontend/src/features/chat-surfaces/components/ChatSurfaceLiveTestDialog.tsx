@@ -172,8 +172,8 @@ export function ChatSurfaceLiveTestDialog({
       open={open}
       onClose={onClose}
       title="Test ChatSurface"
-      className="h-[min(720px,calc(100svh-2rem))] max-w-[1180px] overflow-hidden"
-      contentClassName="h-full min-h-0 p-0"
+      className="flex h-[min(720px,calc(100svh-2rem))] max-w-[1180px] flex-col overflow-hidden"
+      contentClassName="min-h-0 flex-1 p-0"
     >
       <div className="grid h-full min-h-0 lg:grid-cols-[minmax(0,1fr)_264px]">
         <div className="min-h-0 bg-background/55 p-3 sm:p-4">
