@@ -4,6 +4,7 @@ import {
   woobeControl,
   woobeLayers,
   woobeLayout,
+  woobePattern,
   woobeRadius,
   woobeShadow,
   woobeSpacing,
@@ -122,6 +123,12 @@ const woobeTailwindPreset = {
       },
       gridTemplateColumns: {
         'dialog-split': `${woobeLayout.dialogSidebar} minmax(0, 1fr)`,
+      },
+      backgroundImage: {
+        'technical-grid': woobePattern.technicalGridImage,
+      },
+      backgroundSize: {
+        'technical-grid': woobePattern.technicalGridSize,
       },
       screens: woobeBreakpoints,
       boxShadow: {
