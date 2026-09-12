@@ -4,11 +4,11 @@ import { cn } from '../lib/cn'
 export type AlertVariant = 'default' | 'info' | 'success' | 'warning' | 'destructive'
 
 const variantClasses: Record<AlertVariant, string> = {
-  default: 'border-border bg-surface text-slate-200',
+  default: 'border-border bg-surface text-accent-foreground/85',
   info: 'border-primary/30 bg-primary/[0.07] text-primary-light',
-  success: 'border-emerald-500/30 bg-emerald-500/[0.07] text-emerald-300',
-  warning: 'border-amber-500/30 bg-amber-500/[0.07] text-amber-300',
-  destructive: 'border-red-500/25 bg-control/80 text-red-200',
+  success: 'border-success/30 bg-success/[0.07] text-success',
+  warning: 'border-warning/30 bg-warning/[0.07] text-warning',
+  destructive: 'border-error/25 bg-control/80 text-error',
 }
 
 export interface AlertProps extends HTMLAttributes<HTMLDivElement> {
