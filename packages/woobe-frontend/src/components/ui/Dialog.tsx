@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { cn } from '@/lib/utils'
 import { UI_LAYER_CLASS, type DialogLayer } from '@/lib/ui-layers'
 import { X } from 'lucide-react'
+import './dialog-typography.css'
 
 type DialogPresentation = 'modal' | 'embedded'
 type DialogScrollMode = 'overlay' | 'content'
