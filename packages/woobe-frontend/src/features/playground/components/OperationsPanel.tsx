@@ -76,37 +76,37 @@ export function OperationsPanel(props: OperationsPanelProps) {
     const runFinalizing = selectedRun?.status === 'running' || selectedRun?.status === 'pending'
 
     return (
-      <div className="w-[400px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border/90 bg-surface/70 shadow-sm shadow-black/5 flex flex-col">
-        <ScrollArea className="flex-shrink-0 max-h-[260px] border-b border-border/90 bg-background/20">
+      <div className="flex h-full min-h-0 w-[372px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface/[0.74]">
+        <ScrollArea className="max-h-[238px] flex-shrink-0 border-b border-border bg-background/15">
           <TraceList traces={traces} selectedTraceId={selectedTraceId} onSelectTrace={onSelectTrace} isLoading={tracesLoading} isError={tracesError} errorMessage={tracesErrorMessage} onRetry={onTracesRetry} hasSessionId={Boolean(sessionId)} />
         </ScrollArea>
-        <ScrollArea className="flex-1 min-h-0">
+        <ScrollArea className="min-h-0 flex-1">
           {selectedRun ? (
             <>
-              <div className="flex items-center justify-between border-b border-border/90 bg-background/25 px-4 py-3">
-                <div>
-                  <h3 className="text-sm font-medium text-white">Agent Run Detail</h3>
-                  <p className="mt-0.5 text-[10px] text-muted">Execution, result, and Context together; technical evidence stays separate</p>
+              <div className="flex min-h-[44px] items-center justify-between border-b border-border bg-background/20 px-3 py-2.5">
+                <div className="min-w-0">
+                  <h3 className="font-mono text-[9px] font-bold text-slate-50">Agent Run detail</h3>
+                  <p className="mt-0.5 truncate font-sans text-[9px] text-muted-foreground">Execution first; raw evidence remains separate.</p>
                 </div>
-                <button type="button" onClick={() => onSelectTrace(null)} className="rounded-lg border border-transparent p-1 text-muted transition-colors hover:border-border/80 hover:bg-background/60 hover:text-white" aria-label="Close Agent Run details"><X className="h-4 w-4" /></button>
+                <button type="button" onClick={() => onSelectTrace(null)} className="flex h-7 w-7 items-center justify-center rounded-control border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50" aria-label="Close Agent Run details"><X className="h-3.5 w-3.5" /></button>
               </div>
 
-              <nav className="grid grid-cols-2 border-b border-border/90 bg-background/20 p-1.5" aria-label="Agent Run detail views">
+              <nav className="flex border-b border-border bg-background/15 p-[3px]" aria-label="Agent Run detail views">
                 {([
                   ['run', Activity, 'Run'],
                   ['evidence', SquareTerminal, 'Evidence'],
                 ] as const).map(([target, Icon, label]) => (
-                  <button key={target} type="button" onClick={() => setRunDetailView(target)} className={cn('flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[9px] font-medium transition-colors', runDetailView === target ? 'bg-primary/10 text-primary-light' : 'text-muted hover:text-white')}>
-                    <Icon className="h-3.5 w-3.5" />{label}
+                  <button key={target} type="button" onClick={() => setRunDetailView(target)} className={cn('flex h-[27px] flex-1 items-center justify-center gap-1.5 rounded-technical border font-mono text-[8px] transition-colors', runDetailView === target ? 'border-primary/35 bg-primary/[0.10] text-primary-light' : 'border-transparent text-muted-foreground hover:bg-control/45 hover:text-slate-50')}>
+                    <Icon className="h-3 w-3" />{label}
                   </button>
                 ))}
               </nav>
 
               {runDetailView === 'run' ? <AgentRunOperationalView runId={runIdentity} traceId={traceIdentity} finalizing={runFinalizing} /> : null}
-              {runDetailView === 'evidence' ? <div className="p-4"><AgentRunEvidencePanel runId={runIdentity} traceId={traceIdentity} /></div> : null}
+              {runDetailView === 'evidence' ? <div className="p-3"><AgentRunEvidencePanel runId={runIdentity} traceId={traceIdentity} /></div> : null}
             </>
           ) : (
-            <div className="p-4 text-center"><div className="rounded-xl border border-border/80 bg-background/45 px-4 py-8"><p className="text-sm text-muted">Select an Agent Run to inspect its execution, result, Context, and evidence.</p></div></div>
+            <div className="p-3"><div className="rounded-container border border-dashed border-border bg-background/20 px-4 py-8 text-center"><p className="font-sans text-[10px] leading-4 text-muted-foreground">Select an Agent Run to inspect execution, result, context and evidence.</p></div></div>
           )}
         </ScrollArea>
       </div>
@@ -114,15 +114,15 @@ export function OperationsPanel(props: OperationsPanelProps) {
   }
 
   return (
-    <div className="w-[400px] shrink-0 h-full min-h-0 overflow-hidden border-r border-border/90 bg-surface/70 shadow-sm shadow-black/5 flex flex-col">
+    <div className="flex h-full min-h-0 w-[372px] shrink-0 flex-col overflow-hidden border-r border-border bg-surface/[0.74]">
       {sessionInteractionBlocked ? (
-        <div className="shrink-0 border-b border-border/90 bg-background/35 px-4 py-2 text-[10px] text-muted">
+        <div className="shrink-0 border-b border-border bg-background/25 px-3 py-2 font-sans text-[9px] leading-4 text-muted-foreground">
           {streamState === 'stopping'
             ? 'Stopping the active Agent Run. Session changes unlock after terminal finalization.'
             : 'An Agent Run is active. Session changes unlock after the Run reaches a terminal state.'}
         </div>
       ) : null}
-      <ScrollArea className={cn('flex-1 min-h-0', sessionInteractionBlocked && 'pointer-events-none opacity-60')}>
+      <ScrollArea className={cn('min-h-0 flex-1', sessionInteractionBlocked && 'pointer-events-none opacity-60')}>
         <SessionsPanel sessions={sessions} currentSessionId={sessionId} sessionMode={sessionMode} onSelectSession={onSelectSession} onLoadMoreSessions={onLoadMoreSessions} hasMoreSessions={hasMoreSessions} isInitialLoading={sessionsLoading} isLoadingMore={sessionsLoadingMore} isError={sessionsError} errorMessage={sessionsErrorMessage} onRetry={onSessionsRetry} />
       </ScrollArea>
     </div>
