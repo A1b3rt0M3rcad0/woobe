@@ -2,6 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react'
 import CodeMirror from '@uiw/react-codemirror'
 import { json } from '@codemirror/lang-json'
 import { Copy, Check, Paintbrush, AlertCircle, X } from 'lucide-react'
+import { woobeLayout } from '@woobe/ui'
 import { cn } from '@/lib/utils'
 import { formatJsonSafely, validateJson, type ValidationResult } from '@/lib/json-utils'
 import { jsonDarkTheme, jsonSyntaxHighlight } from './json-cm-theme'
@@ -13,13 +14,18 @@ interface JsonEditorProps {
   editable?: boolean
   title?: string
   actions?: ('format' | 'validate' | 'copy' | 'clear')[]
-  minHeight?: number
+  minHeight?: number | string
   maxHeight?: number | string
   placeholder?: string
   disabled?: boolean
   className?: string
   error?: string | null
   hideError?: boolean
+}
+
+function cssSize(value?: number | string) {
+  if (value === undefined) return undefined
+  return typeof value === 'number' ? `${value}px` : value
 }
 
 export function JsonEditor({
@@ -29,8 +35,8 @@ export function JsonEditor({
   editable = true,
   title,
   actions = ['format', 'validate'],
-  minHeight = 180,
-  maxHeight,
+  minHeight = woobeLayout.codeEditorCompact,
+  maxHeight = woobeLayout.codeEditorMax,
   placeholder,
   disabled = false,
   className,
@@ -55,9 +61,7 @@ export function JsonEditor({
       onChange?.(val)
       if (val.trim()) {
         const result = formatJsonSafely(val)
-        if (result.ok && onValidJsonChange) {
-          onValidJsonChange(JSON.parse(val))
-        }
+        if (result.ok && onValidJsonChange) onValidJsonChange(JSON.parse(val))
       }
       if (validation) setValidation(null)
     },
@@ -78,9 +82,7 @@ export function JsonEditor({
     const result = validateJson(internalValue)
     setValidation(result)
     if (result.valid && onValidJsonChange) {
-      try {
-        onValidJsonChange(JSON.parse(internalValue))
-      } catch {}
+      try { onValidJsonChange(JSON.parse(internalValue)) } catch {}
     }
   }, [internalValue, onValidJsonChange])
 
@@ -101,68 +103,40 @@ export function JsonEditor({
     if (validation && !validation.valid) {
       const { error, line, col } = validation
       let msg = error
-      if (line != null && col != null) {
-        msg += ` (line ${line}, col ${col})`
-      } else if (line != null) {
-        msg += ` (line ${line})`
-      }
+      if (line != null && col != null) msg += ` (line ${line}, col ${col})`
+      else if (line != null) msg += ` (line ${line})`
       return msg
     }
     return null
   }, [externalError, validation])
 
   const validationSuccess = validation?.valid === true
-
   const hasTopBar = title || (editable && actions.length > 0)
-  const maxH = maxHeight ? (typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight) : undefined
 
   return (
-    <div className={cn('space-y-2', className)}>
+    <div className={cn('space-y-ui-sm', className)}>
       {hasTopBar && (
-        <div className="flex items-center justify-between gap-2">
-          {title && <span className="text-xs font-medium text-muted truncate">{title}</span>}
+        <div className="flex items-center justify-between gap-ui-sm">
+          {title && <span className="truncate font-mono text-system-label font-medium text-muted-foreground">{title}</span>}
           {editable && actions.length > 0 && (
-            <div className="flex items-center gap-1 shrink-0">
+            <div className="flex shrink-0 items-center gap-ui-xs">
               {actions.includes('format') && (
-                <button
-                  type="button"
-                  onClick={handleFormat}
-                  className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted hover:text-white hover:bg-accent transition-colors"
-                  title="Format JSON"
-                >
-                  <Paintbrush className="h-3 w-3" />
-                  Format
+                <button type="button" onClick={handleFormat} className="inline-flex h-control-segment items-center gap-ui-xs rounded-control border border-transparent px-ui-sm font-mono text-system-meta text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-slate-50" title="Format JSON">
+                  <Paintbrush className="h-3 w-3" />Format
                 </button>
               )}
               {actions.includes('validate') && (
-                <button
-                  type="button"
-                  onClick={handleValidate}
-                  className="inline-flex items-center gap-1 rounded px-2 py-1 text-[11px] font-medium text-muted hover:text-white hover:bg-accent transition-colors"
-                  title={`Validate JSON${validationSuccess ? ' — Valid!' : ''}`}
-                >
-                  <AlertCircle className="h-3 w-3" />
-                  Validate
-                  {validationSuccess && <Check className="h-3 w-3 text-emerald-400" />}
+                <button type="button" onClick={handleValidate} className="inline-flex h-control-segment items-center gap-ui-xs rounded-control border border-transparent px-ui-sm font-mono text-system-meta text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-slate-50" title={`Validate JSON${validationSuccess ? ' — Valid!' : ''}`}>
+                  <AlertCircle className="h-3 w-3" />Validate{validationSuccess && <Check className="h-3 w-3 text-emerald-400" />}
                 </button>
               )}
               {actions.includes('copy') && internalValue && (
-                <button
-                  type="button"
-                  onClick={handleCopy}
-                  className="p-1 rounded text-muted hover:text-white hover:bg-accent transition-colors"
-                  title={copied ? 'Copied!' : 'Copy'}
-                >
+                <button type="button" onClick={handleCopy} className="flex h-control-segment w-control-segment items-center justify-center rounded-control border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-slate-50" title={copied ? 'Copied!' : 'Copy'}>
                   {copied ? <Check className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
                 </button>
               )}
               {actions.includes('clear') && internalValue && (
-                <button
-                  type="button"
-                  onClick={handleClear}
-                  className="p-1 rounded text-muted hover:text-white hover:bg-accent transition-colors"
-                  title="Clear"
-                >
+                <button type="button" onClick={handleClear} className="flex h-control-segment w-control-segment items-center justify-center rounded-control border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-accent hover:text-slate-50" title="Clear">
                   <X className="h-3.5 w-3.5" />
                 </button>
               )}
@@ -172,39 +146,32 @@ export function JsonEditor({
       )}
       <div
         className={cn(
-          'rounded-lg border scrollbar-thin overflow-auto transition-colors',
-          errorMessage ? 'border-rose-500/50' : validationSuccess ? 'border-emerald-500/50' : 'border-[#24324A]',
+          'overflow-auto rounded-container border bg-background/30 scrollbar-thin transition-colors',
+          errorMessage ? 'border-red-500/50' : validationSuccess ? 'border-emerald-500/50' : 'border-border',
         )}
-        style={{ minHeight: `${minHeight}px`, maxHeight: maxH }}
+        style={{ minHeight: cssSize(minHeight), maxHeight: cssSize(maxHeight) }}
       >
         <CodeMirror
           value={internalValue}
           onChange={handleChange}
           extensions={[json(), jsonDarkTheme, jsonSyntaxHighlight]}
           readOnly={!editable || disabled}
-          basicSetup={{
-            lineNumbers: true,
-            foldGutter: true,
-            highlightActiveLine: true,
-            highlightActiveLineGutter: true,
-          }}
+          basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: true, highlightActiveLineGutter: true }}
           placeholder={placeholder}
-          className={cn(
-            disabled && 'opacity-50 pointer-events-none',
-          )}
+          className={cn(disabled && 'pointer-events-none opacity-50')}
           theme="none"
         />
       </div>
       {!hideError && errorMessage && (
-        <div className="flex items-start gap-1.5 rounded-md bg-rose-500/10 border border-rose-500/20 px-2.5 py-1.5">
-          <AlertCircle className="h-3.5 w-3.5 text-rose-400 shrink-0 mt-0.5" />
-          <p className="text-[11px] text-rose-300 leading-relaxed">{errorMessage}</p>
+        <div className="flex items-start gap-ui-xs rounded-container border border-red-500/20 bg-red-500/10 px-ui-sm py-ui-sm">
+          <AlertCircle className="mt-ui-hairline h-3.5 w-3.5 shrink-0 text-red-400" />
+          <p className="font-sans text-product-small text-red-300">{errorMessage}</p>
         </div>
       )}
       {!hideError && validationSuccess && (
-        <div className="flex items-center gap-1.5 rounded-md bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1.5">
-          <Check className="h-3.5 w-3.5 text-emerald-400 shrink-0" />
-          <p className="text-[11px] text-emerald-300">Valid JSON</p>
+        <div className="flex items-center gap-ui-xs rounded-container border border-emerald-500/20 bg-emerald-500/10 px-ui-sm py-ui-sm">
+          <Check className="h-3.5 w-3.5 shrink-0 text-emerald-400" />
+          <p className="font-sans text-product-small text-emerald-300">Valid JSON</p>
         </div>
       )}
     </div>
