@@ -23,7 +23,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
 
     const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
       onKeyDown?.(event)
-      if (event.defaultPrevented || disabled || !interactive) return
+      if (event.defaultPrevented || disabled || !interactive || event.target !== event.currentTarget) return
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
         event.currentTarget.click()
@@ -41,9 +41,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
         onKeyDown={handleKeyDown}
         className={cn(
           'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2.5 rounded-container border px-3 py-2.5 text-left transition-colors',
-          selected
-            ? 'border-primary/35 bg-primary/[0.08]'
-            : 'border-border/75 bg-background/25',
+          selected ? 'border-primary/35 bg-primary/[0.08]' : 'border-border/75 bg-background/25',
           interactive && !disabled && !selected && 'cursor-pointer hover:border-primary/25 hover:bg-control/35',
           interactive && !disabled && selected && 'cursor-pointer hover:bg-primary/[0.11]',
           disabled && 'cursor-not-allowed opacity-50',
