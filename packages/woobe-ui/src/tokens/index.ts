@@ -1,4 +1,14 @@
 export { woobeColors, type WoobeColors } from './colors'
+export {
+  woobeBreakpoints,
+  woobeControl,
+  woobeDensity,
+  woobeLayers,
+  woobeLayout,
+  woobeShadow,
+  woobeSpacing,
+  woobeTypographyScale,
+} from './foundations'
 
 export const woobeTypography = {
   sans: ['Inter', 'system-ui', 'sans-serif'],
