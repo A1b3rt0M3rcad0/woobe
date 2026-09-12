@@ -20,7 +20,7 @@ function Badge({ className, variant = 'default', ...props }: BadgeProps) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-technical border px-2 py-1 font-mono text-[9px] font-medium leading-none',
+        'inline-flex items-center gap-ui-xs rounded-technical border px-ui-sm py-ui-xs font-mono text-system-label font-medium leading-none',
         variantClasses[variant],
         className,
       )}
