@@ -166,7 +166,7 @@ export function SessionsPanel({
                 selected={isCurrent}
                 onClick={() => onSelectSession(session.id)}
                 disabled={runtimeBusy}
-                title={session.id.slice(0, 8) + '…'}
+                label={session.id.slice(0, 8) + '…'}
                 description={openedVersion ? `Opened · ${openedVersion}` : undefined}
                 leading={<Circle className={cn('h-2 w-2 fill-current', isCurrent ? 'text-primary-light' : 'text-muted-foreground')} />}
                 trailing={isCurrent ? <span className="font-mono text-[8px] uppercase text-primary-light">Selected</span> : undefined}
