@@ -1,6 +1,5 @@
 import { Plus } from 'lucide-react'
 import type { ButtonHTMLAttributes } from 'react'
-
 import { cn } from '@/lib/utils'
 
 type CreateResourceCardProps = ButtonHTMLAttributes<HTMLButtonElement> & {
@@ -10,39 +9,30 @@ type CreateResourceCardProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 }
 
 const minHeightClass: Record<NonNullable<CreateResourceCardProps['minHeight']>, string> = {
-  sm: 'min-h-[220px]',
-  md: 'min-h-[250px]',
-  lg: 'min-h-[260px]',
+  sm: 'min-h-[132px]',
+  md: 'min-h-[152px]',
+  lg: 'min-h-[176px]',
 }
 
-export function CreateResourceCard({
-  title,
-  description,
-  minHeight = 'md',
-  className,
-  disabled,
-  type = 'button',
-  ...props
-}: CreateResourceCardProps) {
+export function CreateResourceCard({ title, description, minHeight = 'md', className, disabled, type = 'button', ...props }: CreateResourceCardProps) {
   return (
     <button
       type={type}
       disabled={disabled}
       className={cn(
-        'group flex flex-col items-center justify-center rounded-xl border border-dashed border-primary/40 bg-surface/35 p-6 text-center transition-[border-color,background-color,box-shadow] duration-200',
-        'hover:border-primary/60 hover:bg-primary/5 hover:shadow-lg hover:shadow-primary/5',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background',
-        'disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:border-primary/40 disabled:hover:bg-surface/35 disabled:hover:shadow-none',
+        'group flex flex-col items-start justify-center rounded-container border border-dashed border-border bg-surface/35 p-4 text-left transition-colors',
+        'hover:border-primary/45 hover:bg-primary/[0.035] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30',
+        'disabled:cursor-not-allowed disabled:opacity-45',
         minHeightClass[minHeight],
         className,
       )}
       {...props}
     >
-      <span className="flex h-14 w-14 items-center justify-center rounded-full border border-primary/50 bg-primary/10 text-primary-light transition-colors duration-200 group-hover:bg-primary/15">
-        <Plus className="h-6 w-6" />
+      <span className="flex h-7 w-7 items-center justify-center rounded-control border border-primary/30 bg-primary/[0.07] text-primary-light">
+        <Plus className="h-3.5 w-3.5" />
       </span>
-      <span className="mt-5 text-base font-semibold text-white">{title}</span>
-      <span className="mt-2 max-w-[260px] text-sm leading-6 text-muted">{description}</span>
+      <span className="mt-3 font-mono text-[11px] font-semibold text-slate-100">{title}</span>
+      <span className="mt-1 max-w-[300px] font-sans text-xs leading-5 text-muted">{description}</span>
     </button>
   )
 }
