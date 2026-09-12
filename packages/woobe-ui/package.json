@@ -9,6 +9,9 @@
     "./tokens": "./src/tokens/index.ts",
     "./tailwind-preset": "./tailwind.preset.ts"
   },
+  "dependencies": {
+    "tailwind-merge": "^3.0.0"
+  },
   "peerDependencies": {
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
