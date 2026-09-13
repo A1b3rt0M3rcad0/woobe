@@ -49,8 +49,19 @@
   line-height: 1rem !important;
 }
 
+.resource-page-shell :is(button.text-sm, label.text-sm) {
+  font-size: 0.625rem !important;
+  line-height: 0.875rem !important;
+}
+
 /* Legacy supporting copy is metadata, not body text. */
-.resource-page-shell :is(p.text-xs, span.text-xs, code.text-xs) {
+.resource-page-shell :is(p.text-xs, span.text-xs, code.text-xs, button.text-xs, label.text-xs) {
+  font-size: 0.5625rem !important;
+  line-height: 0.875rem !important;
+}
+
+/* Raw 8px feature metadata predates the approved readable 9px metadata tier. */
+.resource-page-shell [class~='text-[8px]'] {
   font-size: 0.5625rem !important;
   line-height: 0.875rem !important;
 }
