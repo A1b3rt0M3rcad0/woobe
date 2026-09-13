@@ -224,7 +224,8 @@
 /* Project sidebar. Width, header height and type hierarchy are package-level
  * foundations; navigation/content grouping remains feature-owned. */
 .w-project-sidebar {
-  @apply w-project-sidebar !important;
+  width: theme('width.project-sidebar') !important;
+  min-width: theme('width.project-sidebar') !important;
 }
 
 .w-project-sidebar > header {
