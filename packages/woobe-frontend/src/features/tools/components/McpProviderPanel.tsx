@@ -363,7 +363,7 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
         {footerActions}
       </div>
 
-      {diagnostic ? <p className="mt-ui-xs line-clamp-2 px-ui-xs font-mono text-system-meta leading-ui-dense text-amber-200">{state.message}</p> : null}
+      {diagnostic ? <p className="mt-ui-xs line-clamp-2 px-ui-xs font-mono text-system-meta leading-4 text-amber-200">{state.message}</p> : null}
       {state.oauth_connected ? (
         <button type="button" onClick={() => void handleDisconnect()} className="mt-ui-xs px-ui-xs font-mono text-system-micro text-muted-foreground hover:text-white">Disconnect</button>
       ) : null}
