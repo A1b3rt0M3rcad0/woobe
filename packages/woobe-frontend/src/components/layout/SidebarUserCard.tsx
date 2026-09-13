@@ -36,12 +36,12 @@ export function SidebarUserCard({ variant = 'default' }: { variant?: 'default' |
               onClick={() => setShowAccount(true)}
               aria-label="Open account settings"
             >
-              <div className="flex h-control-sm w-control-sm shrink-0 items-center justify-center rounded-control border border-primary/30 bg-control font-mono text-system-label font-bold text-slate-100">
+              <div className="flex h-control-sm w-control-sm shrink-0 items-center justify-center rounded-control border border-primary/30 bg-control font-mono text-chrome-label font-semibold text-slate-100">
                 {getInitials(user?.email)}
               </div>
               <div className="min-w-0 flex-1">
-                <p className="truncate font-mono text-system-control font-medium text-slate-100">{user?.email?.split('@')[0] || 'User'}</p>
-                <p className="mt-ui-xs truncate font-mono text-system-meta text-muted-foreground">{user?.email || 'Signed in'}</p>
+                <p className="truncate font-sans text-product-small font-medium text-slate-100">{user?.email?.split('@')[0] || 'User'}</p>
+                <p className="mt-ui-xs truncate font-sans text-product-caption text-muted-foreground">{user?.email || 'Signed in'}</p>
               </div>
               <Settings className="h-icon w-icon shrink-0 text-muted-foreground transition-colors group-hover:text-slate-100" />
             </button>
@@ -70,12 +70,12 @@ export function SidebarUserCard({ variant = 'default' }: { variant?: 'default' |
             onClick={() => setShowAccount(true)}
             aria-label="Open account settings"
           >
-            <div className="flex h-control w-control shrink-0 items-center justify-center rounded-control border border-primary/25 bg-control font-mono text-system-label font-semibold text-primary-light">
+            <div className="flex h-control w-control shrink-0 items-center justify-center rounded-control border border-primary/25 bg-control font-mono text-chrome-label font-semibold text-primary-light">
               {getInitials(user?.email)}
             </div>
             <div className="min-w-0 flex-1">
-              <p className="truncate font-mono text-system-control font-medium text-slate-100">{user?.email?.split('@')[0] || 'User'}</p>
-              <p className="truncate font-mono text-system-meta text-muted-foreground">{user?.email || 'Signed in'}</p>
+              <p className="truncate font-sans text-product-small font-medium text-slate-100">{user?.email?.split('@')[0] || 'User'}</p>
+              <p className="truncate font-sans text-product-caption text-muted-foreground">{user?.email || 'Signed in'}</p>
             </div>
             <Settings className="h-icon w-icon shrink-0 text-muted-foreground transition-colors group-hover:text-slate-100" />
           </button>
