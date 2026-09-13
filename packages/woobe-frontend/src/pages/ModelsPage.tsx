@@ -111,7 +111,7 @@ function ModelCard({
     <ResourceCard
       onClick={onClick}
       aria-label={`Open Model ${model.name}`}
-      icon={<Cpu className="h-4 w-4" />}
+      icon={<Cpu className="h-icon-lg w-icon-lg" />}
       title={model.name}
       subtitle={model.model}
       status={<StatusBadge status={model.status || 'active'} size="compact" />}
@@ -190,7 +190,7 @@ export default function ModelsPage() {
       description="Create and manage reusable generation models bound to provider connections."
       action={(
         <Button type="button" onClick={openNewModel}>
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-icon w-icon" />
           New Model
         </Button>
       )}
@@ -206,7 +206,7 @@ export default function ModelsPage() {
             { value: 'inactive', label: 'Inactive', count: statusCounts.inactive },
           ]}
         />
-        <div className="grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="grid gap-ui-sm lg:grid-cols-[minmax(0,1fr)_220px]">
           <ResourceSearch value={query} onChange={setQuery} placeholder="Search Models, providers or credentials..." label="Search Models" />
           <Select
             value={providerFilter}
@@ -235,7 +235,7 @@ export default function ModelsPage() {
             className="rounded-container border border-border bg-surface/70 py-10"
           />
         ) : visibleModels.length > 0 ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-ui-md md:grid-cols-2 xl:grid-cols-3">
             {visibleModels.map((model) => (
               <ModelCard
                 key={model.id}
@@ -247,7 +247,7 @@ export default function ModelsPage() {
           </div>
         ) : (
           <ResourceEmptyState
-            icon={<Cpu className="h-4 w-4" />}
+            icon={<Cpu className="h-icon-lg w-icon-lg" />}
             title={generationModels.length === 0 ? 'No Generation models yet' : 'No Models found'}
             description={generationModels.length === 0
               ? 'Create a Model. The flow will request a provider connection when necessary.'
