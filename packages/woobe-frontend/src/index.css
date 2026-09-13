@@ -94,7 +94,7 @@
 }
 
 /* Overview environment semantics: All is aggregate, Draft is neutral, Staging is operational. */
-.rounded-lg.border.border-border.bg-background\/50.p-1.scrollbar-thin button:first-child .bg-slate-300 {
+.rounded-lg.border.bg-background\/50.p-1.scrollbar-thin button:first-child .bg-slate-300 {
   display: none;
 }
 
@@ -134,20 +134,20 @@
 }
 
 /* Keep large model catalog pickers visually stable while filtering. */
-div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.shadow-2xl {
+div.absolute.left-0.right-0.z-50.rounded-xl.border.bg-background.shadow-2xl {
   display: flex;
   height: 24rem;
   flex-direction: column;
   overflow: hidden;
 }
 
-div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.shadow-2xl > .scrollbar-thin.max-h-72.overflow-y-auto {
+div.absolute.left-0.right-0.z-50.rounded-xl.border.bg-background.shadow-2xl > .scrollbar-thin.max-h-72.overflow-y-auto {
   min-height: 0;
   max-height: none;
   flex: 1 1 auto;
 }
 
-div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.shadow-2xl > .border-t.border-border\/70.px-4.py-2.text-xs.text-muted {
+div.absolute.left-0.right-0.z-50.rounded-xl.border.bg-background.shadow-2xl > .border-t.border-border\/70.px-4.py-2.text-xs.text-muted {
   min-height: 2rem;
 }
 
