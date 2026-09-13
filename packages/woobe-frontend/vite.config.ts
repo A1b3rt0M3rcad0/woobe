@@ -16,6 +16,7 @@ export default defineConfig({
       '@woobe/ui': path.resolve(__dirname, '../woobe-ui/src/index.ts'),
       react: path.resolve(__dirname, './node_modules/react'),
       'react-dom': path.resolve(__dirname, './node_modules/react-dom'),
+      'lucide-react': path.resolve(__dirname, './node_modules/lucide-react'),
       'tailwind-merge': path.resolve(__dirname, './node_modules/tailwind-merge'),
     },
     dedupe: ['react', 'react-dom'],
