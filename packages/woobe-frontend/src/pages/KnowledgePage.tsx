@@ -67,7 +67,7 @@ export default function KnowledgePage() {
             else setShowCreateEmbeddingModel(true)
           }}
         >
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-icon w-icon" />
           {section === 'collections' ? 'New Collection' : 'Add Embedding Model'}
         </Button>
       )}
@@ -103,13 +103,13 @@ export default function KnowledgePage() {
           ) : isError ? (
             <ErrorState error={error} onRetry={refetch} className="rounded-container border border-border bg-surface/70 py-10" />
           ) : visibleCollections.length > 0 ? (
-            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-ui-md md:grid-cols-2 xl:grid-cols-3">
               {visibleCollections.map((collection: Collection) => (
                 <ResourceCard
                   key={collection.id}
                   aria-label={`Open Collection ${collection.name}`}
                   onClick={() => setSelectedCollectionId(collection.id)}
-                  icon={<Database className="h-4 w-4" />}
+                  icon={<Database className="h-icon-lg w-icon-lg" />}
                   title={collection.name}
                   subtitle={collection.description || 'No description provided'}
                   status={collection.status ? <StatusBadge status={collection.status} size="compact" /> : undefined}
@@ -127,7 +127,7 @@ export default function KnowledgePage() {
             </div>
           ) : (
             <ResourceEmptyState
-              icon={<Database className="h-4 w-4" />}
+              icon={<Database className="h-icon-lg w-icon-lg" />}
               title={items.length === 0 ? 'No Collections yet' : 'No Collections found'}
               description={items.length === 0
                 ? 'Create the first Collection, then add Documents inside it.'
