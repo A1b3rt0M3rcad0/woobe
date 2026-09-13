@@ -25,6 +25,7 @@ export { GuidedEmptyState, type GuidedEmptyStateProps } from './components/Guide
 export { Input, type InputProps } from './components/Input'
 export { JsonCodeBlock, type JsonCodeBlockProps } from './components/JsonCodeBlock'
 export { JsonEditor, type JsonEditorProps } from './components/JsonEditor'
+export { LoadingState, type LoadingLayout, type LoadingStateProps, type LoadingVariant } from './components/LoadingState'
 export { MathSurface, type MathSurfaceProps } from './components/MathSurface'
 export { MetricTile, type MetricTileProps } from './components/MetricTile'
 export { ResourceCard, ResourcePill, type ResourceCardProps, type ResourcePillTone } from './components/OperationalResourceCard'
