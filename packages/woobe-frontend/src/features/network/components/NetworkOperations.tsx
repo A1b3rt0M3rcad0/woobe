@@ -76,10 +76,10 @@ export function NetworkOperationsPanel({
       data-network-operations-panel
       data-presentation={resolvedPresentation}
       className={cn(
-        'flex min-h-0 w-[min(400px,calc(100vw-7rem))] flex-col overflow-hidden border-r border-border bg-surface/95',
+        'flex min-h-0 w-operations-panel max-w-[calc(100vw-5rem)] flex-col overflow-hidden border-r border-border bg-surface/95',
         resolvedPresentation === 'overlay'
-          ? 'absolute inset-y-0 left-14 z-30 shadow-2xl shadow-black/30'
-          : 'relative z-0 shrink-0 shadow-xl shadow-black/20',
+          ? 'absolute inset-y-0 left-playground-rail z-workspace shadow-popup'
+          : 'relative z-base shrink-0',
       )}
     >
       {activeTab === 'sessions' ? (
