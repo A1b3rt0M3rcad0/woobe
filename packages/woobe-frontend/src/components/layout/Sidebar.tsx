@@ -56,7 +56,7 @@ const operateNavItems: NavItem[] = [
 
 function SidebarSectionTitle({ children }: { children: string }) {
   return (
-    <p className="mb-ui-sm px-ui-sm font-mono text-system-label font-bold uppercase tracking-[0.15em] text-muted-foreground">
+    <p className="mb-ui-sm px-ui-sm font-mono text-chrome-control font-semibold uppercase tracking-[0.15em] text-muted-foreground">
       {children}
     </p>
   )
@@ -71,7 +71,7 @@ function SidebarNavLink({ item, href }: { item: NavItem; href: string }) {
       end={item.end}
       className={({ isActive }) =>
         cn(
-          'group flex h-control-nav items-center gap-ui-sm rounded-technical border px-ui-sm font-mono text-system-control transition-colors',
+          'group flex h-control-nav items-center gap-ui-sm rounded-technical border px-ui-sm font-sans text-product-label font-medium transition-colors',
           isActive
             ? 'border-primary/45 bg-primary/[0.12] text-slate-50'
             : 'border-transparent text-slate-300 hover:border-border hover:bg-accent/45 hover:text-slate-50',
@@ -104,7 +104,7 @@ function ContextMenuItem({ icon: Icon, title, description, active, onClick }: { 
       type="button"
       onClick={onClick}
       className={cn(
-        'flex w-full items-start gap-ui-sm rounded-control border px-ui-sm py-ui-sm text-left font-mono transition-colors',
+        'flex w-full items-start gap-ui-sm rounded-control border px-ui-sm py-ui-sm text-left transition-colors',
         active
           ? 'border-primary/35 bg-primary/[0.1] text-slate-50'
           : 'border-transparent text-slate-300 hover:border-border hover:bg-control hover:text-slate-50',
@@ -112,8 +112,8 @@ function ContextMenuItem({ icon: Icon, title, description, active, onClick }: { 
     >
       <Icon className="mt-ui-hairline h-icon w-icon shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-system-control font-medium">{title}</span>
-        {description && <span className="mt-ui-xs block truncate text-system-meta text-muted-foreground">{description}</span>}
+        <span className="block truncate font-sans text-product-small font-medium">{title}</span>
+        {description && <span className="mt-ui-xs block truncate font-mono text-chrome-meta text-muted-foreground">{description}</span>}
       </span>
     </button>
   )
@@ -175,8 +175,8 @@ function ProjectContextCard({
       >
         <span className="flex items-center justify-between gap-ui-sm">
           <span className="min-w-0 flex-1">
-            <span className="block truncate font-mono text-product-small font-bold text-slate-50">{currentProject.name}</span>
-            <span className="mt-ui-xs block truncate font-mono text-system-meta text-muted-foreground">{currentWorkspace.name}</span>
+            <span className="block truncate font-sans text-entity-title font-semibold text-slate-50">{currentProject.name}</span>
+            <span className="mt-ui-xs block truncate font-mono text-chrome-control text-muted-foreground">{currentWorkspace.name}</span>
           </span>
           <ChevronDown className={cn('h-icon w-icon shrink-0 text-muted-foreground transition-transform', open && 'rotate-180 text-primary-light')} />
         </span>
@@ -190,10 +190,10 @@ function ProjectContextCard({
         )}
       >
         <div className="max-h-sidebar-context overflow-y-auto scrollbar-thin">
-          <p className="px-ui-sm pb-ui-xs pt-ui-xs font-mono text-system-meta font-bold uppercase tracking-[0.14em] text-muted-foreground">Switch project</p>
+          <p className="px-ui-sm pb-ui-xs pt-ui-xs font-mono text-chrome-meta font-semibold uppercase tracking-[0.14em] text-muted-foreground">Switch project</p>
           <div className="grid gap-ui-hairline">
             {projects.length === 0 ? (
-              <p className="px-ui-sm py-ui-sm font-mono text-system-label text-muted-foreground">No projects available</p>
+              <p className="px-ui-sm py-ui-sm font-mono text-chrome-label text-muted-foreground">No projects available</p>
             ) : projects.map((project) => (
               <ContextMenuItem
                 key={project.id}
@@ -211,7 +211,7 @@ function ProjectContextCard({
           </div>
 
           <div className="border-t border-border pt-ui-xs">
-            <p className="px-ui-sm pb-ui-xs pt-ui-xs font-mono text-system-meta font-bold uppercase tracking-[0.14em] text-muted-foreground">Workspace</p>
+            <p className="px-ui-sm pb-ui-xs pt-ui-xs font-mono text-chrome-meta font-semibold uppercase tracking-[0.14em] text-muted-foreground">Workspace</p>
             {workspaces.map((workspace) => (
               <ContextMenuItem
                 key={workspace.id}
@@ -239,7 +239,7 @@ function ConfigButton({ icon: Icon, label, description, onClick }: { icon: Lucid
     >
       <Icon className="h-icon w-icon shrink-0 text-muted-foreground transition-colors group-hover:text-slate-200" />
       <span className="min-w-0 flex-1">
-        <span className="block truncate font-mono text-system-control font-medium text-slate-300 transition-colors group-hover:text-slate-50">{label}</span>
+        <span className="block truncate font-sans text-product-small font-medium text-slate-300 transition-colors group-hover:text-slate-50">{label}</span>
         <span className="mt-ui-xs block truncate font-sans text-product-caption text-muted-foreground">{description}</span>
       </span>
     </button>
@@ -262,7 +262,7 @@ function ProjectContextSkeleton() {
 function NoWorkspaceState() {
   return (
     <div className="rounded-container border border-border bg-control/35 p-ui-lg text-center">
-      <p className="font-mono text-system-control font-bold text-slate-100">Workspace required</p>
+      <p className="font-sans text-product-small font-semibold text-slate-100">Workspace required</p>
       <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Select a Workspace before opening a Project.</p>
     </div>
   )
@@ -301,7 +301,7 @@ export function Sidebar() {
           </div>
           <div className="min-w-0">
             <p className="font-mono text-heading-sm font-bold tracking-[0.02em] text-slate-50">WOOBE</p>
-            <p className="mt-ui-hairline font-mono text-system-label uppercase tracking-[0.12em] text-muted-foreground">control plane</p>
+            <p className="mt-ui-hairline font-mono text-chrome-control uppercase tracking-[0.12em] text-muted-foreground">control plane</p>
           </div>
         </header>
 
