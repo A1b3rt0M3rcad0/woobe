@@ -1,13 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Gauge, ServerCog } from 'lucide-react'
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Dialog,
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+  Input,
+  SectionBlock,
+  SegmentedControl,
+  TechnicalListItem,
+} from '@woobe/ui'
 
-import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
 import { useProviderModels } from '@/features/provider-models/hooks'
 import type { ProviderModel } from '@/features/provider-models/types'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
-import { cn } from '@/lib/utils'
 import {
   calculateContextCapacity,
   presetInputBudget,
@@ -20,7 +31,7 @@ import {
 type BudgetMode = 'auto' | 'fixed'
 type BudgetPreset = 'auto' | '25' | '50' | '75' | '90' | 'custom'
 
-const NUMBER_INPUT_CLASS = 'mt-1 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
+const NUMBER_INPUT_CLASS = '[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none'
 
 function formatUnits(value: number | null | undefined): string {
   return value == null ? 'Unavailable' : new Intl.NumberFormat('en-US').format(value)
@@ -34,7 +45,7 @@ function formatPercent(value: number | null): string {
 function Help({ text, label }: { text: string; label: string }) {
   return (
     <span
-      className="cursor-help select-none text-[10px] font-medium text-muted/80 hover:text-primary-light focus:text-primary-light focus:outline-none"
+      className="cursor-help select-none font-mono text-system-meta font-medium text-muted-foreground transition-colors hover:text-primary-light focus:text-primary-light focus:outline-none"
       title={text}
       tabIndex={0}
       aria-label={`${label}: ${text}`}
@@ -56,12 +67,12 @@ function CapacityRow({
   muted?: boolean
 }) {
   return (
-    <div className="flex items-center justify-between gap-3 text-[11px]">
-      <span className="inline-flex min-w-0 items-center gap-1 text-muted">
+    <div className="flex items-center justify-between gap-ui-md border-b border-border/60 py-ui-xs last:border-b-0">
+      <span className="inline-flex min-w-0 items-center gap-ui-xs font-sans text-product-caption text-muted-foreground">
         <span>{label}</span>
         <Help text={help} label={label} />
       </span>
-      <span className={cn('shrink-0 font-mono', muted ? 'text-muted' : 'text-foreground')}>{value}</span>
+      <span className={`shrink-0 font-mono text-system-control ${muted ? 'text-muted-foreground' : 'text-accent-foreground'}`}>{value}</span>
     </div>
   )
 }
@@ -79,9 +90,9 @@ function CapacityCard({
 }) {
   if (!model || !capacity) {
     return (
-      <div className="rounded-lg border border-dashed border-border bg-background/30 p-3">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">{title}</p>
-        <p className="mt-2 text-xs text-muted">{isFallback ? 'No fallback model configured.' : 'No primary model configured.'}</p>
+      <div className="rounded-container border border-dashed border-border bg-background/25 p-ui-md">
+        <p className="font-mono text-system-label font-semibold uppercase tracking-system-label text-muted-foreground">{title}</p>
+        <p className="mt-ui-sm font-sans text-product-caption text-muted-foreground">{isFallback ? 'No fallback model configured.' : 'No primary model configured.'}</p>
       </div>
     )
   }
@@ -91,28 +102,18 @@ function CapacityCard({
     : capacity.budgetClamped
       ? 'Limited by model capacity'
       : 'Full configured budget available'
+  const warning = capacity.contextWindow == null || capacity.budgetClamped
 
   return (
-    <div className="rounded-lg border border-border bg-background/35 p-3">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">{title}</p>
-          <p className="mt-1 truncate text-xs font-medium text-foreground">{model.name}</p>
-          <p className="truncate font-mono text-[10px] text-muted">{model.model}</p>
-        </div>
-        <span className={cn(
-          'shrink-0 rounded-full border px-2 py-0.5 text-[9px] font-medium',
-          capacity.contextWindow == null
-            ? 'border-amber-500/25 bg-amber-500/10 text-amber-300'
-            : capacity.budgetClamped
-              ? 'border-amber-500/25 bg-amber-500/10 text-amber-300'
-              : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300',
-        )}>
-          {status}
-        </span>
-      </div>
+    <div className="rounded-container border border-border bg-background/25 p-ui-md">
+      <TechnicalListItem
+        label={model.name}
+        description={model.model}
+        meta={title}
+        trailing={<Badge variant={warning ? 'warning' : 'success'} size="compact">{status}</Badge>}
+      />
 
-      <div className="mt-3 space-y-1.5 border-t border-border/70 pt-3">
+      <div className="mt-ui-md border-t border-border pt-ui-sm">
         <CapacityRow
           label="Model context window"
           value={formatUnits(capacity.contextWindow)}
@@ -259,175 +260,177 @@ export function AgentContextConfigurationDialog({
     && primaryCapacity?.effectiveInputBudget != null
     && fallbackCapacity.effectiveInputBudget < primaryCapacity.effectiveInputBudget
 
+  const presetItems = (['auto', '25', '50', '75', '90', 'custom'] as BudgetPreset[]).map((item) => ({
+    value: item,
+    label: item === 'auto' ? 'Auto' : item === 'custom' ? 'Custom' : `${item}%`,
+    disabled: item !== 'auto' && item !== 'custom' && !percentageAvailable,
+  }))
+
   return (
     <Dialog
       open={open}
       onClose={onClose}
       title="Context Configuration"
-      className="max-w-[860px] overflow-hidden bg-surface/95"
-      contentClassName="p-0"
+      className="flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden"
+      contentClassName="min-h-0 flex-1 p-0"
     >
-      <div className="max-h-[min(760px,calc(100svh-7rem))] overflow-y-auto px-5 py-4">
-        <div className="rounded-lg border border-border bg-background/30 px-3.5 py-3">
-          <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">Context manager</p>
-          <p className="mt-1 text-sm font-semibold text-foreground">{managerName}</p>
-          <p className="mt-1 text-[10px] leading-4 text-muted">This configuration belongs to the Agent Context Policy and remains independent from changing the concrete manager strategy.</p>
-        </div>
+      <div className="min-h-0 flex-1 overflow-y-auto p-ui-lg">
+        <div className="grid gap-ui-md">
+          <TechnicalListItem
+            label={managerName}
+            description="This configuration belongs to the Agent Context Policy and remains independent from changing the concrete manager strategy."
+            meta="Context manager"
+          />
 
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <section className="rounded-xl border border-border bg-background/20 p-4">
-            <div className="flex items-center gap-2">
-              <Gauge className="h-4 w-4 text-primary-light" />
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted">Context Budget</p>
-            </div>
+          <div className="grid gap-ui-md lg:grid-cols-2">
+            <SectionBlock
+              title="Context Budget"
+              description="Input materialization limits applied before each model invocation."
+              actions={<Gauge className="h-icon w-icon text-primary-light" />}
+            >
+              <div className="grid gap-ui-md">
+                <Field>
+                  <div className="flex items-center gap-ui-xs">
+                    <FieldLabel>Input Context Budget</FieldLabel>
+                    <Help
+                      label="Input Context Budget"
+                      text="Defines how much input context Woobe may materialize for each model invocation. Auto follows the available capacity; presets and Custom freeze an absolute Draft value."
+                    />
+                  </div>
+                  <SegmentedControl
+                    items={presetItems}
+                    value={preset}
+                    onValueChange={(value) => choosePreset(value as BudgetPreset)}
+                    ariaLabel="Input context budget preset"
+                    size="compact"
+                  />
+                  <FieldDescription>Percentage presets are converted to an absolute Draft value so Releases remain deterministic.</FieldDescription>
+                </Field>
 
-            <div className="mt-3">
-              <div className="inline-flex items-center gap-1 text-xs font-medium text-muted">
-                <span>Input Context Budget</span>
-                <Help
-                  label="Input Context Budget"
-                  text="Defines how much input context Woobe may materialize for each model invocation. Auto follows the available capacity; presets and Custom freeze an absolute Draft value."
-                />
+                {budgetMode === 'fixed' ? (
+                  <Field>
+                    <div className="flex items-center gap-ui-xs">
+                      <FieldLabel>Context budget units</FieldLabel>
+                      <Help
+                        label="Context budget units"
+                        text="Absolute maximum input context units Woobe may materialize for the Agent. For text models these units are used as the pre-call token budget estimate."
+                      />
+                    </div>
+                    <Input
+                      type="number"
+                      min="256"
+                      max="4000000"
+                      step="1"
+                      className={NUMBER_INPUT_CLASS}
+                      value={inputBudget}
+                      onChange={(event) => {
+                        setPreset('custom')
+                        setInputBudget(Number(event.target.value))
+                      }}
+                      invalid={!fixedBudgetValid}
+                    />
+                    {!fixedBudgetValid ? <FieldError>Use an integer between 256 and 4,000,000.</FieldError> : null}
+                  </Field>
+                ) : null}
+
+                <Field>
+                  <div className="flex items-center gap-ui-xs">
+                    <FieldLabel>Runtime Reserve</FieldLabel>
+                    <Help
+                      label="Runtime Reserve"
+                      text="Keeps part of the model context window unavailable to input materialization so the runtime has explicit headroom before the model call."
+                    />
+                  </div>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="1000000"
+                    step="1"
+                    className={NUMBER_INPUT_CLASS}
+                    value={runtimeReserve}
+                    onChange={(event) => setRuntimeReserve(Number(event.target.value))}
+                    invalid={!reserveValid}
+                  />
+                  <FieldDescription>Reserved from the model window before materializing input context.</FieldDescription>
+                  {!reserveValid ? <FieldError>Use an integer from 0 to 1,000,000.</FieldError> : null}
+                </Field>
               </div>
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {(['auto', '25', '50', '75', '90', 'custom'] as BudgetPreset[]).map((item) => {
-                  const percentage = item !== 'auto' && item !== 'custom'
-                  return (
-                    <Button
-                      key={item}
-                      type="button"
-                      size="sm"
-                      variant={preset === item ? 'default' : 'outline'}
-                      className="h-7 px-2.5 text-[10px]"
-                      disabled={percentage && !percentageAvailable}
-                      onClick={() => choosePreset(item)}
-                    >
-                      {item === 'auto' ? 'Auto' : item === 'custom' ? 'Custom' : `${item}%`}
-                    </Button>
-                  )
-                })}
+            </SectionBlock>
+
+            <SectionBlock
+              title="Generation"
+              description="Invocation settings combined with each model capability at runtime."
+              actions={<ServerCog className="h-icon w-icon text-primary-light" />}
+            >
+              <div className="grid gap-ui-md sm:grid-cols-2">
+                <Field>
+                  <div className="flex items-center gap-ui-xs">
+                    <FieldLabel>Temperature</FieldLabel>
+                    <Help
+                      label="Temperature"
+                      text="Controls response variability. Lower values are more deterministic; higher values allow more variation."
+                    />
+                  </div>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="2"
+                    step="0.1"
+                    className={NUMBER_INPUT_CLASS}
+                    value={temperature}
+                    onChange={(event) => setTemperature(Number(event.target.value))}
+                    invalid={!temperatureValid}
+                  />
+                  {!temperatureValid ? <FieldError>Temperature must be between 0 and 2.</FieldError> : null}
+                </Field>
+
+                <Field>
+                  <div className="flex items-center gap-ui-xs">
+                    <FieldLabel>Max Output Tokens</FieldLabel>
+                    <Help
+                      label="Max Output Tokens"
+                      text="Maximum response budget requested by the Agent. Woobe automatically reduces it when the invoked primary or fallback model supports a smaller maximum output."
+                    />
+                  </div>
+                  <Input
+                    type="number"
+                    min="1"
+                    step="1"
+                    className={NUMBER_INPUT_CLASS}
+                    value={maxOutputTokens}
+                    onChange={(event) => setMaxOutputTokens(Number(event.target.value))}
+                    invalid={!outputValid}
+                  />
+                  {!outputValid ? <FieldError>Max Output Tokens must be a positive integer.</FieldError> : null}
+                </Field>
               </div>
-              <p className="mt-2 text-[10px] leading-4 text-muted">Percentage presets are converted to an absolute Draft value so Releases remain deterministic.</p>
-            </div>
-
-            {budgetMode === 'fixed' ? (
-              <label className="mt-3 block text-xs font-medium text-muted">
-                <span className="inline-flex items-center gap-1">
-                  Context budget units
-                  <Help
-                    label="Context budget units"
-                    text="Absolute maximum input context units Woobe may materialize for the Agent. For text models these units are used as the pre-call token budget estimate."
-                  />
-                </span>
-                <Input
-                  type="number"
-                  min="256"
-                  max="4000000"
-                  step="1"
-                  className={NUMBER_INPUT_CLASS}
-                  value={inputBudget}
-                  onChange={(event) => {
-                    setPreset('custom')
-                    setInputBudget(Number(event.target.value))
-                  }}
-                />
-                {!fixedBudgetValid ? <span className="mt-1 block text-[10px] text-red-300">Use an integer between 256 and 4,000,000.</span> : null}
-              </label>
-            ) : null}
-
-            <label className="mt-3 block text-xs font-medium text-muted">
-              <span className="inline-flex items-center gap-1">
-                Runtime Reserve
-                <Help
-                  label="Runtime Reserve"
-                  text="Keeps part of the model context window unavailable to input materialization so the runtime has explicit headroom before the model call."
-                />
-              </span>
-              <Input
-                type="number"
-                min="0"
-                max="1000000"
-                step="1"
-                className={NUMBER_INPUT_CLASS}
-                value={runtimeReserve}
-                onChange={(event) => setRuntimeReserve(Number(event.target.value))}
-              />
-              <span className="mt-1 block text-[10px] leading-4 text-muted">Reserved from the model window before materializing input context.</span>
-              {!reserveValid ? <span className="mt-1 block text-[10px] text-red-300">Use an integer from 0 to 1,000,000.</span> : null}
-            </label>
-          </section>
-
-          <section className="rounded-xl border border-border bg-background/20 p-4">
-            <div className="flex items-center gap-2">
-              <ServerCog className="h-4 w-4 text-primary-light" />
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted">Generation</p>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <label className="text-xs font-medium text-muted">
-                <span className="inline-flex items-center gap-1">
-                  Temperature
-                  <Help
-                    label="Temperature"
-                    text="Controls response variability. Lower values are more deterministic; higher values allow more variation."
-                  />
-                </span>
-                <Input
-                  type="number"
-                  min="0"
-                  max="2"
-                  step="0.1"
-                  className={NUMBER_INPUT_CLASS}
-                  value={temperature}
-                  onChange={(event) => setTemperature(Number(event.target.value))}
-                />
-              </label>
-              <label className="text-xs font-medium text-muted">
-                <span className="inline-flex items-center gap-1">
-                  Max Output Tokens
-                  <Help
-                    label="Max Output Tokens"
-                    text="Maximum response budget requested by the Agent. Woobe automatically reduces it when the invoked primary or fallback model supports a smaller maximum output."
-                  />
-                </span>
-                <Input
-                  type="number"
-                  min="1"
-                  step="1"
-                  className={NUMBER_INPUT_CLASS}
-                  value={maxOutputTokens}
-                  onChange={(event) => setMaxOutputTokens(Number(event.target.value))}
-                />
-              </label>
-            </div>
-            {!temperatureValid ? <p className="mt-2 text-[10px] text-red-300">Temperature must be between 0 and 2.</p> : null}
-            {!outputValid ? <p className="mt-2 text-[10px] text-red-300">Max Output Tokens must be a positive integer.</p> : null}
-            <p className="mt-3 text-[10px] leading-4 text-muted">At runtime the configured output is clamped to each invoked model capability. Primary and fallback may therefore reserve different output budgets.</p>
-          </section>
-        </div>
-
-        <section className="mt-4 rounded-xl border border-border bg-background/20 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Capacity Preview</p>
-          <div className="mt-3 grid gap-3 lg:grid-cols-2">
-            <CapacityCard title="Primary model" model={primaryModel} capacity={primaryCapacity} />
-            <CapacityCard title="Fallback model" model={fallbackModel} capacity={fallbackCapacity} isFallback />
+              <FieldDescription className="mt-ui-md">At runtime the configured output is clamped to each invoked model capability. Primary and fallback may therefore reserve different output budgets.</FieldDescription>
+            </SectionBlock>
           </div>
 
-          {capacityUnknown ? (
-            <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[10px] leading-4 text-amber-200">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              Primary model context capacity is not configured. Absolute budgets can still be enforced, but Auto and percentage presets cannot guarantee provider-window compatibility.
+          <SectionBlock title="Capacity Preview" description="Effective invocation budgets after model-specific limits are applied.">
+            <div className="grid gap-ui-md lg:grid-cols-2">
+              <CapacityCard title="Primary model" model={primaryModel} capacity={primaryCapacity} />
+              <CapacityCard title="Fallback model" model={fallbackModel} capacity={fallbackCapacity} isFallback />
             </div>
-          ) : null}
-          {fallbackSmaller ? (
-            <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-[10px] leading-4 text-amber-200">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-              The fallback has a smaller effective context capacity. On fallback, the Context Manager will re-materialize context against that invocation-specific budget and may reduce non-mandatory sources.
-            </div>
-          ) : null}
-        </section>
+
+            {capacityUnknown ? (
+              <Alert variant="warning" className="mt-ui-md">
+                <AlertTriangle className="h-icon w-icon" />
+                <AlertDescription>Primary model context capacity is not configured. Absolute budgets can still be enforced, but Auto and percentage presets cannot guarantee provider-window compatibility.</AlertDescription>
+              </Alert>
+            ) : null}
+            {fallbackSmaller ? (
+              <Alert variant="warning" className="mt-ui-md">
+                <AlertTriangle className="h-icon w-icon" />
+                <AlertDescription>The fallback has a smaller effective context capacity. On fallback, the Context Manager will re-materialize context against that invocation-specific budget and may reduce non-mandatory sources.</AlertDescription>
+              </Alert>
+            ) : null}
+          </SectionBlock>
+        </div>
       </div>
 
-      <div className="flex items-center justify-end gap-2 border-t border-border/90 bg-background/20 px-4 py-3">
+      <div className="flex shrink-0 items-center justify-end gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md">
         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
         <Button type="button" onClick={apply} disabled={!canApply}>Apply</Button>
       </div>
