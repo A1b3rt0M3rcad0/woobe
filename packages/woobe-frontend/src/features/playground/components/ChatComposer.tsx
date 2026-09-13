@@ -87,11 +87,11 @@ export function ChatComposer({
         />
         <div className="flex items-center justify-between border-t border-border/60 px-ui-sm py-ui-sm">
           <div className="flex items-center gap-ui-xs">
-            <Button type="button" variant="ghost" size="sm" disabled={blocked} className="font-sans text-product-small text-muted-foreground">
+            <Button type="button" variant="ghost" size="sm" disabled={blocked} className="font-sans text-muted-foreground">
               <Paperclip className="h-icon-sm w-icon-sm" />
               Attach
             </Button>
-            <Button type="button" variant="ghost" size="sm" disabled={blocked} className="font-sans text-product-small text-muted-foreground">
+            <Button type="button" variant="ghost" size="sm" disabled={blocked} className="font-sans text-muted-foreground">
               <Wrench className="h-icon-sm w-icon-sm" />
               Tools
             </Button>
