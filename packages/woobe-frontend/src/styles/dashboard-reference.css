@@ -23,6 +23,8 @@
 }
 
 .project-overview-main [aria-busy] {
+  width: 100%;
+  max-width: none;
   min-height: 100%;
   padding: 0 !important;
 }
@@ -185,11 +187,13 @@
   color: #fff !important;
 }
 
-/* Content width and rhythm. */
+/* Content width and rhythm. The dashboard deliberately fills the available
+ * project canvas; only the 18px edge gutters are retained from the reference. */
 .project-overview-main [aria-busy] > .space-y-5,
 .project-overview-main [aria-busy] > [aria-label='Loading project overview'],
 .project-overview-main [aria-busy] > section {
-  width: min(1540px, calc(100% - 36px));
+  width: calc(100% - 36px);
+  max-width: none !important;
   margin-right: auto !important;
   margin-left: auto !important;
   padding-top: 20px;
@@ -197,7 +201,8 @@
 }
 
 .project-overview-main [aria-busy] > div:not(.space-y-5):not([aria-label='Loading project overview']) {
-  width: min(1540px, calc(100% - 36px));
+  width: calc(100% - 36px);
+  max-width: none !important;
   margin: 12px auto 0 !important;
 }
 
@@ -901,6 +906,10 @@
   .project-overview-main [aria-busy] > .space-y-5,
   .project-overview-main [aria-busy] > [aria-label='Loading project overview'],
   .project-overview-main [aria-busy] > section {
+    width: calc(100% - 20px);
+  }
+
+  .project-overview-main [aria-busy] > div:not(.space-y-5):not([aria-label='Loading project overview']) {
     width: calc(100% - 20px);
   }
 
