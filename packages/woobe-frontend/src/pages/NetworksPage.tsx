@@ -3,7 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Network, PencilLine, Plus } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button, Dialog, Field, FieldLabel, Input, Textarea } from '@woobe/ui'
+import { Button, Dialog, Field, FieldLabel, Input, TechnicalListItem, Textarea } from '@woobe/ui'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -66,7 +66,7 @@ function NetworkOperationalCard({
       <ResourceCard
         aria-label={`Open Network workspace for ${network.name}`}
         onClick={onOpen}
-        icon={<Network className="h-4 w-4" />}
+        icon={<Network className="h-icon-lg w-icon-lg" />}
         title={network.name}
         subtitle={network.description || 'No description configured.'}
         metadata={(
@@ -94,7 +94,7 @@ function NetworkOperationalCard({
           </>
         )}
         footer={(
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 pr-8">
+          <span className="flex flex-wrap items-center gap-x-ui-sm gap-y-ui-xs pr-ui-xl">
             <span>{agentCount} {agentCount === 1 ? 'Agent' : 'Agents'}</span>
             <span aria-hidden="true">·</span>
             <span>{delegationCount} {delegationCount === 1 ? 'delegation' : 'delegations'}</span>
@@ -104,13 +104,13 @@ function NetworkOperationalCard({
             <span>Updated · {formatDate(network.updated_at || network.created_at)}</span>
           </span>
         )}
-        className="h-full w-full pr-12"
+        className="h-full w-full pr-ui-2xl"
       />
       <Button
         type="button"
         variant="ghost"
-        size="icon"
-        className="absolute bottom-2 right-2 !h-7 !w-7 text-muted-foreground hover:text-slate-50"
+        size="iconSm"
+        className="absolute bottom-ui-sm right-ui-sm text-muted-foreground hover:text-slate-50"
         onClick={(event) => {
           event.stopPropagation()
           onEdit()
@@ -118,7 +118,7 @@ function NetworkOperationalCard({
         aria-label={`Edit Network ${network.name}`}
         title="Edit Network metadata"
       >
-        <PencilLine className="h-3.5 w-3.5" />
+        <PencilLine className="h-icon-sm w-icon-sm" />
       </Button>
     </div>
   )
@@ -153,9 +153,9 @@ function NetworkModal({
   }
 
   return (
-    <Dialog open onClose={onClose} title={title} className="max-w-[560px]" contentClassName="p-0">
+    <Dialog open onClose={onClose} title={title} className="max-w-dialog" contentClassName="p-0">
       <form onSubmit={(event) => void submit(event)}>
-        <div className="space-y-4 p-5">
+        <div className="grid gap-ui-md p-ui-panel-inset">
           <Field>
             <FieldLabel htmlFor="network-name">Name</FieldLabel>
             <Input
@@ -176,24 +176,18 @@ function NetworkModal({
               onChange={(event) => setDescription(event.target.value)}
               maxLength={4000}
               rows={5}
-              className="min-h-[110px] resize-y"
+              className="min-h-textarea-compact resize-y"
               placeholder="Operational purpose of this Network"
             />
           </Field>
 
-          <div className="grid gap-px overflow-hidden rounded-container border border-border bg-border sm:grid-cols-2">
-            <div className="bg-control/70 p-3">
-              <p className="font-mono text-[8px] uppercase tracking-[0.1em] text-muted-foreground">Resource</p>
-              <p className="mt-1 font-mono text-[9px] text-slate-300">Project-scoped Network</p>
-            </div>
-            <div className="bg-control/70 p-3">
-              <p className="font-mono text-[8px] uppercase tracking-[0.1em] text-muted-foreground">Lifecycle</p>
-              <p className="mt-1 font-mono text-[9px] text-slate-300">Draft → Staging → Production</p>
-            </div>
+          <div className="grid gap-ui-xs sm:grid-cols-2">
+            <TechnicalListItem label="Resource" description="Project-scoped Network" />
+            <TechnicalListItem label="Lifecycle" description="Draft → Staging → Production" />
           </div>
         </div>
 
-        <div className="flex justify-end gap-2 border-t border-border bg-control/35 px-5 py-3">
+        <div className="flex justify-end gap-ui-sm border-t border-border bg-surface/95 px-ui-panel-inset py-ui-md">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
           <Button type="submit" loading={pending}>Save Network</Button>
         </div>
@@ -256,7 +250,7 @@ export default function NetworksPage() {
       description="Create and operate versioned Agent compositions for this Project."
       action={(
         <Button type="button" onClick={() => setCreating(true)}>
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-icon w-icon" />
           Create Network
         </Button>
       )}
@@ -297,7 +291,7 @@ export default function NetworksPage() {
             className="rounded-container border border-border bg-surface/70 py-10"
           />
         ) : visibleNetworks.length > 0 ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-ui-md md:grid-cols-2 xl:grid-cols-3">
             {visibleNetworks.map((network) => (
               <NetworkOperationalCard
                 key={network.id}
@@ -310,7 +304,7 @@ export default function NetworksPage() {
           </div>
         ) : (
           <ResourceEmptyState
-            icon={<Network className="h-4 w-4" />}
+            icon={<Network className="h-icon-lg w-icon-lg" />}
             title={items.length === 0 ? 'Create your first Network' : 'No Networks found'}
             description={items.length === 0
               ? 'Create a Network, then configure its entry Agent and composition.'
