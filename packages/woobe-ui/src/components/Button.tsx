@@ -36,7 +36,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cn(
-        'inline-flex items-center justify-center whitespace-nowrap rounded-control font-mono font-normal transition-colors',
+        'inline-flex items-center justify-center whitespace-nowrap rounded-control font-mono transition-colors',
         'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-background',
         'disabled:pointer-events-none disabled:opacity-50',
         variantClasses[variant],
