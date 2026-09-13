@@ -91,7 +91,7 @@ export function AgentEditorNavigation({
 
   return (
     <nav aria-label="Agent configuration" className="shrink-0 border-b border-border bg-surface/55">
-      <div className="border-b border-border/60 p-[3px]">
+      <div className="border-b border-border/60 p-ui-hairline">
         <SegmentedControl
           ariaLabel="Agent configuration groups"
           stretch
@@ -102,7 +102,7 @@ export function AgentEditorNavigation({
           }}
           items={agentEditorGroups.map((group) => {
             const Icon = group.icon
-            return { value: group.id, label: group.label, icon: <Icon className="h-3 w-3" /> }
+            return { value: group.id, label: group.label, icon: <Icon className="h-icon-sm w-icon-sm" /> }
           })}
           className="w-full border-0 bg-transparent p-0"
         />
