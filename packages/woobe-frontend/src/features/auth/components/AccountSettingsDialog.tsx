@@ -1,5 +1,16 @@
 import { LogOut } from 'lucide-react'
-import { Button, Dialog, Field, FieldDescription, FieldLabel, Input } from '@woobe/ui'
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Dialog,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  SectionBlock,
+  TechnicalListItem,
+} from '@woobe/ui'
 import { useAuth } from '@/features/auth/AuthProvider'
 
 interface AccountSettingsDialogProps {
@@ -16,28 +27,40 @@ export function AccountSettingsDialog({ open, onClose }: AccountSettingsDialogPr
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Account settings" className="max-w-[460px]">
-      <div className="space-y-4">
-        <div className="border-b border-border pb-3">
-          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-slate-100">Personal account</p>
-          <p className="mt-1 font-mono text-[8px] leading-4 text-muted-foreground">Identity used to access Woobe workspaces and projects.</p>
-        </div>
+    <Dialog open={open} onClose={onClose} title="Account settings" className="max-w-dialog">
+      <div className="grid gap-ui-md">
+        <SectionBlock
+          eyebrow="Personal account"
+          title="Identity"
+          description="Identity used to access Woobe Workspaces and Projects."
+          density="compact"
+        >
+          <div className="grid gap-ui-md">
+            <Field>
+              <FieldLabel htmlFor="account-email">Email</FieldLabel>
+              <Input id="account-email" value={user?.email || ''} disabled className="font-mono" />
+            </Field>
 
-        <Field>
-          <FieldLabel htmlFor="account-email">Email</FieldLabel>
-          <Input id="account-email" value={user?.email || ''} disabled className="font-mono text-[10px]" />
-        </Field>
+            <Field>
+              <FieldLabel>Password</FieldLabel>
+              <Button type="button" variant="outline" size="sm" disabled>Change password</Button>
+              <FieldDescription>Password management is not available in this interface yet.</FieldDescription>
+            </Field>
+          </div>
+        </SectionBlock>
 
-        <Field>
-          <FieldLabel>Password</FieldLabel>
-          <Button type="button" variant="outline" size="sm" disabled>Change password</Button>
-          <FieldDescription>Password management is not available in this interface yet.</FieldDescription>
-        </Field>
+        <Alert variant="warning">
+          <AlertDescription>Signing out ends the current Woobe session on this device.</AlertDescription>
+        </Alert>
 
-        <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
-          <p className="font-mono text-[8px] text-muted-foreground">Signing out ends the current Woobe session.</p>
+        <div className="flex flex-col gap-ui-sm border-t border-border pt-ui-md sm:flex-row sm:items-center sm:justify-between">
+          <TechnicalListItem
+            className="min-w-0 flex-1 border-0 bg-transparent p-0"
+            label="Current session"
+            description={user?.email || 'Signed in'}
+          />
           <Button type="button" variant="destructive" size="sm" onClick={handleSignOut}>
-            <LogOut className="h-3.5 w-3.5" />
+            <LogOut className="h-icon w-icon" />
             Sign out
           </Button>
         </div>
