@@ -384,7 +384,7 @@ function ArchiveDialog({
   const blocked = usage.length > 0
 
   return (
-    <Dialog open onClose={onClose} title="Archive model" className="max-w-dialog-default" layer="nestedModal">
+    <Dialog open onClose={onClose} title="Archive model" className="max-w-dialog" layer="nestedModal">
       <div className="grid gap-ui-lg">
         <Alert variant="warning">
           <div className="flex items-start gap-ui-md">
@@ -955,7 +955,7 @@ export function ModelSettingsModal({
           <div className="shrink-0 border-b border-border bg-background/20 px-ui-lg py-ui-md">
             <div className="flex min-w-0 flex-wrap items-start justify-between gap-ui-md">
               <div className="flex min-w-0 items-start gap-ui-md">
-                <div className="flex h-control-navigation w-control-navigation shrink-0 items-center justify-center rounded-control border border-primary/25 bg-primary/[0.08] text-primary-light">
+                <div className="flex h-control-nav w-control-nav shrink-0 items-center justify-center rounded-control border border-primary/25 bg-primary/[0.08] text-primary-light">
                   <Cpu className="h-icon w-icon" />
                 </div>
                 <div className="min-w-0">
