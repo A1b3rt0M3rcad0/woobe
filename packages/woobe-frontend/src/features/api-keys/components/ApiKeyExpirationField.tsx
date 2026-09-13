@@ -1,8 +1,13 @@
 import { useMemo } from 'react'
 import {
-  formatWoobeDateTime,
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldLabel,
+  SegmentedControl,
   WoobeDateTimePicker,
-} from '@/components/ui/WoobeDateTimePicker'
+} from '@woobe/ui'
+import { formatWoobeDateTime } from '@/components/ui/WoobeDateTimePicker'
 
 export type ApiKeyExpirationPreset = '7d' | '30d' | '90d' | '365d' | 'custom' | 'never'
 
@@ -51,41 +56,36 @@ export function ApiKeyExpirationField({ value, onChange, error }: ApiKeyExpirati
   const selectedExpiration = useMemo(() => resolveApiKeyExpiration(value), [value])
 
   return (
-    <div>
-      <p className="text-xs font-medium text-muted">Expiration</p>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {EXPIRATIONS.map((item) => (
-          <button
-            key={item.value}
-            type="button"
-            onClick={() => onChange({
-              preset: item.value,
-              customDate: item.value === 'custom' ? value.customDate : null,
-            })}
-            className={`rounded-lg border px-3 py-2 text-xs transition-colors ${value.preset === item.value ? 'border-primary/35 bg-primary/10 text-primary-light' : 'border-border/80 bg-background/45 text-muted hover:text-white'}`}
-          >
-            {item.label}
-          </button>
-        ))}
+    <Field>
+      <FieldLabel>Expiration</FieldLabel>
+      <div className="max-w-full overflow-x-auto">
+        <SegmentedControl
+          items={EXPIRATIONS}
+          value={value.preset}
+          onValueChange={(preset) => onChange({
+            preset: preset as ApiKeyExpirationPreset,
+            customDate: preset === 'custom' ? value.customDate : null,
+          })}
+          ariaLabel="API key expiration"
+          size="compact"
+        />
       </div>
 
       {value.preset === 'custom' ? (
-        <div className="mt-3">
-          <WoobeDateTimePicker
-            value={value.customDate}
-            autoOpen
-            onChange={(customDate) => onChange({ preset: 'custom', customDate })}
-          />
-        </div>
+        <WoobeDateTimePicker
+          value={value.customDate}
+          autoOpen
+          onChange={(customDate) => onChange({ preset: 'custom', customDate })}
+        />
       ) : value.preset === 'never' ? (
-        <p className="mt-3 text-[11px] text-muted">This key will remain active until it is revoked.</p>
+        <FieldDescription>This key will remain active until it is revoked.</FieldDescription>
       ) : selectedExpiration ? (
-        <p className="mt-3 text-[11px] text-muted">
-          Expires <span className="text-white">{formatWoobeDateTime(selectedExpiration)}</span>
-        </p>
+        <FieldDescription>
+          Expires <span className="font-mono text-accent-foreground">{formatWoobeDateTime(selectedExpiration)}</span>
+        </FieldDescription>
       ) : null}
 
-      {error && <p className="mt-1.5 text-xs text-red-300">{error}</p>}
-    </div>
+      {error ? <FieldError>{error}</FieldError> : null}
+    </Field>
   )
 }
