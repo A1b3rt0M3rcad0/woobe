@@ -52,6 +52,89 @@
   justify-content: space-between;
 }
 
+/* Dashboard readability pass.
+ * Keep 8px for true micro badges/codes, but lift secondary operational copy
+ * to the 9–10px band so it stays readable on large workstations. */
+
+/* Summary metric details such as "305 direct · 23 from Networks". */
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section > div > p:last-child {
+  font-size: 10px !important;
+  line-height: 14px !important;
+}
+
+/* Comparison-card secondary lines remain subordinate, but no longer drop to 8px. */
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section [class~='text-[10px]'] {
+  font-size: 9px !important;
+  line-height: 12px !important;
+}
+
+/* Period total and chart axes are information users read repeatedly. */
+.project-overview-main [aria-busy] section [class*='text-right'][class*='font-mono'][class*='border'] {
+  font-size: 9px !important;
+  line-height: 12px !important;
+}
+
+.project-overview-main [aria-busy] section [class*='text-right'][class*='font-mono'][class*='border'] b {
+  font-size: 10px !important;
+  line-height: 13px !important;
+}
+
+.project-overview-main [aria-busy] section .relative.h-\[190px\] > .absolute.bottom-0 {
+  font-size: 9px !important;
+  line-height: 11px !important;
+}
+
+/* Reliability secondary summaries and labels: 8px was too close to annotation size. */
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 > div[class*='rounded-xl'] > .flex:first-child p.mt-1 {
+  font-size: 9px !important;
+  line-height: 12px !important;
+}
+
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 .mt-2.flex.flex-wrap.gap-x-3.gap-y-1.text-\[10px\].text-muted {
+  font-size: 9px !important;
+  line-height: 12px !important;
+}
+
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 .mt-3.grid.grid-cols-3 span {
+  font-size: 9px !important;
+  line-height: 12px !important;
+}
+
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 .mt-3.grid.grid-cols-3 b {
+  font-size: 11px !important;
+  line-height: 14px !important;
+}
+
+/* Operational issues are dense, but their headings and explanatory text must
+ * remain readable without zooming. */
+.project-overview-main [aria-busy] section[class*='border-red'] [class*='uppercase'] {
+  font-size: 9px !important;
+  line-height: 12px !important;
+}
+
+.project-overview-main [aria-busy] section[class*='border-red'] [class*='text-xs'],
+.project-overview-main [aria-busy] section[class*='border-red'] [class*='text-sm'] {
+  font-size: 10px !important;
+  line-height: 14px !important;
+}
+
+/* Change descriptions/timestamps are secondary content, not micro badges. */
+.project-overview-main [aria-busy] section .space-y-2 > button [class*='text-xs'] {
+  font-size: 9px !important;
+  line-height: 12px !important;
+}
+
+/* Recent Runs table labels and tertiary row details. Badges remain at 8px. */
+.project-overview-main [aria-busy] section .space-y-2 > div[class*='grid-cols-[110px'] {
+  font-size: 9px !important;
+  line-height: 12px !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > div[role='link'] p[class*='text-[10px]'] {
+  font-size: 9px !important;
+  line-height: 12px !important;
+}
+
 @media (max-width: 1320px) {
   .project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div:last-child > section > .space-y-3.px-5.pb-5 {
     grid-template-rows: none;
