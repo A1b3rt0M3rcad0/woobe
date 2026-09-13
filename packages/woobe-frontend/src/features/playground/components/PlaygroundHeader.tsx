@@ -76,35 +76,35 @@ export function PlaygroundHeader({
   return (
     <>
       <header className={`relative ${UI_LAYER_CLASS.playgroundChrome} flex h-workspace-header shrink-0 items-center justify-between border-b border-border bg-surface/[0.92] px-ui-md`}>
-        <div className="flex min-w-0 items-center gap-ui-sm">
+        <div className="flex min-w-0 flex-1 items-center gap-ui-sm">
           <button
             onClick={handleBack}
-            className="flex h-control-sm shrink-0 items-center gap-ui-xs rounded-control border border-transparent px-ui-sm font-mono text-system-label text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50"
+            className="flex h-control-sm shrink-0 items-center gap-ui-xs rounded-control border border-transparent px-ui-sm font-mono text-chrome-meta text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50"
             title="Back"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
+            <ArrowLeft className="h-icon-sm w-icon-sm" />
             <span className="hidden sm:inline">Back</span>
           </button>
           <div className="h-6 w-px bg-border" />
           <span className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light">
-            <Bot className="h-3.5 w-3.5" />
+            <Bot className="h-icon w-icon" />
           </span>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex min-w-0 items-center gap-ui-sm">
-              <span className="max-w-playground-agent-name truncate font-mono text-system-control font-bold text-slate-50">{agent.name}</span>
+              <span className="min-w-0 truncate font-sans text-entity-title font-semibold text-slate-50" title={agent.name}>{agent.name}</span>
               {releaseVersion && releaseStatus ? (
                 <Badge variant={releaseStatus === 'production' ? 'success' : releaseStatus === 'staging' ? 'warning' : 'outline'} className="shrink-0">
                   {releaseVersion}
                 </Badge>
               ) : null}
             </div>
-            <p className="mt-ui-xs hidden max-w-playground-agent-meta truncate font-mono text-system-meta text-muted-foreground md:block">
+            <p className="mt-ui-hairline hidden truncate font-mono text-chrome-nano text-muted-foreground md:block" title={`${agent.provider || 'provider not set'} / ${agent.model || 'model not set'}`}>
               {agent.provider || 'provider not set'} / {agent.model || 'model not set'}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-ui-xs">
+        <div className="flex shrink-0 items-center gap-ui-xs">
           <SegmentedControl
             ariaLabel="Agent environment"
             value={environment}
@@ -122,16 +122,16 @@ export function PlaygroundHeader({
             )}
             title={showLeftPanel ? 'Hide operations' : 'Show operations'}
           >
-            <PanelLeft className="h-3.5 w-3.5" />
+            <PanelLeft className="h-icon w-icon" />
           </button>
 
           <Button variant="outline" size="sm" disabled={environmentChangeDisabled} onClick={() => openManager()}>
-            <History className="h-3.5 w-3.5" />
+            <History className="h-icon w-icon" />
             <span className="hidden xl:inline">Manage Agent</span>
           </Button>
 
           <Button variant="outline" size="sm" onClick={onApiClick}>
-            <Code2 className="h-3.5 w-3.5" />
+            <Code2 className="h-icon w-icon" />
             <span className="hidden xl:inline">API</span>
           </Button>
 
@@ -148,7 +148,7 @@ export function PlaygroundHeader({
             )}
             title={showRightPanel ? 'Hide inspector' : 'Show inspector'}
           >
-            <PanelRight className="h-3.5 w-3.5" />
+            <PanelRight className="h-icon w-icon" />
           </button>
         </div>
       </header>
