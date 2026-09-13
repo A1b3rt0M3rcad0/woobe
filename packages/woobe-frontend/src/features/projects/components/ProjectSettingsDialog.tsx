@@ -13,7 +13,20 @@ import {
   Save,
   Wrench,
 } from 'lucide-react'
-import { Button, Dialog, Field, FieldError, FieldLabel, Input } from '@woobe/ui'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Dialog,
+  Field,
+  FieldError,
+  FieldLabel,
+  Input,
+  SectionBlock,
+  Skeleton,
+  TechnicalListItem,
+} from '@woobe/ui'
 import { toast } from 'sonner'
 
 import { useProject, useUpdateProject } from '@/features/projects/hooks'
@@ -29,22 +42,13 @@ interface ProjectSettingsDialogProps {
 }
 
 const quickLinks = [
-  { label: 'Agents', icon: Bot, tone: 'text-blue-300', segment: 'agents' },
-  { label: 'Knowledge', icon: BookOpen, tone: 'text-emerald-300', segment: 'knowledge' },
-  { label: 'Tools', icon: Wrench, tone: 'text-amber-300', segment: 'tools' },
-  { label: 'API Keys', icon: Key, tone: 'text-violet-300', segment: 'api-keys' },
-  { label: 'Usage', icon: BarChart3, tone: 'text-slate-300', segment: 'usage' },
-  { label: 'Traces', icon: Activity, tone: 'text-cyan-300', segment: 'traces' },
+  { label: 'Agents', icon: Bot, segment: 'agents' },
+  { label: 'Knowledge', icon: BookOpen, segment: 'knowledge' },
+  { label: 'Tools', icon: Wrench, segment: 'tools' },
+  { label: 'API Keys', icon: Key, segment: 'api-keys' },
+  { label: 'Usage', icon: BarChart3, segment: 'usage' },
+  { label: 'Traces', icon: Activity, segment: 'traces' },
 ]
-
-function SectionHeader({ title, description }: { title: string; description?: string }) {
-  return (
-    <div className="border-b border-border px-4 py-3.5">
-      <h3 className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-slate-100">{title}</h3>
-      {description && <p className="mt-1 font-mono text-[8px] leading-4 text-muted-foreground">{description}</p>}
-    </div>
-  )
-}
 
 export function ProjectSettingsDialog({ open, onClose, workspaceId, projectId }: ProjectSettingsDialogProps) {
   const navigate = useNavigate()
@@ -96,123 +100,140 @@ export function ProjectSettingsDialog({ open, onClose, workspaceId, projectId }:
       open={open}
       onClose={onClose}
       title="Project Settings"
-      className="max-w-[980px]"
-      contentClassName="max-h-[calc(100svh-8rem)] overflow-y-auto p-0 dialog-scrollbars"
+      className="max-w-dialog-wide"
+      scrollMode="content"
+      contentClassName="p-0"
     >
       {projectQuery.isPending ? (
-        <div className="space-y-3 p-5" aria-label="Loading project settings">
-          <div className="h-10 animate-pulse rounded-control border border-border bg-control/45" />
-          <div className="h-44 animate-pulse rounded-container border border-border bg-control/35" />
+        <div className="grid gap-ui-md p-ui-lg" aria-label="Loading project settings">
+          <Skeleton className="h-control-row w-full" />
+          <Skeleton className="h-44 w-full" />
+          <Skeleton className="h-32 w-full" />
         </div>
       ) : projectQuery.isError || !project ? (
-        <div className="p-5 text-center">
-          <p className="font-mono text-[10px] font-bold text-red-200">Project settings unavailable</p>
-          <p className="mt-1 font-mono text-[8px] text-muted-foreground">
-            {projectQuery.error instanceof Error ? projectQuery.error.message : 'Project not found'}
-          </p>
-          <Button variant="outline" size="sm" className="mt-4" onClick={() => void projectQuery.refetch()}>Retry</Button>
+        <div className="p-ui-lg">
+          <Alert variant="destructive">
+            <AlertTitle>Project settings unavailable</AlertTitle>
+            <AlertDescription>
+              {projectQuery.error instanceof Error ? projectQuery.error.message : 'Project not found'}
+            </AlertDescription>
+            <Button variant="outline" size="sm" className="mt-ui-md" onClick={() => void projectQuery.refetch()}>Retry</Button>
+          </Alert>
         </div>
       ) : (
         <div>
-          <div className="flex flex-col gap-3 border-b border-border bg-control/35 px-5 py-3.5 sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0">
-              <p className="truncate font-mono text-[10px] font-bold text-slate-100">{project.name}</p>
-              <p className="mt-0.5 truncate font-mono text-[8px] text-muted-foreground">/{project.slug} · {project.status || 'active'}</p>
-            </div>
-            <Button size="sm" variant="outline" onClick={() => openProjectSurface()}>
-              Open overview
-              <ArrowRight className="h-3 w-3" />
-            </Button>
+          <div className="border-b border-border bg-background/20 p-ui-md">
+            <TechnicalListItem
+              label={project.name}
+              description={`/${project.slug}`}
+              meta={`${project.status || 'active'} · ${project.id}`}
+              trailing={(
+                <Button size="sm" variant="outline" onClick={() => openProjectSurface()}>
+                  Open overview
+                  <ArrowRight className="h-icon w-icon" />
+                </Button>
+              )}
+            />
           </div>
 
-          <div className="grid lg:grid-cols-[minmax(0,1fr)_300px]">
-            <section className="border-b border-border lg:border-b-0 lg:border-r">
-              <SectionHeader title="Project details" description="Mutable project identity and technical metadata." />
-              <form onSubmit={form.handleSubmit(handleSave)} noValidate>
-                <div className="grid gap-4 p-4 md:grid-cols-2">
-                  <Field>
-                    <FieldLabel htmlFor="project-settings-dialog-name">Name</FieldLabel>
-                    <Input
-                      id="project-settings-dialog-name"
-                      placeholder="Project name"
-                      invalid={Boolean(form.formState.errors.name)}
-                      aria-describedby={form.formState.errors.name ? 'project-settings-dialog-name-error' : undefined}
-                      {...form.register('name')}
-                    />
-                    {form.formState.errors.name?.message && (
-                      <FieldError id="project-settings-dialog-name-error">{form.formState.errors.name.message}</FieldError>
-                    )}
-                  </Field>
+          <div className="lg:flex">
+            <section className="min-w-0 flex-1 border-b border-border p-ui-md lg:border-b-0 lg:border-r">
+              <form onSubmit={form.handleSubmit(handleSave)} noValidate className="grid gap-ui-md">
+                <SectionBlock
+                  title="Project details"
+                  description="Mutable project identity used across project-scoped operational surfaces."
+                >
+                  <div className="grid gap-ui-md md:grid-cols-2">
+                    <Field>
+                      <FieldLabel htmlFor="project-settings-dialog-name">Name</FieldLabel>
+                      <Input
+                        id="project-settings-dialog-name"
+                        placeholder="Project name"
+                        invalid={Boolean(form.formState.errors.name)}
+                        aria-describedby={form.formState.errors.name ? 'project-settings-dialog-name-error' : undefined}
+                        {...form.register('name')}
+                      />
+                      {form.formState.errors.name?.message ? (
+                        <FieldError id="project-settings-dialog-name-error">{form.formState.errors.name.message}</FieldError>
+                      ) : null}
+                    </Field>
 
-                  <Field>
-                    <FieldLabel htmlFor="project-settings-dialog-slug">Slug</FieldLabel>
-                    <Input
-                      id="project-settings-dialog-slug"
-                      placeholder="project-slug"
-                      invalid={Boolean(form.formState.errors.slug)}
-                      aria-describedby={form.formState.errors.slug ? 'project-settings-dialog-slug-error' : undefined}
-                      {...form.register('slug')}
-                    />
-                    {form.formState.errors.slug?.message && (
-                      <FieldError id="project-settings-dialog-slug-error">{form.formState.errors.slug.message}</FieldError>
-                    )}
-                  </Field>
-                </div>
+                    <Field>
+                      <FieldLabel htmlFor="project-settings-dialog-slug">Slug</FieldLabel>
+                      <Input
+                        id="project-settings-dialog-slug"
+                        placeholder="project-slug"
+                        invalid={Boolean(form.formState.errors.slug)}
+                        aria-describedby={form.formState.errors.slug ? 'project-settings-dialog-slug-error' : undefined}
+                        {...form.register('slug')}
+                      />
+                      {form.formState.errors.slug?.message ? (
+                        <FieldError id="project-settings-dialog-slug-error">{form.formState.errors.slug.message}</FieldError>
+                      ) : null}
+                    </Field>
+                  </div>
+                </SectionBlock>
 
-                <div className="grid border-t border-border sm:grid-cols-2">
-                  {metadata.map((item, index) => (
-                    <div
-                      key={item.label}
-                      className={`min-w-0 border-b border-border/70 px-4 py-3 ${index % 2 === 0 ? 'sm:border-r' : ''}`}
-                    >
-                      <p className="font-mono text-[8px] uppercase tracking-[0.08em] text-muted-foreground">{item.label}</p>
-                      <p className="mt-1 truncate font-mono text-[10px] font-medium text-slate-200" title={item.value}>{item.value}</p>
-                    </div>
-                  ))}
-                </div>
+                <SectionBlock
+                  title="Technical metadata"
+                  description="Stable identifiers and lifecycle timestamps for this Project."
+                  density="compact"
+                >
+                  <div className="grid gap-ui-xs sm:grid-cols-2">
+                    {metadata.map((item) => (
+                      <TechnicalListItem
+                        key={item.label}
+                        label={item.label}
+                        description={item.value}
+                        title={item.value}
+                      />
+                    ))}
+                  </div>
+                </SectionBlock>
 
-                <div className="flex flex-col gap-3 border-t border-border bg-control/35 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="font-mono text-[8px] text-muted-foreground">
+                <div className="flex flex-col gap-ui-sm border-t border-border pt-ui-md sm:flex-row sm:items-center sm:justify-between">
+                  <p className="font-mono text-system-meta text-muted-foreground">
                     {savedAt ? `Last saved at ${savedAt}` : form.formState.isDirty ? 'Unsaved project changes' : 'Project configuration is up to date'}
                   </p>
                   <Button type="submit" size="sm" loading={updateProject.isPending} disabled={!form.formState.isDirty && !updateProject.isPending}>
-                    <Save className="h-3 w-3" />
+                    <Save className="h-icon w-icon" />
                     Save changes
                   </Button>
                 </div>
               </form>
             </section>
 
-            <aside>
-              <SectionHeader title="Project navigation" description="Project-scoped operational surfaces." />
-              <nav className="divide-y divide-border/70">
-                {quickLinks.map((link) => {
-                  const Icon = link.icon
-                  return (
-                    <button
-                      key={link.label}
-                      type="button"
-                      onClick={() => openProjectSurface(link.segment)}
-                      className="group flex min-h-10 w-full items-center justify-between gap-3 px-4 py-2.5 text-left transition-colors hover:bg-accent/45 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-primary"
-                    >
-                      <span className="flex min-w-0 items-center gap-2.5">
-                        <Icon className={`h-3.5 w-3.5 shrink-0 ${link.tone}`} />
-                        <span className="truncate font-mono text-[10px] font-medium text-slate-200">{link.label}</span>
-                      </span>
-                      <ArrowRight className="h-3 w-3 shrink-0 text-muted-foreground transition-colors group-hover:text-primary-light" />
-                    </button>
-                  )
-                })}
-              </nav>
-              <div className="border-t border-border p-4">
-                <Button variant="outline" size="sm" className="w-full justify-between" onClick={() => openProjectSurface('agents')}>
-                  <span className="flex items-center gap-2">
-                    <Play className="h-3.5 w-3.5 text-primary-light" />
-                    Open Agents
-                  </span>
-                  <ArrowRight className="h-3 w-3" />
-                </Button>
-              </div>
+            <aside className="shrink-0 p-ui-md lg:w-dialog-sidebar">
+              <SectionBlock
+                title="Project navigation"
+                description="Project-scoped operational surfaces."
+                density="compact"
+              >
+                <nav className="grid gap-ui-xs">
+                  {quickLinks.map((link) => {
+                    const Icon = link.icon
+                    return (
+                      <TechnicalListItem
+                        key={link.label}
+                        label={link.label}
+                        leading={<Icon className="h-icon w-icon text-muted-foreground" />}
+                        trailing={<ArrowRight className="h-icon-sm w-icon-sm text-muted-foreground" />}
+                        onClick={() => openProjectSurface(link.segment)}
+                      />
+                    )
+                  })}
+                </nav>
+
+                <div className="mt-ui-md border-t border-border pt-ui-md">
+                  <Button variant="outline" size="sm" className="w-full justify-between" onClick={() => openProjectSurface('agents')}>
+                    <span className="flex items-center gap-ui-sm">
+                      <Play className="h-icon w-icon text-primary-light" />
+                      Open Agents
+                    </span>
+                    <ArrowRight className="h-icon-sm w-icon-sm" />
+                  </Button>
+                </div>
+              </SectionBlock>
             </aside>
           </div>
         </div>
