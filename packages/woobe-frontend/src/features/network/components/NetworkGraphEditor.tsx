@@ -19,6 +19,7 @@ import '@xyflow/react/dist/style.css'
 import './network-flow.css'
 import { AlertTriangle, Bot, Crown, Lock, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { Button } from '@woobe/ui'
 
 import { getRelease } from '@/features/agents/api'
 import type { Agent } from '@/features/agents/types'
@@ -51,11 +52,11 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
   const issue = data.issues.find((item) => item.severity === 'error')
   return (
     <article className={cn(
-      'w-60 rounded-2xl border bg-surface/95 p-3.5 text-left shadow-xl shadow-black/20 transition',
+      'w-60 rounded-container border bg-surface/95 p-ui-md text-left transition-colors',
       selected
-        ? 'border-primary ring-4 ring-primary/10'
+        ? 'border-primary ring-1 ring-primary/30'
         : data.activeInRun
-          ? 'border-emerald-400/65 ring-4 ring-emerald-400/10'
+          ? 'border-emerald-400/65 ring-1 ring-emerald-400/25'
           : issue
             ? 'border-red-500/45'
             : data.isRoot
@@ -64,22 +65,22 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
     )}>
       {!data.isRoot ? <Handle type="target" position={Position.Left} className="!h-3 !w-3 !border-2 !border-surface !bg-slate-400" /> : null}
       <Handle type="source" position={Position.Right} className="!h-3 !w-3 !border-2 !border-surface !bg-primary" />
-      <div className="flex items-start gap-3">
-        <div className={cn('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border', data.isRoot ? 'border-primary/35 bg-primary/10 text-primary-light' : 'border-border bg-background/60 text-slate-300')}>
-          {data.isRoot ? <Crown className="h-4 w-4" /> : <Bot className="h-4 w-4" />}
+      <div className="flex items-start gap-ui-md">
+        <div className={cn('flex h-control w-control shrink-0 items-center justify-center rounded-control border', data.isRoot ? 'border-primary/35 bg-primary/10 text-primary-light' : 'border-border bg-background/60 text-slate-300')}>
+          {data.isRoot ? <Crown className="h-icon w-icon" /> : <Bot className="h-icon w-icon" />}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <p className="truncate text-xs font-semibold text-white">{data.node.label}</p>
+          <div className="flex items-center gap-ui-sm">
+            <p className="truncate font-sans text-product-small font-semibold text-white">{data.node.label}</p>
             {issue ? <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-400" /> : null}
           </div>
-          <p className="mt-1 truncate text-[9px] text-muted">{data.agent ? `${data.agent.provider}/${data.agent.model}` : 'Agent unavailable'}</p>
-          {data.node.capability_description ? <p className="mt-1.5 line-clamp-2 text-[9px] leading-4 text-slate-400">{data.node.capability_description}</p> : null}
+          <p className="mt-ui-xs truncate font-mono text-system-meta text-muted-foreground">{data.agent ? `${data.agent.provider}/${data.agent.model}` : 'Agent unavailable'}</p>
+          {data.node.capability_description ? <p className="mt-ui-sm line-clamp-2 font-sans text-product-caption leading-4 text-slate-400">{data.node.capability_description}</p> : null}
         </div>
       </div>
-      <div className="mt-3 space-y-2 border-t border-border/70 pt-2">
-        <div className="flex items-center justify-between gap-2">
-          <span className={cn('rounded-md border px-1.5 py-0.5 text-[8px] font-semibold uppercase', data.activeInRun ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : data.isRoot ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-border text-muted')}>
+      <div className="mt-ui-md space-y-ui-sm border-t border-border/70 pt-ui-sm">
+        <div className="flex items-center justify-between gap-ui-sm">
+          <span className={cn('rounded-technical border px-ui-xs py-ui-hairline font-mono text-system-meta font-semibold uppercase', data.activeInRun ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : data.isRoot ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-border text-muted-foreground')}>
             {data.activeInRun ? 'Executed' : data.isRoot ? 'Entry point' : 'Agent'}
           </span>
           <span className={cn('h-2 w-2 shrink-0 rounded-full', data.agent?.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400')} />
@@ -93,7 +94,7 @@ function AgentNode({ data, selected }: NodeProps<AgentFlowNode>) {
             title={`${data.binding.source === 'release' ? 'Agent Release' : data.binding.source === 'staging' ? 'Agent Staging snapshot' : 'Agent Draft'}: ${data.binding.version}${data.binding.dirty ? ' · unsaved changes' : ''}`}
           />
         ) : (
-          <span className="block rounded-md border border-red-500/30 bg-red-500/10 px-2 py-1 text-center text-[8px] font-semibold text-red-300">Binding unavailable</span>
+          <span className="block rounded-technical border border-red-500/30 bg-red-500/10 px-ui-sm py-ui-xs text-center font-mono text-system-meta font-semibold text-red-300">Binding unavailable</span>
         )}
       </div>
     </article>
@@ -306,24 +307,24 @@ export function NetworkGraphEditor({
       </ReactFlow>
 
       {inspectionLabel ? (
-        <div className="absolute left-1/2 top-4 z-10 flex -translate-x-1/2 items-center gap-2 rounded-xl border border-border/80 bg-surface/95 px-3 py-2 text-[9px] text-slate-300 shadow-lg">
+        <div className="absolute left-1/2 top-ui-md z-10 flex -translate-x-1/2 items-center gap-ui-sm rounded-control border border-border/80 bg-surface/95 px-ui-md py-ui-sm font-mono text-system-meta text-slate-300">
           <Lock className="h-3 w-3 text-primary-light" />
           <span>Snapshot: {inspectionLabel}</span>
-          {onClearInspection ? <button type="button" onClick={onClearInspection} className="rounded-md p-1 text-muted hover:bg-background/60 hover:text-white" aria-label="Return to current composition"><X className="h-3 w-3" /></button> : null}
+          {onClearInspection ? <button type="button" onClick={onClearInspection} className="rounded-technical p-ui-xs text-muted-foreground transition-colors hover:bg-background/60 hover:text-white" aria-label="Return to current composition"><X className="h-3 w-3" /></button> : null}
         </div>
       ) : null}
       {!readOnly ? (
-        <button type="button" onClick={onAddAgent} className="absolute right-4 top-4 z-10 flex items-center gap-2 rounded-xl bg-primary px-3 py-2 text-[10px] font-semibold text-white shadow-lg shadow-primary/20">
-          <Plus className="h-3.5 w-3.5" />Add Agent
-        </button>
+        <Button type="button" size="sm" onClick={onAddAgent} className="absolute right-ui-md top-ui-md z-10">
+          <Plus className="h-icon-sm w-icon-sm" />Add Agent
+        </Button>
       ) : null}
       {!definition.nodes.length ? (
-        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-8">
-          <div className="pointer-events-auto max-w-sm rounded-2xl border border-border bg-surface/95 p-7 text-center shadow-2xl">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary-light"><Plus className="h-5 w-5" /></div>
-            <h2 className="mt-4 text-sm font-semibold text-white">Build your Network</h2>
-            <p className="mt-2 text-[10px] leading-5 text-muted">Add an Agent, make it the entry point, then connect the Agents it may delegate work to.</p>
-            {!readOnly ? <button type="button" onClick={onAddAgent} className="mt-5 rounded-xl bg-primary px-4 py-2.5 text-[10px] font-semibold text-white">Add first Agent</button> : null}
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-ui-xl">
+          <div className="pointer-events-auto max-w-sm rounded-container border border-border bg-surface/95 p-ui-xl text-center">
+            <div className="mx-auto flex h-control-lg w-control-lg items-center justify-center rounded-control border border-primary/25 bg-primary/10 text-primary-light"><Plus className="h-icon-lg w-icon-lg" /></div>
+            <h2 className="mt-ui-lg font-sans text-heading-sm font-semibold text-white">Build your Network</h2>
+            <p className="mt-ui-sm font-sans text-product-caption leading-5 text-muted-foreground">Add an Agent, make it the entry point, then connect the Agents it may delegate work to.</p>
+            {!readOnly ? <Button type="button" size="sm" onClick={onAddAgent} className="mt-ui-lg">Add first Agent</Button> : null}
           </div>
         </div>
       ) : null}
