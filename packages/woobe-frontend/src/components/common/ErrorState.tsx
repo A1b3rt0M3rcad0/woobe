@@ -1,6 +1,5 @@
 import { AlertCircle, RefreshCw } from 'lucide-react'
-import { EmptyStatePanel } from '@woobe/ui'
-import { Button } from '@/components/ui/Button'
+import { Button, EmptyStatePanel } from '@woobe/ui'
 import { ApiError } from '@/lib/api/errors'
 
 interface ErrorStateProps {
@@ -17,17 +16,17 @@ export function ErrorState({ error, message, onRetry, className }: ErrorStatePro
   return (
     <EmptyStatePanel
       className={className}
-      icon={<AlertCircle className="h-4 w-4 text-red-300" />}
+      icon={<AlertCircle className="h-icon w-icon text-error" />}
       title="Error"
       description={(
         <div>
           <p>{displayMessage}</p>
-          {status ? <p className="mt-1 font-mono text-[10px] text-muted-foreground">HTTP {status}</p> : null}
+          {status ? <p className="mt-ui-xs font-mono text-system-label text-muted-foreground">HTTP {status}</p> : null}
         </div>
       )}
       action={onRetry ? (
         <Button variant="outline" size="sm" onClick={onRetry}>
-          <RefreshCw className="mr-1.5 h-3.5 w-3.5" />
+          <RefreshCw className="h-icon-sm w-icon-sm" />
           Try again
         </Button>
       ) : undefined}
