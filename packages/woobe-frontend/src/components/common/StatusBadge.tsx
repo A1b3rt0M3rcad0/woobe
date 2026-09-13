@@ -37,11 +37,15 @@ const statusMap: Record<string, BadgeVariant> = {
   production: 'success',
 }
 
+function statusLabel(status: string) {
+  return status.trim().replace(/[_-]+/g, ' ')
+}
+
 export function StatusBadge({ status, size = 'default', className }: StatusBadgeProps) {
   const variant = statusMap[status.toLowerCase()] || 'default'
   return (
     <Badge variant={variant} size={size} className={cn('uppercase tracking-ui-label', className)}>
-      {status}
+      {statusLabel(status)}
     </Badge>
   )
 }
