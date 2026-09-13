@@ -9,6 +9,27 @@ export type DialogScrollMode = 'overlay' | 'content'
 export type DialogLayer = 'modal' | 'nestedModal'
 
 const DialogPresentationContext = createContext<DialogPresentation>('modal')
+const modalStack: string[] = []
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled]):not([type="hidden"])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[contenteditable="true"]',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',')
+
+function isTopModal(id: string) {
+  return modalStack[modalStack.length - 1] === id
+}
+
+function focusableElements(root: HTMLElement) {
+  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => (
+    element.getAttribute('aria-hidden') !== 'true'
+    && !element.hasAttribute('hidden')
+  ))
+}
 
 export interface DialogPresentationProviderProps {
   presentation: DialogPresentation
@@ -45,25 +66,89 @@ export const dialogTypographyClass = [
 export function Dialog({ open, onClose, title, children, className, contentClassName, layer = 'modal', scrollMode = 'overlay' }: DialogProps) {
   const presentation = useContext(DialogPresentationContext)
   const overlayRef = useRef<HTMLDivElement>(null)
+  const dialogRef = useRef<HTMLDivElement>(null)
+  const previouslyFocusedRef = useRef<HTMLElement | null>(null)
   const titleId = useId()
+  const modalId = useId()
   const contentScroll = scrollMode === 'content'
 
   useEffect(() => {
     if (!open || presentation !== 'modal') return
+
     const previousOverflow = document.body.style.overflow
-    const handleEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose() }
-    document.addEventListener('keydown', handleEscape)
+    previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    modalStack.push(modalId)
     document.body.style.overflow = 'hidden'
-    return () => { document.removeEventListener('keydown', handleEscape); document.body.style.overflow = previousOverflow }
-  }, [open, onClose, presentation])
+
+    const focusFrame = window.requestAnimationFrame(() => {
+      if (!isTopModal(modalId)) return
+      const root = dialogRef.current
+      if (!root) return
+      const [first] = focusableElements(root)
+      ;(first ?? root).focus()
+    })
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!isTopModal(modalId)) return
+
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        onClose()
+        return
+      }
+
+      if (event.key !== 'Tab') return
+      const root = dialogRef.current
+      if (!root) return
+      const focusable = focusableElements(root)
+      if (focusable.length === 0) {
+        event.preventDefault()
+        root.focus()
+        return
+      }
+
+      const first = focusable[0]
+      const last = focusable[focusable.length - 1]
+      const active = document.activeElement
+      const activeInside = active instanceof Node && root.contains(active)
+
+      if (event.shiftKey && (!activeInside || active === first)) {
+        event.preventDefault()
+        last.focus()
+      } else if (!event.shiftKey && (!activeInside || active === last)) {
+        event.preventDefault()
+        first.focus()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      window.cancelAnimationFrame(focusFrame)
+      document.removeEventListener('keydown', handleKeyDown)
+      const stackIndex = modalStack.lastIndexOf(modalId)
+      if (stackIndex >= 0) modalStack.splice(stackIndex, 1)
+      document.body.style.overflow = previousOverflow
+
+      const previouslyFocused = previouslyFocusedRef.current
+      if (previouslyFocused?.isConnected) {
+        window.requestAnimationFrame(() => {
+          if (previouslyFocused.isConnected) previouslyFocused.focus()
+        })
+      }
+    }
+  }, [modalId, onClose, open, presentation])
 
   if (!open) return null
 
   const dialogContent = (
     <div
+      ref={dialogRef}
       role={presentation === 'modal' ? 'dialog' : undefined}
       aria-modal={presentation === 'modal' ? true : undefined}
       aria-labelledby={presentation === 'modal' && title ? titleId : undefined}
+      tabIndex={presentation === 'modal' ? -1 : undefined}
       className={cn(
         'dialog-scrollbars relative w-full max-w-dialog-compact rounded-container border border-border bg-surface text-accent-foreground shadow-popup',
         dialogTypographyClass,
@@ -99,7 +184,9 @@ export function Dialog({ open, onClose, title, children, className, contentClass
         contentScroll ? 'overflow-hidden' : 'overflow-y-auto',
         LAYER_CLASS[layer],
       )}
-      onClick={(event) => { if (event.target === overlayRef.current) onClose() }}
+      onClick={(event) => {
+        if (event.target === overlayRef.current && isTopModal(modalId)) onClose()
+      }}
     >
       {dialogContent}
     </div>,
