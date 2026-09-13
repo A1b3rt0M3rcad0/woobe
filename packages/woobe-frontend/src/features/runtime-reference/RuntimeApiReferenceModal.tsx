@@ -240,7 +240,7 @@ export function RuntimeApiReferenceModal({
                   description={`${targetLabel} Runtime`}
                   meta={targetId}
                   leading={(
-                    <span className="flex h-control-navigation w-control-navigation items-center justify-center rounded-control border border-primary/25 bg-primary/[0.08] text-primary-light">
+                    <span className="flex h-control-nav w-control-nav items-center justify-center rounded-control border border-primary/25 bg-primary/[0.08] text-primary-light">
                       <TargetIcon className="h-icon w-icon" />
                     </span>
                   )}
