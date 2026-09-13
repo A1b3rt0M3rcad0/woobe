@@ -15,8 +15,8 @@ const variantClasses: Record<BadgeVariant, string> = {
 }
 
 const sizeClasses: Record<BadgeSize, string> = {
-  compact: 'gap-ui-hairline px-ui-xs py-ui-hairline text-system-meta',
-  default: 'gap-ui-xs px-ui-sm py-ui-xs text-system-label',
+  compact: 'gap-ui-hairline px-ui-xs py-ui-hairline text-system-nano',
+  default: 'gap-ui-xs px-ui-sm py-ui-xs text-system-nano',
 }
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
@@ -28,7 +28,7 @@ function Badge({ className, variant = 'default', size = 'default', ...props }: B
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-technical border font-mono font-medium leading-none',
+        'inline-flex items-center rounded-technical border font-mono font-normal leading-none',
         variantClasses[variant],
         sizeClasses[size],
         className,
