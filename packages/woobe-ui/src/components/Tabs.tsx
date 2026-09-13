@@ -34,7 +34,7 @@ export function Tabs({ tabs, defaultTab, value, onValueChange, className, conten
   return (
     <div className={cn('w-full', className)}>
       <div className="shrink-0 overflow-x-auto border-b border-border pb-ui-md">
-        <div role="tablist" className="inline-flex min-w-max rounded-control border border-border bg-control p-ui-control-inset">
+        <div role="tablist" className="inline-flex min-w-max gap-ui-hairline rounded-control border border-border bg-control p-ui-control-inset">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -43,10 +43,10 @@ export function Tabs({ tabs, defaultTab, value, onValueChange, className, conten
               aria-selected={active === tab.id}
               onClick={() => setActive(tab.id)}
               className={cn(
-                'flex h-control-segment items-center whitespace-nowrap rounded-technical border px-ui-sm font-mono text-system-micro font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
+                'flex h-control-segment items-center whitespace-nowrap rounded-technical border px-ui-sm font-mono text-chrome-label font-normal transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
                 active === tab.id
-                  ? 'border-primary/35 bg-primary/[0.12] text-accent-foreground'
-                  : 'border-transparent text-muted-foreground hover:bg-accent/45 hover:text-accent-foreground/90',
+                  ? 'border-border bg-accent text-accent-foreground'
+                  : 'border-transparent text-muted-foreground hover:text-accent-foreground/90',
               )}
             >
               {tab.label}
