@@ -37,16 +37,16 @@ function EnvironmentSnapshotContent({
   const label = titleCaseEnvironment(environment)
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex min-h-control-lg shrink-0 items-center justify-between gap-ui-md border-b border-border bg-background/20 px-ui-md py-ui-sm">
+      <div className="flex min-h-control shrink-0 items-center justify-between gap-ui-md border-b border-border bg-background/20 px-ui-md py-ui-sm">
         <div className="flex min-w-0 items-center gap-ui-sm">
-          <Lock className="h-3 w-3 text-muted-foreground" />
-          <span className="truncate font-mono text-system-meta text-muted-foreground">Viewing immutable {label}</span>
+          <Lock className="h-icon-sm w-icon-sm text-muted-foreground" />
+          <span className="truncate font-mono text-chrome-meta text-muted-foreground">Viewing immutable {label}</span>
         </div>
         {release ? <Badge variant={environment === 'production' ? 'success' : 'secondary'}>{release.version}</Badge> : null}
       </div>
       <ScrollArea className="min-h-0 flex-1">
         {loading && !release ? (
-          <div className="p-ui-lg font-mono text-system-label text-muted-foreground">Loading {label} snapshot…</div>
+          <div className="p-ui-lg font-mono text-chrome-label text-muted-foreground">Loading {label} snapshot…</div>
         ) : release ? (
           <div className="p-ui-md"><ReleaseDetailsView release={release} /></div>
         ) : (
@@ -89,9 +89,9 @@ export function AgentInspector({
         expanded ? 'lg:w-inspector-expanded lg:max-w-inspector-expanded' : 'lg:w-inspector lg:max-w-inspector',
       )}
     >
-      <div className="flex h-control-row shrink-0 items-center gap-ui-sm border-b border-border bg-background/20 px-ui-md">
+      <div className="flex h-control shrink-0 items-center gap-ui-sm border-b border-border bg-background/20 px-ui-md">
         <div className="min-w-0 flex-1">
-          <p className="truncate font-mono text-system-label font-bold text-slate-50">Agent settings</p>
+          <p className="truncate font-mono text-chrome-label font-semibold text-slate-50">Agent settings</p>
         </div>
 
         <SegmentedControl
@@ -99,8 +99,8 @@ export function AgentInspector({
           value={resolvedActiveTab}
           onValueChange={onTabChange}
           items={[
-            { value: 'editor', label: editorLabel, icon: environment === 'draft' ? <Edit3 className="h-3 w-3" /> : <Lock className="h-3 w-3" /> },
-            { value: 'versions', label: 'Versions', icon: <Rocket className="h-3 w-3" /> },
+            { value: 'editor', label: editorLabel, icon: environment === 'draft' ? <Edit3 className="h-icon-sm w-icon-sm" /> : <Lock className="h-icon-sm w-icon-sm" /> },
+            { value: 'versions', label: 'Versions', icon: <Rocket className="h-icon-sm w-icon-sm" /> },
           ]}
           className="shrink-0"
         />
@@ -113,7 +113,7 @@ export function AgentInspector({
           title={expanded ? 'Restore Inspector width' : 'Expand Inspector'}
           aria-pressed={expanded}
         >
-          {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          {expanded ? <Minimize2 className="h-icon w-icon" /> : <Maximize2 className="h-icon w-icon" />}
         </button>
         {onCollapse ? (
           <button
@@ -123,7 +123,7 @@ export function AgentInspector({
             aria-label="Collapse Inspector"
             title="Collapse Inspector"
           >
-            <ChevronRight className="h-3.5 w-3.5" />
+            <ChevronRight className="h-icon w-icon" />
           </button>
         ) : null}
       </div>
