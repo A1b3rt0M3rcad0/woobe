@@ -13,7 +13,7 @@ const FieldLabel = forwardRef<HTMLLabelElement, LabelHTMLAttributes<HTMLLabelEle
     <label
       ref={ref}
       className={cn(
-        'font-mono text-system-control font-medium uppercase leading-none tracking-ui-label text-muted-foreground',
+        'font-mono text-chrome-label font-medium uppercase tracking-ui-label text-muted-foreground',
         className,
       )}
       {...props}
