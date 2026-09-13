@@ -33,7 +33,7 @@ Alert.displayName = 'Alert'
 
 const AlertTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
   ({ className, ...props }, ref) => (
-    <h5 ref={ref} className={cn('mb-ui-xs font-mono text-system-control font-medium', className)} {...props} />
+    <h5 ref={ref} className={cn('mb-ui-xs font-sans text-product-small font-semibold', className)} {...props} />
   ),
 )
 AlertTitle.displayName = 'AlertTitle'

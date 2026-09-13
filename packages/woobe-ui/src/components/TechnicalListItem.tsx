@@ -51,7 +51,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
       >
         {leading ? <span className="shrink-0">{leading}</span> : <span aria-hidden="true" />}
         <span className="min-w-0">
-          <span className={cn('block truncate font-mono text-system-label font-semibold', selected ? 'text-accent-foreground' : 'text-accent-foreground/85')}>{label}</span>
+          <span className={cn('block truncate font-sans text-product-small font-semibold', selected ? 'text-accent-foreground' : 'text-accent-foreground/85')}>{label}</span>
           {description ? <span className="mt-ui-xs block truncate font-sans text-product-caption text-muted-foreground">{description}</span> : null}
           {meta ? <span className="mt-ui-xs flex min-w-0 flex-wrap items-center gap-x-ui-sm gap-y-ui-xs font-mono text-system-meta text-muted-foreground">{meta}</span> : null}
         </span>
