@@ -69,6 +69,7 @@ export function NetworkAgentCatalogDrawer({
             const added = addedAgentIds.has(agent.id)
             const inactive = agent.status?.toLowerCase() !== 'active'
             const disabled = added || inactive
+            const actionLabel = added ? 'Already in Network' : inactive ? 'Agent unavailable' : firstAgent ? 'Use as entry Agent' : 'Add specialist'
             return (
               <TechnicalListItem
                 key={agent.id}
@@ -76,24 +77,24 @@ export function NetworkAgentCatalogDrawer({
                 label={agent.name}
                 description={`${agent.provider}/${agent.model}`}
                 meta={agent.description || 'No description'}
-                trailing={<Badge size="compact" variant={inactive ? 'warning' : 'success'}>{inactive ? 'Unavailable' : 'Ready'}</Badge>}
+                trailing={(
+                  <div className="flex flex-col items-end gap-ui-xs">
+                    <Badge size="compact" variant={inactive ? 'warning' : 'success'}>{inactive ? 'Unavailable' : 'Ready'}</Badge>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={added ? 'ghost' : inactive ? 'outline' : 'default'}
+                      disabled={disabled}
+                      title={inactive ? 'Activate the Agent before using it in a Network Draft.' : undefined}
+                      onClick={() => onAdd(agent)}
+                    >
+                      {added ? <Check className="mr-ui-xs h-icon-sm w-icon-sm" /> : <Plus className="mr-ui-xs h-icon-sm w-icon-sm" />}
+                      {actionLabel}
+                    </Button>
+                  </div>
+                )}
                 className={added ? 'border-primary/25 bg-primary/[0.04]' : undefined}
-              >
-                <div className="mt-ui-sm border-t border-border/60 pt-ui-sm">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant={added ? 'ghost' : inactive ? 'outline' : 'default'}
-                    disabled={disabled}
-                    title={inactive ? 'Activate the Agent before using it in a Network Draft.' : undefined}
-                    onClick={() => onAdd(agent)}
-                    className="w-full"
-                  >
-                    {added ? <Check className="mr-ui-xs h-icon-sm w-icon-sm" /> : <Plus className="mr-ui-xs h-icon-sm w-icon-sm" />}
-                    {added ? 'Already in Network' : inactive ? 'Agent unavailable' : firstAgent ? 'Use as entry Agent' : 'Add specialist'}
-                  </Button>
-                </div>
-              </TechnicalListItem>
+              />
             )
           })}
           {!filtered.length ? <EmptyStatePanel compact title="No Agents match this search" /> : null}
