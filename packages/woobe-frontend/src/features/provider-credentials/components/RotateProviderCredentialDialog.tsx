@@ -39,18 +39,23 @@ export function RotateProviderCredentialDialog({ open, credential, generationCou
   }
 
   return (
-    <Dialog open={open} onClose={handleClose} title="Rotate provider key" className="max-w-2xl">
+    <Dialog open={open} onClose={handleClose} title="Rotate provider key" className="max-w-dialog">
       {credential ? (
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <SectionBlock title={credential.name} eyebrow={credential.provider} density="compact" actions={<RotateCcw className="h-3.5 w-3.5 text-primary-light" />}>
-            <div className="grid gap-2 sm:grid-cols-2">
+        <form onSubmit={handleSubmit} className="space-y-ui-md">
+          <SectionBlock title={credential.name} eyebrow={credential.provider} density="compact" actions={<RotateCcw className="h-icon w-icon text-primary-light" />}>
+            <div className="grid gap-ui-sm sm:grid-cols-2">
               <MetricTile label="Generation models" value={generationCount} />
               <MetricTile label="Embedding models" value={embeddingCount} />
             </div>
           </SectionBlock>
 
           <Alert variant="info">
-            <AlertDescription><span className="inline-flex items-center gap-1.5 font-mono text-[9px] font-semibold text-slate-100"><CheckCircle2 className="h-3.5 w-3.5 text-primary-light" />Existing bindings stay unchanged</span><span className="mt-1 block">The credential ID is preserved. Connected models, Agents and releases continue using this connection without relinking.</span></AlertDescription>
+            <AlertDescription>
+              <span className="inline-flex items-center gap-ui-xs font-mono text-system-label font-semibold text-accent-foreground">
+                <CheckCircle2 className="h-icon w-icon text-primary-light" />Existing bindings stay unchanged
+              </span>
+              <span className="mt-ui-xs block">The credential ID is preserved. Connected models, Agents and releases continue using this connection without relinking.</span>
+            </AlertDescription>
           </Alert>
 
           <Field>
@@ -60,10 +65,15 @@ export function RotateProviderCredentialDialog({ open, credential, generationCou
           </Field>
 
           <Alert variant="warning">
-            <AlertDescription><span className="inline-flex items-center gap-1.5 font-mono text-[9px] font-semibold"><AlertTriangle className="h-3.5 w-3.5" />Provider-side revocation is separate</span><span className="mt-1 block">Woobe replaces the stored secret but cannot revoke the previous key at the provider. Revoke it in the provider dashboard after rotation succeeds.</span></AlertDescription>
+            <AlertDescription>
+              <span className="inline-flex items-center gap-ui-xs font-mono text-system-label font-semibold">
+                <AlertTriangle className="h-icon w-icon" />Provider-side revocation is separate
+              </span>
+              <span className="mt-ui-xs block">Woobe replaces the stored secret but cannot revoke the previous key at the provider. Revoke it in the provider dashboard after rotation succeeds.</span>
+            </AlertDescription>
           </Alert>
 
-          <div className="flex justify-end gap-2 border-t border-border pt-3">
+          <div className="flex justify-end gap-ui-sm border-t border-border pt-ui-md">
             <Button type="button" variant="outline" onClick={handleClose} disabled={rotateCredential.isPending}>Cancel</Button>
             <Button type="submit" loading={rotateCredential.isPending} disabled={!secret.trim()}>Verify and rotate</Button>
           </div>
