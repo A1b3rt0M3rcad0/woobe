@@ -89,16 +89,16 @@ function ScopeChip({
   onRemove: () => void
 }) {
   return (
-    <span className="inline-flex h-[28px] items-center gap-1.5 rounded-technical border border-primary/25 bg-primary/[0.07] px-2 font-mono text-[8px] text-primary-light">
+    <span className="inline-flex h-control-sm items-center gap-ui-xs rounded-technical border border-primary/25 bg-primary/[0.07] px-ui-sm font-mono text-system-meta text-primary-light">
       <span className="text-muted-foreground">{label}</span>
       <span className="max-w-[220px] truncate font-medium text-slate-100">{value}</span>
       <button
         type="button"
         onClick={onRemove}
-        className="flex h-4 w-4 items-center justify-center rounded-technical border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50"
+        className="flex h-icon w-icon items-center justify-center rounded-technical border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50"
         aria-label={`Remove ${label} filter`}
       >
-        <X className="h-2.5 w-2.5" />
+        <X className="h-icon-sm w-icon-sm" />
       </button>
     </span>
   )
@@ -235,15 +235,14 @@ export default function UsagePage() {
     <ResourcePage
       title="Usage"
       description="Costs and operational efficiency for this Project."
-      className="max-w-[1600px]"
       action={(
         <Button type="button" variant="outline" onClick={refresh} disabled={usageQuery.isFetching}>
-          <RefreshCw className={usageQuery.isFetching ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+          <RefreshCw className={usageQuery.isFetching ? 'h-icon w-icon animate-spin' : 'h-icon w-icon'} />
           Refresh
         </Button>
       )}
     >
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border border-border bg-control/25 px-3 py-2 font-mono text-[8px] text-muted-foreground">
+      <div className="flex flex-wrap items-center gap-x-ui-sm gap-y-ui-xs border border-border bg-control/25 px-ui-md py-ui-sm font-mono text-system-meta text-muted-foreground">
         <span>Data through <span className="text-slate-100">{formatDateTime(usage?.data_through ?? null)}</span></span>
         {usage?.data_quality.aggregation_lag_seconds !== null && usage?.data_quality.aggregation_lag_seconds !== undefined
           ? <span>· {usage.data_quality.aggregation_lag_seconds}s freshness</span>
@@ -253,8 +252,8 @@ export default function UsagePage() {
       </div>
 
       <ResourceToolbar>
-        <div className="space-y-3">
-          <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="space-y-ui-md">
+          <div className="flex flex-col gap-ui-md xl:flex-row xl:items-center xl:justify-between">
             <ResourceTabs
               value={range}
               onChange={(value) => { setRange(value); setAnchor(new Date()) }}
@@ -279,7 +278,7 @@ export default function UsagePage() {
             />
           </div>
 
-          <div className="border-t border-border/70 pt-3">
+          <div className="border-t border-border/70 pt-ui-md">
             <ResourceTabs
               value={operation}
               onChange={selectOperation}
@@ -292,9 +291,9 @@ export default function UsagePage() {
             />
           </div>
 
-          <div className="flex flex-col gap-2.5 border-t border-border/70 pt-3 lg:flex-row lg:items-center">
-            <div className="flex shrink-0 items-center gap-1.5 font-mono text-[8px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">
-              <SlidersHorizontal className="h-3.5 w-3.5 text-primary-light" />
+          <div className="flex flex-col gap-ui-sm border-t border-border/70 pt-ui-md lg:flex-row lg:items-center">
+            <div className="flex shrink-0 items-center gap-ui-xs font-mono text-system-meta font-semibold uppercase tracking-ui-eyebrow text-muted-foreground">
+              <SlidersHorizontal className="h-icon w-icon text-primary-light" />
               Scope and attribution
             </div>
             {operation !== 'agent' ? (
@@ -316,14 +315,14 @@ export default function UsagePage() {
               className="min-w-[190px]"
               options={lensOptions}
             />
-            <p className="font-sans text-[10px] leading-4 text-muted-foreground">
+            <p className="font-sans text-system-control leading-4 text-muted-foreground">
               Runs define the operation. Provider and Model only explain where the Run cost came from.
             </p>
           </div>
 
           {activeScopeCount > 0 ? (
-            <div className="flex flex-wrap items-center gap-1.5 border-t border-border/70 pt-3">
-              <span className="font-mono text-[8px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">Active scope</span>
+            <div className="flex flex-wrap items-center gap-ui-xs border-t border-border/70 pt-ui-md">
+              <span className="font-mono text-system-meta font-semibold uppercase tracking-ui-eyebrow text-muted-foreground">Active scope</span>
               {environment !== 'all' ? <ScopeChip label="Environment" value={environmentLabels[environment]} onRemove={() => selectEnvironment('all')} /> : null}
               {operation !== 'all' ? <ScopeChip label="Operation" value={operationLabels[operation]} onRemove={() => selectOperation('all')} /> : null}
               {networkScope ? <ScopeChip label="Network" value={networkScope.label} onRemove={() => selectNetwork('')} /> : null}
@@ -343,12 +342,12 @@ export default function UsagePage() {
         <ErrorState error={usageQuery.error} onRetry={refresh} className="rounded-container border border-border bg-surface/70 py-10" />
       ) : !usage || !hasUsage ? (
         <ResourceEmptyState
-          icon={<BarChart3 className="h-4 w-4" />}
+          icon={<BarChart3 className="h-icon-lg w-icon-lg" />}
           title="No Run usage in this scope"
           description="Usage appears after an Agent Run or Network Run reaches a terminal state. Widen the period or remove a scope filter if executions already exist."
         />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-ui-md">
           <section>
             <ResourceSectionHeader
               title="Operational scorecard"
