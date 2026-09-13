@@ -109,6 +109,13 @@
   margin-top: 0.75rem !important;
 }
 
+/* Older workspace dialogs used -m-6 to cancel a 24px content inset. The shared
+ * Dialog now owns a 15px panel inset, so keep those full-bleed workspaces aligned
+ * without forcing feature components to know the Dialog's current spacing. */
+.dialog-scrollbars > :last-child > .-m-6 {
+  margin: -0.9375rem !important;
+}
+
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) [class*='border-red-500'][class*='bg-red-500'] {
   border-color: rgb(239 68 68 / 0.18) !important;
   background-color: rgb(11 18 32 / 0.72) !important;
