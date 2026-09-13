@@ -259,7 +259,7 @@ function LegacyHttpEditor({
           {showBody ? (
             <Field>
               <FieldLabel>Body</FieldLabel>
-              <Textarea disabled={disabled} value={body} onChange={(event) => setBody(event.target.value)} className="min-h-multiline font-mono" />
+              <Textarea disabled={disabled} value={body} onChange={(event) => setBody(event.target.value)} className="min-h-textarea font-mono" />
             </Field>
           ) : null}
         </div>
@@ -338,7 +338,7 @@ function McpMetadataEditor({
           </Field>
           <Field className="md:col-span-2">
             <FieldLabel>Description</FieldLabel>
-            <Textarea disabled={disabled} value={description} onChange={(event) => setDescription(event.target.value)} className="min-h-multiline" />
+            <Textarea disabled={disabled} value={description} onChange={(event) => setDescription(event.target.value)} className="min-h-textarea" />
           </Field>
           <Field>
             <FieldLabel>Timeout (ms)</FieldLabel>
