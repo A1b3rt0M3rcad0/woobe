@@ -4,6 +4,7 @@ import { EmptyStatePanel } from './EmptyStatePanel'
 import { Input } from './Input'
 import { SegmentedControl } from './SegmentedControl'
 import { cn } from '../lib/cn'
+import '../styles/resource-page-compatibility.css'
 
 export type ResourcePageVariant = 'contained' | 'canvas'
 
@@ -39,7 +40,7 @@ export function ResourcePage({
         '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
         '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono',
         '[&_textarea]:font-sans',
-        '[&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-control [&_.rounded-md]:rounded-technical',
+        '[&_.rounded-2xl]:rounded-container [&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-control [&_.rounded-md]:rounded-technical',
         '[&_.shadow-sm]:shadow-none [&_.shadow-lg]:shadow-none [&_.shadow-xl]:shadow-none [&_.shadow-2xl]:shadow-none',
         className,
       )}
