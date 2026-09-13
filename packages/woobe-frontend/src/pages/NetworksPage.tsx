@@ -104,7 +104,7 @@ function NetworkOperationalCard({
             <span>Updated · {formatDate(network.updated_at || network.created_at)}</span>
           </span>
         )}
-        className="h-full w-full pr-ui-2xl"
+        className="h-full w-full pr-ui-xxl"
       />
       <Button
         type="button"
