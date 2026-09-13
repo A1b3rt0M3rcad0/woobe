@@ -112,6 +112,7 @@ export function AgentEditorNavigation({
         <div className="px-ui-md py-ui-sm">
           <SegmentedControl
             ariaLabel="Agent configuration sections"
+            size="compact"
             value={value}
             onValueChange={(section) => onChange(section as AgentEditorSection)}
             items={activeGroup.sections.map((section) => ({ value: section.id, label: section.label }))}
