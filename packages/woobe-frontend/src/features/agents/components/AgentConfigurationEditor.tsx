@@ -73,13 +73,13 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
-      <div className="flex min-h-control-lg shrink-0 items-center gap-ui-sm border-b border-border bg-background/20 px-ui-md py-ui-sm">
+      <div className="flex min-h-control shrink-0 items-center gap-ui-sm border-b border-border bg-background/20 px-ui-md py-ui-sm">
         <div className="min-w-0 flex-1">
-          <p className="truncate font-mono text-system-meta text-muted-foreground">{loadedReleaseVersion ? <>Draft based on <span className="text-primary-light">{loadedReleaseVersion}</span></> : 'Current Draft'}</p>
-          <p role="status" className={cn('mt-ui-xs font-mono text-system-meta', saveFailed || hasValidationIssue ? 'text-red-300' : isDirty ? 'text-amber-300/90' : 'text-muted-foreground')}>{status}</p>
+          <p className="truncate font-mono text-chrome-meta text-muted-foreground">{loadedReleaseVersion ? <>Draft based on <span className="text-primary-light">{loadedReleaseVersion}</span></> : 'Current Draft'}</p>
+          <p role="status" className={cn('mt-ui-hairline font-mono text-chrome-meta', saveFailed || hasValidationIssue ? 'text-red-300' : isDirty ? 'text-amber-300/90' : 'text-muted-foreground')}>{status}</p>
         </div>
-        <Button size="sm" variant="ghost" className="w-control-sm p-0 text-muted-foreground" onClick={() => { setSaveFailed(false); resetToBaseline() }} disabled={!isDirty || createRelease.isPending} title="Reset to saved Draft" aria-label="Reset Draft"><RotateCcw className="h-3.5 w-3.5" /></Button>
-        <Button size="sm" onClick={() => void saveDraft()} loading={createRelease.isPending} disabled={!isDirty && !loadedReleaseVersion} aria-invalid={hasValidationIssue || undefined}><Save className="h-3 w-3" />Save</Button>
+        <Button size="sm" variant="ghost" className="w-control-sm p-0 text-muted-foreground" onClick={() => { setSaveFailed(false); resetToBaseline() }} disabled={!isDirty || createRelease.isPending} title="Reset to saved Draft" aria-label="Reset Draft"><RotateCcw className="h-icon w-icon" /></Button>
+        <Button size="sm" onClick={() => void saveDraft()} loading={createRelease.isPending} disabled={!isDirty && !loadedReleaseVersion} aria-invalid={hasValidationIssue || undefined}><Save className="h-icon-sm w-icon-sm" />Save</Button>
       </div>
       <AgentEditorNavigation value={section} onChange={setSection} />
       <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
