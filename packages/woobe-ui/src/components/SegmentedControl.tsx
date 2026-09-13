@@ -15,7 +15,7 @@ export interface SegmentedControlProps {
   ariaLabel: string
   className?: string
   stretch?: boolean
-  size?: 'segment' | 'compact'
+  size?: 'technical' | 'segment' | 'compact'
 }
 
 export function SegmentedControl({
@@ -27,6 +27,12 @@ export function SegmentedControl({
   stretch = false,
   size = 'segment',
 }: SegmentedControlProps) {
+  const sizeClass = size === 'technical'
+    ? 'h-control-xs text-chrome-nano'
+    : size === 'compact'
+      ? 'h-control-sm text-chrome-label'
+      : 'h-control-segment text-chrome-meta'
+
   return (
     <div
       role="group"
@@ -47,8 +53,8 @@ export function SegmentedControl({
             disabled={item.disabled}
             onClick={() => onValueChange(item.value)}
             className={cn(
-              'flex min-w-0 items-center justify-center gap-ui-xs rounded-technical border px-ui-sm font-mono font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50',
-              size === 'segment' ? 'h-control-segment text-system-nano' : 'h-control-sm text-system-micro',
+              'flex min-w-0 items-center justify-center gap-ui-xs rounded-technical border px-ui-sm font-mono font-normal transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50',
+              sizeClass,
               stretch && 'flex-1',
               active
                 ? 'border-primary/35 bg-primary/[0.10] text-accent-foreground'
