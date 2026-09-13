@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { Circle, Clock, Loader2, MessageSquare, RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
+import { Button, EmptyStatePanel } from '@woobe/ui'
 
 import { ScrollArea } from '@/components/ui/ScrollArea'
 import { resetNetworkSessionContext } from '@/features/network/api'
@@ -60,45 +61,47 @@ export function NetworkSessionsPanel({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="shrink-0 border-b border-border/80 px-4 py-3">
-        <div className="flex items-start justify-between gap-3">
+      <div className="shrink-0 border-b border-border/80 px-ui-md py-ui-md">
+        <div className="flex items-start justify-between gap-ui-md">
           <div>
-            <h3 className="text-sm font-semibold text-white">Sessions</h3>
-            <p className="mt-0.5 text-[10px] text-muted">Conversation continuity for the active Network environment.</p>
+            <h3 className="font-mono text-system-heading font-semibold text-white">Sessions</h3>
+            <p className="mt-ui-hairline font-sans text-product-caption text-muted-foreground">Conversation continuity for the active Network environment.</p>
           </div>
           {activeSession && !activeSessionIsEarlierSnapshot ? (
-            <button
+            <Button
               type="button"
+              size="sm"
+              variant="outline"
               onClick={() => { void resetContext() }}
               disabled={resettingContext}
-              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-[10px] text-muted transition-colors hover:border-primary/30 hover:text-white disabled:cursor-wait disabled:opacity-50"
               title="Start fresh Agent contexts in the selected Network Session"
             >
-              {resettingContext ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+              {resettingContext ? <Loader2 className="h-icon-sm w-icon-sm animate-spin" /> : <RotateCcw className="h-icon-sm w-icon-sm" />}
               Reset context
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>
 
       <ScrollArea className="min-h-0 flex-1">
-        <div className="space-y-1.5 p-4">
+        <div className="space-y-ui-sm p-ui-md">
           {loading && sessions.length === 0 ? (
             Array.from({ length: 5 }).map((_, index) => (
-              <div key={index} className="rounded-xl border border-border/70 bg-background/35 p-3">
+              <div key={index} className="rounded-container border border-border/70 bg-background/35 p-ui-md">
                 <div className="h-3 w-32 animate-pulse rounded-full bg-white/[0.07]" />
-                <div className="mt-3 h-2.5 w-24 animate-pulse rounded-full bg-white/[0.07]" />
-                <div className="mt-2 h-2.5 w-40 animate-pulse rounded-full bg-white/[0.07]" />
+                <div className="mt-ui-md h-2.5 w-24 animate-pulse rounded-full bg-white/[0.07]" />
+                <div className="mt-ui-sm h-2.5 w-40 animate-pulse rounded-full bg-white/[0.07]" />
               </div>
             ))
           ) : null}
 
           {!loading && sessions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-border/80 bg-background/45 px-4 py-8 text-center">
-              <MessageSquare className="mb-2 h-8 w-8 text-muted" />
-              <p className="text-sm text-muted">No sessions yet</p>
-              <p className="mt-1 text-xs text-muted">Use New Session in the left rail to start a Network conversation.</p>
-            </div>
+            <EmptyStatePanel
+              compact
+              icon={<MessageSquare className="h-icon-lg w-icon-lg" />}
+              title="No sessions yet"
+              description="Use New Session in the left rail to start a Network conversation."
+            />
           ) : null}
 
           {sessions.map((session) => {
@@ -113,27 +116,27 @@ export function NetworkSessionsPanel({
                 type="button"
                 onClick={() => onSelectSession(session.id)}
                 className={cn(
-                  'w-full rounded-xl border p-3 text-left shadow-sm shadow-black/5 transition-colors',
+                  'w-full rounded-container border p-ui-md text-left transition-colors',
                   selected
                     ? 'border-primary/35 bg-primary/10'
                     : 'border-border/80 bg-background/45 hover:border-primary/25 hover:bg-background/70',
                 )}
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <Circle className={cn('h-2 w-2 shrink-0 fill-current', selected ? 'text-primary-light' : 'text-muted')} />
-                    <span className={cn('truncate text-xs', selected ? 'font-medium text-white' : 'text-slate-200')}>{session.title}</span>
+                <div className="flex items-start justify-between gap-ui-md">
+                  <div className="flex min-w-0 items-center gap-ui-sm">
+                    <Circle className={cn('h-2 w-2 shrink-0 fill-current', selected ? 'text-primary-light' : 'text-muted-foreground')} />
+                    <span className={cn('truncate font-sans text-product-small', selected ? 'font-medium text-white' : 'text-slate-200')}>{session.title}</span>
                   </div>
-                  {selected ? <span className="shrink-0 text-[9px] font-medium uppercase text-primary-light">Selected</span> : null}
+                  {selected ? <span className="shrink-0 font-mono text-system-meta font-medium uppercase text-primary-light">Selected</span> : null}
                 </div>
 
-                <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[10px] text-muted">
-                  <span className="font-mono text-indigo-300">{session.versionLabel}</span>
-                  {earlierSnapshot ? <span className="rounded border border-amber-400/25 bg-amber-400/5 px-1.5 py-0.5 text-amber-300">Earlier snapshot</span> : null}
+                <div className="mt-ui-sm flex flex-wrap items-center gap-ui-sm font-mono text-system-meta text-muted-foreground">
+                  <span className="text-indigo-300">{session.versionLabel}</span>
+                  {earlierSnapshot ? <span className="rounded-technical border border-amber-400/25 bg-amber-400/5 px-ui-xs py-ui-hairline text-amber-300">Earlier snapshot</span> : null}
                 </div>
 
-                <div className="mt-2 flex flex-wrap items-center gap-3 text-[10px] text-muted">
-                  <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{formatDate(session.lastMessageAt || session.createdAt)}</span>
+                <div className="mt-ui-sm flex flex-wrap items-center gap-ui-md font-mono text-system-meta text-muted-foreground">
+                  <span className="flex items-center gap-ui-xs"><Clock className="h-3 w-3" />{formatDate(session.lastMessageAt || session.createdAt)}</span>
                   <span>{session.messageCount} msgs</span>
                   <span>{session.traceCount} Runs</span>
                 </div>
