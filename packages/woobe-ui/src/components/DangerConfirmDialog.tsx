@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { Alert, AlertDescription } from './Alert'
 import { Button } from './Button'
 import { Dialog } from './Dialog'
 
@@ -25,16 +26,16 @@ export function DangerConfirmDialog({
   onClose,
 }: DangerConfirmDialogProps) {
   return (
-    <Dialog open={open} onClose={onClose} title={title} className="max-w-lg">
+    <Dialog open={open} onClose={onClose} title={title} className="max-w-dialog-compact">
       <div className="space-y-ui-lg">
-        <div className="rounded-container border border-red-500/35 bg-red-500/[0.06] p-ui-lg">
-          <div className="flex items-start gap-ui-md">
-            <div className="mt-px flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-red-500/25 bg-red-500/10 text-red-300">
-              <AlertTriangle className="h-3.5 w-3.5" />
-            </div>
-            <div className="font-sans text-product-caption leading-5 text-slate-300">{description}</div>
-          </div>
-        </div>
+        <Alert variant="destructive">
+          <AlertDescription>
+            <span className="flex items-start gap-ui-sm">
+              <AlertTriangle className="mt-ui-hairline h-icon w-icon shrink-0" />
+              <span>{description}</span>
+            </span>
+          </AlertDescription>
+        </Alert>
         <div className="flex justify-end gap-ui-sm border-t border-border pt-ui-md">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
           <Button type="button" variant="destructive" loading={loading} disabled={disabled} onClick={onConfirm}>
