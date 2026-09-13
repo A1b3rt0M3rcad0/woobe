@@ -29,7 +29,7 @@ export function ToolsCreateDialog({ open, projectId, agentId = null, formKey = '
       open={open}
       onClose={onClose}
       title={title}
-      className="max-w-3xl bg-surface/95"
+      className="max-w-dialog-wide bg-surface/95"
       contentClassName="p-0 [&>form]:flex [&>form]:min-h-full [&>form]:flex-col [&>form>div:first-child]:flex-1"
       scrollMode="content"
     >
