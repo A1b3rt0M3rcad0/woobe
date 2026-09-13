@@ -1,6 +1,7 @@
 import { createContext, type ReactNode, useContext, useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '../lib/cn'
+import { focusableElements, isTopOverlay, registerOverlay, unregisterOverlay } from '../lib/overlay-focus'
 import { Button } from './Button'
 import '../styles/dialog-compatibility.css'
 
@@ -9,27 +10,6 @@ export type DialogScrollMode = 'overlay' | 'content'
 export type DialogLayer = 'modal' | 'nestedModal'
 
 const DialogPresentationContext = createContext<DialogPresentation>('modal')
-const modalStack: string[] = []
-const FOCUSABLE_SELECTOR = [
-  'a[href]',
-  'button:not([disabled])',
-  'input:not([disabled]):not([type="hidden"])',
-  'select:not([disabled])',
-  'textarea:not([disabled])',
-  '[contenteditable="true"]',
-  '[tabindex]:not([tabindex="-1"])',
-].join(',')
-
-function isTopModal(id: string) {
-  return modalStack[modalStack.length - 1] === id
-}
-
-function focusableElements(root: HTMLElement) {
-  return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter((element) => (
-    element.getAttribute('aria-hidden') !== 'true'
-    && !element.hasAttribute('hidden')
-  ))
-}
 
 export interface DialogPresentationProviderProps {
   presentation: DialogPresentation
@@ -69,19 +49,17 @@ export function Dialog({ open, onClose, title, children, className, contentClass
   const dialogRef = useRef<HTMLDivElement>(null)
   const previouslyFocusedRef = useRef<HTMLElement | null>(null)
   const titleId = useId()
-  const modalId = useId()
+  const overlayId = useId()
   const contentScroll = scrollMode === 'content'
 
   useEffect(() => {
     if (!open || presentation !== 'modal') return
 
-    const previousOverflow = document.body.style.overflow
     previouslyFocusedRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
-    modalStack.push(modalId)
-    document.body.style.overflow = 'hidden'
+    registerOverlay(overlayId)
 
     const focusFrame = window.requestAnimationFrame(() => {
-      if (!isTopModal(modalId)) return
+      if (!isTopOverlay(overlayId)) return
       const root = dialogRef.current
       if (!root) return
       const [first] = focusableElements(root)
@@ -89,7 +67,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
     })
 
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (!isTopModal(modalId)) return
+      if (!isTopOverlay(overlayId)) return
 
       if (event.key === 'Escape') {
         event.preventDefault()
@@ -127,9 +105,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
     return () => {
       window.cancelAnimationFrame(focusFrame)
       document.removeEventListener('keydown', handleKeyDown)
-      const stackIndex = modalStack.lastIndexOf(modalId)
-      if (stackIndex >= 0) modalStack.splice(stackIndex, 1)
-      document.body.style.overflow = previousOverflow
+      unregisterOverlay(overlayId)
 
       const previouslyFocused = previouslyFocusedRef.current
       if (previouslyFocused?.isConnected) {
@@ -138,7 +114,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
         })
       }
     }
-  }, [modalId, onClose, open, presentation])
+  }, [onClose, open, overlayId, presentation])
 
   if (!open) return null
 
@@ -185,7 +161,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
         LAYER_CLASS[layer],
       )}
       onClick={(event) => {
-        if (event.target === overlayRef.current && isTopModal(modalId)) onClose()
+        if (event.target === overlayRef.current && isTopOverlay(overlayId)) onClose()
       }}
     >
       {dialogContent}
