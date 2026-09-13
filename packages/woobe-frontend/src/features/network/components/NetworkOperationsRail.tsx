@@ -4,17 +4,19 @@ import { Badge as WoobeBadge, type BadgeVariant } from '@woobe/ui'
 import { cn } from '@/lib/utils'
 
 export type PanelTab = 'traces' | 'sessions'
+type NetworkBadgeTone = 'default' | 'draft' | 'staging' | 'production' | 'warning' | 'danger'
 
-export function Badge({ children, tone = 'default' }: { children: ReactNode; tone?: 'default' | 'draft' | 'staging' | 'production' | 'warning' | 'danger' }) {
-  const variants: Record<NonNullable<Parameters<typeof Badge>[0]['tone']>, BadgeVariant> = {
-    default: 'outline',
-    draft: 'default',
-    staging: 'network',
-    production: 'success',
-    warning: 'warning',
-    danger: 'destructive',
-  }
-  return <WoobeBadge size="compact" variant={variants[tone]} className="uppercase tracking-ui-label">{children}</WoobeBadge>
+const badgeVariants: Record<NetworkBadgeTone, BadgeVariant> = {
+  default: 'outline',
+  draft: 'default',
+  staging: 'network',
+  production: 'success',
+  warning: 'warning',
+  danger: 'destructive',
+}
+
+export function Badge({ children, tone = 'default' }: { children: ReactNode; tone?: NetworkBadgeTone }) {
+  return <WoobeBadge size="compact" variant={badgeVariants[tone]} className="uppercase tracking-ui-label">{children}</WoobeBadge>
 }
 
 const items = [
