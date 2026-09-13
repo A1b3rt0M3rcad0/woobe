@@ -93,7 +93,7 @@ export default function ToolsPage() {
       description="Connect and govern external capabilities available to Agents in this Project."
       action={(
         <Button type="button" onClick={() => setShowCreate(true)}>
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-icon w-icon" />
           New Tool
         </Button>
       )}
@@ -110,7 +110,7 @@ export default function ToolsPage() {
             { value: 'deprecated', label: 'Retired', count: statusCounts.deprecated },
           ]}
         />
-        <div className="grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_180px_160px]">
+        <div className="grid gap-ui-sm lg:grid-cols-[minmax(0,1fr)_180px_160px]">
           <ResourceSearch value={query} onChange={setQuery} placeholder="Search Tools, protocols or risk..." label="Search Tools" />
           <Select
             value={protocolFilter}
@@ -148,13 +148,13 @@ export default function ToolsPage() {
         ) : isError ? (
           <ErrorState error={error} onRetry={refetch} className="rounded-container border border-border bg-surface/70 py-10" />
         ) : visibleTools.length > 0 ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-ui-md md:grid-cols-2 xl:grid-cols-3">
             {visibleTools.map((tool) => (
               <ResourceCard
                 key={tool.id}
                 aria-label={`Open Tool settings for ${tool.name}`}
                 onClick={() => setSelectedToolId(tool.id)}
-                icon={<Wrench className="h-4 w-4" />}
+                icon={<Wrench className="h-icon-lg w-icon-lg" />}
                 title={tool.name}
                 subtitle={tool.description || String(tool.type)}
                 status={<StatusBadge status={tool.status} size="compact" />}
@@ -175,7 +175,7 @@ export default function ToolsPage() {
           </div>
         ) : (
           <ResourceEmptyState
-            icon={<Wrench className="h-4 w-4" />}
+            icon={<Wrench className="h-icon-lg w-icon-lg" />}
             title={items.length === 0 ? 'No Tools yet' : 'No Tools found'}
             description={items.length === 0
               ? 'Connect the first external capability for this Project.'
