@@ -1,0 +1,63 @@
+/* Dashboard fill fixes.
+ * Keep the dashboard reference proportions while ensuring panels use the full
+ * canvas they are assigned. This file is intentionally scoped to Project Overview.
+ */
+
+/* The header already exposes an Updating status; the transient 2px pulse line
+ * caused a one-frame blue band whenever the environment filter refetched. */
+.project-overview-main [aria-busy] > header.relative > div.absolute.inset-x-0.top-0 {
+  display: none !important;
+}
+
+/* Run Activity and Reliability share one row. Both columns and their panels
+ * should consume the same full row height. */
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] {
+  align-items: stretch !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div {
+  display: flex;
+  min-width: 0;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div > section {
+  width: 100%;
+  height: 100%;
+}
+
+/* Reliability & Performance should use all vertical room instead of stacking
+ * two compact groups at the top and leaving a large dead zone below. */
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div:last-child > section {
+  display: flex;
+  flex-direction: column;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div:last-child > section > .space-y-3.px-5.pb-5 {
+  display: grid !important;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 12px !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div:last-child > section > .space-y-3.px-5.pb-5 > * + * {
+  margin-top: 0 !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div:last-child > section > .space-y-3.px-5.pb-5 > div[class*='rounded-xl'] {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+@media (max-width: 1320px) {
+  .project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div:last-child > section > .space-y-3.px-5.pb-5 {
+    grid-template-rows: none;
+  }
+
+  .project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div:last-child > section > .space-y-3.px-5.pb-5 > div[class*='rounded-xl'] {
+    min-height: 132px;
+  }
+}
