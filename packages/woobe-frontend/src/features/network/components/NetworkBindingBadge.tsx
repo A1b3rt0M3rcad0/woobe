@@ -1,3 +1,4 @@
+import { Badge, type BadgeVariant } from '@woobe/ui'
 import type { NetworkAgentBindingSource } from '@/features/network/types'
 import { cn } from '@/lib/utils'
 
@@ -7,16 +8,16 @@ const sourceLabel: Record<NetworkAgentBindingSource, string> = {
   release: 'Release',
 }
 
-const sourceTone: Record<NetworkAgentBindingSource, string> = {
-  draft: 'border-primary/30 bg-primary/10 text-primary-light',
-  staging: 'border-indigo-500/30 bg-indigo-500/10 text-indigo-300',
-  release: 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300',
+const sourceVariant: Record<NetworkAgentBindingSource, BadgeVariant> = {
+  draft: 'default',
+  staging: 'network',
+  release: 'success',
 }
 
 const sourceDotTone: Record<NetworkAgentBindingSource, string> = {
   draft: 'bg-primary',
-  staging: 'bg-indigo-400',
-  release: 'bg-emerald-400',
+  staging: 'bg-network',
+  release: 'bg-success',
 }
 
 export function networkBindingLabel({
@@ -54,47 +55,28 @@ export function NetworkBindingBadge({
     return (
       <span
         title={title ?? label}
-        className={cn(
-          'inline-flex w-full min-w-0 max-w-full items-center gap-3 border-0 bg-transparent p-0 text-[8px]',
-          className,
-        )}
-        style={{ justifyContent: 'space-between' }}
+        className={cn('inline-flex w-full min-w-0 max-w-full items-center justify-between gap-ui-md font-mono text-system-meta', className)}
       >
-        <span className={cn(
-          'inline-flex min-w-0 items-center gap-1.5 font-medium',
-          dirty ? 'text-amber-300' : 'text-slate-400',
-        )}>
-          <span
-            aria-hidden
-            className={cn(
-              'h-1.5 w-1.5 shrink-0 rounded-full',
-              dirty ? 'bg-amber-400' : sourceDotTone[source],
-            )}
-          />
-          <span className="truncate normal-case tracking-normal">
-            {sourceLabel[source]}{dirty ? ' · unsaved' : ''}
-          </span>
+        <span className={cn('inline-flex min-w-0 items-center gap-ui-xs font-medium', dirty ? 'text-warning' : 'text-muted-foreground')}>
+          <span aria-hidden className={cn('h-1.5 w-1.5 shrink-0 rounded-full', dirty ? 'bg-warning' : sourceDotTone[source])} />
+          <span className="truncate">{sourceLabel[source]}{dirty ? ' · unsaved' : ''}</span>
         </span>
-        <span className="min-w-0 truncate text-right font-mono text-slate-500">
-          {normalizedVersion}
-        </span>
+        <span className="min-w-0 truncate text-right text-muted-foreground/70">{normalizedVersion}</span>
       </span>
     )
   }
 
   return (
-    <span
+    <Badge
       title={title ?? label}
-      className={cn(
-        'inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[8px] font-semibold',
-        dirty ? 'border-amber-500/35 bg-amber-500/10 text-amber-200' : sourceTone[source],
-        className,
-      )}
+      size="compact"
+      variant={dirty ? 'warning' : sourceVariant[source]}
+      className={cn('min-w-0 max-w-full', className)}
     >
-      <span className="shrink-0 uppercase tracking-wide">{sourceLabel[source]}</span>
+      <span className="shrink-0 uppercase tracking-ui-label">{sourceLabel[source]}</span>
       <span aria-hidden className="opacity-60">·</span>
-      <span className="truncate font-mono normal-case tracking-normal">{normalizedVersion}</span>
+      <span className="truncate normal-case tracking-normal">{normalizedVersion}</span>
       {dirty ? <span className="shrink-0 normal-case tracking-normal">· unsaved</span> : null}
-    </span>
+    </Badge>
   )
 }
