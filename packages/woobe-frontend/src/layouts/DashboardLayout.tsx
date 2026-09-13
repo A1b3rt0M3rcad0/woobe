@@ -10,13 +10,16 @@ export function DashboardLayout() {
   const isNetworkWorkspace = /\/projects\/[^/]+\/networks\/[^/]+\/?$/.test(pathname)
   const hideSidebar = pathname.includes('/playground') || isSetupFlow || isNetworkWorkspace
   const isProjectOverview = /^\/workspaces\/[^/]+\/projects\/[^/]+\/?$/.test(pathname)
+  const isProjectResource = /^\/workspaces\/[^/]+\/projects\/[^/]+\/(?:network|networks|agents|knowledge|tools|skills|models|credentials|api-keys|chat-surfaces|usage|traces)\/?$/.test(pathname)
   const mainClassName = isSetupFlow || isNetworkWorkspace
     ? 'min-h-0 min-w-0 flex-1 overflow-hidden'
     : isProjectOverview
       ? 'project-overview-main min-h-0 min-w-0 flex-1 overflow-hidden'
-      : isWorkspaceSelection
-        ? 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5 lg:p-5 2xl:p-6 [background-image:linear-gradient(rgba(148,163,184,0.025)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.025)_1px,transparent_1px)] [background-size:32px_32px]'
-        : 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6'
+      : isProjectResource
+        ? 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-background bg-technical-grid'
+        : isWorkspaceSelection
+          ? 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-5 lg:p-5 2xl:p-6 bg-technical-grid'
+          : 'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6'
 
   return (
     <div className="flex h-screen min-w-0 overflow-hidden bg-background">

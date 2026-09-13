@@ -5,6 +5,8 @@ import { Input } from './Input'
 import { SegmentedControl } from './SegmentedControl'
 import { cn } from '../lib/cn'
 
+export type ResourcePageVariant = 'contained' | 'canvas'
+
 export interface ResourcePageProps {
   title: string
   description: string
@@ -12,13 +14,25 @@ export interface ResourcePageProps {
   action?: ReactNode
   children: ReactNode
   className?: string
+  variant?: ResourcePageVariant
 }
 
-export function ResourcePage({ title, description, eyebrow, action, children, className }: ResourcePageProps) {
+export function ResourcePage({
+  title,
+  description,
+  eyebrow,
+  action,
+  children,
+  className,
+  variant = 'contained',
+}: ResourcePageProps) {
+  const canvas = variant === 'canvas'
+
   return (
     <div
       className={cn(
-        'resource-page-shell mx-auto w-full max-w-resource space-y-ui-lg font-sans',
+        'resource-page-shell w-full font-sans',
+        canvas ? 'max-w-none' : 'mx-auto max-w-resource space-y-ui-lg',
         '[&_h1]:font-mono [&_h2]:font-mono [&_h3]:font-mono [&_h4]:font-mono',
         '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_select]:font-mono [&_input]:font-mono [&_input]:text-system-control',
         '[&_select]:text-system-label [&_select]:text-slate-100 [&_select]:outline-none',
@@ -30,19 +44,49 @@ export function ResourcePage({ title, description, eyebrow, action, children, cl
         className,
       )}
     >
-      <ResourcePageHeader title={title} description={description} eyebrow={eyebrow} action={action} />
-      {children}
+      <ResourcePageHeader
+        title={title}
+        description={description}
+        eyebrow={eyebrow}
+        action={action}
+        variant={variant}
+      />
+      {canvas ? (
+        <div className="space-y-ui-stack px-ui-content-gutter py-ui-lg sm:px-ui-content-gutter">
+          {children}
+        </div>
+      ) : children}
     </div>
   )
 }
 
-export function ResourcePageHeader({ title, description, eyebrow, action }: Pick<ResourcePageProps, 'title' | 'description' | 'eyebrow' | 'action'>) {
+export function ResourcePageHeader({
+  title,
+  description,
+  eyebrow,
+  action,
+  variant = 'contained',
+}: Pick<ResourcePageProps, 'title' | 'description' | 'eyebrow' | 'action' | 'variant'>) {
+  const canvas = variant === 'canvas'
+
   return (
-    <header className="border border-border bg-surface/[0.96] px-ui-lg py-ui-md shadow-none">
-      <div className="flex flex-col gap-ui-md md:flex-row md:items-center md:justify-between">
+    <header
+      className={cn(
+        'bg-surface/[0.96] shadow-none',
+        canvas
+          ? 'flex min-h-project-sidebar-header w-full items-center border-b border-border px-ui-content-gutter py-ui-md'
+          : 'border border-border px-ui-lg py-ui-md',
+      )}
+    >
+      <div className="flex w-full flex-col gap-ui-md md:flex-row md:items-center md:justify-between">
         <div className="min-w-0">
-          {eyebrow ? <div className="mb-ui-sm flex items-center gap-ui-sm font-mono text-system-meta font-bold uppercase tracking-system-label text-muted-foreground"><span className="h-1.5 w-1.5 bg-primary" />{eyebrow}</div> : null}
-          <h1 className="font-mono text-heading font-bold text-slate-50">{title}</h1>
+          {eyebrow ? (
+            <div className="mb-ui-sm flex items-center gap-ui-sm font-mono text-system-meta font-bold uppercase tracking-ui-eyebrow text-muted-foreground">
+              <span className="h-ui-xs w-ui-xs bg-primary" />
+              {eyebrow}
+            </div>
+          ) : null}
+          <h1 className={cn('font-mono font-bold text-slate-50', canvas ? 'text-page-title' : 'text-heading')}>{title}</h1>
           <p className="mt-ui-xs max-w-3xl font-sans text-product-caption text-muted-foreground">{description}</p>
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
@@ -52,7 +96,11 @@ export function ResourcePageHeader({ title, description, eyebrow, action }: Pick
 }
 
 export function ResourceToolbar({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={cn('flex flex-col gap-ui-md border border-border bg-surface/[0.9] p-ui-md shadow-none', className)}>{children}</div>
+  return (
+    <div className={cn('flex flex-col gap-ui-stack rounded-container border border-border bg-surface/[0.92] p-ui-panel-inset shadow-none', className)}>
+      {children}
+    </div>
+  )
 }
 
 export interface ResourceTab<T extends string> {
@@ -80,7 +128,14 @@ export function ResourceTabs<T extends string>({
         onValueChange={(next) => onChange(next as T)}
         items={tabs.map((tab) => ({
           value: tab.value,
-          label: <span className="flex items-center gap-ui-xs"><span>{tab.label}</span>{tab.count !== undefined ? <span className="font-mono text-system-meta tabular-nums text-muted-foreground">{tab.count}</span> : null}</span>,
+          label: (
+            <span className="flex items-center gap-ui-xs">
+              <span>{tab.label}</span>
+              {tab.count !== undefined ? (
+                <span className="font-mono text-system-meta tabular-nums text-muted-foreground">{tab.count}</span>
+              ) : null}
+            </span>
+          ),
         }))}
       />
     </div>
@@ -117,7 +172,16 @@ export function ResourceSearch({
         aria-label={label}
         className="pl-8 pr-8 font-mono text-system-control"
       />
-      {value ? <button type="button" onClick={() => onChange('')} aria-label="Clear search" className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-technical border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-accent/50 hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"><X className="h-3 w-3" aria-hidden="true" /></button> : null}
+      {value ? (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          aria-label="Clear search"
+          className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-technical border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-accent/50 hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+        >
+          <X className="h-3 w-3" aria-hidden="true" />
+        </button>
+      ) : null}
     </div>
   )
 }
@@ -127,7 +191,10 @@ export function ResourceSectionHeader({ title, description, count }: { title: st
     <div className="mb-ui-md flex items-center gap-ui-md">
       <span className="h-1.5 w-1.5 shrink-0 bg-primary" />
       <div className="min-w-0">
-        <div className="flex items-center gap-ui-sm"><h2 className="font-mono text-system-control font-bold uppercase tracking-system-label text-slate-50">{title}</h2>{count !== undefined ? <span className="font-mono text-system-meta tabular-nums text-muted-foreground">{count}</span> : null}</div>
+        <div className="flex items-center gap-ui-sm">
+          <h2 className="font-mono text-system-control font-bold uppercase tracking-ui-eyebrow text-slate-50">{title}</h2>
+          {count !== undefined ? <span className="font-mono text-system-meta tabular-nums text-muted-foreground">{count}</span> : null}
+        </div>
         {description ? <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{description}</p> : null}
       </div>
       <div className="h-px flex-1 bg-border" />

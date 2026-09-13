@@ -38,6 +38,7 @@ export {
   ResourceTabs,
   ResourceToolbar,
   type ResourcePageProps,
+  type ResourcePageVariant,
   type ResourceTab,
 } from './components/ResourcePage'
 export { PageHeader, type PageHeaderProps } from './components/PageHeader'

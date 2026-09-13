@@ -1,10 +1,10 @@
 import { ResourcePage as WoobeResourcePage } from '@woobe/ui'
 import type { ResourcePageProps as WoobeResourcePageProps } from '@woobe/ui'
 
-export type ResourcePageProps = Omit<WoobeResourcePageProps, 'eyebrow'>
+export type ResourcePageProps = Omit<WoobeResourcePageProps, 'eyebrow' | 'variant'>
 
-export function ResourcePage(props: ResourcePageProps) {
-  return <WoobeResourcePage {...props} eyebrow="Project resource" />
+export function ResourcePage({ className, ...props }: ResourcePageProps) {
+  return <WoobeResourcePage {...props} variant="canvas" className={`${className ?? ''} !max-w-none`} />
 }
 
 export {
