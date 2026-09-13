@@ -87,11 +87,19 @@ Current reusable surface includes primitives and compositions such as:
 - SegmentedControl
 - Tabs
 - PanelHeader
+- PageHeader
+- ResourcePage and resource page compositions
 - SectionBlock
 - MetricTile
 - TechnicalListItem
 - EmptyStatePanel
+- LoadingState
 - CodePanel
+- JsonEditor
+- JsonCodeBlock
+- Operational ResourceCard / ResourcePill
+
+The JSON editor surface, JSON formatting/validation helpers and CodeMirror visual theme live in this package together so `woobe-ui` never reaches back into `woobe-frontend` for implementation details.
 
 Components enter `woobe-ui` only when they are presentation-only and have demonstrated reuse. Domain components such as Agent Inspector, Run Inspector, Network Canvas, Knowledge workflows or Tool configuration remain in their feature packages and consume the visual grammar exposed here.
 
