@@ -25,6 +25,7 @@ export { GuidedEmptyState, type GuidedEmptyStateProps } from './components/Guide
 export { Input, type InputProps } from './components/Input'
 export { MathSurface, type MathSurfaceProps } from './components/MathSurface'
 export { MetricTile, type MetricTileProps } from './components/MetricTile'
+export { ResourceCard, ResourcePill, type ResourceCardProps, type ResourcePillTone } from './components/OperationalResourceCard'
 export { PageHeader, type PageHeaderProps } from './components/PageHeader'
 export { PanelHeader, type PanelHeaderProps } from './components/PanelHeader'
 export { ScrollArea, type ScrollAreaProps } from './components/ScrollArea'
