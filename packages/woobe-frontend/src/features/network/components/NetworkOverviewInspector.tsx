@@ -2,13 +2,13 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Workflow } from 'lucide-react'
 import { toast } from 'sonner'
+import { Button, EmptyStatePanel, Field, FieldLabel, Input, MetricTile, PanelHeader, SectionBlock, Select, Textarea } from '@woobe/ui'
 
 import { useUpdateNetworkMetadata } from '@/features/network/hooks'
-import { cn } from '@/lib/utils'
 
 import type { NetworkDefinition } from '../types'
 import type { NetworkDefinitionChange } from '../editor/types'
-import { NetworkInspectorModal, networkInspectorAction, networkInspectorInput } from './NetworkInspectorModal'
+import { NetworkInspectorModal } from './NetworkInspectorModal'
 
 export function NetworkOverviewInspector({
   definition,
@@ -65,59 +65,45 @@ export function NetworkOverviewInspector({
 
   return (
     <>
-      <header className="border-b border-border p-4">
-        <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/20 bg-primary/5 text-primary-light"><Workflow className="h-4 w-4" /></div>
-          <div className="min-w-0">
-            <p className="text-[8px] font-semibold uppercase tracking-widest text-primary-light">Network</p>
-            <h2 className="mt-1 truncate text-sm font-semibold text-white">{displayIdentity.name}</h2>
-            <p className="mt-1 text-[9px] text-muted">{definition.nodes.length} Agents · {definition.edges.length} delegations</p>
-          </div>
-        </div>
-      </header>
+      <PanelHeader
+        icon={<Workflow className="h-icon w-icon" />}
+        title={displayIdentity.name}
+        description={`${definition.nodes.length} Agents · ${definition.edges.length} delegations`}
+      />
 
-      <div className="space-y-4 p-4">
+      <div className="space-y-ui-md p-ui-md">
         {definition.nodes.length === 0 ? (
-          <section className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-            <p className="text-[10px] font-semibold text-white">Build your Network</p>
-            <ol className="mt-3 space-y-2 text-[9px] text-muted">
-              <li>1 · Add an Agent</li>
-              <li>2 · Choose the Entry Point</li>
-              <li>3 · Connect a specialist</li>
-            </ol>
-          </section>
+          <EmptyStatePanel
+            compact
+            title="Build your Network"
+            description="Add an Agent, choose the Entry Point, then connect a specialist."
+          />
         ) : null}
 
-        <section className="rounded-xl border border-border bg-background/30 p-3">
-          <div className="flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-muted">Network identity</p>
-              <p className="mt-1 truncate text-[10px] text-slate-200">{displayIdentity.description.trim() || 'No description yet.'}</p>
-            </div>
-            <button type="button" onClick={() => { setIdentityDraft(displayIdentity); setIdentityOpen(true) }} className={networkInspectorAction}>{readOnly ? 'View' : 'Edit'}</button>
-          </div>
-          <p className="mt-2 truncate text-[9px] text-muted">{displayIdentity.name}</p>
-        </section>
+        <SectionBlock
+          density="compact"
+          title="Network identity"
+          description={displayIdentity.description.trim() || 'No description yet.'}
+          actions={<Button type="button" size="sm" variant="outline" onClick={() => { setIdentityDraft(displayIdentity); setIdentityOpen(true) }}>{readOnly ? 'View' : 'Edit'}</Button>}
+        >
+          <p className="truncate font-mono text-system-meta text-muted-foreground">{displayIdentity.name}</p>
+        </SectionBlock>
 
-        <section className="rounded-xl border border-border bg-background/30 p-3">
-          <p className="text-[9px] font-semibold uppercase tracking-wider text-muted">Composition</p>
-          <dl className="mt-3 grid grid-cols-2 gap-3 text-[9px]">
-            <div><dt className="text-muted">Entry point</dt><dd className="mt-1 truncate text-slate-200">{entryPoint}</dd></div>
-            <div><dt className="text-muted">Agents</dt><dd className="mt-1 text-slate-200">{definition.nodes.length}</dd></div>
-            <div><dt className="text-muted">Delegations</dt><dd className="mt-1 text-slate-200">{definition.edges.length}</dd></div>
-            <div><dt className="text-muted">Mode</dt><dd className="mt-1 capitalize text-slate-200">{definition.settings.session_mode}</dd></div>
-          </dl>
-        </section>
-
-        <section className="rounded-xl border border-border bg-background/30 p-3">
-          <div className="flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <p className="text-[9px] font-semibold uppercase tracking-wider text-muted">Runtime</p>
-              <p className="mt-1 truncate text-[10px] text-slate-200">{definition.settings.session_mode} · depth {definition.settings.max_depth} · {definition.settings.max_invocations} invocations · {definition.settings.timeout_seconds}s</p>
-            </div>
-            <button type="button" onClick={() => { setRuntimeDraft(definition.settings); setRuntimeOpen(true) }} className={networkInspectorAction}>{readOnly ? 'View' : 'Edit'}</button>
+        <SectionBlock density="compact" title="Composition">
+          <div className="grid gap-ui-sm sm:grid-cols-2">
+            <MetricTile label="Entry point" value={entryPoint} />
+            <MetricTile label="Agents" value={definition.nodes.length} />
+            <MetricTile label="Delegations" value={definition.edges.length} />
+            <MetricTile label="Mode" value={definition.settings.session_mode} />
           </div>
-        </section>
+        </SectionBlock>
+
+        <SectionBlock
+          density="compact"
+          title="Runtime"
+          description={`${definition.settings.session_mode} · depth ${definition.settings.max_depth} · ${definition.settings.max_invocations} invocations · ${definition.settings.timeout_seconds}s`}
+          actions={<Button type="button" size="sm" variant="outline" onClick={() => { setRuntimeDraft(definition.settings); setRuntimeOpen(true) }}>{readOnly ? 'View' : 'Edit'}</Button>}
+        />
       </div>
 
       {identityOpen ? (
@@ -126,17 +112,23 @@ export function NetworkOverviewInspector({
           description="Name and description document the operational purpose of this Network. Metadata changes do not create a Draft revision."
           onClose={() => setIdentityOpen(false)}
           footer={readOnly ? (
-            <button type="button" onClick={() => setIdentityOpen(false)} className={networkInspectorAction}>Close</button>
+            <Button type="button" variant="outline" onClick={() => setIdentityOpen(false)}>Close</Button>
           ) : (
             <>
-              <button type="button" onClick={() => setIdentityOpen(false)} className={networkInspectorAction}>Cancel</button>
-              <button type="button" disabled={metadataMutation.isPending} onClick={() => void saveIdentity()} className="rounded-lg bg-primary px-3 py-2 text-[10px] font-semibold text-white disabled:opacity-50">{metadataMutation.isPending ? 'Saving…' : 'Save'}</button>
+              <Button type="button" variant="outline" onClick={() => setIdentityOpen(false)}>Cancel</Button>
+              <Button type="button" disabled={metadataMutation.isPending} onClick={() => void saveIdentity()}>{metadataMutation.isPending ? 'Saving…' : 'Save'}</Button>
             </>
           )}
         >
-          <div className="space-y-4">
-            <label className="block text-[10px] text-muted">Name<input disabled={readOnly || metadataMutation.isPending} className={networkInspectorInput} value={identityDraft.name} onChange={(event) => setIdentityDraft((current) => ({ ...current, name: event.target.value }))} /></label>
-            <label className="block text-[10px] text-muted">Description<textarea disabled={readOnly || metadataMutation.isPending} className={cn(networkInspectorInput, 'min-h-28 resize-y')} value={identityDraft.description} onChange={(event) => setIdentityDraft((current) => ({ ...current, description: event.target.value }))} /></label>
+          <div className="space-y-ui-md">
+            <Field>
+              <FieldLabel>Name</FieldLabel>
+              <Input disabled={readOnly || metadataMutation.isPending} value={identityDraft.name} onChange={(event) => setIdentityDraft((current) => ({ ...current, name: event.target.value }))} />
+            </Field>
+            <Field>
+              <FieldLabel>Description</FieldLabel>
+              <Textarea disabled={readOnly || metadataMutation.isPending} value={identityDraft.description} onChange={(event) => setIdentityDraft((current) => ({ ...current, description: event.target.value }))} />
+            </Field>
           </div>
         </NetworkInspectorModal>
       ) : null}
@@ -147,19 +139,31 @@ export function NetworkOverviewInspector({
           description="These limits apply to future Network executions."
           onClose={() => setRuntimeOpen(false)}
           footer={readOnly ? (
-            <button type="button" onClick={() => setRuntimeOpen(false)} className={networkInspectorAction}>Close</button>
+            <Button type="button" variant="outline" onClick={() => setRuntimeOpen(false)}>Close</Button>
           ) : (
             <>
-              <button type="button" onClick={() => setRuntimeOpen(false)} className={networkInspectorAction}>Cancel</button>
-              <button type="button" onClick={() => { onChange({ type: 'settings', settings: runtimeDraft }); setRuntimeOpen(false) }} className="rounded-lg bg-primary px-3 py-2 text-[10px] font-semibold text-white">Save</button>
+              <Button type="button" variant="outline" onClick={() => setRuntimeOpen(false)}>Cancel</Button>
+              <Button type="button" onClick={() => { onChange({ type: 'settings', settings: runtimeDraft }); setRuntimeOpen(false) }}>Save</Button>
             </>
           )}
         >
-          <div className="grid grid-cols-2 gap-4">
-            <label className="text-[10px] text-muted">Session mode<select disabled={readOnly} className={networkInspectorInput} value={runtimeDraft.session_mode} onChange={(event) => setRuntimeDraft((current) => ({ ...current, session_mode: event.target.value as 'stateful' | 'stateless' }))}><option value="stateful">Stateful</option><option value="stateless">Stateless</option></select></label>
-            <label className="text-[10px] text-muted">Max depth<input disabled={readOnly} type="number" min={1} max={8} className={networkInspectorInput} value={runtimeDraft.max_depth} onChange={(event) => setRuntimeDraft((current) => ({ ...current, max_depth: Number(event.target.value) }))} /></label>
-            <label className="text-[10px] text-muted">Max invocations<input disabled={readOnly} type="number" min={1} max={64} className={networkInspectorInput} value={runtimeDraft.max_invocations} onChange={(event) => setRuntimeDraft((current) => ({ ...current, max_invocations: Number(event.target.value) }))} /></label>
-            <label className="text-[10px] text-muted">Timeout<input disabled={readOnly} type="number" min={1} max={300} className={networkInspectorInput} value={runtimeDraft.timeout_seconds} onChange={(event) => setRuntimeDraft((current) => ({ ...current, timeout_seconds: Number(event.target.value) }))} /></label>
+          <div className="grid gap-ui-md sm:grid-cols-2">
+            <Field>
+              <FieldLabel>Session mode</FieldLabel>
+              <Select disabled={readOnly} value={runtimeDraft.session_mode} onChange={(event) => setRuntimeDraft((current) => ({ ...current, session_mode: event.target.value as 'stateful' | 'stateless' }))} options={[{ value: 'stateful', label: 'Stateful' }, { value: 'stateless', label: 'Stateless' }]} />
+            </Field>
+            <Field>
+              <FieldLabel>Max depth</FieldLabel>
+              <Input disabled={readOnly} type="number" min={1} max={8} value={runtimeDraft.max_depth} onChange={(event) => setRuntimeDraft((current) => ({ ...current, max_depth: Number(event.target.value) }))} />
+            </Field>
+            <Field>
+              <FieldLabel>Max invocations</FieldLabel>
+              <Input disabled={readOnly} type="number" min={1} max={64} value={runtimeDraft.max_invocations} onChange={(event) => setRuntimeDraft((current) => ({ ...current, max_invocations: Number(event.target.value) }))} />
+            </Field>
+            <Field>
+              <FieldLabel>Timeout</FieldLabel>
+              <Input disabled={readOnly} type="number" min={1} max={300} value={runtimeDraft.timeout_seconds} onChange={(event) => setRuntimeDraft((current) => ({ ...current, timeout_seconds: Number(event.target.value) }))} />
+            </Field>
           </div>
         </NetworkInspectorModal>
       ) : null}
