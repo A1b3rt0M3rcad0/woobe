@@ -1,6 +1,25 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Building2, Check, FolderKanban, Mail, ShieldCheck, UserMinus, UserPlus, Users } from 'lucide-react'
-import { Badge, Button, Card, Dialog, Input, type BadgeVariant } from '@woobe/ui'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Badge,
+  Button,
+  Checkbox,
+  Dialog,
+  EmptyStatePanel,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  MetricTile,
+  SectionBlock,
+  SegmentedControl,
+  Skeleton,
+  TechnicalListItem,
+  type BadgeVariant,
+} from '@woobe/ui'
 import { toast } from 'sonner'
 
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
@@ -49,40 +68,11 @@ function badgeVariant(status?: string): BadgeVariant {
   return 'outline'
 }
 
-function SummaryMetric({ label, value, detail, icon }: { label: string; value: string | number; detail: string; icon: ReactNode }) {
+function PersonGlyph({ email, invite = false }: { email: string; invite?: boolean }) {
   return (
-    <Card className="p-3.5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="font-mono text-[8px] font-bold uppercase tracking-[0.12em] text-muted">{label}</p>
-          <p className="mt-1.5 font-mono text-base font-bold text-slate-50">{value}</p>
-          <p className="mt-1 truncate font-mono text-[8px] text-muted-foreground">{detail}</p>
-        </div>
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light">
-          {icon}
-        </div>
-      </div>
-    </Card>
-  )
-}
-
-function RoleChoice({ active, title, description, onClick }: { active: boolean; title: string; description: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full rounded-container border p-3 text-left transition-colors ${active ? 'border-primary/45 bg-primary/[0.08]' : 'border-border bg-control/35 hover:border-slate-600'}`}
-    >
-      <span className="flex items-start gap-2.5">
-        <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-technical border ${active ? 'border-primary bg-primary text-white' : 'border-border text-transparent'}`}>
-          <Check className="h-2.5 w-2.5" />
-        </span>
-        <span className="min-w-0">
-          <span className="block font-mono text-[10px] font-bold text-slate-100">{title}</span>
-          <span className="mt-1 block font-mono text-[8px] leading-4 text-muted-foreground">{description}</span>
-        </span>
-      </span>
-    </button>
+    <span className="flex h-control-sm w-control-sm items-center justify-center rounded-control border border-border bg-control font-mono text-system-label font-semibold text-primary-light">
+      {invite ? <Mail className="h-icon w-icon" /> : initials(email)}
+    </span>
   )
 }
 
@@ -225,277 +215,325 @@ export function WorkspaceSettingsDialog({ open, onClose, workspaceId }: Workspac
     }
   }
 
-  const openInvite = () => {
-    setView('invite')
-  }
-
-  const openRemove = (member: Member) => {
-    setMemberToRemove(member)
-    setView('remove')
-  }
-
   const backToMain = () => {
     setView('main')
     setMemberToRemove(null)
   }
 
   const overview = workspace ? (
-    <div className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr]">
-      <Card className="p-4">
-        <div className="mb-4 border-b border-border pb-3">
-          <h3 className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-slate-100">Workspace details</h3>
-        </div>
-        <div className="space-y-4">
-          <div>
-            <label className="mb-1.5 block font-mono text-[9px] font-medium text-slate-300">Name</label>
+    <div className="grid gap-ui-md lg:grid-cols-2">
+      <SectionBlock title="Workspace details" description="Mutable Workspace identity and stable technical metadata.">
+        <div className="grid gap-ui-md">
+          <Field>
+            <FieldLabel>Name</FieldLabel>
             <Input value={name} onChange={(event) => setName(event.target.value)} disabled={!canManageWorkspace} />
-          </div>
-          <div>
-            <label className="mb-1.5 block font-mono text-[9px] font-medium text-slate-300">Slug</label>
-            <Input value={slug} onChange={(event) => setSlug(event.target.value)} disabled={!canManageWorkspace} className="font-mono text-[10px]" />
-          </div>
-          <div className="grid gap-px overflow-hidden rounded-container border border-border bg-border sm:grid-cols-2">
-            <div className="bg-control/70 p-3">
-              <span className="block font-mono text-[8px] uppercase tracking-[0.1em] text-muted">ID</span>
-              <code className="mt-1 block truncate font-mono text-[9px] text-slate-300">{workspace.id}</code>
-            </div>
-            <div className="bg-control/70 p-3">
-              <span className="block font-mono text-[8px] uppercase tracking-[0.1em] text-muted">Created</span>
-              <strong className="mt-1 block font-mono text-[9px] font-medium text-slate-300">{formatDate(workspace.created_at)}</strong>
-            </div>
+          </Field>
+          <Field>
+            <FieldLabel>Slug</FieldLabel>
+            <Input value={slug} onChange={(event) => setSlug(event.target.value)} disabled={!canManageWorkspace} className="font-mono" />
+          </Field>
+          <div className="grid gap-ui-xs sm:grid-cols-2">
+            <TechnicalListItem label="Workspace ID" description={workspace.id} title={workspace.id} />
+            <TechnicalListItem label="Created" description={formatDate(workspace.created_at)} />
           </div>
           {canManageWorkspace ? (
-            <div className="flex justify-end border-t border-border pt-4">
+            <div className="flex justify-end border-t border-border pt-ui-md">
               <Button onClick={handleSave} loading={updateWorkspace.isPending}>Save changes</Button>
             </div>
           ) : (
-            <p className="font-mono text-[9px] text-muted-foreground">Workspace details are read-only for your role.</p>
+            <Alert variant="info">
+              <AlertDescription>Workspace details are read-only for your role.</AlertDescription>
+            </Alert>
           )}
         </div>
-      </Card>
+      </SectionBlock>
 
-      <Card className="p-4">
-        <div className="mb-4 border-b border-border pb-3">
-          <h3 className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-slate-100">Operating model</h3>
+      <SectionBlock title="Operating model" description="Ownership boundaries used by the current Workspace model.">
+        <div className="grid gap-ui-sm">
+          <TechnicalListItem label="Workspace" description="Owns plan, people and limits." />
+          <TechnicalListItem label="Projects" description="Isolate Agents, Knowledge, Tools, runtime and observability." />
+          <TechnicalListItem label="Project access" description="Binary access boundary in the MVP." />
         </div>
-        <div className="space-y-3 font-mono text-[9px] leading-4 text-muted-foreground">
-          <p><strong className="font-medium text-slate-100">Workspace</strong> owns plan, people and limits.</p>
-          <p><strong className="font-medium text-slate-100">Projects</strong> isolate Agents, Knowledge, Tools, runtime and observability.</p>
-          <p><strong className="font-medium text-slate-100">Project access</strong> is binary in the MVP.</p>
-        </div>
-      </Card>
+      </SectionBlock>
     </div>
   ) : null
 
   const people = (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h3 className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-slate-100">People</h3>
-          <p className="mt-1 font-mono text-[8px] text-muted-foreground">Active memberships and invitations awaiting acceptance.</p>
-        </div>
-        {canManageWorkspace && <Button size="sm" onClick={openInvite}><UserPlus className="h-3 w-3" />Invite</Button>}
-      </div>
-
-      <div className="overflow-hidden rounded-container border border-border bg-surface">
+    <SectionBlock
+      title="People"
+      description="Active memberships and invitations awaiting acceptance."
+      actions={canManageWorkspace ? (
+        <Button size="sm" onClick={() => setView('invite')}><UserPlus className="h-icon w-icon" />Invite</Button>
+      ) : undefined}
+    >
+      <div className="grid gap-ui-xs">
         {members.map((member) => (
-          <div key={member.id} className="flex flex-wrap items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control font-mono text-[9px] font-bold text-primary-light">{initials(member.email)}</div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-mono text-[10px] font-medium text-slate-100">{member.email}</p>
-              <p className="mt-0.5 truncate font-mono text-[8px] text-muted-foreground">{member.access_mode === 'implicit_owner' ? 'All Projects · implicit access' : `${member.project_access_count} assigned Project(s)`}</p>
-            </div>
-            <Badge variant={badgeVariant(member.role)} className="font-mono text-[8px] uppercase">{member.role}</Badge>
-            <Badge variant="success" className="font-mono text-[8px] uppercase">active</Badge>
-            {canManageWorkspace && member.role !== 'owner' && !(currentRole === 'admin' && member.role === 'admin') && (
-              <Button size="sm" variant="outline" onClick={() => openRemove(member)}><UserMinus className="h-3 w-3" />Remove</Button>
+          <TechnicalListItem
+            key={member.id}
+            label={member.email}
+            description={member.access_mode === 'implicit_owner' ? 'All Projects · implicit access' : `${member.project_access_count} assigned Project(s)`}
+            leading={<PersonGlyph email={member.email} />}
+            meta={(
+              <>
+                <Badge variant={badgeVariant(member.role)} size="compact">{member.role}</Badge>
+                <Badge variant="success" size="compact">active</Badge>
+              </>
             )}
-          </div>
+            trailing={canManageWorkspace && member.role !== 'owner' && !(currentRole === 'admin' && member.role === 'admin') ? (
+              <Button size="sm" variant="outline" onClick={() => { setMemberToRemove(member); setView('remove') }}>
+                <UserMinus className="h-icon-sm w-icon-sm" />Remove
+              </Button>
+            ) : undefined}
+          />
         ))}
+
         {pendingInvites.map((invite) => (
-          <div key={invite.id} className="flex flex-wrap items-center gap-3 border-b border-border bg-warning/[0.025] px-3 py-2.5 last:border-b-0">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-amber-500/20 bg-amber-500/[0.06] text-amber-200"><Mail className="h-3.5 w-3.5" /></div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate font-mono text-[10px] font-medium text-slate-100">{invite.email}</p>
-              <p className="mt-0.5 truncate font-mono text-[8px] text-muted-foreground">{invite.project_count} Project(s) prepared · expires {formatDate(invite.expires_at)}</p>
-            </div>
-            <Badge variant={badgeVariant(invite.role)} className="font-mono text-[8px] uppercase">{invite.role}</Badge>
-            <Badge variant="warning" className="font-mono text-[8px] uppercase">pending</Badge>
-            <Button size="sm" variant="outline" onClick={() => handleCancelInvite(invite)} disabled={cancelInvite.isPending}>Cancel</Button>
-          </div>
+          <TechnicalListItem
+            key={invite.id}
+            label={invite.email}
+            description={`${invite.project_count} Project(s) prepared · expires ${formatDate(invite.expires_at)}`}
+            leading={<PersonGlyph email={invite.email} invite />}
+            meta={(
+              <>
+                <Badge variant={badgeVariant(invite.role)} size="compact">{invite.role}</Badge>
+                <Badge variant="warning" size="compact">pending</Badge>
+              </>
+            )}
+            trailing={(
+              <Button size="sm" variant="outline" onClick={() => handleCancelInvite(invite)} disabled={cancelInvite.isPending}>Cancel</Button>
+            )}
+          />
         ))}
-        {peopleCount === 0 && <p className="py-10 text-center font-mono text-[9px] text-muted-foreground">No people found.</p>}
+
+        {peopleCount === 0 ? <EmptyStatePanel compact title="No people found" /> : null}
       </div>
 
-      {inviteHistory.length > 0 && (
-        <details className="rounded-container border border-border bg-control/25">
-          <summary className="cursor-pointer px-3 py-2.5 font-mono text-[9px] text-muted-foreground">Invitation history · {inviteHistory.length}</summary>
-          <div className="border-t border-border">
+      {inviteHistory.length > 0 ? (
+        <details className="group mt-ui-md overflow-hidden rounded-container border border-border bg-background/20">
+          <summary className="cursor-pointer px-ui-md py-ui-sm font-mono text-system-label text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40">
+            Invitation history · {inviteHistory.length}
+          </summary>
+          <div className="grid gap-ui-xs border-t border-border p-ui-sm">
             {inviteHistory.map((invite) => (
-              <div key={invite.id} className="flex items-center justify-between gap-3 border-b border-border px-3 py-2 last:border-b-0">
-                <span className="truncate font-mono text-[9px] text-slate-300">{invite.email}</span>
-                <span className="flex items-center gap-2">
-                  <Badge variant={badgeVariant(invite.role)} className="font-mono text-[8px] uppercase">{invite.role}</Badge>
-                  <Badge variant={badgeVariant(invite.status)} className="font-mono text-[8px] uppercase">{invite.status}</Badge>
-                </span>
-              </div>
+              <TechnicalListItem
+                key={invite.id}
+                label={invite.email}
+                meta={(
+                  <>
+                    <Badge variant={badgeVariant(invite.role)} size="compact">{invite.role}</Badge>
+                    <Badge variant={badgeVariant(invite.status)} size="compact">{invite.status}</Badge>
+                  </>
+                )}
+              />
             ))}
           </div>
         </details>
-      )}
-    </div>
+      ) : null}
+    </SectionBlock>
   )
 
   const projectAccess = canManageWorkspace ? (
-    <div className="grid min-h-[390px] overflow-hidden rounded-container border border-border bg-surface lg:grid-cols-[240px_1fr]">
-      <aside className="border-b border-border bg-control/20 p-3 lg:border-b-0 lg:border-r">
-        <div className="px-1 pb-3">
-          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.1em] text-slate-100">Projects</p>
-          <p className="mt-1 font-mono text-[8px] leading-4 text-muted-foreground">Choose a Project to manage full access.</p>
+    <div className="overflow-hidden rounded-container border border-border bg-surface lg:flex">
+      <aside className="shrink-0 border-b border-border bg-background/20 p-ui-md lg:w-dialog-sidebar lg:border-b-0 lg:border-r">
+        <div className="mb-ui-md">
+          <h3 className="font-mono text-system-control font-semibold text-accent-foreground">Projects</h3>
+          <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Choose a Project to manage full access.</p>
         </div>
-        <div className="grid gap-[3px]">
+        <div className="grid gap-ui-xs">
           {projects.map((project) => (
-            <button
+            <TechnicalListItem
               key={project.id}
-              type="button"
+              label={project.name}
+              description={`${project.member_count} active · ${project.pending_count} pending`}
+              selected={selectedProjectId === project.id}
               onClick={() => setSelectedProjectId(project.id)}
-              className={`w-full rounded-control border px-2.5 py-2 text-left transition-colors ${selectedProjectId === project.id ? 'border-primary/40 bg-primary/[0.08]' : 'border-transparent hover:border-border hover:bg-control'}`}
-            >
-              <span className="block truncate font-mono text-[10px] font-medium text-slate-100">{project.name}</span>
-              <span className="mt-0.5 block font-mono text-[8px] text-muted-foreground">{project.member_count} active · {project.pending_count} pending</span>
-            </button>
+            />
           ))}
+          {projects.length === 0 ? <EmptyStatePanel compact title="No Projects available" /> : null}
         </div>
       </aside>
-      <section className="min-w-0 p-3.5">
-        <div className="mb-3 border-b border-border pb-3">
-          <p className="font-mono text-[10px] font-bold text-slate-100">{selectedProject ? `Access to ${selectedProject.name}` : 'Select a Project'}</p>
-          <p className="mt-1 font-mono text-[8px] leading-4 text-muted-foreground">Owner access is implicit. Member access is explicit. Pending invitations can be prepared before acceptance.</p>
+
+      <section className="min-w-0 flex-1 p-ui-md">
+        <div className="mb-ui-md border-b border-border pb-ui-md">
+          <h3 className="font-mono text-system-control font-semibold text-accent-foreground">
+            {selectedProject ? `Access to ${selectedProject.name}` : 'Select a Project'}
+          </h3>
+          <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">
+            Owner access is implicit. Member access is explicit. Pending invitations can be prepared before acceptance.
+          </p>
         </div>
+
         {rosterQuery.isLoading ? (
-          <p className="py-8 text-center font-mono text-[9px] text-muted-foreground">Loading access roster...</p>
+          <div className="grid gap-ui-xs">
+            <Skeleton className="h-control-row w-full" />
+            <Skeleton className="h-control-row w-full" />
+            <Skeleton className="h-control-row w-full" />
+          </div>
         ) : selectedProject ? (
-          <div className="overflow-hidden rounded-container border border-border">
+          <div className="grid gap-ui-xs">
             {roster.map((subject) => {
               const enabled = subject.project_access !== 'none'
               const locked = subject.project_access === 'implicit'
               const label = locked ? 'Implicit' : subject.project_access === 'pending' ? 'On acceptance' : subject.project_access === 'active' ? 'Enabled' : 'No access'
               return (
-                <div key={`${subject.subject_type}:${subject.subject_id}`} className="flex flex-wrap items-center gap-3 border-b border-border bg-control/20 px-3 py-2.5 last:border-b-0">
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control font-mono text-[9px] font-bold text-primary-light">{subject.subject_type === 'invite' ? <Mail className="h-3.5 w-3.5" /> : initials(subject.email)}</div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-mono text-[10px] font-medium text-slate-100">{subject.email}</p>
-                    <p className="mt-0.5 truncate font-mono text-[8px] text-muted-foreground">{subject.subject_type === 'invite' ? 'Invitation pending' : `${subject.workspace_role} · active member`}</p>
-                  </div>
-                  <Badge variant={badgeVariant(subject.workspace_role)} className="font-mono text-[8px] uppercase">{subject.workspace_role}</Badge>
-                  <button
-                    type="button"
-                    disabled={locked || grantAccess.isPending || revokeAccess.isPending}
-                    onClick={() => handleAccess(subject)}
-                    className={`min-w-24 rounded-control border px-2.5 py-1.5 font-mono text-[8px] font-medium transition-colors disabled:cursor-not-allowed ${locked ? 'border-primary/20 bg-primary/[0.08] text-primary-light' : enabled ? 'border-emerald-500/25 bg-emerald-500/[0.06] text-emerald-300' : 'border-border bg-control text-muted-foreground hover:border-slate-600 hover:text-slate-100'}`}
-                  >
-                    {label}
-                  </button>
-                </div>
+                <TechnicalListItem
+                  key={`${subject.subject_type}:${subject.subject_id}`}
+                  label={subject.email}
+                  description={subject.subject_type === 'invite' ? 'Invitation pending' : `${subject.workspace_role} · active member`}
+                  leading={<PersonGlyph email={subject.email} invite={subject.subject_type === 'invite'} />}
+                  meta={<Badge variant={badgeVariant(subject.workspace_role)} size="compact">{subject.workspace_role}</Badge>}
+                  trailing={locked ? (
+                    <Badge variant="default" size="compact">Implicit</Badge>
+                  ) : (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={enabled ? 'secondary' : 'outline'}
+                      disabled={grantAccess.isPending || revokeAccess.isPending}
+                      onClick={() => handleAccess(subject)}
+                    >
+                      {label}
+                    </Button>
+                  )}
+                />
               )
             })}
-            {roster.length === 0 && <p className="py-8 text-center font-mono text-[9px] text-muted-foreground">No access subjects found.</p>}
+            {roster.length === 0 ? <EmptyStatePanel compact title="No access subjects found" /> : null}
           </div>
         ) : (
-          <p className="py-8 text-center font-mono text-[9px] text-muted-foreground">No Projects available.</p>
+          <EmptyStatePanel compact title="No Projects available" />
         )}
       </section>
     </div>
   ) : (
-    <Card className="px-6 py-10 text-center">
-      <ShieldCheck className="mx-auto h-5 w-5 text-muted-foreground" />
-      <p className="mt-3 font-mono text-[10px] font-bold text-slate-100">Project access management is restricted</p>
-      <p className="mt-1 font-mono text-[8px] text-muted-foreground">Only Workspace owners and admins can manage Project access.</p>
-    </Card>
+    <EmptyStatePanel
+      icon={<ShieldCheck className="h-icon-lg w-icon-lg" />}
+      title="Project access management is restricted"
+      description="Only Workspace owners and admins can manage Project access."
+    />
   )
 
   const mainView = workspace ? (
-    <div>
-      <div className="mb-4 flex flex-wrap items-center gap-2 border-b border-border pb-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-control border border-border bg-control text-primary-light">
-          <Building2 className="h-4 w-4" />
-        </div>
-        <div className="min-w-0">
-          <p className="truncate font-mono text-[11px] font-bold text-slate-100">{workspace.name}</p>
-          <p className="mt-0.5 truncate font-mono text-[8px] text-muted-foreground">/{workspace.slug}</p>
-        </div>
-        <Badge variant={badgeVariant(currentRole)} className="font-mono text-[8px] uppercase">{currentRole}</Badge>
-        {workspace.status && <Badge variant={badgeVariant(workspace.status)} className="font-mono text-[8px] uppercase">{workspace.status}</Badge>}
+    <div className="grid gap-ui-md">
+      <TechnicalListItem
+        label={workspace.name}
+        description={`/${workspace.slug}`}
+        leading={(
+          <span className="flex h-control-nav w-control-nav items-center justify-center rounded-control border border-border bg-control text-primary-light">
+            <Building2 className="h-icon w-icon" />
+          </span>
+        )}
+        meta={(
+          <>
+            <Badge variant={badgeVariant(currentRole)} size="compact">{currentRole}</Badge>
+            {workspace.status ? <Badge variant={badgeVariant(workspace.status)} size="compact">{workspace.status}</Badge> : null}
+          </>
+        )}
+      />
+
+      <div className="grid gap-ui-xs sm:grid-cols-2 xl:grid-cols-4">
+        <MetricTile label="People" value={peopleCount} detail={`${members.length} active · ${pendingInvites.length} pending`} icon={<Users className="h-icon-sm w-icon-sm" />} />
+        <MetricTile label="Projects" value={projectCount} detail="Accessible boundaries" icon={<FolderKanban className="h-icon-sm w-icon-sm" />} />
+        <MetricTile label="Access grants" value={explicitProjectAccesses} detail="Explicit assignments" icon={<ShieldCheck className="h-icon-sm w-icon-sm" />} />
+        <MetricTile label="Role" value={currentRole.toUpperCase()} detail={canManageWorkspace ? 'Workspace management' : 'Read-only view'} icon={<Building2 className="h-icon-sm w-icon-sm" />} />
       </div>
 
-      <div className="mb-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-        <SummaryMetric label="People" value={peopleCount} detail={`${members.length} active · ${pendingInvites.length} pending`} icon={<Users className="h-3.5 w-3.5" />} />
-        <SummaryMetric label="Projects" value={projectCount} detail="Accessible boundaries" icon={<FolderKanban className="h-3.5 w-3.5" />} />
-        <SummaryMetric label="Access grants" value={explicitProjectAccesses} detail="Explicit assignments" icon={<ShieldCheck className="h-3.5 w-3.5" />} />
-        <SummaryMetric label="Role" value={currentRole.toUpperCase()} detail={canManageWorkspace ? 'Workspace management' : 'Read-only view'} icon={<Building2 className="h-3.5 w-3.5" />} />
+      <div className="max-w-full overflow-x-auto">
+        <SegmentedControl
+          items={[
+            { value: 'overview', label: 'Overview' },
+            { value: 'people', label: `People (${peopleCount})` },
+            { value: 'access', label: 'Project Access' },
+          ]}
+          value={tab}
+          onValueChange={(value) => setTab(value as SettingsTab)}
+          ariaLabel="Workspace settings"
+          size="compact"
+        />
       </div>
 
-      <div className="mb-4 flex gap-1 border-b border-border" role="tablist" aria-label="Workspace settings">
-        {([
-          ['overview', 'Overview'],
-          ['people', `People (${peopleCount})`],
-          ['access', 'Project Access'],
-        ] as Array<[SettingsTab, string]>).map(([value, label]) => (
-          <button
-            key={value}
-            type="button"
-            role="tab"
-            aria-selected={tab === value}
-            onClick={() => setTab(value)}
-            className={`border-b px-3 py-2 font-mono text-[9px] font-medium transition-colors ${tab === value ? 'border-primary text-primary-light' : 'border-transparent text-muted-foreground hover:text-slate-200'}`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'overview' && overview}
-      {tab === 'people' && people}
-      {tab === 'access' && projectAccess}
+      {tab === 'overview' ? overview : null}
+      {tab === 'people' ? people : null}
+      {tab === 'access' ? projectAccess : null}
     </div>
   ) : null
 
   const inviteView = (
-    <div className="space-y-4">
-      <div className="border-b border-border pb-3">
-        <p className="font-mono text-[10px] font-bold text-slate-100">Invite member</p>
-        <p className="mt-1 font-mono text-[8px] text-muted-foreground">Configure Workspace role and optional Project access.</p>
-      </div>
-      <div>
-        <label className="mb-1.5 block font-mono text-[9px] font-medium text-slate-300">Email</label>
-        <Input type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="person@company.com" />
-      </div>
-      <div className="space-y-2">
-        <p className="font-mono text-[9px] font-medium text-slate-300">Workspace role</p>
-        <RoleChoice active={inviteRole === 'member'} title="Member" description="Can operate only Projects explicitly assigned to this person." onClick={() => setInviteRole('member')} />
-        {canInviteAdmin && <RoleChoice active={inviteRole === 'admin'} title="Admin" description="Can manage the Workspace and Project access, but still needs explicit access to operate a Project." onClick={() => setInviteRole('admin')} />}
-      </div>
-      <div>
-        <div className="mb-2">
-          <p className="font-mono text-[9px] font-medium text-slate-300">Project access after acceptance</p>
-          <p className="mt-1 font-mono text-[8px] text-muted-foreground">Optional. Selected Projects become available immediately when the invitation is accepted.</p>
+    <div className="grid gap-ui-md">
+      <SectionBlock
+        title="Invite member"
+        description="Configure Workspace role and optional Project access."
+      >
+        <div className="grid gap-ui-md">
+          <Field>
+            <FieldLabel>Email</FieldLabel>
+            <Input type="email" value={inviteEmail} onChange={(event) => setInviteEmail(event.target.value)} placeholder="person@company.com" />
+          </Field>
+
+          <Field>
+            <FieldLabel>Workspace role</FieldLabel>
+            <div className="grid gap-ui-xs">
+              <TechnicalListItem
+                label="Member"
+                description="Can operate only Projects explicitly assigned to this person."
+                selected={inviteRole === 'member'}
+                trailing={inviteRole === 'member' ? <Check className="h-icon w-icon text-primary-light" /> : null}
+                onClick={() => setInviteRole('member')}
+              />
+              {canInviteAdmin ? (
+                <TechnicalListItem
+                  label="Admin"
+                  description="Can manage the Workspace and Project access, but still needs explicit access to operate a Project."
+                  selected={inviteRole === 'admin'}
+                  trailing={inviteRole === 'admin' ? <Check className="h-icon w-icon text-primary-light" /> : null}
+                  onClick={() => setInviteRole('admin')}
+                />
+              ) : null}
+            </div>
+          </Field>
         </div>
-        <div className="max-h-48 overflow-y-auto rounded-container border border-border bg-control/25 p-1.5">
-          {projects.length ? projects.map((project) => (
-            <label key={project.id} className="flex cursor-pointer items-center gap-2.5 rounded-control px-2.5 py-2 hover:bg-control">
-              <input type="checkbox" checked={inviteProjectIds.includes(project.id)} onChange={() => toggleInviteProject(project.id)} className="h-3.5 w-3.5 rounded-technical border-border accent-blue-500" />
-              <span className="min-w-0">
-                <span className="block truncate font-mono text-[9px] text-slate-100">{project.name}</span>
-                <span className="block truncate font-mono text-[8px] text-muted-foreground">/{project.slug}</span>
-              </span>
-            </label>
-          )) : <p className="p-3 font-mono text-[9px] text-muted-foreground">No Projects available.</p>}
-        </div>
-      </div>
-      <div className="rounded-container border border-border bg-control/35 p-3 font-mono text-[8px] text-muted-foreground">
-        {inviteProjectIds.length ? `${inviteProjectIds.length} Project access grant(s) will be prepared.` : 'The person will join the Workspace without Project access.'}
-      </div>
-      <div className="flex justify-end gap-2 border-t border-border pt-4">
+      </SectionBlock>
+
+      <SectionBlock
+        title="Project access after acceptance"
+        description="Optional. Selected Projects become available immediately when the invitation is accepted."
+        density="compact"
+      >
+        {projects.length ? (
+          <div className="scrollbar-thin grid max-h-48 gap-ui-xs overflow-y-auto">
+            {projects.map((project) => {
+              const checked = inviteProjectIds.includes(project.id)
+              return (
+                <TechnicalListItem
+                  key={project.id}
+                  label={project.name}
+                  description={`/${project.slug}`}
+                  selected={checked}
+                  leading={(
+                    <Checkbox
+                      checked={checked}
+                      onClick={(event) => event.stopPropagation()}
+                      onChange={() => toggleInviteProject(project.id)}
+                      aria-label={`Grant access to ${project.name}`}
+                    />
+                  )}
+                  onClick={() => toggleInviteProject(project.id)}
+                />
+              )
+            })}
+          </div>
+        ) : (
+          <EmptyStatePanel compact title="No Projects available" />
+        )}
+      </SectionBlock>
+
+      <Alert variant="info">
+        <AlertDescription>
+          {inviteProjectIds.length ? `${inviteProjectIds.length} Project access grant(s) will be prepared.` : 'The person will join the Workspace without Project access.'}
+        </AlertDescription>
+      </Alert>
+
+      <div className="flex justify-end gap-ui-sm border-t border-border pt-ui-md">
         <Button variant="outline" onClick={backToMain}>Cancel</Button>
         <Button onClick={handleInvite} loading={createInvite.isPending} disabled={!inviteEmail.trim()}>Send invitation</Button>
       </div>
@@ -503,17 +541,20 @@ export function WorkspaceSettingsDialog({ open, onClose, workspaceId }: Workspac
   )
 
   const removeView = (
-    <div className="space-y-4">
-      <div>
-        <p className="font-mono text-[10px] font-bold text-slate-100">Remove member from Workspace?</p>
-        <p className="mt-2 font-mono text-[9px] leading-4 text-muted-foreground"><strong className="font-medium text-slate-100">{memberToRemove?.email}</strong> will lose access to this Workspace.</p>
-      </div>
-      <div className="rounded-container border border-red-500/20 bg-red-500/[0.04] p-3 font-mono text-[8px] leading-4 text-red-100">
-        <p>{memberToRemove?.project_access_count ?? 0} active Project access(es) will be revoked.</p>
-        <p>Pending access grants for this email will be cancelled.</p>
-        <p>Historical traces, releases and audit data remain unchanged.</p>
-      </div>
-      <div className="flex justify-end gap-2 border-t border-border pt-4">
+    <div className="grid gap-ui-md">
+      <SectionBlock
+        title="Remove member from Workspace?"
+        description={memberToRemove?.email ? `${memberToRemove.email} will lose access to this Workspace.` : undefined}
+      >
+        <Alert variant="destructive">
+          <AlertTitle>Access removal impact</AlertTitle>
+          <AlertDescription>
+            {memberToRemove?.project_access_count ?? 0} active Project access(es) will be revoked. Pending access grants for this email will be cancelled. Historical traces, releases and audit data remain unchanged.
+          </AlertDescription>
+        </Alert>
+      </SectionBlock>
+
+      <div className="flex justify-end gap-ui-sm border-t border-border pt-ui-md">
         <Button variant="outline" onClick={backToMain}>Cancel</Button>
         <Button variant="destructive" onClick={handleRemoveMember} loading={removeMember.isPending}>Remove member</Button>
       </div>
@@ -525,20 +566,29 @@ export function WorkspaceSettingsDialog({ open, onClose, workspaceId }: Workspac
       open={open}
       onClose={onClose}
       title={view === 'main' ? 'Workspace settings' : view === 'invite' ? 'Invite member' : 'Remove member'}
-      className="max-w-[980px]"
-      contentClassName="max-h-[calc(100svh-7rem)] overflow-y-auto p-4 sm:p-5"
+      className="max-w-dialog-wide"
+      scrollMode="content"
     >
       {workspaceQuery.isLoading ? (
-        <div className="py-14 text-center font-mono text-[9px] text-muted-foreground">Loading Workspace...</div>
+        <div className="grid gap-ui-md" aria-label="Loading Workspace">
+          <Skeleton className="h-control-row w-full" />
+          <div className="grid gap-ui-xs sm:grid-cols-2 xl:grid-cols-4">
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+            <Skeleton className="h-20 w-full" />
+          </div>
+          <Skeleton className="h-48 w-full" />
+        </div>
       ) : workspaceQuery.isError ? (
-        <Card className="border-error/30 bg-error/[0.05] px-6 py-10 text-center">
-          <p className="font-mono text-[10px] font-bold text-red-200">Unable to load Workspace</p>
-          <p className="mt-1 font-mono text-[8px] text-red-200/70">{workspaceQuery.error instanceof Error ? workspaceQuery.error.message : 'Unknown error'}</p>
-        </Card>
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load Workspace</AlertTitle>
+          <AlertDescription>{workspaceQuery.error instanceof Error ? workspaceQuery.error.message : 'Unknown error'}</AlertDescription>
+        </Alert>
       ) : !workspace ? (
-        <Card className="border-error/30 bg-error/[0.05] px-6 py-10 text-center">
-          <p className="font-mono text-[10px] font-bold text-red-200">Workspace not found</p>
-        </Card>
+        <Alert variant="destructive">
+          <AlertTitle>Workspace not found</AlertTitle>
+        </Alert>
       ) : view === 'invite' ? inviteView : view === 'remove' ? removeView : mainView}
     </Dialog>
   )
