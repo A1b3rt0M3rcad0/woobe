@@ -14,10 +14,10 @@ const variantClasses: Record<ButtonVariant, string> = {
 }
 
 const sizeClasses: Record<ButtonSize, string> = {
-  xs: 'h-control-xs px-ui-sm text-system-meta',
-  default: 'h-control px-ui-md',
-  sm: 'h-control-sm px-ui-sm text-system-label',
-  lg: 'h-control-lg px-ui-lg',
+  xs: 'h-control-xs px-ui-sm text-system-nano',
+  default: 'h-control px-ui-md text-system-label',
+  sm: 'h-control-sm px-ui-sm text-system-micro',
+  lg: 'h-control-lg px-ui-lg text-system-control',
   icon: 'h-control w-control p-0',
   iconSm: 'h-control-sm w-control-sm p-0',
   iconXs: 'h-control-xs w-control-xs p-0',
@@ -36,7 +36,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cn(
-        'inline-flex items-center justify-center whitespace-nowrap rounded-control font-mono text-system-control font-medium transition-colors',
+        'inline-flex items-center justify-center whitespace-nowrap rounded-control font-mono font-medium transition-colors',
         'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-background',
         'disabled:pointer-events-none disabled:opacity-50',
         variantClasses[variant],

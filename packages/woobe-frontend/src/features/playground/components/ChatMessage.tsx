@@ -330,24 +330,22 @@ export function ChatMessage({
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-x-ui-md gap-y-ui-xs">
-            <div className={cn('flex min-w-0 flex-wrap items-center font-mono text-muted-foreground', compact ? 'gap-x-ui-sm gap-y-ui-xs text-system-meta' : 'gap-x-ui-sm gap-y-ui-xs')}>
+            <div className={cn('flex min-w-0 flex-wrap items-center font-mono text-muted-foreground', compact ? 'gap-x-ui-sm gap-y-ui-xs text-system-meta' : 'gap-x-ui-sm gap-y-ui-xs text-system-nano')}>
               {message.model && (
-                <span className={cn('break-all', !compact && 'text-system-nano text-muted-foreground/70')}>
+                <span className={cn('break-all', !compact && 'text-muted-foreground/70')}>
                   {message.provider ? `${message.provider}/` : ''}{message.model}
                 </span>
               )}
-              {message.latency_ms != null && (
-                <span className={compact ? undefined : 'text-system-micro'}>{formatLatency(message.latency_ms)}</span>
-              )}
+              {message.latency_ms != null && <span>{formatLatency(message.latency_ms)}</span>}
               {message.usage && (
-                <span className={compact ? undefined : 'text-system-micro'}>
+                <span>
                   {formatNumber(message.usage.input_tokens, 0)} in / {formatNumber(message.usage.output_tokens, 0)} out
                 </span>
               )}
               {message.trace_id && (
-                <span className={compact ? undefined : 'text-system-nano text-muted-foreground/70'}>trace {message.trace_id.slice(0, 8)}…</span>
+                <span className={compact ? undefined : 'text-muted-foreground/70'}>trace {message.trace_id.slice(0, 8)}…</span>
               )}
-              {footerMeta ? <span className={compact ? undefined : 'text-system-micro'}>{footerMeta}</span> : null}
+              {footerMeta ? <span>{footerMeta}</span> : null}
             </div>
 
             <div className="flex shrink-0 items-center gap-ui-xs">

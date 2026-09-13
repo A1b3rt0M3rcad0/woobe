@@ -43,7 +43,7 @@ export function Tabs({ tabs, defaultTab, value, onValueChange, className, conten
               aria-selected={active === tab.id}
               onClick={() => setActive(tab.id)}
               className={cn(
-                'flex h-control-segment items-center whitespace-nowrap rounded-technical border px-ui-sm font-mono text-system-label font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
+                'flex h-control-segment items-center whitespace-nowrap rounded-technical border px-ui-sm font-mono text-system-micro font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
                 active === tab.id
                   ? 'border-primary/35 bg-primary/[0.12] text-accent-foreground'
                   : 'border-transparent text-muted-foreground hover:bg-accent/45 hover:text-accent-foreground/90',

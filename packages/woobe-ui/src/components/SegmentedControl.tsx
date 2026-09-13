@@ -48,7 +48,7 @@ export function SegmentedControl({
             onClick={() => onValueChange(item.value)}
             className={cn(
               'flex min-w-0 items-center justify-center gap-ui-xs rounded-technical border px-ui-sm font-mono font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50',
-              size === 'segment' ? 'h-control-segment text-system-meta' : 'h-control-sm text-system-label',
+              size === 'segment' ? 'h-control-segment text-system-nano' : 'h-control-sm text-system-micro',
               stretch && 'flex-1',
               active
                 ? 'border-primary/35 bg-primary/[0.10] text-accent-foreground'

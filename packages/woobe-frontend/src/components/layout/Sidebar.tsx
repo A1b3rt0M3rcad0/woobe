@@ -71,7 +71,7 @@ function SidebarNavLink({ item, href }: { item: NavItem; href: string }) {
       end={item.end}
       className={({ isActive }) =>
         cn(
-          'group flex h-control-nav items-center gap-ui-sm rounded-technical border px-ui-sm font-mono text-product-small transition-colors',
+          'group flex h-control-nav items-center gap-ui-sm rounded-technical border px-ui-sm font-mono text-system-control transition-colors',
           isActive
             ? 'border-primary/45 bg-primary/[0.12] text-slate-50'
             : 'border-transparent text-slate-300 hover:border-border hover:bg-accent/45 hover:text-slate-50',

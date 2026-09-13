@@ -21,7 +21,7 @@ export function ResourcePage({ title, description, eyebrow, action, children, cl
         'resource-page-shell mx-auto w-full max-w-resource space-y-ui-lg font-sans',
         '[&_h1]:font-mono [&_h2]:font-mono [&_h3]:font-mono [&_h4]:font-mono',
         '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_select]:font-mono [&_input]:font-mono [&_input]:text-system-control',
-        '[&_select]:text-system-control [&_select]:text-slate-100 [&_select]:outline-none',
+        '[&_select]:text-system-label [&_select]:text-slate-100 [&_select]:outline-none',
         '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
         '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono',
         '[&_textarea]:font-sans',

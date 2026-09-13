@@ -47,7 +47,7 @@ export function NetworkOperationsRail({
         disabled={newSessionDisabled || newSessionPending}
         title={newSessionDisabledReason ?? 'New Session'}
         aria-label="New Session"
-        className="mb-ui-xs flex w-control-row flex-col items-center gap-ui-hairline rounded-control border border-primary/40 bg-primary/[0.08] py-ui-sm font-mono text-system-meta text-primary-light transition-colors hover:border-primary/60 hover:bg-primary/[0.12] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-45"
+        className="mb-ui-xs flex w-control-row flex-col items-center gap-ui-hairline rounded-control border border-primary/40 bg-primary/[0.08] py-ui-sm font-mono text-system-nano text-primary-light transition-colors hover:border-primary/60 hover:bg-primary/[0.12] focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50 disabled:cursor-not-allowed disabled:opacity-45"
       >
         {newSessionPending ? <Loader2 className="h-icon-lg w-icon-lg animate-spin" /> : <MessageSquarePlus className="h-icon-lg w-icon-lg" />}
         <span className="text-center leading-3">New<br />Session</span>
@@ -65,7 +65,7 @@ export function NetworkOperationsRail({
             onClick={() => onTabChange(item.id)}
             title={item.label}
             className={cn(
-              'flex w-control-row flex-col items-center gap-ui-xs rounded-control border py-ui-sm font-mono text-system-meta transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50',
+              'flex w-control-row flex-col items-center gap-ui-xs rounded-control border py-ui-sm font-mono text-system-nano transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/50',
               active
                 ? 'border-primary/35 bg-primary/[0.08] text-primary-light'
                 : 'border-transparent text-muted-foreground hover:border-border hover:bg-background/60 hover:text-accent-foreground',
