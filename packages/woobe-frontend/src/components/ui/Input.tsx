@@ -1,5 +1,5 @@
 import { forwardRef, type InputHTMLAttributes } from 'react'
-import { Input as WoobeInput } from '@woobe/ui'
+import { FieldError, Input as WoobeInput } from '@woobe/ui'
 import { cn } from '@/lib/utils'
 
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
@@ -24,7 +24,7 @@ const Input = forwardRef<HTMLInputElement, InputProps>(
           className={cn(isLegacyTechnicalSecret && '[-webkit-text-security:disc]', className)}
           {...props}
         />
-        {error && <p className="mt-ui-xs font-mono text-system-label text-error">{error}</p>}
+        {error ? <FieldError className="mt-ui-xs">{error}</FieldError> : null}
       </div>
     )
   },

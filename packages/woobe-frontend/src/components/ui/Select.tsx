@@ -1,5 +1,5 @@
 import { forwardRef, type SelectHTMLAttributes } from 'react'
-import { Select as WoobeSelect } from '@woobe/ui'
+import { FieldError, Select as WoobeSelect } from '@woobe/ui'
 import { cn } from '@/lib/utils'
 
 interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
@@ -19,7 +19,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
         className={cn('!h-control', className)}
         {...props}
       />
-      {error && <p className="mt-ui-xs font-mono text-system-label text-error">{error}</p>}
+      {error ? <FieldError className="mt-ui-xs">{error}</FieldError> : null}
     </div>
   ),
 )
