@@ -41,6 +41,36 @@ This includes:
 
 The goal is not to remove every numeric value from feature code. The goal is to prevent feature code from becoming a second design system.
 
+### Legitimate feature-owned geometry
+
+A numeric or arbitrary value can remain in `woobe-frontend` when it is part of feature behavior or domain geometry rather than a reusable presentation rule. Typical examples include:
+
+- Network Canvas node positions, handles, edge geometry and viewport calculations;
+- Trace timelines and execution visualizations;
+- split-pane calculations that depend on feature state;
+- popover positioning calculations derived from an anchor and the viewport;
+- upload/drop interaction geometry when it is unique to that interaction;
+- domain limits such as timeouts, token budgets, depth, hops and invocation limits;
+- user-configurable ChatSurface appearance values such as customer-selected colors, radius and spacing.
+
+The syntax itself is not the violation. A repeated systemic visual decision without clear ownership is the violation.
+
+## Component levels
+
+Use three explicit levels of composition:
+
+```text
+primitive → shared presentation composition → feature component
+```
+
+Examples:
+
+- `Button` is a primitive.
+- `SectionBlock`, `TechnicalListItem` and `EmptyStatePanel` are shared presentation compositions.
+- `RuntimeAssetCard`, `NetworkGraphInspector` and Knowledge build workflows are feature components.
+
+Do not move a component into `woobe-ui` merely because it is visually complex. It belongs here only when it is presentation-only, domain-agnostic and has demonstrated reuse. Domain concepts such as Agent, Network, Run, Knowledge Collection, Release or Tool must not leak into this package.
+
 ## Primitives and shared compositions
 
 Current reusable surface includes primitives and compositions such as:
@@ -116,6 +146,24 @@ z-focus
 
 When a feature needs a recurring visual value that is not represented by the existing vocabulary, first decide whether it is truly feature-specific. If it is a reusable Woobe presentation rule, add it to this package and consume the token from the feature.
 
+## Responsive contract
+
+Responsive behavior is based on available viewport/container width, not the physical resolution or marketing name of a monitor.
+
+Conceptually, Woobe should behave across these width classes:
+
+- compact: below `640px`;
+- mobile/large-mobile: `640–767px`;
+- medium: `768–1023px`;
+- desktop: `1024–1279px`;
+- wide: `1280–1535px`;
+- workstation: `1536–1919px`;
+- ultrawide: `1920px` and above.
+
+The exact implementation should use the product breakpoints exported by this package. These bands describe composition intent; they are not permission for features to create a second breakpoint system.
+
+On workstation and ultrawide layouts, extra width should improve composition: persistent inspectors, wider data regions, useful columns, tables and contextual panels. Do not scale typography or common controls merely because more pixels are available.
+
 ## Visual foundations
 
 - Canvas: `#020817`
@@ -135,3 +183,17 @@ When a feature needs a recurring visual value that is not represented by the exi
 The visual hierarchy is border-driven rather than shadow-driven. Blue is reserved for primary actions, focus, selection and operationally meaningful state. Technical typography is intentionally prominent in navigation, labels, controls, metadata, IDs, metrics and operational UI, while Inter remains the default for longer product copy and user-entered content.
 
 Subtle grid/ASCII influence may appear as secondary identity, but it must not turn product surfaces into terminal emulation or decorative marketing layouts.
+
+## Review checklist
+
+Before considering a migrated surface complete, verify that:
+
+- the feature still owns behavior and domain semantics while `woobe-ui` owns reusable appearance;
+- common controls, dialogs, sections, states and technical rows use the shared primitives/compositions when an equivalent exists;
+- no new arbitrary type scale, common radius, semantic color, shared shell width, control height, shadow or layer was introduced locally;
+- loading, error, empty, disabled and read-only states follow the same visual grammar as the happy path;
+- nested overlays use the shared layer contract and preserve focus/Escape/body-lock behavior;
+- the surface remains usable from compact/mobile widths through workstation and ultrawide widths;
+- additional 2K/ultrawide space improves information composition instead of inflating text and controls;
+- user-configurable appearance values are not accidentally replaced by Control Plane design tokens;
+- feature-specific geometry that remains local has a concrete behavioral or domain reason.
