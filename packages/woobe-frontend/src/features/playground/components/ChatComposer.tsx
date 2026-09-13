@@ -82,22 +82,22 @@ export function ChatComposer({
           onKeyDown={handleKeyDown}
           placeholder={runtimeBlocked ? (runtimeBlockReason ?? 'Runtime blocked') : placeholder}
           rows={1}
-          className="min-h-control-row max-h-multiline w-full resize-none bg-transparent px-ui-md py-ui-sm font-sans text-product-body text-slate-100 outline-none placeholder:text-muted-foreground"
+          className="min-h-control-row max-h-multiline w-full resize-none bg-transparent px-ui-md py-ui-sm font-sans text-product-reading text-slate-100 outline-none placeholder:text-muted-foreground"
           disabled={blocked}
         />
         <div className="flex items-center justify-between border-t border-border/60 px-ui-sm py-ui-sm">
           <div className="flex items-center gap-ui-xs">
-            <Button type="button" variant="ghost" size="sm" disabled={blocked} className="text-muted-foreground">
+            <Button type="button" variant="ghost" size="sm" disabled={blocked} className="font-sans text-product-small text-muted-foreground">
               <Paperclip className="h-icon-sm w-icon-sm" />
               Attach
             </Button>
-            <Button type="button" variant="ghost" size="sm" disabled={blocked} className="text-muted-foreground">
+            <Button type="button" variant="ghost" size="sm" disabled={blocked} className="font-sans text-product-small text-muted-foreground">
               <Wrench className="h-icon-sm w-icon-sm" />
               Tools
             </Button>
           </div>
           <div className="flex min-w-0 items-center gap-ui-sm">
-            <span className="hidden max-w-[17.5rem] truncate font-mono text-system-meta text-muted-foreground sm:inline">
+            <span className="hidden max-w-[17.5rem] truncate font-mono text-system-micro text-muted-foreground/80 sm:inline">
               {resolvedStatus}
             </span>
             {isSending ? (

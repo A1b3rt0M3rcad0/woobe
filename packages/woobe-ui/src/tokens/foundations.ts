@@ -1,4 +1,6 @@
 export const woobeTypographyScale = {
+  systemNano: ['0.4375rem', { lineHeight: '0.625rem', letterSpacing: '0.01em' }],
+  systemMicro: ['0.5rem', { lineHeight: '0.6875rem', letterSpacing: '0' }],
   systemMeta: ['0.5rem', { lineHeight: '0.875rem', letterSpacing: '0.02em' }],
   systemLabel: ['0.5625rem', { lineHeight: '0.875rem', letterSpacing: '0.01em' }],
   systemControl: ['0.625rem', { lineHeight: '1rem', letterSpacing: '0' }],
@@ -6,6 +8,9 @@ export const woobeTypographyScale = {
   productCaption: ['0.5625rem', { lineHeight: '1rem', letterSpacing: '0' }],
   productSmall: ['0.6875rem', { lineHeight: '1rem', letterSpacing: '0' }],
   productBody: ['0.8125rem', { lineHeight: '1.25rem', letterSpacing: '0' }],
+  productReading: ['0.875rem', { lineHeight: '1.375rem', letterSpacing: '0' }],
+  codeCompact: ['0.625rem', { lineHeight: '0.9375rem', letterSpacing: '0' }],
+  codeDefault: ['0.6875rem', { lineHeight: '1.0625rem', letterSpacing: '0' }],
   headingSmall: ['0.875rem', { lineHeight: '1.25rem', letterSpacing: '-0.01em' }],
   heading: ['1rem', { lineHeight: '1.5rem', letterSpacing: '-0.015em' }],
   headingLarge: ['1.125rem', { lineHeight: '1.625rem', letterSpacing: '-0.02em' }],

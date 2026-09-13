@@ -10,7 +10,7 @@ import { EmptyStatePanel } from './EmptyStatePanel'
 import { cn } from '../lib/cn'
 import { formatJsonSafely } from '../lib/json'
 import { jsonDarkTheme, jsonSyntaxHighlight } from '../lib/json-codemirror'
-import { woobeLayout } from '../tokens'
+import { woobeLayout, woobeTypographyScale } from '../tokens'
 
 export interface JsonCodeBlockProps {
   value?: unknown
@@ -19,7 +19,19 @@ export interface JsonCodeBlockProps {
   className?: string
   actions?: ('copy' | 'format' | 'collapse' | 'expand')[]
   collapsed?: boolean
+  density?: 'default' | 'compact'
 }
+
+const compactJsonTypography = EditorView.theme({
+  '.cm-content': {
+    fontSize: woobeTypographyScale.codeCompact[0],
+    lineHeight: woobeTypographyScale.codeCompact[1].lineHeight,
+  },
+  '.cm-gutters': {
+    fontSize: woobeTypographyScale.systemNano[0],
+    lineHeight: woobeTypographyScale.systemNano[1].lineHeight,
+  },
+})
 
 function ActionButton({ label, title, onClick, children }: { label: string; title: string; onClick: () => void; children: ReactNode }) {
   return <Button type="button" variant="outline" size="sm" onClick={onClick} className="w-control-sm px-0 text-muted-foreground" title={title} aria-label={label}>{children}</Button>
@@ -32,6 +44,7 @@ export function JsonCodeBlock({
   className,
   actions = ['copy', 'expand'],
   collapsed: initialCollapsed = false,
+  density = 'default',
 }: JsonCodeBlockProps) {
   const [collapsed, setCollapsed] = useState(initialCollapsed)
   const [copied, setCopied] = useState(false)
@@ -73,7 +86,20 @@ export function JsonCodeBlock({
     }
   }, [expanded])
 
-  const cmExtensions = useMemo(() => [json(), jsonDarkTheme, jsonSyntaxHighlight, EditorView.editable.of(false)], [])
+  const inlineCmExtensions = useMemo(
+    () => [
+      json(),
+      jsonDarkTheme,
+      jsonSyntaxHighlight,
+      EditorView.editable.of(false),
+      ...(density === 'compact' ? [compactJsonTypography] : []),
+    ],
+    [density],
+  )
+  const expandedCmExtensions = useMemo(
+    () => [json(), jsonDarkTheme, jsonSyntaxHighlight, EditorView.editable.of(false)],
+    [],
+  )
   const cmBasicSetup = { lineNumbers: true, foldGutter: true, highlightActiveLine: false, highlightActiveLineGutter: false }
   const visible = !collapsed || !actions.includes('collapse')
 
@@ -89,7 +115,7 @@ export function JsonCodeBlock({
   return (
     <>
       <CodePanel title={title || 'JSON'} badge={isInvalid ? <span className="text-error">INVALID</span> : 'JSON'} actions={panelActions} density="compact" className={cn(className)}>
-        {visible && displayText ? <div className="scrollbar-thin overflow-auto bg-background/20" style={{ maxHeight: typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight }}><CodeMirror value={displayText} extensions={cmExtensions} readOnly basicSetup={cmBasicSetup} className="cm-custom-scroll" theme="none" /></div> : null}
+        {visible && displayText ? <div className="scrollbar-thin overflow-auto bg-background/20" style={{ maxHeight: typeof maxHeight === 'number' ? `${maxHeight}px` : maxHeight }}><CodeMirror value={displayText} extensions={inlineCmExtensions} readOnly basicSetup={cmBasicSetup} className="cm-custom-scroll" theme="none" /></div> : null}
         {visible && !displayText ? <div className="p-ui-md"><EmptyStatePanel compact title="No JSON data" /></div> : null}
       </CodePanel>
 
@@ -100,7 +126,7 @@ export function JsonCodeBlock({
               <div className="flex min-w-0 items-center gap-ui-sm"><span className="truncate font-mono text-system-control font-semibold text-accent-foreground">{title || 'Raw JSON'}</span><span className="rounded-technical border border-primary/25 bg-primary/[0.08] px-ui-xs py-ui-hairline font-mono text-system-meta uppercase tracking-wide text-primary-light">JSON</span></div>
               <div className="flex items-center gap-ui-xs"><ActionButton label="Copy JSON" title={copied ? 'Copied!' : 'Copy'} onClick={handleCopy}>{copied ? <Check className="h-icon-sm w-icon-sm text-success" /> : <Copy className="h-icon-sm w-icon-sm" />}</ActionButton><ActionButton label="Close" title="Close" onClick={() => setExpanded(false)}><X className="h-icon-sm w-icon-sm" /></ActionButton></div>
             </div>
-            <div className="min-h-0 flex-1 bg-background/20"><CodeMirror value={displayText} extensions={cmExtensions} readOnly basicSetup={cmBasicSetup} theme="none" height="100%" className="h-full" /></div>
+            <div className="min-h-0 flex-1 bg-background/20"><CodeMirror value={displayText} extensions={expandedCmExtensions} readOnly basicSetup={cmBasicSetup} theme="none" height="100%" className="h-full" /></div>
           </div>
         </div>,
         document.body,

@@ -22,6 +22,8 @@ const woobeTailwindPreset = {
         mono: [...woobeTypography.mono],
       },
       fontSize: {
+        'system-nano': woobeTypographyScale.systemNano,
+        'system-micro': woobeTypographyScale.systemMicro,
         'system-meta': woobeTypographyScale.systemMeta,
         'system-label': woobeTypographyScale.systemLabel,
         'system-control': woobeTypographyScale.systemControl,
@@ -29,6 +31,9 @@ const woobeTailwindPreset = {
         'product-caption': woobeTypographyScale.productCaption,
         'product-small': woobeTypographyScale.productSmall,
         'product-body': woobeTypographyScale.productBody,
+        'product-reading': woobeTypographyScale.productReading,
+        'code-compact': woobeTypographyScale.codeCompact,
+        'code-default': woobeTypographyScale.codeDefault,
         'heading-sm': woobeTypographyScale.headingSmall,
         heading: woobeTypographyScale.heading,
         'heading-lg': woobeTypographyScale.headingLarge,

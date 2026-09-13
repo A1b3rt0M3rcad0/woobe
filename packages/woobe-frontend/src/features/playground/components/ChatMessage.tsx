@@ -57,7 +57,7 @@ function SourcesCollapsible({
         onClick={() => setOpen(!open)}
         className={cn(
           'flex items-center gap-ui-xs font-mono text-primary-light transition-colors hover:text-slate-50',
-          compact ? 'text-system-meta' : 'text-system-label',
+          compact ? 'text-system-meta' : 'text-system-control',
         )}
       >
         {open ? <ChevronDown className="h-icon-sm w-icon-sm" /> : <ChevronRight className="h-icon-sm w-icon-sm" />}
@@ -73,9 +73,9 @@ function SourcesCollapsible({
                 compact ? 'p-ui-sm' : 'p-ui-md',
               )}
             >
-              <p className="truncate font-mono text-system-label font-semibold text-slate-100">{source.document_title || 'Untitled'}</p>
+              <p className={cn('truncate font-mono font-semibold text-slate-100', compact ? 'text-system-label' : 'text-system-control')}>{source.document_title || 'Untitled'}</p>
               {(source.page_number != null || source.score != null) && (
-                <div className="mt-ui-xs flex flex-wrap gap-x-ui-sm font-mono text-system-meta text-muted-foreground">
+                <div className={cn('mt-ui-xs flex flex-wrap gap-x-ui-sm font-mono text-muted-foreground', compact ? 'text-system-meta' : 'text-system-micro')}>
                   {source.page_number != null && <span>Page {source.page_number}</span>}
                   {source.score != null && <span>Score {formatNumber(source.score, 3)}</span>}
                 </div>
@@ -165,7 +165,7 @@ function AssistantContent({
           'border border-border/80 bg-surface/72 font-sans text-slate-100',
           compact
             ? 'rounded-control px-ui-sm py-ui-sm text-product-small'
-            : 'rounded-container px-ui-md py-ui-sm text-product-body',
+            : 'rounded-container px-ui-md py-ui-sm text-product-reading',
         )}
       >
         <MarkdownMessage
@@ -183,7 +183,7 @@ function AssistantContent({
         'border border-border/80 bg-surface/72 font-sans text-slate-100',
         compact
           ? 'rounded-control px-ui-sm py-ui-sm text-product-small'
-          : 'rounded-container px-ui-md py-ui-sm text-product-body',
+          : 'rounded-container px-ui-md py-ui-sm text-product-reading',
       )}
     >
       <div className={compact ? 'space-y-ui-sm' : 'space-y-ui-md'}>
@@ -196,7 +196,11 @@ function AssistantContent({
             />
           ) : (
             <div key={index} className={compact ? 'my-ui-sm' : 'my-ui-md'}>
-              <JsonCodeBlock value={segment.value} maxHeight={compact ? woobeLayout.codeInlineCompact : woobeLayout.codeInlineDefault} />
+              <JsonCodeBlock
+                value={segment.value}
+                maxHeight={compact ? woobeLayout.codeInlineCompact : woobeLayout.codeInlineDefault}
+                density={compact ? 'default' : 'compact'}
+              />
             </div>
           ),
         )}
@@ -235,7 +239,7 @@ export function ChatMessage({
               'whitespace-pre-wrap break-words border border-primary/25 bg-primary/[0.09] font-sans text-slate-100',
               compact
                 ? 'rounded-control px-ui-sm py-ui-sm text-product-small'
-                : 'rounded-container px-ui-md py-ui-sm text-product-body',
+                : 'rounded-container px-ui-md py-ui-sm text-product-reading',
             )}
           >
             {message.content}
@@ -278,7 +282,7 @@ export function ChatMessage({
             <AssistantIcon className={cn('text-primary-light', compact ? 'h-icon-sm w-icon-sm' : 'h-icon w-icon')} />
           </div>
           {!compact && agentName && (
-            <span className="w-full truncate text-center font-mono text-system-meta text-muted-foreground" title={agentName}>
+            <span className="w-full truncate text-center font-mono text-system-label text-muted-foreground" title={agentName}>
               {agentName}
             </span>
           )}
@@ -326,22 +330,24 @@ export function ChatMessage({
           )}
 
           <div className="flex flex-wrap items-center justify-between gap-x-ui-md gap-y-ui-xs">
-            <div className={cn('flex min-w-0 flex-wrap items-center font-mono text-system-meta text-muted-foreground', compact ? 'gap-x-ui-sm gap-y-ui-xs' : 'gap-ui-md')}>
+            <div className={cn('flex min-w-0 flex-wrap items-center font-mono text-muted-foreground', compact ? 'gap-x-ui-sm gap-y-ui-xs text-system-meta' : 'gap-x-ui-sm gap-y-ui-xs')}>
               {message.model && (
-                <span className="break-all">
+                <span className={cn('break-all', !compact && 'text-system-nano text-muted-foreground/70')}>
                   {message.provider ? `${message.provider}/` : ''}{message.model}
                 </span>
               )}
-              {message.latency_ms != null && <span>{formatLatency(message.latency_ms)}</span>}
+              {message.latency_ms != null && (
+                <span className={compact ? undefined : 'text-system-micro'}>{formatLatency(message.latency_ms)}</span>
+              )}
               {message.usage && (
-                <span>
+                <span className={compact ? undefined : 'text-system-micro'}>
                   {formatNumber(message.usage.input_tokens, 0)} in / {formatNumber(message.usage.output_tokens, 0)} out
                 </span>
               )}
               {message.trace_id && (
-                <span>trace {message.trace_id.slice(0, 8)}…</span>
+                <span className={compact ? undefined : 'text-system-nano text-muted-foreground/70'}>trace {message.trace_id.slice(0, 8)}…</span>
               )}
-              {footerMeta}
+              {footerMeta ? <span className={compact ? undefined : 'text-system-micro'}>{footerMeta}</span> : null}
             </div>
 
             <div className="flex shrink-0 items-center gap-ui-xs">
