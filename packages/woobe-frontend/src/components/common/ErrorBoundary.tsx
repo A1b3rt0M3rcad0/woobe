@@ -1,7 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { AlertTriangle, ArrowLeft, RefreshCw } from 'lucide-react'
-import { EmptyStatePanel } from '@woobe/ui'
-import { Button } from '@/components/ui/Button'
+import { Button, EmptyStatePanel } from '@woobe/ui'
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -43,16 +42,16 @@ export class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundarySt
 
       return (
         <EmptyStatePanel
-          icon={<AlertTriangle className="h-4 w-4 text-red-300" />}
+          icon={<AlertTriangle className="h-icon-lg w-icon-lg text-error" />}
           title="Something went wrong"
           description="An unexpected error occurred. Try again or return to the dashboard."
           action={(
-            <div className="flex flex-wrap justify-center gap-2">
+            <div className="flex flex-wrap justify-center gap-ui-sm">
               <Button variant="outline" size="sm" onClick={this.handleReload}>
-                <RefreshCw className="mr-1.5 h-3.5 w-3.5" />Reload
+                <RefreshCw className="mr-ui-xs h-icon-sm w-icon-sm" />Reload
               </Button>
               <Button variant="outline" size="sm" onClick={this.handleBackToDashboard}>
-                <ArrowLeft className="mr-1.5 h-3.5 w-3.5" />Back to dashboard
+                <ArrowLeft className="mr-ui-xs h-icon-sm w-icon-sm" />Back to dashboard
               </Button>
             </div>
           )}
