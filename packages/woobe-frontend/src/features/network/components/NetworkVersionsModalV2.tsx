@@ -271,7 +271,7 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
           {activationTarget ? (
             <>
               <Button type="button" size="sm" variant="outline" onClick={initialMode === 'rollback' ? onClose : () => setActivationTargetId(null)}>Cancel</Button>
-              <Button type="button" size="sm" variant="warning" disabled={pending || description.trim().length < 3} onClick={() => void confirmActivation()}>{pending ? 'Applying…' : initialMode === 'rollback' ? `Rollback to ${activationTarget.version}` : `Activate ${activationTarget.version}`}</Button>
+              <Button type="button" size="sm" variant="outline" className="border-amber-500/40 bg-amber-500/10 text-amber-200 hover:border-amber-400/55 hover:bg-amber-500/15 hover:text-amber-100" disabled={pending || description.trim().length < 3} onClick={() => void confirmActivation()}>{pending ? 'Applying…' : initialMode === 'rollback' ? `Rollback to ${activationTarget.version}` : `Activate ${activationTarget.version}`}</Button>
             </>
           ) : (
             <>
@@ -279,7 +279,7 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
               {selectedVersion ? <Button type="button" size="sm" variant="outline" onClick={() => onViewVersion(selectedVersion)}><Eye className="h-icon-sm w-icon-sm" />View on Canvas</Button> : null}
               {section === 'draft' ? <Button type="button" size="sm" disabled={pending} onClick={onStage}>Stage Network</Button> : null}
               {selectedVersion?.id === stagingVersion?.id ? <Button type="button" size="sm" disabled={pending} onClick={onPublish}>Publish Network Release</Button> : null}
-              {selectedVersion?.kind === 'release' && selectedVersion.id !== productionVersion?.id ? <Button type="button" size="sm" variant="success" disabled={pending} onClick={() => { setActivationTargetId(selectedVersion.id); setDescription(`Activate ${selectedVersion.version} in Network Production.`) }}>Set as Production</Button> : null}
+              {selectedVersion?.kind === 'release' && selectedVersion.id !== productionVersion?.id ? <Button type="button" size="sm" variant="outline" className="border-emerald-500/40 bg-emerald-500/10 text-emerald-300 hover:border-emerald-400/55 hover:bg-emerald-500/15 hover:text-emerald-200" disabled={pending} onClick={() => { setActivationTargetId(selectedVersion.id); setDescription(`Activate ${selectedVersion.version} in Network Production.`) }}>Set as Production</Button> : null}
             </>
           )}
         </footer>
