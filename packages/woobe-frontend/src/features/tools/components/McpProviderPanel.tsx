@@ -206,14 +206,14 @@ function PermissionControl({
   onChange: (mode: McpToolPermissionMode) => void
 }) {
   return (
-    <div className="inline-flex rounded-lg border border-border/80 bg-background/60 p-0.5">
+    <div className="inline-flex rounded-control border border-border/80 bg-background/60 p-ui-hairline">
       {(['allow', 'review', 'deny'] as McpToolPermissionMode[]).map((value) => (
         <button
           key={value}
           type="button"
           disabled={busyKey === `${itemName}:${value}`}
           onClick={() => onChange(value)}
-          className={`rounded-md px-2 py-1 text-[10px] font-medium transition-colors disabled:opacity-50 ${mode === value ? 'bg-accent text-white' : 'text-muted hover:text-white'}`}
+          className={`rounded-technical px-ui-sm py-ui-xs font-mono text-system-micro font-medium transition-colors disabled:opacity-50 ${mode === value ? 'bg-accent text-white' : 'text-muted-foreground hover:text-white'}`}
         >
           {value === 'deny' ? 'Block' : value[0].toUpperCase() + value.slice(1)}
         </button>
@@ -351,21 +351,21 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
   const diagnostic = !['ready', 'needs_permission', 'needs_discovery', 'no_tools'].includes(visibleState)
 
   return (
-    <div className="mt-2">
-      <div className={footerActions ? 'min-w-0 pl-12' : 'min-w-0'}>
-        <p title={providerHost(tool)} className="truncate font-mono text-[11px] text-muted">{providerHost(tool)}</p>
-        <p className="mt-2 text-[11px] text-muted">MCP · {state.discovered_count} tools · {state.exposed_count} allowed</p>
-        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted"><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusTone(visibleState)}`} />{visibleLabel}</p>
+    <div className="mt-ui-sm">
+      <div className={footerActions ? 'min-w-0 pl-ui-xl' : 'min-w-0'}>
+        <p title={providerHost(tool)} className="truncate font-mono text-system-micro text-muted-foreground">{providerHost(tool)}</p>
+        <p className="mt-ui-sm font-mono text-system-micro text-muted-foreground">MCP · {state.discovered_count} tools · {state.exposed_count} allowed</p>
+        <p className="mt-ui-sm flex items-center gap-ui-xs font-mono text-system-micro text-muted-foreground"><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${statusTone(visibleState)}`} />{visibleLabel}</p>
       </div>
       {summaryNote}
-      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3">
-        <Button size="sm" variant="outline" className="h-8 text-[11px]" disabled={!actionable || busyKey !== null} onClick={handleSummaryClick}><Settings2 className="mr-1 h-3.5 w-3.5" />{discovered.length > 0 ? 'Configure' : showConnect ? 'Connect' : 'Load tools'}</Button>
+      <div className="mt-ui-md grid grid-cols-2 gap-ui-sm border-t border-border/75 pt-ui-md">
+        <Button size="sm" variant="outline" disabled={!actionable || busyKey !== null} onClick={handleSummaryClick}><Settings2 className="h-icon-sm w-icon-sm" />{discovered.length > 0 ? 'Configure' : showConnect ? 'Connect' : 'Load tools'}</Button>
         {footerActions}
       </div>
 
-      {diagnostic ? <p className="mt-1 line-clamp-2 px-1 text-[10px] leading-4 text-amber-200">{state.message}</p> : null}
+      {diagnostic ? <p className="mt-ui-xs line-clamp-2 px-ui-xs font-mono text-system-meta leading-ui-dense text-amber-200">{state.message}</p> : null}
       {state.oauth_connected ? (
-        <button type="button" onClick={() => void handleDisconnect()} className="mt-1 px-1 text-[10px] text-muted hover:text-white">Disconnect</button>
+        <button type="button" onClick={() => void handleDisconnect()} className="mt-ui-xs px-ui-xs font-mono text-system-micro text-muted-foreground hover:text-white">Disconnect</button>
       ) : null}
 
       <Dialog open={manageOpen} onClose={() => setManageOpen(false)} title={`Manage MCP tools: ${tool.name}`} className="max-w-3xl" scrollMode="content">
