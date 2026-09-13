@@ -1,11 +1,23 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { Check, Cpu, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Dialog,
+  EmptyStatePanel,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  SectionBlock,
+  Select,
+  TechnicalListItem,
+} from '@woobe/ui'
+
 import { StatusBadge } from '@/components/common/StatusBadge'
-import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
 import { AddProviderCredentialModal } from '@/features/provider-credentials/components/AddProviderCredentialModal'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
@@ -113,10 +125,6 @@ function getCredentialLabel(credential?: ProviderCredential | null) {
   return credential ? `${credential.name} · ${providerLabel(credential.provider)}` : 'Credential missing'
 }
 
-function Pill({ children }: { children: ReactNode }) {
-  return <span className="rounded-full border border-border/80 bg-background/70 px-2.5 py-1 text-xs text-muted">{children}</span>
-}
-
 function EmbeddingModelCatalogPicker({
   models,
   selectedModelId,
@@ -132,9 +140,7 @@ function EmbeddingModelCatalogPicker({
   onSelect: (model: AvailableProviderModel) => void
   onManualMode: () => void
 }) {
-  const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const selectedModel = models.find((item) => item.id === selectedModelId) || null
   const normalizedQuery = query.trim().toLowerCase()
   const filteredModels = useMemo(() => {
     if (!normalizedQuery) return models
@@ -143,93 +149,55 @@ function EmbeddingModelCatalogPicker({
   const visibleModels = filteredModels.slice(0, 80)
   const hiddenCount = Math.max(filteredModels.length - visibleModels.length, 0)
 
-  const handleSelect = (selected: AvailableProviderModel) => {
-    onSelect(selected)
-    setOpen(false)
-    setQuery('')
-  }
-
   return (
-    <div
-      className="relative"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false)
-      }}
-    >
-      <div className="mb-1 flex items-center justify-between gap-3">
-        <label className="block text-sm font-medium text-muted">Model catalog</label>
-        <Button type="button" size="sm" variant="ghost" className="h-auto px-0 py-0 text-xs" onClick={onManualMode}>Enter manually</Button>
+    <Field>
+      <div className="flex items-center justify-between gap-ui-sm">
+        <FieldLabel>Model catalog</FieldLabel>
+        <Button type="button" size="sm" variant="ghost" onClick={onManualMode}>Enter manually</Button>
       </div>
 
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="flex h-9 w-full items-center justify-between gap-3 rounded-lg border border-border bg-transparent px-3 py-1 text-left text-sm shadow-sm transition-colors hover:border-primary/40 focus:border-primary/60 focus:outline-none focus:ring-1 focus:ring-primary/40"
-      >
-        <span className="min-w-0">
-          {selectedModel ? (
-            <span className="block truncate text-white">{selectedModel.label}</span>
-          ) : (
-            <span className="block truncate text-muted">Search or select embedding model</span>
-          )}
-        </span>
-        <Search className="h-4 w-4 shrink-0 text-muted" />
-      </button>
+      {models.length > 6 ? (
+        <div className="relative">
+          <Search className="pointer-events-none absolute left-ui-md top-1/2 h-icon w-icon -translate-y-1/2 text-muted-foreground" />
+          <Input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search embedding models"
+            className="pl-9"
+          />
+        </div>
+      ) : null}
 
-      {selectedModel && <code className="mt-1 block truncate text-xs text-muted">{selectedModel.id}</code>}
-
-      {open && (
-        <div className="absolute left-0 right-0 top-[calc(100%+0.5rem)] z-50 rounded-xl border border-border bg-background shadow-2xl">
-          <div className="border-b border-border/70 p-3">
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-              <input
-                type="search"
-                value={query}
-                onChange={(event) => setQuery(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key === 'Escape') setOpen(false)
-                }}
-                placeholder="Search embedding models"
-                className="h-9 w-full rounded-lg border border-border bg-transparent px-9 py-1 text-sm text-white outline-none transition-colors placeholder:text-muted focus:border-primary/60 focus:ring-1 focus:ring-primary/40"
-                autoFocus
+      {loading ? (
+        <EmptyStatePanel compact title="Loading embedding models" description="Reading the provider model catalog." />
+      ) : error ? (
+        <Alert variant="warning">
+          <AlertDescription>Could not load embedding models. Use manual model entry.</AlertDescription>
+        </Alert>
+      ) : visibleModels.length === 0 ? (
+        <EmptyStatePanel compact title="No embedding models found" description="Change the search or enter the model identifier manually." />
+      ) : (
+        <div className="scrollbar-thin grid max-h-72 gap-ui-xs overflow-y-auto pr-ui-xs">
+          {visibleModels.map((availableModel) => {
+            const selected = availableModel.id === selectedModelId
+            return (
+              <TechnicalListItem
+                key={availableModel.id}
+                label={availableModel.label}
+                description={availableModel.id}
+                meta={providerLabel(availableModel.provider)}
+                selected={selected}
+                trailing={selected ? <Check className="h-icon w-icon text-primary-light" /> : null}
+                onClick={() => onSelect(availableModel)}
               />
-            </div>
-          </div>
-
-          <div className="scrollbar-thin max-h-72 overflow-y-auto">
-            {loading ? (
-              <div className="px-4 py-8 text-center text-sm text-muted">Loading embedding models...</div>
-            ) : error ? (
-              <div className="px-4 py-8 text-center text-sm text-muted">Could not load embedding models. Use manual entry.</div>
-            ) : visibleModels.length === 0 ? (
-              <div className="px-4 py-8 text-center text-sm text-muted">No embedding models found.</div>
-            ) : visibleModels.map((availableModel) => {
-              const selected = availableModel.id === selectedModelId
-              return (
-                <button
-                  key={availableModel.id}
-                  type="button"
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => handleSelect(availableModel)}
-                  className={`grid w-full gap-1 border-b border-border/60 px-4 py-3 text-left transition-colors last:border-b-0 ${selected ? 'bg-primary/5' : 'hover:bg-surface/70'}`}
-                >
-                  <span className="flex min-w-0 items-center justify-between gap-3">
-                    <span className="truncate text-sm font-medium text-white">{availableModel.label}</span>
-                    {selected && <Check className="h-4 w-4 shrink-0 text-primary-light" />}
-                  </span>
-                  <code className="block truncate text-xs text-muted">{availableModel.id}</code>
-                </button>
-              )
-            })}
-          </div>
-
-          {hiddenCount > 0 && (
-            <div className="border-t border-border/70 px-4 py-2 text-xs text-muted">+{hiddenCount} more model(s). Refine the search.</div>
-          )}
+            )
+          })}
         </div>
       )}
-    </div>
+
+      {hiddenCount > 0 ? <FieldDescription>+{hiddenCount} more model(s). Refine the search.</FieldDescription> : null}
+    </Field>
   )
 }
 
@@ -410,73 +378,79 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
         open={open}
         onClose={onClose}
         title={model ? 'Edit Embedding Model' : 'New Embedding Model'}
-        className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden"
+        className="flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden"
+        contentClassName="min-h-0 flex-1 p-0"
       >
-        <form onSubmit={submit}>
-          <div className="scrollbar-thin max-h-[calc(100svh-8rem)] overflow-y-auto pr-1">
-            <div className="grid gap-6 lg:grid-cols-[280px_minmax(0,1fr)]">
-              <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
-                <div className="rounded-xl border border-border/90 bg-surface/70 p-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary-light">
-                    <Cpu className="h-5 w-5" />
-                  </div>
-                  <div className="mt-5 min-w-0">
-                    <h3 className="truncate text-base font-semibold text-white">{form.name.trim() || model?.name || 'New embedding model'}</h3>
-                    <code className="mt-1 block truncate text-xs text-muted">{form.model.trim() || model?.model || 'Select or enter a model identifier'}</code>
-                  </div>
-                  <div className="mt-5 flex flex-wrap gap-2">
-                    <StatusBadge status={form.status || 'active'} />
-                    <Pill>{credential ? providerLabel(credential.provider) : 'No credential'}</Pill>
-                  </div>
-                  <div className="mt-5 border-t border-border/70 pt-4">
-                    <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Credential</p>
-                    <p className="mt-2 truncate text-xs text-muted">{getCredentialLabel(credential)}</p>
-                  </div>
-                </div>
+        <form onSubmit={submit} className="flex h-full min-h-0 flex-col">
+          <div className="shrink-0 border-b border-border bg-background/20 px-ui-lg py-ui-md">
+            <TechnicalListItem
+              label={form.name.trim() || model?.name || 'New embedding model'}
+              description={form.model.trim() || model?.model || 'Select or enter a model identifier'}
+              leading={(
+                <span className="flex h-control-nav w-control-nav items-center justify-center rounded-control border border-primary/25 bg-primary/[0.08] text-primary-light">
+                  <Cpu className="h-icon w-icon" />
+                </span>
+              )}
+              meta={(
+                <>
+                  <StatusBadge status={form.status || 'active'} size="compact" />
+                  <Badge variant="outline" size="compact">{credential ? providerLabel(credential.provider) : 'No credential'}</Badge>
+                </>
+              )}
+            />
+          </div>
 
-                <section className="rounded-xl border border-border/90 bg-background/60 p-4">
-                  <h3 className="text-sm font-semibold text-white">Pricing</h3>
-                  <p className="mt-1 text-xs leading-5 text-muted">Embedding costs are stored as metadata for estimation and trace analysis.</p>
-                  <div className="mt-4 space-y-2 text-xs text-muted">
-                    <div className="flex items-center justify-between gap-3">
-                      <span>Input / 1M</span>
-                      <span className="text-white/90">{priceText(previewPricing.input, previewPricing.currency)}</span>
-                    </div>
+          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-ui-lg">
+            <div className="grid gap-ui-md lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+              <aside className="grid content-start gap-ui-md">
+                <SectionBlock title="Binding summary" description="Current provider binding for this embedding model." density="compact">
+                  <div className="grid gap-ui-xs">
+                    <TechnicalListItem label="Credential" description={getCredentialLabel(credential)} />
+                    <TechnicalListItem label="Provider model" description={form.model.trim() || 'Not selected'} />
                   </div>
-                </section>
+                </SectionBlock>
+
+                <SectionBlock title="Pricing" description="Embedding costs are stored as metadata for estimation and trace analysis." density="compact">
+                  <TechnicalListItem label="Input / 1M" description={priceText(previewPricing.input, previewPricing.currency)} />
+                </SectionBlock>
               </aside>
 
-              <main className="space-y-5">
-                <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-                  <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-white">Provider binding</h3>
-                    <p className="mt-1 text-xs leading-5 text-muted">Bind this reusable embedding model to a credential and provider model identifier.</p>
-                  </div>
-
+              <main className="grid content-start gap-ui-md">
+                <SectionBlock
+                  title="Provider binding"
+                  description="Bind this reusable embedding model to a credential and provider model identifier."
+                >
                   {usableCredentials.length === 0 ? (
-                    <div className="rounded-xl border border-border bg-background/60 p-4">
-                      <p className="text-sm font-medium text-white">A provider credential is required.</p>
-                      <p className="mt-1 text-sm leading-6 text-muted">Add a BYOK credential before creating the embedding model.</p>
-                      <Button type="button" size="sm" variant="outline" className="mt-4" onClick={() => setCredentialModalOpen(true)}>
-                        <Plus className="mr-2 h-4 w-4" /> Add credential
-                      </Button>
-                    </div>
+                    <EmptyStatePanel
+                      title="A provider credential is required"
+                      description="Add a BYOK credential before creating the embedding model."
+                      action={(
+                        <Button type="button" size="sm" variant="outline" onClick={() => setCredentialModalOpen(true)}>
+                          <Plus className="h-icon w-icon" />Add credential
+                        </Button>
+                      )}
+                    />
                   ) : (
-                    <div className="space-y-4">
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-muted">Credential</label>
+                    <div className="grid gap-ui-md">
+                      <Field>
+                        <div className="flex items-center justify-between gap-ui-sm">
+                          <FieldLabel>Credential</FieldLabel>
+                          {!model ? (
+                            <Button type="button" size="sm" variant="ghost" onClick={() => setCredentialModalOpen(true)}>
+                              <Plus className="h-icon-sm w-icon-sm" />Add credential
+                            </Button>
+                          ) : null}
+                        </div>
                         <Select
                           value={form.credentialId}
                           onChange={(event) => handleCredentialChange(event.target.value)}
                           options={usableCredentials.map((item) => ({ value: item.id, label: `${item.name} (${providerLabel(item.provider)})` }))}
                           disabled={Boolean(model)}
                         />
-                        {credential?.metadata?.base_url && (
-                          <p className="mt-1 truncate text-xs text-muted">Base URL: <code>{credential.metadata.base_url}</code></p>
-                        )}
-                      </div>
+                        {credential?.metadata?.base_url ? <FieldDescription>Base URL: <span className="font-mono">{credential.metadata.base_url}</span></FieldDescription> : null}
+                      </Field>
 
-                      {shouldUseCatalog && (
+                      {shouldUseCatalog ? (
                         <EmbeddingModelCatalogPicker
                           models={embeddingCatalog}
                           selectedModelId={form.selectedCatalogModelId}
@@ -485,52 +459,50 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
                           onSelect={handleCatalogSelect}
                           onManualMode={handleManualMode}
                         />
-                      )}
+                      ) : null}
 
-                      {(form.manualMode || !supportsCatalog) && (
-                        <div>
-                          <label className="mb-1 block text-sm font-medium text-muted">Model identifier</label>
+                      {(form.manualMode || !supportsCatalog) ? (
+                        <Field>
+                          <FieldLabel>Model identifier</FieldLabel>
                           <Input
                             value={form.model}
                             onChange={(event) => setField('model', event.target.value)}
                             placeholder={credential?.provider === 'openrouter' ? 'openai/text-embedding-3-small' : 'text-embedding-3-small'}
+                            className="font-mono"
                           />
-                          {!model && supportsCatalog && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              variant="ghost"
-                              className="mt-2"
-                              onClick={() => setForm((previous) => ({ ...previous, manualMode: false, model: '', selectedCatalogModelId: '' }))}
-                            >
-                              Use provider catalog
-                            </Button>
-                          )}
-                          {!supportsCatalog && <p className="mt-1 text-xs text-muted">OpenAI-compatible credentials use manual model identifiers.</p>}
-                        </div>
-                      )}
+                          {!model && supportsCatalog ? (
+                            <div>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setForm((previous) => ({ ...previous, manualMode: false, model: '', selectedCatalogModelId: '' }))}
+                              >
+                                Use provider catalog
+                              </Button>
+                            </div>
+                          ) : null}
+                          {!supportsCatalog ? <FieldDescription>OpenAI-compatible credentials use manual model identifiers.</FieldDescription> : null}
+                        </Field>
+                      ) : null}
                     </div>
                   )}
-                </section>
+                </SectionBlock>
 
-                <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-                  <div className="mb-4">
-                    <h3 className="text-sm font-semibold text-white">Model details</h3>
-                    <p className="mt-1 text-xs leading-5 text-muted">Display name, operational status and pricing metadata.</p>
-                  </div>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="mb-1 block text-sm font-medium text-muted">Display name</label>
+                <SectionBlock title="Model details" description="Display name, operational status and pricing metadata.">
+                  <div className="grid gap-ui-md">
+                    <Field>
+                      <FieldLabel>Display name</FieldLabel>
                       <Input
                         value={form.name}
                         onChange={(event) => setField('name', event.target.value)}
                         placeholder={selectedCatalogModel?.label || 'Production embeddings'}
                       />
-                    </div>
+                    </Field>
 
-                    {model && (
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-muted">Status</label>
+                    {model ? (
+                      <Field>
+                        <FieldLabel>Status</FieldLabel>
                         <Select
                           value={form.status}
                           onChange={(event) => setField('status', event.target.value)}
@@ -540,34 +512,34 @@ export function CreateEmbeddingModelModal({ open, projectId, onClose, onCreated,
                             { value: 'archived', label: 'Archived' },
                           ]}
                         />
-                      </div>
-                    )}
+                      </Field>
+                    ) : null}
 
-                    <div className="grid gap-4 md:grid-cols-3">
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-muted">Input / 1M</label>
+                    <div className="grid gap-ui-md md:grid-cols-3">
+                      <Field>
+                        <FieldLabel>Input / 1M</FieldLabel>
                         <Input value={form.inputCostPer1M} onChange={(event) => setField('inputCostPer1M', event.target.value)} placeholder="0.02" />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-muted">Currency</label>
+                      </Field>
+                      <Field>
+                        <FieldLabel>Currency</FieldLabel>
                         <Input value={form.currency} onChange={(event) => setField('currency', event.target.value.toUpperCase())} placeholder="USD" />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-sm font-medium text-muted">Dimensions</label>
-                        <Input value="1536" disabled />
-                      </div>
+                      </Field>
+                      <Field>
+                        <FieldLabel>Dimensions</FieldLabel>
+                        <Input value="1536" disabled className="font-mono" />
+                      </Field>
                     </div>
                   </div>
-                </section>
+                </SectionBlock>
               </main>
             </div>
+          </div>
 
-            <div className="sticky bottom-0 -mx-1 mt-6 flex justify-end gap-2 border-t border-border bg-surface/95 px-1 py-4 backdrop-blur">
-              <Button type="button" variant="outline" onClick={onClose} disabled={pending}>Cancel</Button>
-              <Button type="submit" loading={pending} disabled={usableCredentials.length === 0}>
-                {model ? 'Save changes' : 'Create model'}
-              </Button>
-            </div>
+          <div className="flex shrink-0 justify-end gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md backdrop-blur">
+            <Button type="button" variant="outline" onClick={onClose} disabled={pending}>Cancel</Button>
+            <Button type="submit" loading={pending} disabled={usableCredentials.length === 0}>
+              {model ? 'Save changes' : 'Create model'}
+            </Button>
           </div>
         </form>
       </Dialog>
