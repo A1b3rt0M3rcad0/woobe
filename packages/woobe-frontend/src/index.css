@@ -216,7 +216,6 @@ div[class*="h-[calc(100vh-3.5rem)]"] > div.flex.flex-1.min-h-0.overflow-hidden >
 .project-overview-main header.relative select,
 .project-overview-main header.relative button:not([aria-pressed]) {
   min-height: 34px;
-  font-size: 10px !important;
 }
 
 .project-overview-main section[class*="bg-surface"] {
