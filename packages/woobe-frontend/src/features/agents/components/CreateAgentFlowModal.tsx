@@ -13,6 +13,7 @@ import {
   ScrollArea,
   SectionBlock,
   SegmentedControl,
+  Select,
   Skeleton,
   TechnicalListItem,
   Textarea,
@@ -62,7 +63,7 @@ function SelectableModelList({
         <Input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search models" className="pl-9" />
       </div>
 
-      <ScrollArea className="h-dialog-list rounded-container border border-border bg-background/25 p-ui-xs">
+      <ScrollArea className="h-72 rounded-container border border-border bg-background/25 p-ui-xs">
         {loading ? (
           <div className="grid gap-ui-xs">
             {Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-control-row w-full" />)}
@@ -165,15 +166,14 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
             ) : (
               <Field>
                 <FieldLabel>Connection</FieldLabel>
-                <select
+                <Select
                   value={flow.selectedCredential?.id || ''}
                   onChange={(event) => flow.selectCredential(event.target.value)}
-                  className="h-control w-full rounded-control border border-border bg-control px-ui-sm font-sans text-product-small text-accent-foreground outline-none focus:border-primary/60 focus:ring-1 focus:ring-primary/40"
-                >
-                  {flow.activeCredentials.map((credential) => (
-                    <option key={credential.id} value={credential.id}>{credential.name} · {providerLabel(credential.provider)}</option>
-                  ))}
-                </select>
+                  options={flow.activeCredentials.map((credential) => ({
+                    value: credential.id,
+                    label: `${credential.name} · ${providerLabel(credential.provider)}`,
+                  }))}
+                />
               </Field>
             )}
             <Button type="button" size="sm" variant="outline" onClick={() => setShowProviderForm(true)}>
