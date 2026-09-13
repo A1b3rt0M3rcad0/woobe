@@ -64,12 +64,12 @@ function ActionsMenu({ canEdit, editLabel, onEdit, onRemove }: { canEdit: boolea
       </summary>
       <div className="absolute right-0 top-8 z-popover min-w-40 rounded-container border border-border bg-surface p-ui-xs shadow-popup">
         {canEdit && onEdit ? (
-          <button type="button" onClick={onEdit} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-product-small text-slate-100 hover:bg-accent">
+          <button type="button" onClick={onEdit} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-slate-100 hover:bg-accent">
             <Pencil className="h-3.5 w-3.5" />
             {editLabel}
           </button>
         ) : null}
-        <button type="button" onClick={onRemove} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-product-small text-red-200 hover:bg-red-500/10">
+        <button type="button" onClick={onRemove} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-red-200 hover:bg-red-500/10">
           <Trash2 className="h-3.5 w-3.5" />
           Remove from Agent
         </button>
