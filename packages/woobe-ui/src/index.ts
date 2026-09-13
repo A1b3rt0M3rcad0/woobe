@@ -23,9 +23,22 @@ export { EmptyStatePanel, type EmptyStatePanelProps } from './components/EmptySt
 export { Field, FieldDescription, FieldError, FieldLabel } from './components/Field'
 export { GuidedEmptyState, type GuidedEmptyStateProps } from './components/GuidedEmptyState'
 export { Input, type InputProps } from './components/Input'
+export { JsonCodeBlock, type JsonCodeBlockProps } from './components/JsonCodeBlock'
+export { JsonEditor, type JsonEditorProps } from './components/JsonEditor'
 export { MathSurface, type MathSurfaceProps } from './components/MathSurface'
 export { MetricTile, type MetricTileProps } from './components/MetricTile'
 export { ResourceCard, ResourcePill, type ResourceCardProps, type ResourcePillTone } from './components/OperationalResourceCard'
+export {
+  ResourceEmptyState,
+  ResourcePage,
+  ResourcePageHeader,
+  ResourceSearch,
+  ResourceSectionHeader,
+  ResourceTabs,
+  ResourceToolbar,
+  type ResourcePageProps,
+  type ResourceTab,
+} from './components/ResourcePage'
 export { PageHeader, type PageHeaderProps } from './components/PageHeader'
 export { PanelHeader, type PanelHeaderProps } from './components/PanelHeader'
 export { ScrollArea, type ScrollAreaProps } from './components/ScrollArea'
@@ -47,6 +60,21 @@ export {
   type WoobeCalendarDay,
   type WoobeDateTimePickerProps,
 } from './components/WoobeDateTimePicker'
+export {
+  formatJsonSafely,
+  isValidJson,
+  parseJsonSafe,
+  truncateJson,
+  tryFormatJson,
+  validateJson,
+  type FormatError,
+  type FormatResult,
+  type FormatSuccess,
+  type ValidationError,
+  type ValidationResult,
+  type ValidationSuccess,
+} from './lib/json'
+export { jsonDarkTheme, jsonSyntaxHighlight } from './lib/json-codemirror'
 export {
   woobeBreakpoints,
   woobeCodeTheme,
