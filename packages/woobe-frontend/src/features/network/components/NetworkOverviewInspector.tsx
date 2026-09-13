@@ -66,6 +66,7 @@ export function NetworkOverviewInspector({
   return (
     <>
       <PanelHeader
+        hierarchy="entity"
         icon={<Workflow className="h-icon w-icon" />}
         title={displayIdentity.name}
         description={`${definition.nodes.length} Agents · ${definition.edges.length} delegations`}
@@ -86,7 +87,7 @@ export function NetworkOverviewInspector({
           description={displayIdentity.description.trim() || 'No description yet.'}
           actions={<Button type="button" size="sm" variant="outline" onClick={() => { setIdentityDraft(displayIdentity); setIdentityOpen(true) }}>{readOnly ? 'View' : 'Edit'}</Button>}
         >
-          <p className="truncate font-mono text-system-meta text-muted-foreground">{displayIdentity.name}</p>
+          <p className="truncate font-mono text-chrome-meta text-muted-foreground">{displayIdentity.name}</p>
         </SectionBlock>
 
         <SectionBlock density="compact" title="Composition">
