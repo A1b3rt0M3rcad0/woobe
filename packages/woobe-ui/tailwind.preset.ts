@@ -47,6 +47,7 @@ const woobeTailwindPreset = {
         'ui-lg': woobeSpacing.lg,
         'ui-xl': woobeSpacing.xl,
         'ui-xxl': woobeSpacing.xxl,
+        'playground-rail': woobeLayout.playgroundRail,
         'conversation-indent': woobeLayout.conversationIndent,
         'conversation-indent-compact': woobeLayout.conversationIndentCompact,
       },
