@@ -11,6 +11,12 @@ const statusMap: Record<string, BadgeVariant> = {
   active: 'success',
   inactive: 'outline',
   pending: 'warning',
+  running: 'default',
+  processing: 'default',
+  completed: 'success',
+  completed_with_issues: 'warning',
+  cancelled: 'outline',
+  canceled: 'outline',
   failed: 'destructive',
   error: 'destructive',
   indexed: 'success',
@@ -26,6 +32,9 @@ const statusMap: Record<string, BadgeVariant> = {
   archived: 'outline',
   deprecated: 'outline',
   revoked: 'destructive',
+  draft: 'secondary',
+  staging: 'default',
+  production: 'success',
 }
 
 export function StatusBadge({ status, size = 'default', className }: StatusBadgeProps) {

@@ -40,8 +40,8 @@ export function ResourceCard({
         <span className="flex min-w-0 items-start gap-ui-sm">
           <span className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light">{icon}</span>
           <span className="min-w-0 pt-ui-hairline">
-            <span className="block truncate font-mono text-section-title font-bold text-accent-foreground">{title}</span>
-            {subtitle ? <span className="mt-ui-xs block truncate font-mono text-system-meta text-muted-foreground">{subtitle}</span> : null}
+            <span className="block truncate font-sans text-entity-title font-semibold text-accent-foreground">{title}</span>
+            {subtitle ? <span className="mt-ui-xs block truncate font-sans text-product-caption text-muted-foreground">{subtitle}</span> : null}
           </span>
         </span>
         <span className="flex shrink-0 items-center gap-ui-xs">

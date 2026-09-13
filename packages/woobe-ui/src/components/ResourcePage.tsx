@@ -133,7 +133,7 @@ export function ResourceTabs<T extends string>({
             <span className="flex items-center gap-ui-xs">
               <span>{tab.label}</span>
               {tab.count !== undefined ? (
-                <span className="font-mono text-system-meta tabular-nums text-muted-foreground">{tab.count}</span>
+                <span className="font-mono text-system-nano tabular-nums text-muted-foreground">{tab.count}</span>
               ) : null}
             </span>
           ),
@@ -158,7 +158,7 @@ export function ResourceSearch({
 }) {
   return (
     <div className={cn('relative min-w-0 flex-1', className)}>
-      <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
+      <Search className="pointer-events-none absolute left-ui-md top-1/2 h-icon w-icon -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
       <Input
         type="search"
         value={value}
@@ -171,16 +171,16 @@ export function ResourceSearch({
         }}
         placeholder={placeholder}
         aria-label={label}
-        className="pl-8 pr-8 font-mono text-system-control"
+        className="pl-8 pr-8 font-mono text-system-label"
       />
       {value ? (
         <button
           type="button"
           onClick={() => onChange('')}
           aria-label="Clear search"
-          className="absolute right-1.5 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-technical border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-accent/50 hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+          className="absolute right-ui-xs top-1/2 flex h-control-xs w-control-xs -translate-y-1/2 items-center justify-center rounded-technical border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-accent/50 hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
         >
-          <X className="h-3 w-3" aria-hidden="true" />
+          <X className="h-icon-sm w-icon-sm" aria-hidden="true" />
         </button>
       ) : null}
     </div>

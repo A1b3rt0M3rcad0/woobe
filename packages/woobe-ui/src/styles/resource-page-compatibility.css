@@ -60,6 +60,12 @@
   line-height: 0.875rem !important;
 }
 
+/* 7px legacy microcopy is kept technical, but never below the readable nano tier. */
+.resource-page-shell [class~='text-[7px]'] {
+  font-size: 0.5rem !important;
+  line-height: 0.625rem !important;
+}
+
 /* Raw 8px feature metadata predates the approved readable 9px metadata tier. */
 .resource-page-shell [class~='text-[8px]'] {
   font-size: 0.5625rem !important;
