@@ -21,8 +21,8 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
           <div className={cn('flex items-start justify-between gap-ui-md', contentGap)}>
             <div className="min-w-0">
               {eyebrow ? <div className="mb-ui-xs font-mono text-system-nano uppercase tracking-ui-eyebrow text-muted-foreground">{eyebrow}</div> : null}
-              {title ? <div className="font-mono text-system-control font-semibold text-accent-foreground">{title}</div> : null}
-              {description ? <div className="mt-ui-xs font-mono text-product-caption text-muted-foreground">{description}</div> : null}
+              {title ? <div className="font-mono text-section-title font-semibold text-accent-foreground">{title}</div> : null}
+              {description ? <div className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{description}</div> : null}
             </div>
             {actions ? <div className="shrink-0">{actions}</div> : null}
           </div>
