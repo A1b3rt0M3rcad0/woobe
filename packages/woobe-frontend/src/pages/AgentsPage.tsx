@@ -58,7 +58,7 @@ function AgentOperationalCard({
     <ResourceCard
       aria-label={`Open Agent playground for ${agent.name}`}
       onClick={onOpen}
-      icon={<Bot className="h-4 w-4" />}
+      icon={<Bot className="h-icon-lg w-icon-lg" />}
       title={agent.name}
       subtitle={providerLabel(agent)}
       status={status && status !== 'active' ? <StatusBadge status={agent.status} size="compact" /> : undefined}
@@ -87,7 +87,7 @@ function AgentOperationalCard({
         </>
       )}
       footer={(
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span className="flex flex-wrap items-center gap-x-ui-sm gap-y-ui-xs">
           <span>{agent.session_mode ? `Session · ${titleCase(agent.session_mode)}` : 'Session mode not recorded'}</span>
           <span aria-hidden="true">·</span>
           <span>Updated · {formatDate(agent.updated_at || agent.created_at)}</span>
@@ -155,7 +155,7 @@ export default function AgentsPage() {
       description="Create and operate model-backed Agents for this Project."
       action={(
         <Button type="button" onClick={() => setShowCreateAgent(true)}>
-          <Plus className="h-3.5 w-3.5" />
+          <Plus className="h-icon w-icon" />
           Create Agent
         </Button>
       )}
@@ -192,7 +192,7 @@ export default function AgentsPage() {
         ) : isError ? (
           <ErrorState error={error} onRetry={refetch} className="rounded-container border border-border bg-surface/70 py-10" />
         ) : visibleAgents.length > 0 ? (
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-ui-md md:grid-cols-2 xl:grid-cols-3">
             {visibleAgents.map((agent) => (
               <AgentOperationalCard
                 key={agent.id}
@@ -204,7 +204,7 @@ export default function AgentsPage() {
           </div>
         ) : (
           <ResourceEmptyState
-            icon={<Bot className="h-4 w-4" />}
+            icon={<Bot className="h-icon-lg w-icon-lg" />}
             title={items.length === 0 ? 'Create your first Agent' : 'No Agents found'}
             description={items.length === 0
               ? 'Create an Agent with instructions, a provider connection and a reusable generation model.'
