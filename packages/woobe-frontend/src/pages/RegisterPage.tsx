@@ -23,13 +23,23 @@ export default function RegisterPage() {
 
   return (
     <div>
-      <h1 className="mb-6 font-mono text-base font-bold tracking-[0.01em] text-slate-50">
-        Create workspace
-      </h1>
+      <header className="mb-[18px]">
+        <h1 className="font-mono text-[16px] font-bold leading-[20px] tracking-[0.01em] text-slate-50">
+          Create workspace
+        </h1>
+        <p className="mt-[4px] font-mono text-[9px] leading-[14px] text-muted-foreground">
+          Create the account that will own your Woobe workspace.
+        </p>
+      </header>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4" noValidate>
-        <Field>
-          <FieldLabel htmlFor="register-email">Email</FieldLabel>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-[14px]" noValidate>
+        <Field className="gap-[6px]">
+          <FieldLabel
+            htmlFor="register-email"
+            className="font-mono text-[9px] font-bold uppercase leading-[12px] tracking-[0.1em] text-muted-foreground"
+          >
+            Email
+          </FieldLabel>
           <Input
             id="register-email"
             type="email"
@@ -37,15 +47,23 @@ export default function RegisterPage() {
             placeholder="you@company.com"
             invalid={Boolean(errors.email)}
             aria-describedby={errors.email ? 'register-email-error' : undefined}
+            className="h-[34px] rounded-[3px] bg-control px-[10px] font-mono text-[10px] leading-[14px] text-slate-100"
             {...register('email')}
           />
           {errors.email?.message && (
-            <FieldError id="register-email-error">{errors.email.message}</FieldError>
+            <FieldError id="register-email-error" className="font-mono text-[9px] leading-[13px]">
+              {errors.email.message}
+            </FieldError>
           )}
         </Field>
 
-        <Field>
-          <FieldLabel htmlFor="register-password">Password</FieldLabel>
+        <Field className="gap-[6px]">
+          <FieldLabel
+            htmlFor="register-password"
+            className="font-mono text-[9px] font-bold uppercase leading-[12px] tracking-[0.1em] text-muted-foreground"
+          >
+            Password
+          </FieldLabel>
           <Input
             id="register-password"
             type="password"
@@ -53,30 +71,33 @@ export default function RegisterPage() {
             placeholder="At least 6 characters"
             invalid={Boolean(errors.password)}
             aria-describedby={errors.password ? 'register-password-error' : undefined}
+            className="h-[34px] rounded-[3px] bg-control px-[10px] font-mono text-[10px] leading-[14px] text-slate-100"
             {...register('password')}
           />
           {errors.password?.message && (
-            <FieldError id="register-password-error">{errors.password.message}</FieldError>
+            <FieldError id="register-password-error" className="font-mono text-[9px] leading-[13px]">
+              {errors.password.message}
+            </FieldError>
           )}
         </Field>
 
         {errors.root && (
-          <Alert variant="destructive" className="flex items-start gap-2.5 font-mono text-[9px]">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-300" />
+          <Alert variant="destructive" className="flex items-start gap-[8px] rounded-[3px] px-[10px] py-[9px] font-mono text-[9px] leading-[13px]">
+            <AlertTriangle className="mt-px h-[13px] w-[13px] shrink-0 text-red-300" />
             <p>{errors.root.message}</p>
           </Alert>
         )}
 
-        <Button type="submit" loading={isSubmitting} className="w-full">
+        <Button type="submit" loading={isSubmitting} className="h-[34px] w-full rounded-[3px] px-[11px] font-mono text-[10px] font-normal">
           Create workspace
         </Button>
       </form>
 
-      <div className="mt-6 border-t border-border pt-4 text-center font-mono text-[10px] text-muted-foreground">
+      <div className="mt-[18px] border-t border-border pt-[13px] text-center font-mono text-[9px] leading-[13px] text-muted-foreground">
         Already have an account?{' '}
         <Link
           to="/login"
-          className="font-medium text-primary-light transition-colors hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+          className="text-primary-light transition-colors hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
         >
           Sign in
         </Link>
