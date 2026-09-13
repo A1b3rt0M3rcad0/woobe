@@ -2,8 +2,9 @@ import { useMemo, useState } from 'react'
 import { ExternalLink, Eye, GitBranch, Package } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { Badge, Button, Dialog, EmptyStatePanel, SectionBlock, TechnicalListItem } from '@woobe/ui'
 
-import { dialogTypographyClass } from '@/components/ui/Dialog'
+import { LoadingState } from '@/components/common/LoadingState'
 import { getRelease } from '@/features/agents/api'
 import { useReleases } from '@/features/agents/hooks'
 import type { Agent, AgentRelease } from '@/features/agents/types'
@@ -19,12 +20,44 @@ interface NetworkAgentVersionsProps {
 }
 
 function SnapshotModal({ release, onClose }: { release: AgentRelease | null; onClose: () => void }) {
-  if (!release) return null
-  return <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/75 p-4"><div role="dialog" aria-modal="true" aria-label={`${release.name || 'Agent'} ${release.version} snapshot`} className={`${dialogTypographyClass} flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-border bg-surface`}><header className="flex items-start gap-3 border-b border-border p-4"><div className="min-w-0 flex-1"><p className="text-[9px] uppercase tracking-wider text-primary-light">Agent snapshot</p><h2 className="mt-1 truncate text-sm font-semibold text-white">{release.name || 'Agent'} · {release.version}</h2><p className="mt-1 text-[9px] text-muted">Immutable configuration. Viewing it does not change Agent or Network Production.</p></div><button type="button" onClick={onClose} className="rounded-lg border border-border px-2 py-1 text-[9px] text-muted hover:text-white">Close</button></header><div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-4"><AgentSnapshotDetails release={release} /></div></div></div>
+  return (
+    <Dialog
+      open={Boolean(release)}
+      onClose={onClose}
+      title={release ? `${release.name || 'Agent'} · ${release.version}` : 'Agent snapshot'}
+      className="max-w-dialog"
+      scrollMode="content"
+    >
+      {release ? (
+        <div className="space-y-ui-md">
+          <p className="font-sans text-product-caption text-muted-foreground">
+            Immutable Agent configuration. Viewing it does not change Agent or Network Production.
+          </p>
+          <AgentSnapshotDetails release={release} />
+        </div>
+      ) : null}
+    </Dialog>
+  )
 }
 
 function ReleaseRow({ release, label, onView, loading }: { release: AgentRelease; label: string; onView: () => void; loading: boolean }) {
-  return <article className="rounded-xl border border-border bg-background/35 p-3"><div className="flex items-start gap-3"><Package className="mt-0.5 h-4 w-4 text-primary-light" /><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate font-mono text-[10px] text-white">{release.version}</p><span className="rounded border border-border px-1.5 py-0.5 text-[8px] text-muted">{label}</span></div><p className="mt-1 truncate text-[9px] text-muted">{release.provider ?? '—'}/{release.model ?? '—'}</p></div><button type="button" disabled={loading} onClick={onView} className="rounded-lg border border-border p-2 text-muted hover:text-white disabled:opacity-45"><Eye className="h-3.5 w-3.5" /></button></div></article>
+  return (
+    <TechnicalListItem
+      leading={<Package className="h-icon w-icon text-primary-light" />}
+      label={release.version}
+      description={`${release.provider ?? '—'}/${release.model ?? '—'}`}
+      meta={<Badge size="compact" variant="outline">{label}</Badge>}
+      trailing={(
+        <Button type="button" size="iconSm" variant="ghost" disabled={loading} onClick={onView} aria-label={`View ${release.version} snapshot`}>
+          <Eye className="h-icon-sm w-icon-sm" />
+        </Button>
+      )}
+    />
+  )
+}
+
+function ReleaseEmpty({ children }: { children: string }) {
+  return <EmptyStatePanel compact title={children} />
 }
 
 export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenComposition }: NetworkAgentVersionsProps) {
@@ -39,9 +72,13 @@ export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenC
 
   const view = async (release: AgentRelease) => {
     setLoadingId(release.id)
-    try { setSnapshot(await getRelease(agent.id, release.id)) }
-    catch (error) { toast.error(error instanceof Error ? error.message : 'Failed to load Agent snapshot') }
-    finally { setLoadingId(null) }
+    try {
+      setSnapshot(await getRelease(agent.id, release.id))
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to load Agent snapshot')
+    } finally {
+      setLoadingId(null)
+    }
   }
 
   const openPlayground = () => {
@@ -49,16 +86,43 @@ export function NetworkAgentVersions({ agent, projectId, networkBinding, onOpenC
     else navigate(`/projects/${projectId}/agents/${agent.id}/playground`)
   }
 
-  if (isLoading) return <div className="flex h-full items-center justify-center text-[10px] text-muted">Loading Agent versions…</div>
+  if (isLoading) return <LoadingState variant="panel" layout="list" message="Loading Agent versions…" />
 
-  return <div className="scrollbar-thin h-full min-h-0 space-y-4 overflow-y-auto bg-background p-3"><section className="rounded-xl border border-primary/25 bg-primary/[0.04] p-3"><div className="flex items-start gap-3"><GitBranch className="mt-0.5 h-4 w-4 text-primary-light" /><div className="min-w-0 flex-1"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Used by this Network node</p><p className="mt-1 truncate text-[10px] text-white"><span className="capitalize">{networkBinding.source}</span> · <span className="font-mono">{networkBinding.version}</span></p><p className="mt-2 text-[9px] leading-4 text-muted">This exact binding belongs to the Network. Standalone Agent Production is managed only in the Agent Playground.</p></div></div><div className="mt-3 flex gap-2"><button type="button" onClick={onOpenComposition} className="rounded-lg border border-border px-2.5 py-2 text-[9px] text-primary-light hover:text-white">Role in Network</button><button type="button" onClick={openPlayground} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2.5 py-2 text-[9px] text-primary-light hover:text-white"><ExternalLink className="h-3.5 w-3.5" />Open Agent Playground</button></div></section>
+  return (
+    <div className="scrollbar-thin h-full min-h-0 space-y-ui-md overflow-y-auto bg-background p-ui-md">
+      <SectionBlock
+        density="compact"
+        eyebrow="Network binding"
+        title={`${networkBinding.source} · ${networkBinding.version}`}
+        description="This exact immutable binding belongs to the Network. Standalone Agent Production is managed only in the Agent Playground."
+        actions={<GitBranch className="h-icon w-icon text-primary-light" />}
+      >
+        <div className="flex flex-wrap gap-ui-sm">
+          <Button type="button" size="sm" variant="outline" onClick={onOpenComposition}>Role in Network</Button>
+          <Button type="button" size="sm" variant="outline" onClick={openPlayground}>
+            <ExternalLink className="mr-ui-xs h-icon-sm w-icon-sm" />
+            Open Agent Playground
+          </Button>
+        </div>
+      </SectionBlock>
 
-    <section><p className="mb-2 text-[9px] font-semibold uppercase tracking-wide text-muted">Agent Staging</p>{staging ? <ReleaseRow release={staging} label="Staging" loading={loadingId === staging.id} onView={() => void view(staging)} /> : <p className="rounded-xl border border-dashed border-border p-3 text-[9px] text-muted">No Agent Staging snapshot.</p>}</section>
+      <SectionBlock density="compact" title="Agent Staging">
+        {staging ? <ReleaseRow release={staging} label="Staging" loading={loadingId === staging.id} onView={() => void view(staging)} /> : <ReleaseEmpty>No Agent Staging snapshot.</ReleaseEmpty>}
+      </SectionBlock>
 
-    <section><div className="mb-2 flex items-center gap-2"><p className="text-[9px] font-semibold uppercase tracking-wide text-muted">Available Agent Releases</p><span className="rounded border border-border px-1.5 py-0.5 text-[8px] text-muted">{available.length}</span></div><div className="space-y-2">{available.length ? available.map((release) => <ReleaseRow key={release.id} release={release} label="Available" loading={loadingId === release.id} onView={() => void view(release)} />) : <p className="rounded-xl border border-dashed border-border p-3 text-[9px] text-muted">No available Agent Releases.</p>}</div></section>
+      <SectionBlock density="compact" title="Available Agent Releases" actions={<Badge size="compact" variant="outline">{available.length}</Badge>}>
+        {available.length ? (
+          <div className="space-y-ui-sm">
+            {available.map((release) => <ReleaseRow key={release.id} release={release} label="Available" loading={loadingId === release.id} onView={() => void view(release)} />)}
+          </div>
+        ) : <ReleaseEmpty>No available Agent Releases.</ReleaseEmpty>}
+      </SectionBlock>
 
-    <section><p className="mb-2 text-[9px] font-semibold uppercase tracking-wide text-muted">Agent Playground Production</p>{production ? <ReleaseRow release={production} label="Standalone active" loading={loadingId === production.id} onView={() => void view(production)} /> : <p className="rounded-xl border border-dashed border-border p-3 text-[9px] text-muted">No standalone Agent Production is active.</p>}<p className="mt-2 text-[8px] leading-4 text-muted">Network publish and rollback never change this activation.</p></section>
+      <SectionBlock density="compact" title="Agent Playground Production" description="Network publish and rollback never change this standalone activation.">
+        {production ? <ReleaseRow release={production} label="Standalone active" loading={loadingId === production.id} onView={() => void view(production)} /> : <ReleaseEmpty>No standalone Agent Production is active.</ReleaseEmpty>}
+      </SectionBlock>
 
-    <SnapshotModal release={snapshot} onClose={() => setSnapshot(null)} />
-  </div>
+      <SnapshotModal release={snapshot} onClose={() => setSnapshot(null)} />
+    </div>
+  )
 }
