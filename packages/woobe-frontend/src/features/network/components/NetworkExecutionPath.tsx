@@ -53,41 +53,42 @@ export function NetworkExecutionPath({
   const hiddenCount = items.length - visible.length
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-ui-xs">
       {visible.map(({ invocation, depth, role }) => {
         const toolSummary = toolSummaryLabel(invocation)
+        const toolSummaryState = summarizeInvocationTools(invocation)
         return (
           <button
             key={invocation.spanId}
             type="button"
             onClick={() => onSelect(invocation)}
             className={cn(
-              'group relative w-full rounded-lg px-2.5 py-2 text-left transition-colors hover:bg-background/55',
+              'group relative w-full rounded-control px-ui-sm py-ui-sm text-left transition-colors hover:bg-background/55',
               selectedSpanId === invocation.spanId && 'bg-primary/10',
             )}
             style={{ paddingLeft: `${10 + Math.min(depth, 4) * 16}px` }}
           >
-            {depth > 0 ? <CornerDownRight className="absolute left-1 top-2.5 h-3 w-3 text-muted/55" style={{ marginLeft: `${Math.min(depth - 1, 3) * 16}px` }} /> : null}
-            <div className="flex items-start gap-2">
-              <span className="mt-0.5 shrink-0"><StatusIcon status={invocation.status} /></span>
+            {depth > 0 ? <CornerDownRight className="absolute left-1 top-2.5 h-3 w-3 text-muted-foreground/55" style={{ marginLeft: `${Math.min(depth - 1, 3) * 16}px` }} /> : null}
+            <div className="flex items-start gap-ui-sm">
+              <span className="mt-ui-hairline shrink-0"><StatusIcon status={invocation.status} /></span>
               <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="truncate text-[11px] font-medium text-white">{invocation.agentName}</p>
-                  <span className="shrink-0 text-[8px] uppercase tracking-wide text-muted">{role === 'entry' ? 'Entry' : 'Delegated'}</span>
-                  {invocation.durationMs != null ? <span className="ml-auto shrink-0 text-[9px] text-muted">{formatLatency(invocation.durationMs)}</span> : null}
+                <div className="flex items-center gap-ui-sm">
+                  <p className="truncate font-sans text-product-small font-medium text-white">{invocation.agentName}</p>
+                  <span className="shrink-0 font-mono text-system-meta uppercase tracking-ui-label text-muted-foreground">{role === 'entry' ? 'Entry' : 'Delegated'}</span>
+                  {invocation.durationMs != null ? <span className="ml-auto shrink-0 font-mono text-system-meta text-muted-foreground">{formatLatency(invocation.durationMs)}</span> : null}
                 </div>
-                <div className="mt-0.5 flex min-w-0 items-center gap-2 text-[9px] text-muted">
+                <div className="mt-ui-hairline flex min-w-0 items-center gap-ui-sm font-mono text-system-meta text-muted-foreground">
                   <span className="truncate">{invocation.source} · {invocation.version}</span>
                   {invocation.usage ? <span className="ml-auto shrink-0">{formatNumber(invocation.usage.input_tokens, 0)} / {formatNumber(invocation.usage.output_tokens, 0)} tokens</span> : null}
                 </div>
-                {toolSummary ? <p className={cn('mt-1 inline-flex items-center gap-1 text-[9px]', summarizeInvocationTools(invocation).failed ? 'text-red-300' : summarizeInvocationTools(invocation).running ? 'text-blue-300' : 'text-muted')}>{invocation.tools.some(isSkillOperation) ? <Puzzle className="h-3 w-3" /> : <Wrench className="h-3 w-3" />}{toolSummary}</p> : null}
+                {toolSummary ? <p className={cn('mt-ui-xs inline-flex items-center gap-ui-xs font-mono text-system-meta', toolSummaryState.failed ? 'text-red-300' : toolSummaryState.running ? 'text-blue-300' : 'text-muted-foreground')}>{invocation.tools.some(isSkillOperation) ? <Puzzle className="h-3 w-3" /> : <Wrench className="h-3 w-3" />}{toolSummary}</p> : null}
               </div>
             </div>
           </button>
         )
       })}
       {hiddenCount > 0 && onViewAll ? (
-        <button type="button" onClick={onViewAll} className="w-full rounded-lg border border-dashed border-border/80 px-3 py-2 text-[9px] text-muted hover:border-primary/30 hover:text-white">
+        <button type="button" onClick={onViewAll} className="w-full rounded-control border border-dashed border-border/80 px-ui-md py-ui-sm font-mono text-system-micro text-muted-foreground transition-colors hover:border-primary/30 hover:text-white">
           View {hiddenCount} more Agent Run{hiddenCount === 1 ? '' : 's'}
         </button>
       ) : null}
