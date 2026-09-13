@@ -65,11 +65,18 @@
   line-height: 1rem !important;
 }
 
+/* Legacy 11px uppercase labels resolve to the approved 9px metadata tier. */
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) .text-\[11px\].font-medium,
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) .text-\[11px\].uppercase {
-  font-size: 0.5rem !important;
+  font-size: 0.5625rem !important;
   line-height: 0.875rem !important;
   letter-spacing: 0.1em !important;
+}
+
+/* Raw 8px feature metadata is lifted to the readable 9px metadata tier. */
+:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) [class~='text-[8px]'] {
+  font-size: 0.5625rem !important;
+  line-height: 0.875rem !important;
 }
 
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) aside nav button {
@@ -90,7 +97,7 @@
 }
 
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) aside .text-\[11px\] {
-  font-size: 0.5rem !important;
+  font-size: 0.5625rem !important;
   line-height: 0.875rem !important;
 }
 
