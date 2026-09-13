@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react'
-import { X } from 'lucide-react'
-import { dialogTypographyClass } from '@/components/ui/Dialog'
+import { Dialog } from '@woobe/ui'
 
-export const networkInspectorInput = 'mt-1.5 w-full rounded-xl border border-border bg-background/50 px-3 py-2.5 text-xs text-white outline-none focus:border-primary/40 disabled:cursor-not-allowed disabled:opacity-50'
-export const networkInspectorAction = 'shrink-0 rounded-lg border border-border bg-background/45 px-2.5 py-1.5 text-[9px] font-medium text-muted hover:border-primary/30 hover:text-white disabled:cursor-not-allowed disabled:opacity-45'
+export const networkInspectorInput = 'mt-ui-xs w-full rounded-control border border-border bg-control px-ui-md py-ui-xs font-sans text-product-body text-accent-foreground outline-none transition-colors focus:border-primary focus:ring-1 focus:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50'
+export const networkInspectorAction = 'shrink-0 rounded-control border border-border bg-background/35 px-ui-sm py-ui-xs font-mono text-system-label font-medium text-muted-foreground transition-colors hover:border-primary/30 hover:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-45'
 
 export function NetworkInspectorModal({ title, description, children, footer, onClose }: {
   title: string
@@ -13,20 +12,12 @@ export function NetworkInspectorModal({ title, description, children, footer, on
   onClose: () => void
 }) {
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/70 p-4">
-      <div role="dialog" aria-modal="true" aria-label={title} className={`${dialogTypographyClass} w-full max-w-lg overflow-hidden rounded-2xl border border-border bg-surface shadow-2xl`}>
-        <header className="flex items-start gap-3 border-b border-border px-4 py-3.5">
-          <div className="min-w-0 flex-1">
-            <h3 className="text-sm font-semibold text-white">{title}</h3>
-            {description ? <p className="mt-1 text-[10px] leading-4 text-muted">{description}</p> : null}
-          </div>
-          <button type="button" onClick={onClose} className="flex h-8 w-8 items-center justify-center rounded-lg border border-border text-muted hover:text-white" aria-label="Close">
-            <X className="h-4 w-4" />
-          </button>
-        </header>
-        <div className="p-4">{children}</div>
-        <footer className="flex justify-end gap-2 border-t border-border px-4 py-3">{footer}</footer>
+    <Dialog open onClose={onClose} title={title} className="max-w-dialog-compact">
+      <div className="space-y-ui-md">
+        {description ? <p className="font-sans text-product-caption text-muted-foreground">{description}</p> : null}
+        <div>{children}</div>
+        <div className="flex justify-end gap-ui-sm border-t border-border pt-ui-md">{footer}</div>
       </div>
-    </div>
+    </Dialog>
   )
 }
