@@ -55,7 +55,13 @@
   letter-spacing: 0.01em;
 }
 
-:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(h3.text-sm, h4.text-sm, .text-sm.font-medium, .text-sm.font-semibold, h3.text-\[11px\], h4.text-\[11px\]) {
+/* Legacy section/card headings stay above operational row labels. */
+:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(h3.text-sm, h4.text-sm, .text-sm.font-semibold, h3.text-\[11px\], h4.text-\[11px\]) {
+  font-size: 0.6875rem !important;
+  line-height: 1rem !important;
+}
+
+:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) .text-sm.font-medium {
   font-size: 0.625rem !important;
   line-height: 1rem !important;
 }
