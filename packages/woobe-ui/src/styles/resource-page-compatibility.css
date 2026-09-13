@@ -12,7 +12,7 @@
 }
 
 .resource-page-shell :is(
-  h1, h2, h3, h4, h5, h6, label, legend, button, input, select, th, dt,
+  label, legend, button, input, select, th, dt,
   [role='tab'], [role='menuitem'], .uppercase, .tracking-wide, .tracking-wider,
   .tracking-widest, .tabular-nums
 ) {

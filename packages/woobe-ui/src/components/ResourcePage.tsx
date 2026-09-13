@@ -34,7 +34,6 @@ export function ResourcePage({
       className={cn(
         'resource-page-shell w-full font-sans',
         canvas ? 'max-w-none' : 'mx-auto max-w-resource space-y-ui-lg',
-        '[&_h1]:font-mono [&_h2]:font-mono [&_h3]:font-mono [&_h4]:font-mono',
         '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_select]:font-mono [&_input]:font-mono [&_input]:text-system-control',
         '[&_select]:text-system-label [&_select]:text-slate-100 [&_select]:outline-none',
         '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
@@ -87,8 +86,8 @@ export function ResourcePageHeader({
               {eyebrow}
             </div>
           ) : null}
-          <h1 className={cn('font-mono font-bold text-slate-50', canvas ? 'text-page-title' : 'text-heading')}>{title}</h1>
-          <p className="mt-ui-xs max-w-3xl font-sans text-product-caption text-muted-foreground">{description}</p>
+          <h1 className={cn('font-sans font-semibold text-slate-50', canvas ? 'text-page-title' : 'text-heading')}>{title}</h1>
+          <p className="mt-ui-xs max-w-3xl font-sans text-product-small text-muted-foreground">{description}</p>
         </div>
         {action ? <div className="shrink-0">{action}</div> : null}
       </div>

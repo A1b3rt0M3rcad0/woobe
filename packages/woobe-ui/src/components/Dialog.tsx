@@ -34,7 +34,6 @@ const LAYER_CLASS: Record<DialogLayer, string> = { modal: 'z-modal', nestedModal
 
 export const dialogTypographyClass = [
   'font-sans',
-  '[&_h1]:font-mono [&_h2]:font-mono [&_h3]:font-mono [&_h4]:font-mono [&_h5]:font-mono [&_h6]:font-mono',
   '[&_h1]:text-heading-sm [&_h2]:text-section-title [&_h3]:text-section-title [&_h4]:text-system-control',
   '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_input]:font-mono [&_input]:text-system-control [&_select]:font-mono',
   '[&_select]:h-control [&_select]:rounded-control [&_select]:border-border [&_select]:bg-control [&_select]:text-system-control [&_select]:text-accent-foreground',

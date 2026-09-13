@@ -27,11 +27,11 @@ const PageHeader = forwardRef<HTMLDivElement, PageHeaderProps>(
             {eyebrow}
           </div>
         ) : null}
-        <h1 className="font-mono text-[15px] font-semibold leading-5 tracking-[-0.01em] text-slate-100">
+        <h1 className="font-sans text-page-title font-semibold text-slate-100">
           {title}
         </h1>
         {description ? (
-          <div className="mt-ui-xs max-w-3xl font-sans text-product-caption leading-5 text-muted-foreground">
+          <div className="mt-ui-xs max-w-3xl font-sans text-product-small text-muted-foreground">
             {description}
           </div>
         ) : null}
