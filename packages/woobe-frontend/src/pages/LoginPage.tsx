@@ -23,21 +23,18 @@ export default function LoginPage() {
 
   return (
     <div>
-      <header className="mb-[18px]">
-        <h1 className="font-mono text-[16px] font-bold leading-[20px] tracking-[0.01em] text-slate-50">
+      <header className="mb-ui-content-gutter">
+        <h1 className="font-mono text-page-title font-bold text-slate-50">
           Sign in to Woobe
         </h1>
-        <p className="mt-[4px] font-mono text-[9px] leading-[14px] text-muted-foreground">
+        <p className="mt-ui-xs font-mono text-product-caption text-muted-foreground">
           Access your workspace and production operations.
         </p>
       </header>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-[14px]" noValidate>
-        <Field className="gap-[6px]">
-          <FieldLabel
-            htmlFor="login-email"
-            className="font-mono text-[9px] font-bold uppercase leading-[12px] tracking-[0.1em] text-muted-foreground"
-          >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-ui-stack" noValidate>
+        <Field className="gap-ui-control-gap">
+          <FieldLabel htmlFor="login-email" className="font-bold tracking-ui-eyebrow">
             Email
           </FieldLabel>
           <Input
@@ -47,21 +44,18 @@ export default function LoginPage() {
             placeholder="you@company.com"
             invalid={Boolean(errors.email)}
             aria-describedby={errors.email ? 'login-email-error' : undefined}
-            className="h-[34px] rounded-[3px] bg-control px-[10px] font-mono text-[10px] leading-[14px] text-slate-100"
+            className="h-control rounded-control bg-control px-ui-md font-mono text-system-control text-slate-100"
             {...register('email')}
           />
           {errors.email?.message && (
-            <FieldError id="login-email-error" className="font-mono text-[9px] leading-[13px]">
+            <FieldError id="login-email-error" className="font-mono text-product-caption">
               {errors.email.message}
             </FieldError>
           )}
         </Field>
 
-        <Field className="gap-[6px]">
-          <FieldLabel
-            htmlFor="login-password"
-            className="font-mono text-[9px] font-bold uppercase leading-[12px] tracking-[0.1em] text-muted-foreground"
-          >
+        <Field className="gap-ui-control-gap">
+          <FieldLabel htmlFor="login-password" className="font-bold tracking-ui-eyebrow">
             Password
           </FieldLabel>
           <Input
@@ -71,29 +65,29 @@ export default function LoginPage() {
             placeholder="Enter your password"
             invalid={Boolean(errors.password)}
             aria-describedby={errors.password ? 'login-password-error' : undefined}
-            className="h-[34px] rounded-[3px] bg-control px-[10px] font-mono text-[10px] leading-[14px] text-slate-100"
+            className="h-control rounded-control bg-control px-ui-md font-mono text-system-control text-slate-100"
             {...register('password')}
           />
           {errors.password?.message && (
-            <FieldError id="login-password-error" className="font-mono text-[9px] leading-[13px]">
+            <FieldError id="login-password-error" className="font-mono text-product-caption">
               {errors.password.message}
             </FieldError>
           )}
         </Field>
 
         {errors.root && (
-          <Alert variant="destructive" className="flex items-start gap-[8px] rounded-[3px] px-[10px] py-[9px] font-mono text-[9px] leading-[13px]">
-            <AlertTriangle className="mt-px h-[13px] w-[13px] shrink-0 text-red-300" />
+          <Alert variant="destructive" className="flex items-start gap-ui-sm rounded-control px-ui-md py-ui-sm font-mono text-product-caption">
+            <AlertTriangle className="mt-px h-icon-sm w-icon-sm shrink-0 text-red-300" />
             <p>{errors.root.message}</p>
           </Alert>
         )}
 
-        <Button type="submit" loading={isSubmitting} className="h-[34px] w-full rounded-[3px] px-[11px] font-mono text-[10px] font-normal">
+        <Button type="submit" loading={isSubmitting} className="w-full font-normal">
           Sign in
         </Button>
       </form>
 
-      <div className="mt-[18px] border-t border-border pt-[13px] text-center font-mono text-[9px] leading-[13px] text-muted-foreground">
+      <div className="mt-ui-content-gutter border-t border-border pt-ui-md text-center font-mono text-system-meta text-muted-foreground">
         Don&apos;t have an account?{' '}
         <Link
           to="/register"

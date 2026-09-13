@@ -23,21 +23,18 @@ export default function RegisterPage() {
 
   return (
     <div>
-      <header className="mb-[18px]">
-        <h1 className="font-mono text-[16px] font-bold leading-[20px] tracking-[0.01em] text-slate-50">
+      <header className="mb-ui-content-gutter">
+        <h1 className="font-mono text-page-title font-bold text-slate-50">
           Create workspace
         </h1>
-        <p className="mt-[4px] font-mono text-[9px] leading-[14px] text-muted-foreground">
+        <p className="mt-ui-xs font-mono text-product-caption text-muted-foreground">
           Create the account that will own your Woobe workspace.
         </p>
       </header>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-[14px]" noValidate>
-        <Field className="gap-[6px]">
-          <FieldLabel
-            htmlFor="register-email"
-            className="font-mono text-[9px] font-bold uppercase leading-[12px] tracking-[0.1em] text-muted-foreground"
-          >
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-ui-stack" noValidate>
+        <Field className="gap-ui-control-gap">
+          <FieldLabel htmlFor="register-email" className="font-bold tracking-ui-eyebrow">
             Email
           </FieldLabel>
           <Input
@@ -47,21 +44,18 @@ export default function RegisterPage() {
             placeholder="you@company.com"
             invalid={Boolean(errors.email)}
             aria-describedby={errors.email ? 'register-email-error' : undefined}
-            className="h-[34px] rounded-[3px] bg-control px-[10px] font-mono text-[10px] leading-[14px] text-slate-100"
+            className="h-control rounded-control bg-control px-ui-md font-mono text-system-control text-slate-100"
             {...register('email')}
           />
           {errors.email?.message && (
-            <FieldError id="register-email-error" className="font-mono text-[9px] leading-[13px]">
+            <FieldError id="register-email-error" className="font-mono text-product-caption">
               {errors.email.message}
             </FieldError>
           )}
         </Field>
 
-        <Field className="gap-[6px]">
-          <FieldLabel
-            htmlFor="register-password"
-            className="font-mono text-[9px] font-bold uppercase leading-[12px] tracking-[0.1em] text-muted-foreground"
-          >
+        <Field className="gap-ui-control-gap">
+          <FieldLabel htmlFor="register-password" className="font-bold tracking-ui-eyebrow">
             Password
           </FieldLabel>
           <Input
@@ -71,29 +65,29 @@ export default function RegisterPage() {
             placeholder="At least 6 characters"
             invalid={Boolean(errors.password)}
             aria-describedby={errors.password ? 'register-password-error' : undefined}
-            className="h-[34px] rounded-[3px] bg-control px-[10px] font-mono text-[10px] leading-[14px] text-slate-100"
+            className="h-control rounded-control bg-control px-ui-md font-mono text-system-control text-slate-100"
             {...register('password')}
           />
           {errors.password?.message && (
-            <FieldError id="register-password-error" className="font-mono text-[9px] leading-[13px]">
+            <FieldError id="register-password-error" className="font-mono text-product-caption">
               {errors.password.message}
             </FieldError>
           )}
         </Field>
 
         {errors.root && (
-          <Alert variant="destructive" className="flex items-start gap-[8px] rounded-[3px] px-[10px] py-[9px] font-mono text-[9px] leading-[13px]">
-            <AlertTriangle className="mt-px h-[13px] w-[13px] shrink-0 text-red-300" />
+          <Alert variant="destructive" className="flex items-start gap-ui-sm rounded-control px-ui-md py-ui-sm font-mono text-product-caption">
+            <AlertTriangle className="mt-px h-icon-sm w-icon-sm shrink-0 text-red-300" />
             <p>{errors.root.message}</p>
           </Alert>
         )}
 
-        <Button type="submit" loading={isSubmitting} className="h-[34px] w-full rounded-[3px] px-[11px] font-mono text-[10px] font-normal">
+        <Button type="submit" loading={isSubmitting} className="w-full font-normal">
           Create workspace
         </Button>
       </form>
 
-      <div className="mt-[18px] border-t border-border pt-[13px] text-center font-mono text-[9px] leading-[13px] text-muted-foreground">
+      <div className="mt-ui-content-gutter border-t border-border pt-ui-md text-center font-mono text-system-meta text-muted-foreground">
         Already have an account?{' '}
         <Link
           to="/login"
