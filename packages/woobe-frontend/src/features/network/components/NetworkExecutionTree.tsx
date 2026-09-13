@@ -94,19 +94,19 @@ function AgentsCalled({ root, onSelectAgent }: { root: NetworkAgentInvocation; o
 
   return (
     <div className="pl-16">
-      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-1.5 text-[11px] text-primary-light transition-colors hover:text-white">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-ui-xs font-mono text-system-micro text-primary-light transition-colors hover:text-white">
         {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
         <span className="truncate">{agentSummary(agents)}</span>
       </button>
       {open ? (
-        <div className="mt-1.5 space-y-1.5 border-l border-border/70 pl-2.5">
+        <div className="mt-ui-xs space-y-ui-xs border-l border-border/70 pl-ui-sm">
           {agents.map((agent, index) => agent.id ? (
-            <button key={`${agent.id}-${index}`} type="button" onClick={() => onSelectAgent(agent.id!)} className="flex max-w-full items-center gap-1.5 text-left text-[11px] text-muted hover:text-white" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
+            <button key={`${agent.id}-${index}`} type="button" onClick={() => onSelectAgent(agent.id!)} className="flex max-w-full items-center gap-ui-xs text-left font-mono text-system-micro text-muted-foreground hover:text-white" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
               <AgentStatusIcon status={agent.status} />
               <span className="truncate">{agent.name}</span>
             </button>
           ) : (
-            <div key={`${agent.name}-${index}`} className="flex max-w-full items-center gap-1.5 text-[11px] text-muted" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
+            <div key={`${agent.name}-${index}`} className="flex max-w-full items-center gap-ui-xs font-mono text-system-micro text-muted-foreground" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
               <AgentStatusIcon status={agent.status} />
               <span className="truncate">{agent.name}</span>
             </div>
@@ -127,19 +127,19 @@ export function NetworkLiveAgents({ agents, onSelectAgent }: {
 
   return (
     <div className="pl-16">
-      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-1.5 text-[11px] text-primary-light transition-colors hover:text-white">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-ui-xs font-mono text-system-micro text-primary-light transition-colors hover:text-white">
         {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
         <span className="truncate">{agentSummary(calledAgents)}</span>
       </button>
       {open ? (
-        <div className="mt-1.5 space-y-1.5 border-l border-border/70 pl-2.5">
+        <div className="mt-ui-xs space-y-ui-xs border-l border-border/70 pl-ui-sm">
           {calledAgents.map((agent) => agent.nodeId ? (
-            <button key={agent.invocationId} type="button" onClick={() => onSelectAgent(agent.nodeId!)} className="flex max-w-full items-center gap-1.5 text-left text-[11px] text-muted hover:text-white" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
+            <button key={agent.invocationId} type="button" onClick={() => onSelectAgent(agent.nodeId!)} className="flex max-w-full items-center gap-ui-xs text-left font-mono text-system-micro text-muted-foreground hover:text-white" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
               <AgentStatusIcon status={agent.status} />
               <span className="truncate">{agent.name}</span>
             </button>
           ) : (
-            <div key={agent.invocationId} className="flex max-w-full items-center gap-1.5 text-[11px] text-muted" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
+            <div key={agent.invocationId} className="flex max-w-full items-center gap-ui-xs font-mono text-system-micro text-muted-foreground" style={{ paddingLeft: `${Math.max(0, Math.min(agent.depth - 1, 3)) * 10}px` }}>
               <AgentStatusIcon status={agent.status} />
               <span className="truncate">{agent.name}</span>
             </div>
@@ -156,14 +156,14 @@ export function NetworkLiveDelegations({ delegations }: { delegations: LiveNetwo
 
   return (
     <div className="pl-16">
-      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-1.5 text-[11px] text-primary-light transition-colors hover:text-white">
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex max-w-full items-center gap-ui-xs font-mono text-system-micro text-primary-light transition-colors hover:text-white">
         {open ? <ChevronDown className="h-3.5 w-3.5 shrink-0" /> : <ChevronRight className="h-3.5 w-3.5 shrink-0" />}
         <span className="truncate">{delegationSummary(delegations)}</span>
       </button>
       {open ? (
-        <div className="mt-1.5 space-y-1.5 border-l border-border/70 pl-2.5">
+        <div className="mt-ui-xs space-y-ui-xs border-l border-border/70 pl-ui-sm">
           {delegations.map((delegation) => (
-            <div key={delegation.id} className="flex max-w-full items-center gap-1.5 text-[11px] text-muted">
+            <div key={delegation.id} className="flex max-w-full items-center gap-ui-xs font-mono text-system-micro text-muted-foreground">
               <DelegationStatusIcon status={delegation.status} />
               <span className="truncate">{delegation.target}</span>
             </div>
@@ -201,8 +201,8 @@ export function NetworkTurnDetails({ turn, onSelectAgent }: {
 }) {
   const delegations = delegationCount(turn.execution.root)
   return (
-    <div className="space-y-1.5">
-      {delegations > 0 ? <div className="pl-16 text-[11px] text-primary-light">Delegations ({delegations}) · completed in this Run</div> : null}
+    <div className="space-y-ui-xs">
+      {delegations > 0 ? <div className="pl-16 font-mono text-system-micro text-primary-light">Delegations ({delegations}) · completed in this Run</div> : null}
       <AgentsCalled root={turn.execution.root} onSelectAgent={onSelectAgent} />
     </div>
   )
@@ -214,7 +214,7 @@ export function NetworkLiveDetails({ delegations, agents, onSelectAgent }: {
   onSelectAgent: (nodeId: AgentNodeId) => void
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-ui-xs">
       <NetworkLiveDelegations delegations={delegations} />
       <NetworkLiveAgents agents={agents} onSelectAgent={onSelectAgent} />
     </div>
@@ -239,7 +239,7 @@ export function NetworkOpenRunAction({ execution, onOpenTrace }: {
   onOpenTrace: (execution: NetworkExecution) => void
 }) {
   return (
-    <button type="button" onClick={() => onOpenTrace(execution)} className="h-6 rounded-md px-1.5 text-[11px] font-medium text-primary-light transition-colors hover:bg-background/70 hover:text-white">
+    <button type="button" onClick={() => onOpenTrace(execution)} className="h-control-segment rounded-control px-ui-sm font-mono text-system-micro font-medium text-primary-light transition-colors hover:bg-background/70 hover:text-white">
       Open Run
     </button>
   )
