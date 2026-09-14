@@ -1,4 +1,4 @@
-import type { ExecutionStrategyDescriptor } from './types'
+import type { AgentRelease, ExecutionStrategyDescriptor, RuntimeEnvironment } from './types'
 
 export const DEFAULT_EXECUTION_STRATEGY = 'standard' as const
 
@@ -12,6 +12,19 @@ export function executionStrategyFromRuntimeConfig(
   return typeof value === 'string' && value.trim()
     ? value.trim().toLowerCase()
     : DEFAULT_EXECUTION_STRATEGY
+}
+
+export function executionStrategyForEnvironment(
+  environment: RuntimeEnvironment,
+  draftRuntimeConfig: Record<string, unknown>,
+  releases: AgentRelease[],
+): AgentExecutionStrategy {
+  if (environment === 'draft') {
+    return executionStrategyFromRuntimeConfig(draftRuntimeConfig)
+  }
+
+  const release = releases.find((item) => item.status === environment)
+  return executionStrategyFromRuntimeConfig(release?.runtime_config ?? {})
 }
 
 export function executionStrategyDescriptor(
