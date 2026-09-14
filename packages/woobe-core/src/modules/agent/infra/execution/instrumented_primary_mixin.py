@@ -37,9 +37,6 @@ from modules.agent.infra.database.runtime_transaction_runner import (
 )
 from modules.agent.infra.execution.execution_instrumentation import aggregate_usage
 from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
-from modules.agent.infra.execution.strategies.resolver import (
-    build_execution_strategy_resolver,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +50,7 @@ class _PrimaryExecutionHost(Protocol):
     _llm_factory: Any
     _transactions: AgentRuntimeTransactionRunner
     _context_assembler: ContextAssembler | None
-    _execution_strategy_resolver: ExecutionStrategyResolver
+    _execution_strategy_resolver: ExecutionStrategyResolver | None
     async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict: ...
     def _clean_json_answer(self, answer: str) -> str: ...
 
@@ -81,9 +78,7 @@ def _copy_http_route_metadata(payload: dict[str, Any]) -> None:
 
 class InstrumentedPrimaryExecutionMixin:
     _context_assembler: ContextAssembler | None = None
-    _execution_strategy_resolver: ExecutionStrategyResolver = (
-        build_execution_strategy_resolver()
-    )
+    _execution_strategy_resolver: ExecutionStrategyResolver | None = None
 
     def configure_context_assembler(self, assembler: ContextAssembler) -> None:
         self._context_assembler = assembler
@@ -306,7 +301,10 @@ class InstrumentedPrimaryExecutionMixin:
         context = current_execution.get()
         if context:
             context.execution_strategy = strategy_name
-        strategy = host._execution_strategy_resolver.resolve(strategy_name)
+        resolver = host._execution_strategy_resolver
+        if resolver is None:
+            raise RuntimeError("Agent execution strategy resolver is not configured")
+        strategy = resolver.resolve(strategy_name)
         try:
             execution = await strategy.execute(
                 ExecutionStrategyRequest(
