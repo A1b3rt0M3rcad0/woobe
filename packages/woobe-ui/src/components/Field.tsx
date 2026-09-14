@@ -1,54 +1,98 @@
-import { forwardRef, type HTMLAttributes, type LabelHTMLAttributes } from 'react'
+import { createContext, forwardRef, type HTMLAttributes, type LabelHTMLAttributes, useContext } from 'react'
 import { cn } from '../lib/cn'
 
-const Field = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('grid gap-ui-xs', className)} {...props} />
+export type FieldDensity = 'default' | 'technical'
+
+export interface FieldProps extends HTMLAttributes<HTMLDivElement> {
+  density?: FieldDensity
+}
+
+const FieldDensityContext = createContext<FieldDensity>('default')
+
+const Field = forwardRef<HTMLDivElement, FieldProps>(
+  ({ className, density = 'default', ...props }, ref) => (
+    <FieldDensityContext.Provider value={density}>
+      <div
+        ref={ref}
+        className={cn(density === 'technical' ? 'grid gap-ui-control-inset' : 'grid gap-ui-xs', className)}
+        {...props}
+      />
+    </FieldDensityContext.Provider>
   ),
 )
 Field.displayName = 'Field'
 
 const FieldLabel = forwardRef<HTMLLabelElement, LabelHTMLAttributes<HTMLLabelElement>>(
-  ({ className, ...props }, ref) => (
-    <label
-      ref={ref}
-      className={cn(
-        'font-mono text-system-nano font-medium uppercase tracking-ui-label text-muted-foreground',
-        className,
-      )}
-      {...props}
-    />
-  ),
+  ({ className, ...props }, ref) => {
+    const density = useContext(FieldDensityContext)
+    return (
+      <label
+        ref={ref}
+        className={cn(
+          'font-mono font-medium uppercase tracking-ui-label text-muted-foreground',
+          density === 'technical' ? 'text-system-tiny' : 'text-system-nano',
+          className,
+        )}
+        {...props}
+      />
+    )
+  },
 )
 FieldLabel.displayName = 'FieldLabel'
 
 const FieldOptional = forwardRef<HTMLSpanElement, HTMLAttributes<HTMLSpanElement>>(
-  ({ className, children = '(optional)', ...props }, ref) => (
-    <span
-      ref={ref}
-      className={cn(
-        'ml-ui-xs font-mono text-system-nano font-normal normal-case tracking-normal text-muted-foreground/70',
-        className,
-      )}
-      {...props}
-    >
-      {children}
-    </span>
-  ),
+  ({ className, children = '(optional)', ...props }, ref) => {
+    const density = useContext(FieldDensityContext)
+    return (
+      <span
+        ref={ref}
+        className={cn(
+          'ml-ui-xs font-mono font-normal normal-case tracking-normal text-muted-foreground/65',
+          density === 'technical' ? 'text-system-tiny' : 'text-system-nano',
+          className,
+        )}
+        {...props}
+      >
+        {children}
+      </span>
+    )
+  },
 )
 FieldOptional.displayName = 'FieldOptional'
 
 const FieldDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(
-  ({ className, ...props }, ref) => (
-    <p ref={ref} className={cn('font-sans text-system-micro text-muted-foreground', className)} {...props} />
-  ),
+  ({ className, ...props }, ref) => {
+    const density = useContext(FieldDensityContext)
+    return (
+      <p
+        ref={ref}
+        className={cn(
+          'font-sans text-muted-foreground/85',
+          density === 'technical' ? 'text-system-tiny' : 'text-system-micro',
+          className,
+        )}
+        {...props}
+      />
+    )
+  },
 )
 FieldDescription.displayName = 'FieldDescription'
 
 const FieldError = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(
-  ({ className, ...props }, ref) => (
-    <p ref={ref} className={cn('font-sans text-system-micro text-error', className)} {...props} />
-  ),
+  ({ className, ...props }, ref) => {
+    const density = useContext(FieldDensityContext)
+    return (
+      <p
+        ref={ref}
+        className={cn(
+          'font-sans text-error',
+          density === 'technical' ? 'text-system-tiny' : 'text-system-micro',
+          className,
+        )}
+        {...props}
+      />
+    )
+  },
 )
 FieldError.displayName = 'FieldError'
 
