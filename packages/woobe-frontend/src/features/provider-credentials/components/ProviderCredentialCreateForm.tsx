@@ -8,6 +8,7 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
+  FieldOptional,
   FormActions,
   Input,
   TechnicalListItem,
@@ -147,7 +148,7 @@ export function ProviderCredentialCreateForm({
             />
           </Field>
           <Field>
-            <FieldLabel>Connection name <span className="font-normal text-muted-foreground">(optional)</span></FieldLabel>
+            <FieldLabel>Connection name <FieldOptional /></FieldLabel>
             <Input value={customName} onChange={(event) => setCustomName(event.target.value)} placeholder="Defaults to the provider hostname" />
           </Field>
         </div>
