@@ -59,8 +59,8 @@ export function AgentResultViewer({
         open={open}
         onClose={() => setOpen(false)}
         title={title}
-        scrollMode="content"
-        className="flex h-[min(760px,calc(100svh-2rem))] max-w-5xl flex-col overflow-hidden"
+        variant="workspace"
+        height="workspace"
         contentClassName="min-h-0 flex-1 p-0"
       >
         <div className="flex h-full min-h-0 flex-col">

@@ -226,10 +226,10 @@ export function RuntimeApiReferenceModal({
         open={open}
         onClose={showCreateKey ? () => undefined : onClose}
         title={`${targetName} · API Reference`}
-        className="flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden"
-        contentClassName="min-h-0 flex-1 p-0"
+        variant="workspace"
+        height="workspace"
       >
-        <div className="flex h-full min-h-0 flex-col lg:flex-row">
+        <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
           <aside className="shrink-0 border-b border-border bg-background/20 lg:w-dialog-sidebar lg:border-b-0 lg:border-r">
             <ScrollArea className="max-h-72 lg:h-full lg:max-h-none">
               <div className="grid gap-ui-lg p-ui-md">
