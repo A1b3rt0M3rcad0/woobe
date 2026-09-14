@@ -6,7 +6,10 @@ from modules.agent.application.interfaces.context_assembler import ContextAssemb
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
 from modules.agent.domain.entities import Agent
-from modules.agent.infra.execution.capabilities.preparation import configure_skill_runtime
+from modules.agent.infra.execution.capabilities.preparation import (
+    _messages_with_bound_capability_authority,
+    configure_skill_runtime,
+)
 from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
 
 
@@ -51,4 +54,8 @@ async def run_instrumented_execution(
     )
 
 
-__all__ = ["configure_skill_runtime", "run_instrumented_execution"]
+__all__ = [
+    "_messages_with_bound_capability_authority",
+    "configure_skill_runtime",
+    "run_instrumented_execution",
+]
