@@ -10,8 +10,10 @@
   font-family: 'Inter', system-ui, sans-serif;
 }
 
+/* Product copy and form controls remain Inter. Technical chrome, metadata and
+ * explicit monospace content keep JetBrains Mono. */
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(
-  label, legend, button, input, select, th, dt,
+  label, legend, button, th, dt,
   [role='tab'], [role='menuitem'], .uppercase, .tracking-wide, .tracking-wider,
   .tracking-widest, .tabular-nums
 ) {
@@ -22,6 +24,8 @@
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
+:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) input:not([type='checkbox']):not([type='radio']):not(.font-mono),
+:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) select:not(.font-mono),
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) textarea:not(.font-mono),
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) [contenteditable='true']:not(.font-mono) {
   font-family: 'Inter', system-ui, sans-serif;
@@ -49,8 +53,10 @@
   box-shadow: none !important;
 }
 
+/* Legacy feature headings converge on the same 12px section tier used by the
+ * operational pages instead of becoming either page headings or microcopy. */
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(h2.text-base, h2.text-lg, h3.text-base, h3.text-lg) {
-  font-size: 0.6875rem !important;
+  font-size: 0.75rem !important;
   line-height: 1rem !important;
   letter-spacing: 0.01em;
 }
@@ -60,9 +66,10 @@
   line-height: 1rem !important;
 }
 
+/* Ordinary secondary copy uses the 9px product-caption tier. */
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(p.text-xs, span.text-xs, code.text-xs) {
-  font-size: 0.625rem !important;
-  line-height: 1rem !important;
+  font-size: 0.5625rem !important;
+  line-height: 0.875rem !important;
 }
 
 /* Legacy 11px uppercase labels resolve to the approved 9px metadata tier. */
