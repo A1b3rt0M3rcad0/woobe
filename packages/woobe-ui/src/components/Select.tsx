@@ -40,7 +40,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
       <svg
         viewBox="0 0 16 16"
         aria-hidden="true"
-        className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground"
+        className="pointer-events-none absolute right-ui-sm top-1/2 h-icon w-icon -translate-y-1/2 text-muted-foreground"
         fill="none"
       >
         <path d="M4.5 6.25 8 9.75l3.5-3.5" stroke="currentColor" strokeWidth="1.35" strokeLinecap="round" strokeLinejoin="round" />
