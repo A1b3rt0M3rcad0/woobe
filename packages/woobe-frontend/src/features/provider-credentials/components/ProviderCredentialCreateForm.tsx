@@ -8,6 +8,7 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
+  FormActions,
   Input,
   TechnicalListItem,
 } from '@woobe/ui'
@@ -165,12 +166,12 @@ export function ProviderCredentialCreateForm({
       ) : null}
 
       {showActions ? (
-        <div className="flex justify-end gap-ui-sm border-t border-border pt-ui-md">
+        <FormActions>
           {onCancel ? (
             <Button type="button" variant="outline" onClick={onCancel} disabled={createCredential.isPending}>Cancel</Button>
           ) : null}
           <Button type="submit" loading={createCredential.isPending}>{submitLabel}</Button>
-        </div>
+        </FormActions>
       ) : null}
     </form>
   )
