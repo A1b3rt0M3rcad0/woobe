@@ -118,7 +118,21 @@ Use the variants by intent:
 - `standard`: confirmations, small forms, secret reveals and bounded actions. It remains compact, but uses the same typography, borders, controls and footer grammar as larger dialogs.
 - `workspace`: configuration flows, inspectors and multi-step operational surfaces. It uses `max-w-dialog-wide` and `max-h-dialog`, while the content determines the actual height. Use `DialogContextBar`, `DialogBody` and `DialogFooter` when the feature needs fixed chrome with an independently scrolling body.
 
-The canonical workspace width is `68.75rem` maximum. Height is content-driven and capped by `max-h-dialog`; features must not force a large fixed viewport-height shell merely because another workspace happens to be tall. Fixed height is valid only when it is intrinsic to the interaction.
+The canonical workspace width is `68.75rem` maximum. Height defaults to content-driven and is capped by `max-h-dialog`. Use `height="workspace"` when the design calls for a stable workspace across steps: `min(900px, calc(100svh - 32px))`, with a 16px viewport inset. Compose a flex child with `min-h-0 flex-1`, then `DialogContextBar`, `DialogBody` and `DialogFooter` to keep the context and actions outside the scrolling body. `DialogBody spacing="workspace"` follows the ChatSurface Details content insets (15px in constrained dialogs, up to 24px on desktop).
+
+### Configuration hierarchy
+
+The ChatSurface Details reference defines the Create Agent contract:
+
+- Dialog identity: Inter 13px/18px, semibold.
+- Primary `SectionBlock`: mono 12px/16px; secondary titles 10px/14px; descriptions and eyebrows 9px/12px.
+- `Field density="technical"`: mono uppercase labels 9px/14px, 0.1em tracking, muted color and 6px control gap; Inter helpers/errors 9px/14px. This density must not use the 7px tiny tier.
+- `TechnicalListItem density="technical"`: 10px operational labels and 9px supporting metadata.
+- `ReadOnlyField`: muted uppercase label 9px/14px, Inter value 11px/16px, 4px label/value gap, 12px padding, background/55 and a 4px radius. Use for review summaries and immutable settings values; long values wrap.
+- Normal controls/actions: 34px high with 10px text. Secondary actions use `Button size="sm"` (30px/9px), not the 26px technical size.
+- `Stepper` descriptions/status: 9px; `SegmentedControl size="segment"`: 26px inner control inside a 34px shell, without stretching unless the composition requires it.
+
+These values belong to shared components and tokens. Features select the appropriate variants and compose them without local typography overrides.
 
 Internal navigation remains feature-dependent. A settings surface may use a sidebar, while a creation workflow may use a stepper. The reusable contract is the density, hierarchy, spacing, typography and control language, not forcing unrelated workflows into the same geometry or navigation structure.
 

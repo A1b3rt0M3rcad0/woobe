@@ -16,6 +16,7 @@ import {
   FormActions,
   Input,
   InputGroup,
+  ReadOnlyField,
   ScrollArea,
   SectionBlock,
   SegmentedControl,
@@ -192,7 +193,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
                 />
               </Field>
             )}
-            <Button type="button" size="technical" variant="outline" onClick={() => setShowProviderForm(true)}>
+            <Button type="button" size="sm" variant="outline" onClick={() => setShowProviderForm(true)}>
               <Plus className="h-icon-sm w-icon-sm" />Add connection
             </Button>
           </div>
@@ -213,11 +214,10 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
               else flow.startNewModel()
             }}
             ariaLabel="Generation model source"
-            stretch
             size="segment"
           />
           {flow.modelMode !== 'existing' && flow.canUseCatalog && flow.modelMode === 'manual' ? (
-            <Button type="button" size="technical" variant="ghost" className="mt-ui-sm" onClick={flow.useCatalogMode}>Browse provider catalog</Button>
+            <Button type="button" size="sm" variant="ghost" className="mt-ui-sm" onClick={flow.useCatalogMode}>Browse provider catalog</Button>
           ) : null}
         </SectionBlock>
       </aside>
@@ -235,8 +235,8 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
               <Alert variant="warning">
                 <AlertDescription>Could not load the provider catalog.</AlertDescription>
                 <div className="mt-ui-md flex gap-ui-sm">
-                  <Button type="button" size="technical" variant="outline" onClick={flow.retryCatalog}>Retry</Button>
-                  <Button type="button" size="technical" variant="ghost" onClick={() => flow.setManualModel('', '')}>Enter model ID</Button>
+                  <Button type="button" size="sm" variant="outline" onClick={flow.retryCatalog}>Retry</Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => flow.setManualModel('', '')}>Enter model ID</Button>
                 </div>
               </Alert>
             ) : (
@@ -305,18 +305,19 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
       onClose={flow.busy ? () => undefined : onClose}
       title="Create agent"
       variant="workspace"
+      height="workspace"
     >
       {flow.inventoryLoading ? (
-        <DialogBody><AgentCreationPreparing /></DialogBody>
+        <DialogBody spacing="workspace"><AgentCreationPreparing /></DialogBody>
       ) : flow.inventoryError ? (
-        <DialogBody><AgentCreationLoadError onRetry={flow.retryInventory} onCancel={onClose} /></DialogBody>
+        <DialogBody spacing="workspace"><AgentCreationLoadError onRetry={flow.retryInventory} onCancel={onClose} /></DialogBody>
       ) : (
-        <div className="flex min-h-0 flex-col overflow-hidden">
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <DialogContextBar>
             <Stepper items={stepperItems} />
           </DialogContextBar>
 
-          <DialogBody tone="subtle">
+          <DialogBody spacing="workspace" tone="subtle">
             {flow.step === 'details' ? (
               <SectionBlock
                 eyebrow="Agent Draft"
@@ -334,7 +335,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                   </Field>
                   <Field density="technical" className="md:col-span-2">
                     <FieldLabel>Objective</FieldLabel>
-                    <Textarea density="compact" value={flow.agentObjective} onChange={(event) => flow.setAgentObjective(event.target.value)} aria-label="Objective" rows={4} placeholder="Resolve customer support requests accurately." />
+                    <Textarea value={flow.agentObjective} onChange={(event) => flow.setAgentObjective(event.target.value)} aria-label="Objective" rows={4} placeholder="Resolve customer support requests accurately." />
                     <FieldDescription>Initial Draft objective. Detailed Behavior can be configured after creation.</FieldDescription>
                   </Field>
                 </div>
@@ -347,26 +348,14 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
               <div className="grid gap-ui-md">
                 <SectionBlock eyebrow="Review" title="Confirm the initial Agent Draft" description="Creation does not publish a Production release." />
                 <div className="grid gap-ui-md md:grid-cols-2">
-                  <SectionBlock title="Agent" hierarchy="secondary" density="compact">
-                    <TechnicalListItem
-                      density="technical"
-                      presentation="plain"
-                      label={flow.agentName}
-                      description={flow.agentDescription || 'No description'}
-                    />
-                  </SectionBlock>
-                  <SectionBlock title="Model" hierarchy="secondary" density="compact">
-                    <TechnicalListItem
-                      density="technical"
-                      presentation="plain"
-                      descriptionVariant="technical"
-                      label={flow.selectedModel.name}
-                      description={`${providerLabel(flow.selectedModel.provider)} · ${flow.selectedModel.model}`}
-                    />
-                  </SectionBlock>
-                  <SectionBlock title="Objective" hierarchy="secondary" density="compact" className="md:col-span-2">
-                    <p className="whitespace-pre-wrap font-sans text-system-control text-accent-foreground/90">{flow.agentObjective}</p>
-                  </SectionBlock>
+                  <ReadOnlyField label="Agent" value={flow.agentName} description={flow.agentDescription || 'No description'} />
+                  <ReadOnlyField
+                    label="Model"
+                    value={flow.selectedModel.name}
+                    descriptionVariant="technical"
+                    description={`${providerLabel(flow.selectedModel.provider)} · ${flow.selectedModel.model}`}
+                  />
+                  <ReadOnlyField label="Objective" value={flow.agentObjective} className="md:col-span-2" />
                 </div>
               </div>
             ) : null}

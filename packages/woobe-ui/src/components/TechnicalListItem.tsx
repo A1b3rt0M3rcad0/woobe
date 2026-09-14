@@ -64,7 +64,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
     }
 
     const densitySpacing = technical
-      ? 'gap-ui-control-gap px-ui-sm py-ui-control-inset'
+      ? 'gap-ui-control-gap px-ui-sm py-ui-control-gap'
       : compact
         ? 'gap-ui-sm px-ui-sm py-ui-xs'
         : 'gap-ui-md px-ui-md py-ui-control-gap'
@@ -73,14 +73,14 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
       ? 'gap-ui-control-gap px-ui-sm py-ui-control-gap'
       : 'gap-ui-sm px-ui-sm py-ui-sm'
 
-    const labelSize = technical ? 'text-system-meta' : compact ? 'text-system-control' : 'text-system-value'
-    const technicalDescriptionSize = technical ? 'text-system-tiny' : 'text-system-nano'
+    const labelSize = technical ? 'text-system-control' : compact ? 'text-system-control' : 'text-system-value'
+    const technicalDescriptionSize = technical ? 'text-system-meta' : 'text-system-nano'
     const productDescriptionSize = technical
-      ? 'text-system-tiny'
+      ? 'text-product-caption'
       : presentation === 'card'
         ? 'text-product-caption'
         : 'text-system-micro'
-    const metaSize = technical ? 'text-system-tiny' : 'text-system-nano'
+    const metaSize = technical ? 'text-system-meta' : 'text-system-nano'
 
     return (
       <div
@@ -92,7 +92,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         className={cn(
-          'grid w-full items-center text-left transition-colors',
+          'grid min-w-0 w-full items-center text-left transition-colors',
           columns,
           card && 'rounded-container border',
           card && densitySpacing,

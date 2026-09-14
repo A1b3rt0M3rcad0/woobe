@@ -34,6 +34,7 @@ export const woobeTypographyScale = {
 
 export const woobeTypographyTracking = {
   label: '0.08em',
+  fieldLabel: '0.1em',
   eyebrow: '0.12em',
 } as const
 

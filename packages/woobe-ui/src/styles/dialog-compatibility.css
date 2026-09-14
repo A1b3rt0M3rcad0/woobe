@@ -196,3 +196,10 @@
   background-color: rgb(239 68 68 / 0.16) !important;
   color: rgb(254 226 226) !important;
 }
+
+/* Configuration body insets follow the available dialog width. */
+@container (max-width: 53.999rem) {
+  .woobe-dialog-body-workspace {
+    @apply p-ui-panel-inset;
+  }
+}

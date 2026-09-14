@@ -14,7 +14,7 @@ const Field = forwardRef<HTMLDivElement, FieldProps>(
     <FieldDensityContext.Provider value={density}>
       <div
         ref={ref}
-        className={cn(density === 'technical' ? 'grid gap-ui-control-inset' : 'grid gap-ui-xs', className)}
+        className={cn(density === 'technical' ? 'grid gap-ui-control-gap' : 'grid gap-ui-xs', className)}
         {...props}
       />
     </FieldDensityContext.Provider>
@@ -29,8 +29,8 @@ const FieldLabel = forwardRef<HTMLLabelElement, LabelHTMLAttributes<HTMLLabelEle
       <label
         ref={ref}
         className={cn(
-          'font-mono font-medium uppercase tracking-ui-label text-muted-foreground',
-          density === 'technical' ? 'text-system-tiny' : 'text-system-nano',
+          'font-mono font-medium uppercase tracking-ui-field-label text-muted',
+          density === 'technical' ? 'text-product-caption' : 'text-system-nano',
           className,
         )}
         {...props}
@@ -48,7 +48,7 @@ const FieldOptional = forwardRef<HTMLSpanElement, HTMLAttributes<HTMLSpanElement
         ref={ref}
         className={cn(
           'ml-ui-xs font-mono font-normal normal-case tracking-normal text-muted-foreground/65',
-          density === 'technical' ? 'text-system-tiny' : 'text-system-nano',
+          density === 'technical' ? 'text-product-caption' : 'text-system-nano',
           className,
         )}
         {...props}
@@ -67,8 +67,8 @@ const FieldDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLPar
       <p
         ref={ref}
         className={cn(
-          'font-sans text-muted-foreground/85',
-          density === 'technical' ? 'text-system-tiny' : 'text-system-micro',
+          'font-sans text-muted-foreground',
+          density === 'technical' ? 'text-product-caption' : 'text-system-micro',
           className,
         )}
         {...props}
@@ -86,7 +86,7 @@ const FieldError = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraph
         ref={ref}
         className={cn(
           'font-sans text-error',
-          density === 'technical' ? 'text-system-tiny' : 'text-system-micro',
+          density === 'technical' ? 'text-product-caption' : 'text-system-micro',
           className,
         )}
         {...props}

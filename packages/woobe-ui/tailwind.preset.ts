@@ -56,6 +56,7 @@ const woobeTailwindPreset = {
       },
       letterSpacing: {
         'ui-label': woobeTypographyTracking.label,
+        'ui-field-label': woobeTypographyTracking.fieldLabel,
         'ui-eyebrow': woobeTypographyTracking.eyebrow,
       },
       spacing: {

@@ -32,6 +32,7 @@ export interface DialogProps {
   layer?: DialogLayer
   scrollMode?: DialogScrollMode
   variant?: DialogVariant
+  height?: 'content' | 'workspace'
 }
 
 export interface DialogContextBarProps extends HTMLAttributes<HTMLDivElement> {}
@@ -43,14 +44,15 @@ export function DialogContextBar({ className, ...props }: DialogContextBarProps)
 export interface DialogBodyProps extends HTMLAttributes<HTMLDivElement> {
   padded?: boolean
   tone?: DialogBodyTone
+  spacing?: 'panel' | 'workspace'
 }
 
-export function DialogBody({ className, padded = true, tone = 'default', ...props }: DialogBodyProps) {
+export function DialogBody({ className, padded = true, tone = 'default', spacing = 'panel', ...props }: DialogBodyProps) {
   return (
     <div
       className={cn(
         'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain',
-        padded && 'p-ui-panel-inset',
+        padded && (spacing === 'workspace' ? 'woobe-dialog-body-workspace p-ui-lg sm:p-ui-xl lg:p-ui-xxl' : 'p-ui-panel-inset'),
         tone === 'subtle' && 'bg-surface/25',
         className,
       )}
@@ -68,7 +70,7 @@ export function DialogFooter({ className, meta, actions, ...props }: DialogFoote
   return (
     <div
       className={cn(
-        'flex shrink-0 flex-col-reverse gap-ui-sm border-t border-border bg-surface/95 px-ui-panel-inset py-ui-md backdrop-blur sm:flex-row sm:items-center sm:justify-between',
+        'flex shrink-0 flex-col-reverse gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md backdrop-blur lg:px-ui-xxl sm:flex-row sm:items-center sm:justify-between',
         className,
       )}
       {...props}
@@ -94,7 +96,7 @@ export const dialogTypographyClass = [
   '[&_.text-lg]:text-heading-sm [&_.text-base]:text-product-body [&_.text-sm]:text-product-small [&_.text-xs]:text-product-caption',
 ].join(' ')
 
-export function Dialog({ open, onClose, title, children, className, contentClassName, layer = 'modal', scrollMode = 'overlay', variant = 'standard' }: DialogProps) {
+export function Dialog({ open, onClose, title, children, className, contentClassName, layer = 'modal', scrollMode = 'overlay', variant = 'standard', height = 'content' }: DialogProps) {
   const presentation = useContext(DialogPresentationContext)
   const overlayRef = useRef<HTMLDivElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -181,6 +183,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
       className={cn(
         'dialog-scrollbars relative w-full max-w-dialog-compact rounded-container border border-border bg-surface text-accent-foreground shadow-popup',
         workspace && 'flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden',
+        workspace && height === 'workspace' && 'h-dialog-workspace',
         dialogTypographyClass,
         '[&_.rounded-2xl]:rounded-container [&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-control [&_.rounded-md]:rounded-technical',
         '[&_.shadow-sm]:shadow-none [&_.shadow-lg]:shadow-none [&_.shadow-xl]:shadow-none [&_.shadow-2xl]:shadow-none',
@@ -203,6 +206,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
       <div
         className={cn(
           workspace ? 'min-h-0 flex-1 p-0' : 'p-ui-panel-inset',
+          workspace && height === 'workspace' && 'flex flex-col overflow-hidden',
           contentClassName,
           contentScroll && 'scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain',
         )}
@@ -218,7 +222,8 @@ export function Dialog({ open, onClose, title, children, className, contentClass
     <div
       ref={overlayRef}
       className={cn(
-        'fixed inset-0 flex min-h-svh w-screen items-center justify-center bg-background/80 p-ui-content-gutter backdrop-blur-sm',
+        'fixed inset-0 flex min-h-svh w-screen items-center justify-center bg-background/80 backdrop-blur-sm',
+        workspace && height === 'workspace' ? 'p-ui-lg' : 'p-ui-content-gutter',
         contentScroll ? 'overflow-hidden' : 'overflow-y-auto',
         LAYER_CLASS[layer],
       )}

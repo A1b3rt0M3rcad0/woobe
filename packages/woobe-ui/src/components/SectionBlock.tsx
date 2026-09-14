@@ -30,7 +30,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
     const spacing = density === 'compact' ? 'p-ui-md' : 'p-ui-panel-inset'
     const contentGap = hasChildren ? (density === 'compact' || secondary ? 'mb-ui-sm' : 'mb-ui-md') : undefined
     const titleClass = secondary ? 'text-system-control' : 'text-section-title'
-    const descriptionClass = secondary ? 'text-system-nano' : 'text-system-meta'
+    const descriptionClass = 'text-system-meta'
     const familyClass = product ? 'font-sans' : 'font-mono'
 
     return (
@@ -38,7 +38,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
         {(title || description || actions || eyebrow) ? (
           <div className={cn('flex items-start justify-between gap-ui-md', contentGap)}>
             <div className="min-w-0">
-              {eyebrow ? <div className="mb-ui-xs font-mono text-system-nano uppercase tracking-ui-eyebrow text-muted-foreground">{eyebrow}</div> : null}
+              {eyebrow ? <div className="mb-ui-xs font-mono text-system-meta uppercase tracking-ui-eyebrow text-muted-foreground">{eyebrow}</div> : null}
               {title ? (
                 <div className={cn(
                   'font-semibold text-accent-foreground',

@@ -35,7 +35,7 @@ const EmptyStatePanel = forwardRef<HTMLDivElement, EmptyStatePanelProps>(
       {description ? (
         <div className={cn(
           'mt-ui-xs max-w-md font-sans text-muted-foreground',
-          compact ? 'text-system-micro' : 'text-product-caption',
+          'text-product-caption',
         )}>
           {description}
         </div>
