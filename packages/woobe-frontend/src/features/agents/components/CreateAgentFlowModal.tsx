@@ -121,6 +121,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
           title="Connect a model provider"
           description="Create the Project credential without leaving the Agent creation flow."
           density="compact"
+          variant="product"
         >
           <ProviderCredentialCreateForm
             projectId={projectId}
@@ -158,7 +159,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
   return (
     <div className="grid gap-ui-md lg:grid-cols-12">
       <aside className="grid content-start gap-ui-md lg:col-span-4">
-        <SectionBlock title="Provider" description="Select the Project connection used by this generation model." density="compact">
+        <SectionBlock title="Provider" description="Select the Project connection used by this generation model." density="compact" variant="product">
           <div className="grid gap-ui-sm">
             {flow.activeCredentials.length === 1 ? (
               <TechnicalListItem
@@ -187,7 +188,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
           </div>
         </SectionBlock>
 
-        <SectionBlock title="Model source" description="Reuse a Project model or add a provider model." density="compact">
+        <SectionBlock title="Model source" description="Reuse a Project model or add a provider model." density="compact" variant="product">
           <SegmentedControl
             items={sourceItems}
             value={sourceValue}
@@ -212,6 +213,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
           title="Choose the model for this Agent"
           description="The selected model becomes the Agent Draft generation configuration."
           density="compact"
+          variant="product"
         >
           {flow.modelMode === 'existing' ? (
             <SelectableModelList items={existingItems} selectedId={flow.selectedModel?.id} onSelect={flow.selectExistingModel} query={query} onQueryChange={setQuery} />
@@ -286,12 +288,12 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
       variant="workspace"
     >
       {flow.inventoryLoading ? (
-        <div className="p-ui-md"><AgentCreationPreparing /></div>
+        <div className="p-ui-lg"><AgentCreationPreparing /></div>
       ) : flow.inventoryError ? (
-        <div className="p-ui-md"><AgentCreationLoadError onRetry={flow.retryInventory} onCancel={onClose} /></div>
+        <div className="p-ui-lg"><AgentCreationLoadError onRetry={flow.retryInventory} onCancel={onClose} /></div>
       ) : (
-        <div className="flex h-full min-h-0 flex-col overflow-hidden">
-          <DialogContextBar className="p-ui-sm">
+        <div className="flex min-h-0 flex-col overflow-hidden">
+          <DialogContextBar>
             <div className="grid gap-ui-xs sm:grid-cols-3">
               {STEPS.map((step, index) => {
                 const active = step.id === flow.step
@@ -311,14 +313,15 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
             </div>
           </DialogContextBar>
 
-          <ScrollArea className="min-h-0 flex-1 bg-surface/25">
-            <div className="p-ui-md">
+          <ScrollArea className="min-h-0 bg-surface/25">
+            <div className="p-ui-lg">
               {flow.step === 'details' ? (
                 <SectionBlock
                   eyebrow="Agent Draft"
                   title="Define the Agent identity"
                   description="Define the role and primary outcome. Configure the full Behavior in the Agent editor."
                   density="compact"
+                  variant="product"
                 >
                   <div className="grid gap-ui-md md:grid-cols-2">
                     <Field>
@@ -342,15 +345,15 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
 
               {flow.step === 'review' && flow.selectedModel ? (
                 <div className="grid gap-ui-md">
-                  <SectionBlock eyebrow="Review" title="Confirm the initial Agent Draft" description="Creation does not publish a Production release." density="compact" />
+                  <SectionBlock eyebrow="Review" title="Confirm the initial Agent Draft" description="Creation does not publish a Production release." density="compact" variant="product" />
                   <div className="grid gap-ui-md md:grid-cols-2">
-                    <SectionBlock title="Agent" density="compact">
+                    <SectionBlock title="Agent" density="compact" variant="product">
                       <TechnicalListItem density="compact" label={flow.agentName} description={flow.agentDescription || 'No description'} />
                     </SectionBlock>
-                    <SectionBlock title="Model" density="compact">
+                    <SectionBlock title="Model" density="compact" variant="product">
                       <TechnicalListItem density="compact" label={flow.selectedModel.name} description={`${providerLabel(flow.selectedModel.provider)} · ${flow.selectedModel.model}`} />
                     </SectionBlock>
-                    <SectionBlock title="Objective" density="compact" className="md:col-span-2">
+                    <SectionBlock title="Objective" density="compact" variant="product" className="md:col-span-2">
                       <p className="whitespace-pre-wrap font-sans text-product-small text-accent-foreground/90">{flow.agentObjective}</p>
                     </SectionBlock>
                   </div>
