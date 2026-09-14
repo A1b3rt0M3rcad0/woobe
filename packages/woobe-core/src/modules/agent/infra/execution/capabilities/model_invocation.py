@@ -20,6 +20,17 @@ class ModelInvocationCapability:
     context_assembler: ContextAssembler | None = None
     invoke_fn: ModelInvokeFn = invoke_llm
 
+    def for_model(self, model: Any) -> ModelInvocationCapability:
+        """Reuse the same runtime guarantees with a different prepared model instance."""
+        return ModelInvocationCapability(
+            model=model,
+            provider=self.provider,
+            model_name=self.model_name,
+            pricing_snapshot=self.pricing_snapshot,
+            context_assembler=self.context_assembler,
+            invoke_fn=self.invoke_fn,
+        )
+
     async def invoke(
         self,
         *,
