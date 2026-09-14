@@ -9,6 +9,7 @@ export type DialogPresentation = 'modal' | 'embedded'
 export type DialogScrollMode = 'overlay' | 'content'
 export type DialogLayer = 'modal' | 'nestedModal'
 export type DialogVariant = 'standard' | 'workspace'
+export type DialogBodyTone = 'default' | 'subtle'
 
 const DialogPresentationContext = createContext<DialogPresentation>('modal')
 
@@ -41,14 +42,16 @@ export function DialogContextBar({ className, ...props }: DialogContextBarProps)
 
 export interface DialogBodyProps extends HTMLAttributes<HTMLDivElement> {
   padded?: boolean
+  tone?: DialogBodyTone
 }
 
-export function DialogBody({ className, padded = true, ...props }: DialogBodyProps) {
+export function DialogBody({ className, padded = true, tone = 'default', ...props }: DialogBodyProps) {
   return (
     <div
       className={cn(
         'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain',
         padded && 'p-ui-panel-inset',
+        tone === 'subtle' && 'bg-surface/25',
         className,
       )}
       {...props}
