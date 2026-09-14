@@ -40,6 +40,13 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
     const card = presentation === 'card'
     const row = presentation === 'row'
     const plain = presentation === 'plain'
+    const columns = leading && trailing
+      ? 'grid-cols-[auto_minmax(0,1fr)_auto]'
+      : leading
+        ? 'grid-cols-[auto_minmax(0,1fr)]'
+        : trailing
+          ? 'grid-cols-[minmax(0,1fr)_auto]'
+          : 'grid-cols-1'
 
     const handleClick = (event: MouseEvent<HTMLDivElement>) => {
       if (disabled) return
@@ -65,7 +72,8 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         className={cn(
-          'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center text-left transition-colors',
+          'grid w-full items-center text-left transition-colors',
+          columns,
           card && 'rounded-container border',
           card && (compact ? 'gap-ui-sm px-ui-sm py-ui-xs' : 'gap-ui-md px-ui-md py-ui-control-gap'),
           row && 'gap-ui-sm border-b border-border/75 px-ui-sm py-ui-sm last:border-b-0',
@@ -82,7 +90,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
         )}
         {...props}
       >
-        {leading ? <span className="shrink-0">{leading}</span> : <span aria-hidden="true" />}
+        {leading ? <span className="shrink-0">{leading}</span> : null}
         <span className="min-w-0">
           <span className={cn(
             'block font-mono font-semibold',
@@ -107,7 +115,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
           ) : null}
           {meta ? <span className="mt-ui-hairline flex min-w-0 flex-wrap items-center gap-x-ui-sm gap-y-ui-xs font-mono text-system-nano text-muted-foreground">{meta}</span> : null}
         </span>
-        {trailing ? <span className="shrink-0">{trailing}</span> : <span aria-hidden="true" />}
+        {trailing ? <span className="shrink-0">{trailing}</span> : null}
       </div>
     )
   },
