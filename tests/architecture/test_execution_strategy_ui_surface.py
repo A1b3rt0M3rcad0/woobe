@@ -5,7 +5,7 @@ ROOT = Path(__file__).resolve().parents[2]
 FRONTEND = ROOT / "packages" / "woobe-frontend" / "src"
 AGENT_FEATURE = FRONTEND / "features" / "agents"
 PLAYGROUND = FRONTEND / "features" / "playground"
-API_ROUTES = (
+API_AGENT_ROOT = (
     ROOT
     / "packages"
     / "woobe-api"
@@ -13,8 +13,9 @@ API_ROUTES = (
     / "woobe_api"
     / "http"
     / "agent"
-    / "execution_strategy_routes.py"
 )
+API_ROUTES = API_AGENT_ROOT / "execution_strategy_routes.py"
+API_INIT = API_AGENT_ROOT / "__init__.py"
 
 
 def _source(path: Path) -> str:
@@ -52,7 +53,10 @@ def test_playground_exposes_draft_strategy_selection_but_locks_snapshots() -> No
 def test_frontend_and_backend_share_execution_strategy_catalog_endpoint() -> None:
     frontend_api = _source(AGENT_FEATURE / "api.ts")
     backend_route = _source(API_ROUTES)
+    api_init = _source(API_INIT)
 
     assert "'/ai/execution-strategies'" in frontend_api
     assert '"/execution-strategies"' in backend_route
     assert "list_execution_strategies" in backend_route
+    assert "execution_strategy_router" in api_init
+    assert "execution_strategy_router," in api_init
