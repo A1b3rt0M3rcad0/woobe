@@ -7,7 +7,7 @@ import { UI_LAYER_CLASS } from '@/lib/ui-layers'
 import { cn } from '@/lib/utils'
 import {
   executionStrategyDescriptor,
-  executionStrategyFromRuntimeConfig,
+  executionStrategyForEnvironment,
   executionStrategySelectOptions,
   withExecutionStrategy,
 } from '@/features/agents/executionStrategy'
@@ -61,15 +61,11 @@ export function PlaygroundHeader({
   const { data: releases = [] } = useReleases(agent.id)
   const { data: executionStrategies = [], isLoading: executionStrategiesLoading, isError: executionStrategiesError } = useExecutionStrategies()
 
-  const immutableRelease = environment === 'staging'
-    ? releases.find((release) => release.status === 'staging') ?? null
-    : environment === 'production'
-      ? releases.find((release) => release.status === 'production') ?? null
-      : null
-  const executionRuntimeConfig = environment === 'draft'
-    ? state.runtimeConfig
-    : immutableRelease?.runtime_config ?? {}
-  const executionStrategy = executionStrategyFromRuntimeConfig(executionRuntimeConfig)
+  const executionStrategy = executionStrategyForEnvironment(
+    environment,
+    state.runtimeConfig,
+    releases,
+  )
   const strategyOptions = executionStrategySelectOptions(executionStrategies, executionStrategy)
   const selectedStrategy = executionStrategyDescriptor(executionStrategies, executionStrategy)
   const strategyCatalogReady = !executionStrategiesLoading && !executionStrategiesError && executionStrategies.length > 0
