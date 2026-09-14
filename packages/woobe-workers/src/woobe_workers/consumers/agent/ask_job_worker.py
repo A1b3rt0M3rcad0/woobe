@@ -5,7 +5,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from modules.agent.background_boundary import AskInput
 from modules.agent.background_boundary import AskJob
-from modules.agent.background_boundary import LangchainEmbeddingFactory
 from modules.agent.background_boundary import LangchainLLMFactory
 from modules.agent.background_boundary import HttpToolExecutor
 from modules.agent.background_boundary import SQLAlchemyAskJobRepository
@@ -18,6 +17,7 @@ from modules.agent.background_boundary import build_runtime_context_assembler
 from modules.agent.background_boundary import (
     TransactionBoundedStructuredOutputRuntime,
 )
+from modules.agent.entrypoint import build_rag_runtime_adapter
 from woobe_workers.settings import WorkerSettings
 
 logger = logging.getLogger(__name__)
@@ -66,7 +66,12 @@ class AskJobWorker:
         execution.configure_context_assembler(
             build_runtime_context_assembler(settings.default_context_manager)
         )
-        execution.configure_rag_embedding_factory(LangchainEmbeddingFactory())
+        execution.configure_rag_runtime(
+            build_rag_runtime_adapter(
+                transactions,
+                encryption_key=settings.encryption_key,
+            )
+        )
         execution.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
 
         params = job.params or {}
