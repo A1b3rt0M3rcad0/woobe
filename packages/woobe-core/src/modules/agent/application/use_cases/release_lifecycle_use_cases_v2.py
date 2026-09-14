@@ -8,6 +8,9 @@ from modules.agent.application.context_assembler_registry import (
     canonicalize_context_assembler_runtime_config,
 )
 from modules.agent.application.context_policy import canonicalize_context_runtime_config
+from modules.agent.application.execution_strategy_config import (
+    canonicalize_execution_strategy_runtime_config,
+)
 from modules.agent.application.dtos.ai_dtos import CreateReleaseInput, CreateReleaseOutput
 from modules.agent.application.dtos.behavior_dtos import canonicalize_behavior_spec
 from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
@@ -35,6 +38,7 @@ _SNAPSHOT_FIELDS = (
 
 def _canonical_runtime_config(value) -> dict:
     runtime_config = canonicalize_context_assembler_runtime_config(value)
+    runtime_config = canonicalize_execution_strategy_runtime_config(runtime_config)
     runtime_config = canonicalize_context_runtime_config(runtime_config)
     raw_rag = runtime_config.get("rag")
     runtime_config["rag"] = RAGRuntimeConfig.model_validate(
