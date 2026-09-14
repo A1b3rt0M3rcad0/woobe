@@ -9,7 +9,10 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
-from modules.agent.infra.execution import transaction_bounded_rag as rag_module
+from modules.agent.application.rag.registry import RAGStrategyRegistry
+from modules.agent.application.rag.strategies.classic import ClassicRAGStrategy
+from modules.agent.infra.execution.rag import embedding_capability as embedding_module
+from modules.agent.infra.execution.rag.runtime_adapter import RAGRuntimeAdapter
 from modules.agent.infra.execution.transaction_bounded_rag import (
     TransactionBoundedVectorSnapshotRAGMixin,
 )
@@ -56,11 +59,24 @@ class _EmbeddingFactory:
         return self.client
 
 
+class _VectorSearch:
+    def __init__(self, guard: _Guard, snapshot_id, chunk) -> None:
+        self.guard = guard
+        self.snapshot_id = snapshot_id
+        self.chunk = chunk
+
+    async def search(self, **kwargs):
+        assert kwargs["vector_snapshot_id"] == self.snapshot_id
+        assert kwargs["embedding"] == [0.1, 0.2, 0.3]
+
+        async def sql_read():
+            return [(self.chunk, 0.95)]
+
+        return await self.guard.read(sql_read)
+
+
 class _RAGRuntime(TransactionBoundedVectorSnapshotRAGMixin):
-    def __init__(self, factory, reader) -> None:
-        self._embedding_factory = factory
-        self._vector_search_reader = reader
-        self._encryption_key = "test-key"
+    pass
 
 
 @pytest.mark.asyncio
@@ -97,16 +113,16 @@ async def test_rag_embedding_is_external_and_vector_search_is_read_only(monkeypa
         page_number=1,
     )
 
-    async def vector_reader(**kwargs):
-        assert kwargs["vector_snapshot_id"] == snapshot_id
-        assert kwargs["embedding"] == [0.1, 0.2, 0.3]
-
-        async def sql_read():
-            return [(chunk, 0.95)]
-
-        return await guard.read(sql_read)
-
-    runtime = _RAGRuntime(_EmbeddingFactory(client), vector_reader)
+    registry = RAGStrategyRegistry()
+    registry.register("classic", ClassicRAGStrategy())
+    adapter = RAGRuntimeAdapter(
+        registry=registry,
+        embedding_factory=_EmbeddingFactory(client),
+        vector_search=_VectorSearch(guard, snapshot_id, chunk),
+        encryption_key="test-key",
+    )
+    runtime = _RAGRuntime()
+    runtime.configure_rag_runtime(adapter)
     agent = SimpleNamespace(
         id=agent_id,
         project_id=project_id,
@@ -133,7 +149,7 @@ async def test_rag_embedding_is_external_and_vector_search_is_read_only(monkeypa
         "snapshot_documents": snapshot_documents,
     }
 
-    monkeypatch.setattr(rag_module, "decrypt_secret", lambda *_args: "embedding-key")
+    monkeypatch.setattr(embedding_module, "decrypt_secret", lambda *_args: "embedding-key")
     token = current_execution.set(context)
     try:
         rag_context, sources = await runtime._load_rag_context(
@@ -151,4 +167,5 @@ async def test_rag_embedding_is_external_and_vector_search_is_read_only(monkeypa
     assert "Woobe is the control plane." in rag_context
     assert len(sources) == 1
     assert sources[0].document_id == str(document_id)
+    assert context.rag_metadata["strategy"] == "classic"
     assert context.rag_metadata["vector_snapshot_id"] == str(snapshot_id)
