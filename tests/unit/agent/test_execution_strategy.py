@@ -63,13 +63,25 @@ def test_canonicalization_freezes_standard_without_losing_other_runtime_config()
     assert "execution_strategy" not in source
 
 
-def test_release_runtime_config_freezes_execution_strategy() -> None:
-    runtime_config = _canonical_runtime_config({})
+def test_release_runtime_config_preserves_explicit_execution_strategy() -> None:
+    runtime_config = _canonical_runtime_config({"execution_strategy": "STANDARD"})
 
     assert runtime_config["execution_strategy"] == "standard"
     assert "context_assembler" in runtime_config
     assert "context" in runtime_config
     assert "rag" in runtime_config
+
+
+def test_legacy_release_snapshot_keeps_absence_with_standard_semantics() -> None:
+    runtime_config = _canonical_runtime_config({})
+
+    assert "execution_strategy" not in runtime_config
+    assert execution_strategy_from_runtime_config(runtime_config) == "standard"
+
+
+def test_release_runtime_config_rejects_unknown_execution_strategy() -> None:
+    with pytest.raises(ValidationError, match="Unsupported execution strategy: react"):
+        _canonical_runtime_config({"execution_strategy": "react"})
 
 
 def test_builtin_resolver_resolves_standard_strategy() -> None:
