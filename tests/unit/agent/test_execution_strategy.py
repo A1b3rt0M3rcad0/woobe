@@ -123,29 +123,30 @@ async def test_standard_strategy_composes_execution_capabilities(monkeypatch) ->
     calls: list[str] = []
     sentinel = InstrumentedExecution(result=SimpleNamespace(content="ok"))
     prepared = SimpleNamespace(
-        model="model",
+        messages=["prepared"],
         final_model="final-model",
         final_model_factory=None,
-        execute_single_tool=lambda *_args: None,
-        messages=["prepared"],
-        tool_name_to_id={"tool": "tool-id"},
-        provider="provider",
-        model_name="model-name",
         initial_phase="response_generation",
         final_json_instruction=None,
-        pricing_snapshot={"input": 1},
     )
+    capabilities = object()
 
     def fake_prepare(request):
         calls.append("prepare")
         assert request.messages == ["hello"]
         return prepared
 
+    def fake_build(**kwargs):
+        calls.append("capabilities")
+        assert kwargs["prepared"] is prepared
+        assert kwargs["strategy_name"] == "standard"
+        return capabilities
+
     async def fake_loop(**kwargs):
         calls.append("loop")
-        assert kwargs["model"] == "model"
+        assert kwargs["capabilities"] is capabilities
         assert kwargs["messages"] == ["prepared"]
-        assert kwargs["tool_name_to_id"] == {"tool": "tool-id"}
+        assert kwargs["initial_phase"] == "response_generation"
         return sentinel, 7
 
     async def fake_finalize(**kwargs):
@@ -160,7 +161,11 @@ async def test_standard_strategy_composes_execution_capabilities(monkeypatch) ->
         fake_prepare,
     )
     monkeypatch.setattr(
-        "modules.agent.infra.execution.strategies.standard.run_tool_loop",
+        "modules.agent.infra.execution.strategies.standard.build_execution_capabilities",
+        fake_build,
+    )
+    monkeypatch.setattr(
+        "modules.agent.infra.execution.strategies.standard.run_standard_strategy_loop",
         fake_loop,
     )
     monkeypatch.setattr(
@@ -186,7 +191,7 @@ async def test_standard_strategy_composes_execution_capabilities(monkeypatch) ->
     result = await StandardExecutionStrategy().execute(request)
 
     assert result is sentinel
-    assert calls == ["prepare", "loop", "finalize"]
+    assert calls == ["prepare", "capabilities", "loop", "finalize"]
 
 
 class _RecordingStrategy:
