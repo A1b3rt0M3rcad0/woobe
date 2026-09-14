@@ -18,7 +18,7 @@ class ModelInvocationCapability:
     model_name: str
     pricing_snapshot: dict[str, Any] | None = None
     context_assembler: ContextAssembler | None = None
-    invoke_fn: ModelInvokeFn = invoke_llm
+    invoke_fn: ModelInvokeFn | None = None
 
     def for_model(self, model: Any) -> ModelInvocationCapability:
         """Reuse the same runtime guarantees with a different prepared model instance."""
@@ -38,7 +38,8 @@ class ModelInvocationCapability:
         phase: str,
         call_index: int,
     ) -> tuple[Any, dict[str, Any]]:
-        return await self.invoke_fn(
+        invoke = self.invoke_fn or invoke_llm
+        return await invoke(
             model=self.model,
             messages=messages,
             phase=phase,
