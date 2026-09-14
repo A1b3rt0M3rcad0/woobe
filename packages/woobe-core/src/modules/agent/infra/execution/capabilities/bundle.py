@@ -25,6 +25,7 @@ def build_execution_capabilities(
 ) -> ExecutionCapabilities:
     return ExecutionCapabilities(
         model=ModelInvocationCapability(
+            model=prepared.model,
             provider=prepared.provider,
             model_name=prepared.model_name,
             pricing_snapshot=prepared.pricing_snapshot,
