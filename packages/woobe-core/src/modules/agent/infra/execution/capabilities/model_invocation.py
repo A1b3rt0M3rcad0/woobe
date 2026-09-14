@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Awaitable, Callable
 
 from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.infra.execution.durable_execution_instrumentation import invoke_llm
+
+ModelInvokeFn = Callable[..., Awaitable[tuple[Any, dict[str, Any]]]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -16,6 +18,7 @@ class ModelInvocationCapability:
     model_name: str
     pricing_snapshot: dict[str, Any] | None = None
     context_assembler: ContextAssembler | None = None
+    invoke_fn: ModelInvokeFn = invoke_llm
 
     async def invoke(
         self,
@@ -24,7 +27,7 @@ class ModelInvocationCapability:
         phase: str,
         call_index: int,
     ) -> tuple[Any, dict[str, Any]]:
-        return await invoke_llm(
+        return await self.invoke_fn(
             model=self.model,
             messages=messages,
             phase=phase,
