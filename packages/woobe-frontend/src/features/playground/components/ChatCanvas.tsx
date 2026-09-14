@@ -45,6 +45,7 @@ interface ChatCanvasProps {
   composerStatusText?: string
   preparingText?: string
   enableFirstRunSuccess?: boolean
+  density?: 'default' | 'compact'
 }
 
 const defaultSuggestions = [
@@ -77,20 +78,24 @@ function isEmptyTerminalAssistantPlaceholder(
     && !(message.sources?.length)
 }
 
-function SessionMessagesLoading() {
+function SessionMessagesLoading({ compact = false }: { compact?: boolean }) {
   return (
-    <div className="relative flex h-full items-center justify-center px-ui-xxl">
+    <div className={compact ? 'relative flex h-full items-center justify-center px-ui-md' : 'relative flex h-full items-center justify-center px-ui-xxl'}>
       <div className="w-full max-w-2xl space-y-ui-md">
         <div className="flex justify-start gap-ui-sm">
           <div className="h-control-segment w-control-segment shrink-0 animate-pulse rounded-control border border-border bg-control" />
-          <div className="w-[72%] space-y-ui-sm rounded-container border border-border bg-surface/60 px-ui-md py-ui-sm">
+          <div className={compact
+            ? 'w-[82%] space-y-ui-sm rounded-control border border-border bg-surface/60 px-ui-sm py-ui-sm'
+            : 'w-[72%] space-y-ui-sm rounded-container border border-border bg-surface/60 px-ui-md py-ui-sm'}>
             <div className="h-2.5 w-1/2 animate-pulse rounded-technical bg-white/[0.07]" />
             <div className="h-2.5 w-full animate-pulse rounded-technical bg-white/[0.07]" />
             <div className="h-2.5 w-2/3 animate-pulse rounded-technical bg-white/[0.07]" />
           </div>
         </div>
         <div className="flex justify-end gap-ui-sm">
-          <div className="w-[52%] space-y-ui-sm rounded-container border border-primary/20 bg-primary/[0.08] px-ui-md py-ui-sm">
+          <div className={compact
+            ? 'w-[68%] space-y-ui-sm rounded-control border border-primary/20 bg-primary/[0.08] px-ui-sm py-ui-sm'
+            : 'w-[52%] space-y-ui-sm rounded-container border border-primary/20 bg-primary/[0.08] px-ui-md py-ui-sm'}>
             <div className="ml-auto h-2.5 w-full animate-pulse rounded-technical bg-white/[0.08]" />
             <div className="ml-auto h-2.5 w-2/3 animate-pulse rounded-technical bg-white/[0.08]" />
           </div>
@@ -124,6 +129,7 @@ export function ChatCanvas({
   composerStatusText,
   preparingText,
   enableFirstRunSuccess = true,
+  density = 'default',
 }: ChatCanvasProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesContentRef = useRef<HTMLDivElement>(null)
@@ -135,6 +141,7 @@ export function ChatCanvas({
   const [showFirstRunSuccess, setShowFirstRunSuccess] = useState(false)
   const stopState = useAgentStreamStopState()
   const stopping = isStopping ?? stopState === 'stopping'
+  const compact = density === 'compact'
   const resolvedEntries = useMemo<ChatCanvasEntry[]>(
     () => entries ?? (messages ?? []).map((message, index) => ({ key: String(index), message })),
     [entries, messages],
@@ -215,13 +222,15 @@ export function ChatCanvas({
 
   return (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden bg-background">
-      <ScrollArea ref={messagesContainerRef} className="relative min-h-0 flex-1" onScroll={handleScroll}>
+      <ScrollArea ref={messagesContainerRef} className="relative min-h-0 min-w-0 flex-1" onScroll={handleScroll}>
         <div aria-hidden="true" className="pointer-events-none absolute inset-0 bg-technical-grid bg-technical-grid opacity-100" />
 
         {isSessionLoading ? (
-          <SessionMessagesLoading />
+          <SessionMessagesLoading compact={compact} />
         ) : isEmpty ? (
-          <div className="relative flex h-full flex-col items-center justify-center px-ui-xxl text-center">
+          <div className={compact
+            ? 'relative flex h-full min-w-0 flex-col items-center justify-center px-ui-md text-center'
+            : 'relative flex h-full min-w-0 flex-col items-center justify-center px-ui-xxl text-center'}>
             <div className="mb-ui-md flex h-control-nav w-control-nav items-center justify-center rounded-control border border-border bg-control text-primary-light">
               <EmptyIcon className="h-icon-lg w-icon-lg" />
             </div>
@@ -230,15 +239,19 @@ export function ChatCanvas({
               {runtimeBlocked ? runtimeBlockReason : emptyDescription}
             </p>
             {!runtimeBlocked && (
-              <div className="mt-ui-xl w-full max-w-md divide-y divide-border/60 overflow-hidden rounded-container border border-border bg-surface/45 text-left">
+              <div className={compact
+                ? 'mt-ui-md w-full max-w-md divide-y divide-border/60 overflow-hidden rounded-control border border-border bg-surface/45 text-left'
+                : 'mt-ui-xl w-full max-w-md divide-y divide-border/60 overflow-hidden rounded-container border border-border bg-surface/45 text-left'}>
                 {suggestions.map((suggestion) => (
                   <button
                     key={suggestion}
                     type="button"
                     onClick={() => handleSend(suggestion)}
-                    className="group flex min-h-control-row w-full items-center justify-between gap-ui-md px-ui-md py-ui-sm font-sans text-product-small text-muted-foreground transition-colors hover:bg-control/45 hover:text-slate-100"
+                    className={compact
+                      ? 'group flex min-h-control w-full items-center justify-between gap-ui-sm px-ui-sm py-ui-sm font-sans text-product-caption text-muted-foreground transition-colors hover:bg-control/45 hover:text-slate-100'
+                      : 'group flex min-h-control-row w-full items-center justify-between gap-ui-md px-ui-md py-ui-sm font-sans text-product-small text-muted-foreground transition-colors hover:bg-control/45 hover:text-slate-100'}
                   >
-                    <span>{suggestion}</span>
+                    <span className="min-w-0">{suggestion}</span>
                     <ArrowRight className="h-icon w-icon shrink-0 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-primary-light" />
                   </button>
                 ))}
@@ -246,7 +259,9 @@ export function ChatCanvas({
             )}
           </div>
         ) : (
-          <div ref={messagesContentRef} className="relative space-y-ui-md p-ui-lg pb-ui-sm">
+          <div ref={messagesContentRef} className={compact
+            ? 'relative min-w-0 space-y-ui-sm p-ui-sm pb-ui-xs'
+            : 'relative min-w-0 space-y-ui-md p-ui-lg pb-ui-sm'}>
             {visibleEntries.map((entry, index) => {
               const content = (
                 <ChatMessage
@@ -254,6 +269,7 @@ export function ChatCanvas({
                   isStreaming={entry.isStreaming ?? (entry.message.role === 'assistant' && isSending && index === visibleEntries.length - 1)}
                   isLast={index === visibleEntries.length - 1}
                   agentName={entry.agentName ?? agentName}
+                  variant={compact ? 'network' : 'playground'}
                   assistantIcon={entry.assistantIcon ?? assistantIcon}
                   details={entry.details}
                   footerMeta={entry.footerMeta}
@@ -266,7 +282,9 @@ export function ChatCanvas({
                 : <Fragment key={key}>{content}</Fragment>
             })}
             {showFirstRunSuccess && (
-              <div className="mx-auto flex max-w-2xl items-start gap-ui-sm border-l-2 border-l-primary bg-primary/[0.045] px-ui-md py-ui-sm text-left">
+              <div className={compact
+                ? 'mx-auto flex max-w-2xl items-start gap-ui-sm border-l-2 border-l-primary bg-primary/[0.045] px-ui-sm py-ui-sm text-left'
+                : 'mx-auto flex max-w-2xl items-start gap-ui-sm border-l-2 border-l-primary bg-primary/[0.045] px-ui-md py-ui-sm text-left'}>
                 <CheckCircle2 className="mt-ui-hairline h-icon w-icon shrink-0 text-primary-light" />
                 <div>
                   <p className="font-mono text-system-label font-semibold text-slate-100">First test completed</p>
@@ -292,6 +310,7 @@ export function ChatCanvas({
         placeholder={composerPlaceholder}
         statusText={composerStatusText}
         preparingText={preparingText}
+        density={density}
       />
     </section>
   )

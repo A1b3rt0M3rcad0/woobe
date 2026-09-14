@@ -301,10 +301,10 @@ export function AgentManagerModal({
       open={open}
       onClose={onClose}
       title="Manage Agent"
-      className="flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden"
-      contentClassName="min-h-0 flex-1 p-0"
+      variant="workspace"
+      height="workspace"
     >
-      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
         <header className="flex shrink-0 items-center gap-ui-md border-b border-border bg-background/20 px-ui-lg py-ui-sm">
           <span className="flex h-control-nav w-control-nav items-center justify-center rounded-control border border-border bg-control text-primary-light">
             <History className="h-icon w-icon" />

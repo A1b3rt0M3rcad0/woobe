@@ -112,9 +112,9 @@ export function JsonEditor({
   const hasTopBar = title || (editable && actions.length > 0)
 
   return (
-    <div className={cn('space-y-ui-sm', className)}>
+    <div className={cn('min-w-0 max-w-full space-y-ui-sm', className)}>
       {hasTopBar ? (
-        <div className="flex items-center justify-between gap-ui-sm">
+        <div className="flex min-w-0 items-center justify-between gap-ui-sm">
           {title ? <span className="truncate font-mono text-system-label font-medium text-muted-foreground">{title}</span> : null}
           {editable && actions.length > 0 ? (
             <div className="flex shrink-0 items-center gap-ui-xs">
@@ -128,7 +128,7 @@ export function JsonEditor({
       ) : null}
       <div
         className={cn(
-          'overflow-auto rounded-container border bg-background/30 scrollbar-thin transition-colors',
+          'min-w-0 max-w-full overflow-auto rounded-container border bg-background/30 scrollbar-thin transition-colors',
           errorMessage ? 'border-error/50' : validationSuccess ? 'border-success/50' : 'border-border',
         )}
         style={{ minHeight: cssSize(minHeight), maxHeight: cssSize(maxHeight) }}
@@ -140,7 +140,7 @@ export function JsonEditor({
           readOnly={!editable || disabled}
           basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: true, highlightActiveLineGutter: true }}
           placeholder={placeholder}
-          className={cn(disabled && 'pointer-events-none opacity-50')}
+          className={cn('min-w-0 max-w-full', disabled && 'pointer-events-none opacity-50')}
           theme="none"
         />
       </div>
