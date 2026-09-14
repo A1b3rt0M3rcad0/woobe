@@ -15,8 +15,8 @@ const variantClasses: Record<BadgeVariant, string> = {
 }
 
 const sizeClasses: Record<BadgeSize, string> = {
-  compact: 'gap-ui-hairline px-ui-xs py-ui-hairline text-system-nano',
-  default: 'gap-ui-xs px-ui-sm py-ui-xs text-system-nano',
+  compact: 'gap-ui-hairline px-ui-xs py-ui-hairline text-system-meta',
+  default: 'gap-ui-xs px-ui-sm py-ui-xs text-system-meta',
 }
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
