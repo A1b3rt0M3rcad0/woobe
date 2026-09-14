@@ -14,6 +14,10 @@ STANDARD_STRATEGY = STRATEGIES_ROOT / "standard.py"
 RESOLVER = STRATEGIES_ROOT / "resolver.py"
 MODEL_CAPABILITY = CAPABILITIES_ROOT / "model_invocation.py"
 TOOL_CAPABILITY = CAPABILITIES_ROOT / "tool_execution.py"
+RECOVERY_CAPABILITY = CAPABILITIES_ROOT / "recovery.py"
+MESSAGE_PROGRESSION = CAPABILITIES_ROOT / "message_progression.py"
+LEGACY_LOOP = EXECUTION_ROOT / "tool_execution_loop.py"
+LEGACY_RUNNER = EXECUTION_ROOT / "instrumented_execution_runner.py"
 PRIMARY_RUNTIME = EXECUTION_ROOT / "instrumented_primary_mixin.py"
 RUNTIME_FACTORY = AGENT_ROOT / "composition" / "factories" / "ask_agent_runtime_factory.py"
 ASK_JOB_WORKER = (
@@ -60,12 +64,17 @@ def test_execution_strategy_partition_is_explicit() -> None:
     assert (STRATEGIES_ROOT / "README.md").is_file()
     assert STANDARD_STRATEGY.is_file()
     assert RESOLVER.is_file()
-    assert (CAPABILITIES_ROOT / "preparation.py").is_file()
-    assert (CAPABILITIES_ROOT / "result_finalization.py").is_file()
-    assert MODEL_CAPABILITY.is_file()
-    assert TOOL_CAPABILITY.is_file()
-    assert (CAPABILITIES_ROOT / "bundle.py").is_file()
-    assert (CAPABILITIES_ROOT / "state.py").is_file()
+    for path in (
+        CAPABILITIES_ROOT / "preparation.py",
+        CAPABILITIES_ROOT / "result_finalization.py",
+        MODEL_CAPABILITY,
+        TOOL_CAPABILITY,
+        RECOVERY_CAPABILITY,
+        MESSAGE_PROGRESSION,
+        CAPABILITIES_ROOT / "bundle.py",
+        CAPABILITIES_ROOT / "state.py",
+    ):
+        assert path.is_file()
     assert (
         AGENT_ROOT / "application" / "interfaces" / "execution_strategy.py"
     ).is_file()
@@ -85,10 +94,14 @@ def test_strategies_do_not_depend_on_legacy_instrumented_runner() -> None:
     )
 
 
-def test_strategies_cannot_bypass_durable_model_or_tool_capabilities() -> None:
+def test_strategies_cannot_bypass_runtime_guarantees() -> None:
     forbidden = (
         "modules.agent.infra.execution.durable_execution_instrumentation",
         "modules.agent.infra.database",
+        "modules.agent.infra.execution.instrumented_execution_finalizer",
+        "modules.agent.infra.execution.instrumented_failed_finalizer",
+        "modules.agent.infra.execution.runtime_streaming",
+        "modules.network",
     )
     violations: list[str] = []
 
@@ -116,7 +129,21 @@ def test_model_and_tool_capabilities_use_durable_instrumentation() -> None:
     assert _imports_module(TOOL_CAPABILITY, durable_module, "execute_tool_call")
 
 
-def test_standard_strategy_composes_shared_execution_capabilities() -> None:
+def test_recovery_capability_uses_strategy_neutral_checkpoint_contract() -> None:
+    checkpoint_module = "modules.agent.infra.execution.agent_recovery_checkpoint"
+    assert _imports_module(
+        RECOVERY_CAPABILITY,
+        checkpoint_module,
+        "checkpoint_strategy_boundary",
+    )
+    assert _imports_module(
+        RECOVERY_CAPABILITY,
+        checkpoint_module,
+        "load_strategy_execution_resume",
+    )
+
+
+def test_standard_strategy_owns_loop_and_composes_shared_capabilities() -> None:
     assert _imports_module(
         STANDARD_STRATEGY,
         "modules.agent.infra.execution.capabilities.preparation",
@@ -124,23 +151,50 @@ def test_standard_strategy_composes_shared_execution_capabilities() -> None:
     )
     assert _imports_module(
         STANDARD_STRATEGY,
+        "modules.agent.infra.execution.capabilities.bundle",
+        "build_execution_capabilities",
+    )
+    assert _imports_module(
+        STANDARD_STRATEGY,
         "modules.agent.infra.execution.capabilities.result_finalization",
         "finalize_execution_result",
     )
+    assert not _imports_module(
+        STANDARD_STRATEGY,
+        "modules.agent.infra.execution.tool_execution_loop",
+    )
+    assert _calls(STANDARD_STRATEGY, "checkpoint")
+    assert _calls(STANDARD_STRATEGY, "execute_many")
+    assert _calls(STANDARD_STRATEGY, "invoke")
 
 
-def test_standard_strategy_is_only_composed_by_strategy_resolver() -> None:
+def test_legacy_execution_entrypoints_delegate_to_standard_strategy() -> None:
+    standard_module = "modules.agent.infra.execution.strategies.standard"
+    assert _imports_module(
+        LEGACY_RUNNER,
+        standard_module,
+        "StandardExecutionStrategy",
+    )
+    assert _imports_module(
+        LEGACY_LOOP,
+        standard_module,
+        "run_standard_strategy_loop",
+    )
+
+
+def test_concrete_standard_strategy_class_only_leaks_to_resolver_and_compat_runner() -> None:
     module = "modules.agent.infra.execution.strategies.standard"
+    allowed = {STANDARD_STRATEGY, RESOLVER, LEGACY_RUNNER}
     violations: list[str] = []
 
     for path in AGENT_ROOT.rglob("*.py"):
-        if path in {STANDARD_STRATEGY, RESOLVER}:
+        if path in allowed:
             continue
-        if _imports_module(path, module):
+        if _imports_module(path, module, "StandardExecutionStrategy"):
             violations.append(path.relative_to(ROOT).as_posix())
 
     assert not violations, (
-        "Concrete StandardExecutionStrategy leaked outside the resolver: "
+        "Concrete StandardExecutionStrategy leaked outside resolver/compatibility runner: "
         + ", ".join(violations)
     )
 
