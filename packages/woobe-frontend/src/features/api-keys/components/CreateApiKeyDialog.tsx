@@ -8,6 +8,7 @@ import {
   Badge,
   Button,
   Dialog,
+  DialogFooter,
   EmptyStatePanel,
   Field,
   FieldDescription,
@@ -93,11 +94,7 @@ function TargetList({
 }) {
   const [query, setQuery] = useState('')
   const items = targetType === 'agent'
-    ? agents.map((agent) => ({
-        id: agent.id,
-        name: agent.name,
-        description: `${agent.provider} · ${agent.model}`,
-      }))
+    ? agents.map((agent) => ({ id: agent.id, name: agent.name, description: `${agent.provider} · ${agent.model}` }))
     : networks.map((network) => ({
         id: network.id,
         name: network.name,
@@ -105,9 +102,7 @@ function TargetList({
       }))
   const visibleItems = useMemo(() => {
     const normalized = query.trim().toLowerCase()
-    const candidates = locked && selectedTargetId
-      ? items.filter((item) => item.id === selectedTargetId)
-      : items
+    const candidates = locked && selectedTargetId ? items.filter((item) => item.id === selectedTargetId) : items
     if (!normalized) return candidates
     return candidates.filter((item) => `${item.name} ${item.description}`.toLowerCase().includes(normalized))
   }, [items, locked, query, selectedTargetId])
@@ -123,13 +118,7 @@ function TargetList({
   }
 
   if (items.length === 0) {
-    return (
-      <EmptyStatePanel
-        compact
-        title={`No ${targetTypeLabel(targetType)}s available`}
-        description={`Create a ${targetTypeLabel(targetType)} before creating this Runtime Key.`}
-      />
-    )
+    return <EmptyStatePanel compact title={`No ${targetTypeLabel(targetType)}s available`} description={`Create a ${targetTypeLabel(targetType)} before creating this Runtime Key.`} />
   }
 
   return (
@@ -137,12 +126,7 @@ function TargetList({
       {!locked && items.length > 5 ? (
         <div className="relative">
           <Search className="pointer-events-none absolute left-ui-md top-1/2 h-icon w-icon -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder={`Search ${targetTypeLabel(targetType)}s`}
-            className="pl-9"
-          />
+          <Input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder={`Search ${targetTypeLabel(targetType)}s`} className="pl-9" />
         </div>
       ) : null}
 
@@ -156,6 +140,7 @@ function TargetList({
               description={item.description}
               selected={selected}
               disabled={locked}
+              density="compact"
               trailing={selected ? <Check className="h-icon w-icon text-primary-light" /> : null}
               onClick={() => onSelect(item.id)}
             />
@@ -166,20 +151,9 @@ function TargetList({
   )
 }
 
-function RuntimeInterfaces({
-  interfaces,
-  onToggle,
-}: {
-  interfaces: RuntimeInterface[]
-  onToggle: (runtimeInterface: RuntimeInterface) => void
-}) {
+function RuntimeInterfaces({ interfaces, onToggle }: { interfaces: RuntimeInterface[]; onToggle: (runtimeInterface: RuntimeInterface) => void }) {
   return (
-    <SectionBlock
-      title="Allowed interfaces"
-      description="Choose how this Runtime Key can invoke the deployment."
-      density="compact"
-      actions={<Badge variant="outline" size="compact">Jobs · coming soon</Badge>}
-    >
+    <SectionBlock title="Allowed interfaces" description="Choose how this Runtime Key can invoke the deployment." density="compact" actions={<Badge variant="outline" size="compact">Jobs · coming soon</Badge>}>
       <div className="grid gap-ui-xs sm:grid-cols-2">
         {AVAILABLE_RUNTIME_INTERFACES.map((item) => {
           const selected = interfaces.includes(item.value)
@@ -189,6 +163,7 @@ function RuntimeInterfaces({
               label={item.label}
               description={item.description}
               selected={selected}
+              density="compact"
               trailing={selected ? <Check className="h-icon w-icon text-primary-light" /> : null}
               onClick={() => onToggle(item.value)}
             />
@@ -215,11 +190,7 @@ export function CreateApiKeyDialog({
   const effectiveLockedType = lockedTargetType ?? (lockedAgentId ? 'agent' : undefined)
   const effectiveLockedId = lockedTargetId ?? lockedAgentId
   const { data: agents = [], isLoading: agentsLoading } = useAgents(projectId)
-  const networksQuery = useQuery({
-    queryKey: ['networks', projectId, 'runtime-key-dialog'],
-    queryFn: () => listNetworks(projectId),
-    enabled: Boolean(open && projectId),
-  })
+  const networksQuery = useQuery({ queryKey: ['networks', projectId, 'runtime-key-dialog'], queryFn: () => listNetworks(projectId), enabled: Boolean(open && projectId) })
   const networks = networksQuery.data ?? []
   const createProjectKey = useCreateApiKey(projectId)
   const createRuntimeKey = useCreateRuntimeApiKey(projectId)
@@ -244,9 +215,7 @@ export function CreateApiKeyDialog({
   const selectedTargetName = selectedAgent?.name ?? selectedNetwork?.name ?? null
   const { data: releases = [], isLoading: releasesLoading } = useReleases(kind === 'runtime' && targetType === 'agent' && targetId ? targetId : undefined)
   const agentRelease = releases.find((release) => release.status === environment) ?? null
-  const networkVersionId = selectedNetwork
-    ? environment === 'production' ? selectedNetwork.production_version_id : selectedNetwork.staging_version_id
-    : null
+  const networkVersionId = selectedNetwork ? environment === 'production' ? selectedNetwork.production_version_id : selectedNetwork.staging_version_id : null
   const deploymentAvailable = targetType === 'agent' ? Boolean(agentRelease) : Boolean(networkVersionId)
   const targetsLoading = targetType === 'agent' ? agentsLoading : networksQuery.isLoading
   const kindLocked = initialKind !== undefined
@@ -315,27 +284,15 @@ export function CreateApiKeyDialog({
     setError(null)
     setExpirationError(null)
     const normalizedName = name.trim()
-    if (!normalizedName) {
-      setError('Enter a name that identifies what this key is used for')
-      return
-    }
+    if (!normalizedName) return setError('Enter a name that identifies what this key is used for')
     const expiresAt = resolveApiKeyExpiration(expiration)
-    if (expiration.preset === 'custom' && !expiresAt) {
-      setExpirationError('Select a future expiration date and time')
-      return
-    }
+    if (expiration.preset === 'custom' && !expiresAt) return setExpirationError('Select a future expiration date and time')
 
     try {
       let result: CreateApiKeyResponse
       if (kind === 'runtime') {
-        if (!targetId || !selectedTargetName) {
-          setError(`Select a ${targetTypeLabel(targetType)}`)
-          return
-        }
-        if (interfaces.length === 0) {
-          setError('Select at least one runtime interface')
-          return
-        }
+        if (!targetId || !selectedTargetName) return setError(`Select a ${targetTypeLabel(targetType)}`)
+        if (interfaces.length === 0) return setError('Select at least one runtime interface')
         result = await createRuntimeKey.mutateAsync({
           name: normalizedName,
           description: description.trim() || null,
@@ -347,16 +304,8 @@ export function CreateApiKeyDialog({
           expires_at: expiresAt?.toISOString() ?? null,
         })
       } else {
-        if (permissions.length === 0) {
-          setError('Select at least one Project permission')
-          return
-        }
-        result = await createProjectKey.mutateAsync({
-          name: normalizedName,
-          description: description.trim() || null,
-          scopes: permissions,
-          expires_at: expiresAt?.toISOString() ?? null,
-        })
+        if (permissions.length === 0) return setError('Select at least one Project permission')
+        result = await createProjectKey.mutateAsync({ name: normalizedName, description: description.trim() || null, scopes: permissions, expires_at: expiresAt?.toISOString() ?? null })
       }
       setCreatedKey(result)
       onCreated?.(result)
@@ -366,70 +315,35 @@ export function CreateApiKeyDialog({
     }
   }
 
-  const title = createdKey
-    ? `${createdKey.kind === 'runtime' ? 'Runtime' : 'Project'} Key created`
-    : contextualRuntime
-      ? 'Create Runtime Key'
-      : 'Create API Key'
-
+  const title = createdKey ? `${createdKey.kind === 'runtime' ? 'Runtime' : 'Project'} Key created` : contextualRuntime ? 'Create Runtime Key' : 'Create API Key'
   const summary = kind === 'runtime'
     ? `${selectedTargetName || `Select ${targetTypeLabel(targetType)}`} · ${environmentLabel(environment)} · ${interfaces.length ? interfaces.map((item) => item.toUpperCase()).join(' + ') : 'No interfaces'}`
     : `Project operations · ${permissions.length ? permissions.join(' + ') : 'No permissions'}`
 
   const identitySection = (
-    <SectionBlock
-      title="Key identity"
-      description="Name the integration and document its purpose."
-      density="compact"
-      actions={!contextualRuntime ? <Badge variant="default" size="compact">{kind === 'runtime' ? 'Runtime Key' : 'Project Key'}</Badge> : undefined}
-    >
+    <SectionBlock title="Key identity" description="Name the integration and document its purpose." density="compact" actions={!contextualRuntime ? <Badge variant="default" size="compact">{kind === 'runtime' ? 'Runtime Key' : 'Project Key'}</Badge> : undefined}>
       <div className="grid gap-ui-md">
         <Field>
           <FieldLabel>Name</FieldLabel>
-          <Input
-            value={name}
-            onChange={(event) => {
-              setName(event.target.value)
-              setNameTouched(true)
-              setError(null)
-            }}
-            placeholder={kind === 'runtime' ? 'Production backend' : 'Operations dashboard'}
-            maxLength={255}
-            autoFocus
-          />
+          <Input value={name} onChange={(event) => { setName(event.target.value); setNameTouched(true); setError(null) }} placeholder={kind === 'runtime' ? 'Production backend' : 'Operations dashboard'} maxLength={255} autoFocus />
         </Field>
         <Field>
           <div className="flex items-center justify-between gap-ui-sm">
             <FieldLabel>Description <span className="font-normal text-muted-foreground">Optional</span></FieldLabel>
             <span className="font-mono text-system-meta text-muted-foreground">{description.length}/500</span>
           </div>
-          <Textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            placeholder="Which service or integration uses this key?"
-            maxLength={500}
-            rows={contextualRuntime ? 3 : 2}
-          />
+          <Textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Which service or integration uses this key?" maxLength={500} rows={contextualRuntime ? 3 : 2} />
         </Field>
       </div>
     </SectionBlock>
   )
 
   return (
-    <Dialog
-      open={open}
-      onClose={close}
-      title={title}
-      className={createdKey ? 'max-w-dialog' : 'flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden'}
-      contentClassName={createdKey ? undefined : 'min-h-0 flex-1 p-0'}
-      layer={layer}
-    >
+    <Dialog open={open} onClose={close} title={title} variant={createdKey ? 'standard' : 'workspace'} className={createdKey ? 'max-w-dialog' : undefined} layer={layer}>
       {createdKey ? (
         <div>
           <ApiKeySecretReveal apiKey={createdKey} targetName={selectedTargetName} />
-          <div className="mt-ui-lg flex justify-end border-t border-border pt-ui-md">
-            <Button onClick={close}>Done</Button>
-          </div>
+          <div className="mt-ui-lg flex justify-end border-t border-border pt-ui-md"><Button onClick={close}>Done</Button></div>
         </div>
       ) : (
         <form className="flex h-full min-h-0 flex-col" onSubmit={handleSubmit}>
@@ -439,121 +353,55 @@ export function CreateApiKeyDialog({
                 <TechnicalListItem
                   label={selectedTargetName ?? `Loading ${targetTypeLabel(targetType)}…`}
                   description={`${targetTypeLabel(targetType)} · ${environmentLabel(environment)} · Runtime Key`}
-                  leading={(
-                    <span className="flex h-control-nav w-control-nav items-center justify-center rounded-control border border-border bg-control text-primary-light">
-                      <TargetIcon className="h-icon w-icon" />
-                    </span>
-                  )}
-                  trailing={(
-                    <Badge variant={deploymentAvailable ? 'success' : 'outline'} size="compact">
-                      {targetsLoading || (targetType === 'agent' && releasesLoading)
-                        ? 'Checking deployment'
-                        : deploymentAvailable
-                          ? 'Deployment available'
-                          : 'Not deployed'}
-                    </Badge>
-                  )}
+                  density="compact"
+                  leading={<span className="flex h-control-nav w-control-nav items-center justify-center rounded-control border border-border bg-control text-primary-light"><TargetIcon className="h-icon w-icon" /></span>}
+                  trailing={<Badge variant={deploymentAvailable ? 'success' : 'outline'} size="compact">{targetsLoading || (targetType === 'agent' && releasesLoading) ? 'Checking deployment' : deploymentAvailable ? 'Deployment available' : 'Not deployed'}</Badge>}
                 />
               ) : null}
 
               {!kindLocked ? (
-                <SectionBlock
-                  title="Key type"
-                  description="Choose whether this credential executes Runtime or reads Project operations."
-                  density="compact"
-                >
+                <SectionBlock title="Key type" description="Choose whether this credential executes Runtime or reads Project operations." density="compact">
                   <SegmentedControl
-                    items={[
-                      { value: 'runtime', label: 'Runtime Key', icon: <Zap className="h-icon-sm w-icon-sm" /> },
-                      { value: 'project', label: 'Project Key', icon: <ShieldCheck className="h-icon-sm w-icon-sm" /> },
-                    ]}
+                    items={[{ value: 'runtime', label: 'Runtime Key', icon: <Zap className="h-icon-sm w-icon-sm" /> }, { value: 'project', label: 'Project Key', icon: <ShieldCheck className="h-icon-sm w-icon-sm" /> }]}
                     value={kind}
-                    onValueChange={(value) => {
-                      setKind(value as ApiKeyKind)
-                      setError(null)
-                    }}
+                    onValueChange={(value) => { setKind(value as ApiKeyKind); setError(null) }}
                     ariaLabel="API key type"
                     stretch
+                    size="segment"
                   />
-                  <FieldDescription className="mt-ui-sm">
-                    {kind === 'runtime' ? 'Execute one Agent or Network deployment.' : 'Read operational Project APIs.'}
-                  </FieldDescription>
+                  <FieldDescription className="mt-ui-sm">{kind === 'runtime' ? 'Execute one Agent or Network deployment.' : 'Read operational Project APIs.'}</FieldDescription>
                 </SectionBlock>
               ) : null}
 
               <div className="grid gap-ui-md lg:grid-cols-2">
                 <div className="grid content-start gap-ui-md">
                   {identitySection}
-
                   {kind === 'runtime' && !contextualRuntime ? (
-                    <SectionBlock
-                      title="Runtime target"
-                      description="A Runtime Key executes exactly one target in one environment."
-                      density="compact"
-                    >
+                    <SectionBlock title="Runtime target" description="A Runtime Key executes exactly one target in one environment." density="compact">
                       <SegmentedControl
-                        items={[
-                          { value: 'agent', label: 'Agent', icon: <Bot className="h-icon-sm w-icon-sm" />, disabled: Boolean(effectiveLockedType) },
-                          { value: 'network', label: 'Network', icon: <Network className="h-icon-sm w-icon-sm" />, disabled: Boolean(effectiveLockedType) },
-                        ]}
+                        items={[{ value: 'agent', label: 'Agent', icon: <Bot className="h-icon-sm w-icon-sm" />, disabled: Boolean(effectiveLockedType) }, { value: 'network', label: 'Network', icon: <Network className="h-icon-sm w-icon-sm" />, disabled: Boolean(effectiveLockedType) }]}
                         value={targetType}
-                        onValueChange={(value) => {
-                          setTargetType(value as RuntimeTargetType)
-                          setTargetId('')
-                          setEnvironmentTouched(false)
-                          setError(null)
-                        }}
+                        onValueChange={(value) => { setTargetType(value as RuntimeTargetType); setTargetId(''); setEnvironmentTouched(false); setError(null) }}
                         ariaLabel="Runtime target type"
                         stretch
+                        size="segment"
                       />
-                      <FieldDescription className="mt-ui-sm">
-                        {targetType === 'agent' ? 'Creates one Agent Run per request.' : 'Creates one Network Run composed of Agent Runs.'}
-                      </FieldDescription>
+                      <FieldDescription className="mt-ui-sm">{targetType === 'agent' ? 'Creates one Agent Run per request.' : 'Creates one Network Run composed of Agent Runs.'}</FieldDescription>
                     </SectionBlock>
                   ) : null}
 
                   {kind === 'runtime' && !contextualRuntime ? (
-                    <SectionBlock
-                      title={targetTypeLabel(targetType)}
-                      description={`Choose which ${targetTypeLabel(targetType)} deployment this credential can execute.`}
-                      density="compact"
-                    >
-                      <TargetList
-                        targetType={targetType}
-                        agents={agents}
-                        networks={networks}
-                        selectedTargetId={targetId}
-                        loading={targetsLoading}
-                        locked={targetLocked}
-                        onSelect={(nextTargetId) => {
-                          setTargetId(nextTargetId)
-                          setEnvironmentTouched(false)
-                          setError(null)
-                        }}
-                      />
+                    <SectionBlock title={targetTypeLabel(targetType)} description={`Choose which ${targetTypeLabel(targetType)} deployment this credential can execute.`} density="compact">
+                      <TargetList targetType={targetType} agents={agents} networks={networks} selectedTargetId={targetId} loading={targetsLoading} locked={targetLocked} onSelect={(nextTargetId) => { setTargetId(nextTargetId); setEnvironmentTouched(false); setError(null) }} />
                     </SectionBlock>
                   ) : null}
 
                   {kind === 'project' ? (
-                    <SectionBlock
-                      title="Permissions"
-                      description="Choose which Project operations this key can access."
-                      density="compact"
-                    >
+                    <SectionBlock title="Permissions" description="Choose which Project operations this key can access." density="compact">
                       <div className="grid gap-ui-xs">
                         {PROJECT_PERMISSIONS.map((item) => {
                           const selected = permissions.includes(item.value)
-                          return (
-                            <TechnicalListItem
-                              key={item.value}
-                              label={item.label}
-                              description={item.description}
-                              leading={<Activity className="h-icon w-icon text-primary-light" />}
-                              selected={selected}
-                              trailing={selected ? <Check className="h-icon w-icon text-primary-light" /> : null}
-                              onClick={() => togglePermission(item.value)}
-                            />
-                          )
+                          return <TechnicalListItem key={item.value} label={item.label} description={item.description} leading={<Activity className="h-icon w-icon text-primary-light" />} selected={selected} density="compact" trailing={selected ? <Check className="h-icon w-icon text-primary-light" /> : null} onClick={() => togglePermission(item.value)} />
                         })}
                       </div>
                     </SectionBlock>
@@ -562,72 +410,35 @@ export function CreateApiKeyDialog({
 
                 <div className="grid content-start gap-ui-md lg:border-l lg:border-border lg:pl-ui-md">
                   {kind === 'runtime' && !contextualRuntime ? (
-                    <SectionBlock
-                      title="Environment"
-                      description="Bind this key to one deployable environment."
-                      density="compact"
-                    >
+                    <SectionBlock title="Environment" description="Bind this key to one deployable environment." density="compact">
                       <SegmentedControl
-                        items={[
-                          { value: 'staging', label: 'Staging' },
-                          { value: 'production', label: 'Production' },
-                        ]}
+                        items={[{ value: 'staging', label: 'Staging' }, { value: 'production', label: 'Production' }]}
                         value={environment}
-                        onValueChange={(value) => {
-                          setEnvironment(value as RuntimeEnvironment)
-                          setEnvironmentTouched(true)
-                          setError(null)
-                        }}
+                        onValueChange={(value) => { setEnvironment(value as RuntimeEnvironment); setEnvironmentTouched(true); setError(null) }}
                         ariaLabel="Runtime environment"
                         stretch
+                        size="segment"
                       />
-
                       <TechnicalListItem
                         className="mt-ui-md"
                         label="Current deployment"
-                        description={!targetId
-                          ? 'Select a target to inspect this environment.'
-                          : releasesLoading && targetType === 'agent'
-                            ? 'Checking current deployment…'
-                            : deploymentAvailable
-                              ? `${environmentLabel(environment)} · Available`
-                              : `${environmentLabel(environment)} · Not deployed. Deploy a release to enable Runtime requests.`}
-                        trailing={targetId && !(releasesLoading && targetType === 'agent') ? (
-                          <Badge variant={deploymentAvailable ? 'success' : 'warning'} size="compact">
-                            {deploymentAvailable ? 'Available' : 'Unavailable'}
-                          </Badge>
-                        ) : undefined}
+                        density="compact"
+                        description={!targetId ? 'Select a target to inspect this environment.' : releasesLoading && targetType === 'agent' ? 'Checking current deployment…' : deploymentAvailable ? `${environmentLabel(environment)} · Available` : `${environmentLabel(environment)} · Not deployed. Deploy a release to enable Runtime requests.`}
+                        trailing={targetId && !(releasesLoading && targetType === 'agent') ? <Badge variant={deploymentAvailable ? 'success' : 'warning'} size="compact">{deploymentAvailable ? 'Available' : 'Unavailable'}</Badge> : undefined}
                       />
                     </SectionBlock>
                   ) : null}
 
                   {kind === 'runtime' ? <RuntimeInterfaces interfaces={interfaces} onToggle={toggleInterface} /> : null}
-
                   <SectionBlock title="Expiration" description="Limit how long this credential remains valid." density="compact">
-                    <ApiKeyExpirationField
-                      value={expiration}
-                      onChange={(nextValue) => {
-                        setExpiration(nextValue)
-                        setExpirationError(null)
-                      }}
-                      error={expirationError}
-                    />
+                    <ApiKeyExpirationField value={expiration} onChange={(nextValue) => { setExpiration(nextValue); setExpirationError(null) }} error={expirationError} />
                   </SectionBlock>
-
-                  <SectionBlock
-                    title="Key contract"
-                    description="Review exactly what this credential will be allowed to do."
-                    density="compact"
-                  >
+                  <SectionBlock title="Key contract" description="Review exactly what this credential will be allowed to do." density="compact">
                     <Alert variant="info">
                       <KeyRound className="h-icon w-icon" />
                       <AlertDescription>
                         <span className="block font-mono text-system-control text-accent-foreground">{summary}</span>
-                        <span className="mt-ui-xs block">
-                          {kind === 'runtime'
-                            ? `Target type: ${targetType}. Deploys and rollbacks keep the same key.`
-                            : 'Project Keys cannot execute Agents or Networks.'}
-                        </span>
+                        <span className="mt-ui-xs block">{kind === 'runtime' ? `Target type: ${targetType}. Deploys and rollbacks keep the same key.` : 'Project Keys cannot execute Agents or Networks.'}</span>
                       </AlertDescription>
                     </Alert>
                   </SectionBlock>
@@ -636,19 +447,15 @@ export function CreateApiKeyDialog({
             </div>
           </div>
 
-          <div className="flex shrink-0 flex-col-reverse gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md sm:flex-row sm:items-center sm:justify-between">
-            <div className="min-w-0 flex-1">
-              {error ? (
-                <p className="font-mono text-system-label text-error">{error}</p>
-              ) : (
-                <p className="truncate font-mono text-system-meta text-muted-foreground">{summary}</p>
-              )}
-            </div>
-            <div className="flex shrink-0 gap-ui-sm">
-              <Button type="button" variant="outline" onClick={close}>Cancel</Button>
-              <Button type="submit" loading={isPending}>Create {kind === 'runtime' ? 'Runtime' : 'Project'} Key</Button>
-            </div>
-          </div>
+          <DialogFooter
+            meta={error ? <p className="font-mono text-system-label text-error">{error}</p> : <p className="truncate font-mono text-system-meta text-muted-foreground">{summary}</p>}
+            actions={(
+              <>
+                <Button type="button" variant="outline" onClick={close}>Cancel</Button>
+                <Button type="submit" loading={isPending}>Create {kind === 'runtime' ? 'Runtime' : 'Project'} Key</Button>
+              </>
+            )}
+          />
         </form>
       )}
     </Dialog>
