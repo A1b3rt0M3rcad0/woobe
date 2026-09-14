@@ -34,7 +34,7 @@ export function ResourcePage({
       className={cn(
         'resource-page-shell w-full font-sans',
         canvas ? 'max-w-none' : 'mx-auto max-w-resource space-y-ui-lg',
-        '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_input]:font-mono [&_input]:text-system-control',
+        '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_input]:text-system-control',
         '[&_select]:font-sans [&_select]:text-system-control [&_select]:font-normal [&_select]:text-slate-100 [&_select]:outline-none',
         '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
         '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono',
@@ -97,7 +97,13 @@ export function ResourcePageHeader({
 
 export function ResourceToolbar({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('flex flex-col gap-ui-stack rounded-container border border-border bg-surface/[0.92] p-ui-panel-inset shadow-none', className)}>
+    <div
+      className={cn(
+        'resource-toolbar flex flex-col gap-ui-sm rounded-container border border-border bg-surface/[0.92] p-ui-sm shadow-none',
+        '[&_input]:h-control-sm [&_select]:h-control-sm',
+        className,
+      )}
+    >
       {children}
     </div>
   )
@@ -141,6 +147,7 @@ export function ResourceTabs<T extends string>({
         ariaLabel={label}
         value={value}
         onValueChange={(next) => onChange(next as T)}
+        className="p-ui-hairline"
         items={tabs.map((tab) => ({
           value: tab.value,
           label: (
@@ -185,7 +192,7 @@ export function ResourceSearch({
         }}
         placeholder={placeholder}
         aria-label={label}
-        className="pl-8 pr-8 font-mono text-system-label"
+        className="h-control-sm pl-8 pr-8 font-sans text-system-control"
       />
       {value ? (
         <button
