@@ -112,7 +112,7 @@ export function ProviderCredentialCreateForm({
     <form id={formId} onSubmit={handleSubmit} className="grid gap-ui-md">
       <Field>
         <FieldLabel>Provider</FieldLabel>
-        <div className="grid gap-ui-xs sm:grid-cols-3">
+        <div className="grid gap-ui-xs md:grid-cols-3">
           {providers.map((option) => {
             const selected = provider === option.value
             return (
@@ -121,6 +121,7 @@ export function ProviderCredentialCreateForm({
                 label={option.label}
                 description={option.description}
                 selected={selected}
+                multiline
                 trailing={selected ? <Check className="h-icon w-icon text-primary-light" /> : null}
                 onClick={() => setProvider(option.value)}
               />
