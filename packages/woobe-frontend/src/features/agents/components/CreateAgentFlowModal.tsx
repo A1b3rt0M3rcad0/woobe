@@ -12,6 +12,7 @@ import {
   Field,
   FieldDescription,
   FieldLabel,
+  FormActions,
   Input,
   InputGroup,
   ScrollArea,
@@ -134,12 +135,12 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
               setShowProviderForm(false)
             }}
           />
-          <div className="mt-ui-md flex justify-end gap-ui-sm border-t border-border pt-ui-md">
+          <FormActions className="mt-ui-md">
             {flow.activeCredentials.length > 0 ? (
               <Button type="button" variant="outline" onClick={() => setShowProviderForm(false)} disabled={providerPending}>Back</Button>
             ) : null}
             <Button type="submit" form="create-agent-provider-form" loading={providerPending}>Connect provider</Button>
-          </div>
+          </FormActions>
         </SectionBlock>
       </div>
     )
@@ -301,7 +302,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
             <Stepper items={stepperItems} />
           </DialogContextBar>
 
-          <DialogBody className="bg-surface/25">
+          <DialogBody tone="subtle">
             {flow.step === 'details' ? (
               <SectionBlock
                 eyebrow="Agent Draft"
