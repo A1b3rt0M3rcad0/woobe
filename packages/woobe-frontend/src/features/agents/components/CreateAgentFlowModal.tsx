@@ -284,7 +284,6 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
       onClose={flow.busy ? () => undefined : onClose}
       title="Create agent"
       variant="workspace"
-      className="!max-w-dialog"
     >
       {flow.inventoryLoading ? (
         <div className="p-ui-md"><AgentCreationPreparing /></div>
