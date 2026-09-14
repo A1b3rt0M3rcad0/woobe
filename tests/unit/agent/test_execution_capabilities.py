@@ -162,3 +162,100 @@ def test_execution_state_accumulates_tool_batch_without_owning_tool_execution() 
             "payload": {"occurred_at": "tool-time"},
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_strategy_can_own_model_tool_model_loop_with_shared_capabilities(
+    monkeypatch,
+) -> None:
+    model_calls: list[int] = []
+    tool_calls: list[str] = []
+
+    async def fake_invoke_llm(**kwargs):
+        call_index = kwargs["call_index"]
+        model_calls.append(call_index)
+        if call_index == 1:
+            result = SimpleNamespace(
+                content="",
+                tool_calls=[
+                    {
+                        "id": "call-1",
+                        "name": "search",
+                        "args": {"q": "woobe"},
+                    }
+                ],
+            )
+        else:
+            result = SimpleNamespace(content="final-answer", tool_calls=[])
+        return (
+            result,
+            {
+                "phase": kwargs["phase"],
+                "call_index": call_index,
+                "occurred_at": f"model-{call_index}",
+            },
+        )
+
+    async def fake_execute_tool_call(**kwargs):
+        tool_call = kwargs["tool_call"]
+        tool_calls.append(tool_call["name"])
+        return (
+            SimpleNamespace(duration_ms=4, success=True),
+            SimpleNamespace(content="search-result"),
+            {"occurred_at": "tool-1"},
+        )
+
+    monkeypatch.setattr(
+        "modules.agent.infra.execution.capabilities.model_invocation.invoke_llm",
+        fake_invoke_llm,
+    )
+    monkeypatch.setattr(
+        "modules.agent.infra.execution.capabilities.tool_execution.execute_tool_call",
+        fake_execute_tool_call,
+    )
+
+    request = _request()
+    prepared = prepare_execution(request)
+    capabilities = build_execution_capabilities(
+        request=request,
+        prepared=prepared,
+    )
+    capabilities = type(capabilities)(
+        model=capabilities.model,
+        tools=ToolExecutionCapability(
+            execute_single_tool=request.execute_single_tool,
+            tool_name_to_id={"search": "tool-id"},
+        ),
+    )
+    state = StrategyExecutionState(messages=list(prepared.messages))
+
+    first_result, first_call = await capabilities.model.invoke(
+        model=prepared.model,
+        messages=state.messages,
+        phase="iterative_reasoning_1",
+        call_index=1,
+    )
+    state.iteration += 1
+    state.record_model_result(result=first_result, call=first_call)
+    state.messages.append(first_result)
+
+    batch = await capabilities.tools.execute_many(first_result.tool_calls)
+    state.record_tool_batch(batch)
+
+    second_result, second_call = await capabilities.model.invoke(
+        model=prepared.model,
+        messages=state.messages,
+        phase="iterative_reasoning_2",
+        call_index=2,
+    )
+    state.iteration += 1
+    state.record_model_result(result=second_result, call=second_call)
+
+    execution = state.finish()
+
+    assert model_calls == [1, 2]
+    assert tool_calls == ["search"]
+    assert execution.result.content == "final-answer"
+    assert len(execution.llm_calls) == 2
+    assert len(execution.tool_calls) == 1
+    assert [item["kind"] for item in execution.timeline] == ["llm", "tool", "llm"]
