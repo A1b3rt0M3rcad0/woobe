@@ -103,6 +103,21 @@ The JSON editor surface, JSON formatting/validation helpers and CodeMirror visua
 
 Components enter `woobe-ui` only when they are presentation-only and have demonstrated reuse. Domain components such as Agent Inspector, Run Inspector, Network Canvas, Knowledge workflows or Tool configuration remain in their feature packages and consume the visual grammar exposed here.
 
+## Dialog contract
+
+The Control Plane dialog grammar is derived from the operational density used by ChatSurface Details. Features may change the content composition, but they must not create an independent modal design language.
+
+Use `Dialog` as the shell and keep the shared header, border, radius, typography, controls, internal scrolling and footer treatment. Dialog copy stays on the Woobe product/system type scale; a larger modal is not a reason to enlarge typography.
+
+Use the variants by intent:
+
+- `standard`: confirmations, small forms, secret reveals and bounded actions. It remains compact, but uses the same typography, borders, controls and footer grammar as larger dialogs.
+- `workspace`: configuration flows, inspectors and multi-step operational surfaces. It uses `max-w-dialog-wide` and `h-dialog-workspace`, keeps header/footer fixed, and gives scrolling to the content region.
+
+The canonical workspace geometry is `68.75rem` maximum width and `min(56.25rem, calc(100svh - 2rem))` height. Features should not locally shrink or enlarge this shell with arbitrary `max-w-*` or viewport-height values unless the geometry is genuinely intrinsic to the feature.
+
+Internal navigation remains feature-dependent. A settings surface may use a sidebar, while a creation workflow may use a stepper. The reusable contract is the shell, density, hierarchy and control language, not forcing unrelated workflows into the same navigation structure.
+
 ## Semantic Tailwind contract
 
 The frontend consumes `woobe-ui/tailwind-preset`. Prefer semantic aliases over arbitrary values.
