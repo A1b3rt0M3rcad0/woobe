@@ -100,6 +100,9 @@ def build(payload: dict[str, Any]) -> dict[str, Any]:
     if parallelism is None and tool_wall and tool_wall > 0:
         parallelism = (tool_work or 0) / tool_wall
 
+    # These fields remain readable for historical traces only. New diagnostics
+    # must not infer HTTP latency from arbitrary duration_ms values returned by
+    # MCP or custom Tool payloads.
     legacy_http = _n(payload.get("tool_http_latency_ms"))
     legacy_overhead = _n(payload.get("tool_overhead_latency_ms"))
     explicit_orchestration = _n(payload.get("orchestration_latency_ms"))
