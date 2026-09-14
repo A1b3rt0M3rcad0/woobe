@@ -14,6 +14,9 @@ from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
 )
+from modules.agent.application.use_cases.ai_agent_cases import (
+    _force_strict_json_settings,
+)
 from modules.agent.application.use_cases.release_lifecycle_use_cases_v2 import (
     _canonical_runtime_config,
 )
@@ -61,6 +64,14 @@ def test_canonicalization_freezes_standard_without_losing_other_runtime_config()
         "execution_strategy": "standard",
     }
     assert "execution_strategy" not in source
+
+
+def test_new_agent_settings_freeze_standard_strategy_explicitly() -> None:
+    agent = SimpleNamespace(settings={})
+
+    _force_strict_json_settings(agent, initialize_context_manager=True)
+
+    assert agent.settings["runtime_config"]["execution_strategy"] == "standard"
 
 
 def test_release_runtime_config_preserves_explicit_execution_strategy() -> None:
