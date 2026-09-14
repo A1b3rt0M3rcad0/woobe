@@ -14,8 +14,8 @@
   container-type: inline-size;
 }
 
-/* Product copy and form controls remain Inter. Technical chrome, metadata and
- * explicit monospace content keep JetBrains Mono. */
+/* Product copy and free-text controls remain Inter. Technical chrome, metadata
+ * and choice controls use JetBrains Mono, matching the control-plane reference. */
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(
   label, legend, button, th, dt,
   [role='tab'], [role='menuitem'], .uppercase, .tracking-wide, .tracking-wider,
@@ -29,10 +29,22 @@
 }
 
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) input:not([type='checkbox']):not([type='radio']):not(.font-mono),
-:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) select:not(.font-mono),
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) textarea:not(.font-mono),
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) [contenteditable='true']:not(.font-mono) {
   font-family: 'Inter', system-ui, sans-serif;
+  font-size: 0.625rem !important;
+  line-height: 0.875rem !important;
+}
+
+/* Native select popups can ignore descendant utility classes on Chromium/Windows.
+ * Keep the size/family explicit at the dialog contract so closed values and
+ * native option rows stay on the same 10px technical control tier. */
+:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) select,
+:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) select option {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 0.625rem !important;
+  line-height: 0.875rem !important;
+  font-weight: 400 !important;
 }
 
 /* Dialog identity follows the same product hierarchy used by Resource cards:
@@ -82,8 +94,7 @@
   line-height: 0.875rem !important;
 }
 
-/* Ordinary text-sm content resolves through the Dialog's 11px product-small
- * tier. Do not collapse emphasized entity/content labels into microcopy. */
+/* Ordinary compact copy resolves to the 9px caption tier. */
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(p.text-xs, span.text-xs, code.text-xs) {
   font-size: 0.5625rem !important;
   line-height: 0.875rem !important;
