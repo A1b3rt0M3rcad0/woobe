@@ -1,0 +1,164 @@
+from __future__ import annotations
+
+from types import SimpleNamespace
+
+import pytest
+
+from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
+from modules.agent.infra.execution.capabilities.bundle import (
+    build_execution_capabilities,
+)
+from modules.agent.infra.execution.capabilities.preparation import prepare_execution
+from modules.agent.infra.execution.capabilities.state import StrategyExecutionState
+from modules.agent.infra.execution.capabilities.tool_execution import ToolExecutionCapability
+
+
+class _FakeModelFactory:
+    def __init__(self) -> None:
+        self.calls: list[dict] = []
+        self.model = object()
+
+    def create_chat_model(self, **kwargs):
+        self.calls.append(kwargs)
+        return self.model
+
+
+def _request(*, llm_factory=None) -> ExecutionStrategyRequest:
+    return ExecutionStrategyRequest(
+        llm_factory=llm_factory or _FakeModelFactory(),
+        execute_single_tool=lambda *_args: None,  # type: ignore[arg-type]
+        clean_json_answer=lambda value: value,
+        agent=SimpleNamespace(
+            provider="openai",
+            model="test-model",
+            temperature=0.2,
+            max_output_tokens=256,
+            settings={},
+        ),  # type: ignore[arg-type]
+        api_key="secret",
+        base_url=None,
+        response_format={},
+        json_enabled=False,
+        has_tools=False,
+        agent_tools=[],
+        tool_name_to_id={},
+        messages=["user-message"],
+        context_assembler=None,
+    )
+
+
+@pytest.mark.asyncio
+async def test_model_capability_supports_multi_pass_strategy_without_legacy_runner(
+    monkeypatch,
+) -> None:
+    invocations: list[tuple[str, int]] = []
+
+    async def fake_invoke_llm(**kwargs):
+        phase = kwargs["phase"]
+        call_index = kwargs["call_index"]
+        invocations.append((phase, call_index))
+        return (
+            SimpleNamespace(content=f"result-{call_index}"),
+            {
+                "phase": phase,
+                "call_index": call_index,
+                "occurred_at": f"t{call_index}",
+            },
+        )
+
+    monkeypatch.setattr(
+        "modules.agent.infra.execution.capabilities.model_invocation.invoke_llm",
+        fake_invoke_llm,
+    )
+
+    request = _request()
+    prepared = prepare_execution(request)
+    capabilities = build_execution_capabilities(
+        request=request,
+        prepared=prepared,
+    )
+    state = StrategyExecutionState(messages=list(prepared.messages))
+
+    for iteration in range(2):
+        call_index = iteration + 1
+        result, call = await capabilities.model.invoke(
+            model=prepared.model,
+            messages=state.messages,
+            phase=f"iterative_pass_{call_index}",
+            call_index=call_index,
+        )
+        state.iteration += 1
+        state.record_model_result(result=result, call=call)
+        state.messages.append(result)
+
+    execution = state.finish()
+
+    assert isinstance(execution, InstrumentedExecution)
+    assert execution.result.content == "result-2"
+    assert len(execution.llm_calls) == 2
+    assert state.iteration == 2
+    assert invocations == [
+        ("iterative_pass_1", 1),
+        ("iterative_pass_2", 2),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_tool_capability_preserves_bound_tool_resolution_and_durable_path(
+    monkeypatch,
+) -> None:
+    captured: list[tuple[str, str]] = []
+
+    async def fake_execute_tool_call(**kwargs):
+        tool_call = kwargs["tool_call"]
+        resolved_tool_id = kwargs["resolved_tool_id"]
+        captured.append((tool_call["name"], resolved_tool_id))
+        return (
+            SimpleNamespace(duration_ms=3, success=True),
+            SimpleNamespace(content="tool-result"),
+            {"occurred_at": "tool-time"},
+        )
+
+    monkeypatch.setattr(
+        "modules.agent.infra.execution.capabilities.tool_execution.execute_tool_call",
+        fake_execute_tool_call,
+    )
+    capability = ToolExecutionCapability(
+        execute_single_tool=lambda *_args: None,  # type: ignore[arg-type]
+        tool_name_to_id={"search": "tool-id"},
+    )
+
+    batch = await capability.execute_many(
+        [{"id": "call-1", "name": "search", "args": {"q": "woobe"}}]
+    )
+
+    assert captured == [("search", "tool-id")]
+    assert len(batch.results) == 1
+    assert batch.wall_latency_ms >= 0
+
+
+def test_execution_state_accumulates_tool_batch_without_owning_tool_execution() -> None:
+    from modules.agent.infra.execution.capabilities.tool_execution import ToolExecutionBatch
+
+    state = StrategyExecutionState(messages=[])
+    info = SimpleNamespace(duration_ms=5, success=True)
+    message = SimpleNamespace(content="tool-result")
+    batch = ToolExecutionBatch(
+        results=[(info, message, {"occurred_at": "tool-time"})],
+        wall_latency_ms=7,
+    )
+
+    state.record_tool_batch(batch)
+
+    assert state.execution.tool_calls == [info]
+    assert state.execution.tool_wall_latency_ms == 7
+    assert state.execution.tool_call_duration_sum_ms == 5
+    assert state.messages == [message]
+    assert state.execution.timeline == [
+        {
+            "kind": "tool",
+            "occurred_at": "tool-time",
+            "payload": {"occurred_at": "tool-time"},
+        }
+    ]
