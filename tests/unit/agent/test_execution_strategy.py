@@ -119,17 +119,53 @@ def test_resolver_builder_exposes_execution_strategy_contract() -> None:
 
 
 @pytest.mark.asyncio
-async def test_standard_strategy_delegates_to_existing_instrumented_runner(monkeypatch) -> None:
-    captured = {}
+async def test_standard_strategy_composes_execution_capabilities(monkeypatch) -> None:
+    calls: list[str] = []
     sentinel = InstrumentedExecution(result=SimpleNamespace(content="ok"))
+    prepared = SimpleNamespace(
+        model="model",
+        final_model="final-model",
+        final_model_factory=None,
+        execute_single_tool=lambda *_args: None,
+        messages=["prepared"],
+        tool_name_to_id={"tool": "tool-id"},
+        provider="provider",
+        model_name="model-name",
+        initial_phase="response_generation",
+        final_json_instruction=None,
+        pricing_snapshot={"input": 1},
+    )
 
-    async def fake_runner(**kwargs):
-        captured.update(kwargs)
+    def fake_prepare(request):
+        calls.append("prepare")
+        assert request.messages == ["hello"]
+        return prepared
+
+    async def fake_loop(**kwargs):
+        calls.append("loop")
+        assert kwargs["model"] == "model"
+        assert kwargs["messages"] == ["prepared"]
+        assert kwargs["tool_name_to_id"] == {"tool": "tool-id"}
+        return sentinel, 7
+
+    async def fake_finalize(**kwargs):
+        calls.append("finalize")
+        assert kwargs["prepared"] is prepared
+        assert kwargs["execution"] is sentinel
+        assert kwargs["call_index"] == 7
         return sentinel
 
     monkeypatch.setattr(
-        "modules.agent.infra.execution.strategies.standard.run_instrumented_execution",
-        fake_runner,
+        "modules.agent.infra.execution.strategies.standard.prepare_execution",
+        fake_prepare,
+    )
+    monkeypatch.setattr(
+        "modules.agent.infra.execution.strategies.standard.run_tool_loop",
+        fake_loop,
+    )
+    monkeypatch.setattr(
+        "modules.agent.infra.execution.strategies.standard.finalize_execution_result",
+        fake_finalize,
     )
     request = ExecutionStrategyRequest(
         llm_factory="factory",
@@ -150,10 +186,7 @@ async def test_standard_strategy_delegates_to_existing_instrumented_runner(monke
     result = await StandardExecutionStrategy().execute(request)
 
     assert result is sentinel
-    assert captured["llm_factory"] == "factory"
-    assert captured["agent"] is request.agent
-    assert captured["messages"] == ["hello"]
-    assert captured["context_assembler"] is None
+    assert calls == ["prepare", "loop", "finalize"]
 
 
 class _RecordingStrategy:
