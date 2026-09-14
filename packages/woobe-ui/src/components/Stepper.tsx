@@ -41,7 +41,7 @@ export function Stepper({ items, className, ...props }: StepperProps) {
           >
             <div className="flex min-w-0 items-start justify-between gap-ui-sm">
               <div className="min-w-0">
-                <p className="break-words font-mono text-system-control font-semibold text-accent-foreground">
+                <p className="break-words font-mono text-system-control font-medium text-accent-foreground">
                   {index + 1} · {item.label}
                 </p>
                 {item.description ? (
