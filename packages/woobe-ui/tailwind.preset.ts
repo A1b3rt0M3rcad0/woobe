@@ -26,6 +26,7 @@ const woobeTailwindPreset = {
         'chrome-meta': woobeTypographyScale.chromeMeta,
         'chrome-label': woobeTypographyScale.chromeLabel,
         'chrome-control': woobeTypographyScale.chromeControl,
+        'system-tiny': woobeTypographyScale.systemTiny,
         'system-nano': woobeTypographyScale.systemNano,
         'system-micro': woobeTypographyScale.systemMicro,
         'system-meta': woobeTypographyScale.systemMeta,
