@@ -176,7 +176,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
       data-dialog-variant={variant}
       className={cn(
         'dialog-scrollbars relative w-full max-w-dialog-compact rounded-container border border-border bg-surface text-accent-foreground shadow-popup',
-        workspace && 'flex h-dialog-workspace max-h-dialog max-w-dialog-wide flex-col overflow-hidden',
+        workspace && 'flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden',
         dialogTypographyClass,
         '[&_.rounded-2xl]:rounded-container [&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-control [&_.rounded-md]:rounded-technical',
         '[&_.shadow-sm]:shadow-none [&_.shadow-lg]:shadow-none [&_.shadow-xl]:shadow-none [&_.shadow-2xl]:shadow-none',
