@@ -594,6 +594,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
         onStop={() => { cancel() }}
         agentName={agent.name}
         assistantIcon="bot"
+        density="compact"
         runtimeBlocked={runtimeBlocked}
         runtimeBlockReason={runtimeBlockReason}
         emptyTitle={`Chat with ${agent.name}`}
