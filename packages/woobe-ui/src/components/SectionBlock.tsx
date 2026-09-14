@@ -8,14 +8,30 @@ export interface SectionBlockProps extends Omit<HTMLAttributes<HTMLElement>, 'ti
   eyebrow?: ReactNode
   density?: 'compact' | 'default'
   variant?: 'technical' | 'product'
+  hierarchy?: 'primary' | 'secondary'
 }
 
 const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
-  ({ className, title, description, actions, eyebrow, density = 'default', variant = 'technical', children, ...props }, ref) => {
+  ({
+    className,
+    title,
+    description,
+    actions,
+    eyebrow,
+    density = 'default',
+    variant = 'technical',
+    hierarchy = 'primary',
+    children,
+    ...props
+  }, ref) => {
     const hasChildren = children !== null && children !== undefined && children !== false
     const product = variant === 'product'
+    const secondary = hierarchy === 'secondary'
     const spacing = density === 'compact' ? 'p-ui-md' : 'p-ui-panel-inset'
-    const contentGap = hasChildren ? (density === 'compact' ? 'mb-ui-sm' : 'mb-ui-md') : undefined
+    const contentGap = hasChildren ? (density === 'compact' || secondary ? 'mb-ui-sm' : 'mb-ui-md') : undefined
+    const titleClass = secondary ? 'text-system-control' : 'text-section-title'
+    const descriptionClass = secondary ? 'text-system-nano' : 'text-system-meta'
+    const familyClass = product ? 'font-sans' : 'font-mono'
 
     return (
       <section ref={ref} className={cn('rounded-container border border-border bg-surface/70', spacing, className)} {...props}>
@@ -25,13 +41,18 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
               {eyebrow ? <div className="mb-ui-xs font-mono text-system-nano uppercase tracking-ui-eyebrow text-muted-foreground">{eyebrow}</div> : null}
               {title ? (
                 <div className={cn(
-                  'text-section-title font-semibold text-accent-foreground',
-                  product ? 'font-sans' : 'font-mono',
+                  'font-semibold text-accent-foreground',
+                  titleClass,
+                  familyClass,
                 )}>
                   {title}
                 </div>
               ) : null}
-              {description ? <div className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{description}</div> : null}
+              {description ? (
+                <div className={cn('mt-ui-xs text-muted-foreground', descriptionClass, familyClass)}>
+                  {description}
+                </div>
+              ) : null}
             </div>
             {actions ? <div className="shrink-0">{actions}</div> : null}
           </div>
