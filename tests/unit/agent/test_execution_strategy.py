@@ -23,6 +23,7 @@ from modules.agent.application.use_cases.release_lifecycle_use_cases_v2 import (
 from modules.agent.infra.execution.instrumented_primary_mixin import (
     InstrumentedPrimaryExecutionMixin,
 )
+from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.infra.execution.strategies.resolver import (
     BuiltinExecutionStrategyResolver,
     build_execution_strategy_resolver,
@@ -186,6 +187,28 @@ class _RuntimeHost(InstrumentedPrimaryExecutionMixin):
 
 
 @pytest.mark.asyncio
+async def test_agent_runtime_requires_strategy_resolver_from_composition() -> None:
+    runtime = _RuntimeHost()
+    agent = SimpleNamespace(settings={})
+
+    with pytest.raises(
+        RuntimeError,
+        match="Agent execution strategy resolver is not configured",
+    ):
+        await runtime._execute_llm(
+            agent=agent,
+            api_key="secret",
+            base_url=None,
+            response_format={},
+            json_enabled=False,
+            has_tools=False,
+            agent_tools=[],
+            tool_name_to_id={},
+            messages=["hello"],
+        )
+
+
+@pytest.mark.asyncio
 async def test_agent_runtime_resolves_strategy_from_agent_runtime_config() -> None:
     strategy = _RecordingStrategy()
     resolver = _RecordingResolver(strategy)
@@ -238,3 +261,34 @@ async def test_agent_runtime_keeps_legacy_agent_on_standard_strategy() -> None:
     )
 
     assert resolver.names == ["standard"]
+
+
+@pytest.mark.asyncio
+async def test_frozen_release_runtime_config_wins_over_mutable_agent_state() -> None:
+    strategy = _RecordingStrategy()
+    resolver = _RecordingResolver(strategy)
+    runtime = _RuntimeHost()
+    runtime.configure_execution_strategy_resolver(resolver)
+    agent = SimpleNamespace(
+        settings={"runtime_config": {"execution_strategy": "react"}},
+    )
+
+    ReleaseRuntimeResolver._apply_runtime_config_snapshot(
+        agent,
+        {"execution_strategy": "standard"},
+    )
+
+    await runtime._execute_llm(
+        agent=agent,
+        api_key="secret",
+        base_url=None,
+        response_format={},
+        json_enabled=False,
+        has_tools=False,
+        agent_tools=[],
+        tool_name_to_id={},
+        messages=["release"],
+    )
+
+    assert resolver.names == ["standard"]
+    assert agent.settings["runtime_config"] == {"execution_strategy": "standard"}
