@@ -24,7 +24,7 @@ const providers = [
 
 function buildCredentialMetadata(provider: string, baseUrl: string): Record<string, string> {
   if (provider === 'custom') return { provider_family: 'openai', compatibility: 'compatible', base_url: baseUrl.trim(), model_discovery_strategy: 'openai_compatible_models' }
-  if (provider === 'openrouter') return { provider_family: 'openrouter', compatibility: 'native', base_url: OPENROUTER_BASE_URL, model_discovery_strategy: 'openrouter_models' }
+  if (provider === 'openrouter') return { provider_family: 'openrouter', compatibility: 'native', base_url: OPENROUTER_BASE_URL, model_discovery_strategy: 'openai_compatible_models' }
   return { provider_family: 'openai', compatibility: 'native', model_discovery_strategy: 'openai_models' }
 }
 
@@ -36,13 +36,7 @@ interface AddProviderCredentialModalProps {
   credential?: ProviderCredential | null
 }
 
-export function AddProviderCredentialModal({
-  open,
-  onClose,
-  projectId,
-  onCredentialCreated,
-  credential,
-}: AddProviderCredentialModalProps) {
+export function AddProviderCredentialModal({ open, onClose, projectId, onCredentialCreated, credential }: AddProviderCredentialModalProps) {
   const credentialsQuery = useCredentials(projectId)
   const updateCredential = useUpdateCredential()
   const isEditing = Boolean(credential)
@@ -65,11 +59,7 @@ export function AddProviderCredentialModal({
     try {
       await updateCredential.mutateAsync({
         id: credential.id,
-        data: {
-          name: name.trim(),
-          provider,
-          metadata: buildCredentialMetadata(provider, baseUrl),
-        },
+        data: { name: name.trim(), provider, metadata: buildCredentialMetadata(provider, baseUrl) },
       })
       toast.success('Credential updated')
       onCredentialCreated(credential.id)
@@ -80,12 +70,7 @@ export function AddProviderCredentialModal({
   }
 
   return (
-    <Dialog
-      open={open}
-      onClose={onClose}
-      title={isEditing ? 'Edit Provider Credential' : 'Connect provider'}
-      className="max-w-dialog"
-    >
+    <Dialog open={open} onClose={onClose} title={isEditing ? 'Edit Provider Credential' : 'Connect provider'}>
       {isEditing && credential ? (
         <form onSubmit={handleEditSubmit} className="grid gap-ui-md">
           <Field>
@@ -99,14 +84,7 @@ export function AddProviderCredentialModal({
           {provider === 'custom' ? (
             <Field>
               <FieldLabel>Base URL</FieldLabel>
-              <Input
-                value={baseUrl}
-                onChange={(event) => setBaseUrl(event.target.value)}
-                placeholder="https://api.example.com/v1"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-              />
+              <Input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
             </Field>
           ) : null}
           <Alert variant="info">
