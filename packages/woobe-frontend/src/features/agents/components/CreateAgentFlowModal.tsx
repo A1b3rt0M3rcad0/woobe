@@ -86,7 +86,7 @@ function SelectableModelList({
                 descriptionVariant="technical"
                 presentation="row"
                 selected={item.id === selectedId}
-                density="compact"
+                density="technical"
                 trailing={item.id === selectedId ? <Check className="h-icon w-icon text-primary-light" /> : null}
                 onClick={() => onSelect(item.id)}
               />
@@ -176,11 +176,11 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
                 description={providerLabel(flow.selectedCredential?.provider || flow.activeCredentials[0].provider)}
                 descriptionVariant="technical"
                 selected
-                density="compact"
+                density="technical"
                 trailing={<Check className="h-icon w-icon text-primary-light" />}
               />
             ) : (
-              <Field>
+              <Field density="technical">
                 <FieldLabel>Connection</FieldLabel>
                 <Select
                   value={flow.selectedCredential?.id || ''}
@@ -192,7 +192,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
                 />
               </Field>
             )}
-            <Button type="button" size="sm" variant="outline" onClick={() => setShowProviderForm(true)}>
+            <Button type="button" size="technical" variant="outline" onClick={() => setShowProviderForm(true)}>
               <Plus className="h-icon-sm w-icon-sm" />Add connection
             </Button>
           </div>
@@ -217,7 +217,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
             size="segment"
           />
           {flow.modelMode !== 'existing' && flow.canUseCatalog && flow.modelMode === 'manual' ? (
-            <Button type="button" size="sm" variant="ghost" className="mt-ui-sm" onClick={flow.useCatalogMode}>Browse provider catalog</Button>
+            <Button type="button" size="technical" variant="ghost" className="mt-ui-sm" onClick={flow.useCatalogMode}>Browse provider catalog</Button>
           ) : null}
         </SectionBlock>
       </aside>
@@ -235,8 +235,8 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
               <Alert variant="warning">
                 <AlertDescription>Could not load the provider catalog.</AlertDescription>
                 <div className="mt-ui-md flex gap-ui-sm">
-                  <Button type="button" size="sm" variant="outline" onClick={flow.retryCatalog}>Retry</Button>
-                  <Button type="button" size="sm" variant="ghost" onClick={() => flow.setManualModel('', '')}>Enter model ID</Button>
+                  <Button type="button" size="technical" variant="outline" onClick={flow.retryCatalog}>Retry</Button>
+                  <Button type="button" size="technical" variant="ghost" onClick={() => flow.setManualModel('', '')}>Enter model ID</Button>
                 </div>
               </Alert>
             ) : (
@@ -244,11 +244,11 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
             )
           ) : (
             <div className="grid gap-ui-md sm:grid-cols-2">
-              <Field>
+              <Field density="technical">
                 <FieldLabel>Model ID</FieldLabel>
                 <Input value={flow.manualModelIdentifier} onChange={(event) => flow.setManualModel(event.target.value, flow.manualModelName)} placeholder="deepseek/deepseek-chat" className="font-mono" />
               </Field>
-              <Field>
+              <Field density="technical">
                 <FieldLabel>Display name <FieldOptional /></FieldLabel>
                 <Input value={flow.manualModelName} onChange={(event) => flow.setManualModel(flow.manualModelIdentifier, event.target.value)} placeholder="Defaults to model ID" />
               </Field>
@@ -324,15 +324,15 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                 description="Define the role and primary outcome. Configure the full Behavior in the Agent editor."
               >
                 <div className="grid gap-ui-md md:grid-cols-2">
-                  <Field>
+                  <Field density="technical">
                     <FieldLabel>Name</FieldLabel>
                     <Input value={flow.agentName} onChange={(event) => flow.setAgentName(event.target.value)} placeholder="Customer Support Agent" autoFocus />
                   </Field>
-                  <Field>
+                  <Field density="technical">
                     <FieldLabel>Description <FieldOptional /></FieldLabel>
                     <Input value={flow.agentDescription} onChange={(event) => flow.setAgentDescription(event.target.value)} placeholder="Handles customer questions and support requests" />
                   </Field>
-                  <Field className="md:col-span-2">
+                  <Field density="technical" className="md:col-span-2">
                     <FieldLabel>Objective</FieldLabel>
                     <Textarea density="compact" value={flow.agentObjective} onChange={(event) => flow.setAgentObjective(event.target.value)} aria-label="Objective" rows={4} placeholder="Resolve customer support requests accurately." />
                     <FieldDescription>Initial Draft objective. Detailed Behavior can be configured after creation.</FieldDescription>
@@ -349,7 +349,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                 <div className="grid gap-ui-md md:grid-cols-2">
                   <SectionBlock title="Agent" hierarchy="secondary" density="compact">
                     <TechnicalListItem
-                      density="compact"
+                      density="technical"
                       presentation="plain"
                       label={flow.agentName}
                       description={flow.agentDescription || 'No description'}
@@ -357,7 +357,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                   </SectionBlock>
                   <SectionBlock title="Model" hierarchy="secondary" density="compact">
                     <TechnicalListItem
-                      density="compact"
+                      density="technical"
                       presentation="plain"
                       descriptionVariant="technical"
                       label={flow.selectedModel.name}
