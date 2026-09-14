@@ -10,7 +10,10 @@ from modules.agent.application.execution_strategy_registry import (
     list_execution_strategies,
 )
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategy
-from modules.agent.infra.execution.strategies.resolver import BuiltinExecutionStrategyResolver
+from modules.agent.infra.execution.strategies.resolver import (
+    BuiltinExecutionStrategyResolver,
+    builtin_execution_strategy_names,
+)
 
 
 def test_execution_strategy_catalog_is_backend_owned_and_complete() -> None:
@@ -61,6 +64,10 @@ def test_registry_rejects_duplicate_and_unknown_strategies() -> None:
 
     with pytest.raises(UnknownExecutionStrategyError):
         registry.get("missing")
+
+
+def test_backend_catalog_and_runtime_resolver_expose_same_strategy_names() -> None:
+    assert builtin_execution_strategy_names() == SUPPORTED_EXECUTION_STRATEGIES
 
 
 def test_every_catalog_strategy_is_resolvable_by_runtime() -> None:
