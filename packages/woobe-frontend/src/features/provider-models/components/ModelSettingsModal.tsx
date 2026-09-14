@@ -20,6 +20,8 @@ import {
   AlertDescription,
   AlertTitle,
   Badge,
+  DialogContextBar,
+  DialogFooter,
   EmptyStatePanel,
   Field,
   FieldDescription,
@@ -277,7 +279,7 @@ function ReadOnlyValue({ label, value, mono = false }: { label: string; value: s
   return (
     <Field className="rounded-container border border-border/75 bg-background/25 px-ui-md py-ui-sm">
       <FieldLabel>{label}</FieldLabel>
-      <div className={mono ? 'break-words font-mono text-system-control text-accent-foreground' : 'break-words font-sans text-product-body font-medium text-accent-foreground'}>
+      <div className={mono ? 'break-words font-mono text-system-control text-accent-foreground' : 'break-words font-sans text-product-small font-medium text-accent-foreground'}>
         {value}
       </div>
     </Field>
@@ -357,6 +359,7 @@ function CatalogList({
               label={model.label}
               description={`${providerLabel(model.provider)} · ${model.id}`}
               selected={model.id === selectedId}
+              density="compact"
               trailing={model.id === selectedId ? <Check className="h-icon w-icon text-primary-light" /> : null}
               onClick={() => onSelect(model)}
             />
@@ -405,6 +408,7 @@ function ArchiveDialog({
                   label={item.name || item.version || item.id}
                   description={`${item.type} · ${item.status || 'unknown'}`}
                   meta={item.version ? `version ${item.version}` : shortId(item.id)}
+                  density="compact"
                 />
               ))}
             </div>
@@ -677,6 +681,7 @@ export function ModelSettingsModal({
       <SectionBlock
         title="Model identity"
         description="Reusable generation model identity used by Agent Drafts and frozen into Release snapshots."
+        density="compact"
       >
         <div className="grid gap-ui-md sm:grid-cols-2">
           <Field className="sm:col-span-2">
@@ -726,6 +731,7 @@ export function ModelSettingsModal({
         <SectionBlock
           title="Connect provider"
           description="Create a Project credential, then continue configuring this Model without leaving the modal."
+          density="compact"
         >
           <ProviderCredentialCreateForm
             projectId={projectId}
@@ -746,6 +752,7 @@ export function ModelSettingsModal({
           <SectionBlock
             title="Provider connection"
             description="Choose the Project credential this generation model will use."
+            density="compact"
             actions={!selectedModel ? (
               <Button type="button" size="sm" variant="outline" onClick={() => setStep('credential')}>
                 <Plus className="mr-2 h-icon w-icon" />Add connection
@@ -765,6 +772,7 @@ export function ModelSettingsModal({
                 description={providerLabel(usableCredentials[0].provider)}
                 meta="Project provider credential"
                 selected
+                density="compact"
                 trailing={<Check className="h-icon w-icon text-primary-light" />}
               />
             ) : (
@@ -776,6 +784,7 @@ export function ModelSettingsModal({
                     description={providerLabel(item.provider)}
                     meta="Project provider credential"
                     selected={item.id === credentialId}
+                    density="compact"
                     trailing={item.id === credentialId ? <Check className="h-icon w-icon text-primary-light" /> : null}
                     onClick={() => setCredentialId(item.id)}
                   />
@@ -790,6 +799,7 @@ export function ModelSettingsModal({
               description={selectedModel
                 ? 'Edit the provider model identifier bound to this reusable Model.'
                 : `Choose a generation model from ${providerLabel(credential.provider)}.`}
+              density="compact"
             >
               {shouldUseCatalog ? (
                 <CatalogList
@@ -847,6 +857,7 @@ export function ModelSettingsModal({
       title="Model capabilities"
       description="Used by Context budgeting and runtime compatibility checks. Unknown values remain unknown; Woobe does not infer them from the model name."
       actions={<Badge variant="outline" size="compact">{capabilitySource}</Badge>}
+      density="compact"
     >
       <div className="grid gap-ui-lg">
         <div className="grid gap-ui-md sm:grid-cols-2">
@@ -862,7 +873,7 @@ export function ModelSettingsModal({
           </Field>
         </div>
 
-        <div className="grid gap-ui-md border-t border-border pt-ui-lg lg:grid-cols-3">
+        <div className="grid gap-ui-md border-t border-border pt-ui-md lg:grid-cols-3">
           <Field>
             <FieldLabel>Tool calling</FieldLabel>
             <Select value={supportsTools} onChange={(event) => setSupportsTools(event.target.value as CapabilityChoice)} options={capabilityOptions} />
@@ -884,6 +895,7 @@ export function ModelSettingsModal({
     <SectionBlock
       title="Pricing metadata"
       description="Optional costs used for estimation and trace analysis. Pricing metadata does not control provider billing."
+      density="compact"
     >
       <div className="grid gap-ui-md sm:grid-cols-2">
         <Field>
@@ -906,6 +918,7 @@ export function ModelSettingsModal({
     <SectionBlock
       title="Lifecycle"
       description="Archive is blocked while Agent Drafts or active Release snapshots reference this Model."
+      density="compact"
     >
       <Alert variant="destructive">
         <AlertTitle>Archive Model</AlertTitle>
@@ -948,11 +961,10 @@ export function ModelSettingsModal({
         open={open}
         onClose={busy ? () => undefined : onClose}
         title={selectedModel ? 'Model settings' : 'New model'}
-        className="flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden"
-        contentClassName="min-h-0 flex-1 p-0"
+        variant="workspace"
       >
         <div className="flex h-full min-h-0 min-w-0 flex-col">
-          <div className="shrink-0 border-b border-border bg-background/20 px-ui-lg py-ui-md">
+          <DialogContextBar>
             <div className="flex min-w-0 flex-wrap items-start justify-between gap-ui-md">
               <div className="flex min-w-0 items-start gap-ui-md">
                 <div className="flex h-control-nav w-control-nav shrink-0 items-center justify-center rounded-control border border-primary/25 bg-primary/[0.08] text-primary-light">
@@ -985,41 +997,43 @@ export function ModelSettingsModal({
               </div>
             </div>
 
-            <div className="mt-ui-md overflow-x-auto">
+            <div className="mt-ui-sm overflow-x-auto">
               <SegmentedControl
                 items={navigationItems}
                 value={activeSection}
                 onValueChange={(value) => setActiveSection(value as ModelSection)}
                 ariaLabel="Model settings sections"
-                size="compact"
+                size="segment"
               />
             </div>
-          </div>
+          </DialogContextBar>
 
-          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-ui-lg lg:p-ui-xl">
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-ui-lg">
             {currentContent}
           </main>
 
-          <div className="flex shrink-0 flex-col-reverse gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md backdrop-blur sm:flex-row sm:items-center sm:justify-between lg:px-ui-xl">
-            <p className="max-w-2xl font-sans text-product-caption text-muted-foreground">{footerHint}</p>
-            <div className="flex flex-wrap justify-end gap-ui-sm">
-              {step === 'credential' && usableCredentials.length > 0 ? (
-                <Button type="button" variant="outline" disabled={busy} onClick={() => setStep('model')}>Back</Button>
-              ) : (
-                <Button type="button" variant="outline" disabled={busy} onClick={onClose}>Close</Button>
-              )}
-              {step === 'credential' ? (
-                <Button type="submit" form="model-provider-credential-form" loading={credentialPending}>
-                  Connect and continue
-                </Button>
-              ) : (
-                <Button type="button" loading={createModel.isPending || updateModel.isPending} disabled={!canSave} onClick={() => { void saveModel() }}>
-                  <ShieldCheck className="mr-2 h-icon w-icon" />
-                  {selectedModel ? 'Save changes' : 'Create model'}
-                </Button>
-              )}
-            </div>
-          </div>
+          <DialogFooter
+            meta={<p className="max-w-2xl font-sans text-product-caption text-muted-foreground">{footerHint}</p>}
+            actions={(
+              <>
+                {step === 'credential' && usableCredentials.length > 0 ? (
+                  <Button type="button" variant="outline" disabled={busy} onClick={() => setStep('model')}>Back</Button>
+                ) : (
+                  <Button type="button" variant="outline" disabled={busy} onClick={onClose}>Close</Button>
+                )}
+                {step === 'credential' ? (
+                  <Button type="submit" form="model-provider-credential-form" loading={credentialPending}>
+                    Connect and continue
+                  </Button>
+                ) : (
+                  <Button type="button" loading={createModel.isPending || updateModel.isPending} disabled={!canSave} onClick={() => { void saveModel() }}>
+                    <ShieldCheck className="mr-2 h-icon w-icon" />
+                    {selectedModel ? 'Save changes' : 'Create model'}
+                  </Button>
+                )}
+              </>
+            )}
+          />
         </div>
       </Dialog>
 
