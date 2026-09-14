@@ -36,7 +36,7 @@ export interface DialogProps {
 export interface DialogContextBarProps extends HTMLAttributes<HTMLDivElement> {}
 
 export function DialogContextBar({ className, ...props }: DialogContextBarProps) {
-  return <div className={cn('shrink-0 border-b border-border bg-background/20 px-ui-lg py-ui-md', className)} {...props} />
+  return <div className={cn('shrink-0 border-b border-border bg-background/20 px-ui-panel-inset py-ui-md', className)} {...props} />
 }
 
 export interface DialogBodyProps extends HTMLAttributes<HTMLDivElement> {
@@ -48,7 +48,7 @@ export function DialogBody({ className, padded = true, ...props }: DialogBodyPro
     <div
       className={cn(
         'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain',
-        padded && 'p-ui-lg',
+        padded && 'p-ui-panel-inset',
         className,
       )}
       {...props}
@@ -65,7 +65,7 @@ export function DialogFooter({ className, meta, actions, ...props }: DialogFoote
   return (
     <div
       className={cn(
-        'flex shrink-0 flex-col-reverse gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md backdrop-blur sm:flex-row sm:items-center sm:justify-between',
+        'flex shrink-0 flex-col-reverse gap-ui-sm border-t border-border bg-surface/95 px-ui-panel-inset py-ui-md backdrop-blur sm:flex-row sm:items-center sm:justify-between',
         className,
       )}
       {...props}
@@ -82,9 +82,10 @@ export const dialogTypographyClass = [
   'font-sans',
   '[&_h1]:text-heading-sm [&_h2]:text-section-title [&_h3]:text-section-title [&_h4]:text-system-control',
   '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono',
-  '[&_input]:font-sans [&_input]:text-product-small [&_select]:font-sans',
-  '[&_select]:h-control [&_select]:rounded-control [&_select]:border-border [&_select]:bg-control [&_select]:text-system-control [&_select]:font-normal [&_select]:text-accent-foreground',
-  '[&_textarea]:font-sans [&_textarea]:text-product-small',
+  '[&_input]:font-sans [&_input]:text-system-control',
+  '[&_select]:font-mono [&_select]:h-control [&_select]:rounded-control [&_select]:border-border [&_select]:bg-control [&_select]:text-system-control [&_select]:font-normal [&_select]:text-accent-foreground',
+  '[&_option]:font-mono [&_option]:text-system-control',
+  '[&_textarea]:font-sans [&_textarea]:text-system-control',
   '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
   '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono [&_aside]:font-mono',
   '[&_.text-lg]:text-heading-sm [&_.text-base]:text-product-body [&_.text-sm]:text-product-small [&_.text-xs]:text-product-caption',
