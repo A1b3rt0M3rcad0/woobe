@@ -119,7 +119,7 @@ export const woobeLayout = {
   dialogSidebar: '15.625rem',
   dialogContentMax: '47.5rem',
   dialogMaxHeight: 'calc(100svh - 2rem)',
-  dialogWorkspaceHeight: 'min(40rem, calc(100svh - 7rem))',
+  dialogWorkspaceHeight: 'min(56.25rem, calc(100svh - 2rem))',
   focusWorkspaceWidth: 'min(94vw, 93.75rem)',
   focusWorkspaceHeight: 'min(88svh, 57.5rem)',
   codeSnippetCompact: '5.25rem',
