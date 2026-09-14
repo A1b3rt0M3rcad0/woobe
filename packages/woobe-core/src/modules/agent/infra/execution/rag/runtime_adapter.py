@@ -6,12 +6,11 @@ from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
 from modules.agent.application.interfaces.embedding_errors import EmbeddingProviderError
 from modules.agent.application.interfaces.embedding_factory import EmbeddingFactory
 from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.application.rag.contracts import RAGCapabilities, RAGRequest, RAGResult
-from modules.agent.application.rag.registry import (
-    RAGStrategyRegistry,
-    UnknownRAGStrategyError,
-)
-from modules.agent.application.rag.capabilities.vector_search import (
+from modules.agent.application.interfaces.rag import (
+    RAGCapabilities,
+    RAGRequest,
+    RAGResult,
+    RAGStrategyResolver,
     RAGVectorSearchCapability,
 )
 from modules.agent.infra.execution.rag.embedding_capability import (
@@ -54,7 +53,7 @@ class RAGRuntimeAdapter:
     def __init__(
         self,
         *,
-        registry: RAGStrategyRegistry,
+        registry: RAGStrategyResolver,
         embedding_factory: EmbeddingFactory,
         vector_search: RAGVectorSearchCapability,
         encryption_key: str,
@@ -92,7 +91,7 @@ class RAGRuntimeAdapter:
 
         try:
             strategy = self._registry.resolve(effective.strategy)
-        except UnknownRAGStrategyError as exc:
+        except LookupError as exc:
             raise ValidationError(str(exc)) from exc
 
         rag_metadata: dict[str, Any] = {
@@ -108,8 +107,6 @@ class RAGRuntimeAdapter:
             "embedding_dimensions": snapshot.embedding_dimensions,
             "rag_runtime_config": effective.model_dump(),
             "rag_runtime_config_source": _runtime_config_source(),
-            # Kept before strategy execution so embedding failures preserve the
-            # same observability field produced by the pre-strategy runtime.
             "retrieval_query_mode": effective.query_mode,
         }
         if execution_context is not None:

@@ -1,47 +1,26 @@
-from __future__ import annotations
+"""RAG application contracts.
 
-from dataclasses import dataclass, field
-from typing import Any, Mapping, Protocol, runtime_checkable
-from uuid import UUID
+The canonical port surface lives under ``application.interfaces`` so infrastructure
+can depend on it without crossing the Agent module architecture boundary. This
+module remains as the application-facing import path used by strategies and tests.
+"""
 
-from modules.agent.application.dtos.rag_config_dtos import RAGRuntimeConfig
-from modules.agent.application.dtos.runtime_dtos import SourceInfo
-from modules.agent.application.rag.capabilities.embedding import RAGEmbeddingCapability
-from modules.agent.application.rag.capabilities.vector_search import RAGVectorSearchCapability
+from modules.agent.application.interfaces.rag import (
+    RAGCapabilities,
+    RAGEmbeddingCapability,
+    RAGRequest,
+    RAGResult,
+    RAGStrategy,
+    RAGStrategyResolver,
+    RAGVectorSearchCapability,
+)
 
-
-@dataclass(frozen=True, slots=True)
-class RAGRequest:
-    """Immutable input presented to one RAG strategy invocation."""
-
-    query: str
-    history: tuple[Any, ...]
-    config: RAGRuntimeConfig
-    vector_snapshot_id: UUID
-    snapshot_documents: tuple[Any, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class RAGResult:
-    """Strategy output consumed by the runtime adapter and Context Manager."""
-
-    context: str | None
-    sources: tuple[SourceInfo, ...] = ()
-    metrics: Mapping[str, Any] = field(default_factory=dict)
-
-
-@dataclass(frozen=True, slots=True)
-class RAGCapabilities:
-    """Operations a strategy may compose without knowing their infrastructure."""
-
-    embedding: RAGEmbeddingCapability
-    vector_search: RAGVectorSearchCapability
-
-
-@runtime_checkable
-class RAGStrategy(Protocol):
-    async def retrieve(
-        self,
-        request: RAGRequest,
-        capabilities: RAGCapabilities,
-    ) -> RAGResult: ...
+__all__ = [
+    "RAGCapabilities",
+    "RAGEmbeddingCapability",
+    "RAGRequest",
+    "RAGResult",
+    "RAGStrategy",
+    "RAGStrategyResolver",
+    "RAGVectorSearchCapability",
+]

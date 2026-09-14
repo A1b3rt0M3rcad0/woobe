@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from modules.agent.application.rag.contracts import RAGStrategy
+from modules.agent.application.interfaces.rag import RAGStrategy
 
 
 class UnknownRAGStrategyError(LookupError):
