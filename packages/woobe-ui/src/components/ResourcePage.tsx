@@ -34,8 +34,8 @@ export function ResourcePage({
       className={cn(
         'resource-page-shell w-full font-sans',
         canvas ? 'max-w-none' : 'mx-auto max-w-resource space-y-ui-lg',
-        '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_select]:font-mono [&_input]:font-mono [&_input]:text-system-control',
-        '[&_select]:text-system-label [&_select]:text-slate-100 [&_select]:outline-none',
+        '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_input]:font-mono [&_input]:text-system-control',
+        '[&_select]:font-sans [&_select]:text-system-control [&_select]:font-normal [&_select]:text-slate-100 [&_select]:outline-none',
         '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
         '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono',
         '[&_textarea]:font-sans',
