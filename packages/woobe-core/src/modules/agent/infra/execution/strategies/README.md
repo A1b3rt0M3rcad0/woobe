@@ -24,20 +24,43 @@ Do not introduce identities such as `standard:v1` or a second strategy-version s
 
 Historical snapshots without the field are permanently interpreted as `standard`.
 
+## Shared execution capabilities
+
+Strategies must compose the execution operations exposed under:
+
+```text
+modules/agent/infra/execution/capabilities/
+```
+
+The capability layer currently separates:
+
+- execution preparation and resolved model/tool binding;
+- durable/instrumented model invocation;
+- governed durable Tool execution;
+- strategy-local execution state;
+- structured result finalization.
+
+A Strategy may decide when and how often these capabilities are used, but it must not bypass the runtime-governed invocation paths. In particular, concrete Strategies must not call provider adapters, Tool integrations, persistence or Agent Run lifecycle services directly.
+
+`run_instrumented_execution()` remains only as a compatibility entrypoint for existing callers. It is not the extension API for new Strategies.
+
 ## Current strategy
 
 ```text
 standard -> StandardExecutionStrategy
 ```
 
-`StandardExecutionStrategy` delegates to the existing `run_instrumented_execution()` behavior. This preserves the current engine while placing it behind a replaceable contract.
+`StandardExecutionStrategy` now composes execution preparation, the current capability-aware Standard loop and result finalization directly. It no longer depends on `run_instrumented_execution()` as its algorithm boundary.
+
+The current `run_tool_loop()` still preserves the existing Standard loop semantics, including durable Tool barriers, recovery checkpoints, circuit breaking and terminal recovery. Further decomposition of that loop must preserve those guarantees before the Standard Strategy owns lower-level loop orchestration directly.
 
 ## Adding a future built-in strategy
 
 1. Implement `ExecutionStrategy` in this directory.
-2. Give it a stable semantic name.
-3. Register it explicitly in `resolver.py`.
-4. Add the name to backend configuration validation.
-5. Add focused behavior, recovery and architecture tests.
+2. Compose shared execution capabilities instead of the legacy runner.
+3. Give the Strategy a stable semantic name.
+4. Register it explicitly in `resolver.py`.
+5. Add the name to backend configuration validation.
+6. Add focused behavior, recovery, observability and architecture tests.
 
 Do not add plugin discovery, external adapters or Network-specific strategy selection unless those requirements are independently justified.
