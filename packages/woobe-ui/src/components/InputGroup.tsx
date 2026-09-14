@@ -9,16 +9,16 @@ export interface InputGroupProps extends HTMLAttributes<HTMLDivElement> {
 const InputGroup = forwardRef<HTMLDivElement, InputGroupProps>(
   ({ className, start, end, children, ...props }, ref) => (
     <div ref={ref} className={cn('relative w-full', className)} {...props}>
-      {start ? (
-        <span className="pointer-events-none absolute left-ui-md top-1/2 z-[1] flex -translate-y-1/2 items-center justify-center text-muted-foreground [&_svg]:h-icon [&_svg]:w-icon">
-          {start}
-        </span>
-      ) : null}
       <div className={cn(start && '[&_input]:pl-9', end && '[&_input]:pr-10')}>
         {children}
       </div>
+      {start ? (
+        <span className="pointer-events-none absolute left-ui-md top-1/2 flex -translate-y-1/2 items-center justify-center text-muted-foreground [&_svg]:h-icon [&_svg]:w-icon">
+          {start}
+        </span>
+      ) : null}
       {end ? (
-        <span className="absolute right-ui-xs top-1/2 z-[1] flex -translate-y-1/2 items-center justify-center">
+        <span className="absolute right-ui-xs top-1/2 flex -translate-y-1/2 items-center justify-center">
           {end}
         </span>
       ) : null}
