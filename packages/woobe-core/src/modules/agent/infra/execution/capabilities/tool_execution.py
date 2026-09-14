@@ -26,13 +26,14 @@ class ToolExecutionCapability:
 
     execute_single_tool: Callable[[dict, str], Coroutine[Any, Any, dict]]
     tool_name_to_id: dict[str, str]
-    execute_fn: ToolExecuteFn = execute_tool_call
+    execute_fn: ToolExecuteFn | None = None
 
     async def execute_many(self, tool_calls: list[dict]) -> ToolExecutionBatch:
+        execute = self.execute_fn or execute_tool_call
         started = time.monotonic()
         results = await asyncio.gather(
             *[
-                self.execute_fn(
+                execute(
                     execute=self.execute_single_tool,
                     tool_call=tool_call,
                     resolved_tool_id=self.tool_name_to_id.get(
