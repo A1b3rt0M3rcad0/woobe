@@ -36,7 +36,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       className={cn(
-        'inline-flex items-center justify-center whitespace-nowrap rounded-control font-mono transition-colors',
+        'inline-flex items-center justify-center gap-ui-sm whitespace-nowrap rounded-control font-mono transition-colors',
         'focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary focus-visible:ring-offset-1 focus-visible:ring-offset-background',
         'disabled:pointer-events-none disabled:opacity-50',
         variantClasses[variant],
@@ -48,7 +48,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       {loading && (
         <span
           aria-hidden="true"
-          className="mr-ui-sm h-icon-sm w-icon-sm animate-spin rounded-full border border-current border-r-transparent"
+          className="h-icon-sm w-icon-sm animate-spin rounded-full border border-current border-r-transparent"
         />
       )}
       {children}
