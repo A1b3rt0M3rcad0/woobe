@@ -12,6 +12,8 @@ CAPABILITIES_ROOT = EXECUTION_ROOT / "capabilities"
 STRATEGIES_ROOT = EXECUTION_ROOT / "strategies"
 STANDARD_STRATEGY = STRATEGIES_ROOT / "standard.py"
 RESOLVER = STRATEGIES_ROOT / "resolver.py"
+MODEL_CAPABILITY = CAPABILITIES_ROOT / "model_invocation.py"
+TOOL_CAPABILITY = CAPABILITIES_ROOT / "tool_execution.py"
 PRIMARY_RUNTIME = EXECUTION_ROOT / "instrumented_primary_mixin.py"
 RUNTIME_FACTORY = AGENT_ROOT / "composition" / "factories" / "ask_agent_runtime_factory.py"
 ASK_JOB_WORKER = (
@@ -60,6 +62,10 @@ def test_execution_strategy_partition_is_explicit() -> None:
     assert RESOLVER.is_file()
     assert (CAPABILITIES_ROOT / "preparation.py").is_file()
     assert (CAPABILITIES_ROOT / "result_finalization.py").is_file()
+    assert MODEL_CAPABILITY.is_file()
+    assert TOOL_CAPABILITY.is_file()
+    assert (CAPABILITIES_ROOT / "bundle.py").is_file()
+    assert (CAPABILITIES_ROOT / "state.py").is_file()
     assert (
         AGENT_ROOT / "application" / "interfaces" / "execution_strategy.py"
     ).is_file()
@@ -77,6 +83,37 @@ def test_strategies_do_not_depend_on_legacy_instrumented_runner() -> None:
         "Execution Strategies must compose reusable capabilities instead of the legacy "
         "instrumented runner: " + ", ".join(violations)
     )
+
+
+def test_strategies_cannot_bypass_durable_model_or_tool_capabilities() -> None:
+    forbidden = (
+        "modules.agent.infra.execution.durable_execution_instrumentation",
+        "modules.agent.infra.database",
+    )
+    violations: list[str] = []
+
+    for path in STRATEGIES_ROOT.rglob("*.py"):
+        tree = _tree(path)
+        for node in ast.walk(tree):
+            modules: list[str] = []
+            if isinstance(node, ast.ImportFrom) and node.module:
+                modules.append(node.module)
+            elif isinstance(node, ast.Import):
+                modules.extend(alias.name for alias in node.names)
+            for module in modules:
+                if any(module.startswith(prefix) for prefix in forbidden):
+                    violations.append(
+                        f"{path.relative_to(ROOT).as_posix()} imports {module}"
+                    )
+
+    assert not violations, "\n".join(violations)
+
+
+def test_model_and_tool_capabilities_use_durable_instrumentation() -> None:
+    durable_module = "modules.agent.infra.execution.durable_execution_instrumentation"
+
+    assert _imports_module(MODEL_CAPABILITY, durable_module, "invoke_llm")
+    assert _imports_module(TOOL_CAPABILITY, durable_module, "execute_tool_call")
 
 
 def test_standard_strategy_composes_shared_execution_capabilities() -> None:
