@@ -12,8 +12,8 @@ export interface SectionBlockProps extends Omit<HTMLAttributes<HTMLElement>, 'ti
 const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
   ({ className, title, description, actions, eyebrow, density = 'default', children, ...props }, ref) => {
     const hasChildren = children !== null && children !== undefined && children !== false
-    const spacing = density === 'compact' ? 'p-ui-md' : 'p-ui-lg'
-    const contentGap = hasChildren ? (density === 'compact' ? 'mb-ui-md' : 'mb-ui-lg') : undefined
+    const spacing = density === 'compact' ? 'px-ui-md py-ui-sm' : 'p-ui-lg'
+    const contentGap = hasChildren ? (density === 'compact' ? 'mb-ui-sm' : 'mb-ui-lg') : undefined
 
     return (
       <section ref={ref} className={cn('rounded-container border border-border bg-surface/70', spacing, className)} {...props}>
