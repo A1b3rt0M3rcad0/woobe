@@ -175,7 +175,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
       tabIndex={presentation === 'modal' ? -1 : undefined}
       data-dialog-variant={variant}
       className={cn(
-        'dialog-scrollbars relative w-full max-w-dialog rounded-container border border-border bg-surface text-accent-foreground shadow-popup',
+        'dialog-scrollbars relative w-full max-w-dialog-compact rounded-container border border-border bg-surface text-accent-foreground shadow-popup',
         workspace && 'flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden',
         dialogTypographyClass,
         '[&_.rounded-2xl]:rounded-container [&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-control [&_.rounded-md]:rounded-technical',
