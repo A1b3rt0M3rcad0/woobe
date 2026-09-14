@@ -10,11 +10,13 @@ from modules.agent.domain.entities import Agent
 
 @dataclass(frozen=True, slots=True)
 class ExecutionStrategyRequest:
-    """Complete input required to execute one Agent algorithm.
+    """Runtime-to-Strategy input for one Agent execution.
 
-    The Agent Runtime owns lifecycle, persistence, recovery, observability and policy
-    guarantees. A strategy receives only the dependencies and resolved inputs needed
-    to decide how model invocations and capability loops are conducted.
+    This is the outer boundary supplied by the Agent Runtime. Concrete Strategies should
+    resolve it through the shared execution preparation/capability layer rather than
+    reaching into Runtime lifecycle services directly. The Runtime keeps ownership of
+    persistence, Agent Run lifecycle, release/recovery wiring, policy, streaming transport
+    and terminal observability guarantees.
     """
 
     llm_factory: Any
