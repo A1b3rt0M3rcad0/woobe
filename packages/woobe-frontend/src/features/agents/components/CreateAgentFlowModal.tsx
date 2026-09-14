@@ -5,6 +5,7 @@ import {
   AlertDescription,
   Button,
   Dialog,
+  DialogBody,
   DialogContextBar,
   DialogFooter,
   EmptyStatePanel,
@@ -17,6 +18,7 @@ import {
   SegmentedControl,
   Select,
   Skeleton,
+  Stepper,
   TechnicalListItem,
   Textarea,
 } from '@woobe/ui'
@@ -169,7 +171,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
               />
             ) : (
               <Field>
-                <FieldLabel className="text-system-nano">Connection</FieldLabel>
+                <FieldLabel>Connection</FieldLabel>
                 <Select
                   value={flow.selectedCredential?.id || ''}
                   onChange={(event) => flow.selectCredential(event.target.value)}
@@ -228,11 +230,11 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
           ) : (
             <div className="grid gap-ui-md sm:grid-cols-2">
               <Field>
-                <FieldLabel className="text-system-nano">Model ID</FieldLabel>
+                <FieldLabel>Model ID</FieldLabel>
                 <Input value={flow.manualModelIdentifier} onChange={(event) => flow.setManualModel(event.target.value, flow.manualModelName)} placeholder="deepseek/deepseek-chat" className="font-mono" />
               </Field>
               <Field>
-                <FieldLabel className="text-system-nano">Display name <span className="font-normal text-muted-foreground">(optional)</span></FieldLabel>
+                <FieldLabel>Display name <span className="font-normal text-muted-foreground">(optional)</span></FieldLabel>
                 <Input value={flow.manualModelName} onChange={(event) => flow.setManualModel(flow.manualModelIdentifier, event.target.value)} placeholder="Defaults to model ID" />
               </Field>
             </div>
@@ -275,6 +277,12 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
   }
 
   const currentIndex = flow.step === 'details' ? 0 : flow.step === 'model' ? 1 : 2
+  const stepperItems = STEPS.map((step, index) => ({
+    id: step.id,
+    label: step.label,
+    description: step.detail,
+    state: index < currentIndex ? 'complete' as const : index === currentIndex ? 'current' as const : 'pending' as const,
+  }))
 
   return (
     <Dialog
@@ -284,81 +292,59 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
       variant="workspace"
     >
       {flow.inventoryLoading ? (
-        <div className="p-ui-lg"><AgentCreationPreparing /></div>
+        <DialogBody><AgentCreationPreparing /></DialogBody>
       ) : flow.inventoryError ? (
-        <div className="p-ui-lg"><AgentCreationLoadError onRetry={flow.retryInventory} onCancel={onClose} /></div>
+        <DialogBody><AgentCreationLoadError onRetry={flow.retryInventory} onCancel={onClose} /></DialogBody>
       ) : (
         <div className="flex min-h-0 flex-col overflow-hidden">
           <DialogContextBar>
-            <div className="grid gap-ui-xs sm:grid-cols-3">
-              {STEPS.map((step, index) => {
-                const active = step.id === flow.step
-                const complete = index < currentIndex
-                return (
-                  <div
-                    key={step.id}
-                    className={`rounded-container border px-ui-md py-ui-sm ${active ? 'border-primary/35 bg-primary/[0.08]' : 'border-border/75 bg-background/25'}`}
-                  >
-                    <div className="flex min-w-0 items-start justify-between gap-ui-sm">
-                      <div className="min-w-0">
-                        <p className="truncate font-mono text-system-control font-semibold text-accent-foreground">{index + 1} · {step.label}</p>
-                        <p className="mt-ui-hairline truncate font-mono text-system-meta text-muted-foreground">{step.detail}</p>
-                        <p className="mt-ui-xs font-mono text-system-nano text-muted-foreground/80">{complete ? 'Complete' : active ? 'Current' : 'Pending'}</p>
-                      </div>
-                      {complete ? <Check className="mt-ui-hairline h-icon-sm w-icon-sm shrink-0 text-success" /> : null}
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+            <Stepper items={stepperItems} />
           </DialogContextBar>
 
-          <ScrollArea className="min-h-0 bg-surface/25">
-            <div className="p-ui-lg">
-              {flow.step === 'details' ? (
-                <SectionBlock
-                  eyebrow="Agent Draft"
-                  title="Define the Agent identity"
-                  description="Define the role and primary outcome. Configure the full Behavior in the Agent editor."
-                >
-                  <div className="grid gap-ui-md md:grid-cols-2">
-                    <Field>
-                      <FieldLabel className="text-system-nano">Name</FieldLabel>
-                      <Input value={flow.agentName} onChange={(event) => flow.setAgentName(event.target.value)} placeholder="Customer Support Agent" autoFocus />
-                    </Field>
-                    <Field>
-                      <FieldLabel className="text-system-nano">Description <span className="font-normal text-muted-foreground">(optional)</span></FieldLabel>
-                      <Input value={flow.agentDescription} onChange={(event) => flow.setAgentDescription(event.target.value)} placeholder="Handles customer questions and support requests" />
-                    </Field>
-                    <Field className="md:col-span-2">
-                      <FieldLabel className="text-system-nano">Objective</FieldLabel>
-                      <Textarea value={flow.agentObjective} onChange={(event) => flow.setAgentObjective(event.target.value)} aria-label="Objective" rows={4} placeholder="Resolve customer support requests accurately." className="min-h-textarea" />
-                      <FieldDescription className="font-mono text-system-nano">Initial Draft objective. Detailed Behavior can be configured after creation.</FieldDescription>
-                    </Field>
-                  </div>
-                </SectionBlock>
-              ) : null}
-
-              {flow.step === 'model' ? <ModalModelStep flow={flow} projectId={projectId} /> : null}
-
-              {flow.step === 'review' && flow.selectedModel ? (
-                <div className="grid gap-ui-md">
-                  <SectionBlock eyebrow="Review" title="Confirm the initial Agent Draft" description="Creation does not publish a Production release." />
-                  <div className="grid gap-ui-md md:grid-cols-2">
-                    <SectionBlock title="Agent">
-                      <TechnicalListItem density="compact" label={flow.agentName} description={flow.agentDescription || 'No description'} />
-                    </SectionBlock>
-                    <SectionBlock title="Model">
-                      <TechnicalListItem density="compact" label={flow.selectedModel.name} description={`${providerLabel(flow.selectedModel.provider)} · ${flow.selectedModel.model}`} />
-                    </SectionBlock>
-                    <SectionBlock title="Objective" className="md:col-span-2">
-                      <p className="whitespace-pre-wrap font-sans text-product-small text-accent-foreground/90">{flow.agentObjective}</p>
-                    </SectionBlock>
-                  </div>
+          <DialogBody className="bg-surface/25">
+            {flow.step === 'details' ? (
+              <SectionBlock
+                eyebrow="Agent Draft"
+                title="Define the Agent identity"
+                description="Define the role and primary outcome. Configure the full Behavior in the Agent editor."
+              >
+                <div className="grid gap-ui-md md:grid-cols-2">
+                  <Field>
+                    <FieldLabel>Name</FieldLabel>
+                    <Input value={flow.agentName} onChange={(event) => flow.setAgentName(event.target.value)} placeholder="Customer Support Agent" autoFocus />
+                  </Field>
+                  <Field>
+                    <FieldLabel>Description <span className="font-normal text-muted-foreground">(optional)</span></FieldLabel>
+                    <Input value={flow.agentDescription} onChange={(event) => flow.setAgentDescription(event.target.value)} placeholder="Handles customer questions and support requests" />
+                  </Field>
+                  <Field className="md:col-span-2">
+                    <FieldLabel>Objective</FieldLabel>
+                    <Textarea value={flow.agentObjective} onChange={(event) => flow.setAgentObjective(event.target.value)} aria-label="Objective" rows={4} placeholder="Resolve customer support requests accurately." />
+                    <FieldDescription>Initial Draft objective. Detailed Behavior can be configured after creation.</FieldDescription>
+                  </Field>
                 </div>
-              ) : null}
-            </div>
-          </ScrollArea>
+              </SectionBlock>
+            ) : null}
+
+            {flow.step === 'model' ? <ModalModelStep flow={flow} projectId={projectId} /> : null}
+
+            {flow.step === 'review' && flow.selectedModel ? (
+              <div className="grid gap-ui-md">
+                <SectionBlock eyebrow="Review" title="Confirm the initial Agent Draft" description="Creation does not publish a Production release." />
+                <div className="grid gap-ui-md md:grid-cols-2">
+                  <SectionBlock title="Agent">
+                    <TechnicalListItem density="compact" label={flow.agentName} description={flow.agentDescription || 'No description'} />
+                  </SectionBlock>
+                  <SectionBlock title="Model">
+                    <TechnicalListItem density="compact" label={flow.selectedModel.name} description={`${providerLabel(flow.selectedModel.provider)} · ${flow.selectedModel.model}`} />
+                  </SectionBlock>
+                  <SectionBlock title="Objective" className="md:col-span-2">
+                    <p className="whitespace-pre-wrap font-sans text-product-caption text-accent-foreground/90">{flow.agentObjective}</p>
+                  </SectionBlock>
+                </div>
+              </div>
+            ) : null}
+          </DialogBody>
 
           <DialogFooter
             actions={(
