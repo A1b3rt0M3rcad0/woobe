@@ -3,11 +3,13 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Any, Callable, Coroutine
+from typing import Any, Awaitable, Callable, Coroutine
 
 from modules.agent.infra.execution.durable_execution_instrumentation import (
     execute_tool_call,
 )
+
+ToolExecuteFn = Callable[..., Awaitable[tuple[Any, Any, dict[str, Any]]]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,12 +26,13 @@ class ToolExecutionCapability:
 
     execute_single_tool: Callable[[dict, str], Coroutine[Any, Any, dict]]
     tool_name_to_id: dict[str, str]
+    execute_fn: ToolExecuteFn = execute_tool_call
 
     async def execute_many(self, tool_calls: list[dict]) -> ToolExecutionBatch:
         started = time.monotonic()
         results = await asyncio.gather(
             *[
-                execute_tool_call(
+                self.execute_fn(
                     execute=self.execute_single_tool,
                     tool_call=tool_call,
                     resolved_tool_id=self.tool_name_to_id.get(
