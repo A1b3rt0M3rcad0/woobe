@@ -41,6 +41,7 @@ def test_agent_run_metrics_share_one_schema_across_persistence_modes() -> None:
         execution_started_at="2026-08-25T12:00:00+00:00",
         prepare_latency_ms=5,
         execution_context="staging",
+        execution_strategy="standard",
         agent_release_id=release_id,
         agent_release_version="2.0.0",
     )
@@ -90,12 +91,14 @@ def test_agent_run_metrics_share_one_schema_across_persistence_modes() -> None:
         "fallback_provider_model_id",
         "fallback_credential_id",
         "execution_context",
+        "execution_strategy",
         "agent_release_id",
         "agent_release_version",
         "fallback_used",
     ):
         assert deferred.diagnostics[field] == standalone.diagnostics[field]
 
+    assert deferred.diagnostics["execution_strategy"] == "standard"
     assert deferred.diagnostics["finalization_work_latency_ms"] == 0
     assert deferred.diagnostics["persistence_latency_ms"] == 0
     assert standalone.diagnostics["finalization_work_latency_ms"] == 12
