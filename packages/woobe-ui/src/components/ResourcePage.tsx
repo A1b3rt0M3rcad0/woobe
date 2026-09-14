@@ -115,9 +115,12 @@ export interface ResourceTab<T extends string> {
   count?: number
 }
 
-function ResourceCount({ children }: { children: ReactNode }) {
+function ResourceCount({ children, compact = false }: { children: ReactNode; compact?: boolean }) {
   return (
-    <span className="shrink-0 font-mono text-system-meta font-normal tabular-nums text-muted-foreground">
+    <span className={cn(
+      'shrink-0 font-mono font-normal tabular-nums text-muted-foreground',
+      compact ? 'text-system-nano' : 'text-system-meta',
+    )}>
       {children}
     </span>
   )
@@ -140,13 +143,14 @@ export function ResourceTabs<T extends string>({
         ariaLabel={label}
         value={value}
         onValueChange={(next) => onChange(next as T)}
+        size="technical"
         className="p-ui-hairline"
         items={tabs.map((tab) => ({
           value: tab.value,
           label: (
             <span className="flex min-w-0 items-center gap-ui-xs">
               <span className="truncate">{tab.label}</span>
-              {tab.count !== undefined ? <ResourceCount>{tab.count}</ResourceCount> : null}
+              {tab.count !== undefined ? <ResourceCount compact>{tab.count}</ResourceCount> : null}
             </span>
           ),
         }))}
