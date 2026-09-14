@@ -112,7 +112,7 @@ export function ProviderCredentialCreateForm({
 
   return (
     <form id={formId} onSubmit={handleSubmit} className="grid gap-ui-md">
-      <Field>
+      <Field density="technical">
         <FieldLabel>Provider</FieldLabel>
         <div className="grid gap-ui-xs md:grid-cols-3">
           {providers.map((option) => {
@@ -125,7 +125,7 @@ export function ProviderCredentialCreateForm({
                 descriptionVariant="technical"
                 selected={selected}
                 multiline
-                density="compact"
+                density="technical"
                 className="h-full items-start"
                 trailing={selected ? <Check className="h-icon w-icon text-primary-light" /> : null}
                 onClick={() => setProvider(option.value)}
@@ -137,7 +137,7 @@ export function ProviderCredentialCreateForm({
 
       {provider === 'custom' ? (
         <div className="grid gap-ui-md sm:grid-cols-2">
-          <Field>
+          <Field density="technical">
             <FieldLabel>Base URL</FieldLabel>
             <Input
               value={baseUrl}
@@ -148,14 +148,14 @@ export function ProviderCredentialCreateForm({
               spellCheck={false}
             />
           </Field>
-          <Field>
+          <Field density="technical">
             <FieldLabel>Connection name <FieldOptional /></FieldLabel>
             <Input value={customName} onChange={(event) => setCustomName(event.target.value)} placeholder="Defaults to the provider hostname" />
           </Field>
         </div>
       ) : null}
 
-      <Field>
+      <Field density="technical">
         <FieldLabel>API key</FieldLabel>
         <ProviderSecretInput value={secret} onChange={setSecret} />
         <FieldDescription>Stored as a Project credential and never used as a login password.</FieldDescription>
