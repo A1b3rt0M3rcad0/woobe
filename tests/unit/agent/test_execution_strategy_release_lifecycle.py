@@ -113,7 +113,11 @@ async def test_strategy_survives_draft_staging_production_and_drives_runtime() -
 
     assert staging.runtime_config == runtime_config
     assert production.runtime_config == runtime_config
-    assert production.runtime_config is not draft.runtime_config
+
+    draft.runtime_config["execution_strategy"] = "react"
+    stored_production = await repo.get_by_id(production.id)
+    assert stored_production is not None
+    assert stored_production.runtime_config["execution_strategy"] == "standard"
 
     # Simulate mutable Agent state diverging after the immutable Production snapshot.
     # Runtime resolution must use the Release snapshot, not current draft state.
@@ -142,4 +146,4 @@ async def test_strategy_survives_draft_staging_production_and_drives_runtime() -
 
     assert result.content == "ok"
     assert resolver.names == ["standard"]
-    assert agent.settings["runtime_config"] == runtime_config
+    assert agent.settings["runtime_config"] == runtime_config | {"execution_strategy": "standard"}
