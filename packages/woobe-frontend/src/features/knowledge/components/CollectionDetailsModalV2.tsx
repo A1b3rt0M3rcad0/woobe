@@ -7,6 +7,8 @@ import {
   Badge,
   Button,
   Dialog,
+  DialogContextBar,
+  DialogFooter,
   EmptyStatePanel,
   Field,
   FieldLabel,
@@ -135,7 +137,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
 
   const overviewTab = (
     <div className="grid gap-ui-md pb-ui-xs">
-      <SectionBlock title="Collection information" description="Edit the Collection identity used across Knowledge.">
+      <SectionBlock title="Collection information" description="Edit the Collection identity used across Knowledge." density="compact">
         <div className="grid gap-ui-md">
           <Field>
             <FieldLabel>Name</FieldLabel>
@@ -151,6 +153,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
       <SectionBlock
         title="Documents"
         description={`${items.length} files · ${indexedCount} ready · ${formatBytes(totalSize)} total`}
+        density="compact"
         actions={(
           <div className="flex gap-ui-sm">
             <Button type="button" variant="outline" size="sm" onClick={refreshAll} disabled={isLoading}>
@@ -186,6 +189,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
                 key={document.id}
                 label={document.title}
                 description={documentMeta(document)}
+                density="compact"
                 leading={(
                   <span className="flex h-control-sm w-control-sm items-center justify-center rounded-control border border-border bg-control text-primary-light">
                     <FileText className="h-icon w-icon" />
@@ -226,6 +230,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
       <SectionBlock
         title="Vector readiness"
         description={vectorStatusDetail}
+        density="compact"
         actions={(
           <div className="flex items-center gap-ui-sm">
             <StatusBadge status={overview?.rag_status || 'UNKNOWN'} size="compact" />
@@ -264,6 +269,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
       <SectionBlock
         title="Vector snapshots"
         description={onUseSnapshot ? 'Choose a READY version to use in the Agent Draft.' : 'Immutable builds generated from this Collection.'}
+        density="compact"
       >
         {vectorSnapshots.length === 0 ? (
           <EmptyStatePanel compact title="No vector snapshot built yet" description="Build vectors from the current Collection documents to create the first immutable snapshot." />
@@ -274,6 +280,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
                 key={snapshot.id}
                 label={snapshot.version}
                 description={`${snapshot.embedding_model} · ${numberLabel(snapshot.chunk_count)} chunks · ${numberLabel(snapshot.vector_count ?? snapshot.chunk_count)} vectors${snapshot.status === 'FAILED' && snapshot.error_message ? ` · ${snapshot.error_message}` : ''}`}
+                density="compact"
                 meta={<StatusBadge status={snapshot.status} size="compact" />}
                 trailing={(
                   <div className="flex items-center gap-ui-sm">
@@ -295,15 +302,16 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
   )
 
   const technologyTab = (
-    <SectionBlock title="Technology" description="Configuration captured by the latest vector snapshot.">
+    <SectionBlock title="Technology" description="Configuration captured by the latest vector snapshot." density="compact">
       <div className="grid gap-ui-xs sm:grid-cols-2">
-        <TechnicalListItem label="Embedding" description={overview?.technology.embedding_model || 'Not selected'} meta={overview?.technology.embedding_provider || 'Managed in Knowledge > Embedding'} />
+        <TechnicalListItem density="compact" label="Embedding" description={overview?.technology.embedding_model || 'Not selected'} meta={overview?.technology.embedding_provider || 'Managed in Knowledge > Embedding'} />
         <TechnicalListItem
+          density="compact"
           label="Chunking"
           description={overview?.technology.chunking_strategy || 'Not configured'}
           meta={overview?.technology.chunk_size ? `${overview.technology.chunk_size} size · ${overview.technology.chunk_overlap ?? 0} overlap` : undefined}
         />
-        <TechnicalListItem label="Vector store" description={overview?.technology.vector_store || 'pgvector'} meta={overview?.technology.distance_metric || 'cosine'} />
+        <TechnicalListItem density="compact" label="Vector store" description={overview?.technology.vector_store || 'pgvector'} meta={overview?.technology.distance_metric || 'cosine'} />
       </div>
     </SectionBlock>
   )
@@ -314,15 +322,15 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
         open={open && Boolean(collection)}
         onClose={close}
         title="Collection details"
-        className="flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden"
-        contentClassName="min-h-0 flex-1 p-0"
+        variant="workspace"
       >
         {collection ? (
           <div className="flex h-full min-h-0 flex-col">
-            <div className="shrink-0 border-b border-border bg-background/20 px-ui-lg py-ui-md">
+            <DialogContextBar>
               <TechnicalListItem
                 label={collection.name}
                 description={collection.description || 'No description provided'}
+                density="compact"
                 leading={(
                   <span className="flex h-control-nav w-control-nav items-center justify-center rounded-control border border-primary/25 bg-primary/[0.08] text-primary-light">
                     <Database className="h-icon w-icon" />
@@ -337,7 +345,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
                   </>
                 )}
               />
-            </div>
+            </DialogContextBar>
 
             <main className="min-h-0 min-w-0 flex-1 p-ui-lg">
               <Tabs
@@ -352,15 +360,19 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
               />
             </main>
 
-            <div className="flex shrink-0 flex-col-reverse gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md backdrop-blur sm:flex-row sm:items-center sm:justify-between">
-              <p className="font-mono text-system-meta text-muted-foreground">
-                {hasChanges ? 'Unsaved Collection changes' : `${items.length} documents · ${indexedCount} ready · ${formatBytes(totalSize)}`}
-              </p>
-              <div className="ml-auto flex gap-ui-sm">
-                <Button type="button" variant="outline" onClick={close} disabled={updateCollection.isPending || deleteDocument.isPending}>Close</Button>
-                <Button type="button" onClick={save} loading={updateCollection.isPending} disabled={!hasChanges}>Save changes</Button>
-              </div>
-            </div>
+            <DialogFooter
+              meta={(
+                <p className="font-mono text-system-meta text-muted-foreground">
+                  {hasChanges ? 'Unsaved Collection changes' : `${items.length} documents · ${indexedCount} ready · ${formatBytes(totalSize)}`}
+                </p>
+              )}
+              actions={(
+                <>
+                  <Button type="button" variant="outline" onClick={close} disabled={updateCollection.isPending || deleteDocument.isPending}>Close</Button>
+                  <Button type="button" onClick={save} loading={updateCollection.isPending} disabled={!hasChanges}>Save changes</Button>
+                </>
+              )}
+            />
           </div>
         ) : null}
       </Dialog>
@@ -399,7 +411,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
                 </div>
               </div>
             </Alert>
-            <TechnicalListItem label={documentToDelete.title} description={documentMeta(documentToDelete)} />
+            <TechnicalListItem density="compact" label={documentToDelete.title} description={documentMeta(documentToDelete)} />
             <div className="flex flex-col-reverse gap-ui-sm border-t border-border pt-ui-md sm:flex-row sm:justify-end">
               <Button type="button" variant="outline" onClick={() => setDocumentToDelete(null)} disabled={deleteDocument.isPending}>Cancel</Button>
               <Button type="button" variant="destructive" loading={deleteDocument.isPending} onClick={confirmDelete}>Delete document</Button>
