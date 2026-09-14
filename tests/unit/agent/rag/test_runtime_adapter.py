@@ -81,7 +81,13 @@ async def test_runtime_adapter_defaults_missing_strategy_to_classic_and_merges_m
     agent = SimpleNamespace(
         settings={
             "knowledge_version_id": str(uuid4()),
-            "runtime_config": {"rag": {"top_k": 3, "candidate_k": 4}},
+            "runtime_config": {
+                "rag": {
+                    "top_k": 3,
+                    "candidate_k": 4,
+                    "max_context_chunks": 3,
+                }
+            },
         }
     )
     context = _prepared_context()
