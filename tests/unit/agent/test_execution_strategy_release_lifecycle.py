@@ -10,6 +10,9 @@ from modules.agent.application.interfaces.execution_strategy import ExecutionStr
 from modules.agent.application.use_cases.auto_compatible_release_lifecycle import (
     AutoCompatibleReleaseLifecycleUseCase,
 )
+from modules.agent.application.use_cases.release_lifecycle_use_cases import (
+    _canonical_runtime_config,
+)
 from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.infra.execution.instrumented_primary_mixin import (
@@ -87,6 +90,7 @@ async def test_strategy_survives_draft_staging_production_and_drives_runtime() -
         "execution_strategy": "standard",
         "other_runtime_setting": {"enabled": True},
     }
+    expected_snapshot_runtime = _canonical_runtime_config(runtime_config)
     draft = AgentRelease(
         project_id=project_id,
         agent_id=agent_id,
@@ -111,8 +115,10 @@ async def test_strategy_survives_draft_staging_production_and_drives_runtime() -
         target_status="production",
     )
 
-    assert staging.runtime_config == runtime_config
-    assert production.runtime_config == runtime_config
+    assert staging.runtime_config == expected_snapshot_runtime
+    assert production.runtime_config == expected_snapshot_runtime
+    assert staging.runtime_config["execution_strategy"] == "standard"
+    assert staging.runtime_config["other_runtime_setting"] == {"enabled": True}
 
     draft.runtime_config["execution_strategy"] = "react"
     stored_production = await repo.get_by_id(production.id)
@@ -146,4 +152,4 @@ async def test_strategy_survives_draft_staging_production_and_drives_runtime() -
 
     assert result.content == "ok"
     assert resolver.names == ["standard"]
-    assert agent.settings["runtime_config"] == runtime_config | {"execution_strategy": "standard"}
+    assert agent.settings["runtime_config"] == expected_snapshot_runtime
