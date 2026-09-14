@@ -142,6 +142,25 @@ async def test_recovery_capability_persists_and_rehydrates_strategy_cursor() -> 
         current_execution.reset(token)
 
 
+def test_recovery_capability_fails_closed_when_checkpoint_strategy_differs() -> None:
+    context = new_execution_context()
+    context.resume_state = build_strategy_checkpoint_state(
+        strategy_name="test_iterative",
+        phase="iteration_boundary",
+        messages=_messages(),
+        base_message_count=1,
+        execution=_execution(),
+        cursor={"next_step": "reflect"},
+    )
+    token = current_execution.set(context)
+    try:
+        with pytest.raises(RuntimeError, match="checkpoint mismatch"):
+            StrategyRecoveryCapability(strategy_name="standard").load()
+        assert context.resume_state is not None
+    finally:
+        current_execution.reset(token)
+
+
 def test_generic_checkpoint_rejects_non_mapping_cursor() -> None:
     with pytest.raises(ValueError, match="cursor must be a mapping"):
         build_strategy_checkpoint_state(
