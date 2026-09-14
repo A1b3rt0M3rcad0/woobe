@@ -15,7 +15,7 @@ export interface TechnicalListItemProps extends Omit<HTMLAttributes<HTMLDivEleme
 }
 
 const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
-  ({ className, label, description, meta, leading, trailing, selected = false, disabled = false, multiline = false, density = 'default', onClick, onKeyDown, title, ...props }, ref) => {
+  ({ className, label, description, meta, leading, trailing, selected = false, disabled = false, multiline = false, density = 'compact', onClick, onKeyDown, title, ...props }, ref) => {
     const interactive = Boolean(onClick)
     const compact = density === 'compact'
 
