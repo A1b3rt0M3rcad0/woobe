@@ -14,6 +14,7 @@ def test_execution_strategy_catalog_is_backend_owned_and_complete() -> None:
     assert {item["name"] for item in descriptors} == SUPPORTED_EXECUTION_STRATEGIES
     assert descriptors[0]["name"] == DEFAULT_EXECUTION_STRATEGY
     assert descriptors[0]["is_default"] is True
+    assert sum(item["is_default"] is True for item in descriptors) == 1
 
     for descriptor in descriptors:
         assert descriptor["display_name"]
