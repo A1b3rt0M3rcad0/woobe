@@ -45,7 +45,7 @@ export function Stepper({ items, className, ...props }: StepperProps) {
                   {index + 1} · {item.label}
                 </p>
                 {item.description ? (
-                  <p className="mt-ui-hairline truncate font-sans text-product-caption text-muted-foreground">
+                  <p className="mt-ui-hairline truncate font-mono text-system-meta text-muted-foreground">
                     {item.description}
                   </p>
                 ) : null}
