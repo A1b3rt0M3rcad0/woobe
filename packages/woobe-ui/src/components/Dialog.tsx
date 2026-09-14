@@ -1,4 +1,4 @@
-import { createContext, type ReactNode, useContext, useEffect, useId, useRef } from 'react'
+import { createContext, type HTMLAttributes, type ReactNode, useContext, useEffect, useId, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { cn } from '../lib/cn'
 import { focusableElements, isTopOverlay, registerOverlay, unregisterOverlay } from '../lib/overlay-focus'
@@ -8,6 +8,7 @@ import '../styles/dialog-compatibility.css'
 export type DialogPresentation = 'modal' | 'embedded'
 export type DialogScrollMode = 'overlay' | 'content'
 export type DialogLayer = 'modal' | 'nestedModal'
+export type DialogVariant = 'standard' | 'workspace'
 
 const DialogPresentationContext = createContext<DialogPresentation>('modal')
 
@@ -29,6 +30,50 @@ export interface DialogProps {
   contentClassName?: string
   layer?: DialogLayer
   scrollMode?: DialogScrollMode
+  variant?: DialogVariant
+}
+
+export interface DialogContextBarProps extends HTMLAttributes<HTMLDivElement> {}
+
+export function DialogContextBar({ className, ...props }: DialogContextBarProps) {
+  return <div className={cn('shrink-0 border-b border-border bg-background/20 px-ui-lg py-ui-md', className)} {...props} />
+}
+
+export interface DialogBodyProps extends HTMLAttributes<HTMLDivElement> {
+  padded?: boolean
+}
+
+export function DialogBody({ className, padded = true, ...props }: DialogBodyProps) {
+  return (
+    <div
+      className={cn(
+        'scrollbar-thin min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain',
+        padded && 'p-ui-lg',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
+export interface DialogFooterProps extends Omit<HTMLAttributes<HTMLDivElement>, 'children'> {
+  meta?: ReactNode
+  actions: ReactNode
+}
+
+export function DialogFooter({ className, meta, actions, ...props }: DialogFooterProps) {
+  return (
+    <div
+      className={cn(
+        'flex shrink-0 flex-col-reverse gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md backdrop-blur sm:flex-row sm:items-center sm:justify-between',
+        className,
+      )}
+      {...props}
+    >
+      <div className="min-w-0 flex-1">{meta}</div>
+      <div className="flex shrink-0 flex-wrap justify-end gap-ui-sm">{actions}</div>
+    </div>
+  )
 }
 
 const LAYER_CLASS: Record<DialogLayer, string> = { modal: 'z-modal', nestedModal: 'z-nested-modal' }
@@ -45,7 +90,7 @@ export const dialogTypographyClass = [
   '[&_.text-lg]:text-heading-sm [&_.text-base]:text-product-body [&_.text-sm]:text-product-small [&_.text-xs]:text-product-caption',
 ].join(' ')
 
-export function Dialog({ open, onClose, title, children, className, contentClassName, layer = 'modal', scrollMode = 'overlay' }: DialogProps) {
+export function Dialog({ open, onClose, title, children, className, contentClassName, layer = 'modal', scrollMode = 'overlay', variant = 'standard' }: DialogProps) {
   const presentation = useContext(DialogPresentationContext)
   const overlayRef = useRef<HTMLDivElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
@@ -53,6 +98,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
   const titleId = useId()
   const overlayId = useId()
   const contentScroll = scrollMode === 'content'
+  const workspace = variant === 'workspace'
 
   useEffect(() => {
     if (!open || presentation !== 'modal') return
@@ -127,8 +173,10 @@ export function Dialog({ open, onClose, title, children, className, contentClass
       aria-modal={presentation === 'modal' ? true : undefined}
       aria-labelledby={presentation === 'modal' && title ? titleId : undefined}
       tabIndex={presentation === 'modal' ? -1 : undefined}
+      data-dialog-variant={variant}
       className={cn(
         'dialog-scrollbars relative w-full max-w-dialog-compact rounded-container border border-border bg-surface text-accent-foreground shadow-popup',
+        workspace && 'flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden',
         dialogTypographyClass,
         '[&_.rounded-2xl]:rounded-container [&_.rounded-xl]:rounded-container [&_.rounded-lg]:rounded-control [&_.rounded-md]:rounded-technical',
         '[&_.shadow-sm]:shadow-none [&_.shadow-lg]:shadow-none [&_.shadow-xl]:shadow-none [&_.shadow-2xl]:shadow-none',
@@ -148,7 +196,15 @@ export function Dialog({ open, onClose, title, children, className, contentClass
           </svg>
         </Button>
       </div>
-      <div className={cn('p-ui-panel-inset', contentClassName, contentScroll && 'scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain')}>{children}</div>
+      <div
+        className={cn(
+          workspace ? 'min-h-0 flex-1 p-0' : 'p-ui-panel-inset',
+          contentClassName,
+          contentScroll && 'scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain',
+        )}
+      >
+        {children}
+      </div>
     </div>
   )
 
