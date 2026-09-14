@@ -72,6 +72,7 @@ def _runtime_binding_payload(context, input_dto) -> dict[str, Any]:
             if context and context.execution_context
             else input_dto.execution_context
         ),
+        "execution_strategy": context.execution_strategy if context else None,
         "agent_release_id": _id_text(context.agent_release_id if context else None),
         "agent_release_version": context.agent_release_version if context else None,
     }
@@ -194,9 +195,6 @@ async def finalize_instrumented_execution(owner, **kw):
                 )
             )
 
-        # The finalizer measures only its own pre-commit work. The canonical
-        # AgentRun builder owns every metric formula shared by standalone and
-        # Network-deferred executions.
         finalization_work_ms = round(
             (time.monotonic() - finalization_started) * 1000
         )
