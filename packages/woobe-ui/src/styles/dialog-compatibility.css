@@ -31,6 +31,16 @@
   font-family: 'Inter', system-ui, sans-serif;
 }
 
+/* Dialog identity follows the same product hierarchy used by Resource cards:
+ * product title in Inter, operational sections beneath it in the technical scale. */
+.dialog-scrollbars > :first-child > h2 {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-size: 0.8125rem !important;
+  line-height: 1.125rem !important;
+  font-weight: 600 !important;
+  letter-spacing: 0 !important;
+}
+
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) input[type='checkbox'] {
   width: 0.875rem;
   height: 0.875rem;
@@ -61,12 +71,13 @@
   letter-spacing: 0.01em;
 }
 
-:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(h3.text-sm, h4.text-sm, .text-sm.font-medium, .text-sm.font-semibold, h3.text-\[11px\], h4.text-\[11px\]) {
+:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(h3.text-sm, h4.text-sm, h3.text-\[11px\], h4.text-\[11px\]) {
   font-size: 0.625rem !important;
   line-height: 1rem !important;
 }
 
-/* Ordinary secondary copy uses the 9px product-caption tier. */
+/* Ordinary text-sm content resolves through the Dialog's 11px product-small
+ * tier. Do not collapse emphasized entity/content labels into microcopy. */
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(p.text-xs, span.text-xs, code.text-xs) {
   font-size: 0.5625rem !important;
   line-height: 0.875rem !important;
