@@ -15,6 +15,7 @@ export {
   DialogPresentationProvider,
   dialogTypographyClass,
   type DialogBodyProps,
+  type DialogBodyTone,
   type DialogContextBarProps,
   type DialogFooterProps,
   type DialogLayer,
