@@ -13,6 +13,9 @@ from modules.agent.infra.execution.capabilities.bundle import (
     build_execution_capabilities,
 )
 from modules.agent.infra.execution.capabilities.preparation import prepare_execution
+from modules.agent.infra.execution.capabilities.result_finalization import (
+    finalize_execution_result,
+)
 from modules.agent.infra.execution.capabilities.state import StrategyExecutionState
 
 
@@ -43,7 +46,13 @@ class _TwoPassToolStrategy:
             batch = await capabilities.tools.execute_many(tool_calls)
             state.record_tool_batch(batch)
 
-        return state.finish()
+        execution = state.finish()
+        return await finalize_execution_result(
+            request=request,
+            prepared=prepared,
+            execution=execution,
+            call_index=state.call_index,
+        )
 
 
 class _FakeBoundModel:
