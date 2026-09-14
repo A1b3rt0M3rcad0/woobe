@@ -33,7 +33,7 @@ export function Tabs({ tabs, defaultTab, value, onValueChange, className, conten
 
   return (
     <div className={cn('w-full', className)}>
-      <div className="shrink-0 overflow-x-auto border-b border-border pb-ui-md">
+      <div className="shrink-0 overflow-x-auto border-b border-border pb-ui-sm">
         <div role="tablist" className="inline-flex min-w-max gap-ui-hairline rounded-control border border-border bg-control p-ui-control-inset">
           {tabs.map((tab) => (
             <button
@@ -43,7 +43,7 @@ export function Tabs({ tabs, defaultTab, value, onValueChange, className, conten
               aria-selected={active === tab.id}
               onClick={() => setActive(tab.id)}
               className={cn(
-                'flex h-control-segment items-center whitespace-nowrap rounded-technical border px-ui-sm font-mono text-chrome-label font-normal transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
+                'flex h-control-xs items-center whitespace-nowrap rounded-technical border px-ui-sm font-mono text-chrome-label font-normal transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40',
                 active === tab.id
                   ? 'border-border bg-accent text-accent-foreground'
                   : 'border-transparent text-muted-foreground hover:text-accent-foreground/90',
@@ -54,7 +54,7 @@ export function Tabs({ tabs, defaultTab, value, onValueChange, className, conten
           ))}
         </div>
       </div>
-      <div className={cn('mt-ui-lg', contentClassName)}>
+      <div className={cn('mt-ui-md', contentClassName)}>
         {tabs.find((tab) => tab.id === active)?.content}
       </div>
     </div>
