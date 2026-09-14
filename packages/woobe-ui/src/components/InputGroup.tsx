@@ -9,7 +9,7 @@ export interface InputGroupProps extends HTMLAttributes<HTMLDivElement> {
 const InputGroup = forwardRef<HTMLDivElement, InputGroupProps>(
   ({ className, start, end, children, ...props }, ref) => (
     <div ref={ref} className={cn('relative w-full', className)} {...props}>
-      <div className={cn(start && '[&_input]:pl-9', end && '[&_input]:pr-10')}>
+      <div className={cn(Boolean(start) && '[&_input]:pl-9', Boolean(end) && '[&_input]:pr-10')}>
         {children}
       </div>
       {start ? (
