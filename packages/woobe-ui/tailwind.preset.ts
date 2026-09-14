@@ -113,6 +113,7 @@ const woobeTailwindPreset = {
         'control-lg': woobeControl.height.large,
         'control-row': woobeControl.height.row,
         'panel-header': woobeControl.height.header,
+        'resource-card': woobeLayout.resourceCardMinHeight,
         'textarea-compact': woobeControl.minHeight.textareaCompact,
         textarea: woobeControl.minHeight.textarea,
         'code-editor': woobeLayout.codeEditorCompact,
