@@ -73,7 +73,7 @@ function SelectableModelList({
             {Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-control-row w-full" />)}
           </div>
         ) : items.length === 0 ? (
-          <EmptyStatePanel compact title="No generation models found" description="Change the search or configure a new model." className="border-0 bg-transparent" />
+          <EmptyStatePanel compact variant="plain" title="No generation models found" description="Change the search or configure a new model." />
         ) : (
           <div className="grid gap-ui-xs">
             {items.map((item) => (
