@@ -122,6 +122,7 @@ export function ProviderCredentialCreateForm({
                 key={option.value}
                 label={option.label}
                 description={option.description}
+                descriptionVariant="technical"
                 selected={selected}
                 multiline
                 density="compact"
