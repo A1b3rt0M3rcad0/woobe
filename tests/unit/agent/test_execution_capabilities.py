@@ -7,6 +7,7 @@ import pytest
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
 from modules.agent.infra.execution.capabilities.bundle import (
+    ExecutionCapabilities,
     build_execution_capabilities,
 )
 from modules.agent.infra.execution.capabilities.preparation import prepare_execution
@@ -72,11 +73,10 @@ async def test_model_capability_supports_multi_pass_strategy_without_legacy_runn
         fake_invoke_llm,
     )
 
-    request = _request()
-    prepared = prepare_execution(request)
+    prepared = prepare_execution(_request())
     capabilities = build_execution_capabilities(
-        request=request,
         prepared=prepared,
+        strategy_name="test_multi_pass",
     )
     state = StrategyExecutionState(messages=list(prepared.messages))
 
@@ -215,16 +215,17 @@ async def test_strategy_can_own_model_tool_model_loop_with_shared_capabilities(
 
     request = _request()
     prepared = prepare_execution(request)
-    capabilities = build_execution_capabilities(
-        request=request,
+    built = build_execution_capabilities(
         prepared=prepared,
+        strategy_name="test_model_tool_model",
     )
-    capabilities = type(capabilities)(
-        model=capabilities.model,
+    capabilities = ExecutionCapabilities(
+        model=built.model,
         tools=ToolExecutionCapability(
             execute_single_tool=request.execute_single_tool,
             tool_name_to_id={"search": "tool-id"},
         ),
+        recovery=built.recovery,
     )
     state = StrategyExecutionState(messages=list(prepared.messages))
 
