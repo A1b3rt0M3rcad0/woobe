@@ -36,8 +36,10 @@ const LAYER_CLASS: Record<DialogLayer, string> = { modal: 'z-modal', nestedModal
 export const dialogTypographyClass = [
   'font-sans',
   '[&_h1]:text-heading-sm [&_h2]:text-section-title [&_h3]:text-section-title [&_h4]:text-system-control',
-  '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono [&_input]:font-mono [&_input]:text-system-control [&_select]:font-mono',
-  '[&_select]:h-control [&_select]:rounded-control [&_select]:border-border [&_select]:bg-control [&_select]:text-system-control [&_select]:text-accent-foreground',
+  '[&_label]:font-mono [&_legend]:font-mono [&_button]:font-mono',
+  '[&_input]:font-sans [&_input]:text-product-small [&_select]:font-sans',
+  '[&_select]:h-control [&_select]:rounded-control [&_select]:border-border [&_select]:bg-control [&_select]:text-system-control [&_select]:font-normal [&_select]:text-accent-foreground',
+  '[&_textarea]:font-sans [&_textarea]:text-product-small',
   '[&_th]:font-mono [&_dt]:font-mono [&_code]:font-mono [&_pre]:font-mono',
   '[&_.uppercase]:font-mono [&_.tabular-nums]:font-mono [&_aside]:font-mono',
   '[&_.text-lg]:text-heading-sm [&_.text-base]:text-product-body [&_.text-sm]:text-product-small [&_.text-xs]:text-product-caption',
@@ -134,9 +136,9 @@ export function Dialog({ open, onClose, title, children, className, contentClass
         className,
       )}
     >
-      <div className="flex h-panel-header shrink-0 items-center justify-between border-b border-border px-ui-panel-inset">
+      <div className="flex h-panel-header shrink-0 items-center justify-between border-b border-border bg-control/20 px-ui-panel-inset">
         {title ? (
-          <h2 id={presentation === 'modal' ? titleId : undefined} className="min-w-0 truncate font-mono text-section-title font-bold text-accent-foreground">
+          <h2 id={presentation === 'modal' ? titleId : undefined} className="min-w-0 truncate font-sans text-entity-title font-semibold text-accent-foreground">
             {title}
           </h2>
         ) : <span />}
