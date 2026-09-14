@@ -3,7 +3,7 @@ import { cn } from '../lib/cn'
 
 const Field = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn('grid gap-ui-sm', className)} {...props} />
+    <div ref={ref} className={cn('grid gap-ui-xs', className)} {...props} />
   ),
 )
 Field.displayName = 'Field'
@@ -13,7 +13,7 @@ const FieldLabel = forwardRef<HTMLLabelElement, LabelHTMLAttributes<HTMLLabelEle
     <label
       ref={ref}
       className={cn(
-        'font-mono text-chrome-label font-medium uppercase tracking-ui-label text-muted-foreground',
+        'font-mono text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground',
         className,
       )}
       {...props}
