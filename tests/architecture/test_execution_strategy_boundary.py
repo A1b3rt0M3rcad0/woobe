@@ -102,11 +102,19 @@ def test_execution_strategy_metadata_is_owned_by_backend_registry() -> None:
     )
 
 
-def test_runtime_resolver_is_checked_against_backend_registry() -> None:
+def test_runtime_resolver_depends_only_on_execution_strategy_contract() -> None:
     assert _imports_module(
         RESOLVER,
+        "modules.agent.application.interfaces.execution_strategy",
+        "ExecutionStrategyResolver",
+    )
+    assert not _imports_module(
+        RESOLVER,
         "modules.agent.application.execution_strategy_registry",
-        "build_execution_strategy_registry",
+    )
+    assert not _imports_module(
+        RESOLVER,
+        "modules.agent.application.execution_strategy_config",
     )
 
 
