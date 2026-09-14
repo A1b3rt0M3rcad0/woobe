@@ -93,6 +93,12 @@ describe('Agent execution strategy config', () => {
     expect(executionStrategyDescriptor(catalog, 'retired_strategy')).toBeUndefined()
   })
 
+  it('keeps a readable Standard option while the catalog is loading', () => {
+    expect(executionStrategySelectOptions([], 'standard')).toEqual([
+      { value: 'standard', label: 'Standard' },
+    ])
+  })
+
   it('writes selected strategy without mutating or dropping unrelated runtime config', () => {
     const runtime = { context: { budget: { max_units: 12000 } } }
     const next = withExecutionStrategy(runtime, '  REACT  ')
