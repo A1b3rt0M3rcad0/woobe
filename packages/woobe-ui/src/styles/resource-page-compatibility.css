@@ -12,7 +12,7 @@
 }
 
 .resource-page-shell :is(
-  label, legend, button, input, select, th, dt,
+  label, legend, button, th, dt,
   [role='tab'], [role='menuitem'], .uppercase, .tracking-wide, .tracking-wider,
   .tracking-widest, .tabular-nums
 ) {
@@ -23,6 +23,7 @@
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
 }
 
+.resource-page-shell :is(input, select):not(.font-mono),
 .resource-page-shell textarea:not(.font-mono),
 .resource-page-shell [contenteditable='true']:not(.font-mono) {
   font-family: 'Inter', system-ui, sans-serif;
