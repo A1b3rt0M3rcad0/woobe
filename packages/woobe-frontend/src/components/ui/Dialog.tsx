@@ -1,10 +1,17 @@
 export {
   Dialog,
+  DialogBody,
+  DialogContextBar,
+  DialogFooter,
   DialogPresentationProvider,
   dialogTypographyClass,
+  type DialogBodyProps,
+  type DialogContextBarProps,
+  type DialogFooterProps,
   type DialogLayer,
   type DialogPresentation,
   type DialogPresentationProviderProps,
   type DialogProps,
   type DialogScrollMode,
+  type DialogVariant,
 } from '@woobe/ui'
