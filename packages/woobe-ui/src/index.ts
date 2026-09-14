@@ -26,7 +26,7 @@ export {
 } from './components/Dialog'
 export { Drawer, type DrawerProps } from './components/Drawer'
 export { Dropdown, type DropdownHandle, type DropdownProps } from './components/Dropdown'
-export { EmptyStatePanel, type EmptyStatePanelProps } from './components/EmptyStatePanel'
+export { EmptyStatePanel, type EmptyStatePanelProps, type EmptyStatePanelVariant } from './components/EmptyStatePanel'
 export { Field, FieldDescription, FieldError, FieldLabel } from './components/Field'
 export { GuidedEmptyState, type GuidedEmptyStateProps } from './components/GuidedEmptyState'
 export { Input, type InputProps } from './components/Input'
