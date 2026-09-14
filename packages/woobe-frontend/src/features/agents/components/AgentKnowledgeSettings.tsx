@@ -179,7 +179,7 @@ export function AgentKnowledgeSettings({ projectId, agentId }: { projectId: stri
             Keep Knowledge binding, retrieval behavior, and execution strategy explicit and independently configurable.
           </p>
           <Tabs
-            defaultTab="sources"
+            defaultTab="retrieval"
             tabs={[
               { id: 'sources', label: 'Sources', content: sources },
               { id: 'retrieval', label: 'Retrieval', content: retrieval },

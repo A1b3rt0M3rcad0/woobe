@@ -91,14 +91,17 @@ afterEach(async () => {
 })
 
 describe('Agent Knowledge execution settings', () => {
-  it('splits Knowledge into Sources, Retrieval and Execution tabs', async () => {
+  it('splits Knowledge into Sources, Retrieval and Execution tabs without hiding existing retrieval behavior', async () => {
     await act(async () => {
       root.render(<AgentKnowledgeSettings projectId="project-1" agentId="agent-1" />)
     })
 
     const tabs = Array.from(container.querySelectorAll<HTMLElement>('[role="tab"]'))
     expect(tabs.map((tab) => tab.textContent)).toEqual(['Sources', 'Retrieval', 'Execution'])
-    expect(tabs[0]?.getAttribute('aria-selected')).toBe('true')
+    expect(tabs[1]?.getAttribute('aria-selected')).toBe('true')
+    expect(container.textContent).toContain('Search behavior')
+
+    await act(async () => tabs[0]?.click())
     expect(container.textContent).toContain('No knowledge selected')
 
     await act(async () => tabs[2]?.click())
