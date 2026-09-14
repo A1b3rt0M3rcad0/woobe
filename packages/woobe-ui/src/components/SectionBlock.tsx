@@ -29,7 +29,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
     const secondary = hierarchy === 'secondary'
     const spacing = density === 'compact' ? 'p-ui-md' : 'p-ui-panel-inset'
     const contentGap = hasChildren ? (density === 'compact' || secondary ? 'mb-ui-sm' : 'mb-ui-md') : undefined
-    const titleClass = secondary ? 'text-system-control' : 'text-section-title'
+    const titleClass = secondary ? 'text-system-control font-medium' : 'text-section-title font-semibold'
     const descriptionClass = 'text-system-meta'
     const familyClass = product ? 'font-sans' : 'font-mono'
 
@@ -41,7 +41,7 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
               {eyebrow ? <div className="mb-ui-xs font-mono text-system-meta uppercase tracking-ui-eyebrow text-muted-foreground">{eyebrow}</div> : null}
               {title ? (
                 <div className={cn(
-                  'font-semibold text-accent-foreground',
+                  'text-accent-foreground',
                   titleClass,
                   familyClass,
                 )}>
