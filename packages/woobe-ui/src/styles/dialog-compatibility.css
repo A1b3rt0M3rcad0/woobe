@@ -65,15 +65,17 @@
 
 /* Legacy feature headings converge on the same 12px section tier used by the
  * operational pages instead of becoming either page headings or microcopy. */
-:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(h2.text-base, h2.text-lg, h3.text-base, h3.text-lg) {
+:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(h2.text-base, h2.text-lg, h3.text-base, h3.text-lg, h3.text-sm, h4.text-sm) {
   font-size: 0.75rem !important;
   line-height: 1rem !important;
   letter-spacing: 0.01em;
 }
 
-:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(h3.text-sm, h4.text-sm, h3.text-\[11px\], h4.text-\[11px\]) {
+/* Older explicit 11px heading utilities are lifted to the compact 10px control
+ * tier rather than collapsing to metadata. */
+:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) :is(h3.text-\[11px\], h4.text-\[11px\]) {
   font-size: 0.625rem !important;
-  line-height: 1rem !important;
+  line-height: 0.875rem !important;
 }
 
 /* Ordinary text-sm content resolves through the Dialog's 11px product-small
@@ -97,21 +99,28 @@
   line-height: 0.875rem !important;
 }
 
+/* Settings navigation is operational chrome, not microcopy. Keep it aligned to
+ * the same 10px control tier used by compact listing filters. */
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) aside nav button {
   min-height: 1.875rem;
   border-radius: 3px !important;
-  font-size: 0.5625rem !important;
-  line-height: 1rem !important;
+  font-size: 0.625rem !important;
+  line-height: 0.875rem !important;
 }
 
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) aside nav :is(.uppercase, [class*='tracking-']) {
-  font-size: 0.5rem !important;
+  font-size: 0.5625rem !important;
   letter-spacing: 0.12em !important;
 }
 
-:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) aside :is(h3.text-sm, p.text-xs) {
-  font-size: 0.5625rem !important;
+:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) aside h3.text-sm {
+  font-size: 0.6875rem !important;
   line-height: 1rem !important;
+}
+
+:where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) aside p.text-xs {
+  font-size: 0.5625rem !important;
+  line-height: 0.875rem !important;
 }
 
 :where([role='dialog'], [class~='fixed'][class~='inset-0'] > [class*='bg-surface']) aside .text-\[11px\] {
