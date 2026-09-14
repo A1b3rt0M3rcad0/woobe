@@ -126,7 +126,7 @@ function TargetList({
       {!locked && items.length > 5 ? (
         <div className="relative">
           <Search className="pointer-events-none absolute left-ui-md top-1/2 h-icon w-icon -translate-y-1/2 text-muted-foreground" />
-          <Input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder={`Search ${targetTypeLabel(targetType)}s`} className="pl-9" />
+          <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={`Search ${targetTypeLabel(targetType)}s`} className="pl-9" />
         </div>
       ) : null}
 
