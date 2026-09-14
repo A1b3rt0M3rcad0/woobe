@@ -9,8 +9,9 @@ from modules.agent.infra.execution.durable_execution_instrumentation import invo
 
 @dataclass(frozen=True, slots=True)
 class ModelInvocationCapability:
-    """Durable, instrumented model invocation available to execution strategies."""
+    """Durable, instrumented access to one model bound for this execution."""
 
+    model: Any
     provider: str
     model_name: str
     pricing_snapshot: dict[str, Any] | None = None
@@ -19,13 +20,12 @@ class ModelInvocationCapability:
     async def invoke(
         self,
         *,
-        model: Any,
         messages: list,
         phase: str,
         call_index: int,
     ) -> tuple[Any, dict[str, Any]]:
         return await invoke_llm(
-            model=model,
+            model=self.model,
             messages=messages,
             phase=phase,
             call_index=call_index,
