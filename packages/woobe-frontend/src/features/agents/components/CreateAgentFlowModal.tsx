@@ -13,6 +13,7 @@ import {
   FieldDescription,
   FieldLabel,
   Input,
+  InputGroup,
   ScrollArea,
   SectionBlock,
   SegmentedControl,
@@ -62,10 +63,9 @@ function SelectableModelList({
 }) {
   return (
     <div className="grid gap-ui-sm">
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-ui-md top-1/2 h-icon w-icon -translate-y-1/2 text-muted-foreground" />
-        <Input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search models" className="pl-9" />
-      </div>
+      <InputGroup start={<Search />}>
+        <Input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search models" />
+      </InputGroup>
 
       <ScrollArea className="h-60 rounded-container border border-border bg-background/25 p-ui-xs">
         {loading ? (
