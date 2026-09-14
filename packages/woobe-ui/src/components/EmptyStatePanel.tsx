@@ -32,7 +32,14 @@ const EmptyStatePanel = forwardRef<HTMLDivElement, EmptyStatePanelProps>(
     >
       {icon ? <div className="mb-ui-sm text-muted-foreground">{icon}</div> : null}
       <div className="font-mono text-system-control font-semibold text-slate-200">{title}</div>
-      {description ? <div className="mt-ui-xs max-w-md font-sans text-product-caption text-muted-foreground">{description}</div> : null}
+      {description ? (
+        <div className={cn(
+          'mt-ui-xs max-w-md font-sans text-muted-foreground',
+          compact ? 'text-system-micro' : 'text-product-caption',
+        )}>
+          {description}
+        </div>
+      ) : null}
       {action ? <div className="mt-ui-md">{action}</div> : null}
     </div>
   ),
