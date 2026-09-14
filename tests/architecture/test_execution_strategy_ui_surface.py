@@ -34,15 +34,19 @@ def test_execution_runtime_settings_use_backend_strategy_catalog() -> None:
 
 def test_playground_exposes_draft_strategy_selection_but_locks_snapshots() -> None:
     header = _source(PLAYGROUND / "components" / "PlaygroundHeader.tsx")
+    strategy_helpers = _source(AGENT_FEATURE / "executionStrategy.ts")
 
     assert "Playground Execution Strategy" in header
     assert "useExecutionStrategies" in header
     assert "useAgentEditor" in header
     assert "useReleases" in header
+    assert "executionStrategyForEnvironment" in header
     assert "withExecutionStrategy" in header
     assert "strategyReadOnly = environment !== 'draft'" in header
-    assert "immutableRelease?.runtime_config" in header
     assert "if (strategyReadOnly" in header
+    assert "if (environment === 'draft')" in strategy_helpers
+    assert "releases.find((item) => item.status === environment)" in strategy_helpers
+    assert "release?.runtime_config" in strategy_helpers
 
 
 def test_frontend_and_backend_share_execution_strategy_catalog_endpoint() -> None:
