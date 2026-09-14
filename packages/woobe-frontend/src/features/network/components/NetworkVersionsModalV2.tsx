@@ -212,8 +212,8 @@ export function NetworkVersionsModal({ open, networkName, initialSection, initia
   const selectRelease = (version: NetworkVersion) => { setSelectedId(version.id); if (initialMode === 'rollback') { setActivationTargetId(version.id); setDescription(`Rollback from ${productionVersion?.version ?? 'current Production'} to ${version.version}.`) } }
 
   return (
-    <Dialog open={open} onClose={onClose} title="Manage Network" className="max-h-[90svh] max-w-[1120px] overflow-hidden">
-      <div className="-m-6 grid h-[calc(90svh-6rem)] max-h-[740px] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
+    <Dialog open={open} onClose={onClose} title="Manage Network" variant="workspace" height="workspace">
+      <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
         <header className="flex items-center gap-ui-md border-b border-border bg-background/25 px-ui-md py-ui-md">
           <div className="flex h-control w-control items-center justify-center rounded-control border border-primary/25 bg-primary/10 text-primary-light"><History className="h-icon w-icon" /></div>
           <div className="min-w-0">
