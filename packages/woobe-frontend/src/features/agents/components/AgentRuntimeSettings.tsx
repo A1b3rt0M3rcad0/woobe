@@ -1,7 +1,11 @@
 import { ServerCog } from 'lucide-react'
 import { PanelHeader } from '@woobe/ui'
 
-import { executionStrategyFromRuntimeConfig } from '@/features/agents/executionStrategy'
+import {
+  executionStrategyDescriptor,
+  executionStrategyFromRuntimeConfig,
+} from '@/features/agents/executionStrategy'
+import { useExecutionStrategies } from '@/features/agents/hooks'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { AgentContextAssemblerField } from './AgentContextAssemblerField'
 import { AgentExecutionStrategyField } from './AgentExecutionStrategyField'
@@ -9,10 +13,10 @@ import { AgentSessionModeField } from './AgentSessionModeField'
 
 export function AgentRuntimeSettings({ projectId }: { projectId: string }) {
   const { state } = useAgentEditor()
+  const { data: strategies = [] } = useExecutionStrategies()
   const sessionLabel = state.sessionMode === 'stateless' ? 'Stateless' : 'Stateful'
-  const strategyLabel = executionStrategyFromRuntimeConfig(state.runtimeConfig) === 'standard'
-    ? 'Standard'
-    : 'Custom'
+  const selectedStrategy = executionStrategyFromRuntimeConfig(state.runtimeConfig)
+  const strategyLabel = executionStrategyDescriptor(strategies, selectedStrategy)?.display_name ?? selectedStrategy
 
   return (
     <div className="p-ui-md">
