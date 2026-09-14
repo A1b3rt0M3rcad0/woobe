@@ -56,7 +56,7 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
     execution_context.execution_context = "draft"
     execution_context.execution_strategy = "standard"
     execution_context.execution = InstrumentedExecution(result=None)
-    channel.execution_context = execution_context
+    setattr(channel, "execution_context", execution_context)
     await channel.emit(
         "token",
         content="partial answer",
