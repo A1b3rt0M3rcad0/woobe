@@ -31,10 +31,15 @@ def test_execution_runtime_settings_use_backend_strategy_catalog() -> None:
     assert "withExecutionStrategy" in field
     assert "<Dialog" in field
     assert 'title="Select Execution Strategy"' in field
-    assert "recommended_for" in field
-    assert "capabilities" in field
-    assert "limitations" in field
-    assert "Runtime boundary" in field
+    assert "focusedDescriptor.description" in field
+    assert "focusedDescriptor.behavior" in field
+    assert "focusedDescriptor.recommended_for" in field
+    assert "focusedDescriptor.capabilities" in field
+    assert "focusedDescriptor.limitations" in field
+    assert "Runtime boundary" not in field
+    assert 'value="Orchestration"' not in field
+    assert 'value="Frozen in snapshot"' not in field
+    assert "Tool Policy/Human Approval" not in field
     assert "<AgentExecutionStrategyField" in runtime
     assert "useExecutionStrategies" in runtime
     assert "executionStrategyDescriptor" in runtime
