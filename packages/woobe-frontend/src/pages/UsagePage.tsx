@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { BarChart3, RefreshCw, SlidersHorizontal, X } from 'lucide-react'
 import { useParams } from 'react-router-dom'
+import { Button, Select } from '@woobe/ui'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -11,7 +12,6 @@ import {
   ResourceTabs,
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
-import { Select } from '@/components/ui/Select'
 import { useNetworks } from '@/features/network/hooks'
 import { resolveUsageWindow, useProjectUsage } from '@/features/usage/hooks'
 import { UsageMetricGrid } from '@/features/usage/components/UsageMetricGrid'
@@ -89,16 +89,16 @@ function ScopeChip({
   onRemove: () => void
 }) {
   return (
-    <span className="inline-flex items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2.5 py-1.5 text-[11px] text-primary-light">
-      <span className="text-muted">{label}</span>
-      <span className="max-w-[220px] truncate font-medium text-white">{value}</span>
+    <span className="inline-flex h-control-sm items-center gap-ui-xs rounded-technical border border-primary/25 bg-primary/[0.07] px-ui-sm font-mono text-system-meta text-primary-light">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="max-w-[220px] truncate font-medium text-slate-100">{value}</span>
       <button
         type="button"
         onClick={onRemove}
-        className="rounded p-0.5 text-muted transition-colors hover:bg-white/10 hover:text-white"
+        className="flex h-icon w-icon items-center justify-center rounded-technical border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50"
         aria-label={`Remove ${label} filter`}
       >
-        <X className="h-3 w-3" />
+        <X className="h-icon-sm w-icon-sm" />
       </button>
     </span>
   )
@@ -235,21 +235,15 @@ export default function UsagePage() {
     <ResourcePage
       title="Usage"
       description="Costs and operational efficiency for this Project."
-      className="max-w-[1600px]"
       action={(
-        <button
-          type="button"
-          onClick={refresh}
-          disabled={usageQuery.isFetching}
-          className="inline-flex h-9 items-center gap-2 rounded-lg border border-border bg-surface/60 px-3 text-xs font-medium text-white transition-colors hover:bg-surface disabled:opacity-50"
-        >
-          <RefreshCw className={usageQuery.isFetching ? 'h-3.5 w-3.5 animate-spin' : 'h-3.5 w-3.5'} />
+        <Button type="button" variant="outline" onClick={refresh} disabled={usageQuery.isFetching}>
+          <RefreshCw className={usageQuery.isFetching ? 'h-icon w-icon animate-spin' : 'h-icon w-icon'} />
           Refresh
-        </button>
+        </Button>
       )}
     >
-      <div className="-mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted">
-        <span>Data through <span className="text-white">{formatDateTime(usage?.data_through ?? null)}</span></span>
+      <div className="flex flex-wrap items-center gap-x-ui-sm gap-y-ui-xs border border-border bg-control/25 px-ui-md py-ui-sm font-mono text-system-meta text-muted-foreground">
+        <span>Data through <span className="text-slate-100">{formatDateTime(usage?.data_through ?? null)}</span></span>
         {usage?.data_quality.aggregation_lag_seconds !== null && usage?.data_quality.aggregation_lag_seconds !== undefined
           ? <span>· {usage.data_quality.aggregation_lag_seconds}s freshness</span>
           : null}
@@ -258,8 +252,8 @@ export default function UsagePage() {
       </div>
 
       <ResourceToolbar>
-        <div className="space-y-4">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="space-y-ui-md">
+          <div className="flex flex-col gap-ui-md xl:flex-row xl:items-center xl:justify-between">
             <ResourceTabs
               value={range}
               onChange={(value) => { setRange(value); setAnchor(new Date()) }}
@@ -284,7 +278,7 @@ export default function UsagePage() {
             />
           </div>
 
-          <div className="border-t border-border/70 pt-4">
+          <div className="border-t border-border/70 pt-ui-md">
             <ResourceTabs
               value={operation}
               onChange={selectOperation}
@@ -297,63 +291,63 @@ export default function UsagePage() {
             />
           </div>
 
-          <div className="flex flex-col gap-3 border-t border-border/70 pt-4 lg:flex-row lg:items-center">
-            <div className="flex items-center gap-2 text-xs font-medium text-muted">
-              <SlidersHorizontal className="h-3.5 w-3.5 text-primary-light" />
+          <div className="flex flex-col gap-ui-sm border-t border-border/70 pt-ui-md lg:flex-row lg:items-center">
+            <div className="flex shrink-0 items-center gap-ui-xs font-mono text-system-meta font-semibold uppercase tracking-ui-eyebrow text-muted-foreground">
+              <SlidersHorizontal className="h-icon w-icon text-primary-light" />
               Scope and attribution
             </div>
-            {operation !== 'agent' && (
+            {operation !== 'agent' ? (
               <Select
                 id="usage-network-scope"
                 value={networkScope?.id ?? ''}
                 onChange={(event) => selectNetwork(event.target.value)}
-                className="min-w-[200px] bg-background/35"
+                className="min-w-[200px]"
                 options={[
                   { value: '', label: 'All Networks' },
                   ...(networksQuery.data ?? []).map((network) => ({ value: network.id, label: network.name })),
                 ]}
               />
-            )}
+            ) : null}
             <Select
               id="usage-analyze-by"
               value={lens}
               onChange={(event) => setLens(event.target.value as UsageLens)}
-              className="min-w-[190px] bg-background/35"
+              className="min-w-[190px]"
               options={lensOptions}
             />
-            <p className="text-[10px] leading-4 text-muted">
+            <p className="font-sans text-system-control leading-4 text-muted-foreground">
               Runs define the operation. Provider and Model only explain where the Run cost came from.
             </p>
           </div>
 
-          {activeScopeCount > 0 && (
-            <div className="flex flex-wrap items-center gap-2 border-t border-border/70 pt-3">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted">Active scope</span>
-              {environment !== 'all' && <ScopeChip label="Environment" value={environmentLabels[environment]} onRemove={() => selectEnvironment('all')} />}
-              {operation !== 'all' && <ScopeChip label="Operation" value={operationLabels[operation]} onRemove={() => selectOperation('all')} />}
-              {networkScope && <ScopeChip label="Network" value={networkScope.label} onRemove={() => selectNetwork('')} />}
-              {agentScope && <ScopeChip label="Agent" value={agentScope.label} onRemove={() => setAgentScope(null)} />}
-              {modelScope && <ScopeChip label="Model" value={modelScope.label} onRemove={() => setModelScope(null)} />}
-              <button type="button" onClick={clearAllScopes} className="ml-auto text-[10px] font-medium text-muted transition-colors hover:text-white">
+          {activeScopeCount > 0 ? (
+            <div className="flex flex-wrap items-center gap-ui-xs border-t border-border/70 pt-ui-md">
+              <span className="font-mono text-system-meta font-semibold uppercase tracking-ui-eyebrow text-muted-foreground">Active scope</span>
+              {environment !== 'all' ? <ScopeChip label="Environment" value={environmentLabels[environment]} onRemove={() => selectEnvironment('all')} /> : null}
+              {operation !== 'all' ? <ScopeChip label="Operation" value={operationLabels[operation]} onRemove={() => selectOperation('all')} /> : null}
+              {networkScope ? <ScopeChip label="Network" value={networkScope.label} onRemove={() => selectNetwork('')} /> : null}
+              {agentScope ? <ScopeChip label="Agent" value={agentScope.label} onRemove={() => setAgentScope(null)} /> : null}
+              {modelScope ? <ScopeChip label="Model" value={modelScope.label} onRemove={() => setModelScope(null)} /> : null}
+              <Button type="button" size="sm" variant="ghost" className="ml-auto" onClick={clearAllScopes}>
                 Clear scope
-              </button>
+              </Button>
             </div>
-          )}
+          ) : null}
         </div>
       </ResourceToolbar>
 
       {usageQuery.isLoading ? (
         <LoadingState message="Loading Usage analytics" variant="panel" layout="metrics" />
       ) : usageQuery.isError ? (
-        <ErrorState error={usageQuery.error} onRetry={refresh} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
+        <ErrorState error={usageQuery.error} onRetry={refresh} className="rounded-container border border-border bg-surface/70 py-10" />
       ) : !usage || !hasUsage ? (
         <ResourceEmptyState
-          icon={<BarChart3 className="h-4 w-4" />}
+          icon={<BarChart3 className="h-icon-lg w-icon-lg" />}
           title="No Run usage in this scope"
           description="Usage appears after an Agent Run or Network Run reaches a terminal state. Widen the period or remove a scope filter if executions already exist."
         />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-ui-md">
           <section>
             <ResourceSectionHeader
               title="Operational scorecard"

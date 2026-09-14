@@ -21,7 +21,8 @@ describe('NetworkOperationsRail', () => {
     expect(newSession).toBeLessThan(runs)
     expect(runs).toBeLessThan(sessions)
     expect(html).not.toContain('>Debug<')
-    expect(html).toContain('border-primary/40 bg-primary/10')
+    expect(html).toContain('title="Runs"')
+    expect(html).toContain('title="Sessions"')
   })
 
   it('shows pending state and disables New Session while creation is in flight', () => {

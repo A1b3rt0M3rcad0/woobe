@@ -1,32 +1,56 @@
 import { type HTMLAttributes } from 'react'
 import { cva, type VariantProps } from 'class-variance-authority'
-import { cn } from '@/lib/utils'
+import {
+  Badge as WoobeBadge,
+  type BadgeSize as WoobeBadgeSize,
+  type BadgeVariant as WoobeBadgeVariant,
+} from '@woobe/ui'
 
-const badgeVariants = cva(
-  'inline-flex items-center rounded-md border px-2.5 py-0.5 text-xs font-semibold transition-colors',
-  {
-    variants: {
-      variant: {
-        default: 'border-transparent bg-primary/20 text-primary-light',
-        secondary: 'border-transparent bg-accent text-accent-foreground',
-        destructive: 'border-transparent bg-red-500/20 text-red-400',
-        success: 'border-transparent bg-emerald-500/20 text-emerald-400',
-        warning: 'border-transparent bg-yellow-500/20 text-yellow-400',
-        outline: 'text-muted-foreground',
-      },
+export const badgeVariants = cva('', {
+  variants: {
+    variant: {
+      default: '',
+      secondary: '',
+      destructive: '',
+      success: '',
+      warning: '',
+      outline: '',
+      network: '',
     },
-    defaultVariants: {
-      variant: 'default',
+    size: {
+      compact: '',
+      default: '',
     },
   },
-)
+  defaultVariants: {
+    variant: 'default',
+    size: 'default',
+  },
+})
 
 interface BadgeProps
-  extends HTMLAttributes<HTMLDivElement>,
+  extends HTMLAttributes<HTMLSpanElement>,
     VariantProps<typeof badgeVariants> {}
 
-function Badge({ className, variant, ...props }: BadgeProps) {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />
+const variantMap: Record<NonNullable<BadgeProps['variant']>, WoobeBadgeVariant> = {
+  default: 'default',
+  secondary: 'secondary',
+  destructive: 'destructive',
+  success: 'success',
+  warning: 'warning',
+  outline: 'outline',
+  network: 'network',
 }
 
-export { Badge, badgeVariants }
+function Badge({ className, variant = 'default', size = 'default', ...props }: BadgeProps) {
+  return (
+    <WoobeBadge
+      variant={variantMap[variant ?? 'default']}
+      size={(size ?? 'default') as WoobeBadgeSize}
+      className={className}
+      {...props}
+    />
+  )
+}
+
+export { Badge }

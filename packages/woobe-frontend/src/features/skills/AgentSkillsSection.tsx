@@ -1,25 +1,16 @@
 import { Link, useParams, useSearchParams } from 'react-router-dom'
-import { workspaceProjectPath } from '@/lib/constants/routes'
 import { useEffect, useState } from 'react'
 import { Puzzle, Trash2 } from 'lucide-react'
+import { Checkbox, EmptyStatePanel, PanelHeader } from '@woobe/ui'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { useContextAssemblers } from '@/features/agents/hooks'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
+import { workspaceProjectPath } from '@/lib/constants/routes'
 import { enableSkillsContext, installSkill, record, skillsConfig } from './config'
 import { ManageSkillsDialog } from './ManageSkillsDialog'
 
-function SkillBudgetInput({
-  value,
-  min,
-  max,
-  onCommit,
-}: {
-  value: number
-  min: number
-  max: number
-  onCommit: (value: number) => void
-}) {
+function SkillBudgetInput({ value, min, max, onCommit }: { value: number; min: number; max: number; onCommit: (value: number) => void }) {
   const [draft, setDraft] = useState(String(value))
   useEffect(() => { setDraft(String(value)) }, [value])
 
@@ -29,19 +20,7 @@ function SkillBudgetInput({
     else setDraft(String(value))
   }
 
-  return (
-    <Input
-      type="number"
-      min={min}
-      max={max}
-      step={1}
-      value={draft}
-      onChange={event => setDraft(event.target.value)}
-      onBlur={commit}
-      onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }}
-      className="mt-1 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-    />
-  )
+  return <Input type="number" min={min} max={max} step={1} value={draft} onChange={event => setDraft(event.target.value)} onBlur={commit} onKeyDown={event => { if (event.key === 'Enter') event.currentTarget.blur() }} className="mt-ui-xs [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none" />
 }
 
 export function AgentSkillsSection({ projectId }: { projectId: string }) {
@@ -53,57 +32,49 @@ export function AgentSkillsSection({ projectId }: { projectId: string }) {
   const [open, setOpen] = useState(Boolean(initialVersionId))
   const config = skillsConfig(state.runtimeConfig)
   const selection = record(state.runtimeConfig.context_assembler)
-  const manager = managers.find(item => item.supports_skills && item.name === selection.name && item.version === selection.version)
-    ?? managers.find(item => item.supports_skills && !item.is_system_default_alias)
+  const manager = managers.find(item => item.supports_skills && item.name === selection.name && item.version === selection.version) ?? managers.find(item => item.supports_skills && !item.is_system_default_alias)
   const enabled = config.bindings.filter(item => item.enabled).length
   const context = record(state.runtimeConfig.context)
   const policy = record(context.skills)
   const updateBudget = (key: string, value: number) => setField('runtimeConfig', { ...state.runtimeConfig, context: { ...context, skills: { ...policy, [key]: value } } })
 
-  const body = (
-    <>
-      <p className="text-xs leading-5 text-muted">The Agent discovers installed Skills and loads their instructions when needed. Loaded content stays available for the current Run.</p>
-      {config.bindings.map(binding => {
-        const snapshot = config.snapshots.find(item => item.skill_version_id === binding.skill_version_id)
-        const name = snapshot?.package.name ?? binding.skill_id
-        return <div key={binding.skill_id} className="rounded-lg border border-border p-3">
-          <div className="flex items-start gap-2">
-            <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-2">
-              <input type="checkbox" checked={binding.enabled} disabled={!binding.enabled && !manager} className="mt-0.5 accent-primary" onChange={event => {
-                const enabled = event.target.checked
-                const runtime = enabled && manager ? enableSkillsContext(state.runtimeConfig, manager) : state.runtimeConfig
-                setField('runtimeConfig', { ...runtime, skills: { ...config, bindings: config.bindings.map(item => item.skill_id === binding.skill_id ? { ...item, enabled } : item) } })
-              }} aria-label={`Enable ${name}`} />
-              <span className="min-w-0"><span className="block break-words text-xs font-medium">{name}</span><span className="block text-[10px] text-muted">{snapshot?.version ?? 'Pinned version'} · {binding.enabled ? 'Available' : 'Disabled'}</span></span>
-            </label>
-            <button type="button" aria-label={`Uninstall ${name} from draft`} className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-muted hover:bg-accent hover:text-red-400" onClick={() => setField('runtimeConfig', { ...state.runtimeConfig, skills: { bindings: config.bindings.filter(item => item.skill_id !== binding.skill_id), snapshots: config.snapshots.filter(item => item.skill_id !== binding.skill_id) } })}><Trash2 className="h-3.5 w-3.5" /></button>
-          </div>
-          {snapshot?.package.description && <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-muted">{snapshot.package.description}</p>}
-        </div>
-      })}
-      <Button className="w-full" size="sm" variant="outline" disabled={!projectId} onClick={() => setOpen(true)}>Manage Skills</Button>
-      {!manager && <p role={isError ? 'alert' : 'status'} className="text-xs text-muted">{isPending ? 'Loading compatible Context Managers…' : isError ? 'Unable to load compatible Context Managers.' : 'No installed Context Manager supports Skills.'}</p>}
-      {isError && <Button size="sm" variant="ghost" onClick={() => void refetch()}>Retry Context Managers</Button>}
-      <Link to={workspaceProjectPath(workspaceId, projectId, 'skills')} className="block text-center text-xs text-primary-light hover:underline">Open Project Skills</Link>
-      {!!config.bindings.length && <details className="text-xs text-muted">
-        <summary className="cursor-pointer">Context budget</summary>
-        <div className="mt-3 space-y-3">
-          <p className="leading-5">Estimated input units, including the catalog. Instructions are preserved in full. If the budget is exhausted, another activation is declined.</p>
-          <label className="block">Total Skills budget<SkillBudgetInput min={256} max={1000000} value={Number(policy.max_units ?? 8000)} onCommit={value => updateBudget('max_units', value)} /></label>
-          <label className="block">Catalog and search budget<SkillBudgetInput min={128} max={100000} value={Number(policy.catalog_max_units ?? 2000)} onCommit={value => updateBudget('catalog_max_units', value)} /></label>
-        </div>
-      </details>}
-    </>
-  )
-
   return <>
-      <section className="rounded-xl border border-border bg-surface" aria-label="Installed Skills">
-        <div className="flex items-center gap-3 p-4">
-          <Puzzle className="h-4 w-4 shrink-0 text-primary" />
-          <span className="min-w-0 flex-1"><span className="block text-sm font-semibold">Skills</span><span className="mt-0.5 block text-[11px] text-muted">{config.bindings.length ? `${config.bindings.length} installed · ${enabled} enabled` : 'Procedures available when needed'}</span></span>
-        </div>
-        <div className="space-y-4 border-t border-border p-4">{body}</div>
-      </section>
-    {open && <ManageSkillsDialog projectId={projectId} bindings={config.bindings} managerName={manager?.display_name} initialVersionId={initialVersionId} installDisabled={!manager} onClose={() => setOpen(false)} onInstall={snapshot => { if (manager) setField('runtimeConfig', installSkill(state.runtimeConfig, snapshot, manager)) }} />}
+    <section className="rounded-container border border-border bg-surface/[0.72]" aria-label="Installed Skills">
+      <PanelHeader icon={<Puzzle className="h-3.5 w-3.5" />} title="Skills" description={config.bindings.length ? `${config.bindings.length} installed · ${enabled} enabled` : 'Procedures available when needed'} />
+      <div className="space-y-ui-md p-ui-md">
+        <p className="font-sans text-product-caption text-muted-foreground">The Agent discovers installed Skills and loads their instructions when needed. Loaded content stays available for the current Run.</p>
+        {config.bindings.length ? <div className="divide-y divide-border/60 rounded-container border border-border bg-background/20">{config.bindings.map(binding => {
+          const snapshot = config.snapshots.find(item => item.skill_version_id === binding.skill_version_id)
+          const name = snapshot?.package.name ?? binding.skill_id
+          return <div key={binding.skill_id} className="p-ui-md">
+            <div className="flex items-start gap-ui-sm">
+              <label className="flex min-w-0 flex-1 cursor-pointer items-start gap-ui-sm">
+                <Checkbox checked={binding.enabled} disabled={!binding.enabled && !manager} className="mt-ui-xs" onChange={event => {
+                  const nextEnabled = event.target.checked
+                  const runtime = nextEnabled && manager ? enableSkillsContext(state.runtimeConfig, manager) : state.runtimeConfig
+                  setField('runtimeConfig', { ...runtime, skills: { ...config, bindings: config.bindings.map(item => item.skill_id === binding.skill_id ? { ...item, enabled: nextEnabled } : item) } })
+                }} aria-label={`Enable ${name}`} />
+                <span className="min-w-0"><span className="block break-words font-mono text-system-label font-semibold text-slate-100">{name}</span><span className="mt-ui-xs block font-mono text-system-meta text-muted-foreground">{snapshot?.version ?? 'Pinned version'} · {binding.enabled ? 'Available' : 'Disabled'}</span></span>
+              </label>
+              <button type="button" aria-label={`Uninstall ${name} from draft`} className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control border border-transparent text-muted-foreground hover:border-red-500/25 hover:bg-red-500/[0.06] hover:text-red-300" onClick={() => setField('runtimeConfig', { ...state.runtimeConfig, skills: { bindings: config.bindings.filter(item => item.skill_id !== binding.skill_id), snapshots: config.snapshots.filter(item => item.skill_id !== binding.skill_id) } })}><Trash2 className="h-3.5 w-3.5" /></button>
+            </div>
+            {snapshot?.package.description ? <p className="mt-ui-sm line-clamp-2 font-sans text-product-caption text-muted-foreground">{snapshot.package.description}</p> : null}
+          </div>
+        })}</div> : <EmptyStatePanel compact title="No Skills installed" description="Install a Skill to make its procedure available to this Agent Draft." />}
+        <Button className="w-full" size="sm" variant="outline" disabled={!projectId} onClick={() => setOpen(true)}>Manage Skills</Button>
+        {!manager ? <p role={isError ? 'alert' : 'status'} className="font-sans text-product-caption text-muted-foreground">{isPending ? 'Loading compatible Context Managers…' : isError ? 'Unable to load compatible Context Managers.' : 'No installed Context Manager supports Skills.'}</p> : null}
+        {isError ? <Button size="sm" variant="ghost" onClick={() => void refetch()}>Retry Context Managers</Button> : null}
+        <Link to={workspaceProjectPath(workspaceId, projectId, 'skills')} className="block text-center font-mono text-system-meta text-primary-light hover:underline">Open Project Skills</Link>
+        {!!config.bindings.length ? <details className="font-sans text-product-caption text-muted-foreground">
+          <summary className="cursor-pointer font-mono text-system-meta text-slate-300">Context budget</summary>
+          <div className="mt-ui-md space-y-ui-md border-t border-border/60 pt-ui-md">
+            <p>Estimated input units, including the catalog. Instructions are preserved in full. If the budget is exhausted, another activation is declined.</p>
+            <label className="block font-mono text-system-meta">Total Skills budget<SkillBudgetInput min={256} max={1000000} value={Number(policy.max_units ?? 8000)} onCommit={value => updateBudget('max_units', value)} /></label>
+            <label className="block font-mono text-system-meta">Catalog and search budget<SkillBudgetInput min={128} max={100000} value={Number(policy.catalog_max_units ?? 2000)} onCommit={value => updateBudget('catalog_max_units', value)} /></label>
+          </div>
+        </details> : null}
+      </div>
+    </section>
+    {open ? <ManageSkillsDialog projectId={projectId} bindings={config.bindings} managerName={manager?.display_name} initialVersionId={initialVersionId} installDisabled={!manager} onClose={() => setOpen(false)} onInstall={snapshot => { if (manager) setField('runtimeConfig', installSkill(state.runtimeConfig, snapshot, manager)) }} /> : null}
   </>
 }

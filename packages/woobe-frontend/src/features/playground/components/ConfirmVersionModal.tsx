@@ -2,6 +2,7 @@ import { behaviorFields } from '@/features/agents/behavior'
 import { X } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { dialogTypographyClass } from '@/components/ui/Dialog'
 import type { AgentRelease } from '@/features/agents/types'
 
 interface ConfirmVersionModalProps {
@@ -61,7 +62,7 @@ export function ConfirmVersionModal({ open, onClose, onConfirm, versionName, cur
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="w-full max-w-lg rounded-xl border border-border bg-surface shadow-xl">
+      <div role="dialog" aria-modal="true" aria-label="New Version" className={`${dialogTypographyClass} w-full max-w-lg rounded-xl border border-border bg-surface shadow-xl`}>
         <div className="flex items-center justify-between p-4 border-b border-border">
           <h2 className="text-sm font-semibold text-white">New Version</h2>
           <button onClick={onClose} className="p-1 rounded-md text-muted hover:text-white hover:bg-accent transition-colors">

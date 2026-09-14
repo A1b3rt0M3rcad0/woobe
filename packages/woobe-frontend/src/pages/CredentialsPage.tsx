@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { AlertTriangle, Cable, Cpu, Database, Pencil, RotateCcw, ShieldOff, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { Alert, AlertDescription, AlertTitle, DialogFooter, SectionBlock, TechnicalListItem } from '@woobe/ui'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -128,13 +129,7 @@ function usageForCredential(
 
   for (const model of models) {
     if (model.provider_credential_id === credential.id && !isArchived(model)) {
-      items.push({
-        type: isEmbeddingModel(model) ? 'embedding_model' : 'generation_model',
-        id: model.id,
-        name: model.name,
-        field: 'provider_credential_id',
-        status: model.status,
-      })
+      items.push({ type: isEmbeddingModel(model) ? 'embedding_model' : 'generation_model', id: model.id, name: model.name, field: 'provider_credential_id', status: model.status })
     }
   }
 
@@ -163,17 +158,7 @@ function usageForCredential(
   return Array.from(unique.values())
 }
 
-function CredentialCard({
-  credential,
-  generationCount,
-  embeddingCount,
-  onClick,
-}: {
-  credential: ProviderCredential
-  generationCount: number
-  embeddingCount: number
-  onClick: () => void
-}) {
+function CredentialCard({ credential, generationCount, embeddingCount, onClick }: { credential: ProviderCredential; generationCount: number; embeddingCount: number; onClick: () => void }) {
   const baseUrl = String(metadataOf(credential).base_url || '')
   return (
     <ResourceCard
@@ -219,125 +204,96 @@ function CredentialDetailsDialog({
   const embeddingModels = attachedModels.filter((model) => isEmbeddingModel(model) && !isArchived(model))
 
   return (
-    <Dialog open={open} onClose={onClose} title={credential.name} className="max-w-3xl">
-      <div className="space-y-5">
-        <section className="rounded-xl border border-border/80 bg-surface/60 p-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-white">{providerLabel(credential.provider)}</p>
-              <p className="mt-1 text-xs text-muted">{baseUrl}</p>
-            </div>
-            <StatusBadge status={credential.status || 'active'} />
-          </div>
-          <p className="mt-4 text-xs text-muted">Created · {formatDate(credential.created_at)}</p>
-        </section>
+    <Dialog open={open} onClose={onClose} title={credential.name}>
+      <div className="grid gap-ui-md">
+        <SectionBlock
+          title={providerLabel(credential.provider)}
+          description={baseUrl}
+          density="compact"
+          actions={<StatusBadge status={credential.status || 'active'} size="compact" />}
+        >
+          <p className="font-mono text-system-meta text-muted-foreground">Created · {formatDate(credential.created_at)}</p>
+        </SectionBlock>
 
-        <section className="rounded-xl border border-border/80 bg-background/55 p-4">
-          <h3 className="text-sm font-semibold text-white">Connected models</h3>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Generation</p>
-              <div className="mt-2 space-y-2">
-                {generationModels.length === 0 ? <p className="text-sm text-muted">No generation models.</p> : generationModels.map((model) => (
-                  <div key={model.id} className="rounded-lg border border-border/70 bg-surface/50 px-3 py-2">
-                    <p className="truncate text-sm text-white/90">{model.name}</p>
-                    <code className="mt-1 block truncate text-xs text-muted">{model.model}</code>
-                  </div>
-                ))}
-              </div>
+        <SectionBlock title="Connected models" description="Models currently bound to this Project provider connection." density="compact">
+          <div className="grid gap-ui-md sm:grid-cols-2">
+            <div className="grid content-start gap-ui-xs">
+              <p className="font-mono text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground">Generation</p>
+              {generationModels.length === 0 ? (
+                <p className="font-sans text-product-caption text-muted-foreground">No generation models.</p>
+              ) : generationModels.map((model) => (
+                <TechnicalListItem key={model.id} density="compact" label={model.name} description={model.model} />
+              ))}
             </div>
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Embedding</p>
-              <div className="mt-2 space-y-2">
-                {embeddingModels.length === 0 ? <p className="text-sm text-muted">No embedding models.</p> : embeddingModels.map((model) => (
-                  <div key={model.id} className="rounded-lg border border-border/70 bg-surface/50 px-3 py-2">
-                    <p className="truncate text-sm text-white/90">{model.name}</p>
-                    <code className="mt-1 block truncate text-xs text-muted">{model.model}</code>
-                  </div>
-                ))}
-              </div>
+            <div className="grid content-start gap-ui-xs">
+              <p className="font-mono text-system-meta font-medium uppercase tracking-ui-label text-muted-foreground">Embedding</p>
+              {embeddingModels.length === 0 ? (
+                <p className="font-sans text-product-caption text-muted-foreground">No embedding models.</p>
+              ) : embeddingModels.map((model) => (
+                <TechnicalListItem key={model.id} density="compact" label={model.name} description={model.model} />
+              ))}
             </div>
           </div>
-        </section>
+        </SectionBlock>
 
-        <div className="flex flex-wrap justify-between gap-3 border-t border-border pt-4">
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={onEdit}>
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit connection
-            </Button>
-            <Button type="button" variant="outline" onClick={onRotate} disabled={credential.status !== 'active'}>
-              <RotateCcw className="mr-2 h-4 w-4" />
-              Rotate key
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" variant="outline" onClick={onRevoke} disabled={credential.status === 'revoked'} className="text-amber-200 hover:text-amber-100">
-              <ShieldOff className="mr-2 h-4 w-4" />
-              Revoke
-            </Button>
-            <Button type="button" variant="outline" onClick={onArchive} className="text-red-200 hover:text-red-100">
-              <Trash2 className="mr-2 h-4 w-4" />
-              Archive
-            </Button>
-          </div>
-        </div>
+        <DialogFooter
+          className="-mx-ui-panel-inset -mb-ui-panel-inset mt-ui-xs"
+          meta={<span className="font-mono text-system-meta text-muted-foreground">{generationModels.length} generation · {embeddingModels.length} embedding</span>}
+          actions={(
+            <>
+              <Button type="button" variant="outline" onClick={onEdit}><Pencil className="h-icon w-icon" />Edit</Button>
+              <Button type="button" variant="outline" onClick={onRotate} disabled={credential.status !== 'active'}><RotateCcw className="h-icon w-icon" />Rotate</Button>
+              <Button type="button" variant="outline" onClick={onRevoke} disabled={credential.status === 'revoked'} className="text-amber-200 hover:text-amber-100"><ShieldOff className="h-icon w-icon" />Revoke</Button>
+              <Button type="button" variant="outline" onClick={onArchive} className="text-red-200 hover:text-red-100"><Trash2 className="h-icon w-icon" />Archive</Button>
+            </>
+          )}
+        />
       </div>
     </Dialog>
   )
 }
 
-function ImpactDialog({
-  state,
-  loading,
-  onClose,
-  onConfirm,
-}: {
-  state: ConfirmState
-  loading: boolean
-  onClose: () => void
-  onConfirm: () => void
-}) {
+function ImpactDialog({ state, loading, onClose, onConfirm }: { state: ConfirmState; loading: boolean; onClose: () => void; onConfirm: () => void }) {
   if (!state) return null
   const isArchive = state.kind === 'archive'
   const blocked = isArchive && state.usage.length > 0
 
   return (
-    <Dialog open={Boolean(state)} onClose={onClose} title={isArchive ? 'Archive credential' : 'Revoke credential'} className="max-w-2xl">
-      <div className="space-y-4">
-        <div className="rounded-xl border border-border/80 bg-background/60 p-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-400/30 bg-amber-400/10 text-amber-200">
-              <AlertTriangle className="h-4 w-4" />
-            </div>
+    <Dialog open={Boolean(state)} onClose={onClose} title={isArchive ? 'Archive credential' : 'Revoke credential'} className="max-w-dialog">
+      <div className="grid gap-ui-md">
+        <Alert variant="warning">
+          <div className="flex items-start gap-ui-sm">
+            <AlertTriangle className="mt-ui-hairline h-icon w-icon shrink-0" />
             <div>
-              <p className="text-sm font-semibold text-white">{state.credential.name}</p>
-              <p className="mt-1 text-sm leading-6 text-muted">
+              <AlertTitle>{state.credential.name}</AlertTitle>
+              <AlertDescription>
                 {isArchive
-                  ? 'Archive is blocked while this connection is used by models, agents or active releases.'
+                  ? 'Archive is blocked while this connection is used by models, Agents or active Releases.'
                   : 'Revoking stops runtime calls that depend on this connection. Existing configuration is preserved.'}
-              </p>
+              </AlertDescription>
             </div>
           </div>
-        </div>
+        </Alert>
 
-        {state.usage.length > 0 && (
-          <div className="rounded-xl border border-border/80 bg-surface/50 p-4">
-            <p className="text-sm font-semibold text-white">Current usage</p>
-            <div className="scrollbar-thin mt-3 max-h-72 space-y-2 overflow-auto">
+        {state.usage.length > 0 ? (
+          <SectionBlock title="Current usage" description="References associated with this provider connection." density="compact">
+            <div className="scrollbar-thin grid max-h-72 gap-ui-xs overflow-auto">
               {state.usage.map((item, index) => (
-                <div key={`${item.type}-${item.id}-${item.field}-${index}`} className="rounded-lg border border-border/70 bg-background/60 p-3 text-xs text-muted">
-                  <p className="font-medium text-white">{item.type} · {item.name || item.version || item.id}</p>
-                  <p className="mt-1">status: {item.status || 'unknown'}</p>
-                </div>
+                <TechnicalListItem
+                  key={`${item.type}-${item.id}-${item.field}-${index}`}
+                  density="compact"
+                  label={item.name || item.version || item.id}
+                  description={`${item.type} · ${item.status || 'unknown'}`}
+                  meta={item.field || undefined}
+                />
               ))}
             </div>
-          </div>
-        )}
+          </SectionBlock>
+        ) : null}
 
-        {blocked && <p className="text-sm text-amber-200">Remove these references before archiving the credential.</p>}
+        {blocked ? <Alert variant="warning"><AlertDescription>Remove these references before archiving the credential.</AlertDescription></Alert> : null}
 
-        <div className="flex justify-end gap-2">
+        <div className="flex justify-end gap-ui-sm border-t border-border pt-ui-md">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
           <Button type="button" onClick={onConfirm} disabled={blocked} loading={loading} variant={isArchive ? 'default' : 'destructive'}>
             {isArchive ? 'Archive' : 'Confirm revoke'}
@@ -372,20 +328,15 @@ export default function CredentialsPage() {
     active: visibleCredentialBase.filter((credential) => !credential.status || credential.status.toLowerCase() === 'active').length,
     revoked: visibleCredentialBase.filter((credential) => credential.status?.toLowerCase() === 'revoked').length,
   }), [visibleCredentialBase])
-  const providerOptions = useMemo(
-    () => Array.from(new Set(visibleCredentialBase.map((credential) => credential.provider).filter(Boolean))).sort(),
-    [visibleCredentialBase],
-  )
+  const providerOptions = useMemo(() => Array.from(new Set(visibleCredentialBase.map((credential) => credential.provider).filter(Boolean))).sort(), [visibleCredentialBase])
   const normalizedQuery = query.trim().toLowerCase()
-  const visibleCredentials = useMemo(() => {
-    return visibleCredentialBase.filter((credential) => {
-      const normalizedStatus = credential.status?.toLowerCase() || 'active'
-      const matchesStatus = statusFilter === 'all' || normalizedStatus === statusFilter
-      const matchesProvider = providerFilter === 'all' || credential.provider === providerFilter
-      const matchesQuery = !normalizedQuery || `${credential.name} ${providerLabel(credential.provider)} ${String(metadataOf(credential).base_url || '')}`.toLowerCase().includes(normalizedQuery)
-      return matchesStatus && matchesProvider && matchesQuery
-    })
-  }, [visibleCredentialBase, normalizedQuery, providerFilter, statusFilter])
+  const visibleCredentials = useMemo(() => visibleCredentialBase.filter((credential) => {
+    const normalizedStatus = credential.status?.toLowerCase() || 'active'
+    const matchesStatus = statusFilter === 'all' || normalizedStatus === statusFilter
+    const matchesProvider = providerFilter === 'all' || credential.provider === providerFilter
+    const matchesQuery = !normalizedQuery || `${credential.name} ${providerLabel(credential.provider)} ${String(metadataOf(credential).base_url || '')}`.toLowerCase().includes(normalizedQuery)
+    return matchesStatus && matchesProvider && matchesQuery
+  }), [visibleCredentialBase, normalizedQuery, providerFilter, statusFilter])
 
   const modelsByCredential = useMemo(() => {
     const grouped = new Map<string, ProviderModel[]>()
@@ -397,50 +348,22 @@ export default function CredentialsPage() {
     return grouped
   }, [models])
 
-  const rotatingModels = credentialToRotate
-    ? (modelsByCredential.get(credentialToRotate.id) || []).filter((model) => !isArchived(model))
-    : []
+  const rotatingModels = credentialToRotate ? (modelsByCredential.get(credentialToRotate.id) || []).filter((model) => !isArchived(model)) : []
   const rotatingGenerationCount = rotatingModels.filter((model) => !isEmbeddingModel(model)).length
   const rotatingEmbeddingCount = rotatingModels.filter((model) => isEmbeddingModel(model)).length
 
-  const closeCredentialForm = () => {
-    setShowCredentialForm(false)
-    setCredentialToEdit(null)
-  }
-
-  const openCreateCredential = () => {
-    setCredentialToEdit(null)
-    setShowCredentialForm(true)
-  }
-
-  const openEditCredential = () => {
-    if (!selectedCredential) return
-    setCredentialToEdit(selectedCredential)
-    setSelectedCredential(null)
-    setShowCredentialForm(true)
-  }
-
-  const openRotateCredential = () => {
-    if (!selectedCredential || selectedCredential.status !== 'active') return
-    setCredentialToRotate(selectedCredential)
-    setSelectedCredential(null)
-  }
-
-  const closeRotateCredential = () => {
-    if (credentialToRotate) setSelectedCredential(credentialToRotate)
-    setCredentialToRotate(null)
-  }
+  const closeCredentialForm = () => { setShowCredentialForm(false); setCredentialToEdit(null) }
+  const openCreateCredential = () => { setCredentialToEdit(null); setShowCredentialForm(true) }
+  const openEditCredential = () => { if (!selectedCredential) return; setCredentialToEdit(selectedCredential); setSelectedCredential(null); setShowCredentialForm(true) }
+  const openRotateCredential = () => { if (!selectedCredential || selectedCredential.status !== 'active') return; setCredentialToRotate(selectedCredential); setSelectedCredential(null) }
+  const closeRotateCredential = () => { if (credentialToRotate) setSelectedCredential(credentialToRotate); setCredentialToRotate(null) }
 
   const prepareAction = async (kind: 'archive' | 'revoke') => {
     if (!projectId || !selectedCredential) return
     setImpactLoading(true)
     try {
       const usage = await loadUsage(projectId)
-      setConfirm({
-        kind,
-        credential: selectedCredential,
-        usage: usageForCredential(selectedCredential, models, usage.agents, usage.releases),
-      })
+      setConfirm({ kind, credential: selectedCredential, usage: usageForCredential(selectedCredential, models, usage.agents, usage.releases) })
       setSelectedCredential(null)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to inspect credential usage')
@@ -454,22 +377,10 @@ export default function CredentialsPage() {
     try {
       const metadata = metadataOf(confirm.credential)
       if (confirm.kind === 'archive') {
-        await updateCredential.mutateAsync({
-          id: confirm.credential.id,
-          data: {
-            status: 'archived',
-            metadata: stringMetadata({ ...metadata, archived_at: new Date().toISOString(), archive_mode: 'soft' }),
-          },
-        })
+        await updateCredential.mutateAsync({ id: confirm.credential.id, data: { status: 'archived', metadata: stringMetadata({ ...metadata, archived_at: new Date().toISOString(), archive_mode: 'soft' }) } })
         toast.success('Credential archived')
       } else {
-        await updateCredential.mutateAsync({
-          id: confirm.credential.id,
-          data: {
-            status: 'revoked',
-            metadata: stringMetadata({ ...metadata, revoked_at: new Date().toISOString() }),
-          },
-        })
+        await updateCredential.mutateAsync({ id: confirm.credential.id, data: { status: 'revoked', metadata: stringMetadata({ ...metadata, revoked_at: new Date().toISOString() }) } })
         toast.success('Credential revoked')
       }
       setConfirm(null)
@@ -486,16 +397,7 @@ export default function CredentialsPage() {
   const resultCount = hasFilters ? `${visibleCredentials.length} of ${visibleCredentialBase.length}` : visibleCredentialBase.length
 
   return (
-    <ResourcePage
-      title="Credentials"
-      description="Manage provider connections shared by Models, Knowledge and Agent runtime bindings."
-      action={(
-        <Button type="button" onClick={openCreateCredential}>
-          <Cable className="mr-2 h-4 w-4" />
-          Connect Provider
-        </Button>
-      )}
-    >
+    <ResourcePage title="Credentials" description="Manage provider connections shared by Models, Knowledge and Agent runtime bindings." action={<Button type="button" onClick={openCreateCredential}><Cable className="mr-2 h-4 w-4" />Connect Provider</Button>}>
       <ResourceToolbar>
         <ResourceTabs
           value={statusFilter}
@@ -509,62 +411,31 @@ export default function CredentialsPage() {
         />
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
           <ResourceSearch value={query} onChange={setQuery} placeholder="Search Credentials, providers or endpoints..." label="Search Credentials" />
-          <Select
-            value={providerFilter}
-            onChange={(event) => setProviderFilter(event.target.value)}
-            className="h-10"
-            options={[
-              { value: 'all', label: 'All providers' },
-              ...providerOptions.map((provider) => ({ value: provider, label: providerLabel(provider) })),
-            ]}
-          />
+          <Select value={providerFilter} onChange={(event) => setProviderFilter(event.target.value)} className="h-10" options={[{ value: 'all', label: 'All providers' }, ...providerOptions.map((provider) => ({ value: provider, label: providerLabel(provider) }))]} />
         </div>
       </ResourceToolbar>
 
       <section>
-        <ResourceSectionHeader
-          title="Provider connections"
-          description="Open a connection to inspect Models, rotate its key or manage lifecycle."
-          count={resultCount}
-        />
-
+        <ResourceSectionHeader title="Provider connections" description="Open a connection to inspect Models, rotate its key or manage lifecycle." count={resultCount} />
         {isLoading ? (
           <LoadingState message="Loading Credentials" variant="panel" layout="compact-cards" />
         ) : isError ? (
-          <ErrorState
-            message="Failed to load Credentials"
-            onRetry={() => { void credentialsQuery.refetch(); void modelsQuery.refetch() }}
-            className="rounded-xl border border-border/80 bg-surface/40 py-10"
-          />
+          <ErrorState message="Failed to load Credentials" onRetry={() => { void credentialsQuery.refetch(); void modelsQuery.refetch() }} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
         ) : visibleCredentials.length > 0 ? (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             {visibleCredentials.map((credential) => {
               const attachedModels = (modelsByCredential.get(credential.id) || []).filter((model) => !isArchived(model))
               const generationCount = attachedModels.filter((model) => !isEmbeddingModel(model)).length
               const embeddingCount = attachedModels.filter((model) => isEmbeddingModel(model)).length
-              return (
-                <CredentialCard
-                  key={credential.id}
-                  credential={credential}
-                  generationCount={generationCount}
-                  embeddingCount={embeddingCount}
-                  onClick={() => setSelectedCredential(credential)}
-                />
-              )
+              return <CredentialCard key={credential.id} credential={credential} generationCount={generationCount} embeddingCount={embeddingCount} onClick={() => setSelectedCredential(credential)} />
             })}
           </div>
         ) : (
           <ResourceEmptyState
             icon={<Cable className="h-4 w-4" />}
             title={visibleCredentialBase.length === 0 ? 'No Provider connections yet' : 'No Credentials found'}
-            description={visibleCredentialBase.length === 0
-              ? 'Connect OpenAI, OpenRouter or an OpenAI-compatible provider.'
-              : 'Adjust the search or clear the active filters.'}
-            action={hasFilters ? (
-              <Button type="button" size="sm" variant="outline" onClick={() => { setQuery(''); setStatusFilter('all'); setProviderFilter('all') }}>
-                Clear filters
-              </Button>
-            ) : undefined}
+            description={visibleCredentialBase.length === 0 ? 'Connect OpenAI, OpenRouter or an OpenAI-compatible provider.' : 'Adjust the search or clear the active filters.'}
+            action={hasFilters ? <Button type="button" size="sm" variant="outline" onClick={() => { setQuery(''); setStatusFilter('all'); setProviderFilter('all') }}>Clear filters</Button> : undefined}
           />
         )}
       </section>
@@ -594,12 +465,7 @@ export default function CredentialsPage() {
         }}
       />
 
-      <ImpactDialog
-        state={confirm}
-        loading={impactLoading || updateCredential.isPending}
-        onClose={() => setConfirm(null)}
-        onConfirm={confirmAction}
-      />
+      <ImpactDialog state={confirm} loading={impactLoading || updateCredential.isPending} onClose={() => setConfirm(null)} onConfirm={confirmAction} />
 
       <AddProviderCredentialModal
         open={showCredentialForm}

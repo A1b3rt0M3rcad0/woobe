@@ -1,8 +1,14 @@
 import { useState } from 'react'
-import { BookOpen, Database, Search, Settings2, Plus, Trash2 } from 'lucide-react'
+import { BookOpen, Database, Plus, Search, Settings2, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  Button,
+  EmptyStatePanel,
+  PanelHeader,
+  SectionBlock,
+  TechnicalListItem,
+} from '@woobe/ui'
 
-import { Button } from '@/components/ui/Button'
 import { useCreateKnowledgeVersion, useKnowledgeVersions } from '@/features/agents/hooks'
 import { SelectKnowledgeVersionModal } from '@/features/knowledge/components/SelectKnowledgeVersionModal'
 import { useCollections } from '@/features/knowledge/hooks'
@@ -51,11 +57,7 @@ export function AgentKnowledgeSettings({ projectId, agentId }: { projectId: stri
 
   const applySnapshot = async (snapshot: VectorSnapshot): Promise<boolean> => {
     try {
-      const created = await createKnowledgeVersion.mutateAsync({
-        project_id: projectId,
-        agent_id: agentId,
-        snapshot_metadata: { vector_snapshot_id: snapshot.id },
-      } as any)
+      const created = await createKnowledgeVersion.mutateAsync({ project_id: projectId, agent_id: agentId, snapshot_metadata: { vector_snapshot_id: snapshot.id } } as any)
       setField('knowledgeVersionId', created.id)
       setSelectorOpen(false)
       toast.success(`${snapshot.version} applied to the Agent Draft`)
@@ -67,53 +69,94 @@ export function AgentKnowledgeSettings({ projectId, agentId }: { projectId: stri
   }
 
   return (
-    <div className="space-y-4 p-4">
-      <section aria-label="Knowledge" className="rounded-xl border border-border bg-surface">
-        <div className="flex items-center gap-3 p-4"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light"><BookOpen className="h-4 w-4" /></span><div><p className="text-sm font-semibold">Knowledge</p><p className="mt-0.5 text-[11px] text-muted">{active ? 'Snapshot selected' : 'No snapshot selected'}</p></div></div>
-        <div className="border-t border-border p-4">
-        <p className="text-xs leading-5 text-muted">Choose the knowledge available to this Agent and configure how it is retrieved.</p>
-        <p className="mb-2.5 mt-5 text-xs font-semibold uppercase tracking-wider text-muted">Knowledge source</p>
-        {active ? (
-          <div className="rounded-lg border border-border bg-background/35 p-3">
-            <div className="flex items-start gap-3">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light"><BookOpen className="h-4 w-4 text-primary-light" /></div>
-              <div className="min-w-0 flex-1">
-                <p title={collectionName} className="truncate text-xs font-medium text-foreground">{collectionName}</p>
-                <p className="mt-1 text-xs text-muted">Knowledge {active.version} · Vector {vectorVersion}</p>
-                <p className="mt-1 text-[11px] uppercase text-muted/80">Immutable snapshot</p>
-              </div>
-              <button type="button" onClick={() => setField('knowledgeVersionId', null)} className="rounded-lg border border-border p-2 text-muted hover:border-red-500/30 hover:text-red-300" aria-label="Remove knowledge"><Trash2 className="h-3.5 w-3.5" /></button>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3">
-              <Button size="sm" variant="outline" className="min-h-8 h-auto whitespace-normal px-2 py-1 text-[11px]" onClick={() => setSelectorOpen(true)}>Change version</Button>
-              <Button size="sm" variant="ghost" className="h-8 text-[11px] text-primary-light" onClick={() => setManagerOpen(true)}>Manage</Button>
-            </div>
-          </div>
-        ) : (
-          <div className="rounded-lg border border-border bg-background/35 p-3">
-            <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light"><Database className="h-4 w-4" /></span><div><p className="text-sm font-semibold text-foreground">No knowledge selected</p><p className="mt-1 text-[11px] leading-4 text-muted">Link an immutable Vector Snapshot.</p></div></div>
-            <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3">
-              <Button size="sm" variant="outline" className="min-h-8 h-auto whitespace-normal px-2 py-1 text-[11px]" onClick={() => setSelectorOpen(true)}><Plus className="mr-1 h-3.5 w-3.5" />Select knowledge</Button>
-              <Button size="sm" variant="ghost" className="h-8 text-[11px] text-primary-light" onClick={() => setManagerOpen(true)}>Manage</Button>
-            </div>
-          </div>
-        )}
-      <div className="mt-5 border-t border-border/80 pt-5">
-        <p className="mb-2.5 text-xs font-semibold uppercase tracking-wider text-muted">Retrieval</p>
-        <div className="rounded-lg border border-border bg-background/35 p-3">
-          <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light"><Search className="h-4 w-4" /></span><div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground">Search behavior</p>
-            <p className="mt-1 text-[11px] text-muted">Top {runtime.top_k} from {runtime.candidate_k} candidates</p>
-            <p className="mt-2 text-[11px] text-muted">{runtime.query_mode === 'current_message' ? 'Current message' : 'Conversation context'}<br />{runtime.grounding_policy === 'required' ? 'Required grounding' : 'Optional grounding'}</p>
-          </div></div>
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3"><Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => setRuntimeOpen(true)}><Settings2 className="mr-1 h-3.5 w-3.5" />Configure</Button></div>
+    <div className="p-ui-md">
+      <section aria-label="Knowledge" className="rounded-container border border-border bg-surface/[0.72]">
+        <PanelHeader
+          icon={<BookOpen className="h-icon w-icon" />}
+          title="Knowledge"
+          description={active ? 'Immutable snapshot selected for this Draft.' : 'No immutable snapshot selected.'}
+        />
+
+        <div className="grid gap-ui-md p-ui-md">
+          <p className="font-sans text-product-caption text-muted-foreground">Choose the knowledge available to this Agent and configure how it is retrieved.</p>
+
+          <SectionBlock title="Knowledge source" density="compact">
+            {active ? (
+              <TechnicalListItem
+                label={collectionName}
+                description={`Knowledge ${active.version} · Vector ${vectorVersion}`}
+                meta="Immutable snapshot"
+                leading={(
+                  <span className="flex h-control-sm w-control-sm items-center justify-center rounded-control border border-border bg-control text-primary-light">
+                    <BookOpen className="h-icon w-icon" />
+                  </span>
+                )}
+                trailing={(
+                  <Button
+                    type="button"
+                    size="iconSm"
+                    variant="ghost"
+                    onClick={() => setField('knowledgeVersionId', null)}
+                    aria-label="Remove knowledge"
+                  >
+                    <Trash2 className="h-icon w-icon text-error" />
+                  </Button>
+                )}
+              >
+                <div className="mt-ui-sm flex flex-wrap gap-ui-sm border-t border-border pt-ui-sm">
+                  <Button size="sm" variant="outline" onClick={() => setSelectorOpen(true)}>Change version</Button>
+                  <Button size="sm" variant="ghost" onClick={() => setManagerOpen(true)}>Manage</Button>
+                </div>
+              </TechnicalListItem>
+            ) : (
+              <EmptyStatePanel
+                compact
+                icon={<Database className="h-icon-lg w-icon-lg" />}
+                title="No knowledge selected"
+                description="Link an immutable Vector Snapshot to this Agent Draft."
+                action={(
+                  <div className="flex flex-wrap justify-center gap-ui-sm">
+                    <Button size="sm" variant="outline" onClick={() => setSelectorOpen(true)}>
+                      <Plus className="h-icon-sm w-icon-sm" />Select knowledge
+                    </Button>
+                    <Button size="sm" variant="ghost" onClick={() => setManagerOpen(true)}>Manage</Button>
+                  </div>
+                )}
+              />
+            )}
+          </SectionBlock>
+
+          <SectionBlock
+            title="Retrieval"
+            description={active ? 'Runtime search policy applied to this Knowledge binding.' : 'Applied when Knowledge is linked.'}
+            density="compact"
+          >
+            <TechnicalListItem
+              label="Search behavior"
+              description={`Top ${runtime.top_k} from ${runtime.candidate_k} candidates`}
+              meta={`${runtime.query_mode === 'current_message' ? 'Current message' : 'Conversation context'} · ${runtime.grounding_policy === 'required' ? 'Required grounding' : 'Optional grounding'}`}
+              leading={(
+                <span className="flex h-control-sm w-control-sm items-center justify-center rounded-control border border-border bg-control text-primary-light">
+                  <Search className="h-icon w-icon" />
+                </span>
+              )}
+              trailing={(
+                <Button size="sm" variant="outline" onClick={() => setRuntimeOpen(true)}>
+                  <Settings2 className="h-icon-sm w-icon-sm" />Configure
+                </Button>
+              )}
+            />
+          </SectionBlock>
         </div>
-        {!active ? <p className="mt-3 text-[11px] text-muted">Applied when knowledge is linked.</p> : null}
-      </div>
-      </div>
       </section>
 
-      <SelectKnowledgeVersionModal open={selectorOpen} projectId={projectId} currentSnapshotId={snapshotId} onClose={() => setSelectorOpen(false)} onSelect={(snapshot) => { void applySnapshot(snapshot) }} />
+      <SelectKnowledgeVersionModal
+        open={selectorOpen}
+        projectId={projectId}
+        currentSnapshotId={snapshotId}
+        onClose={() => setSelectorOpen(false)}
+        onSelect={(snapshot) => { void applySnapshot(snapshot) }}
+      />
       <ManageKnowledgeModal
         open={managerOpen}
         projectId={projectId}
@@ -122,7 +165,12 @@ export function AgentKnowledgeSettings({ projectId, agentId }: { projectId: stri
         onClose={() => setManagerOpen(false)}
         onUseSnapshot={applySnapshot}
       />
-      <RagRuntimeSettings open={runtimeOpen} value={runtime} onClose={() => setRuntimeOpen(false)} onApply={(value) => setField('runtimeConfig', { ...state.runtimeConfig, rag: value })} />
+      <RagRuntimeSettings
+        open={runtimeOpen}
+        value={runtime}
+        onClose={() => setRuntimeOpen(false)}
+        onApply={(value) => setField('runtimeConfig', { ...state.runtimeConfig, rag: value })}
+      />
     </div>
   )
 }

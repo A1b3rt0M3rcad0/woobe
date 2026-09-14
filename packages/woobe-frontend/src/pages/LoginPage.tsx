@@ -1,11 +1,10 @@
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, ArrowRight, LockKeyhole } from 'lucide-react'
+import { AlertTriangle } from 'lucide-react'
+import { Alert, Button, Field, FieldError, FieldLabel, Input } from '@woobe/ui'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { loginSchema, type LoginFormData } from '@/features/auth/schemas'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -24,55 +23,78 @@ export default function LoginPage() {
 
   return (
     <div>
-      <div className="mb-6">
-        <div className="inline-flex items-center gap-2 rounded-full border border-border/80 bg-background/60 px-2.5 py-1 text-[11px] font-medium text-muted">
-          <LockKeyhole className="h-3 w-3 text-primary-light" />
-          Control plane access
-        </div>
-        <h2 className="mt-4 text-xl font-semibold tracking-tight text-white">Sign in to Woobe</h2>
-        <p className="mt-1.5 text-sm leading-5 text-muted">Access your workspace and operate AI products in production.</p>
-      </div>
+      <header className="mb-ui-content-gutter">
+        <h1 className="font-mono text-page-title font-bold text-slate-50">
+          Sign in to Woobe
+        </h1>
+        <p className="mt-ui-xs font-mono text-product-caption text-muted-foreground">
+          Access your workspace and production operations.
+        </p>
+      </header>
 
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-slate-300">Email</label>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-ui-stack" noValidate>
+        <Field className="gap-ui-control-gap">
+          <FieldLabel htmlFor="login-email" className="font-bold tracking-ui-eyebrow">
+            Email
+          </FieldLabel>
           <Input
+            id="login-email"
             type="email"
             autoComplete="email"
-            {...register('email')}
-            error={errors.email?.message}
             placeholder="you@company.com"
-            className="bg-background/60 text-white"
+            invalid={Boolean(errors.email)}
+            aria-describedby={errors.email ? 'login-email-error' : undefined}
+            className="h-control rounded-control bg-control px-ui-md font-mono text-system-control text-slate-100"
+            {...register('email')}
           />
-        </div>
-        <div>
-          <label className="mb-1.5 block text-xs font-medium text-slate-300">Password</label>
+          {errors.email?.message && (
+            <FieldError id="login-email-error" className="font-mono text-product-caption">
+              {errors.email.message}
+            </FieldError>
+          )}
+        </Field>
+
+        <Field className="gap-ui-control-gap">
+          <FieldLabel htmlFor="login-password" className="font-bold tracking-ui-eyebrow">
+            Password
+          </FieldLabel>
           <Input
+            id="login-password"
             type="password"
             autoComplete="current-password"
-            {...register('password')}
-            error={errors.password?.message}
             placeholder="Enter your password"
-            className="bg-background/60 text-white"
+            invalid={Boolean(errors.password)}
+            aria-describedby={errors.password ? 'login-password-error' : undefined}
+            className="h-control rounded-control bg-control px-ui-md font-mono text-system-control text-slate-100"
+            {...register('password')}
           />
-        </div>
+          {errors.password?.message && (
+            <FieldError id="login-password-error" className="font-mono text-product-caption">
+              {errors.password.message}
+            </FieldError>
+          )}
+        </Field>
 
         {errors.root && (
-          <div className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/[0.06] p-3 text-xs leading-5 text-red-200">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-red-300" />
+          <Alert variant="destructive" className="flex items-start gap-ui-sm rounded-control px-ui-md py-ui-sm font-mono text-product-caption">
+            <AlertTriangle className="mt-px h-icon-sm w-icon-sm shrink-0 text-red-300" />
             <p>{errors.root.message}</p>
-          </div>
+          </Alert>
         )}
 
-        <Button type="submit" loading={isSubmitting} className="h-10 w-full">
+        <Button type="submit" loading={isSubmitting} className="w-full font-normal">
           Sign in
-          <ArrowRight className="ml-2 h-4 w-4" />
         </Button>
       </form>
 
-      <div className="mt-5 rounded-xl border border-border/80 bg-background/45 px-4 py-3 text-center text-xs text-muted">
+      <div className="mt-ui-content-gutter border-t border-border pt-ui-md text-center font-mono text-system-meta text-muted-foreground">
         Don&apos;t have an account?{' '}
-        <Link to="/register" className="font-medium text-primary-light transition-colors hover:text-white">Create workspace</Link>
+        <Link
+          to="/register"
+          className="text-primary-light transition-colors hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
+        >
+          Create workspace
+        </Link>
       </div>
     </div>
   )

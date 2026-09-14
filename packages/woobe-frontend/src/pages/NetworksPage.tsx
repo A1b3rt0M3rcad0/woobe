@@ -3,6 +3,7 @@ import type { FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Network, PencilLine, Plus } from 'lucide-react'
 import { toast } from 'sonner'
+import { Button, Dialog, Field, FieldLabel, Input, TechnicalListItem, Textarea } from '@woobe/ui'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -16,9 +17,6 @@ import {
   ResourceTabs,
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
-import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
 import { useCreateNetwork, useNetworkRuntimeEnvironments, useNetworks, useUpdateNetworkMetadata } from '@/features/network/hooks'
 import type { NetworkResource } from '@/features/network/types'
 
@@ -68,7 +66,7 @@ function NetworkOperationalCard({
       <ResourceCard
         aria-label={`Open Network workspace for ${network.name}`}
         onClick={onOpen}
-        icon={<Network className="h-4 w-4" />}
+        icon={<Network className="h-icon-lg w-icon-lg" />}
         title={network.name}
         subtitle={network.description || 'No description configured.'}
         metadata={(
@@ -96,7 +94,7 @@ function NetworkOperationalCard({
           </>
         )}
         footer={(
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1 pr-8">
+          <span className="flex flex-wrap items-center gap-x-ui-sm gap-y-ui-xs pr-ui-xl">
             <span>{agentCount} {agentCount === 1 ? 'Agent' : 'Agents'}</span>
             <span aria-hidden="true">·</span>
             <span>{delegationCount} {delegationCount === 1 ? 'delegation' : 'delegations'}</span>
@@ -106,18 +104,21 @@ function NetworkOperationalCard({
             <span>Updated · {formatDate(network.updated_at || network.created_at)}</span>
           </span>
         )}
-        className="h-full w-full pr-12"
+        className="h-full w-full pr-ui-xxl"
       />
       <Button
         type="button"
         variant="ghost"
-        size="icon"
-        className="absolute bottom-2 right-2 h-7 w-7 text-muted hover:text-white"
-        onClick={onEdit}
+        size="iconSm"
+        className="absolute bottom-ui-sm right-ui-sm text-muted-foreground hover:text-slate-50"
+        onClick={(event) => {
+          event.stopPropagation()
+          onEdit()
+        }}
         aria-label={`Edit Network ${network.name}`}
         title="Edit Network metadata"
       >
-        <PencilLine className="h-3.5 w-3.5" />
+        <PencilLine className="h-icon-sm w-icon-sm" />
       </Button>
     </div>
   )
@@ -152,35 +153,41 @@ function NetworkModal({
   }
 
   return (
-    <Dialog open onClose={onClose} title={title}>
-      <form onSubmit={(event) => void submit(event)} className="space-y-5">
-        <label className="block" htmlFor="network-name">
-          <span className="text-xs font-medium text-slate-200">Name</span>
-          <Input
-            id="network-name"
-            autoFocus
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            maxLength={255}
-            className="mt-2"
-            placeholder="Customer Support"
-          />
-        </label>
+    <Dialog open onClose={onClose} title={title} className="max-w-dialog" contentClassName="p-0">
+      <form onSubmit={(event) => void submit(event)}>
+        <div className="grid gap-ui-md p-ui-panel-inset">
+          <Field>
+            <FieldLabel htmlFor="network-name">Name</FieldLabel>
+            <Input
+              id="network-name"
+              autoFocus
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+              maxLength={255}
+              placeholder="Customer Support"
+            />
+          </Field>
 
-        <label className="block" htmlFor="network-description">
-          <span className="text-xs font-medium text-slate-200">Description</span>
-          <textarea
-            id="network-description"
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            maxLength={4000}
-            rows={4}
-            className="mt-2 w-full resize-none rounded-lg border border-border bg-transparent px-3 py-2 text-sm shadow-sm transition-colors placeholder:text-muted focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary"
-            placeholder="Operational purpose of this Network"
-          />
-        </label>
+          <Field>
+            <FieldLabel htmlFor="network-description">Description</FieldLabel>
+            <Textarea
+              id="network-description"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+              maxLength={4000}
+              rows={5}
+              className="min-h-textarea-compact resize-y"
+              placeholder="Operational purpose of this Network"
+            />
+          </Field>
 
-        <div className="flex justify-end gap-2 border-t border-border pt-4">
+          <div className="grid gap-ui-xs sm:grid-cols-2">
+            <TechnicalListItem label="Resource" description="Project-scoped Network" />
+            <TechnicalListItem label="Lifecycle" description="Draft → Staging → Production" />
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-ui-sm border-t border-border bg-surface/95 px-ui-panel-inset py-ui-md">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
           <Button type="submit" loading={pending}>Save Network</Button>
         </div>
@@ -243,7 +250,7 @@ export default function NetworksPage() {
       description="Create and operate versioned Agent compositions for this Project."
       action={(
         <Button type="button" onClick={() => setCreating(true)}>
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="h-icon w-icon" />
           Create Network
         </Button>
       )}
@@ -281,10 +288,10 @@ export default function NetworksPage() {
           <ErrorState
             error={networksQuery.error}
             onRetry={networksQuery.refetch}
-            className="rounded-xl border border-border/80 bg-surface/40 py-10"
+            className="rounded-container border border-border bg-surface/70 py-10"
           />
         ) : visibleNetworks.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-ui-md md:grid-cols-2 xl:grid-cols-3">
             {visibleNetworks.map((network) => (
               <NetworkOperationalCard
                 key={network.id}
@@ -297,7 +304,7 @@ export default function NetworksPage() {
           </div>
         ) : (
           <ResourceEmptyState
-            icon={<Network className="h-4 w-4" />}
+            icon={<Network className="h-icon-lg w-icon-lg" />}
             title={items.length === 0 ? 'Create your first Network' : 'No Networks found'}
             description={items.length === 0
               ? 'Create a Network, then configure its entry Agent and composition.'

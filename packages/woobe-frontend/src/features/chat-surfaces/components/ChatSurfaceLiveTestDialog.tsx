@@ -1,13 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { MessageSquare, RefreshCw } from 'lucide-react'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Badge,
+  Button,
+  Dialog,
+  EmptyStatePanel,
+  SectionBlock,
+  TechnicalListItem,
+} from '@woobe/ui'
 
-import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
 import { createChatSurfaceTestSession } from '@/features/chat-surfaces/api'
-import type {
-  ChatSurface,
-  ChatSurfaceTestSession,
-} from '@/features/chat-surfaces/types'
+import type { ChatSurface, ChatSurfaceTestSession } from '@/features/chat-surfaces/types'
 import { API_BASE_URL } from '@/lib/api/client'
 
 interface ChatSurfaceLiveTestDialogProps {
@@ -38,6 +44,13 @@ function statusLabel(status: FrameStatus): string {
   if (status === 'expired') return 'Session expired'
   if (status === 'error') return 'Runtime error'
   return 'Starting'
+}
+
+function statusVariant(status: FrameStatus) {
+  if (status === 'error' || status === 'expired') return 'destructive' as const
+  if (status === 'running') return 'warning' as const
+  if (status === 'ready') return 'success' as const
+  return 'outline' as const
 }
 
 export function ChatSurfaceLiveTestDialog({
@@ -75,11 +88,7 @@ export function ChatSurfaceLiveTestDialog({
       setSession(null)
       setInstanceId('')
       setFrameStatus('error')
-      setError(
-        requestError instanceof Error
-          ? requestError.message
-          : 'Unable to create a ChatSurface test Session',
-      )
+      setError(requestError instanceof Error ? requestError.message : 'Unable to create a ChatSurface test Session')
     } finally {
       setLoading(false)
     }
@@ -110,37 +119,27 @@ export function ChatSurfaceLiveTestDialog({
         || event.data.protocolVersion !== 1
         || event.data.instanceId !== instanceId
         || event.data.surfaceId !== surface.public_id
-      ) {
-        return
-      }
+      ) return
 
       if (event.data.type === 'ready') {
-        frameRef.current?.contentWindow?.postMessage(
-          {
-            protocolVersion: 1,
-            instanceId,
-            surfaceId: surface.public_id,
-            type: 'init',
-            payload: {
-              token: session.session_token,
-              hostOrigin: window.location.origin,
-              apiBaseUrl: API_BASE_URL,
-            },
+        frameRef.current?.contentWindow?.postMessage({
+          protocolVersion: 1,
+          instanceId,
+          surfaceId: surface.public_id,
+          type: 'init',
+          payload: {
+            token: session.session_token,
+            hostOrigin: window.location.origin,
+            apiBaseUrl: API_BASE_URL,
           },
-          embedOrigin,
-        )
+        }, embedOrigin)
         return
       }
 
-      if (event.data.type === 'history.loaded' || event.data.type === 'run.completed') {
-        setFrameStatus('ready')
-      } else if (event.data.type === 'run.started') {
-        setFrameStatus('running')
-      } else if (event.data.type === 'session.expired') {
-        setFrameStatus('expired')
-      } else if (event.data.type === 'error') {
-        setFrameStatus('error')
-      }
+      if (event.data.type === 'history.loaded' || event.data.type === 'run.completed') setFrameStatus('ready')
+      else if (event.data.type === 'run.started') setFrameStatus('running')
+      else if (event.data.type === 'session.expired') setFrameStatus('expired')
+      else if (event.data.type === 'error') setFrameStatus('error')
     }
 
     window.addEventListener('message', onMessage)
@@ -152,31 +151,29 @@ export function ChatSurfaceLiveTestDialog({
       open={open}
       onClose={onClose}
       title="Test ChatSurface"
-      className="max-h-[calc(100svh-2rem)] max-w-6xl overflow-hidden"
-      contentClassName="p-0"
+      className="flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden"
+      contentClassName="min-h-0 flex-1 p-0"
     >
-      <div className="grid min-h-[640px] max-h-[calc(100svh-8rem)] lg:grid-cols-[minmax(0,1fr)_280px]">
-        <div className="min-h-0 bg-background/45 p-5 lg:p-6">
-          <div className="h-full min-h-[560px] overflow-hidden rounded-2xl border border-border bg-background shadow-inner">
+      <div className="grid h-full min-h-0 lg:grid-cols-12">
+        <div className="min-h-0 bg-background/55 p-ui-md lg:col-span-9">
+          <div className="h-full min-h-96 overflow-hidden rounded-container border border-border bg-background">
             {loading ? (
-              <div className="flex h-full min-h-[560px] items-center justify-center text-sm text-muted">
-                Creating test Session…
-              </div>
+              <EmptyStatePanel
+                compact
+                icon={<MessageSquare className="h-icon-lg w-icon-lg" />}
+                title="Creating test Session"
+                description="Preparing a real Control Plane test Session against the pinned Release."
+                className="h-full border-0 bg-transparent"
+              />
             ) : error ? (
-              <div className="flex h-full min-h-[560px] items-center justify-center p-8">
-                <div className="max-w-md rounded-xl border border-red-500/25 bg-red-500/10 p-5 text-center">
-                  <p className="text-sm font-medium text-red-200">Unable to start live test</p>
-                  <p className="mt-2 text-xs leading-5 text-red-200/75">{error}</p>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="mt-4"
-                    onClick={() => void startSession()}
-                  >
+              <div className="flex h-full items-center justify-center p-ui-lg">
+                <Alert variant="destructive" className="w-full max-w-dialog-compact">
+                  <AlertTitle>Unable to start live test</AlertTitle>
+                  <AlertDescription>{error}</AlertDescription>
+                  <Button type="button" size="sm" variant="outline" className="mt-ui-md" onClick={() => void startSession()}>
                     Try again
                   </Button>
-                </div>
+                </Alert>
               </div>
             ) : session && frameUrl ? (
               <iframe
@@ -186,72 +183,60 @@ export function ChatSurfaceLiveTestDialog({
                 title="Live ChatSurface test"
                 referrerPolicy="no-referrer"
                 sandbox="allow-forms allow-scripts allow-same-origin"
-                className="block h-full min-h-[560px] w-full border-0"
+                className="block h-full w-full border-0"
               />
             ) : null}
           </div>
         </div>
 
-        <aside className="overflow-y-auto border-t border-border bg-surface/70 p-5 lg:border-l lg:border-t-0">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Live test</p>
-              <p className="mt-1 text-sm font-semibold text-white">{statusLabel(frameStatus)}</p>
-            </div>
-            <span
-              className={`h-2.5 w-2.5 rounded-full ${
-                frameStatus === 'error' || frameStatus === 'expired'
-                  ? 'bg-red-400'
-                  : frameStatus === 'running'
-                    ? 'bg-amber-300'
-                    : frameStatus === 'ready'
-                      ? 'bg-emerald-400'
-                      : 'bg-slate-500'
-              }`}
-              aria-hidden="true"
+        <aside className="flex min-h-0 flex-col border-t border-border bg-surface/90 lg:col-span-3 lg:border-l lg:border-t-0">
+          <div className="shrink-0 border-b border-border p-ui-md">
+            <TechnicalListItem
+              label={statusLabel(frameStatus)}
+              description="Live test"
+              meta={<Badge variant={statusVariant(frameStatus)} size="compact">{statusLabel(frameStatus)}</Badge>}
             />
           </div>
 
-          <div className="mt-5 space-y-3 text-xs">
-            <div className="rounded-xl border border-border/80 bg-background/55 p-3">
-              <p className="uppercase tracking-wider text-muted">Surface</p>
-              <p className="mt-1 truncate font-medium text-white" title={surface.name}>{surface.name}</p>
-            </div>
-            <div className="rounded-xl border border-border/80 bg-background/55 p-3">
-              <p className="uppercase tracking-wider text-muted">Target</p>
-              <p className="mt-1 truncate font-medium text-white" title={targetName}>{targetName}</p>
-            </div>
-            <div className="rounded-xl border border-border/80 bg-background/55 p-3">
-              <p className="uppercase tracking-wider text-muted">Pinned Release</p>
-              <p className="mt-1 font-mono text-white" title={session?.target_release_id ?? surface.target_release_id}>
-                {shortId(session?.target_release_id ?? surface.target_release_id)}
-              </p>
-            </div>
-            <div className="rounded-xl border border-border/80 bg-background/55 p-3">
-              <p className="uppercase tracking-wider text-muted">Test Session</p>
-              <p className="mt-1 break-all font-mono text-white">
-                {session ? shortId(session.session_id) : 'Creating…'}
-              </p>
+          <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-ui-md">
+            <div className="grid gap-ui-md">
+              <SectionBlock title="Session metadata" density="compact">
+                <div className="grid gap-ui-xs">
+                  <TechnicalListItem label="Surface" description={surface.name} />
+                  <TechnicalListItem label="Target" description={targetName} />
+                  <TechnicalListItem
+                    label="Release"
+                    description={shortId(session?.target_release_id ?? surface.target_release_id)}
+                    title={session?.target_release_id ?? surface.target_release_id}
+                  />
+                  <TechnicalListItem
+                    label="Session"
+                    description={session ? shortId(session.session_id) : 'Creating…'}
+                    title={session?.session_id}
+                  />
+                </div>
+              </SectionBlock>
+
+              <SectionBlock title="Production behavior" density="compact">
+                <p className="font-sans text-product-small leading-5 text-muted-foreground">
+                  This creates a real Session against the Release pinned by this ChatSurface. The Session is marked as a Control Plane test and does not require an integrator Access Key.
+                </p>
+              </SectionBlock>
             </div>
           </div>
 
-          <div className="mt-5 rounded-xl border border-primary/20 bg-primary/5 p-4">
-            <p className="text-xs font-medium text-white">Production behavior</p>
-            <p className="mt-1 text-[11px] leading-5 text-muted">
-              This creates a real Session against the Release pinned by this ChatSurface. The Session is marked as a Control Plane test and does not require an integrator Access Key.
-            </p>
+          <div className="shrink-0 border-t border-border p-ui-md">
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full justify-center"
+              disabled={loading || surface.status !== 'active'}
+              onClick={() => void startSession()}
+            >
+              <RefreshCw className="h-icon w-icon" />
+              New session
+            </Button>
           </div>
-
-          <Button
-            type="button"
-            variant="outline"
-            className="mt-5 w-full justify-center"
-            disabled={loading || surface.status !== 'active'}
-            onClick={() => void startSession()}
-          >
-            <RefreshCw className="mr-2 h-4 w-4" />
-            New session
-          </Button>
         </aside>
       </div>
     </Dialog>

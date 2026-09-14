@@ -1,13 +1,25 @@
-import { AgentBehaviorDetails } from '@/features/agents/components/AgentBehaviorDetails'
 import { useMemo, useState } from 'react'
 import { Bot, Edit3, FileJson, GitBranch, Lock, MessageSquare, Rocket } from 'lucide-react'
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  EmptyStatePanel,
+  SectionBlock,
+  SegmentedControl,
+  Skeleton,
+  TechnicalListItem,
+} from '@woobe/ui'
 
+import { AgentBehaviorDetails } from '@/features/agents/components/AgentBehaviorDetails'
+import { AgentConfigurationEditor } from '@/features/agents/components/AgentConfigurationEditor'
 import { useRelease, useReleases } from '@/features/agents/hooks'
 import type { Agent, AgentRelease, BehaviorSpecification } from '@/features/agents/types'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
+import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { cn } from '@/lib/utils'
 import { NetworkAgentChat } from './NetworkAgentChat'
-import { AgentConfigurationEditor } from '@/features/agents/components/AgentConfigurationEditor'
 import { NetworkAgentVersions } from './NetworkAgentVersions'
 
 type AgentWorkspaceTab = 'editor' | 'versions' | 'chat'
@@ -107,10 +119,44 @@ function agentFromRelease(agent: Agent, release: AgentRelease): Agent {
 
 function SnapshotUnavailable({ message }: { message: string }) {
   return (
-    <div className="flex h-full min-h-0 items-center justify-center p-6 text-center">
-      <div className="max-w-sm rounded-2xl border border-amber-500/25 bg-amber-500/5 p-5">
-        <p className="text-[11px] font-medium text-white">Exact Agent snapshot unavailable</p>
-        <p className="mt-2 text-[9px] leading-5 text-muted">{message}</p>
+    <div className="flex h-full min-h-0 items-center justify-center p-ui-lg">
+      <EmptyStatePanel
+        icon={<Lock className="h-icon-lg w-icon-lg" />}
+        title="Exact Agent snapshot unavailable"
+        description={message}
+      />
+    </div>
+  )
+}
+
+function WorkspaceHeader({
+  agent,
+  networkBinding,
+  onOpenComposition,
+  readOnly = false,
+}: Pick<NetworkAgentWorkspaceProps, 'agent' | 'networkBinding' | 'onOpenComposition'> & { readOnly?: boolean }) {
+  return (
+    <div className="shrink-0 border-b border-border bg-background/20 px-ui-md py-ui-sm">
+      <div className="flex min-w-0 items-center gap-ui-md">
+        <span className="flex h-control-nav w-control-nav shrink-0 items-center justify-center rounded-control border border-primary/25 bg-primary/[0.08] text-primary-light">
+          {readOnly ? <Lock className="h-icon w-icon" /> : <Bot className="h-icon w-icon" />}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 flex-wrap items-center gap-ui-sm">
+            <p className="min-w-0 flex-1 truncate font-mono text-system-heading font-semibold text-accent-foreground">{agent.name}</p>
+            {readOnly ? <Badge variant="outline" size="compact">Read-only</Badge> : null}
+          </div>
+          <div className="mt-ui-xs flex min-w-0 flex-wrap items-center gap-x-ui-sm gap-y-ui-xs font-mono text-system-meta text-muted-foreground">
+            <GitBranch className="h-icon-sm w-icon-sm shrink-0 text-primary-light" />
+            <span className="truncate">
+              {readOnly ? 'Exact' : 'Network uses'} {sourceLabel(networkBinding.source)}{' '}
+              <span className="text-accent-foreground">{networkBinding.version}</span>
+            </span>
+            <Button type="button" variant="link" size="xs" className="ml-auto shrink-0" onClick={onOpenComposition}>
+              Role in Network
+            </Button>
+          </div>
+        </div>
       </div>
     </div>
   )
@@ -120,49 +166,133 @@ function EditableAgentWorkspaceContent({ agent, projectId, networkBinding, onOpe
   const [tab, setTab] = useState<AgentWorkspaceTab>('editor')
   const { loadedReleaseVersion, state } = useAgentEditor()
   const runtimeAgent = useMemo<Agent>(() => ({ ...agent, session_mode: state.sessionMode }), [agent, state.sessionMode])
-  const bindingTitle = loadedReleaseVersion ? `Draft based on ${loadedReleaseVersion}. Editing it affects every context that uses this Agent Draft.` : 'Editing this shared Agent Draft may affect every context that uses it.'
+  const bindingTitle = loadedReleaseVersion
+    ? `Draft based on ${loadedReleaseVersion}. Editing it affects every context that uses this Agent Draft.`
+    : 'Editing this shared Agent Draft may affect every context that uses it.'
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-surface/75">
-      <div className="shrink-0 border-b border-border/80 bg-background/20 px-3 py-2.5">
-        <div className="flex items-center gap-2.5">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary-light"><Bot className="h-3.5 w-3.5" /></div>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-[11px] font-semibold text-white">{agent.name}</p>
-            <div className="mt-1 flex min-w-0 items-center gap-1.5 text-[8px] text-muted" title={bindingTitle}>
-              <GitBranch className="h-3 w-3 shrink-0 text-primary-light" />
-              <span className="truncate">Network uses <span className="text-white">{sourceLabel(networkBinding.source)}</span> <span className="font-mono text-slate-300">{networkBinding.version}</span></span>
-              <button type="button" onClick={onOpenComposition} className="ml-auto shrink-0 font-medium text-primary-light hover:text-white">Role in Network</button>
-            </div>
-          </div>
-        </div>
+      <WorkspaceHeader agent={agent} networkBinding={networkBinding} onOpenComposition={onOpenComposition} />
+
+      <div className="shrink-0 border-b border-border bg-surface/60 px-ui-sm py-ui-xs" title={bindingTitle}>
+        <SegmentedControl
+          items={[
+            { value: 'editor', label: 'Editor', icon: <Edit3 className="h-icon-sm w-icon-sm" /> },
+            { value: 'versions', label: 'Versions', icon: <Rocket className="h-icon-sm w-icon-sm" /> },
+            { value: 'chat', label: 'Chat', icon: <MessageSquare className="h-icon-sm w-icon-sm" /> },
+          ]}
+          value={tab}
+          onValueChange={(value) => setTab(value as AgentWorkspaceTab)}
+          ariaLabel="Agent workspace"
+          stretch
+          size="compact"
+        />
       </div>
-      <div className="flex shrink-0 gap-1 border-b border-border/80 bg-surface/60 p-1.5">{([['editor', 'Editor', Edit3], ['versions', 'Versions', Rocket], ['chat', 'Chat', MessageSquare]] as Array<[AgentWorkspaceTab, string, typeof Edit3]>).map(([id, label, Icon]) => <button key={id} type="button" onClick={() => setTab(id)} className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[10px] font-medium', tab === id ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-transparent text-muted hover:border-border/70 hover:text-white')}><Icon className="h-3.5 w-3.5" />{label}</button>)}</div>
+
       <div className="relative min-h-0 flex-1 overflow-hidden">
-        <div className={cn('absolute inset-0', tab !== 'editor' && 'invisible pointer-events-none')} aria-hidden={tab !== 'editor'}><AgentConfigurationEditor agent={agent} projectId={projectId} agentId={agent.id} onDirtyChange={onDirtyChange} onRegisterSaveAction={onRegisterSaveAction} /></div>
-        <div className={cn('absolute inset-0', tab !== 'versions' && 'invisible pointer-events-none')} aria-hidden={tab !== 'versions'}><NetworkAgentVersions agent={agent} projectId={projectId} networkBinding={networkBinding} onOpenComposition={onOpenComposition} /></div>
-        <div className={cn('absolute inset-0', tab !== 'chat' && 'invisible pointer-events-none')} aria-hidden={tab !== 'chat'}><NetworkAgentChat agent={runtimeAgent} projectId={projectId} onChatCompleted={() => undefined} /></div>
+        <div className={cn('absolute inset-0', tab !== 'editor' && 'invisible pointer-events-none')} aria-hidden={tab !== 'editor'}>
+          <AgentConfigurationEditor
+            agent={agent}
+            projectId={projectId}
+            agentId={agent.id}
+            onDirtyChange={onDirtyChange}
+            onRegisterSaveAction={onRegisterSaveAction}
+          />
+        </div>
+        <div className={cn('absolute inset-0', tab !== 'versions' && 'invisible pointer-events-none')} aria-hidden={tab !== 'versions'}>
+          <NetworkAgentVersions agent={agent} projectId={projectId} networkBinding={networkBinding} onOpenComposition={onOpenComposition} />
+        </div>
+        <div className={cn('absolute inset-0', tab !== 'chat' && 'invisible pointer-events-none')} aria-hidden={tab !== 'chat'}>
+          <NetworkAgentChat agent={runtimeAgent} projectId={projectId} onChatCompleted={() => undefined} />
+        </div>
       </div>
     </div>
   )
 }
 
 function SnapshotField({ label, value, mono = false }: { label: string; value: string | number | null | undefined; mono?: boolean }) {
-  return <div className="rounded-lg border border-border/75 bg-background/35 p-3"><p className="text-[8px] font-semibold uppercase tracking-wide text-muted">{label}</p><p className={cn('mt-1 break-words text-[10px] text-slate-200', mono && 'font-mono')}>{value == null || value === '' ? 'Not configured' : String(value)}</p></div>
-}
-
-function JsonSnapshot({ label, value }: { label: string; value: unknown }) {
-  return <section><p className="mb-1.5 text-[9px] font-semibold uppercase tracking-wide text-muted">{label}</p><pre className="max-h-72 overflow-auto rounded-xl border border-border/75 bg-background/45 p-3 text-[9px] leading-5 text-slate-300">{JSON.stringify(value ?? null, null, 2)}</pre></section>
+  const display = value == null || value === '' ? 'Not configured' : String(value)
+  return (
+    <TechnicalListItem
+      label={label}
+      description={display}
+      className={mono ? '[&>span:nth-child(2)>span:nth-child(2)]:font-mono' : undefined}
+      title={display}
+    />
+  )
 }
 
 function ReadOnlyAgentSnapshotContent({ agent, release, projectId, networkBinding, onOpenComposition }: NetworkAgentWorkspaceProps & { release: AgentRelease }) {
   const [tab, setTab] = useState<SnapshotWorkspaceTab>('snapshot')
   const showVersions = networkBinding.source !== 'draft'
+
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-surface/75">
-      <div className="shrink-0 border-b border-border/80 bg-background/20 px-3 py-2.5"><div className="flex items-center gap-2.5"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary-light"><Lock className="h-3.5 w-3.5" /></div><div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-2"><p className="truncate text-[11px] font-semibold text-white">{agent.name}</p><span className="rounded border border-border bg-background/50 px-1.5 py-0.5 text-[8px] font-semibold uppercase text-muted">Read-only</span></div><div className="mt-1 flex min-w-0 items-center gap-1.5 text-[8px] text-muted"><GitBranch className="h-3 w-3 shrink-0 text-primary-light" /><span className="truncate">Exact {sourceLabel(networkBinding.source)} snapshot <span className="font-mono text-slate-300">{release.version}</span></span><button type="button" onClick={onOpenComposition} className="ml-auto shrink-0 font-medium text-primary-light hover:text-white">Role in Network</button></div></div></div></div>
-      {showVersions ? <div className="flex shrink-0 gap-1 border-b border-border/80 bg-surface/60 p-1.5">{([['snapshot', 'Snapshot', FileJson], ['versions', 'Versions', Rocket]] as Array<[SnapshotWorkspaceTab, string, typeof FileJson]>).map(([id, label, Icon]) => <button key={id} type="button" onClick={() => setTab(id)} className={cn('flex flex-1 items-center justify-center gap-1.5 rounded-lg border px-2 py-1.5 text-[10px] font-medium', tab === id ? 'border-primary/30 bg-primary/10 text-primary-light' : 'border-transparent text-muted hover:border-border/70 hover:text-white')}><Icon className="h-3.5 w-3.5" />{label}</button>)}</div> : null}
-      <div className="min-h-0 flex-1 overflow-hidden">{tab === 'snapshot' || !showVersions ? <div className="scrollbar-thin h-full overflow-y-auto p-4"><div className="mb-4 rounded-xl border border-border bg-background/35 p-3 text-[9px] leading-4 text-muted">This is the exact Agent configuration captured by the Network. The isolated Chat is unavailable because it would execute the current Agent runtime rather than this snapshot.</div><div className="grid grid-cols-2 gap-2"><SnapshotField label="Version" value={release.version} mono /><SnapshotField label="Snapshot" value={networkBinding.source} /><SnapshotField label="Session mode" value={release.session_mode} /><SnapshotField label="Provider" value={release.provider} /><SnapshotField label="Model" value={release.model} mono /><SnapshotField label="Temperature" value={release.temperature} /><SnapshotField label="Max output tokens" value={release.max_output_tokens} /><SnapshotField label="Knowledge version" value={release.knowledge_version_id} mono /><SnapshotField label="Provider model" value={release.provider_model_id} mono /></div><div className="mt-4"><AgentBehaviorDetails behavior={release.behavior_spec} legacyPrompt={release.system_prompt} /></div><div className="mt-4 space-y-4"><JsonSnapshot label="Output contract" value={release.response_format ?? release.output_schema} /><JsonSnapshot label="Runtime configuration" value={release.runtime_config} /></div></div> : <NetworkAgentVersions agent={agent} projectId={projectId} networkBinding={{ ...networkBinding, version: release.version, ref: release.id }} readOnly onOpenComposition={onOpenComposition} />}</div>
+      <WorkspaceHeader agent={agent} networkBinding={{ ...networkBinding, version: release.version }} onOpenComposition={onOpenComposition} readOnly />
+
+      {showVersions ? (
+        <div className="shrink-0 border-b border-border bg-surface/60 px-ui-sm py-ui-xs">
+          <SegmentedControl
+            items={[
+              { value: 'snapshot', label: 'Snapshot', icon: <FileJson className="h-icon-sm w-icon-sm" /> },
+              { value: 'versions', label: 'Versions', icon: <Rocket className="h-icon-sm w-icon-sm" /> },
+            ]}
+            value={tab}
+            onValueChange={(value) => setTab(value as SnapshotWorkspaceTab)}
+            ariaLabel="Snapshot workspace"
+            stretch
+            size="compact"
+          />
+        </div>
+      ) : null}
+
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {tab === 'snapshot' || !showVersions ? (
+          <div className="scrollbar-thin h-full overflow-y-auto p-ui-md">
+            <div className="grid gap-ui-md">
+              <Alert variant="info">
+                <AlertDescription>
+                  This is the exact Agent configuration captured by the Network. The isolated Chat is unavailable because it would execute the current Agent runtime rather than this snapshot.
+                </AlertDescription>
+              </Alert>
+
+              <SectionBlock title="Captured configuration" description="Immutable values bound to this Network execution." density="compact">
+                <div className="grid gap-ui-xs sm:grid-cols-2">
+                  <SnapshotField label="Version" value={release.version} mono />
+                  <SnapshotField label="Snapshot" value={networkBinding.source} />
+                  <SnapshotField label="Session mode" value={release.session_mode} />
+                  <SnapshotField label="Provider" value={release.provider} />
+                  <SnapshotField label="Model" value={release.model} mono />
+                  <SnapshotField label="Temperature" value={release.temperature} />
+                  <SnapshotField label="Max output tokens" value={release.max_output_tokens} />
+                  <SnapshotField label="Knowledge version" value={release.knowledge_version_id} mono />
+                  <SnapshotField label="Provider model" value={release.provider_model_id} mono />
+                </div>
+              </SectionBlock>
+
+              <SectionBlock title="Behavior" density="compact">
+                <AgentBehaviorDetails behavior={release.behavior_spec} legacyPrompt={release.system_prompt} />
+              </SectionBlock>
+
+              <SectionBlock title="Output contract" density="compact">
+                <JsonCodeBlock value={release.response_format ?? release.output_schema} actions={['copy', 'format', 'expand']} />
+              </SectionBlock>
+
+              <SectionBlock title="Runtime configuration" density="compact">
+                <JsonCodeBlock value={release.runtime_config} actions={['copy', 'format', 'expand']} />
+              </SectionBlock>
+            </div>
+          </div>
+        ) : (
+          <NetworkAgentVersions
+            agent={agent}
+            projectId={projectId}
+            networkBinding={{ ...networkBinding, version: release.version, ref: release.id }}
+            readOnly
+            onOpenComposition={onOpenComposition}
+          />
+        )}
+      </div>
     </div>
   )
 }
@@ -174,18 +304,50 @@ export function NetworkAgentWorkspace(props: NetworkAgentWorkspaceProps) {
 
   if (props.readOnly && props.networkBinding.source === 'draft') {
     const release = capturedDraftRelease(props.agent, props.networkBinding)
-    if (!release) return <SnapshotUnavailable message="The execution is immutable, but its captured Agent Draft payload is unavailable. The mutable current Agent is intentionally not substituted." />
+    if (!release) {
+      return <SnapshotUnavailable message="The execution is immutable, but its captured Agent Draft payload is unavailable. The mutable current Agent is intentionally not substituted." />
+    }
     const snapshotAgent = agentFromRelease(props.agent, release)
-    return <AgentEditorProvider key={`${props.agent.id}:${props.networkBinding.version}`} agent={snapshotAgent} projectId={props.projectId}><ReadOnlyAgentSnapshotContent {...props} agent={snapshotAgent} release={release} readOnly /></AgentEditorProvider>
+    return (
+      <AgentEditorProvider key={`${props.agent.id}:${props.networkBinding.version}`} agent={snapshotAgent} projectId={props.projectId}>
+        <ReadOnlyAgentSnapshotContent {...props} agent={snapshotAgent} release={release} readOnly />
+      </AgentEditorProvider>
+    )
   }
 
   if (stableInspection) {
-    if (exactReleaseQuery.isLoading || releaseListQuery.isLoading) return <div className="flex h-full items-center justify-center text-[10px] text-muted">Loading exact Agent snapshot…</div>
+    if (exactReleaseQuery.isLoading || releaseListQuery.isLoading) {
+      return (
+        <div className="flex h-full items-center justify-center p-ui-lg" aria-label="Loading exact Agent snapshot">
+          <div className="grid w-full max-w-dialog-compact gap-ui-sm">
+            <Skeleton className="h-control-row w-full" />
+            <Skeleton className="h-32 w-full" />
+          </div>
+        </div>
+      )
+    }
+
     const release = exactReleaseQuery.data ?? releaseListQuery.data?.find((item) => item.version === props.networkBinding.version)
-    if (!release) return <SnapshotUnavailable message={`The Network references Agent snapshot ${props.networkBinding.version}, but it could not be loaded. The current Agent is intentionally not substituted.`} />
+    if (!release) {
+      return <SnapshotUnavailable message={`The Network references Agent snapshot ${props.networkBinding.version}, but it could not be loaded. The current Agent is intentionally not substituted.`} />
+    }
     const snapshotAgent = agentFromRelease(props.agent, release)
-    return <AgentEditorProvider key={`${props.agent.id}:${release.id}`} agent={snapshotAgent} projectId={props.projectId}><ReadOnlyAgentSnapshotContent {...props} agent={snapshotAgent} release={release} networkBinding={{ ...props.networkBinding, version: release.version, ref: release.id }} readOnly /></AgentEditorProvider>
+    return (
+      <AgentEditorProvider key={`${props.agent.id}:${release.id}`} agent={snapshotAgent} projectId={props.projectId}>
+        <ReadOnlyAgentSnapshotContent
+          {...props}
+          agent={snapshotAgent}
+          release={release}
+          networkBinding={{ ...props.networkBinding, version: release.version, ref: release.id }}
+          readOnly
+        />
+      </AgentEditorProvider>
+    )
   }
 
-  return <AgentEditorProvider key={props.agent.id} agent={props.agent} projectId={props.projectId}><EditableAgentWorkspaceContent {...props} /></AgentEditorProvider>
+  return (
+    <AgentEditorProvider key={props.agent.id} agent={props.agent} projectId={props.projectId}>
+      <EditableAgentWorkspaceContent {...props} />
+    </AgentEditorProvider>
+  )
 }

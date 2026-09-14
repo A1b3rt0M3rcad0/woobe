@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
+import { Button } from '@woobe/ui'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/features/auth/AuthProvider'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
@@ -29,15 +30,16 @@ function DropdownMenu({
   return (
     <div ref={ref} className="relative">
       <button
+        type="button"
         onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 rounded-lg px-2 py-1 text-sm text-muted hover:text-white transition-colors"
+        className="flex h-control-sm items-center gap-ui-xs rounded-control border border-transparent px-ui-sm font-mono text-system-control text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50"
       >
         {trigger}
-        <ChevronDown className={`h-3 w-3 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <ChevronDown className={`h-icon-sm w-icon-sm transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
         <div
-          className={`absolute top-full mt-1 z-50 min-w-[200px] rounded-lg border border-border bg-surface py-1 shadow-lg ${align === 'right' ? 'right-0' : 'left-0'}`}
+          className={`absolute top-full z-popover mt-ui-xs min-w-popover rounded-container border border-border bg-surface py-ui-xs shadow-popup ${align === 'right' ? 'right-0' : 'left-0'}`}
           onClick={() => setOpen(false)}
         >
           {children}
@@ -47,31 +49,34 @@ function DropdownMenu({
   )
 }
 
+const menuItemClass = 'flex min-h-control-sm w-full items-center gap-ui-sm px-ui-md py-ui-sm text-left font-mono text-system-control text-muted-foreground transition-colors hover:bg-accent hover:text-slate-50'
+
 export function Topbar() {
   const { user, logout } = useAuth()
-  const { currentWorkspace, currentProject, workspaces, projects, selectWorkspace, selectProject, clearCurrentProject } = useWorkspace()
+  const { currentWorkspace, currentProject, workspaces, projects, selectWorkspace, selectProject } = useWorkspace()
   const navigate = useNavigate()
 
   return (
-    <header className="flex h-14 items-center justify-between border-b border-border bg-surface px-6">
-      <div className="flex items-center gap-2 text-sm">
+    <header className="flex h-workspace-header items-center justify-between border-b border-border bg-surface px-ui-xxl">
+      <div className="flex items-center gap-ui-sm">
         <DropdownMenu
           trigger={
             <>
-              <Building2 className="h-3.5 w-3.5 shrink-0" />
-              <span className={currentWorkspace ? 'text-white' : 'text-primary font-medium'}>
+              <Building2 className="h-icon w-icon shrink-0" />
+              <span className={currentWorkspace ? 'text-slate-50' : 'font-medium text-primary-light'}>
                 {currentWorkspace?.name || 'Select workspace'}
               </span>
             </>
           }
         >
           {workspaces.length === 0 ? (
-            <div className="px-3 py-2 text-xs text-muted">No workspaces</div>
+            <div className="px-ui-md py-ui-sm font-sans text-product-caption text-muted-foreground">No workspaces</div>
           ) : (
             workspaces.map((workspace) => (
               <button
                 key={workspace.id}
-                className={`flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent transition-colors ${workspace.id === currentWorkspace?.id ? 'text-white' : 'text-muted'}`}
+                type="button"
+                className={`${menuItemClass} ${workspace.id === currentWorkspace?.id ? 'bg-primary/[0.08] text-slate-50' : ''}`}
                 onClick={() => {
                   if (workspace.id !== currentWorkspace?.id) {
                     selectWorkspace(workspace)
@@ -79,57 +84,49 @@ export function Topbar() {
                   }
                 }}
               >
-                <Building2 className="h-3.5 w-3.5" />
+                <Building2 className="h-icon w-icon" />
                 {workspace.name}
               </button>
             ))
           )}
-          <div className="border-t border-border my-1" />
+          <div className="my-ui-xs border-t border-border" />
           {currentWorkspace && (
-            <button
-              className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-muted hover:bg-accent transition-colors"
-              onClick={() => navigate(`/workspaces/${currentWorkspace.id}/settings`)}
-            >
-              <Settings className="h-3.5 w-3.5" />
+            <button type="button" className={menuItemClass} onClick={() => navigate(`/workspaces/${currentWorkspace.id}/settings`)}>
+              <Settings className="h-icon w-icon" />
               Workspace settings
             </button>
           )}
-          <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-muted hover:bg-accent transition-colors"
-            onClick={() => navigate('/workspaces')}
-          >
-            <List className="h-3.5 w-3.5" />
+          <button type="button" className={menuItemClass} onClick={() => navigate('/workspaces')}>
+            <List className="h-icon w-icon" />
             Manage workspaces
           </button>
-          <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-muted hover:bg-accent transition-colors"
-            onClick={() => navigate('/workspaces')}
-          >
-            <Plus className="h-3.5 w-3.5" />
+          <button type="button" className={menuItemClass} onClick={() => navigate('/workspaces')}>
+            <Plus className="h-icon w-icon" />
             Create workspace
           </button>
         </DropdownMenu>
 
         {currentWorkspace && (
           <>
-            <span className="text-border">/</span>
+            <span className="font-mono text-system-meta text-border">/</span>
             <DropdownMenu
               trigger={
                 <>
-                  <FolderKanban className="h-3.5 w-3.5 shrink-0" />
-                  <span className={currentProject ? 'text-white' : 'text-primary font-medium'}>
+                  <FolderKanban className="h-icon w-icon shrink-0" />
+                  <span className={currentProject ? 'text-slate-50' : 'font-medium text-primary-light'}>
                     {currentProject?.name || 'Select project'}
                   </span>
                 </>
               }
             >
               {projects.length === 0 ? (
-                <div className="px-3 py-2 text-xs text-muted">No projects</div>
+                <div className="px-ui-md py-ui-sm font-sans text-product-caption text-muted-foreground">No projects</div>
               ) : (
                 projects.map((proj) => (
                   <button
                     key={proj.id}
-                    className={`flex w-full items-center gap-2 px-3 py-1.5 text-sm hover:bg-accent transition-colors ${proj.id === currentProject?.id ? 'text-white' : 'text-muted'}`}
+                    type="button"
+                    className={`${menuItemClass} ${proj.id === currentProject?.id ? 'bg-primary/[0.08] text-slate-50' : ''}`}
                     onClick={() => {
                       if (proj.id !== currentProject?.id) {
                         selectProject(proj)
@@ -137,33 +134,24 @@ export function Topbar() {
                       }
                     }}
                   >
-                    <FolderKanban className="h-3.5 w-3.5" />
+                    <FolderKanban className="h-icon w-icon" />
                     {proj.name}
                   </button>
                 ))
               )}
-              <div className="border-t border-border my-1" />
+              <div className="my-ui-xs border-t border-border" />
               {currentProject && (
-                <button
-                  className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-muted hover:bg-accent transition-colors"
-                  onClick={() => navigate(`/workspaces/${currentWorkspace.id}/projects/${currentProject.id}/settings`)}
-                >
-                  <Settings className="h-3.5 w-3.5" />
+                <button type="button" className={menuItemClass} onClick={() => navigate(`/workspaces/${currentWorkspace.id}/projects/${currentProject.id}/settings`)}>
+                  <Settings className="h-icon w-icon" />
                   Project settings
                 </button>
               )}
-              <button
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-muted hover:bg-accent transition-colors"
-                onClick={() => navigate(`/workspaces/${currentWorkspace.id}/projects`)}
-              >
-                <List className="h-3.5 w-3.5" />
+              <button type="button" className={menuItemClass} onClick={() => navigate(`/workspaces/${currentWorkspace.id}/projects`)}>
+                <List className="h-icon w-icon" />
                 Manage projects
               </button>
-              <button
-                className="flex w-full items-center gap-2 px-3 py-1.5 text-sm text-muted hover:bg-accent transition-colors"
-                onClick={() => navigate(`/workspaces/${currentWorkspace.id}/projects`)}
-              >
-                <Plus className="h-3.5 w-3.5" />
+              <button type="button" className={menuItemClass} onClick={() => navigate(`/workspaces/${currentWorkspace.id}/projects`)}>
+                <Plus className="h-icon w-icon" />
                 Create project
               </button>
             </DropdownMenu>
@@ -171,15 +159,12 @@ export function Topbar() {
         )}
       </div>
 
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-muted">{user?.email}</span>
-        <button
-          onClick={logout}
-          className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted hover:bg-accent hover:text-white transition-colors"
-        >
-          <LogOut className="h-4 w-4" />
+      <div className="flex items-center gap-ui-md">
+        <span className="font-mono text-system-control text-muted-foreground">{user?.email}</span>
+        <Button type="button" variant="ghost" size="sm" onClick={logout} className="text-muted-foreground">
+          <LogOut className="h-icon w-icon" />
           Logout
-        </button>
+        </Button>
       </div>
     </header>
   )

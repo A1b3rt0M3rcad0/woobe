@@ -1,4 +1,5 @@
 import { Loader2 } from 'lucide-react'
+import { SectionBlock, Skeleton } from '@woobe/ui'
 
 export function NetworkWorkspaceBootstrap({ networkName }: { networkName: string }) {
   return (
@@ -9,39 +10,30 @@ export function NetworkWorkspaceBootstrap({ networkName }: { networkName: string
       aria-busy="true"
       aria-label="Preparing Network workspace"
     >
-      <header className="flex h-14 shrink-0 items-center border-b border-border bg-surface/80 px-4">
+      <header className="flex h-[54px] shrink-0 items-center border-b border-border bg-surface/80 px-4">
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold text-white">{networkName}</p>
-          <p className="mt-0.5 text-[10px] text-muted">Preparing the Project Network</p>
+          <p className="truncate font-mono text-[11px] font-semibold text-slate-100">{networkName}</p>
+          <p className="mt-0.5 font-sans text-[10px] text-muted">Preparing the Project Network</p>
         </div>
-        <span className="ml-auto rounded-md border border-border bg-background/50 px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-muted">
+        <span className="ml-auto rounded-technical border border-border bg-control px-2 py-1 font-mono text-[8px] font-semibold uppercase tracking-[0.12em] text-muted">
           Loading
         </span>
       </header>
 
-      <main className="relative grid min-h-0 flex-1 place-items-center overflow-hidden px-6 pb-[8vh] pt-8">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(59,130,246,0.09),transparent_36%)]" />
-        <section className="relative w-full max-w-2xl rounded-3xl border border-border/90 bg-surface/95 px-8 py-10 shadow-2xl shadow-black/30 sm:px-10">
-          <div className="flex flex-col items-center text-center">
-            <div className="relative flex h-14 w-14 items-center justify-center rounded-2xl border border-primary/30 bg-primary/10 text-primary-light">
-              <div className="absolute inset-0 rounded-2xl bg-primary/10 blur-lg" />
-              <Loader2 className="relative h-6 w-6 animate-spin" />
-            </div>
-            <p className="mt-5 text-[9px] font-semibold uppercase tracking-[0.2em] text-primary-light">Network workspace</p>
-            <h1 className="mt-2 text-xl font-semibold tracking-tight text-white">Preparing Network</h1>
-            <p className="mt-3 max-w-md text-[11px] leading-5 text-muted">
-              Loading the Draft composition and Project Agent inventory before showing the next valid action.
-            </p>
+      <main className="grid min-h-0 flex-1 place-items-center overflow-hidden px-4 py-6">
+        <SectionBlock
+          className="w-full max-w-xl bg-surface/65"
+          eyebrow="Network workspace"
+          title="Preparing Network"
+          description="Loading the Draft composition and Project Agent inventory before showing the next valid action."
+          actions={<Loader2 className="h-4 w-4 animate-spin text-primary-light" />}
+        >
+          <div className="grid gap-2 sm:grid-cols-2" aria-hidden="true">
+            <Skeleton className="h-10 sm:col-span-2" />
+            <Skeleton className="h-14" />
+            <Skeleton className="h-14" />
           </div>
-
-          <div className="mt-8 space-y-3" aria-hidden="true">
-            <div className="h-11 animate-pulse rounded-xl border border-border/70 bg-background/45" />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="h-16 animate-pulse rounded-xl border border-border/70 bg-background/35" />
-              <div className="h-16 animate-pulse rounded-xl border border-border/70 bg-background/35" />
-            </div>
-          </div>
-        </section>
+        </SectionBlock>
       </main>
     </div>
   )

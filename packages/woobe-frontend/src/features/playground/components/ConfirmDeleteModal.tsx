@@ -1,5 +1,6 @@
 import { X, AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
+import { dialogTypographyClass } from '@/components/ui/Dialog'
 
 interface ConfirmDeleteModalProps {
   open: boolean
@@ -17,7 +18,7 @@ export function ConfirmDeleteModal({ open, onClose, onConfirm, versionName, isPe
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="w-full max-w-md overflow-hidden rounded-2xl border border-border/90 bg-surface/95 shadow-2xl shadow-black/40">
+      <div role="dialog" aria-modal="true" aria-label="Delete version" className={`${dialogTypographyClass} w-full max-w-md overflow-hidden rounded-2xl border border-border/90 bg-surface/95 shadow-2xl shadow-black/40`}>
         <div className="flex items-center justify-between border-b border-border/90 bg-background/20 p-4">
           <h2 className="text-sm font-semibold text-white">Delete version</h2>
           <button onClick={onClose} className="rounded-lg border border-transparent p-1 text-muted transition-colors hover:border-border/80 hover:bg-background/60 hover:text-white">

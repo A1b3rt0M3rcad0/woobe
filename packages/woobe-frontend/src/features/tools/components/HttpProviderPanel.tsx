@@ -69,16 +69,16 @@ function PermissionControl({
   onChange?: (mode: McpToolPermissionMode) => void
 }) {
   if (!onChange) {
-    return <span className="rounded-md border border-border/80 bg-background px-2 py-1 text-[10px] capitalize text-muted">{mode}</span>
+    return <span className="rounded-control border border-border/80 bg-background px-ui-sm py-ui-xs font-mono text-system-micro capitalize text-muted-foreground">{mode}</span>
   }
   return (
-    <div className="inline-flex rounded-lg border border-border/80 bg-background/60 p-0.5">
+    <div className="inline-flex rounded-control border border-border/80 bg-background/60 p-ui-hairline">
       {(['allow', 'review', 'deny'] as McpToolPermissionMode[]).map((value) => (
         <button
           key={value}
           type="button"
           onClick={() => onChange(value)}
-          className={`rounded-md px-2 py-1 text-[10px] font-medium transition-colors ${mode === value ? 'bg-accent text-white' : 'text-muted hover:text-white'}`}
+          className={`rounded-technical px-ui-sm py-ui-xs font-mono text-system-micro font-medium transition-colors ${mode === value ? 'bg-accent text-white' : 'text-muted-foreground hover:text-white'}`}
         >
           {value === 'deny' ? 'Block' : value[0].toUpperCase() + value.slice(1)}
         </button>
@@ -120,15 +120,15 @@ export function HttpProviderPanel({ tool, footerActions, summaryNote, permission
   const ready = counts.allow > 0
 
   return (
-    <div className="mt-2">
-      <div className={footerActions ? 'min-w-0 pl-12' : 'min-w-0'}>
-        <p title={providerHost(tool)} className="truncate font-mono text-[11px] text-muted">{providerHost(tool)}</p>
-        <p className="mt-2 text-[11px] text-muted">HTTP · {allRoutes.length} routes · {counts.allow} allowed</p>
-        <p className="mt-2 flex items-center gap-1.5 text-[11px] text-muted"><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ready ? 'bg-emerald-300' : 'bg-amber-300'}`} />{ready ? 'Ready' : 'Needs permission'}</p>
+    <div className="mt-ui-sm">
+      <div className={footerActions ? 'min-w-0 pl-ui-xl' : 'min-w-0'}>
+        <p title={providerHost(tool)} className="truncate font-mono text-system-micro text-muted-foreground">{providerHost(tool)}</p>
+        <p className="mt-ui-sm font-mono text-system-micro text-muted-foreground">HTTP · {allRoutes.length} routes · {counts.allow} allowed</p>
+        <p className="mt-ui-sm flex items-center gap-ui-xs font-mono text-system-micro text-muted-foreground"><span className={`h-1.5 w-1.5 shrink-0 rounded-full ${ready ? 'bg-emerald-300' : 'bg-amber-300'}`} />{ready ? 'Ready' : 'Needs permission'}</p>
       </div>
       {summaryNote}
-      <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3">
-        <Button size="sm" variant="outline" className="h-8 text-[11px]" onClick={() => setManageOpen(true)}><Settings2 className="mr-1 h-3.5 w-3.5" />Configure</Button>
+      <div className="mt-ui-md grid grid-cols-2 gap-ui-sm border-t border-border/75 pt-ui-md">
+        <Button size="sm" variant="outline" onClick={() => setManageOpen(true)}><Settings2 className="h-icon-sm w-icon-sm" />Configure</Button>
         {footerActions}
       </div>
 

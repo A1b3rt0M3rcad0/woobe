@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { Button } from '@woobe/ui'
 import { Loader2, Paperclip, Send, Square, Wrench } from 'lucide-react'
 
 interface ChatComposerProps {
@@ -58,7 +59,7 @@ export function ChatComposer({
     setInput(event.target.value)
     const element = event.target
     element.style.height = 'auto'
-    element.style.height = `${Math.min(element.scrollHeight, 160)}px`
+    element.style.height = `${element.scrollHeight}px`
   }
 
   const resolvedStatus = runtimeBlocked
@@ -72,8 +73,8 @@ export function ChatComposer({
           : statusText ?? 'Enter to send · Shift+Enter for new line'
 
   return (
-    <div className="border-t border-border/90 bg-surface/70 p-4 shadow-[0_-18px_50px_rgba(0,0,0,0.10)]">
-      <div className="rounded-xl border border-border/90 bg-background/75 shadow-lg shadow-black/10 transition-colors focus-within:border-primary/35 focus-within:ring-1 focus-within:ring-primary/10">
+    <div className="border-t border-border bg-surface/[0.78] p-ui-md">
+      <div className="rounded-container border border-border bg-control/40 transition-colors focus-within:border-primary/45 focus-within:ring-1 focus-within:ring-primary/15">
         <textarea
           ref={textareaRef}
           value={input}
@@ -81,44 +82,47 @@ export function ChatComposer({
           onKeyDown={handleKeyDown}
           placeholder={runtimeBlocked ? (runtimeBlockReason ?? 'Runtime blocked') : placeholder}
           rows={1}
-          className="min-h-[44px] max-h-[160px] w-full resize-none bg-transparent px-4 py-3 text-sm text-white outline-none placeholder:text-muted"
+          className="min-h-control-row max-h-multiline w-full resize-none bg-transparent px-ui-md py-ui-sm font-sans text-product-reading text-slate-100 outline-none placeholder:text-muted-foreground"
           disabled={blocked}
         />
-        <div className="flex items-center justify-between px-3 pb-2">
-          <div className="flex items-center gap-1">
-            <button type="button" className="flex items-center gap-1 rounded-md border border-transparent px-2 py-1 text-xs text-muted transition-colors hover:border-border/80 hover:bg-surface/70 hover:text-white disabled:opacity-40" disabled={blocked}>
-              <Paperclip className="h-3.5 w-3.5" />
+        <div className="flex items-center justify-between border-t border-border/60 px-ui-sm py-ui-sm">
+          <div className="flex items-center gap-ui-xs">
+            <Button type="button" variant="ghost" size="sm" disabled={blocked} className="font-sans text-muted-foreground">
+              <Paperclip className="h-icon-sm w-icon-sm" />
               Attach
-            </button>
-            <button type="button" className="flex items-center gap-1 rounded-md border border-transparent px-2 py-1 text-xs text-muted transition-colors hover:border-border/80 hover:bg-surface/70 hover:text-white disabled:opacity-40" disabled={blocked}>
-              <Wrench className="h-3.5 w-3.5" />
+            </Button>
+            <Button type="button" variant="ghost" size="sm" disabled={blocked} className="font-sans text-muted-foreground">
+              <Wrench className="h-icon-sm w-icon-sm" />
               Tools
-            </button>
+            </Button>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="hidden text-[11px] text-muted/80 sm:inline">
+          <div className="flex min-w-0 items-center gap-ui-sm">
+            <span className="hidden max-w-[17.5rem] truncate font-mono text-system-micro text-muted-foreground/80 sm:inline">
               {resolvedStatus}
             </span>
             {isSending ? (
-              <button
+              <Button
                 type="button"
+                variant="destructive"
+                size="sm"
                 onClick={onStop}
                 disabled={isStopping}
                 aria-label={isStopping ? 'Stopping generation' : 'Stop generation'}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-500/35 bg-red-500/15 text-red-100 transition-colors hover:bg-red-500/25 disabled:cursor-wait disabled:opacity-55"
+                className="w-control-sm px-0"
               >
-                <Square className="h-3.5 w-3.5 fill-current" />
-              </button>
+                <Square className="h-icon-sm w-icon-sm fill-current" />
+              </Button>
             ) : (
-              <button
+              <Button
                 type="button"
+                size="sm"
                 onClick={handleSend}
                 disabled={!input.trim() || blocked}
-                className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/35 bg-primary/90 text-white transition-colors hover:bg-primary disabled:cursor-not-allowed disabled:border-border disabled:bg-surface disabled:text-muted disabled:opacity-50"
+                className="w-control-sm px-0"
                 aria-label={isPreparing ? preparingText : 'Send message'}
               >
-                {isPreparing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-              </button>
+                {isPreparing ? <Loader2 className="h-icon w-icon animate-spin" /> : <Send className="h-icon w-icon" />}
+              </Button>
             )}
           </div>
         </div>

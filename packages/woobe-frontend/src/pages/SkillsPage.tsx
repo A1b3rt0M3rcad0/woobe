@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Bot, Plus, Puzzle, Upload } from 'lucide-react'
+import { Button, TechnicalListItem } from '@woobe/ui'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -14,7 +15,6 @@ import {
   ResourceTabs,
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
-import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { useAgents } from '@/features/agents/hooks'
 import { listSkills } from '@/features/skills/api'
@@ -103,9 +103,9 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
   return <ResourcePage
     title="Skills"
     description="Create, import and version reusable procedures that Agents can load on demand."
-    action={<div className="flex flex-wrap justify-end gap-2">
-      <Button variant="outline" onClick={() => openCatalog('import', 'Import Skill')}><Upload className="mr-2 h-4 w-4" />Import Skill</Button>
-      <Button onClick={() => openCatalog('create', 'Create Skill')}><Plus className="mr-2 h-4 w-4" />Create Skill</Button>
+    action={<div className="flex flex-wrap justify-end gap-ui-sm">
+      <Button variant="outline" onClick={() => openCatalog('import', 'Import Skill')}><Upload className="h-icon w-icon" />Import Skill</Button>
+      <Button onClick={() => openCatalog('create', 'Create Skill')}><Plus className="h-icon w-icon" />Create Skill</Button>
     </div>}
   >
     <ResourceToolbar>
@@ -132,8 +132,8 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
         description="Open a Skill to inspect its current version, history, resources and installation options."
         count={offset ? `Page ${offset / 20 + 1}` : items.length < 20 ? items.length : undefined}
       />
-      {skills.isPending ? <LoadingState message="Loading Skills" variant="panel" layout="compact-cards" /> : skills.isError ? <ErrorState error={skills.error} onRetry={() => void skills.refetch()} className="rounded-xl border border-border/80 bg-surface/40 py-10" /> : items.length ? <>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {skills.isPending ? <LoadingState message="Loading Skills" variant="panel" layout="compact-cards" /> : skills.isError ? <ErrorState error={skills.error} onRetry={() => void skills.refetch()} className="rounded-container border border-border bg-surface/70 py-10" /> : items.length ? <>
+        <div className="grid grid-cols-1 gap-ui-md md:grid-cols-2 xl:grid-cols-3">
           {items.map(skill => {
             const installedOn = installedAgentCounts.get(skill.id) ?? 0
             return <ResourceCard
@@ -142,7 +142,7 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
               onClick={() => openSkill(skill)}
               disabled={!skill.latest_version_id}
               showChevron={Boolean(skill.latest_version_id)}
-              icon={<Puzzle className="h-4 w-4" />}
+              icon={<Puzzle className="h-icon-lg w-icon-lg" />}
               title={skill.name}
               subtitle={skill.latest_description || 'Reusable Agent procedure'}
               metadata={<>
@@ -157,13 +157,13 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
             />
           })}
         </div>
-        {(offset > 0 || items.length >= 20) && <div className="mt-4 flex items-center justify-end gap-2">
+        {(offset > 0 || items.length >= 20) && <div className="mt-ui-md flex items-center justify-end gap-ui-sm">
           <Button size="sm" variant="ghost" disabled={!offset || skills.isFetching} onClick={() => setOffset(current => Math.max(0, current - 20))}>Previous</Button>
-          <span className="text-xs text-muted">Page {offset / 20 + 1}</span>
+          <span className="font-mono text-system-meta text-muted-foreground">Page {offset / 20 + 1}</span>
           <Button size="sm" variant="ghost" disabled={items.length < 20 || skills.isFetching} onClick={() => setOffset(current => current + 20)}>Next</Button>
         </div>}
       </> : <ResourceEmptyState
-        icon={<Puzzle className="h-4 w-4" />}
+        icon={<Puzzle className="h-icon-lg w-icon-lg" />}
         title={query ? 'No Skills found' : 'No Skills yet'}
         description={query ? 'Try another name or clear the current search.' : 'Create or import the first reusable procedure for this Project.'}
         action={query ? <Button size="sm" variant="outline" onClick={() => changeQuery('')}>Clear search</Button> : <Button size="sm" onClick={() => openCatalog('create', 'Create Skill')}>Create Skill</Button>}
@@ -174,23 +174,23 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
         description="Saved Agent configurations only. Unsaved edits and historical Releases are not shown."
         count={normalizedQuery ? `${filteredInstallations.length} of ${installations.length}` : installations.length}
       />
-      {agents.isPending ? <LoadingState message="Loading installed Skills" variant="panel" layout="compact-cards" /> : agents.isError ? <ErrorState error={agents.error} onRetry={() => void agents.refetch()} className="rounded-xl border border-border/80 bg-surface/40 py-10" /> : filteredInstallations.length ? <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {agents.isPending ? <LoadingState message="Loading installed Skills" variant="panel" layout="compact-cards" /> : agents.isError ? <ErrorState error={agents.error} onRetry={() => void agents.refetch()} className="rounded-container border border-border bg-surface/70 py-10" /> : filteredInstallations.length ? <div className="grid grid-cols-1 gap-ui-md md:grid-cols-2 xl:grid-cols-3">
         {filteredInstallations.map(({ agent, binding, snapshot }) => <ResourceCard
           key={`${agent.id}:${binding.skill_id}`}
           aria-label={`Open Agent Skills for ${agent.name}`}
           onClick={() => navigate(agentPath(agent.id))}
-          icon={<Puzzle className="h-4 w-4" />}
+          icon={<Puzzle className="h-icon-lg w-icon-lg" />}
           title={snapshot?.package.name ?? binding.skill_id}
           subtitle={agent.name}
           metadata={<>
             <ResourcePill tone="primary">{snapshot?.version ? `v${snapshot.version}` : binding.skill_version_id}</ResourcePill>
             <ResourcePill tone={binding.enabled ? 'success' : 'warning'}>{binding.enabled ? 'Enabled' : 'Disabled'}</ResourcePill>
-            <ResourcePill><Bot className="mr-1 inline h-3 w-3" />Agent</ResourcePill>
+            <ResourcePill><Bot className="mr-ui-xs inline h-icon-sm w-icon-sm" />Agent</ResourcePill>
           </>}
           footer="Open Agent Skills editor"
         />)}
       </div> : <ResourceEmptyState
-        icon={<Puzzle className="h-4 w-4" />}
+        icon={<Puzzle className="h-icon-lg w-icon-lg" />}
         title={query ? 'No matching installations' : 'No Skills installed on Agents'}
         description={query ? 'Try another Skill or Agent name.' : 'Choose a Skill version, select an Agent and save its draft configuration.'}
         action={<Button variant="outline" size="sm" onClick={() => changeTab('catalog')}>Browse Skills</Button>}
@@ -208,11 +208,27 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
       onInstall={version => { setAgentQuery(''); setPending(version) }}
     />}
 
-    {pending && <Dialog open onClose={() => setPending(null)} title="Choose an Agent" scrollMode="content">
-      <div className="space-y-4">
-        <p className="text-sm text-muted">Open the Agent’s Skills editor to review <span className="font-medium text-foreground">{pending.package.name} {pending.version}</span> and save the installation in its draft.</p>
+    {pending && <Dialog open onClose={() => setPending(null)} title="Choose an Agent" scrollMode="content" className="max-w-dialog">
+      <div className="grid gap-ui-md">
+        <p className="font-sans text-product-caption text-muted-foreground">Open the Agent’s Skills editor to review <span className="font-mono font-medium text-slate-100">{pending.package.name} {pending.version}</span> and save the installation in its draft.</p>
         <ResourceSearch label="Search Agents for Skill installation" placeholder="Search Agents…" value={agentQuery} onChange={setAgentQuery} />
-        {agents.isPending ? <LoadingState message="Loading Agents" /> : agents.isError ? <ErrorState error={agents.error} onRetry={() => void agents.refetch()} /> : availableAgents.length ? <div className="space-y-2">{availableAgents.map(agent => <Button key={agent.id} variant="outline" className="w-full justify-start" onClick={() => navigate(agentPath(agent.id, pending.skill_version_id))}><Bot className="mr-2 h-4 w-4" />{agent.name}</Button>)}</div> : <p className="text-sm text-muted">{agentQuery ? 'No matching Agents.' : 'Create an Agent before installing this Skill.'}</p>}
+        {agents.isPending ? <LoadingState message="Loading Agents" /> : agents.isError ? <ErrorState error={agents.error} onRetry={() => void agents.refetch()} /> : availableAgents.length ? (
+          <div className="grid gap-ui-xs">
+            {availableAgents.map(agent => (
+              <button
+                key={agent.id}
+                type="button"
+                onClick={() => navigate(agentPath(agent.id, pending.skill_version_id))}
+                className="w-full rounded-container text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
+              >
+                <TechnicalListItem
+                  label={agent.name}
+                  leading={<Bot className="h-icon w-icon text-primary-light" />}
+                />
+              </button>
+            ))}
+          </div>
+        ) : <p className="font-mono text-system-meta text-muted-foreground">{agentQuery ? 'No matching Agents.' : 'Create an Agent before installing this Skill.'}</p>}
       </div>
     </Dialog>}
   </ResourcePage>

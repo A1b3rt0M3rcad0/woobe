@@ -1,0 +1,284 @@
+/* Dashboard composition fixes.
+ * Page/domain composition stays in woobe-frontend, while shared visual metrics
+ * are bound to semantic utilities provided by the @woobe/ui Tailwind preset.
+ */
+
+/* The header already exposes an Updating status; the transient 2px pulse line
+ * caused a one-frame blue band whenever the environment filter refetched. */
+.project-overview-main [aria-busy] > header.relative > div.absolute.inset-x-0.top-0 {
+  display: none !important;
+}
+
+/* Run Activity and Reliability share one row. Both columns and their panels
+ * should consume the same full row height. */
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] {
+  align-items: stretch !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div {
+  display: flex;
+  min-width: 0;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div > section {
+  width: 100%;
+  height: 100%;
+}
+
+/* Reliability & Performance should use all vertical room instead of stacking
+ * two compact groups at the top and leaving a large dead zone below. */
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div:last-child > section {
+  display: flex;
+  flex-direction: column;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div:last-child > section > .space-y-3.px-5.pb-5 {
+  display: grid !important;
+  grid-template-rows: repeat(2, minmax(0, 1fr));
+  flex: 1 1 auto;
+  min-height: 0;
+  gap: 12px !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div:last-child > section > .space-y-3.px-5.pb-5 > * + * {
+  margin-top: 0 !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div:last-child > section > .space-y-3.px-5.pb-5 > div[class*='rounded-xl'] {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+/* Shared metric binding ----------------------------------------------------
+ * dashboard-reference.css still owns page-specific composition. The effective
+ * typography/control/sidebar measurements below come from @woobe/ui tokens,
+ * preventing this page from becoming a second design system.
+ */
+
+/* Topbar */
+.project-overview-main [aria-busy] > header.relative h1 {
+  @apply font-mono text-page-title !important;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:first-child > p {
+  @apply font-mono text-system-meta !important;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:first-child > div:first-child > span {
+  @apply font-mono text-system-nano !important;
+}
+
+.project-overview-main [aria-busy] > header.relative select,
+.project-overview-main [aria-busy] > header.relative > div > div:last-child > button {
+  @apply h-control rounded-control px-ui-md font-mono text-system-control !important;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:last-child > div {
+  @apply h-control rounded-control p-ui-control-inset !important;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:last-child > div > button {
+  @apply h-control-segment rounded-technical px-ui-sm font-mono text-system-meta !important;
+}
+
+/* Shared panel and story hierarchy */
+.project-overview-main [aria-busy] section > div:first-child:has(h2) h2 {
+  @apply font-mono text-section-title !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > div[class~='pt-2'] h2 {
+  @apply font-mono text-chrome-control !important;
+}
+
+/* Summary metrics */
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section p:first-child[class*='uppercase'] {
+  @apply font-mono text-system-label !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section [class~='text-2xl'] {
+  @apply font-mono text-metric-lg !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section [class~='text-lg'] {
+  @apply font-mono text-metric-compact !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section [class~='text-[10px]'] {
+  @apply font-mono text-system-meta !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section > div > p:last-child {
+  @apply font-mono text-system-control !important;
+}
+
+/* Run Activity */
+.project-overview-main [aria-busy] section [class*='text-right'][class*='font-mono'][class*='border'] {
+  @apply font-mono text-system-meta !important;
+}
+
+.project-overview-main [aria-busy] section [class*='text-right'][class*='font-mono'][class*='border'] b {
+  @apply text-system-control !important;
+}
+
+.project-overview-main [aria-busy] section .mb-3.flex.flex-wrap.items-center {
+  @apply text-system-meta !important;
+}
+
+.project-overview-main [aria-busy] section .relative.h-\[190px\] > .absolute.bottom-0 {
+  @apply font-mono text-system-meta !important;
+}
+
+.project-overview-main [aria-busy] section .relative.h-\[190px\] + div p[class*='text-[9px]'] {
+  @apply text-system-meta !important;
+}
+
+.project-overview-main [aria-busy] section .relative.h-\[190px\] + div p[class*='text-[10px]'] {
+  @apply text-system-control !important;
+}
+
+/* Reliability & Performance */
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 > div[class*='rounded-xl'] > .flex:first-child p:first-child {
+  @apply font-mono text-system-value !important;
+}
+
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 > div[class*='rounded-xl'] > .flex:first-child p.mt-1 {
+  @apply font-mono text-system-meta !important;
+}
+
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 > div[class*='rounded-xl'] > .flex:first-child .text-right p:first-child {
+  @apply font-mono text-metric-emphasis !important;
+}
+
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 > div[class*='rounded-xl'] > .flex:first-child .text-right p:last-child,
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 .mt-2.flex.flex-wrap.gap-x-3.gap-y-1.text-\[10px\].text-muted,
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 .mt-3.grid.grid-cols-3 span {
+  @apply font-mono text-system-meta !important;
+}
+
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 .mt-3.grid.grid-cols-3 b {
+  @apply text-system-value !important;
+}
+
+/* Operational issues */
+.project-overview-main [aria-busy] section[class*='border-red'] [class*='uppercase'] {
+  @apply font-mono text-system-meta !important;
+}
+
+.project-overview-main [aria-busy] section[class*='border-red'] [class*='text-xs'],
+.project-overview-main [aria-busy] section[class*='border-red'] [class*='text-sm'] {
+  @apply font-mono text-system-control !important;
+}
+
+/* Changes */
+.project-overview-main [aria-busy] section .space-y-2 > button b {
+  @apply font-mono text-system-control !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > button [class*='text-xs'] {
+  @apply font-mono text-system-meta !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > button [class*='text-[10px]'],
+.project-overview-main [aria-busy] section .space-y-2 > button [class*='rounded-md'][class*='border'] {
+  @apply font-mono text-system-nano !important;
+}
+
+/* Current project state */
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-3'] section [class*='text-[9px]'] {
+  @apply font-mono text-system-meta !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-3'] section [class~='text-xs'] {
+  @apply font-mono text-system-value !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-3'] section [class~='text-base'] {
+  @apply font-mono text-metric-emphasis !important;
+}
+
+.project-overview-main [aria-busy] button[class*='text-primary-light'] {
+  @apply font-mono text-system-meta !important;
+}
+
+/* Recent Runs */
+.project-overview-main [aria-busy] section .space-y-2 > div[class*='grid-cols-[110px'] {
+  @apply font-mono text-system-meta !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > div[role='link'] [class*='rounded-md'][class*='border'] {
+  @apply font-mono text-system-nano !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > div[role='link'] p[class*='text-sm'] {
+  @apply font-mono text-system-control !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > div[role='link'] p[class*='text-xs'],
+.project-overview-main [aria-busy] section .space-y-2 > div[role='link'] p[class*='text-[10px]'] {
+  @apply font-mono text-system-meta !important;
+}
+
+/* Project sidebar. Width, header height and type hierarchy are package-level
+ * foundations; navigation/content grouping remains feature-owned. */
+.w-project-sidebar {
+  width: theme('width.project-sidebar') !important;
+  min-width: theme('width.project-sidebar') !important;
+}
+
+.w-project-sidebar > header {
+  @apply h-project-sidebar-header !important;
+}
+
+.w-project-sidebar > header p:first-child {
+  @apply font-mono text-brand-title !important;
+}
+
+.w-project-sidebar > header p:last-child {
+  @apply font-mono text-brand-caption !important;
+}
+
+.w-project-sidebar > div:nth-child(2) > nav > section > p,
+.w-project-sidebar > section > p {
+  @apply font-mono text-chrome-control !important;
+}
+
+.w-project-sidebar > div:nth-child(2) > nav > section:first-child > div.relative > button span[class*='text-entity-title'] {
+  @apply font-mono text-entity-title !important;
+}
+
+.w-project-sidebar > div:nth-child(2) > nav > section:first-child > div.relative > button span[class*='text-chrome-control'] {
+  @apply font-mono text-chrome-control !important;
+}
+
+.w-project-sidebar a[class*='h-control-nav'] {
+  @apply h-control-nav rounded-technical font-mono text-system-heading !important;
+}
+
+.w-project-sidebar > section button {
+  @apply min-h-control-nav rounded-technical !important;
+}
+
+.w-project-sidebar > section button span.min-w-0 > span:first-child {
+  @apply font-mono text-system-heading !important;
+}
+
+.w-project-sidebar > div:last-of-type > div > button:first-child p:first-child {
+  @apply text-system-value !important;
+}
+
+.w-project-sidebar > div:last-of-type > div > button:first-child p:last-child {
+  @apply text-system-meta !important;
+}
+
+@media (max-width: 1320px) {
+  .project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div:last-child > section > .space-y-3.px-5.pb-5 {
+    grid-template-rows: none;
+  }
+
+  .project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div:last-child > section > .space-y-3.px-5.pb-5 > div[class*='rounded-xl'] {
+    min-height: 132px;
+  }
+}

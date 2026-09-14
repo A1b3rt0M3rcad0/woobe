@@ -1,8 +1,7 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { Button, Dialog } from '@woobe/ui'
 
-import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
 import { ProviderCredentialCreateForm } from '@/features/provider-credentials/components/ProviderCredentialCreateForm'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 
@@ -16,22 +15,11 @@ interface ProviderConnectionModalProps {
 
 const formId = 'first-run-provider-connection-form'
 
-export function ProviderConnectionModal({
-  open,
-  onClose,
-  projectId,
-  existingCredentials,
-  onCreated,
-}: ProviderConnectionModalProps) {
+export function ProviderConnectionModal({ open, onClose, projectId, existingCredentials, onCreated }: ProviderConnectionModalProps) {
   const [pending, setPending] = useState(false)
 
   return (
-    <Dialog
-      open={open}
-      onClose={pending ? () => undefined : onClose}
-      title="Connect provider"
-      className="max-w-3xl overflow-hidden"
-    >
+    <Dialog open={open} onClose={pending ? () => undefined : onClose} title="Connect provider" className="max-w-dialog">
       <ProviderCredentialCreateForm
         projectId={projectId}
         existingCredentials={existingCredentials}
@@ -44,8 +32,7 @@ export function ProviderConnectionModal({
           onClose()
         }}
       />
-
-      <div className="mt-6 flex items-center justify-end gap-2 border-t border-border/80 pt-4">
+      <div className="mt-ui-md flex items-center justify-end gap-ui-sm border-t border-border pt-ui-md">
         <Button type="button" variant="outline" onClick={onClose} disabled={pending}>Cancel</Button>
         <Button type="submit" form={formId} loading={pending}>Connect provider</Button>
       </div>

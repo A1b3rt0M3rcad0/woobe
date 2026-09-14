@@ -13,9 +13,23 @@ import {
   RefreshCw,
   Search,
   ShieldCheck,
-  type LucideIcon,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Badge,
+  DialogContextBar,
+  DialogFooter,
+  EmptyStatePanel,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  SectionBlock,
+  SegmentedControl,
+  TechnicalListItem,
+} from '@woobe/ui'
 
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
@@ -31,19 +45,11 @@ import {
 } from '@/features/provider-models/hooks'
 import type { AvailableProviderModel, ProviderModel } from '@/features/provider-models/types'
 import { get } from '@/lib/api/client'
-import { cn } from '@/lib/utils'
 
 const SEARCH_THRESHOLD = 6
 type CapabilityChoice = 'unknown' | 'true' | 'false'
 type ModelSection = 'overview' | 'provider' | 'capabilities' | 'pricing' | 'lifecycle'
 type ProviderStep = 'model' | 'credential'
-
-type SidebarItem = {
-  id: ModelSection
-  label: string
-  icon: LucideIcon
-  disabled?: boolean
-}
 
 type AgentSummary = {
   id: string
@@ -269,85 +275,14 @@ function shortId(value: string): string {
   return value.length > 18 ? `${value.slice(0, 8)}…${value.slice(-6)}` : value
 }
 
-function SidebarSectionTitle({ children }: { children: string }) {
+function ReadOnlyValue({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
   return (
-    <p className="hidden px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted/80 md:block">
-      {children}
-    </p>
-  )
-}
-
-function SidebarNavButton({
-  item,
-  active,
-  onClick,
-}: {
-  item: SidebarItem
-  active: boolean
-  onClick: () => void
-}) {
-  const Icon = item.icon
-  return (
-    <button
-      type="button"
-      disabled={item.disabled}
-      onClick={onClick}
-      className={cn(
-        'group flex shrink-0 items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium transition-[border-color,background-color,color] md:w-full md:text-sm',
-        item.disabled && 'cursor-not-allowed opacity-45',
-        active
-          ? 'border-primary/35 bg-primary/10 text-primary-light'
-          : 'border-transparent text-muted hover:border-primary/20 hover:bg-background/70 hover:text-white',
-      )}
-    >
-      <Icon className="h-3.5 w-3.5 shrink-0" />
-      <span className="whitespace-nowrap md:truncate">{item.label}</span>
-    </button>
-  )
-}
-
-function ReadOnlyField({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
-  return (
-    <div className="min-w-0 rounded-xl border border-border/80 bg-background/55 p-4">
-      <p className="text-[11px] uppercase tracking-wider text-muted">{label}</p>
-      <p className={cn('mt-1 break-words text-sm font-medium text-white', mono && 'font-mono text-xs')}>{value}</p>
-    </div>
-  )
-}
-
-function SelectionCard({
-  title,
-  subtitle,
-  selected,
-  onClick,
-}: {
-  title: string
-  subtitle: string
-  selected: boolean
-  onClick: () => void
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        'flex w-full items-start justify-between gap-4 rounded-xl border px-4 py-3 text-left transition-colors',
-        selected
-          ? 'border-primary/55 bg-primary/8'
-          : 'border-border/85 bg-background/55 hover:border-primary/30 hover:bg-background/80',
-      )}
-    >
-      <span className="min-w-0">
-        <span className="block truncate text-sm font-medium text-white">{title}</span>
-        <span className="mt-1 block truncate text-xs text-muted">{subtitle}</span>
-      </span>
-      <span className={cn(
-        'mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border',
-        selected ? 'border-primary bg-primary text-white' : 'border-border bg-background',
-      )}>
-        {selected && <Check className="h-3 w-3" />}
-      </span>
-    </button>
+    <Field className="rounded-container border border-border/75 bg-background/25 px-ui-md py-ui-sm">
+      <FieldLabel>{label}</FieldLabel>
+      <div className={mono ? 'break-words font-mono text-system-control text-accent-foreground' : 'break-words font-sans text-product-small font-medium text-accent-foreground'}>
+        {value}
+      </div>
+    </Field>
   )
 }
 
@@ -376,49 +311,61 @@ function CatalogList({
   const visible = filtered.slice(0, 80)
 
   if (loading) {
-    return <div className="rounded-xl border border-border/80 bg-background/55 px-4 py-10 text-center text-sm text-muted">Loading generation models...</div>
+    return (
+      <EmptyStatePanel
+        compact
+        title="Loading generation models"
+        description="Reading the generation catalog exposed by this provider connection."
+      />
+    )
   }
 
   if (error) {
     return (
-      <div className="rounded-xl border border-border/80 bg-background/55 p-4">
-        <p className="text-sm font-medium text-white">We couldn't load models from this provider.</p>
-        <p className="mt-1 text-sm text-muted">Retry discovery or enter the model ID manually.</p>
-        <div className="mt-4 flex flex-wrap gap-2">
+      <Alert variant="warning">
+        <AlertTitle>Provider catalog unavailable</AlertTitle>
+        <AlertDescription>Retry discovery or enter the model ID manually.</AlertDescription>
+        <div className="mt-ui-md flex flex-wrap gap-ui-sm">
           <Button type="button" size="sm" variant="outline" onClick={onRetry}>
-            <RefreshCw className="mr-2 h-4 w-4" />Retry
+            <RefreshCw className="mr-2 h-icon w-icon" />Retry
           </Button>
           <Button type="button" size="sm" variant="ghost" onClick={onManual}>Enter model ID manually</Button>
         </div>
-      </div>
+      </Alert>
     )
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-xs text-muted">Choose a generation model from the provider catalog.</span>
-        <Button type="button" size="sm" variant="ghost" className="h-auto px-0 py-0 text-xs" onClick={onManual}>Enter model ID manually</Button>
+    <div className="grid gap-ui-md">
+      <div className="flex flex-wrap items-center justify-between gap-ui-sm">
+        <span className="font-sans text-product-caption text-muted-foreground">Choose a generation model from the provider catalog.</span>
+        <Button type="button" size="sm" variant="ghost" onClick={onManual}>Enter model ID manually</Button>
       </div>
-      {models.length > SEARCH_THRESHOLD && (
+
+      {models.length > SEARCH_THRESHOLD ? (
         <div className="relative">
-          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
+          <Search className="pointer-events-none absolute left-ui-md top-1/2 h-icon w-icon -translate-y-1/2 text-muted-foreground" />
           <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search models" className="pl-9" />
         </div>
+      ) : null}
+
+      {visible.length === 0 ? (
+        <EmptyStatePanel compact title="No generation models found" description="Change the search or enter the provider model ID manually." />
+      ) : (
+        <div className="scrollbar-thin grid max-h-72 gap-ui-xs overflow-y-auto pr-ui-xs">
+          {visible.map((model) => (
+            <TechnicalListItem
+              key={model.id}
+              label={model.label}
+              description={`${providerLabel(model.provider)} · ${model.id}`}
+              selected={model.id === selectedId}
+              density="compact"
+              trailing={model.id === selectedId ? <Check className="h-icon w-icon text-primary-light" /> : null}
+              onClick={() => onSelect(model)}
+            />
+          ))}
+        </div>
       )}
-      <div className="scrollbar-thin max-h-[360px] space-y-2 overflow-y-auto pr-1">
-        {visible.length === 0 ? (
-          <div className="rounded-xl border border-border/80 bg-background/55 px-4 py-10 text-center text-sm text-muted">No generation models found.</div>
-        ) : visible.map((model) => (
-          <SelectionCard
-            key={model.id}
-            title={model.label}
-            subtitle={`${providerLabel(model.provider)} · ${model.id}`}
-            selected={model.id === selectedId}
-            onClick={() => onSelect(model)}
-          />
-        ))}
-      </div>
     </div>
   )
 }
@@ -438,38 +385,44 @@ function ArchiveDialog({
 }) {
   if (!model) return null
   const blocked = usage.length > 0
+
   return (
-    <Dialog open onClose={onClose} title="Archive model" className="max-w-2xl">
-      <div className="space-y-4">
-        <div className="rounded-xl border border-border/80 bg-background/60 p-4">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-400/30 bg-amber-400/10 text-amber-200">
-              <AlertTriangle className="h-4 w-4" />
-            </div>
+    <Dialog open onClose={onClose} title="Archive model" className="max-w-dialog" layer="nestedModal">
+      <div className="grid gap-ui-lg">
+        <Alert variant="warning">
+          <div className="flex items-start gap-ui-md">
+            <AlertTriangle className="mt-ui-hairline h-icon w-icon shrink-0" />
             <div>
-              <p className="text-sm font-semibold text-white">{model.name}</p>
-              <p className="mt-1 text-sm leading-6 text-muted">Archive is blocked while this model is referenced by agents or active releases.</p>
+              <AlertTitle>{model.name}</AlertTitle>
+              <AlertDescription>Archive is blocked while this model is referenced by Agent Drafts or active Release snapshots.</AlertDescription>
             </div>
           </div>
-        </div>
+        </Alert>
 
-        {usage.length > 0 && (
-          <div className="rounded-xl border border-border/80 bg-surface/50 p-4">
-            <p className="text-sm font-semibold text-white">Current usage</p>
-            <div className="scrollbar-thin mt-3 max-h-72 space-y-2 overflow-auto">
+        {usage.length > 0 ? (
+          <SectionBlock title="Current usage" description="References that must be removed before the Model can be archived." density="compact">
+            <div className="scrollbar-thin grid max-h-72 gap-ui-xs overflow-auto">
               {usage.map((item, index) => (
-                <div key={`${item.type}-${item.id}-${index}`} className="rounded-lg border border-border/70 bg-background/60 p-3 text-xs text-muted">
-                  <p className="font-medium text-white">{item.type} · {item.name || item.version || item.id}</p>
-                  <p className="mt-1">status: {item.status || 'unknown'}</p>
-                </div>
+                <TechnicalListItem
+                  key={`${item.type}-${item.id}-${index}`}
+                  label={item.name || item.version || item.id}
+                  description={`${item.type} · ${item.status || 'unknown'}`}
+                  meta={item.version ? `version ${item.version}` : shortId(item.id)}
+                  density="compact"
+                />
               ))}
             </div>
-          </div>
-        )}
+          </SectionBlock>
+        ) : null}
 
-        {blocked && <p className="text-sm text-amber-200">Remove these references before archiving the model.</p>}
+        {blocked ? (
+          <Alert variant="warning">
+            <AlertTitle>Archive blocked</AlertTitle>
+            <AlertDescription>Remove these references before archiving the Model.</AlertDescription>
+          </Alert>
+        ) : null}
 
-        <div className="flex justify-end gap-2 border-t border-border pt-4">
+        <div className="flex justify-end gap-ui-sm border-t border-border pt-ui-lg">
           <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
           <Button type="button" variant="destructive" onClick={onConfirm} disabled={blocked} loading={loading}>Archive</Button>
         </div>
@@ -715,36 +668,37 @@ export function ModelSettingsModal({
     }
   }
 
-  const configurationItems: SidebarItem[] = [
-    { id: 'overview', label: 'Overview', icon: Info },
-    { id: 'provider', label: 'Provider & model', icon: KeyRound },
-    { id: 'capabilities', label: 'Capabilities', icon: Gauge, disabled: !credential || !modelId.trim() },
-    { id: 'pricing', label: 'Pricing', icon: DollarSign, disabled: !credential || !modelId.trim() },
+  const navigationItems = [
+    { value: 'overview', label: 'Overview', icon: <Info className="h-icon w-icon" /> },
+    { value: 'provider', label: 'Provider & model', icon: <KeyRound className="h-icon w-icon" /> },
+    { value: 'capabilities', label: 'Capabilities', icon: <Gauge className="h-icon w-icon" />, disabled: !credential || !modelId.trim() },
+    { value: 'pricing', label: 'Pricing', icon: <DollarSign className="h-icon w-icon" />, disabled: !credential || !modelId.trim() },
+    ...(selectedModel ? [{ value: 'lifecycle', label: 'Lifecycle', icon: <Archive className="h-icon w-icon" /> }] : []),
   ]
-  const operationItems: SidebarItem[] = selectedModel
-    ? [{ id: 'lifecycle', label: 'Lifecycle', icon: Archive }]
-    : []
 
   const overviewContent = (
-    <div className="space-y-5">
-      <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-        <h3 className="text-sm font-semibold text-white">Model identity</h3>
-        <p className="mt-1 text-xs leading-5 text-muted">Reusable generation model identity used by Agent Drafts and frozen into Release snapshots.</p>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <label className="block sm:col-span-2">
-            <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">Display name</span>
+    <div className="grid gap-ui-md">
+      <SectionBlock
+        title="Model identity"
+        description="Reusable generation model identity used by Agent Drafts and frozen into Release snapshots."
+        density="compact"
+      >
+        <div className="grid gap-ui-md sm:grid-cols-2">
+          <Field className="sm:col-span-2">
+            <FieldLabel>Display name</FieldLabel>
             <Input
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
               placeholder={modelId || 'Defaults to the model ID'}
             />
-          </label>
-          <ReadOnlyField label="Model ID" value={modelId || 'Select a provider model first'} mono />
-          <ReadOnlyField label="Provider" value={providerName} />
-          {selectedModel ? <ReadOnlyField label="Woobe Model ID" value={selectedModel.id} mono /> : null}
+          </Field>
+
+          <ReadOnlyValue label="Model ID" value={modelId || 'Select a provider model first'} mono />
+          <ReadOnlyValue label="Provider" value={providerName} />
+          {selectedModel ? <ReadOnlyValue label="Woobe Model ID" value={selectedModel.id} mono /> : null}
           {selectedModel ? (
-            <label className="block">
-              <span className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">Status</span>
+            <Field>
+              <FieldLabel>Status</FieldLabel>
               <Select
                 value={status}
                 onChange={(event) => setStatus(event.target.value)}
@@ -753,131 +707,132 @@ export function ModelSettingsModal({
                   { value: 'inactive', label: 'Inactive' },
                 ]}
               />
-            </label>
+            </Field>
           ) : null}
         </div>
-      </section>
+      </SectionBlock>
 
-      <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-        <h3 className="text-sm font-semibold text-white">Binding</h3>
-        <p className="mt-1 text-xs leading-5 text-muted">The Model references a Project provider credential. Runtime secrets remain in the credential boundary.</p>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          <ReadOnlyField label="Connection" value={credential?.name || 'Not selected'} />
-          <ReadOnlyField label="Provider" value={providerName} />
+      <SectionBlock
+        title="Binding"
+        description="The Model references a Project provider credential. Runtime secrets remain inside the credential boundary."
+        density="compact"
+      >
+        <div className="grid gap-ui-md sm:grid-cols-2">
+          <ReadOnlyValue label="Connection" value={credential?.name || 'Not selected'} />
+          <ReadOnlyValue label="Provider" value={providerName} />
         </div>
-      </section>
+      </SectionBlock>
     </div>
   )
 
   const providerContent = (
-    <div className="space-y-5">
+    <div className="grid gap-ui-md">
       {step === 'credential' ? (
-        <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-          <h3 className="text-sm font-semibold text-white">Connect provider</h3>
-          <p className="mt-1 text-xs leading-5 text-muted">Create a Project credential, then continue configuring this Model without leaving the modal.</p>
-          <div className="mt-5">
-            <ProviderCredentialCreateForm
-              projectId={projectId}
-              existingCredentials={allCredentials}
-              formId="model-provider-credential-form"
-              showActions={false}
-              onPendingChange={setCredentialPending}
-              onCreated={(created) => {
-                setCreatedCredential(created)
-                setCredentialId(created.id)
-                setStep('model')
-                toast.success('Provider connected')
-              }}
-            />
-          </div>
-        </section>
+        <SectionBlock
+          title="Connect provider"
+          description="Create a Project credential, then continue configuring this Model without leaving the modal."
+          density="compact"
+        >
+          <ProviderCredentialCreateForm
+            projectId={projectId}
+            existingCredentials={allCredentials}
+            formId="model-provider-credential-form"
+            showActions={false}
+            onPendingChange={setCredentialPending}
+            onCreated={(created) => {
+              setCreatedCredential(created)
+              setCredentialId(created.id)
+              setStep('model')
+              toast.success('Provider connected')
+            }}
+          />
+        </SectionBlock>
       ) : (
         <>
-          <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <h3 className="text-sm font-semibold text-white">Provider connection</h3>
-                <p className="mt-1 text-xs leading-5 text-muted">Choose the Project credential this generation model will use.</p>
+          <SectionBlock
+            title="Provider connection"
+            description="Choose the Project credential this generation model will use."
+            density="compact"
+            actions={!selectedModel ? (
+              <Button type="button" size="sm" variant="outline" onClick={() => setStep('credential')}>
+                <Plus className="mr-2 h-icon w-icon" />Add connection
+              </Button>
+            ) : undefined}
+          >
+            {usableCredentials.length === 0 ? (
+              <EmptyStatePanel
+                icon={<KeyRound className="h-icon-lg w-icon-lg" />}
+                title="No active provider connection"
+                description="Connect a provider before selecting a generation model."
+                action={<Button type="button" size="sm" onClick={() => setStep('credential')}>Connect provider</Button>}
+              />
+            ) : usableCredentials.length === 1 ? (
+              <TechnicalListItem
+                label={usableCredentials[0].name}
+                description={providerLabel(usableCredentials[0].provider)}
+                meta="Project provider credential"
+                selected
+                density="compact"
+                trailing={<Check className="h-icon w-icon text-primary-light" />}
+              />
+            ) : (
+              <div className="grid gap-ui-xs lg:grid-cols-2">
+                {usableCredentials.map((item) => (
+                  <TechnicalListItem
+                    key={item.id}
+                    label={item.name}
+                    description={providerLabel(item.provider)}
+                    meta="Project provider credential"
+                    selected={item.id === credentialId}
+                    density="compact"
+                    trailing={item.id === credentialId ? <Check className="h-icon w-icon text-primary-light" /> : null}
+                    onClick={() => setCredentialId(item.id)}
+                  />
+                ))}
               </div>
-              {!selectedModel ? (
-                <Button type="button" size="sm" variant="outline" onClick={() => setStep('credential')}>
-                  <Plus className="mr-2 h-3.5 w-3.5" />Add connection
-                </Button>
-              ) : null}
-            </div>
-
-            <div className="mt-5">
-              {usableCredentials.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-border bg-background/45 px-4 py-10 text-center">
-                  <KeyRound className="mx-auto h-5 w-5 text-muted" />
-                  <p className="mt-3 text-sm font-medium text-white">No active provider connection</p>
-                  <p className="mt-1 text-xs text-muted">Connect a provider before selecting a generation model.</p>
-                  <Button type="button" size="sm" className="mt-4" onClick={() => setStep('credential')}>Connect provider</Button>
-                </div>
-              ) : usableCredentials.length === 1 ? (
-                <div className="flex items-center justify-between gap-4 rounded-xl border border-border/85 bg-background/55 px-4 py-3">
-                  <div>
-                    <p className="text-xs text-muted">Connected with</p>
-                    <p className="mt-1 text-sm font-medium text-white">{usableCredentials[0].name}</p>
-                    <p className="mt-1 text-xs text-muted">{providerLabel(usableCredentials[0].provider)}</p>
-                  </div>
-                  <Check className="h-5 w-5 text-primary-light" />
-                </div>
-              ) : (
-                <div className="grid gap-2 lg:grid-cols-2">
-                  {usableCredentials.map((item) => (
-                    <SelectionCard
-                      key={item.id}
-                      title={item.name}
-                      subtitle={providerLabel(item.provider)}
-                      selected={item.id === credentialId}
-                      onClick={() => setCredentialId(item.id)}
-                    />
-                  ))}
-                </div>
-              )}
-            </div>
-          </section>
+            )}
+          </SectionBlock>
 
           {credential ? (
-            <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-              <h3 className="text-sm font-semibold text-white">Generation model</h3>
-              <p className="mt-1 text-xs leading-5 text-muted">
-                {selectedModel ? 'Edit the provider model identifier bound to this reusable Model.' : `Choose a generation model from ${providerLabel(credential.provider)}.`}
-              </p>
-              <div className="mt-5">
-                {shouldUseCatalog ? (
-                  <CatalogList
-                    models={availableModels}
-                    selectedId={catalogModelId}
-                    loading={availableModelsQuery.isLoading}
-                    error={availableModelsQuery.isError}
-                    onSelect={(model) => setCatalogModelId(model.id)}
-                    onRetry={() => { void availableModelsQuery.refetch() }}
-                    onManual={() => {
-                      setManualMode(true)
-                      setCatalogModelId('')
-                      setModelId('')
-                      setDisplayName('')
-                      setContextWindow('')
-                      setMaxOutputTokens('')
-                      setSupportsTools('unknown')
-                      setSupportsJson('unknown')
-                      setSupportsStreaming('unknown')
-                    }}
-                  />
-                ) : (
-                  <div className="space-y-4">
+            <SectionBlock
+              title="Generation model"
+              description={selectedModel
+                ? 'Edit the provider model identifier bound to this reusable Model.'
+                : `Choose a generation model from ${providerLabel(credential.provider)}.`}
+              density="compact"
+            >
+              {shouldUseCatalog ? (
+                <CatalogList
+                  models={availableModels}
+                  selectedId={catalogModelId}
+                  loading={availableModelsQuery.isLoading}
+                  error={availableModelsQuery.isError}
+                  onSelect={(model) => setCatalogModelId(model.id)}
+                  onRetry={() => { void availableModelsQuery.refetch() }}
+                  onManual={() => {
+                    setManualMode(true)
+                    setCatalogModelId('')
+                    setModelId('')
+                    setDisplayName('')
+                    setContextWindow('')
+                    setMaxOutputTokens('')
+                    setSupportsTools('unknown')
+                    setSupportsJson('unknown')
+                    setSupportsStreaming('unknown')
+                  }}
+                />
+              ) : (
+                <div className="grid gap-ui-md">
+                  <Field>
+                    <FieldLabel>Model ID</FieldLabel>
+                    <Input value={modelId} onChange={(event) => setModelId(event.target.value)} placeholder="gpt-4.1-mini" className="font-mono" />
+                  </Field>
+                  {!selectedModel && canUseCatalog ? (
                     <div>
-                      <label className="mb-1 block text-sm font-medium text-muted">Model ID</label>
-                      <Input value={modelId} onChange={(event) => setModelId(event.target.value)} placeholder="gpt-4.1-mini" className="font-mono text-xs" />
-                    </div>
-                    {!selectedModel && canUseCatalog ? (
                       <Button
                         type="button"
                         size="sm"
                         variant="ghost"
-                        className="px-0"
                         onClick={() => {
                           setManualMode(false)
                           setModelId('')
@@ -886,11 +841,11 @@ export function ModelSettingsModal({
                       >
                         Browse provider models
                       </Button>
-                    ) : null}
-                  </div>
-                )}
-              </div>
-            </section>
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </SectionBlock>
           ) : null}
         </>
       )}
@@ -898,91 +853,88 @@ export function ModelSettingsModal({
   )
 
   const capabilitiesContent = (
-    <div className="space-y-5">
-      <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-white">Model capabilities</h3>
-            <p className="mt-1 max-w-2xl text-xs leading-5 text-muted">Used by Context budgeting and runtime compatibility checks. Unknown values remain unknown; Woobe does not infer them from the model name.</p>
-          </div>
-          <span className="shrink-0 rounded-full border border-border bg-background px-2 py-1 text-[10px] text-muted">{capabilitySource}</span>
-        </div>
-
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Context Window</label>
+    <SectionBlock
+      title="Model capabilities"
+      description="Used by Context budgeting and runtime compatibility checks. Unknown values remain unknown; Woobe does not infer them from the model name."
+      actions={<Badge variant="outline" size="compact">{capabilitySource}</Badge>}
+      density="compact"
+    >
+      <div className="grid gap-ui-lg">
+        <div className="grid gap-ui-md sm:grid-cols-2">
+          <Field>
+            <FieldLabel>Context Window</FieldLabel>
             <Input value={contextWindow} onChange={(event) => setContextWindow(event.target.value)} inputMode="numeric" placeholder="e.g. 128000" />
-            <p className="mt-1 text-[10px] leading-4 text-muted">Maximum total context capacity reported or configured for this model.</p>
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Maximum output</label>
+            <FieldDescription>Maximum total context capacity reported or configured for this model.</FieldDescription>
+          </Field>
+          <Field>
+            <FieldLabel>Maximum output</FieldLabel>
             <Input value={maxOutputTokens} onChange={(event) => setMaxOutputTokens(event.target.value)} inputMode="numeric" placeholder="Optional" />
-            <p className="mt-1 text-[10px] leading-4 text-muted">Provider/model output ceiling. This is not treated as Context Window.</p>
-          </div>
+            <FieldDescription>Provider/model output ceiling. This is not treated as Context Window.</FieldDescription>
+          </Field>
         </div>
 
-        <div className="mt-5 grid gap-4 border-t border-border/70 pt-5 lg:grid-cols-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Tool calling</label>
+        <div className="grid gap-ui-md border-t border-border pt-ui-md lg:grid-cols-3">
+          <Field>
+            <FieldLabel>Tool calling</FieldLabel>
             <Select value={supportsTools} onChange={(event) => setSupportsTools(event.target.value as CapabilityChoice)} options={capabilityOptions} />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Structured output</label>
+          </Field>
+          <Field>
+            <FieldLabel>Structured output</FieldLabel>
             <Select value={supportsJson} onChange={(event) => setSupportsJson(event.target.value as CapabilityChoice)} options={capabilityOptions} />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Streaming</label>
+          </Field>
+          <Field>
+            <FieldLabel>Streaming</FieldLabel>
             <Select value={supportsStreaming} onChange={(event) => setSupportsStreaming(event.target.value as CapabilityChoice)} options={capabilityOptions} />
-          </div>
+          </Field>
         </div>
-      </section>
-    </div>
+      </div>
+    </SectionBlock>
   )
 
   const pricingContent = (
-    <div className="space-y-5">
-      <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-        <h3 className="text-sm font-semibold text-white">Pricing metadata</h3>
-        <p className="mt-1 text-xs leading-5 text-muted">Optional costs used for estimation and trace analysis. Pricing metadata does not control provider billing.</p>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Input / 1M tokens</label>
-            <Input value={inputCost} onChange={(event) => setInputCost(event.target.value)} inputMode="decimal" placeholder="Optional" />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Output / 1M tokens</label>
-            <Input value={outputCost} onChange={(event) => setOutputCost(event.target.value)} inputMode="decimal" placeholder="Optional" />
-          </div>
-          <div className="sm:col-span-2 sm:max-w-xs">
-            <label className="mb-1 block text-sm font-medium text-muted">Currency</label>
-            <Input value={currency} onChange={(event) => setCurrency(event.target.value)} placeholder="USD" />
-          </div>
-        </div>
-      </section>
-    </div>
+    <SectionBlock
+      title="Pricing metadata"
+      description="Optional costs used for estimation and trace analysis. Pricing metadata does not control provider billing."
+      density="compact"
+    >
+      <div className="grid gap-ui-md sm:grid-cols-2">
+        <Field>
+          <FieldLabel>Input / 1M tokens</FieldLabel>
+          <Input value={inputCost} onChange={(event) => setInputCost(event.target.value)} inputMode="decimal" placeholder="Optional" />
+        </Field>
+        <Field>
+          <FieldLabel>Output / 1M tokens</FieldLabel>
+          <Input value={outputCost} onChange={(event) => setOutputCost(event.target.value)} inputMode="decimal" placeholder="Optional" />
+        </Field>
+        <Field className="sm:col-span-2 sm:max-w-xs">
+          <FieldLabel>Currency</FieldLabel>
+          <Input value={currency} onChange={(event) => setCurrency(event.target.value)} placeholder="USD" />
+        </Field>
+      </div>
+    </SectionBlock>
   )
 
   const lifecycleContent = selectedModel ? (
-    <div className="space-y-5">
-      <section className="rounded-xl border border-border/80 bg-surface/65 p-5">
-        <h3 className="text-sm font-semibold text-white">Lifecycle</h3>
-        <p className="mt-1 text-xs leading-5 text-muted">Archive is blocked while Agent Drafts or active Release snapshots reference this Model.</p>
-        <div className="mt-5 rounded-xl border border-red-500/20 bg-red-500/5 p-4">
-          <p className="text-sm font-medium text-white">Archive Model</p>
-          <p className="mt-1 max-w-2xl text-xs leading-5 text-muted">Woobe checks active Agent and Release references before allowing the soft archive.</p>
-          <Button
-            type="button"
-            variant="destructive"
-            size="sm"
-            className="mt-4"
-            loading={impactLoading}
-            onClick={() => { void prepareArchive() }}
-          >
-            <Archive className="mr-2 h-3.5 w-3.5" />Review archive
-          </Button>
-        </div>
-      </section>
-    </div>
+    <SectionBlock
+      title="Lifecycle"
+      description="Archive is blocked while Agent Drafts or active Release snapshots reference this Model."
+      density="compact"
+    >
+      <Alert variant="destructive">
+        <AlertTitle>Archive Model</AlertTitle>
+        <AlertDescription>Woobe checks active Agent and Release references before allowing the soft archive.</AlertDescription>
+        <Button
+          type="button"
+          variant="destructive"
+          size="sm"
+          className="mt-ui-md"
+          loading={impactLoading}
+          onClick={() => { void prepareArchive() }}
+        >
+          <Archive className="mr-2 h-icon w-icon" />Review archive
+        </Button>
+      </Alert>
+    </SectionBlock>
   ) : null
 
   const currentContent = activeSection === 'overview'
@@ -1009,85 +961,61 @@ export function ModelSettingsModal({
         open={open}
         onClose={busy ? () => undefined : onClose}
         title={selectedModel ? 'Model settings' : 'New model'}
-        className="flex h-[min(900px,calc(100svh-2rem))] max-w-7xl flex-col overflow-hidden"
-        contentClassName="min-h-0 flex-1 p-0"
+        variant="workspace"
       >
-        <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] md:grid-cols-[230px_minmax(0,1fr)] md:grid-rows-1">
-          <aside className="flex min-h-0 min-w-0 flex-col border-b border-border bg-background/35 md:border-b-0 md:border-r">
-            <div className="hidden border-b border-border p-4 md:block">
-              <div className="flex min-w-0 items-start gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/25 bg-primary/10 text-primary-light">
-                  <Cpu className="h-4 w-4" />
+        <div className="flex h-full min-h-0 min-w-0 flex-col">
+          <DialogContextBar>
+            <div className="flex min-w-0 flex-wrap items-start justify-between gap-ui-md">
+              <div className="flex min-w-0 items-start gap-ui-md">
+                <div className="flex h-control-nav w-control-nav shrink-0 items-center justify-center rounded-control border border-primary/25 bg-primary/[0.08] text-primary-light">
+                  <Cpu className="h-icon w-icon" />
                 </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex min-w-0 items-center gap-2">
-                    <h3 className="min-w-0 flex-1 truncate text-sm font-semibold text-white">{technicalName}</h3>
+                <div className="min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-center gap-ui-sm">
+                    <h3 className="truncate font-mono text-system-heading font-semibold text-accent-foreground">{technicalName}</h3>
                     <StatusBadge status={selectedModel ? status : 'draft'} size="compact" />
                   </div>
-                  <p className="mt-1 truncate text-xs text-muted">{providerName}</p>
+                  <div className="mt-ui-xs flex min-w-0 flex-wrap items-center gap-x-ui-md gap-y-ui-xs font-mono text-system-meta text-muted-foreground">
+                    <span>{providerName}</span>
+                    <span>{credential?.name || 'No connection'}</span>
+                    {selectedModel ? <span title={selectedModel.id}>{shortId(selectedModel.id)}</span> : <span>Generation</span>}
+                  </div>
                   {modelId ? (
                     <button
                       type="button"
-                      className="mt-2 flex max-w-full items-center gap-1.5 font-mono text-[11px] text-muted hover:text-white"
+                      className="mt-ui-xs flex max-w-full items-center gap-ui-xs font-mono text-system-meta text-muted-foreground transition-colors hover:text-accent-foreground"
                       onClick={() => {
                         void navigator.clipboard.writeText(modelId)
                         toast.success('Model ID copied')
                       }}
                     >
                       <span className="truncate">{modelId}</span>
-                      <Copy className="h-3 w-3 shrink-0" />
+                      <Copy className="h-icon-sm w-icon-sm shrink-0" />
                     </button>
-                  ) : (
-                    <p className="mt-2 text-[11px] text-muted">Provider model not selected</p>
-                  )}
+                  ) : null}
                 </div>
-              </div>
-              <div className="mt-3 flex items-center justify-between border-t border-border/70 pt-3 text-[11px] text-muted">
-                <span>{credential?.name || 'No connection'}</span>
-                {selectedModel ? <span className="font-mono" title={selectedModel.id}>{shortId(selectedModel.id)}</span> : <span>Generation</span>}
               </div>
             </div>
 
-            <nav className="flex min-w-0 gap-1 overflow-x-auto p-2 md:block md:flex-1 md:space-y-5 md:overflow-y-auto md:p-3">
-              <div className="contents md:block md:space-y-2">
-                <SidebarSectionTitle>Configuration</SidebarSectionTitle>
-                <div className="contents md:block md:space-y-1">
-                  {configurationItems.map((item) => (
-                    <SidebarNavButton
-                      key={item.id}
-                      item={item}
-                      active={activeSection === item.id}
-                      onClick={() => setActiveSection(item.id)}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              {operationItems.length > 0 ? (
-                <div className="contents md:block md:space-y-2">
-                  <SidebarSectionTitle>Operate</SidebarSectionTitle>
-                  <div className="contents md:block md:space-y-1">
-                    {operationItems.map((item) => (
-                      <SidebarNavButton
-                        key={item.id}
-                        item={item}
-                        active={activeSection === item.id}
-                        onClick={() => setActiveSection(item.id)}
-                      />
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </nav>
-          </aside>
-
-          <main className="flex min-h-0 min-w-0 flex-col overflow-hidden">
-            <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5 lg:p-6">
-              {currentContent}
+            <div className="mt-ui-sm overflow-x-auto">
+              <SegmentedControl
+                items={navigationItems}
+                value={activeSection}
+                onValueChange={(value) => setActiveSection(value as ModelSection)}
+                ariaLabel="Model settings sections"
+                size="segment"
+              />
             </div>
-            <div className="flex shrink-0 flex-col-reverse gap-2 border-t border-border bg-surface/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between lg:px-6">
-              <p className="max-w-2xl text-[11px] text-muted">{footerHint}</p>
-              <div className="flex flex-wrap justify-end gap-2">
+          </DialogContextBar>
+
+          <main className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain p-ui-lg">
+            {currentContent}
+          </main>
+
+          <DialogFooter
+            meta={<p className="max-w-2xl font-sans text-product-caption text-muted-foreground">{footerHint}</p>}
+            actions={(
+              <>
                 {step === 'credential' && usableCredentials.length > 0 ? (
                   <Button type="button" variant="outline" disabled={busy} onClick={() => setStep('model')}>Back</Button>
                 ) : (
@@ -1099,13 +1027,13 @@ export function ModelSettingsModal({
                   </Button>
                 ) : (
                   <Button type="button" loading={createModel.isPending || updateModel.isPending} disabled={!canSave} onClick={() => { void saveModel() }}>
-                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    <ShieldCheck className="mr-2 h-icon w-icon" />
                     {selectedModel ? 'Save changes' : 'Create model'}
                   </Button>
                 )}
-              </div>
-            </div>
-          </main>
+              </>
+            )}
+          />
         </div>
       </Dialog>
 

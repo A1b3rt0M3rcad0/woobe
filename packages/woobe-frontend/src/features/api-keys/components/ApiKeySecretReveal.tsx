@@ -1,4 +1,13 @@
 import { AlertTriangle, Bot, KeyRound, Network } from 'lucide-react'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  CodePanel,
+  SectionBlock,
+  TechnicalListItem,
+} from '@woobe/ui'
+
 import { CopyButton } from '@/components/common/CopyButton'
 import type { CreateApiKeyResponse, RuntimeTargetType } from '@/features/api-keys/types'
 
@@ -27,65 +36,58 @@ export function ApiKeySecretReveal({ apiKey, targetName, agentName }: ApiKeySecr
   const resolvedTargetName = targetName || agentName || apiKey.target_id || apiKey.agent_id || `Unknown ${runtimeTargetLabel.toLowerCase()}`
 
   return (
-    <div className="space-y-5">
-      <div className="rounded-xl border border-amber-500/35 bg-amber-500/8 p-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+    <div className="grid gap-ui-md">
+      <Alert variant="warning">
+        <div className="flex items-start gap-ui-sm">
+          <AlertTriangle className="mt-ui-hairline h-icon w-icon shrink-0" />
           <div>
-            <p className="text-sm font-semibold text-white">Copy this secret now</p>
-            <p className="mt-1 text-xs leading-5 text-muted">It is shown once and cannot be recovered later.</p>
+            <AlertTitle>Copy this secret now</AlertTitle>
+            <AlertDescription>It is shown once and cannot be recovered later.</AlertDescription>
           </div>
         </div>
-      </div>
+      </Alert>
 
-      <div className="rounded-xl border border-primary/30 bg-primary/5 p-4">
-        <div className="flex items-center gap-2 text-sm font-semibold text-white">
-          <KeyRound className="h-4 w-4 text-primary-light" />
-          {runtime ? `${runtimeTargetLabel} Runtime Key` : 'Project Key'} created
-        </div>
-        <div className="mt-3 flex items-center gap-2 rounded-lg border border-border/80 bg-background/80 p-3">
-          <code className="min-w-0 flex-1 break-all text-xs text-white">{apiKey.key}</code>
-          <CopyButton text={apiKey.key} />
-        </div>
-        <div className="mt-3">
-          <p className="text-sm font-medium text-white">{apiKey.name}</p>
-          {apiKey.description && <p className="mt-1 text-xs leading-5 text-muted">{apiKey.description}</p>}
-        </div>
-      </div>
+      <SectionBlock
+        title={runtime ? `${runtimeTargetLabel} Runtime Key created` : 'Project Key created'}
+        description={apiKey.description || apiKey.name}
+        actions={<KeyRound className="h-icon w-icon text-primary-light" />}
+      >
+        <CodePanel
+          title="Secret"
+          badge="One-time reveal"
+          density="compact"
+          actions={<CopyButton text={apiKey.key} />}
+        >
+          <code className="block break-all bg-background/20 p-ui-md font-mono text-system-control text-accent-foreground">{apiKey.key}</code>
+        </CodePanel>
+      </SectionBlock>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-ui-xs sm:grid-cols-2">
         {runtime ? (
           <>
-            <div className="rounded-xl border border-border/80 bg-background/50 p-3">
-              <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">
-                <RuntimeTargetIcon className="h-3.5 w-3.5" /> {runtimeTargetLabel}
-              </div>
-              <p className="mt-1 truncate text-sm font-medium text-white">{resolvedTargetName}</p>
-            </div>
-            <div className="rounded-xl border border-border/80 bg-background/50 p-3">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Environment</p>
-              <p className="mt-1 text-sm font-medium capitalize text-white">{apiKey.environment}</p>
-            </div>
-            <div className="rounded-xl border border-border/80 bg-background/50 p-3 sm:col-span-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Interfaces</p>
-              <p className="mt-1 text-sm text-white">{apiKey.interfaces.join(' · ')}</p>
-            </div>
+            <TechnicalListItem
+              label={runtimeTargetLabel}
+              description={resolvedTargetName}
+              leading={<RuntimeTargetIcon className="h-icon w-icon text-primary-light" />}
+            />
+            <TechnicalListItem label="Environment" description={apiKey.environment} />
+            <TechnicalListItem className="sm:col-span-2" label="Interfaces" description={apiKey.interfaces.join(' · ')} />
           </>
         ) : (
-          <div className="rounded-xl border border-border/80 bg-background/50 p-3 sm:col-span-2">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Permissions</p>
-            <p className="mt-1 text-sm text-white">{apiKey.scopes.map(permissionLabel).join(' · ')}</p>
-          </div>
+          <TechnicalListItem className="sm:col-span-2" label="Permissions" description={apiKey.scopes.map(permissionLabel).join(' · ')} />
         )}
       </div>
 
-      <div>
-        <p className="text-xs font-medium text-muted">Environment setup</p>
-        <div className="mt-2 flex items-center gap-2 rounded-lg border border-border/80 bg-background/60 p-3">
-          <code className="min-w-0 flex-1 break-all text-xs text-muted">export WOOBE_API_KEY=&quot;{apiKey.key}&quot;</code>
-          <CopyButton text={`export WOOBE_API_KEY="${apiKey.key}"`} />
-        </div>
-      </div>
+      <CodePanel
+        title="Environment setup"
+        badge="Shell"
+        density="compact"
+        actions={<CopyButton text={`export WOOBE_API_KEY="${apiKey.key}"`} />}
+      >
+        <code className="block break-all bg-background/20 p-ui-md font-mono text-system-control text-muted-foreground">
+          export WOOBE_API_KEY=&quot;{apiKey.key}&quot;
+        </code>
+      </CodePanel>
     </div>
   )
 }

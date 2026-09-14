@@ -1,8 +1,19 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent, type MouseEvent } from 'react'
 import { CheckCircle2, Database, FileText, UploadCloud, X } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/Button'
-import { Input } from '@/components/ui/Input'
+import {
+  Alert,
+  AlertDescription,
+  Badge,
+  Button,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  Input,
+  SectionBlock,
+  TechnicalListItem,
+} from '@woobe/ui'
+
 import {
   ACCEPTED_DOCUMENT_EXTENSIONS,
   DOCUMENT_ACCEPT_ATTRIBUTE,
@@ -21,7 +32,13 @@ interface CollectionDocumentUploadPanelProps {
   showDestination?: boolean
 }
 
-export function CollectionDocumentUploadPanel({ projectId, collection, onCancel, onUploaded, showDestination = true }: CollectionDocumentUploadPanelProps) {
+export function CollectionDocumentUploadPanel({
+  projectId,
+  collection,
+  onCancel,
+  onUploaded,
+  showDestination = true,
+}: CollectionDocumentUploadPanelProps) {
   const uploadDocument = useUploadDocumentFile()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [title, setTitle] = useState('')
@@ -48,9 +65,7 @@ export function CollectionDocumentUploadPanel({ projectId, collection, onCancel,
     if (!title.trim()) setTitle(titleFromDocumentFileName(candidate.name))
   }
 
-  const openNativeFilePicker = () => {
-    fileInputRef.current?.click()
-  }
+  const openNativeFilePicker = () => fileInputRef.current?.click()
 
   const clearSelectedFile = (event?: MouseEvent) => {
     event?.preventDefault()
@@ -98,25 +113,24 @@ export function CollectionDocumentUploadPanel({ projectId, collection, onCancel,
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="grid gap-ui-md">
       {showDestination ? (
-        <div className="rounded-xl border border-border bg-background/70 p-3">
-          <p className="text-[11px] font-medium uppercase tracking-wider text-muted">Destination collection</p>
-          <div className="mt-2 flex min-w-0 items-center gap-3 rounded-lg border border-primary/25 bg-primary/10 p-3">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/30 bg-primary/10 text-primary-light">
-              <Database className="h-4 w-4" />
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium text-white">{selectedCollectionName}</p>
-              <p className="truncate text-[11px] text-muted">{collection.id}</p>
-            </div>
-            <CheckCircle2 className="h-4 w-4 shrink-0 text-primary-light" />
-          </div>
-        </div>
+        <SectionBlock title="Destination collection" density="compact">
+          <TechnicalListItem
+            label={selectedCollectionName}
+            description={collection.id}
+            leading={(
+              <span className="flex h-control-sm w-control-sm items-center justify-center rounded-control border border-primary/25 bg-primary/[0.08] text-primary-light">
+                <Database className="h-icon w-icon" />
+              </span>
+            )}
+            trailing={<CheckCircle2 className="h-icon w-icon text-primary-light" />}
+          />
+        </SectionBlock>
       ) : null}
 
-      <div>
-        <label className="mb-2 block text-[11px] font-medium uppercase tracking-wider text-muted">File</label>
+      <Field>
+        <FieldLabel>File</FieldLabel>
         <input
           ref={fileInputRef}
           type="file"
@@ -158,58 +172,61 @@ export function CollectionDocumentUploadPanel({ projectId, collection, onCancel,
             setIsDragging(false)
             setValidatedFile(event.dataTransfer.files?.[0] ?? null)
           }}
-          className={`flex min-h-[210px] min-w-0 cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed p-5 text-center outline-none transition-colors ${
-            isDragging ? 'border-primary bg-primary/10' : 'border-border bg-background/70 hover:border-primary/60 hover:bg-background'
+          className={`flex min-h-52 min-w-0 cursor-pointer flex-col items-center justify-center rounded-container border border-dashed p-ui-lg text-center outline-none transition-colors focus-visible:ring-1 focus-visible:ring-primary/40 ${
+            isDragging ? 'border-primary/45 bg-primary/[0.08]' : 'border-border bg-background/35 hover:border-primary/30 hover:bg-control/25'
           }`}
         >
           {file ? (
-            <div className="flex w-full max-w-full flex-col items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-surface text-primary-light">
-                <FileText className="h-5 w-5" />
-              </div>
-              <div className="w-full min-w-0 rounded-xl border border-border bg-surface/70 p-3 text-left">
-                <div className="flex min-w-0 items-start gap-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-white">{file.name}</p>
-                    <p className="mt-1 truncate text-xs text-muted">{formatBytes(file.size)} · {selectedCollectionName}</p>
-                  </div>
-                  <button type="button" className="shrink-0 rounded-md p-1 text-muted hover:bg-accent hover:text-white" onClick={clearSelectedFile} aria-label="Remove selected file">
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-              <p className="text-[11px] text-muted">Click the area to replace the file.</p>
+            <div className="grid w-full max-w-full justify-items-center gap-ui-md">
+              <span className="flex h-control-lg w-control-lg items-center justify-center rounded-control border border-border bg-control text-primary-light">
+                <FileText className="h-icon-lg w-icon-lg" />
+              </span>
+              <TechnicalListItem
+                className="w-full text-left"
+                label={file.name}
+                description={`${formatBytes(file.size)} · ${selectedCollectionName}`}
+                trailing={(
+                  <Button type="button" size="iconSm" variant="ghost" onClick={clearSelectedFile} aria-label="Remove selected file">
+                    <X className="h-icon w-icon" />
+                  </Button>
+                )}
+              />
+              <p className="font-sans text-product-caption text-muted-foreground">Click the area to replace the file.</p>
             </div>
           ) : (
-            <>
-              <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-surface">
-                <UploadCloud className="h-5 w-5 text-primary-light" />
+            <div className="grid justify-items-center gap-ui-sm">
+              <span className="flex h-control-lg w-control-lg items-center justify-center rounded-control border border-border bg-control text-primary-light">
+                <UploadCloud className="h-icon-lg w-icon-lg" />
+              </span>
+              <div>
+                <p className="font-mono text-system-control font-semibold text-accent-foreground">Drop file here</p>
+                <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">or click to browse from your computer</p>
               </div>
-              <p className="text-sm font-medium text-white">Drop file here</p>
-              <p className="mt-1 text-xs text-muted">or click to browse from your computer</p>
-              <div className="mt-4 flex flex-wrap justify-center gap-1.5">
+              <div className="flex flex-wrap justify-center gap-ui-xs">
                 {ACCEPTED_DOCUMENT_EXTENSIONS.map((extension) => (
-                  <span key={extension} className="rounded-full border border-border bg-surface px-2 py-0.5 text-[11px] text-muted">
+                  <Badge key={extension} variant="outline" size="compact">
                     {extension.toUpperCase().replace('.', '')}
-                  </span>
+                  </Badge>
                 ))}
               </div>
-              <p className="mt-3 text-[11px] text-muted">Maximum {MAX_DOCUMENT_FILE_MB} MB</p>
-            </>
+              <FieldDescription>Maximum {MAX_DOCUMENT_FILE_MB} MB</FieldDescription>
+            </div>
           )}
         </div>
-      </div>
+      </Field>
 
-      <div>
-        <label className="mb-1 block text-[11px] font-medium uppercase tracking-wider text-muted">Document title</label>
+      <Field>
+        <FieldLabel>Document title</FieldLabel>
         <Input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Optional. Defaults to the file name." />
-      </div>
+      </Field>
 
-      <div className="rounded-xl border border-border bg-background/60 p-3 text-xs leading-5 text-muted">
-        PDF files must contain selectable text. DOCX ingestion preserves text, headings, lists and tables; embedded images are not indexed. Vector generation remains a separate, versioned step.
-      </div>
+      <Alert variant="info">
+        <AlertDescription>
+          PDF files must contain selectable text. DOCX ingestion preserves text, headings, lists and tables; embedded images are not indexed. Vector generation remains a separate, versioned step.
+        </AlertDescription>
+      </Alert>
 
-      <div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end">
+      <div className="flex flex-col-reverse gap-ui-sm border-t border-border pt-ui-md sm:flex-row sm:justify-end">
         <Button type="button" variant="outline" onClick={handleCancel} disabled={uploadDocument.isPending}>Cancel</Button>
         <Button type="submit" disabled={!file || !projectId} loading={uploadDocument.isPending}>Upload document</Button>
       </div>

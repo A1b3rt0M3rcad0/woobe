@@ -25,46 +25,32 @@ describe('SessionsPanel active Run isolation', () => {
   it('keeps Session selection enabled while runtime is idle and does not render Session creation controls', () => {
     resetAgentStreamStopState()
     const html = renderToStaticMarkup(
-      <SessionsPanel
-        sessions={[session]}
-        currentSessionId={session.id}
-        sessionMode="stateful"
-        onSelectSession={vi.fn()}
-      />,
+      <SessionsPanel sessions={[session]} currentSessionId={session.id} sessionMode="stateful" onSelectSession={vi.fn()} />,
     )
 
     expect(html).not.toContain('Wait for the active Agent Run')
     expect(html).not.toContain('aria-label="New Session"')
     expect(html).not.toContain('>New</button>')
+    expect(html).not.toContain('aria-disabled="true"')
   })
 
   it('disables Session selection while an Agent Run is running', () => {
     setAgentStreamStopState('running')
     const html = renderToStaticMarkup(
-      <SessionsPanel
-        sessions={[session]}
-        currentSessionId={session.id}
-        sessionMode="stateful"
-        onSelectSession={vi.fn()}
-      />,
+      <SessionsPanel sessions={[session]} currentSessionId={session.id} sessionMode="stateful" onSelectSession={vi.fn()} />,
     )
 
     expect(html).toContain('Wait for the active Agent Run to finish or stop it before changing Sessions')
-    expect((html.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(1)
+    expect(html).toContain('aria-disabled="true"')
   })
 
   it('keeps Session selection disabled while cancellation is being finalized', () => {
     setAgentStreamStopState('stopping')
     const html = renderToStaticMarkup(
-      <SessionsPanel
-        sessions={[session]}
-        currentSessionId={session.id}
-        sessionMode="stateful"
-        onSelectSession={vi.fn()}
-      />,
+      <SessionsPanel sessions={[session]} currentSessionId={session.id} sessionMode="stateful" onSelectSession={vi.fn()} />,
     )
 
     expect(html).toContain('Wait for the active Agent Run cancellation to finish before changing Sessions')
-    expect((html.match(/disabled=""/g) ?? []).length).toBeGreaterThanOrEqual(1)
+    expect(html).toContain('aria-disabled="true"')
   })
 })

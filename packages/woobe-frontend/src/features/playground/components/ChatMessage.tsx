@@ -13,6 +13,7 @@ import {
   User,
   Workflow,
 } from 'lucide-react'
+import { Button, woobeLayout } from '@woobe/ui'
 
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import type { AgentActivityInfo, ChatMessage as ChatMessageType } from '@/features/playground/types'
@@ -50,37 +51,37 @@ function SourcesCollapsible({
   if (!sources || sources.length === 0) return null
 
   return (
-    <div className={compact ? 'mt-1.5' : 'mt-2'}>
+    <div className={compact ? 'mt-ui-xs' : 'mt-ui-sm'}>
       <button
         type="button"
         onClick={() => setOpen(!open)}
         className={cn(
-          'flex items-center gap-1 text-primary-light transition-colors hover:text-white',
-          compact ? 'text-[9px]' : 'text-xs',
+          'flex items-center gap-ui-xs font-mono text-primary-light transition-colors hover:text-slate-50',
+          compact ? 'text-system-meta' : 'text-system-control',
         )}
       >
-        {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+        {open ? <ChevronDown className="h-icon-sm w-icon-sm" /> : <ChevronRight className="h-icon-sm w-icon-sm" />}
         Sources ({sources.length})
       </button>
       {open && (
-        <div className={cn('mt-1 space-y-1', compact && 'max-w-full')}>
+        <div className={cn('mt-ui-xs space-y-ui-xs', compact && 'max-w-full')}>
           {sources.map((source, index) => (
             <div
               key={source.chunk_id || `${source.document_id || 'source'}-${index}`}
               className={cn(
-                'rounded-lg border border-border/80 bg-background/60',
-                compact ? 'p-2 text-[9px] leading-4' : 'p-2 text-xs',
+                'rounded-container border border-border/80 bg-background/50',
+                compact ? 'p-ui-sm' : 'p-ui-md',
               )}
             >
-              <p className="truncate font-medium text-white">{source.document_title || 'Untitled'}</p>
+              <p className={cn('truncate font-mono font-semibold text-slate-100', compact ? 'text-system-label' : 'text-system-control')}>{source.document_title || 'Untitled'}</p>
               {(source.page_number != null || source.score != null) && (
-                <div className="mt-0.5 flex flex-wrap gap-x-2 text-muted">
+                <div className={cn('mt-ui-xs flex flex-wrap gap-x-ui-sm font-mono text-muted-foreground', compact ? 'text-system-meta' : 'text-system-micro')}>
                   {source.page_number != null && <span>Page {source.page_number}</span>}
                   {source.score != null && <span>Score {formatNumber(source.score, 3)}</span>}
                 </div>
               )}
               {source.content_preview && (
-                <p className={cn('mt-1 italic text-muted', compact ? 'line-clamp-3' : '')}>
+                <p className={cn('mt-ui-xs font-sans italic text-muted-foreground', compact ? 'line-clamp-3 text-product-caption' : 'text-product-small')}>
                   &quot;{source.content_preview.slice(0, compact ? 160 : 200)}{source.content_preview.length > (compact ? 160 : 200) ? '…' : ''}&quot;
                 </p>
               )}
@@ -115,13 +116,13 @@ function ActivityBubble({
   return (
     <div
       className={cn(
-        'inline-flex items-center border border-border/80 bg-surface/70 text-muted shadow-sm shadow-black/5',
+        'inline-flex items-center border border-border/80 bg-surface/65 font-sans text-muted-foreground',
         compact
-          ? 'gap-1.5 rounded-lg px-2.5 py-2 text-[10px] leading-4'
-          : 'gap-2 rounded-xl px-4 py-3 text-sm',
+          ? 'gap-ui-sm rounded-control px-ui-sm py-ui-sm text-product-caption'
+          : 'gap-ui-sm rounded-container px-ui-md py-ui-sm text-product-small',
       )}
     >
-      <Loader2 className={cn('animate-spin text-primary-light', compact ? 'h-3 w-3' : 'h-4 w-4')} />
+      <Loader2 className={cn('animate-spin text-primary-light', compact ? 'h-icon-sm w-icon-sm' : 'h-icon w-icon')} />
       {activityMessage(activity)}
     </div>
   )
@@ -161,16 +162,16 @@ function AssistantContent({
     return (
       <div
         className={cn(
-          'border border-border/80 bg-surface/75 text-white shadow-sm shadow-black/5',
+          'border border-border/80 bg-surface/72 font-sans text-slate-100',
           compact
-            ? 'rounded-lg rounded-bl-sm px-2.5 py-2 text-[10px] leading-4'
-            : 'rounded-xl rounded-bl-md px-4 py-3 text-sm leading-relaxed',
+            ? 'rounded-control px-ui-sm py-ui-sm text-product-small'
+            : 'rounded-container px-ui-md py-ui-sm text-product-reading',
         )}
       >
         <MarkdownMessage
           content={segments[0].content}
           isStreaming={isStreaming}
-          className={compact ? 'space-y-1.5 text-[10px] leading-4' : undefined}
+          className={compact ? 'space-y-ui-sm text-product-small' : undefined}
         />
       </div>
     )
@@ -179,29 +180,33 @@ function AssistantContent({
   return (
     <div
       className={cn(
-        'border border-border/80 bg-surface/75 text-white shadow-sm shadow-black/5',
+        'border border-border/80 bg-surface/72 font-sans text-slate-100',
         compact
-          ? 'rounded-lg rounded-bl-sm px-2.5 py-2 text-[10px] leading-4'
-          : 'rounded-xl rounded-bl-md px-4 py-3 text-sm leading-relaxed',
+          ? 'rounded-control px-ui-sm py-ui-sm text-product-small'
+          : 'rounded-container px-ui-md py-ui-sm text-product-reading',
       )}
     >
-      <div className={compact ? 'space-y-1.5' : 'space-y-2'}>
+      <div className={compact ? 'space-y-ui-sm' : 'space-y-ui-md'}>
         {segments.map((segment, index) =>
           segment.type === 'text' ? (
             <MarkdownMessage
               key={index}
               content={segment.content}
-              className={compact ? 'space-y-1.5 text-[10px] leading-4' : undefined}
+              className={compact ? 'space-y-ui-sm text-product-small' : undefined}
             />
           ) : (
-            <div key={index} className={compact ? 'my-1.5' : 'my-2'}>
-              <JsonCodeBlock value={segment.value} maxHeight={compact ? 140 : 160} />
+            <div key={index} className={compact ? 'my-ui-sm' : 'my-ui-md'}>
+              <JsonCodeBlock
+                value={segment.value}
+                maxHeight={compact ? woobeLayout.codeInlineCompact : woobeLayout.codeInlineDefault}
+                density={compact ? 'default' : 'compact'}
+              />
             </div>
           ),
         )}
         {isStreaming && (
           <span
-            className="inline-flex h-3 w-1.5 translate-y-0.5 animate-pulse rounded-sm bg-primary/80"
+            className="inline-flex h-icon-sm w-1.5 translate-y-0.5 animate-pulse rounded-technical bg-primary/80"
             aria-label="Streaming"
           />
         )}
@@ -227,14 +232,14 @@ export function ChatMessage({
 
   if (isUser) {
     return (
-      <div className={cn('flex justify-end overflow-hidden', compact ? 'gap-2' : 'gap-3')}>
-        <div className={compact ? 'max-w-[88%]' : 'max-w-[80%]'}>
+      <div className={cn('flex justify-end overflow-hidden', compact ? 'gap-ui-sm' : 'gap-ui-md')}>
+        <div className={compact ? 'max-w-conversation-compact' : 'max-w-conversation'}>
           <div
             className={cn(
-              'whitespace-pre-wrap break-words border border-primary/25 bg-primary/10 text-white shadow-sm shadow-black/5',
+              'whitespace-pre-wrap break-words border border-primary/25 bg-primary/[0.09] font-sans text-slate-100',
               compact
-                ? 'rounded-lg rounded-br-sm px-2.5 py-2 text-[10px] leading-4'
-                : 'rounded-xl rounded-br-md px-4 py-3 text-sm leading-relaxed',
+                ? 'rounded-control px-ui-sm py-ui-sm text-product-small'
+                : 'rounded-container px-ui-md py-ui-sm text-product-reading',
             )}
           >
             {message.content}
@@ -242,11 +247,11 @@ export function ChatMessage({
         </div>
         <div
           className={cn(
-            'flex shrink-0 items-center justify-center border border-primary/25 bg-primary/10',
-            compact ? 'h-6 w-6 rounded-md' : 'h-8 w-8 rounded-full',
+            'flex shrink-0 items-center justify-center rounded-control border border-primary/25 bg-primary/[0.08]',
+            compact ? 'h-control-xs w-control-xs' : 'h-control-segment w-control-segment',
           )}
         >
-          <User className={cn('text-primary-light', compact ? 'h-3 w-3' : 'h-4 w-4')} />
+          <User className={cn('text-primary-light', compact ? 'h-icon-sm w-icon-sm' : 'h-icon w-icon')} />
         </div>
       </div>
     )
@@ -265,30 +270,27 @@ export function ChatMessage({
   }
 
   return (
-    <div className={cn('flex flex-col', compact ? 'gap-1' : 'gap-1.5')}>
-      <div className={cn('flex justify-start overflow-hidden', compact ? 'gap-2' : 'gap-3')}>
-        <div className={cn('flex shrink-0 flex-col items-center', compact ? 'w-6 gap-1' : 'w-14 gap-1.5')}>
+    <div className={cn('flex flex-col', compact ? 'gap-ui-xs' : 'gap-ui-sm')}>
+      <div className={cn('flex justify-start overflow-hidden', compact ? 'gap-ui-sm' : 'gap-ui-md')}>
+        <div className={cn('flex shrink-0 flex-col items-center', compact ? 'w-conversation-rail-compact gap-ui-xs' : 'w-conversation-rail gap-ui-sm')}>
           <div
             className={cn(
-              'flex shrink-0 items-center justify-center border border-border bg-surface',
-              compact ? 'h-6 w-6 rounded-md' : 'h-8 w-8 rounded-full',
+              'flex shrink-0 items-center justify-center rounded-control border border-border bg-control',
+              compact ? 'h-control-xs w-control-xs' : 'h-control-segment w-control-segment',
             )}
           >
-            <AssistantIcon className={cn('text-primary-light', compact ? 'h-3 w-3' : 'h-4 w-4')} />
+            <AssistantIcon className={cn('text-primary-light', compact ? 'h-icon-sm w-icon-sm' : 'h-icon w-icon')} />
           </div>
           {!compact && agentName && (
-            <span
-              className="w-full truncate text-center text-[10px] leading-tight text-muted"
-              title={agentName}
-            >
+            <span className="w-full truncate text-center font-mono text-system-label text-muted-foreground" title={agentName}>
               {agentName}
             </span>
           )}
         </div>
 
-        <div className={cn('min-w-0 space-y-1.5', compact ? 'flex-1' : 'max-w-[80%]')}>
+        <div className={cn('min-w-0 space-y-ui-sm', compact ? 'flex-1' : 'max-w-conversation')}>
           {compact && agentName && (
-            <p className="truncate text-[8px] font-medium text-muted" title={agentName}>
+            <p className="truncate font-mono text-system-meta text-muted-foreground" title={agentName}>
               {agentName}
             </p>
           )}
@@ -300,13 +302,13 @@ export function ChatMessage({
       </div>
 
       {message.tool_calls && message.tool_calls.length > 0 && (
-        <div className={cn('space-y-1.5', compact ? 'pl-8' : 'pl-16')}>
+        <div className={cn('space-y-ui-sm', compact ? 'pl-conversation-indent-compact' : 'pl-conversation-indent')}>
           <ToolCallsCollapsible toolCalls={message.tool_calls} variant={variant} />
         </div>
       )}
 
       {message.sources && message.sources.length > 0 && (
-        <div className={cn('space-y-1.5', compact ? 'pl-8' : 'pl-16')}>
+        <div className={cn('space-y-ui-sm', compact ? 'pl-conversation-indent-compact' : 'pl-conversation-indent')}>
           <SourcesCollapsible sources={message.sources} variant={variant} />
         </div>
       )}
@@ -314,28 +316,23 @@ export function ChatMessage({
       {details}
 
       {!isStreaming && (
-        <div className={cn('space-y-1.5', compact ? 'pl-8' : 'pl-16')}>
+        <div className={cn('space-y-ui-sm', compact ? 'pl-conversation-indent-compact' : 'pl-conversation-indent')}>
           {message.output_parse_error && (
             <div
               className={cn(
-                'flex items-start gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 leading-relaxed text-amber-200',
-                compact ? 'px-2 py-1.5 text-[9px]' : 'px-2.5 py-1.5 text-[11px]',
+                'flex items-start gap-ui-sm border border-amber-500/25 bg-amber-500/[0.07] text-amber-200',
+                compact ? 'rounded-control px-ui-sm py-ui-xs font-sans text-product-caption' : 'rounded-container px-ui-sm py-ui-sm font-sans text-product-small',
               )}
             >
-              <AlertCircle className={cn('mt-0.5 shrink-0', compact ? 'h-3 w-3' : 'h-3.5 w-3.5')} />
+              <AlertCircle className={cn('mt-ui-hairline shrink-0', compact ? 'h-icon-sm w-icon-sm' : 'h-icon w-icon')} />
               <span>{message.output_parse_error}</span>
             </div>
           )}
 
-          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
-            <div
-              className={cn(
-                'flex min-w-0 flex-wrap items-center text-muted',
-                compact ? 'gap-x-2 gap-y-1 text-[9px]' : 'gap-3 text-[11px]',
-              )}
-            >
+          <div className="flex flex-wrap items-center justify-between gap-x-ui-md gap-y-ui-xs">
+            <div className={cn('flex min-w-0 flex-wrap items-center font-mono text-muted-foreground', compact ? 'gap-x-ui-sm gap-y-ui-xs text-system-meta' : 'gap-x-ui-sm gap-y-ui-xs text-system-nano')}>
               {message.model && (
-                <span className="break-all">
+                <span className={cn('break-all', !compact && 'text-muted-foreground/70')}>
                   {message.provider ? `${message.provider}/` : ''}{message.model}
                 </span>
               )}
@@ -346,41 +343,32 @@ export function ChatMessage({
                 </span>
               )}
               {message.trace_id && (
-                <span className="font-mono">trace {message.trace_id.slice(0, 8)}…</span>
+                <span className={compact ? undefined : 'text-muted-foreground/70'}>trace {message.trace_id.slice(0, 8)}…</span>
               )}
-              {footerMeta}
+              {footerMeta ? <span>{footerMeta}</span> : null}
             </div>
 
-            <div className="flex shrink-0 items-center gap-1">
-              <button
+            <div className="flex shrink-0 items-center gap-ui-xs">
+              <Button
                 type="button"
+                variant="ghost"
+                size={compact ? 'xs' : 'iconXs'}
                 onClick={() => void copyResponse()}
-                className={cn(
-                  'inline-flex h-6 items-center justify-center gap-1 rounded-md border border-transparent text-muted transition-colors hover:border-border/80 hover:bg-background/70 hover:text-white',
-                  compact ? 'px-1.5 text-[9px]' : 'w-6',
-                )}
+                className="text-muted-foreground"
                 title={copied ? 'Copied' : 'Copy response'}
               >
-                {copied ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                {copied ? <Check className="h-icon-sm w-icon-sm" /> : <Copy className="h-icon-sm w-icon-sm" />}
                 {compact && <span>{copied ? 'Copied' : 'Copy response'}</span>}
-              </button>
+              </Button>
               {footerActions}
               {!compact && (
                 <>
-                  <button
-                    type="button"
-                    className="flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:border-emerald-500/30 hover:bg-emerald-500/10 hover:text-emerald-300"
-                    title="Good response"
-                  >
-                    <ThumbsUp className="h-3 w-3" />
-                  </button>
-                  <button
-                    type="button"
-                    className="flex h-6 w-6 items-center justify-center rounded-md border border-transparent text-muted transition-colors hover:border-red-500/30 hover:bg-red-500/10 hover:text-red-300"
-                    title="Bad response"
-                  >
-                    <ThumbsDown className="h-3 w-3" />
-                  </button>
+                  <Button type="button" variant="ghost" size="iconXs" className="text-muted-foreground hover:border-emerald-500/30 hover:bg-emerald-500/[0.07] hover:text-emerald-300" title="Good response">
+                    <ThumbsUp className="h-icon-sm w-icon-sm" />
+                  </Button>
+                  <Button type="button" variant="ghost" size="iconXs" className="text-muted-foreground hover:border-red-500/30 hover:bg-red-500/[0.07] hover:text-red-300" title="Bad response">
+                    <ThumbsDown className="h-icon-sm w-icon-sm" />
+                  </Button>
                 </>
               )}
             </div>

@@ -1,6 +1,5 @@
 import { createElement, type ReactNode } from 'react'
-
-import { cn } from '@/lib/utils'
+import { MathSurface } from '@woobe/ui'
 
 interface MathExpressionProps {
   expression: string
@@ -397,33 +396,14 @@ export function MathExpression({ expression, display = false, className }: MathE
     {
       'aria-label': expression,
       display: display ? 'block' : 'inline',
-      className: cn('max-w-full font-serif text-white', display ? 'min-w-max text-[1.08em]' : 'text-[1.05em]'),
+      className: 'max-w-full',
     },
     renderMath(expression),
   )
 
-  if (display) {
-    return (
-      <div
-        className={cn(
-          'my-3 max-w-full overflow-x-auto rounded-lg border border-border/80 bg-background/45 px-3 py-2.5 text-center',
-          className,
-        )}
-        data-math-display="true"
-        title={expression}
-      >
-        {math}
-      </div>
-    )
-  }
-
   return (
-    <span
-      className={cn('mx-0.5 inline-flex max-w-full align-middle', className)}
-      data-math-inline="true"
-      title={expression}
-    >
+    <MathSurface display={display} className={className} title={expression}>
       {math}
-    </span>
+    </MathSurface>
   )
 }

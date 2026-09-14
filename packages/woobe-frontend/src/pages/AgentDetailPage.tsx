@@ -1,145 +1,41 @@
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import type { ReactNode } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ExternalLink, Key, Pencil, Play } from 'lucide-react'
+import { CodePanel, SectionBlock } from '@woobe/ui'
 import { useAgent } from '@/features/agents/hooks'
 import { PageHeader } from '@/components/common/PageHeader'
 import { LoadingState } from '@/components/common/LoadingState'
 import { ErrorState } from '@/components/common/ErrorState'
 import { Tabs } from '@/components/ui/Tabs'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { AgentBehaviorDetails } from '@/features/agents/components/AgentBehaviorDetails'
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { CopyButton } from '@/components/common/CopyButton'
-import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
-import { ScrollArea } from '@/components/ui/ScrollArea'
 import { workspaceProjectPath } from '@/lib/constants/routes'
-import { Play, Key, ExternalLink, Pencil } from 'lucide-react'
+
+function DetailRow({ label, value }: { label: string; value: ReactNode }) {
+  return <div className="flex items-center justify-between gap-4 border-b border-border py-2 last:border-b-0"><span className="font-mono text-[9px] uppercase tracking-[0.12em] text-muted">{label}</span><span className="min-w-0 text-right font-sans text-xs text-slate-200">{value}</span></div>
+}
 
 export default function AgentDetailPage() {
   const { workspaceId, projectId, agentId } = useParams<{ workspaceId?: string; projectId: string; agentId: string }>()
   const navigate = useNavigate()
   const { data: agent, isLoading, isError, error, refetch } = useAgent(agentId)
-
   const p = (projId: string, ...segments: string[]) => workspaceProjectPath(workspaceId, projId, ...segments)
 
   const tabs = [
-    {
-      id: 'general',
-      label: 'General',
-      content: agent ? (
-        <div className="space-y-4">
-          <Card>
-            <CardHeader><CardTitle>Agent Details</CardTitle></CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex justify-between"><span className="text-muted text-sm">Name</span><span className="text-sm">{agent.name}</span></div>
-              <div className="flex justify-between"><span className="text-muted text-sm">Description</span><span className="text-sm">{agent.description || '—'}</span></div>
-              <div className="flex justify-between"><span className="text-muted text-sm">Status</span><StatusBadge status={agent.status} /></div>
-              <div className="flex justify-between"><span className="text-muted text-sm">Session Mode</span><span className="text-sm">{agent.session_mode || 'stateful'}</span></div>
-            </CardContent>
-          </Card>
-        </div>
-      ) : null,
-    },
-    {
-      id: 'behavior',
-      label: 'Behavior',
-      content: agent ? (
-        <AgentBehaviorDetails behavior={agent.behavior_spec} legacyPrompt={agent.system_prompt} />
-      ) : null,
-    },
-    {
-      id: 'model',
-      label: 'Model',
-      content: agent ? (
-        <Card>
-          <CardHeader><CardTitle>Model Configuration</CardTitle></CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between"><span className="text-muted text-sm">Provider</span><span className="text-sm">{agent.provider}</span></div>
-            <div className="flex justify-between"><span className="text-muted text-sm">Model</span><span className="text-sm">{agent.model}</span></div>
-            <div className="flex justify-between"><span className="text-muted text-sm">Temperature</span><span className="text-sm">{agent.temperature ?? '—'}</span></div>
-            <div className="flex justify-between"><span className="text-muted text-sm">Max Output Tokens</span><span className="text-sm">{agent.max_output_tokens ?? '—'}</span></div>
-          </CardContent>
-        </Card>
-      ) : null,
-    },
-    {
-      id: 'api',
-      label: 'API',
-      content: agent ? (
-        <Card>
-          <CardHeader><CardTitle>API Reference</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-muted mb-1">Agent ID</p>
-              <div className="flex items-center gap-2 rounded-lg border border-border bg-background p-3">
-                <code className="text-sm flex-1">{agent.id}</code>
-                <CopyButton text={agent.id} />
-              </div>
-            </div>
-            <div>
-              <p className="text-sm text-muted mb-1">Endpoint</p>
-              <div className="flex items-center gap-2 rounded-lg border border-border bg-background p-3">
-                <code className="text-sm flex-1">POST /runtime/ask</code>
-                <CopyButton text="POST /runtime/ask" />
-              </div>
-            </div>
-            <div>
-              <p className="text-sm text-muted mb-1">cURL example</p>
-              <ScrollArea orientation="horizontal" className="rounded-lg border border-border bg-background">
-                <pre className="p-4 text-xs">
-{`curl -X POST http://localhost:8000/runtime/ask \\
+    { id: 'general', label: 'General', content: agent ? <SectionBlock title="Agent Details" density="compact"><DetailRow label="Name" value={agent.name} /><DetailRow label="Description" value={agent.description || '—'} /><DetailRow label="Status" value={<StatusBadge status={agent.status} />} /><DetailRow label="Session mode" value={agent.session_mode || 'stateful'} /></SectionBlock> : null },
+    { id: 'behavior', label: 'Behavior', content: agent ? <AgentBehaviorDetails behavior={agent.behavior_spec} legacyPrompt={agent.system_prompt} /> : null },
+    { id: 'model', label: 'Model', content: agent ? <SectionBlock title="Model Configuration" density="compact"><DetailRow label="Provider" value={<code className="font-mono text-[10px]">{agent.provider}</code>} /><DetailRow label="Model" value={<code className="font-mono text-[10px]">{agent.model}</code>} /><DetailRow label="Temperature" value={agent.temperature ?? '—'} /><DetailRow label="Max output tokens" value={agent.max_output_tokens ?? '—'} /></SectionBlock> : null },
+    { id: 'api', label: 'API', content: agent ? <div className="space-y-3"><SectionBlock title="Runtime endpoint" density="compact"><DetailRow label="Agent ID" value={<span className="inline-flex items-center gap-1.5"><code className="font-mono text-[10px]">{agent.id}</code><CopyButton text={agent.id} iconOnly /></span>} /><DetailRow label="Endpoint" value={<span className="inline-flex items-center gap-1.5"><code className="font-mono text-[10px]">POST /runtime/ask</code><CopyButton text="POST /runtime/ask" iconOnly /></span>} /></SectionBlock><CodePanel title="cURL example" density="compact" actions={<CopyButton text={`curl -X POST http://localhost:8000/runtime/ask -H "Authorization: Bearer <API_KEY>" -H "Content-Type: application/json" -d '{"session_id": "<session_id>", "content": "Hello, agent!"}'`} iconOnly />}><pre className="overflow-x-auto p-3 font-mono text-[10px] leading-5 text-slate-300">{`curl -X POST http://localhost:8000/runtime/ask \\
   -H "Authorization: Bearer <API_KEY>" \\
   -H "Content-Type: application/json" \\
-  -d '{
-  "session_id": "<session_id>",
-  "content": "Hello, agent!"
-}'`}
-                </pre>
-              </ScrollArea>
-              <CopyButton text={`curl -X POST http://localhost:8000/runtime/ask -H "Authorization: Bearer <API_KEY>" -H "Content-Type: application/json" -d '{"session_id": "<session_id>", "content": "Hello, agent!"}'`} />
-            </div>
-            <Link to={p(projectId!, 'api-keys')} className="inline-flex items-center gap-2 text-sm text-primary hover:underline">
-              <Key className="h-4 w-4" />
-              Manage API Keys
-            </Link>
-          </CardContent>
-        </Card>
-      ) : null,
-    },
+  -d '{\n  "session_id": "<session_id>",\n  "content": "Hello, agent!"\n}'`}</pre></CodePanel><Link to={p(projectId!, 'api-keys')} className="inline-flex items-center gap-1.5 font-mono text-[10px] text-primary-light hover:underline"><Key className="h-3.5 w-3.5" />Manage API Keys</Link></div> : null },
   ]
 
   if (isLoading) return <LoadingState />
   if (isError) return <ErrorState error={error} onRetry={refetch} />
   if (!agent) return <ErrorState message="Agent not found" />
 
-  return (
-    <div>
-      <PageHeader
-        title={agent.name}
-        description={`${agent.provider} / ${agent.model}`}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))}
-            >
-              <Pencil className="mr-2 h-4 w-4" />
-              Edit
-            </Button>
-            <Button
-              size="lg"
-              onClick={() => navigate(p(projectId!, 'agents', agentId!, 'playground'))}
-            >
-              <Play className="mr-2 h-4 w-4" />
-              Open in Playground
-            </Button>
-            <Button variant="outline" onClick={() => navigate(p(projectId!, 'agents'))}>
-              <ExternalLink className="mr-2 h-4 w-4" />
-              Back to Agents
-            </Button>
-          </div>
-        }
-      />
-      <Tabs tabs={tabs} />
-    </div>
-  )
+  return <div><PageHeader title={agent.name} description={`${agent.provider} / ${agent.model}`} eyebrow="Build / Agent" actions={<div className="flex items-center gap-1.5"><Button variant="outline" size="sm" onClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))}><Pencil className="mr-1 h-3.5 w-3.5" />Edit</Button><Button size="sm" onClick={() => navigate(p(projectId!, 'agents', agentId!, 'playground'))}><Play className="mr-1 h-3.5 w-3.5" />Open Playground</Button><Button variant="outline" size="sm" onClick={() => navigate(p(projectId!, 'agents'))}><ExternalLink className="mr-1 h-3.5 w-3.5" />Agents</Button></div>} /><Tabs tabs={tabs} /></div>
 }

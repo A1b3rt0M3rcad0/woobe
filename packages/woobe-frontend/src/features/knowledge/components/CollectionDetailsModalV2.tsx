@@ -1,13 +1,28 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Cpu, Database, FileText, RefreshCw, Trash2, Upload } from 'lucide-react'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Badge,
+  Button,
+  Dialog,
+  DialogContextBar,
+  DialogFooter,
+  EmptyStatePanel,
+  Field,
+  FieldLabel,
+  Input,
+  MetricTile,
+  SectionBlock,
+  Skeleton,
+  Tabs,
+  TechnicalListItem,
+  Textarea,
+} from '@woobe/ui'
 import { toast } from 'sonner'
-import { LoadingState } from '@/components/common/LoadingState'
+
 import { StatusBadge } from '@/components/common/StatusBadge'
-import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
-import { Tabs } from '@/components/ui/Tabs'
-import { Textarea } from '@/components/ui/Textarea'
 import { BuildVectorSnapshotModalV2 } from '@/features/knowledge/components/BuildVectorSnapshotModalV2'
 import { CollectionDocumentUploadModal } from '@/features/knowledge/components/CollectionDocumentUploadModal'
 import { VectorSnapshotDetailsModal } from '@/features/knowledge/components/VectorSnapshotDetailsModal'
@@ -36,10 +51,6 @@ function documentMeta(document: Document) {
 
 function numberLabel(value?: number | null) {
   return typeof value === 'number' ? value.toLocaleString() : '0'
-}
-
-function TechItem({ label, value, detail }: { label: string; value: string; detail?: string }) {
-  return <div className="rounded-xl border border-border/80 bg-background/60 p-4"><p className="text-[11px] uppercase tracking-wider text-muted">{label}</p><p className="mt-1 text-sm font-medium text-white">{value}</p>{detail && <p className="mt-1 text-xs text-muted">{detail}</p>}</div>
 }
 
 export function CollectionDetailsModal({ open, onClose, collection, projectId, onUseSnapshot }: CollectionDetailsModalProps) {
@@ -98,10 +109,7 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
   const save = async () => {
     if (!collection) return
     const nextName = name.trim()
-    if (!nextName) {
-      toast.error('Collection name is required')
-      return
-    }
+    if (!nextName) return void toast.error('Collection name is required')
     try {
       await updateCollection.mutateAsync({ id: collection.id, data: { name: nextName, description: description.trim() || null } })
       toast.success('Collection updated')
@@ -128,153 +136,288 @@ export function CollectionDetailsModal({ open, onClose, collection, projectId, o
   }
 
   const overviewTab = (
-    <div className="space-y-5">
-      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-        <h3 className="text-sm font-semibold text-white">Collection information</h3>
-        <p className="mt-1 text-xs text-muted">Edit the collection identity used across Knowledge.</p>
-        <div className="mt-4 space-y-4">
-          <div><label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">Name</label><Input value={name} onChange={(event) => setName(event.target.value)} /></div>
-          <div><label className="mb-1.5 block text-[11px] font-medium uppercase tracking-wider text-muted">Description</label><Textarea value={description} onChange={(event) => setDescription(event.target.value)} className="min-h-[120px]" /></div>
+    <div className="grid gap-ui-md pb-ui-xs">
+      <SectionBlock title="Collection information" description="Edit the Collection identity used across Knowledge." density="compact">
+        <div className="grid gap-ui-md">
+          <Field>
+            <FieldLabel>Name</FieldLabel>
+            <Input value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+          <Field>
+            <FieldLabel>Description</FieldLabel>
+            <Textarea value={description} onChange={(event) => setDescription(event.target.value)} />
+          </Field>
         </div>
-      </section>
+      </SectionBlock>
 
-      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-white">Documents</h3>
-            <p className="mt-1 text-xs leading-5 text-muted">{items.length} files · {indexedCount} ready · {formatBytes(totalSize)} total</p>
+      <SectionBlock
+        title="Documents"
+        description={`${items.length} files · ${indexedCount} ready · ${formatBytes(totalSize)} total`}
+        density="compact"
+        actions={(
+          <div className="flex gap-ui-sm">
+            <Button type="button" variant="outline" size="sm" onClick={refreshAll} disabled={isLoading}>
+              <RefreshCw className="h-icon w-icon" />Refresh
+            </Button>
+            <Button type="button" size="sm" onClick={() => setUploadModalOpen(true)}>
+              <Upload className="h-icon w-icon" />Upload
+            </Button>
           </div>
-          <div className="flex gap-2">
-            <Button type="button" variant="outline" size="sm" onClick={refreshAll} disabled={isLoading}><RefreshCw className="mr-2 h-3.5 w-3.5" />Refresh</Button>
-            <Button type="button" size="sm" onClick={() => setUploadModalOpen(true)}><Upload className="mr-2 h-3.5 w-3.5" />Upload</Button>
-          </div>
-        </div>
-
+        )}
+      >
         {isLoading ? (
-          <div className="rounded-xl border border-border/70 bg-background/60 p-8"><LoadingState message="Loading documents..." variant="inline" /></div>
-        ) : items.length === 0 ? (
-          <div className="flex min-h-[220px] flex-col items-center justify-center rounded-xl border border-dashed border-border/80 bg-background/50 p-6 text-center">
-            <FileText className="h-5 w-5 text-muted" />
-            <p className="mt-4 text-sm font-medium text-white">No documents in this collection.</p>
-            <p className="mt-2 max-w-sm text-sm leading-6 text-muted">Upload source material before building vectors.</p>
-            <Button type="button" onClick={() => setUploadModalOpen(true)} className="mt-5"><Upload className="mr-2 h-4 w-4" />Upload document</Button>
+          <div className="grid gap-ui-xs">
+            <Skeleton className="h-control-row w-full" />
+            <Skeleton className="h-control-row w-full" />
+            <Skeleton className="h-control-row w-full" />
           </div>
+        ) : items.length === 0 ? (
+          <EmptyStatePanel
+            icon={<FileText className="h-icon-lg w-icon-lg" />}
+            title="No documents in this Collection"
+            description="Upload source material before building vectors."
+            action={(
+              <Button type="button" size="sm" onClick={() => setUploadModalOpen(true)}>
+                <Upload className="h-icon w-icon" />Upload document
+              </Button>
+            )}
+          />
         ) : (
-          <div className="space-y-2">
+          <div className="grid gap-ui-xs">
             {items.map((document) => (
-              <div key={document.id} className="grid gap-3 rounded-lg border border-border/70 bg-background/55 p-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-                <div className="flex min-w-0 gap-3">
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border bg-surface text-primary-light"><FileText className="h-4 w-4" /></div>
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2"><p className="truncate text-sm font-medium text-white">{document.title}</p>{document.status && <StatusBadge status={document.status} />}</div>
-                    <p className="mt-1 truncate text-xs text-muted">{documentMeta(document)}</p>
-                    <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted"><span>Chunks: {document.chunk_count ?? 0}</span><span>Pages: {document.page_count ?? '-'}</span><span>Created: {document.created_at ? formatDate(document.created_at) : '-'}</span></div>
+              <TechnicalListItem
+                key={document.id}
+                label={document.title}
+                description={documentMeta(document)}
+                density="compact"
+                leading={(
+                  <span className="flex h-control-sm w-control-sm items-center justify-center rounded-control border border-border bg-control text-primary-light">
+                    <FileText className="h-icon w-icon" />
+                  </span>
+                )}
+                meta={(
+                  <>
+                    {document.status ? <StatusBadge status={document.status} size="compact" /> : null}
+                    <Badge variant="outline" size="compact">Chunks {document.chunk_count ?? 0}</Badge>
+                    <Badge variant="outline" size="compact">Pages {document.page_count ?? '-'}</Badge>
+                  </>
+                )}
+                trailing={(
+                  <div className="flex items-center gap-ui-sm">
+                    {document.created_at ? <span className="hidden font-mono text-system-meta text-muted-foreground lg:inline">{formatDate(document.created_at)}</span> : null}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="iconSm"
+                      disabled={deleteDocument.isPending}
+                      onClick={() => setDocumentToDelete(document)}
+                      aria-label={`Delete ${document.title}`}
+                    >
+                      <Trash2 className="h-icon w-icon text-error" />
+                    </Button>
                   </div>
-                </div>
-                <Button type="button" variant="ghost" size="icon" className="h-8 w-8 justify-self-end text-red-400 hover:text-red-300" disabled={deleteDocument.isPending} onClick={() => setDocumentToDelete(document)} aria-label={`Delete ${document.title}`}><Trash2 className="h-4 w-4" /></Button>
-              </div>
+                )}
+              />
             ))}
           </div>
         )}
-      </section>
+      </SectionBlock>
     </div>
   )
 
   const vectorsTab = (
-    <div className="space-y-5">
-      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-semibold text-white">Vector readiness</h3><StatusBadge status={overview?.rag_status || 'UNKNOWN'} /></div>
-            <p className="mt-1 text-xs text-muted">{vectorStatusDetail}</p>
-          </div>
-          <Button type="button" size="sm" onClick={() => setBuildModalOpen(true)} disabled={items.length === 0 || hasRunningBuild}><Cpu className="mr-2 h-3.5 w-3.5" />{buildButtonLabel}</Button>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-3">
-          <TechItem label="Latest snapshot" value={overview?.latest_ready_snapshot?.version || 'Not built'} detail={`${numberLabel(overview?.latest_ready_snapshot?.chunk_count)} chunks`} />
-          <TechItem label="Documents" value={`${overview?.documents.active ?? items.length} active`} detail={`${overview?.documents.ready ?? indexedCount} ready`} />
-          <TechItem label="Embedding" value={overview?.technology.embedding_model || 'Not selected'} />
-        </div>
-        {overview?.processing.has_running_job && <div className="mt-4 rounded-xl border border-primary/25 bg-primary/10 p-3 text-sm text-primary-light">Building vectors · {overview.processing.stage || 'QUEUED'} · {overview.processing.embedded_chunks}/{overview.processing.total_chunks || 0} chunks</div>}
-        {latestBuildFailed && (
-          <div className="mt-4 flex gap-3 rounded-xl border border-red-500/25 bg-red-500/10 p-3 text-red-200">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-            <div className="min-w-0">
-              <p className="text-sm font-medium">Vector build failed</p>
-              <p className="mt-1 break-words text-xs leading-5 text-red-200/85">{latestSnapshot?.error_message || 'The latest vector build failed.'}</p>
-              {latestSnapshot && <p className="mt-2 text-[11px] text-red-200/65">{latestSnapshot.embedding_provider} · {latestSnapshot.embedding_model} · {latestSnapshot.build_stage || 'FAILED'}</p>}
-            </div>
+    <div className="grid gap-ui-md pb-ui-xs">
+      <SectionBlock
+        title="Vector readiness"
+        description={vectorStatusDetail}
+        density="compact"
+        actions={(
+          <div className="flex items-center gap-ui-sm">
+            <StatusBadge status={overview?.rag_status || 'UNKNOWN'} size="compact" />
+            <Button type="button" size="sm" onClick={() => setBuildModalOpen(true)} disabled={items.length === 0 || hasRunningBuild}>
+              <Cpu className="h-icon w-icon" />{buildButtonLabel}
+            </Button>
           </div>
         )}
-      </section>
+      >
+        <div className="grid gap-ui-xs sm:grid-cols-3">
+          <MetricTile label="Latest snapshot" value={overview?.latest_ready_snapshot?.version || 'Not built'} detail={`${numberLabel(overview?.latest_ready_snapshot?.chunk_count)} chunks`} />
+          <MetricTile label="Documents" value={`${overview?.documents.active ?? items.length} active`} detail={`${overview?.documents.ready ?? indexedCount} ready`} />
+          <MetricTile label="Embedding" value={overview?.technology.embedding_model || 'Not selected'} />
+        </div>
 
-      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-        <h3 className="text-sm font-semibold text-white">Vector snapshots</h3>
-        <p className="mt-1 text-xs text-muted">{onUseSnapshot ? 'Choose a READY version to use in the Agent Draft.' : 'Immutable builds generated from this Collection.'}</p>
-        {vectorSnapshots.length === 0 ? (
-          <div className="mt-4 rounded-xl border border-dashed border-border bg-background/50 p-6 text-center text-sm text-muted">No vector snapshot built yet.</div>
-        ) : (
-          <div className="mt-4 space-y-2">
-            {vectorSnapshots.map((snapshot) => (
-              <div key={snapshot.id} className="grid gap-3 rounded-lg border border-border/70 bg-background/55 p-3 transition-colors hover:border-primary/30 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                <button type="button" onClick={() => setSnapshotToView(snapshot)} className="min-w-0 text-left">
-                  <div className="flex flex-wrap items-center gap-2"><p className="text-sm font-medium text-white">{snapshot.version}</p><StatusBadge status={snapshot.status} /></div>
-                  <p className="mt-1 text-xs text-muted">{snapshot.embedding_model} · {numberLabel(snapshot.chunk_count)} chunks · {numberLabel(snapshot.vector_count ?? snapshot.chunk_count)} vectors</p>
-                  {snapshot.status === 'FAILED' && snapshot.error_message && <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-red-300">{snapshot.error_message}</p>}
-                </button>
-                <div className="flex flex-wrap items-center justify-between gap-2 sm:justify-end">
-                  <p className="text-xs text-muted">{snapshot.completed_at ? formatDate(snapshot.completed_at) : snapshot.build_stage || 'Queued'}</p>
-                  {onUseSnapshot && snapshot.status === 'READY' && (
-                    <Button type="button" size="sm" onClick={() => void onUseSnapshot(snapshot)}>Use this version</Button>
-                  )}
-                </div>
+        {overview?.processing.has_running_job ? (
+          <Alert variant="info" className="mt-ui-md">
+            <AlertTitle>Building vectors</AlertTitle>
+            <AlertDescription>{overview.processing.stage || 'QUEUED'} · {overview.processing.embedded_chunks}/{overview.processing.total_chunks || 0} chunks</AlertDescription>
+          </Alert>
+        ) : null}
+
+        {latestBuildFailed ? (
+          <Alert variant="destructive" className="mt-ui-md">
+            <AlertTitle>Vector build failed</AlertTitle>
+            <AlertDescription>{latestSnapshot?.error_message || 'The latest vector build failed.'}</AlertDescription>
+            {latestSnapshot ? (
+              <div className="mt-ui-sm font-mono text-system-meta text-error/80">
+                {latestSnapshot.embedding_provider} · {latestSnapshot.embedding_model} · {latestSnapshot.build_stage || 'FAILED'}
               </div>
+            ) : null}
+          </Alert>
+        ) : null}
+      </SectionBlock>
+
+      <SectionBlock
+        title="Vector snapshots"
+        description={onUseSnapshot ? 'Choose a READY version to use in the Agent Draft.' : 'Immutable builds generated from this Collection.'}
+        density="compact"
+      >
+        {vectorSnapshots.length === 0 ? (
+          <EmptyStatePanel compact title="No vector snapshot built yet" description="Build vectors from the current Collection documents to create the first immutable snapshot." />
+        ) : (
+          <div className="grid gap-ui-xs">
+            {vectorSnapshots.map((snapshot) => (
+              <TechnicalListItem
+                key={snapshot.id}
+                label={snapshot.version}
+                description={`${snapshot.embedding_model} · ${numberLabel(snapshot.chunk_count)} chunks · ${numberLabel(snapshot.vector_count ?? snapshot.chunk_count)} vectors${snapshot.status === 'FAILED' && snapshot.error_message ? ` · ${snapshot.error_message}` : ''}`}
+                density="compact"
+                meta={<StatusBadge status={snapshot.status} size="compact" />}
+                trailing={(
+                  <div className="flex items-center gap-ui-sm">
+                    <span className="hidden font-mono text-system-meta text-muted-foreground md:inline">
+                      {snapshot.completed_at ? formatDate(snapshot.completed_at) : snapshot.build_stage || 'Queued'}
+                    </span>
+                    {onUseSnapshot && snapshot.status === 'READY' ? (
+                      <Button type="button" size="sm" onClick={(event) => { event.stopPropagation(); void onUseSnapshot(snapshot) }}>Use this version</Button>
+                    ) : null}
+                  </div>
+                )}
+                onClick={() => setSnapshotToView(snapshot)}
+              />
             ))}
           </div>
         )}
-      </section>
+      </SectionBlock>
     </div>
   )
 
   const technologyTab = (
-    <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-      <h3 className="text-sm font-semibold text-white">Technology</h3>
-      <p className="mt-1 text-xs text-muted">Configuration captured by the latest vector snapshot.</p>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <TechItem label="Embedding" value={overview?.technology.embedding_model || 'Not selected'} detail={overview?.technology.embedding_provider || 'Managed in Knowledge > Embedding'} />
-        <TechItem label="Chunking" value={overview?.technology.chunking_strategy || 'Not configured'} detail={overview?.technology.chunk_size ? `${overview.technology.chunk_size} size · ${overview.technology.chunk_overlap ?? 0} overlap` : undefined} />
-        <TechItem label="Vector store" value={overview?.technology.vector_store || 'pgvector'} detail={overview?.technology.distance_metric || 'cosine'} />
+    <SectionBlock title="Technology" description="Configuration captured by the latest vector snapshot." density="compact">
+      <div className="grid gap-ui-xs sm:grid-cols-2">
+        <TechnicalListItem density="compact" label="Embedding" description={overview?.technology.embedding_model || 'Not selected'} meta={overview?.technology.embedding_provider || 'Managed in Knowledge > Embedding'} />
+        <TechnicalListItem
+          density="compact"
+          label="Chunking"
+          description={overview?.technology.chunking_strategy || 'Not configured'}
+          meta={overview?.technology.chunk_size ? `${overview.technology.chunk_size} size · ${overview.technology.chunk_overlap ?? 0} overlap` : undefined}
+        />
+        <TechnicalListItem density="compact" label="Vector store" description={overview?.technology.vector_store || 'pgvector'} meta={overview?.technology.distance_metric || 'cosine'} />
       </div>
-    </section>
+    </SectionBlock>
   )
 
   return (
     <>
-      <Dialog open={open && Boolean(collection)} onClose={close} title="Collection details" className="max-h-[calc(100svh-2rem)] max-w-5xl overflow-hidden">
-        {collection && (
-          <div className="max-h-[calc(100svh-8rem)] overflow-y-auto pr-1">
-            <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)]">
-              <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
-                <div className="rounded-xl border border-border/90 bg-background/60 p-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-border bg-surface text-primary-light"><Database className="h-5 w-5" /></div>
-                  <div className="mt-4 flex items-start justify-between gap-3"><h3 className="truncate text-base font-semibold text-white">{collection.name}</h3>{collection.status && <StatusBadge status={collection.status} />}</div>
-                  <p className="mt-2 line-clamp-4 text-sm leading-6 text-muted">{collection.description || 'No description provided'}</p>
-                  <div className="mt-4 flex flex-wrap gap-2 text-xs"><span className="rounded-full border border-primary/30 bg-primary/10 px-2.5 py-1 text-primary-light">{items.length} documents</span><span className="rounded-full border border-border/80 bg-background/70 px-2.5 py-1 text-muted">{indexedCount} ready</span><span className="rounded-full border border-border/80 bg-background/70 px-2.5 py-1 text-muted">{formatBytes(totalSize)}</span></div>
-                </div>
-              </aside>
-              <main><Tabs defaultTab="overview" tabs={[{ id: 'overview', label: 'Overview', content: overviewTab }, { id: 'vectors', label: 'Vectors', content: vectorsTab }, { id: 'technology', label: 'Technology', content: technologyTab }]} /></main>
-            </div>
-            <div className="sticky bottom-0 -mx-1 mt-6 flex flex-col-reverse gap-2 border-t border-border bg-surface/95 px-1 py-4 backdrop-blur sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={close} disabled={updateCollection.isPending || deleteDocument.isPending}>Close</Button><Button type="button" onClick={save} loading={updateCollection.isPending} disabled={!hasChanges}>Save changes</Button></div>
+      <Dialog
+        open={open && Boolean(collection)}
+        onClose={close}
+        title="Collection details"
+        variant="workspace"
+      >
+        {collection ? (
+          <div className="flex h-full min-h-0 flex-col">
+            <DialogContextBar>
+              <TechnicalListItem
+                label={collection.name}
+                description={collection.description || 'No description provided'}
+                density="compact"
+                leading={(
+                  <span className="flex h-control-nav w-control-nav items-center justify-center rounded-control border border-primary/25 bg-primary/[0.08] text-primary-light">
+                    <Database className="h-icon w-icon" />
+                  </span>
+                )}
+                meta={(
+                  <>
+                    {collection.status ? <StatusBadge status={collection.status} size="compact" /> : null}
+                    <Badge variant="outline" size="compact">{items.length} documents</Badge>
+                    <Badge variant="outline" size="compact">{indexedCount} ready</Badge>
+                    <Badge variant="outline" size="compact">{formatBytes(totalSize)}</Badge>
+                  </>
+                )}
+              />
+            </DialogContextBar>
+
+            <main className="min-h-0 min-w-0 flex-1 p-ui-lg">
+              <Tabs
+                defaultTab="overview"
+                className="flex h-full min-h-0 flex-col"
+                contentClassName="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain pr-ui-xs"
+                tabs={[
+                  { id: 'overview', label: 'Overview', content: overviewTab },
+                  { id: 'vectors', label: 'Vectors', content: vectorsTab },
+                  { id: 'technology', label: 'Technology', content: technologyTab },
+                ]}
+              />
+            </main>
+
+            <DialogFooter
+              meta={(
+                <p className="font-mono text-system-meta text-muted-foreground">
+                  {hasChanges ? 'Unsaved Collection changes' : `${items.length} documents · ${indexedCount} ready · ${formatBytes(totalSize)}`}
+                </p>
+              )}
+              actions={(
+                <>
+                  <Button type="button" variant="outline" onClick={close} disabled={updateCollection.isPending || deleteDocument.isPending}>Close</Button>
+                  <Button type="button" onClick={save} loading={updateCollection.isPending} disabled={!hasChanges}>Save changes</Button>
+                </>
+              )}
+            />
           </div>
-        )}
+        ) : null}
       </Dialog>
 
-      <CollectionDocumentUploadModal open={uploadModalOpen} projectId={projectId} collection={collection ? { id: collection.id, name: collection.name } : null} onClose={() => setUploadModalOpen(false)} onUploaded={handleUploaded} />
-      <BuildVectorSnapshotModalV2 open={buildModalOpen} projectId={projectId} collection={collection ? { id: collection.id, name: collection.name } : null} onClose={() => setBuildModalOpen(false)} onCreated={() => { setBuildModalOpen(false); refreshAll() }} />
+      <CollectionDocumentUploadModal
+        open={uploadModalOpen}
+        projectId={projectId}
+        collection={collection ? { id: collection.id, name: collection.name } : null}
+        onClose={() => setUploadModalOpen(false)}
+        onUploaded={handleUploaded}
+      />
+      <BuildVectorSnapshotModalV2
+        open={buildModalOpen}
+        projectId={projectId}
+        collection={collection ? { id: collection.id, name: collection.name } : null}
+        onClose={() => setBuildModalOpen(false)}
+        onCreated={() => { setBuildModalOpen(false); refreshAll() }}
+      />
       <VectorSnapshotDetailsModal snapshot={snapshotToView} onClose={() => setSnapshotToView(null)} />
 
-      <Dialog open={Boolean(documentToDelete)} onClose={() => !deleteDocument.isPending && setDocumentToDelete(null)} title="Delete document" className="max-w-[460px]">
-        {documentToDelete && <div className="space-y-5"><div className="flex gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-red-500/20 bg-red-500/10 text-red-400"><AlertTriangle className="h-5 w-5" /></div><div><p className="text-sm font-medium text-white">Remove this document?</p><p className="text-sm leading-6 text-muted">This action deletes the document record, stored file and generated chunks. It cannot be undone.</p></div></div><div className="rounded-xl border border-border bg-background/70 p-3"><p className="truncate text-sm font-medium text-white">{documentToDelete.title}</p><p className="mt-1 truncate text-xs text-muted">{documentMeta(documentToDelete)}</p></div><div className="flex flex-col-reverse gap-2 border-t border-border pt-4 sm:flex-row sm:justify-end"><Button type="button" variant="outline" onClick={() => setDocumentToDelete(null)} disabled={deleteDocument.isPending}>Cancel</Button><Button type="button" variant="destructive" loading={deleteDocument.isPending} onClick={confirmDelete}>Delete document</Button></div></div>}
+      <Dialog
+        open={Boolean(documentToDelete)}
+        onClose={() => !deleteDocument.isPending && setDocumentToDelete(null)}
+        title="Delete document"
+        className="max-w-dialog-compact"
+        layer="nestedModal"
+      >
+        {documentToDelete ? (
+          <div className="grid gap-ui-md">
+            <Alert variant="destructive">
+              <div className="flex items-start gap-ui-sm">
+                <AlertTriangle className="mt-ui-hairline h-icon w-icon shrink-0" />
+                <div>
+                  <AlertTitle>Remove this document?</AlertTitle>
+                  <AlertDescription>This action deletes the document record, stored file and generated chunks. It cannot be undone.</AlertDescription>
+                </div>
+              </div>
+            </Alert>
+            <TechnicalListItem density="compact" label={documentToDelete.title} description={documentMeta(documentToDelete)} />
+            <div className="flex flex-col-reverse gap-ui-sm border-t border-border pt-ui-md sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={() => setDocumentToDelete(null)} disabled={deleteDocument.isPending}>Cancel</Button>
+              <Button type="button" variant="destructive" loading={deleteDocument.isPending} onClick={confirmDelete}>Delete document</Button>
+            </div>
+          </div>
+        ) : null}
       </Dialog>
     </>
   )

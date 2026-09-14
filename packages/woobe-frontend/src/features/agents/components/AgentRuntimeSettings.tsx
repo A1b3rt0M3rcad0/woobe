@@ -1,4 +1,5 @@
 import { ServerCog } from 'lucide-react'
+import { PanelHeader } from '@woobe/ui'
 
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { AgentContextAssemblerField } from './AgentContextAssemblerField'
@@ -9,28 +10,14 @@ export function AgentRuntimeSettings({ projectId }: { projectId: string }) {
   const sessionLabel = state.sessionMode === 'stateless' ? 'Stateless' : 'Stateful'
 
   return (
-    <div className="p-4">
-      <section aria-label="Runtime" className="rounded-xl border border-border bg-surface">
-        <div className="flex items-center gap-3 p-4">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light">
-            <ServerCog className="h-4 w-4" />
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block text-sm font-semibold text-foreground">Runtime</span>
-            <span className="mt-0.5 block text-[11px] text-muted">Context Manager · {sessionLabel}</span>
-          </span>
-        </div>
+    <div className="p-ui-md">
+      <section aria-label="Runtime" className="rounded-container border border-border bg-surface/[0.72]">
+        <PanelHeader icon={<ServerCog className="h-3.5 w-3.5" />} title="Runtime" description={`Context Manager · ${sessionLabel}`} />
 
-        <div className="space-y-5 border-t border-border p-4">
-          <p className="text-xs leading-5 text-muted">
-            Configure how this Agent assembles context and whether Session continuity is preserved between Runs.
-          </p>
-
-          <AgentContextAssemblerField projectId={projectId} compact />
-
-          <div className="border-t border-border/80 pt-5">
-            <AgentSessionModeField compact />
-          </div>
+        <div className="space-y-ui-lg p-ui-md">
+          <p className="font-sans text-product-caption text-muted-foreground">Configure how this Agent assembles context and whether Session continuity is preserved between Runs.</p>
+          <div className="rounded-container border border-border bg-background/20 p-ui-md"><AgentContextAssemblerField projectId={projectId} compact /></div>
+          <div className="rounded-container border border-border bg-background/20 p-ui-md"><AgentSessionModeField compact /></div>
         </div>
       </section>
     </div>

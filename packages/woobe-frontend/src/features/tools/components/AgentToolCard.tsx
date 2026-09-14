@@ -59,17 +59,17 @@ function ToolStatusToggle({ active, loading, onClick }: { active: boolean; loadi
 function ActionsMenu({ canEdit, editLabel, onEdit, onRemove }: { canEdit: boolean; editLabel: string; onEdit?: () => void; onRemove: () => void }) {
   return (
     <details className="relative">
-      <summary className="flex h-8 cursor-pointer list-none items-center justify-center rounded-md text-[11px] text-primary-light transition-colors hover:bg-accent [&::-webkit-details-marker]:hidden" aria-label="Tool actions">
+      <summary className="flex h-control-segment cursor-pointer list-none items-center justify-center rounded-control px-ui-sm font-mono text-system-meta text-primary-light transition-colors hover:bg-accent [&::-webkit-details-marker]:hidden" aria-label="Tool actions">
         More actions
       </summary>
-      <div className="absolute right-0 top-9 z-30 min-w-40 rounded-lg border border-border bg-surface p-1 shadow-xl">
+      <div className="absolute right-0 top-8 z-popover min-w-40 rounded-container border border-border bg-surface p-ui-xs shadow-popup">
         {canEdit && onEdit ? (
-          <button type="button" onClick={onEdit} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-white hover:bg-accent">
+          <button type="button" onClick={onEdit} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-slate-100 hover:bg-accent">
             <Pencil className="h-3.5 w-3.5" />
             {editLabel}
           </button>
         ) : null}
-        <button type="button" onClick={onRemove} className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-xs text-red-200 hover:bg-red-500/10">
+        <button type="button" onClick={onRemove} className="flex w-full items-center gap-ui-sm rounded-control px-ui-sm py-ui-sm text-left font-sans text-system-label text-red-200 hover:bg-red-500/10">
           <Trash2 className="h-3.5 w-3.5" />
           Remove from Agent
         </button>
@@ -98,60 +98,42 @@ export function AgentToolCard({
   const showReadOnlyStatus = context === 'playground' && !onToggleActive
 
   const actions = <ActionsMenu canEdit={!isRetired && isHttpProvider} editLabel={context === 'playground' ? 'Edit Project Tool' : 'Edit Tool'} onEdit={onEdit} onRemove={onRemove} />
-  const riskNotice = showRisk ? <div className="mt-2 flex items-center gap-1.5 pl-12 text-[11px] text-amber-200"><AlertTriangle className="h-3 w-3" />{risk} risk</div> : null
+  const riskNotice = showRisk ? <div className="mt-ui-sm flex items-center gap-ui-xs pl-ui-lg font-sans text-product-small text-amber-200"><AlertTriangle className="h-3 w-3" />{risk} risk</div> : null
 
   return (
     <article className={cn(
-      'rounded-lg border border-border bg-background/35 p-3 transition-colors',
+      'rounded-container border border-border bg-background/35 p-ui-md transition-colors',
       isRetired ? 'bg-amber-500/5' : isActive ? '' : 'opacity-75',
     )}>
-      <div className="flex items-center gap-2.5">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light">
-          {isHttpProvider ? <Globe2 className="h-4 w-4" /> : isMcp ? <PlugZap className="h-4 w-4" /> : <Wrench className="h-4 w-4" />}
+      <div className="flex items-center gap-ui-sm">
+        <span className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control border border-primary/20 bg-primary/10 text-primary-light">
+          {isHttpProvider ? <Globe2 className="h-3.5 w-3.5" /> : isMcp ? <PlugZap className="h-3.5 w-3.5" /> : <Wrench className="h-3.5 w-3.5" />}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-2">
-            <h3 title={tool.name} className="truncate text-sm font-semibold text-foreground">{tool.name}</h3>
+          <div className="flex min-w-0 items-center gap-ui-sm">
+            <h3 title={tool.name} className="truncate font-mono text-system-label font-semibold text-slate-100">{tool.name}</h3>
             {isRetired ? (
-              <span className="shrink-0 text-[9px] text-amber-200">Retired</span>
+              <span className="shrink-0 font-mono text-system-meta text-amber-200">Retired</span>
             ) : showReadOnlyStatus ? (
-              <span className="shrink-0 text-[9px] capitalize text-muted">{tool.status}</span>
+              <span className="shrink-0 font-mono text-system-meta capitalize text-muted-foreground">{tool.status}</span>
             ) : null}
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
+        <div className="flex shrink-0 items-center gap-ui-xs">
           {context === 'playground' && !isRetired && onToggleActive ? <ToolStatusToggle active={isActive} loading={statusLoading} onClick={onToggleActive} /> : null}
-
         </div>
       </div>
 
       {isMcp ? (
-        <McpProviderPanel
-          tool={tool}
-          footerActions={actions}
-          summaryNote={riskNotice}
-          onChanged={onChanged}
-          permissionOverrides={permissionOverrides}
-          onPermissionOverridesChange={onPermissionOverridesChange}
-        />
+        <McpProviderPanel tool={tool} footerActions={actions} summaryNote={riskNotice} onChanged={onChanged} permissionOverrides={permissionOverrides} onPermissionOverridesChange={onPermissionOverridesChange} />
       ) : null}
 
       {isHttpProvider ? (
-        <HttpProviderPanel
-          tool={tool}
-          footerActions={actions}
-          summaryNote={riskNotice}
-          permissionOverrides={permissionOverrides}
-          onPermissionOverridesChange={onPermissionOverridesChange}
-        />
+        <HttpProviderPanel tool={tool} footerActions={actions} summaryNote={riskNotice} permissionOverrides={permissionOverrides} onPermissionOverridesChange={onPermissionOverridesChange} />
       ) : null}
 
-      {!isMcp && !isHttpProvider ? (
-        <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-muted">{tool.description || 'HTTP Tool'}</p>
-      ) : null}
-
-      {!isMcp && !isHttpProvider ? <>{riskNotice}<div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3">{actions}</div></> : null}
-
+      {!isMcp && !isHttpProvider ? <p className="mt-ui-sm line-clamp-2 font-sans text-product-small text-muted-foreground">{tool.description || 'HTTP Tool'}</p> : null}
+      {!isMcp && !isHttpProvider ? <>{riskNotice}<div className="mt-ui-md grid grid-cols-2 gap-ui-sm border-t border-border/75 pt-ui-md">{actions}</div></> : null}
     </article>
   )
 }

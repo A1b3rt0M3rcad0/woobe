@@ -1,8 +1,18 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { Database, Eye, Plus, SlidersHorizontal } from 'lucide-react'
 import { toast } from 'sonner'
-import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
+import {
+  Button,
+  Checkbox,
+  Dialog,
+  EmptyStatePanel,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  SectionBlock,
+  SegmentedControl,
+} from '@woobe/ui'
+
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
@@ -31,23 +41,13 @@ function isEmbeddingModel(model: ProviderModel) {
 
 function CheckField({ checked, label, detail, onChange }: { checked: boolean; label: string; detail?: string; onChange: (checked: boolean) => void }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border/70 bg-background/55 p-3">
-      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-border bg-background" />
-      <span><span className="block text-xs font-medium text-white">{label}</span>{detail && <span className="mt-1 block text-[11px] leading-5 text-muted">{detail}</span>}</span>
+    <label className="flex cursor-pointer items-start gap-ui-sm rounded-container border border-border bg-background/25 p-ui-md">
+      <Checkbox checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-ui-xs" />
+      <span className="min-w-0">
+        <span className="block font-mono text-system-label font-semibold text-accent-foreground">{label}</span>
+        {detail ? <span className="mt-ui-xs block font-sans text-product-caption text-muted-foreground">{detail}</span> : null}
+      </span>
     </label>
-  )
-}
-
-function SectionButton({ active, icon, children, onClick }: { active: boolean; icon: React.ReactNode; children: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${active ? 'bg-surface text-white shadow-sm' : 'text-muted hover:text-white'}`}
-    >
-      {icon}
-      {children}
-    </button>
   )
 }
 
@@ -155,98 +155,105 @@ export function BuildVectorSnapshotModalV2({ open, projectId, collection, onClos
 
   return (
     <>
-      <Dialog open={open && Boolean(collection)} onClose={onClose} title="Build vectors" className="max-h-[calc(100svh-2rem)] max-w-6xl overflow-hidden">
-        {collection && (
-          <form onSubmit={submit}>
-            <div className="scrollbar-thin max-h-[calc(100svh-8rem)] overflow-y-auto pr-1">
-              <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
-                <aside className="space-y-4 lg:sticky lg:top-0 lg:self-start">
-                  <section className="rounded-xl border border-border/90 bg-surface/70 p-4">
-                    <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-border bg-background text-primary-light">
-                      <Database className="h-5 w-5" />
+      <Dialog
+        open={open && Boolean(collection)}
+        onClose={onClose}
+        title="Build vectors"
+        className="max-w-dialog-wide"
+        scrollMode="content"
+        contentClassName="p-0"
+      >
+        {collection ? (
+          <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
+            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-ui-lg">
+              <div className="grid gap-ui-lg lg:grid-cols-3">
+                <aside className="space-y-ui-md lg:col-span-1">
+                  <SectionBlock
+                    density="compact"
+                    eyebrow="Collection"
+                    title={collection.name}
+                    description="Build an immutable vector snapshot from the Collection's active documents."
+                    actions={<Database className="h-icon w-icon text-primary-light" />}
+                  >
+                    <div className="grid gap-ui-sm border-t border-border pt-ui-md font-mono text-system-meta text-muted-foreground">
+                      <div className="flex items-center justify-between gap-ui-md"><span>Model</span><span className="truncate text-accent-foreground/85">{selectedModel?.name || 'Not selected'}</span></div>
+                      <div className="flex items-center justify-between gap-ui-md"><span>Preset</span><span className="capitalize text-accent-foreground/85">{preset}</span></div>
                     </div>
-                    <div className="mt-5 min-w-0">
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Collection</p>
-                      <h3 className="mt-2 truncate text-base font-semibold text-white">{collection.name}</h3>
-                      <p className="mt-2 text-xs leading-5 text-muted">Build an immutable vector snapshot from the Collection&apos;s active documents.</p>
-                    </div>
-                    <div className="mt-5 border-t border-border/70 pt-4">
-                      <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-muted/75">Current setup</p>
-                      <div className="mt-3 space-y-2 text-xs">
-                        <div className="flex items-start justify-between gap-3"><span className="text-muted">Model</span><span className="min-w-0 truncate text-right text-white/90">{selectedModel?.name || 'Not selected'}</span></div>
-                        <div className="flex items-center justify-between gap-3"><span className="text-muted">Preset</span><span className="capitalize text-white/90">{preset}</span></div>
-                      </div>
-                    </div>
-                  </section>
+                  </SectionBlock>
 
-                  <section className="rounded-xl border border-border/90 bg-background/60 p-4">
-                    <div>
-                      <div className="mb-1.5 flex items-center justify-between gap-3">
-                        <label className="block text-sm font-medium text-muted">Embedding model</label>
-                        <Button type="button" size="sm" variant="ghost" className="h-auto px-0 py-0 text-xs" onClick={() => setCreateModelOpen(true)}><Plus className="mr-1 h-3.5 w-3.5" /> Add model</Button>
-                      </div>
-                      {availableModels.length === 0 ? (
-                        <div className="rounded-lg border border-border bg-surface/50 p-3">
-                          <p className="text-xs font-medium text-white">No embedding model configured.</p>
-                          <p className="mt-1 text-xs leading-5 text-muted">Add a model before building vectors.</p>
-                          <Button type="button" size="sm" variant="outline" className="mt-3 w-full" onClick={() => setCreateModelOpen(true)}>Add embedding model</Button>
+                  <SectionBlock density="compact" title="Build setup">
+                    <div className="space-y-ui-md">
+                      <Field>
+                        <div className="flex items-center justify-between gap-ui-sm">
+                          <FieldLabel>Embedding model</FieldLabel>
+                          <Button type="button" size="sm" variant="ghost" onClick={() => setCreateModelOpen(true)}>
+                            <Plus className="mr-ui-xs h-icon-sm w-icon-sm" />Add model
+                          </Button>
                         </div>
-                      ) : (
-                        <Select value={selectedModelId} onChange={(event) => setSelectedModelId(event.target.value)} options={availableModels.map((model) => ({ value: model.id, label: `${model.name} · ${model.model}` }))} />
-                      )}
-                    </div>
+                        {availableModels.length === 0 ? (
+                          <EmptyStatePanel compact title="No embedding model configured" description="Add a model before building vectors." action={<Button type="button" size="sm" variant="outline" onClick={() => setCreateModelOpen(true)}>Add embedding model</Button>} />
+                        ) : (
+                          <Select value={selectedModelId} onChange={(event) => setSelectedModelId(event.target.value)} options={availableModels.map((model) => ({ value: model.id, label: `${model.name} · ${model.model}` }))} />
+                        )}
+                      </Field>
 
-                    <div className="mt-4 border-t border-border/70 pt-4">
-                      <label className="mb-1.5 block text-sm font-medium text-muted">Chunking preset</label>
-                      <Select value={preset} onChange={(event) => applyPreset(event.target.value as RagChunkingPreset)} options={[{ value: 'precise', label: 'Precise · smaller focused chunks' }, { value: 'balanced', label: 'Balanced · recommended' }, { value: 'broad', label: 'Broad context · larger chunks' }, { value: 'custom', label: 'Custom' }]} />
+                      <Field>
+                        <FieldLabel>Chunking preset</FieldLabel>
+                        <Select value={preset} onChange={(event) => applyPreset(event.target.value as RagChunkingPreset)} options={[{ value: 'precise', label: 'Precise · smaller focused chunks' }, { value: 'balanced', label: 'Balanced · recommended' }, { value: 'broad', label: 'Broad context · larger chunks' }, { value: 'custom', label: 'Custom' }]} />
+                      </Field>
                     </div>
-                  </section>
+                  </SectionBlock>
                 </aside>
 
-                <main className="min-w-0 space-y-5">
-                  <div className="inline-flex rounded-lg border border-border bg-background/60 p-1">
-                    <SectionButton active={section === 'preview'} icon={<Eye className="h-4 w-4" />} onClick={() => setSection('preview')}>Preview</SectionButton>
-                    <SectionButton active={section === 'advanced'} icon={<SlidersHorizontal className="h-4 w-4" />} onClick={() => setSection('advanced')}>Advanced settings</SectionButton>
-                  </div>
+                <main className="min-w-0 space-y-ui-md lg:col-span-2">
+                  <SegmentedControl
+                    value={section}
+                    onValueChange={(value) => setSection(value as ModalSection)}
+                    ariaLabel="Vector build section"
+                    items={[
+                      { value: 'preview', label: 'Preview', icon: <Eye className="h-icon-sm w-icon-sm" /> },
+                      { value: 'advanced', label: 'Advanced settings', icon: <SlidersHorizontal className="h-icon-sm w-icon-sm" /> },
+                    ]}
+                  />
 
                   {section === 'preview' ? (
                     <VectorBuildPreview preview={previewSnapshot.data} loading={previewSnapshot.isPending} error={previewSnapshot.error instanceof Error ? previewSnapshot.error.message : null} onPreview={runPreview} />
                   ) : (
-                    <div className="space-y-5">
-                      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-                        <h3 className="text-sm font-semibold text-white">Chunking</h3>
-                        <p className="mt-1 text-xs leading-5 text-muted">Controls how source documents are split before embedding. Retrieval behavior is configured on the Agent Draft.</p>
-                        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                          <div><label className="mb-1.5 block text-xs font-medium text-muted">Strategy</label><Select value={strategy} onChange={(event) => { setPreset('custom'); setStrategy(event.target.value as RagChunkingStrategy) }} options={[{ value: 'recursive_text', label: 'Recursive text' }, { value: 'paragraph', label: 'Paragraph' }, { value: 'markdown_headings', label: 'Markdown headings' }]} /></div>
-                          <div><label className="mb-1.5 block text-xs font-medium text-muted">Chunk size · characters</label><Input type="number" min={200} max={4000} value={chunkSize} onChange={(event) => customNumber(setChunkSize, Number(event.target.value))} /></div>
-                          <div><label className="mb-1.5 block text-xs font-medium text-muted">Chunk overlap · characters</label><Input type="number" min={0} max={1000} value={chunkOverlap} onChange={(event) => customNumber(setChunkOverlap, Number(event.target.value))} /></div>
-                          <div><label className="mb-1.5 block text-xs font-medium text-muted">Minimum chunk size</label><Input type="number" min={20} max={1000} value={minChunkSize} onChange={(event) => customNumber(setMinChunkSize, Number(event.target.value))} /></div>
+                    <div className="space-y-ui-md">
+                      <SectionBlock density="compact" title="Chunking" description="Controls how source documents are split before embedding. Retrieval behavior is configured on the Agent Draft.">
+                        <div className="grid gap-ui-md sm:grid-cols-2">
+                          <Field><FieldLabel>Strategy</FieldLabel><Select value={strategy} onChange={(event) => { setPreset('custom'); setStrategy(event.target.value as RagChunkingStrategy) }} options={[{ value: 'recursive_text', label: 'Recursive text' }, { value: 'paragraph', label: 'Paragraph' }, { value: 'markdown_headings', label: 'Markdown headings' }]} /></Field>
+                          <Field><FieldLabel>Chunk size · characters</FieldLabel><Input type="number" min={200} max={4000} value={chunkSize} onChange={(event) => customNumber(setChunkSize, Number(event.target.value))} /></Field>
+                          <Field><FieldLabel>Chunk overlap · characters</FieldLabel><Input type="number" min={0} max={1000} value={chunkOverlap} onChange={(event) => customNumber(setChunkOverlap, Number(event.target.value))} /></Field>
+                          <Field><FieldLabel>Minimum chunk size</FieldLabel><Input type="number" min={20} max={1000} value={minChunkSize} onChange={(event) => customNumber(setMinChunkSize, Number(event.target.value))} /></Field>
                         </div>
-                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                        <div className="mt-ui-md grid gap-ui-sm sm:grid-cols-2">
                           <CheckField checked={preserveParagraphs} label="Preserve paragraphs" onChange={(value) => { setPreset('custom'); setPreserveParagraphs(value) }} />
                           <CheckField checked={preserveHeadings} label="Preserve headings" onChange={(value) => { setPreset('custom'); setPreserveHeadings(value) }} />
                           <CheckField checked={preservePageBoundaries} label="Preserve PDF pages" onChange={(value) => { setPreset('custom'); setPreservePageBoundaries(value) }} />
                           <CheckField checked={normalizeWhitespace} label="Normalize whitespace" onChange={setNormalizeWhitespace} />
                         </div>
-                      </section>
+                      </SectionBlock>
 
-                      <section className="rounded-xl border border-border/80 bg-surface/65 p-4">
-                        <label className="mb-1.5 block text-sm font-medium text-muted">Description</label>
-                        <p className="mb-3 text-xs leading-5 text-muted">Optional release note describing what changed in this snapshot.</p>
-                        <Textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional note for this snapshot." className="min-h-[76px]" />
-                      </section>
+                      <SectionBlock density="compact" title="Description">
+                        <Field>
+                          <FieldLabel>Snapshot note</FieldLabel>
+                          <Textarea value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Optional note for this snapshot." className="min-h-textarea-compact" />
+                          <FieldDescription>Optional release note describing what changed in this snapshot.</FieldDescription>
+                        </Field>
+                      </SectionBlock>
                     </div>
                   )}
                 </main>
               </div>
+            </div>
 
-              <div className="sticky bottom-0 -mx-1 mt-6 flex flex-col-reverse gap-2 border-t border-border bg-surface/95 px-1 py-4 backdrop-blur sm:flex-row sm:justify-end">
-                <Button type="button" variant="outline" onClick={onClose} disabled={createSnapshot.isPending}>Cancel</Button>
-                <Button type="submit" loading={createSnapshot.isPending} disabled={!selectedModelId || availableModels.length === 0}>Build vectors</Button>
-              </div>
+            <div className="flex shrink-0 flex-col-reverse gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md sm:flex-row sm:justify-end">
+              <Button type="button" variant="outline" onClick={onClose} disabled={createSnapshot.isPending}>Cancel</Button>
+              <Button type="submit" loading={createSnapshot.isPending} disabled={!selectedModelId || availableModels.length === 0}>Build vectors</Button>
             </div>
           </form>
-        )}
+        ) : null}
       </Dialog>
 
       <CreateEmbeddingModelModal open={createModelOpen} projectId={projectId} onClose={() => setCreateModelOpen(false)} onCreated={(modelId) => { setSelectedModelId(modelId); setCreateModelOpen(false); void modelsQuery.refetch() }} />

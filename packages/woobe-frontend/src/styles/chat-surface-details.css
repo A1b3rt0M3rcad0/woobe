@@ -1,0 +1,139 @@
+/* ChatSurface details composition.
+ *
+ * The shared Dialog owns visual primitives and typography. This file only
+ * resolves feature-specific workspace geometry: the old 230px sidebar became
+ * too dominant in narrower dialogs and forced operational values to wrap into
+ * unreadable columns.
+ */
+
+.dialog-scrollbars.max-w-7xl {
+  width: min(68.75rem, calc(100vw - 2rem));
+  max-width: 68.75rem !important;
+  container-name: chat-surface-details;
+  container-type: inline-size;
+}
+
+.dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid {
+  min-width: 0;
+}
+
+/* The footer is operational metadata, not body copy. Keep it on the same
+ * readable metadata tier used across the resource pages. */
+.dialog-scrollbars.max-w-7xl main > div:last-child > p {
+  max-width: 28rem;
+  font-size: 0.5625rem !important;
+  line-height: 0.875rem !important;
+}
+
+/* Preserve words whenever the value has enough room. IDs may still wrap as a
+ * last resort, but ordinary values such as Production and Backend managed do
+ * not split character-by-character. */
+.dialog-scrollbars.max-w-7xl main [class*='sm:grid-cols-2'] [class*='rounded-xl'] > p:last-child {
+  word-break: normal !important;
+  overflow-wrap: break-word;
+}
+
+/* Full workspace: keep a real sidebar, but make it subordinate to the content
+ * area instead of consuming almost half of the modal. */
+@container chat-surface-details (min-width: 54rem) {
+  .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid {
+    grid-template-columns: 12.5rem minmax(0, 1fr) !important;
+    grid-template-rows: minmax(0, 1fr) !important;
+  }
+
+  .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid > aside > div:first-child {
+    padding: 0.75rem !important;
+  }
+
+  .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid > aside nav {
+    padding: 0.5rem !important;
+  }
+
+  .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid > aside nav button {
+    min-height: 1.75rem !important;
+    padding-top: 0.375rem !important;
+    padding-bottom: 0.375rem !important;
+  }
+}
+
+/* Compact workspace: switch navigation to a horizontal operational strip.
+ * This is based on the modal width itself rather than the viewport, so browser
+ * zoom and constrained panels cannot accidentally activate the desktop split. */
+@container chat-surface-details (max-width: 53.999rem) {
+  .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-rows: auto minmax(0, 1fr) !important;
+  }
+
+  .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid > aside {
+    min-height: 0 !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid #1e293b !important;
+  }
+
+  .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid > aside > div:first-child {
+    display: block !important;
+    padding: 0.75rem 0.9375rem !important;
+  }
+
+  .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid > aside nav {
+    display: flex !important;
+    flex: none !important;
+    gap: 0.375rem !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 0.5rem 0.75rem !important;
+    white-space: nowrap;
+  }
+
+  .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid > aside nav > div,
+  .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid > aside nav > div > div {
+    display: contents !important;
+  }
+
+  .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid > aside nav > div > p {
+    display: none !important;
+  }
+
+  .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid > aside nav button {
+    width: auto !important;
+    min-height: 1.625rem !important;
+    flex: 0 0 auto;
+    padding: 0.3125rem 0.5rem !important;
+    font-size: 0.625rem !important;
+    line-height: 0.875rem !important;
+  }
+
+  .dialog-scrollbars.max-w-7xl > div:nth-child(2) > .grid > aside nav button[class*='md:pl-5'] {
+    padding-left: 0.5rem !important;
+  }
+
+  .dialog-scrollbars.max-w-7xl main > div:first-child {
+    padding: 0.9375rem !important;
+  }
+}
+
+/* Viewports that still allow Tailwind's sm/md variants can produce a modal
+ * whose content column is much narrower than those viewport breakpoints imply.
+ * Collapse dense field grids from the modal's own width instead. */
+@container chat-surface-details (max-width: 31rem) {
+  .dialog-scrollbars.max-w-7xl main [class*='sm:grid-cols-2'],
+  .dialog-scrollbars.max-w-7xl main [class*='sm:grid-cols-3'] {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+}
+
+@container chat-surface-details (max-width: 36rem) {
+  .dialog-scrollbars.max-w-7xl main > div:last-child {
+    flex-direction: column-reverse !important;
+    align-items: stretch !important;
+  }
+
+  .dialog-scrollbars.max-w-7xl main > div:last-child > p {
+    max-width: none;
+  }
+
+  .dialog-scrollbars.max-w-7xl main > div:last-child > div {
+    justify-content: flex-end;
+  }
+}

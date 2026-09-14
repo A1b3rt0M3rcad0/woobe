@@ -1,6 +1,7 @@
 import { skillsConfig } from '@/features/skills/config'
 import { useMemo, useState } from 'react'
 import { BrainCircuit, Check, Settings2 } from 'lucide-react'
+import { EmptyStatePanel, MetricTile, TechnicalListItem } from '@woobe/ui'
 
 import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
@@ -62,18 +63,17 @@ function selectionKey(item: Pick<ContextAssemblerDescriptor, 'name' | 'version'>
   return `${item.name}:${item.version}`
 }
 
-function strategyKey(
-  item: Pick<ContextAssemblerDescriptor, 'strategy_name' | 'strategy_version'>,
-) {
+function strategyKey(item: Pick<ContextAssemblerDescriptor, 'strategy_name' | 'strategy_version'>) {
   return `${item.strategy_name}:${item.strategy_version}`
 }
 
 function DetailList({ items }: { items: string[] }) {
+  if (!items.length) return <p className="font-sans text-product-caption text-muted-foreground">None declared.</p>
   return (
-    <div className="space-y-2">
+    <div className="space-y-ui-sm">
       {items.map((item) => (
-        <div key={item} className="flex gap-2 text-[12px] leading-[1.45rem] text-foreground/80">
-          <span className="mt-[9px] h-1 w-1 shrink-0 rounded-full bg-primary" />
+        <div key={item} className="flex gap-ui-sm font-sans text-product-small text-slate-300">
+          <span className="mt-[0.4rem] h-1 w-1 shrink-0 rounded-full bg-primary" />
           <span>{item}</span>
         </div>
       ))}
@@ -115,8 +115,7 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
 
     return Array.from(groups.entries())
       .map(([key, entries]) => {
-        const strategyDescriptor = entries.find((item) => !item.is_system_default_alias)
-          ?? entries[0]
+        const strategyDescriptor = entries.find((item) => !item.is_system_default_alias) ?? entries[0]
         const defaultAlias = entries.find((item) => item.is_default && item.is_system_default_alias)
           ?? entries.find((item) => item.is_system_default_alias)
 
@@ -129,16 +128,12 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
         }
       })
       .sort((left, right) => {
-        if (left.isSystemDefault !== right.isSystemDefault) {
-          return left.isSystemDefault ? -1 : 1
-        }
+        if (left.isSystemDefault !== right.isSystemDefault) return left.isSystemDefault ? -1 : 1
         return left.descriptor.display_name.localeCompare(right.descriptor.display_name)
       })
   }, [assemblers])
 
-  const selectedCatalogOption = catalogOptions.find(
-    (option) => option.strategyKey === selectedStrategyKey,
-  )
+  const selectedCatalogOption = catalogOptions.find((option) => option.strategyKey === selectedStrategyKey)
   const selectedDescriptor = selectedCatalogOption?.descriptor ?? selectedFallback
 
   const selectedFallbackOption = useMemo<ContextManagerOption>(() => ({
@@ -149,22 +144,16 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
     catalogBacked: false,
   }), [selected.name, selectedFallback, selectedStrategyKey])
 
-  const availableOptions = selectedCatalogOption
-    ? catalogOptions
-    : [selectedFallbackOption, ...catalogOptions]
+  const availableOptions = selectedCatalogOption ? catalogOptions : [selectedFallbackOption, ...catalogOptions]
 
   const [open, setOpen] = useState(false)
   const [configureOpen, setConfigureOpen] = useState(false)
   const [focusedStrategyKey, setFocusedStrategyKey] = useState<string | null>(null)
 
-  const focused = availableOptions.find(
-    (option) => option.strategyKey === (focusedStrategyKey || selectedStrategyKey),
-  ) ?? selectedFallbackOption
+  const focused = availableOptions.find((option) => option.strategyKey === (focusedStrategyKey || selectedStrategyKey)) ?? selectedFallbackOption
   const focusedDescriptor = focused.descriptor
   const focusedIsCurrent = focused.strategyKey === selectedStrategyKey
-  const focusedSelectionKey = focusedIsCurrent
-    ? selectionKey(selected)
-    : selectionKey(focused.selectionDescriptor)
+  const focusedSelectionKey = focusedIsCurrent ? selectionKey(selected) : selectionKey(focused.selectionDescriptor)
   const catalogReady = !isLoading && !isError && assemblers.length > 0
   const incompatibleSkills = skillsConfig(state.runtimeConfig).bindings.some(item => item.enabled) && !focusedDescriptor.supports_skills
   const canApplySelection = catalogReady && focused.catalogBacked && !focusedIsCurrent && !incompatibleSkills
@@ -191,116 +180,66 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
 
   return (
     <>
-      <section aria-label="Context Manager" className={cn(!compact && 'rounded-xl border border-border bg-surface p-4')}>
-        <div className="mb-2.5">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted">Context Manager</p>
-          <p className="mt-1 text-xs leading-5 text-muted">Controls how context is assembled before each Agent execution.</p>
+      <section aria-label="Context Manager" className={cn(!compact && 'rounded-container border border-border bg-surface p-ui-lg')}>
+        <div className="mb-ui-sm">
+          <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">Context Manager</p>
+          <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Controls how context is assembled before each Agent execution.</p>
         </div>
 
-        <div className="rounded-lg border border-border bg-background/35 p-3">
-          <div className="flex items-start gap-3">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light">
-              <BrainCircuit className="h-4 w-4" />
+        <div className="rounded-container border border-border bg-background/35 p-ui-md">
+          <div className="flex items-start gap-ui-sm">
+            <span className="flex h-control-segment w-control-segment shrink-0 items-center justify-center rounded-control border border-primary/20 bg-primary/10 text-primary-light">
+              <BrainCircuit className="h-3.5 w-3.5" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="break-words text-sm font-semibold leading-5 text-foreground">{selectedDescriptor.display_name}</p>
-              <p className="mt-0.5 font-mono text-[10px] text-muted">{selectedStrategyKey}</p>
-              {selectedDescriptor.description ? <p className="mt-2 line-clamp-2 text-[11px] leading-4 text-muted">{selectedDescriptor.description}</p> : null}
+              <p className="break-words font-mono text-system-label font-semibold text-slate-100">{selectedDescriptor.display_name}</p>
+              <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{selectedStrategyKey}</p>
+              {selectedDescriptor.description ? <p className="mt-ui-sm line-clamp-2 font-sans text-product-caption text-muted-foreground">{selectedDescriptor.description}</p> : null}
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border/75 pt-3">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              className="h-8 text-[11px]"
-              onClick={() => setConfigureOpen(true)}
-              aria-label={`Configure context for ${selectedDescriptor.display_name}`}
-            >
-              <Settings2 className="mr-1 h-3.5 w-3.5" />
+          <div className="mt-ui-md grid grid-cols-2 gap-ui-sm border-t border-border/75 pt-ui-md">
+            <Button type="button" size="sm" variant="outline" onClick={() => setConfigureOpen(true)} aria-label={`Configure context for ${selectedDescriptor.display_name}`}>
+              <Settings2 className="h-3.5 w-3.5" />
               Configure
             </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="ghost"
-              className="h-8 text-[11px] text-primary-light"
-              onClick={openSelector}
-              aria-label={`Change context manager. Current selection: ${selectedDescriptor.display_name}`}
-            >
+            <Button type="button" size="sm" variant="ghost" className="text-primary-light" onClick={openSelector} aria-label={`Change context manager. Current selection: ${selectedDescriptor.display_name}`}>
               Change
             </Button>
           </div>
         </div>
       </section>
 
-      <AgentContextConfigurationDialog
-        open={configureOpen}
-        onClose={() => setConfigureOpen(false)}
-        projectId={projectId}
-        managerName={selectedDescriptor.display_name}
-      />
+      <AgentContextConfigurationDialog open={configureOpen} onClose={() => setConfigureOpen(false)} projectId={projectId} managerName={selectedDescriptor.display_name} />
 
-      <Dialog
-        open={open}
-        onClose={() => setOpen(false)}
-        title="Select a Context Manager"
-        className="max-w-[1080px] overflow-hidden bg-surface/95"
-        contentClassName="p-0"
-      >
-        <div className="grid h-[min(640px,calc(100svh-7rem))] min-h-0 grid-cols-[250px_minmax(0,1fr)] overflow-hidden">
+      <Dialog open={open} onClose={() => setOpen(false)} title="Select a Context Manager" className="max-w-dialog-wide overflow-hidden bg-surface/95" contentClassName="p-0">
+        <div className="grid h-dialog-workspace min-h-0 grid-cols-[15.625rem_minmax(0,1fr)] overflow-hidden">
           <aside className="flex min-h-0 flex-col border-r border-border/90 bg-background/25">
-            <div className="shrink-0 border-b border-border/90 px-4 py-3.5">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-muted">Registered managers</p>
-              <p className="mt-1 text-[10px] text-muted">
-                {isLoading
-                  ? 'Loading registry…'
-                  : isError
-                    ? 'Current selection only'
-                    : `${catalogOptions.length} available`}
+            <div className="shrink-0 border-b border-border/90 px-ui-lg py-ui-md">
+              <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Registered managers</p>
+              <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">
+                {isLoading ? 'Loading registry…' : isError ? 'Current selection only' : `${catalogOptions.length} available`}
               </p>
             </div>
 
-            <ScrollArea className="min-h-0 flex-1 p-3 pr-2">
-              <div className="space-y-1.5">
+            <ScrollArea className="min-h-0 flex-1 p-ui-md pr-ui-sm">
+              <div className="space-y-ui-sm">
                 {availableOptions.map((option) => {
                   const active = option.strategyKey === focused.strategyKey
                   const current = option.strategyKey === selectedStrategyKey
                   const item = option.descriptor
                   return (
-                    <button
+                    <TechnicalListItem
                       key={option.strategyKey}
-                      type="button"
-                      onClick={() => setFocusedStrategyKey(option.strategyKey)}
+                      selected={active}
                       disabled={!option.catalogBacked && !current}
-                      className={cn(
-                        'flex w-full items-center gap-2 rounded-lg border px-2.5 py-2.5 text-left transition-colors disabled:cursor-default',
-                        active
-                          ? 'border-primary/60 bg-primary/10'
-                          : 'border-border/75 bg-background/30 hover:border-primary/30 hover:bg-accent/25',
-                      )}
-                    >
-                      <BrainCircuit className={cn('h-3.5 w-3.5 shrink-0', active ? 'text-primary' : 'text-muted')} />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-medium leading-5 text-foreground">{item.display_name}</span>
-                        <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[9px] leading-4 text-muted">
-                          <span className="truncate font-mono">{option.strategyKey}</span>
-                          {option.isSystemDefault ? (
-                            <>
-                              <span className="text-border">·</span>
-                              <span className="shrink-0">System default</span>
-                            </>
-                          ) : null}
-                        </span>
-                      </span>
-                      {current ? (
-                        <span className="flex shrink-0 items-center gap-1 text-[8px] font-semibold uppercase tracking-wide text-primary-light">
-                          <Check className="h-3 w-3" />
-                          Selected
-                        </span>
-                      ) : null}
-                    </button>
+                      onClick={() => setFocusedStrategyKey(option.strategyKey)}
+                      leading={<BrainCircuit className="h-3.5 w-3.5 text-primary-light" />}
+                      label={item.display_name}
+                      description={option.strategyKey}
+                      meta={option.isSystemDefault ? 'System default' : undefined}
+                      trailing={current ? <span className="flex items-center gap-ui-xs font-mono text-system-meta uppercase text-primary-light"><Check className="h-3 w-3" />Selected</span> : null}
+                    />
                   )
                 })}
               </div>
@@ -308,114 +247,64 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
           </aside>
 
           <section className="flex min-h-0 min-w-0 flex-col">
-            <ScrollArea className="min-h-0 flex-1 px-5 py-4 pr-3">
-              <div className="mx-auto max-w-[760px] pb-2">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-primary-light">
+            <ScrollArea className="min-h-0 flex-1 px-ui-xl py-ui-lg pr-ui-md">
+              <div className="mx-auto max-w-dialog-content pb-ui-sm">
+                <div className="flex items-start gap-ui-md">
+                  <div className="flex h-control w-control shrink-0 items-center justify-center rounded-control border border-primary/20 bg-primary/10 text-primary-light">
                     <BrainCircuit className="h-4 w-4" />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <h3 className="text-lg font-semibold leading-7 text-foreground">{focusedDescriptor.display_name}</h3>
-                      <span className="rounded border border-border px-1.5 py-0.5 font-mono text-[9px] text-muted">
-                        {focused.strategyKey}
-                      </span>
-                      {focusedIsCurrent ? (
-                        <span className="rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-primary-light">
-                          Selected
-                        </span>
-                      ) : null}
-                      {focused.isSystemDefault ? (
-                        <span className="rounded border border-border bg-background/40 px-1.5 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-muted">
-                          System default
-                        </span>
-                      ) : null}
+                    <div className="flex flex-wrap items-center gap-ui-sm">
+                      <h3 className="font-mono text-system-heading font-semibold text-slate-50">{focusedDescriptor.display_name}</h3>
+                      <span className="rounded-technical border border-border px-ui-xs py-ui-hairline font-mono text-system-meta text-muted-foreground">{focused.strategyKey}</span>
+                      {focusedIsCurrent ? <span className="rounded-technical border border-primary/30 bg-primary/10 px-ui-xs py-ui-hairline font-mono text-system-meta uppercase text-primary-light">Selected</span> : null}
+                      {focused.isSystemDefault ? <span className="rounded-technical border border-border bg-background/40 px-ui-xs py-ui-hairline font-mono text-system-meta uppercase text-muted-foreground">System default</span> : null}
                     </div>
-                    <p className="mt-0.5 text-[10px] text-muted">
-                      {focusedIsCurrent && selected.name !== 'default'
-                        ? 'Explicit strategy selection'
-                        : focused.isSystemDefault
-                          ? 'System default strategy'
-                          : 'Registered strategy'}
+                    <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">
+                      {focusedIsCurrent && selected.name !== 'default' ? 'Explicit strategy selection' : focused.isSystemDefault ? 'System default strategy' : 'Registered strategy'}
                     </p>
                   </div>
                 </div>
 
                 {catalogReady && focused.catalogBacked ? (
                   <>
-                    <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                      <div className="rounded-lg border border-border/75 bg-background/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">Selection</p>
-                        <p className="mt-1 truncate font-mono text-[11px] font-medium text-foreground">{focusedSelectionKey}</p>
-                      </div>
-                      <div className="rounded-lg border border-border/75 bg-background/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">Resolved strategy</p>
-                        <p className="mt-1 truncate font-mono text-[11px] font-medium text-foreground">{focused.strategyKey}</p>
-                      </div>
-                      <div className="rounded-lg border border-border/75 bg-background/30 px-3 py-2.5">
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">Configuration</p>
-                        <p className="mt-1 truncate text-[11px] font-medium text-foreground">{focusedDescriptor.configuration}</p>
-                      </div>
+                    <div className="mt-ui-lg grid gap-ui-sm sm:grid-cols-3">
+                      <MetricTile label="Selection" value={focusedSelectionKey} />
+                      <MetricTile label="Resolved strategy" value={focused.strategyKey} />
+                      <MetricTile label="Configuration" value={focusedDescriptor.configuration || 'Default'} />
                     </div>
 
-                    <div className="mt-4 grid gap-4 border-t border-border/75 pt-4 md:grid-cols-2">
-                      <div>
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">Description</p>
-                        <p className="mt-1.5 text-[13px] leading-5 text-foreground/85">{focusedDescriptor.description}</p>
-                      </div>
-                      <div>
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">How it operates</p>
-                        <p className="mt-1.5 text-[13px] leading-5 text-foreground/80">{focusedDescriptor.behavior}</p>
-                      </div>
+                    <div className="mt-ui-lg grid gap-ui-lg border-t border-border/75 pt-ui-lg md:grid-cols-2">
+                      <div><p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Description</p><p className="mt-ui-sm font-sans text-product-body text-slate-200">{focusedDescriptor.description}</p></div>
+                      <div><p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">How it operates</p><p className="mt-ui-sm font-sans text-product-body text-slate-300">{focusedDescriptor.behavior}</p></div>
                     </div>
 
-                    <div className="mt-4 border-t border-border/75 pt-4">
-                      <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">Recommended for</p>
-                      <div className="mt-2 grid gap-x-5 gap-y-1 sm:grid-cols-2">
-                        <DetailList items={focusedDescriptor.recommended_for} />
-                      </div>
+                    <div className="mt-ui-lg border-t border-border/75 pt-ui-lg">
+                      <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Recommended for</p>
+                      <div className="mt-ui-sm grid gap-x-ui-xl gap-y-ui-xs sm:grid-cols-2"><DetailList items={focusedDescriptor.recommended_for} /></div>
                     </div>
 
-                    <div className="mt-4 grid gap-5 border-t border-border/75 pt-4 md:grid-cols-2">
-                      <div>
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">Capabilities</p>
-                        <div className="mt-2"><DetailList items={focusedDescriptor.capabilities} /></div>
-                      </div>
-                      <div>
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-muted">Limitations</p>
-                        <div className="mt-2"><DetailList items={focusedDescriptor.limitations} /></div>
-                      </div>
+                    <div className="mt-ui-lg grid gap-ui-xl border-t border-border/75 pt-ui-lg md:grid-cols-2">
+                      <div><p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Capabilities</p><div className="mt-ui-sm"><DetailList items={focusedDescriptor.capabilities} /></div></div>
+                      <div><p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Limitations</p><div className="mt-ui-sm"><DetailList items={focusedDescriptor.limitations} /></div></div>
                     </div>
 
-                    <div className="mt-4 rounded-lg border border-border/75 bg-background/30 px-3.5 py-3 text-[11px] leading-5 text-muted">
-                      Selecting <span className="font-mono text-foreground">{selectionKey(focused.selectionDescriptor)}</span> freezes the resolved strategy <span className="font-mono text-foreground">{focused.strategyKey}</span> in the Agent snapshot for immutable releases, replay, and rollback.
+                    <div className="mt-ui-lg rounded-container border border-border/75 bg-background/30 px-ui-md py-ui-md font-sans text-product-small text-muted-foreground">
+                      Selecting <span className="font-mono text-slate-200">{selectionKey(focused.selectionDescriptor)}</span> freezes the resolved strategy <span className="font-mono text-slate-200">{focused.strategyKey}</span> in the Agent snapshot for immutable releases, replay, and rollback.
                     </div>
                   </>
                 ) : (
-                  <div className="mt-4 rounded-lg border border-border/75 bg-background/30 p-3.5">
-                    <p className="text-[13px] font-medium text-foreground">
-                      {isLoading ? 'Loading manager details…' : 'Manager details are temporarily unavailable.'}
-                    </p>
-                    <p className="mt-1 text-[11px] leading-5 text-muted">
-                      The current snapshot selection remains visible. Manager metadata is supplied by the backend Registry and rendered when the catalog is available.
-                    </p>
-                  </div>
+                  <div className="mt-ui-lg"><EmptyStatePanel compact title={isLoading ? 'Loading manager details…' : 'Manager details unavailable'} description="The current snapshot selection remains visible. Registry metadata appears when the backend catalog is available." /></div>
                 )}
               </div>
             </ScrollArea>
 
-            <div className="flex shrink-0 items-center justify-between gap-3 border-t border-border/90 bg-background/20 px-4 py-3">
-              <p className="min-w-0 truncate text-[10px] text-muted">
-                {focused.catalogBacked
-                  ? `${focused.strategyKey}${focused.isSystemDefault ? ' · system default' : ''}`
-                  : 'Registry metadata unavailable'}
-              </p>
-              <div className="flex shrink-0 items-center gap-2">
+            <div className="flex shrink-0 items-center justify-between gap-ui-md border-t border-border/90 bg-background/20 px-ui-lg py-ui-md">
+              <p className="min-w-0 truncate font-sans text-product-caption text-muted-foreground">{focused.catalogBacked ? `${focused.strategyKey}${focused.isSystemDefault ? ' · system default' : ''}` : 'Registry metadata unavailable'}</p>
+              <div className="flex shrink-0 items-center gap-ui-sm">
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-                {incompatibleSkills && <p role="alert" className="max-w-xs text-xs text-amber-400">Disable installed Skills before selecting a manager without Skills support.</p>}
-                <Button onClick={applySelection} disabled={!canApplySelection}>
-                  {focusedIsCurrent ? 'Selected' : 'Select manager'}
-                </Button>
+                {incompatibleSkills && <p role="alert" className="max-w-xs font-sans text-product-caption text-amber-400">Disable installed Skills before selecting a manager without Skills support.</p>}
+                <Button onClick={applySelection} disabled={!canApplySelection}>{focusedIsCurrent ? 'Selected' : 'Select manager'}</Button>
               </div>
             </div>
           </section>

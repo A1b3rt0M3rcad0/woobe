@@ -94,7 +94,7 @@
 }
 
 /* Overview environment semantics: All is aggregate, Draft is neutral, Staging is operational. */
-.rounded-lg.border.border-border.bg-background\/50.p-1.scrollbar-thin button:first-child .bg-slate-300 {
+.rounded-lg.border.bg-background\/50.p-1.scrollbar-thin button:first-child .bg-slate-300 {
   display: none;
 }
 
@@ -124,35 +124,6 @@
   display: none;
 }
 
-/*
- * Run Activity keeps Agent Runs as the primary line and renders Network Runs
- * as thin, rounded event stems. The original geometry remains unchanged, so
- * bucket position, value, hover, and selection behavior are preserved.
- */
-svg[aria-label="Agent Run line and Network Run bars by time bucket"] rect[fill="#8b5cf6"] {
-  transform-box: fill-box;
-  transform-origin: center bottom;
-  transform: scaleX(0.22);
-  rx: 999px;
-  fill-opacity: 0.86;
-  filter: drop-shadow(0 0 1.5px rgb(139 92 246 / 0.34));
-  transition: transform 120ms ease, fill-opacity 120ms ease, filter 120ms ease;
-}
-
-svg[aria-label="Agent Run line and Network Run bars by time bucket"] rect[fill="#8b5cf6"]:hover {
-  transform: scaleX(0.32);
-  fill-opacity: 1;
-  filter: drop-shadow(0 0 3px rgb(167 139 250 / 0.48));
-}
-
-/* Match the legend to the lighter Network Run event-stem vocabulary. */
-.h-3.w-2.rounded-sm.bg-violet-500\/80 {
-  width: 0.125rem;
-  border-radius: 9999px;
-  box-shadow: 0 0 3px rgb(139 92 246 / 0.28);
-}
-
-/* Keep composition segments out of inline baseline layout. */
 .h-3.overflow-hidden.rounded-full.bg-background.ring-1.ring-border\/80 {
   display: flex;
 }
@@ -163,20 +134,20 @@ svg[aria-label="Agent Run line and Network Run bars by time bucket"] rect[fill="
 }
 
 /* Keep large model catalog pickers visually stable while filtering. */
-div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.shadow-2xl {
+div.absolute.left-0.right-0.z-50.rounded-xl.border.bg-background.shadow-2xl {
   display: flex;
   height: 24rem;
   flex-direction: column;
   overflow: hidden;
 }
 
-div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.shadow-2xl > .scrollbar-thin.max-h-72.overflow-y-auto {
+div.absolute.left-0.right-0.z-50.rounded-xl.border.bg-background.shadow-2xl > .scrollbar-thin.max-h-72.overflow-y-auto {
   min-height: 0;
   max-height: none;
   flex: 1 1 auto;
 }
 
-div.absolute.left-0.right-0.z-50.rounded-xl.border.border-border.bg-background.shadow-2xl > .border-t.border-border\/70.px-4.py-2.text-xs.text-muted {
+div.absolute.left-0.right-0.z-50.rounded-xl.border.bg-background.shadow-2xl > .border-t.border-border\/70.px-4.py-2.text-xs.text-muted {
   min-height: 2rem;
 }
 
@@ -185,11 +156,241 @@ div[class*="h-[calc(100vh-3.5rem)]"] > div.flex.flex-1.min-h-0.overflow-hidden >
   display: none;
 }
 
-/*
- * The agent playground used to subtract the old topbar height with
- * h-[calc(100vh-3.5rem)]. The topbar is now removed, so keep that legacy
- * fullscreen container aligned to the full viewport.
- */
 .h-\[calc\(100vh-3\.5rem\)\] {
   height: 100svh !important;
+}
+
+/* Project Overview — Woobe control-plane treatment. The dashboard behavior and data model stay untouched. */
+.project-overview-main {
+  background-color: #020817;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.025) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.project-overview-main section,
+.project-overview-main header {
+  border-radius: 4px !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.018) !important;
+}
+
+.project-overview-main .rounded-xl {
+  border-radius: 4px !important;
+}
+
+.project-overview-main .rounded-lg {
+  border-radius: 3px !important;
+}
+
+.project-overview-main .rounded-md {
+  border-radius: 2px !important;
+}
+
+.project-overview-main header.relative {
+  border-color: #1e293b !important;
+  background: rgba(15, 23, 41, 0.96) !important;
+  padding: 15px !important;
+}
+
+.project-overview-main header.relative h1 {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 16px !important;
+  line-height: 1.4 !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.01em !important;
+}
+
+.project-overview-main header.relative p,
+.project-overview-main header.relative span,
+.project-overview-main header.relative button,
+.project-overview-main header.relative select {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.project-overview-main header.relative select,
+.project-overview-main header.relative > div button {
+  border-radius: 3px !important;
+}
+
+.project-overview-main header.relative select,
+.project-overview-main header.relative button:not([aria-pressed]) {
+  min-height: 34px;
+}
+
+.project-overview-main section[class*="bg-surface"] {
+  background: rgba(15, 23, 41, 0.96) !important;
+  border-color: #1e293b !important;
+}
+
+.project-overview-main section > div:first-child h2 {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.015em;
+}
+
+.project-overview-main section > div:first-child .text-muted {
+  color: #94a3b8 !important;
+}
+
+.project-overview-main .space-y-5 > .pt-2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 4px !important;
+}
+
+.project-overview-main .space-y-5 > .pt-2::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  background: #3b82f6;
+}
+
+.project-overview-main .space-y-5 > .pt-2::after {
+  content: '';
+  height: 1px;
+  flex: 1 1 auto;
+  background: #1e293b;
+}
+
+.project-overview-main .space-y-5 > .pt-2 h2 {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: #f8fafc;
+}
+
+.project-overview-main .grid.grid-cols-1.gap-4.sm\:grid-cols-2.xl\:grid-cols-3.\32xl\:grid-cols-6 section {
+  min-height: 112px !important;
+}
+
+.project-overview-main .grid.grid-cols-1.gap-4.sm\:grid-cols-2.xl\:grid-cols-3.\32xl\:grid-cols-6 section p {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.project-overview-main .grid.grid-cols-1.gap-4.sm\:grid-cols-2.xl\:grid-cols-3.\32xl\:grid-cols-6 section .text-2xl {
+  font-size: 28px !important;
+  line-height: 1 !important;
+}
+
+.project-overview-main section button,
+.project-overview-main section select,
+.project-overview-main section code,
+.project-overview-main section [class*="text-[10px]"] {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.project-overview-main section .bg-background\/45,
+.project-overview-main section .bg-background\/50,
+.project-overview-main section .bg-background\/70,
+.project-overview-main section .bg-background\/75 {
+  background-color: rgba(11, 18, 32, 0.78) !important;
+}
+
+.project-overview-main section [class*="shadow-"] {
+  box-shadow: none !important;
+}
+
+/* Reliability & Performance — compact operational density. */
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 {
+  padding: 12px !important;
+  background: rgba(11, 18, 32, 0.64) !important;
+  border-color: rgba(30, 41, 59, 0.95) !important;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .flex.items-start.justify-between {
+  align-items: center !important;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(30, 41, 59, 0.78);
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .flex.items-start.justify-between > div:first-child > p:first-child {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .flex.items-start.justify-between > div:first-child > p.mt-1 {
+  margin-top: 3px !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+  line-height: 1.35 !important;
+  color: #94a3b8 !important;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .flex.items-start.justify-between > .text-right > p:first-child {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 16px !important;
+  line-height: 1 !important;
+  font-weight: 700 !important;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .flex.items-start.justify-between > .text-right > p:last-child {
+  margin-top: 3px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .mt-3 {
+  margin-top: 10px !important;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 .flex.h-2\.5.overflow-hidden.rounded-full.bg-background.ring-1.ring-border\/80 {
+  height: 4px !important;
+  border-radius: 2px !important;
+  background: #0b1220 !important;
+  box-shadow: inset 0 0 0 1px rgba(30, 41, 59, 0.82) !important;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 .mt-2.flex.flex-wrap.gap-x-3.gap-y-1.text-\[10px\].text-muted {
+  margin-top: 7px !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .mt-3.grid.grid-cols-3 {
+  gap: 0 !important;
+  padding-top: 10px;
+  border-top: 1px solid rgba(30, 41, 59, 0.78);
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .mt-3.grid.grid-cols-3 > span {
+  min-width: 0;
+  padding: 0 10px;
+  border-left: 1px solid rgba(30, 41, 59, 0.78);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+  line-height: 1.25 !important;
+  color: #64748b !important;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .mt-3.grid.grid-cols-3 > span:first-child {
+  padding-left: 0;
+  border-left: 0;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .mt-3.grid.grid-cols-3 > span:last-child {
+  padding-right: 0;
+}
+
+.project-overview-main .space-y-3.px-5.pb-5 > .rounded-xl.border.border-border\/80.bg-background\/45.p-3 > .mt-3.grid.grid-cols-3 > span > b {
+  margin-top: 4px !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px !important;
+  line-height: 1.2 !important;
+  font-weight: 650 !important;
+  color: #f8fafc !important;
 }

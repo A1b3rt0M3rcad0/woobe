@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Cpu, Plus } from 'lucide-react'
+import { Button, Select } from '@woobe/ui'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -14,8 +15,6 @@ import {
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
 import { StatusBadge } from '@/components/common/StatusBadge'
-import { Button } from '@/components/ui/Button'
-import { Select } from '@/components/ui/Select'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 import { ModelSettingsModal } from '@/features/provider-models/components/ModelSettingsModal'
@@ -112,7 +111,7 @@ function ModelCard({
     <ResourceCard
       onClick={onClick}
       aria-label={`Open Model ${model.name}`}
-      icon={<Cpu className="h-4 w-4" />}
+      icon={<Cpu className="h-icon-lg w-icon-lg" />}
       title={model.name}
       subtitle={model.model}
       status={<StatusBadge status={model.status || 'active'} size="compact" />}
@@ -191,7 +190,7 @@ export default function ModelsPage() {
       description="Create and manage reusable generation models bound to provider connections."
       action={(
         <Button type="button" onClick={openNewModel}>
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="h-icon w-icon" />
           New Model
         </Button>
       )}
@@ -207,12 +206,11 @@ export default function ModelsPage() {
             { value: 'inactive', label: 'Inactive', count: statusCounts.inactive },
           ]}
         />
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="grid gap-ui-sm lg:grid-cols-[minmax(0,1fr)_220px]">
           <ResourceSearch value={query} onChange={setQuery} placeholder="Search Models, providers or credentials..." label="Search Models" />
           <Select
             value={providerFilter}
             onChange={(event) => setProviderFilter(event.target.value)}
-            className="h-10"
             options={[
               { value: 'all', label: 'All providers' },
               ...providerOptions.map((provider) => ({ value: provider, label: providerLabel(provider) })),
@@ -234,10 +232,10 @@ export default function ModelsPage() {
           <ErrorState
             message="Failed to load provider Models"
             onRetry={() => { void credentialsQuery.refetch(); void modelsQuery.refetch() }}
-            className="rounded-xl border border-border/80 bg-surface/40 py-10"
+            className="rounded-container border border-border bg-surface/70 py-10"
           />
         ) : visibleModels.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+          <div className="grid grid-cols-1 gap-ui-md md:grid-cols-2 xl:grid-cols-3">
             {visibleModels.map((model) => (
               <ModelCard
                 key={model.id}
@@ -249,7 +247,7 @@ export default function ModelsPage() {
           </div>
         ) : (
           <ResourceEmptyState
-            icon={<Cpu className="h-4 w-4" />}
+            icon={<Cpu className="h-icon-lg w-icon-lg" />}
             title={generationModels.length === 0 ? 'No Generation models yet' : 'No Models found'}
             description={generationModels.length === 0
               ? 'Create a Model. The flow will request a provider connection when necessary.'

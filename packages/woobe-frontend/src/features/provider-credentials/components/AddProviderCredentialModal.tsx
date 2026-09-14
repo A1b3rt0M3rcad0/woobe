@@ -1,16 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { toast } from 'sonner'
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Dialog,
+  Field,
+  FieldLabel,
+  Input,
+  Select,
+} from '@woobe/ui'
 
-import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
-import { Select } from '@/components/ui/Select'
 import { ProviderCredentialCreateForm } from '@/features/provider-credentials/components/ProviderCredentialCreateForm'
 import { useCredentials, useUpdateCredential } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
-
 const providers = [
   { value: 'openai', label: 'OpenAI' },
   { value: 'custom', label: 'OpenAI Compatible' },
@@ -18,27 +23,9 @@ const providers = [
 ]
 
 function buildCredentialMetadata(provider: string, baseUrl: string): Record<string, string> {
-  if (provider === 'custom') {
-    return {
-      provider_family: 'openai',
-      compatibility: 'compatible',
-      base_url: baseUrl.trim(),
-      model_discovery_strategy: 'openai_compatible_models',
-    }
-  }
-  if (provider === 'openrouter') {
-    return {
-      provider_family: 'openrouter',
-      compatibility: 'native',
-      base_url: OPENROUTER_BASE_URL,
-      model_discovery_strategy: 'openrouter_models',
-    }
-  }
-  return {
-    provider_family: 'openai',
-    compatibility: 'native',
-    model_discovery_strategy: 'openai_models',
-  }
+  if (provider === 'custom') return { provider_family: 'openai', compatibility: 'compatible', base_url: baseUrl.trim(), model_discovery_strategy: 'openai_compatible_models' }
+  if (provider === 'openrouter') return { provider_family: 'openrouter', compatibility: 'native', base_url: OPENROUTER_BASE_URL, model_discovery_strategy: 'openrouter_models' }
+  return { provider_family: 'openai', compatibility: 'native', model_discovery_strategy: 'openai_models' }
 }
 
 interface AddProviderCredentialModalProps {
@@ -53,7 +40,6 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
   const credentialsQuery = useCredentials(projectId)
   const updateCredential = useUpdateCredential()
   const isEditing = Boolean(credential)
-
   const [provider, setProvider] = useState('openai')
   const [name, setName] = useState('')
   const [baseUrl, setBaseUrl] = useState('')
@@ -65,20 +51,15 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
     setBaseUrl(String(credential.metadata?.base_url || ''))
   }, [credential, open])
 
-  const handleEditSubmit = async (event: React.FormEvent) => {
+  const handleEditSubmit = async (event: FormEvent) => {
     event.preventDefault()
     if (!credential) return
-    if (!name.trim()) return toast.error('Name is required')
-    if (provider === 'custom' && !baseUrl.trim()) return toast.error('Base URL is required for OpenAI Compatible providers')
-
+    if (!name.trim()) return void toast.error('Name is required')
+    if (provider === 'custom' && !baseUrl.trim()) return void toast.error('Base URL is required for OpenAI Compatible providers')
     try {
       await updateCredential.mutateAsync({
         id: credential.id,
-        data: {
-          name: name.trim(),
-          provider,
-          metadata: buildCredentialMetadata(provider, baseUrl),
-        },
+        data: { name: name.trim(), provider, metadata: buildCredentialMetadata(provider, baseUrl) },
       })
       toast.success('Credential updated')
       onCredentialCreated(credential.id)
@@ -89,34 +70,27 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
   }
 
   return (
-    <Dialog open={open} onClose={onClose} title={isEditing ? 'Edit Provider Credential' : 'Connect provider'} className={isEditing ? undefined : 'max-w-2xl'}>
+    <Dialog open={open} onClose={onClose} title={isEditing ? 'Edit Provider Credential' : 'Connect provider'}>
       {isEditing && credential ? (
-        <form onSubmit={handleEditSubmit} className="space-y-4">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Provider</label>
+        <form onSubmit={handleEditSubmit} className="grid gap-ui-md">
+          <Field>
+            <FieldLabel>Provider</FieldLabel>
             <Select value={provider} onChange={(event) => setProvider(event.target.value)} options={providers} />
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-muted">Connection name</label>
+          </Field>
+          <Field>
+            <FieldLabel>Connection name</FieldLabel>
             <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Provider connection" />
-          </div>
-          {provider === 'custom' && (
-            <div>
-              <label className="mb-1 block text-sm font-medium text-muted">Base URL</label>
-              <Input
-                value={baseUrl}
-                onChange={(event) => setBaseUrl(event.target.value)}
-                placeholder="https://api.example.com/v1"
-                autoCapitalize="none"
-                autoCorrect="off"
-                spellCheck={false}
-              />
-            </div>
-          )}
-          <div className="rounded-lg border border-border/80 bg-background/55 p-3 text-xs leading-5 text-muted">
-            API keys are rotated from the credential details view so the replacement can be verified before the stored secret changes.
-          </div>
-          <div className="flex justify-end gap-2 pt-2">
+          </Field>
+          {provider === 'custom' ? (
+            <Field>
+              <FieldLabel>Base URL</FieldLabel>
+              <Input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" autoCapitalize="none" autoCorrect="off" spellCheck={false} />
+            </Field>
+          ) : null}
+          <Alert variant="info">
+            <AlertDescription>API keys are rotated from the credential details view so the replacement can be verified before the stored secret changes.</AlertDescription>
+          </Alert>
+          <div className="flex justify-end gap-ui-sm border-t border-border pt-ui-md">
             <Button type="button" variant="outline" onClick={onClose} disabled={updateCredential.isPending}>Cancel</Button>
             <Button type="submit" loading={updateCredential.isPending}>Save changes</Button>
           </div>
@@ -124,7 +98,7 @@ export function AddProviderCredentialModal({ open, onClose, projectId, onCredent
       ) : (
         <ProviderCredentialCreateForm
           projectId={projectId}
-          existingCredentials={credentialsQuery.data}
+          existingCredentials={credentialsQuery.data ?? []}
           onCreated={(created) => {
             toast.success('Provider connected')
             onCredentialCreated(created.id)

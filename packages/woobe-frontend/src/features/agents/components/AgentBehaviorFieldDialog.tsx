@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
-import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
-import { Textarea } from '@/components/ui/Textarea'
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+  Button,
+  Dialog,
+  EmptyStatePanel,
+  TechnicalListItem,
+  Textarea,
+} from '@woobe/ui'
+
 import { behaviorFields } from '../behavior'
 
 type Field = (typeof behaviorFields)[number]
@@ -53,44 +61,81 @@ export function AgentBehaviorFieldDialog({ field, value, agentName, onApply, onC
       open
       title={field.label}
       onClose={requestClose}
-      className="flex h-[min(640px,calc(100svh-2rem))] max-w-3xl flex-col overflow-hidden"
+      className="flex max-h-dialog max-w-dialog flex-col overflow-hidden"
       contentClassName="flex min-h-0 flex-1 flex-col p-0"
     >
-      <div ref={bodyRef} role="dialog" aria-modal="true" aria-label={`Edit ${field.label}`} className="flex min-h-0 flex-1 flex-col">
+      <div ref={bodyRef} aria-label={`Edit ${field.label}`} className="flex min-h-0 flex-1 flex-col">
         {confirmDiscard ? (
           <>
-            <div className="flex min-h-0 flex-1 flex-col justify-center gap-3 overflow-y-auto p-6">
-              <p className="text-sm font-semibold text-white">Discard changes to this field?</p>
-              <p className="text-xs leading-5 text-muted">Your Agent configuration will remain unchanged.</p>
+            <div className="flex min-h-0 flex-1 items-center justify-center overflow-y-auto p-ui-lg">
+              <Alert variant="warning" className="w-full">
+                <AlertTitle>Discard changes to this field?</AlertTitle>
+                <AlertDescription>Your Agent configuration will remain unchanged.</AlertDescription>
+              </Alert>
             </div>
-            <div className="flex shrink-0 justify-end gap-2 border-t border-border p-4">
+            <div className="flex shrink-0 justify-end gap-ui-sm border-t border-border bg-surface/95 px-ui-lg py-ui-md">
               <Button type="button" variant="outline" onClick={() => setConfirmDiscard(false)}>Keep editing</Button>
               <Button type="button" variant="destructive" onClick={onClose}>Discard changes</Button>
             </div>
           </>
         ) : (
           <>
-            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4 sm:p-6">
-              <div className="shrink-0">
-                <p className="truncate text-xs font-medium text-white">{agentName || 'Unnamed Agent'}</p>
-                <p className="mt-1 text-xs leading-5 text-muted">{field.help}</p>
+            <div className="flex min-h-0 flex-1 flex-col gap-ui-md overflow-hidden p-ui-lg">
+              <div className="shrink-0 border-b border-border pb-ui-md">
+                <p className="truncate font-mono text-system-control font-semibold text-accent-foreground">{agentName || 'Unnamed Agent'}</p>
+                <p className="mt-ui-xs font-sans text-product-caption leading-4 text-muted-foreground">{field.help}</p>
               </div>
+
               {Array.isArray(draft) && !item ? (
                 <>
-                  <div className="flex shrink-0 items-center justify-between gap-3">
-                    <span className="text-xs text-muted">{draft.length} items</span>
-                    <Button type="button" size="sm" onClick={() => setItem({ index: -1, original: '', text: '' })}><Plus className="mr-1 h-3.5 w-3.5" />Add item</Button>
+                  <div className="flex shrink-0 items-center justify-between gap-ui-md">
+                    <span className="font-mono text-system-meta text-muted-foreground">{draft.length} items</span>
+                    <Button type="button" size="sm" onClick={() => setItem({ index: -1, original: '', text: '' })}>
+                      <Plus className="h-icon-sm w-icon-sm" />Add item
+                    </Button>
                   </div>
-                  <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-lg border border-border">
-                    {draft.length === 0 ? <p className="p-4 text-xs text-muted">No items configured.</p> : draft.map((text, index) => (
-                      <div key={index} className="flex items-center gap-3 border-b border-border p-3 last:border-b-0">
-                        <p className="line-clamp-2 min-w-0 flex-1 break-words text-xs leading-5">{text || 'Empty item'}</p>
-                        <div className="flex shrink-0 gap-1">
-                          <Button type="button" size="sm" variant="ghost" aria-label={`Edit ${field.label.toLowerCase()} ${index + 1}`} onClick={() => setItem({ index, original: text, text })}><Pencil className="h-3.5 w-3.5" /></Button>
-                          <Button type="button" size="sm" variant="ghost" aria-label={`Remove ${field.label.toLowerCase()} ${index + 1}`} onClick={() => setDraft(draft.filter((_, itemIndex) => itemIndex !== index))}><Trash2 className="h-3.5 w-3.5" /></Button>
-                        </div>
+
+                  <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-container border border-border bg-background/20 p-ui-xs">
+                    {draft.length === 0 ? (
+                      <EmptyStatePanel compact title="No items configured" description="Add the first item for this behavior field." />
+                    ) : (
+                      <div className="grid gap-ui-xs">
+                        {draft.map((text, index) => (
+                          <TechnicalListItem
+                            key={index}
+                            label={text || 'Empty item'}
+                            trailing={(
+                              <div className="flex shrink-0 gap-ui-xs">
+                                <Button
+                                  type="button"
+                                  size="iconSm"
+                                  variant="ghost"
+                                  aria-label={`Edit ${field.label.toLowerCase()} ${index + 1}`}
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    setItem({ index, original: text, text })
+                                  }}
+                                >
+                                  <Pencil className="h-icon-sm w-icon-sm" />
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="iconSm"
+                                  variant="ghost"
+                                  aria-label={`Remove ${field.label.toLowerCase()} ${index + 1}`}
+                                  onClick={(event) => {
+                                    event.stopPropagation()
+                                    setDraft(draft.filter((_, itemIndex) => itemIndex !== index))
+                                  }}
+                                >
+                                  <Trash2 className="h-icon-sm w-icon-sm text-error" />
+                                </Button>
+                              </div>
+                            )}
+                          />
+                        ))}
                       </div>
-                    ))}
+                    )}
                   </div>
                 </>
               ) : (
@@ -99,16 +144,19 @@ export function AgentBehaviorFieldDialog({ field, value, agentName, onApply, onC
                     ref={textareaRef}
                     aria-label={item ? `${field.label} item` : field.label}
                     value={item ? item.text : draft as string}
-                    onChange={event => item ? setItem({ ...item, text: event.target.value }) : setDraft(event.target.value)}
+                    onChange={(event) => item ? setItem({ ...item, text: event.target.value }) : setDraft(event.target.value)}
                     placeholder={item ? 'Describe this item...' : field.help}
-                    className="scrollbar-thin h-full min-h-0 resize-none overflow-y-auto overscroll-contain bg-background/35 text-sm leading-6"
+                    className="scrollbar-thin h-full min-h-0 resize-none overflow-y-auto overscroll-contain bg-background/25 font-sans text-product-body leading-5"
                   />
                 </div>
               )}
             </div>
-            <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border p-4">
-              <p className="text-[11px] text-muted">{item ? 'Apply this item, then apply the field changes.' : 'Apply changes locally, then save the Agent.'}</p>
-              <div className="ml-auto flex gap-2">
+
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-ui-md border-t border-border bg-surface/95 px-ui-lg py-ui-md">
+              <p className="font-sans text-product-caption text-muted-foreground">
+                {item ? 'Apply this item, then apply the field changes.' : 'Apply locally, then save the Agent Draft.'}
+              </p>
+              <div className="ml-auto flex gap-ui-sm">
                 {item ? (
                   <>
                     <Button type="button" variant="outline" onClick={() => setItem(null)}>Cancel item</Button>

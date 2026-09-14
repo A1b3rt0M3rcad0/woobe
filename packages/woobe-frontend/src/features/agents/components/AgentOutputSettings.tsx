@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { HelpCircle } from 'lucide-react'
+import { FileJson2, HelpCircle } from 'lucide-react'
+import { Alert, AlertDescription, Button, Checkbox, PanelHeader } from '@woobe/ui'
 
 import { JsonEditor } from '@/components/ui/JsonEditor'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
@@ -19,7 +20,6 @@ export function AgentOutputSettings() {
   const { state, setField } = useAgentEditor()
   const [helpOpen, setHelpOpen] = useState(false)
   const enabled = state.responseFormat.enabled
-
   const error = outputContractError(state)
 
   const toggle = (next: boolean) => setField('responseFormat', {
@@ -31,17 +31,48 @@ export function AgentOutputSettings() {
   })
 
   return (
-    <div className="p-4">
-      <section className="rounded-xl border border-border bg-surface p-4">
-        <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-muted">JSON Output</p>
-        <div className="mb-4 flex items-center justify-between">
-          <label className="flex items-center gap-2 text-sm font-medium text-muted"><input type="checkbox" checked={enabled} onChange={(event) => toggle(event.target.checked)} className="h-4 w-4 rounded border-border bg-background" />Enable JSON output</label>
-          <button type="button" onClick={() => setHelpOpen(true)} className="flex h-7 w-7 items-center justify-center rounded-full border border-border text-muted hover:border-primary/40 hover:text-primary-light" aria-label="Explain output contracts"><HelpCircle className="h-3.5 w-3.5" /></button>
+    <div className="p-ui-md">
+      <section className="rounded-container border border-border bg-surface/[0.72]">
+        <PanelHeader
+          icon={<FileJson2 className="h-icon w-icon" />}
+          title="JSON output"
+          description="Define the structured response contract consumed by downstream code."
+          actions={(
+            <Button type="button" variant="ghost" size="iconSm" onClick={() => setHelpOpen(true)} aria-label="Explain output contracts">
+              <HelpCircle className="h-icon w-icon" />
+            </Button>
+          )}
+        />
+
+        <div className="grid gap-ui-md p-ui-md">
+          <label className="flex min-h-control items-center justify-between gap-ui-md rounded-container border border-border bg-background/20 px-ui-md py-ui-sm">
+            <span>
+              <span className="block font-mono text-system-label font-semibold text-accent-foreground">Enable JSON output</span>
+              <span className="mt-ui-xs block font-sans text-product-caption text-muted-foreground">Strict validation remains enabled when the contract is active.</span>
+            </span>
+            <Checkbox checked={enabled} onChange={(event) => toggle(event.target.checked)} />
+          </label>
+
+          <div>
+            <label className="mb-ui-sm block font-mono text-system-label font-medium uppercase tracking-system-label text-muted-foreground">Output contract</label>
+            <JsonEditor
+              value={schemaText(state.responseFormat.schema)}
+              onChange={(value) => setField('responseFormat', { ...state.responseFormat, strict: true, schema: value })}
+              editable
+              disabled={!enabled}
+              actions={['format', 'validate', 'clear']}
+              placeholder='{ "message": "string" }'
+            />
+            {error ? (
+              <Alert variant="destructive" className="mt-ui-sm">
+                <AlertDescription>{error}</AlertDescription>
+              </Alert>
+            ) : null}
+            <p className="mt-ui-sm font-sans text-product-caption text-muted-foreground">
+              Type declarations such as <code>"string"</code>, <code>"number"</code> and <code>"float"</code> describe the expected values.
+            </p>
+          </div>
         </div>
-        <label className="mb-1.5 block text-xs font-medium text-muted">Output contract</label>
-        <JsonEditor value={schemaText(state.responseFormat.schema)} onChange={(value) => setField('responseFormat', { ...state.responseFormat, strict: true, schema: value })} editable disabled={!enabled} actions={['format', 'validate', 'clear']} minHeight={180} maxHeight={360} placeholder='{ "message": "string" }' />
-        {error ? <p role="alert" className="mt-2 text-xs text-red-300">{error}</p> : null}
-        <p className="mt-2 text-[11px] leading-5 text-muted">Write the response shape directly. Type names such as <code>"string"</code>, <code>"number"</code> and <code>"float"</code> describe expected values.</p>
       </section>
       <OutputContractHelpModal open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>

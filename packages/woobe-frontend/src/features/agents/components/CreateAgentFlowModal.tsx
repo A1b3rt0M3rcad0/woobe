@@ -1,12 +1,32 @@
 import { useMemo, useState } from 'react'
-import { ArrowLeft, ArrowRight, Check, CheckCircle2, Plus, Search, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Check, Plus, Search, ShieldCheck } from 'lucide-react'
+import {
+  Alert,
+  AlertDescription,
+  Button,
+  Dialog,
+  DialogBody,
+  DialogContextBar,
+  DialogFooter,
+  EmptyStatePanel,
+  Field,
+  FieldDescription,
+  FieldLabel,
+  FieldOptional,
+  FormActions,
+  Input,
+  InputGroup,
+  ReadOnlyField,
+  ScrollArea,
+  SectionBlock,
+  SegmentedControl,
+  Select,
+  Skeleton,
+  Stepper,
+  TechnicalListItem,
+  Textarea,
+} from '@woobe/ui'
 
-import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
-import { Input } from '@/components/ui/Input'
-import { ScrollArea } from '@/components/ui/ScrollArea'
-import { Select } from '@/components/ui/Select'
-import { Textarea } from '@/components/ui/Textarea'
 import { AgentCreationLoadError, AgentCreationPreparing } from '@/features/agents/components/AgentCreationBootstrap'
 import {
   providerLabel,
@@ -45,42 +65,33 @@ function SelectableModelList({
   loading?: boolean
 }) {
   return (
-    <div className="space-y-3">
-      <div className="relative">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted" />
-        <Input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search models" className="pl-9" />
-      </div>
-      <ScrollArea className="h-[330px] rounded-lg border border-border/80 bg-background/30 p-2">
+    <div className="grid gap-ui-sm">
+      <InputGroup start={<Search />}>
+        <Input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search models" />
+      </InputGroup>
+
+      <ScrollArea className="h-60 rounded-container border border-border bg-background/25">
         {loading ? (
-          <div className="space-y-2">
-            {Array.from({ length: 5 }).map((_, index) => <div key={index} className="h-14 animate-pulse rounded-lg bg-surface/70" />)}
+          <div className="grid gap-ui-xs p-ui-xs">
+            {Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-control-row w-full" />)}
           </div>
         ) : items.length === 0 ? (
-          <div className="px-4 py-10 text-center text-sm text-muted">No generation models found.</div>
+          <EmptyStatePanel compact variant="plain" title="No generation models found" description="Change the search or configure a new model." />
         ) : (
-          <div className="divide-y divide-border/60">
-            {items.map((item) => {
-              const selected = item.id === selectedId
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => onSelect(item.id)}
-                  aria-pressed={selected}
-                  className={`flex min-h-14 w-full items-center justify-between gap-4 px-3 py-2.5 text-left transition-colors ${
-                    selected ? 'bg-primary/[0.08]' : 'hover:bg-background/55'
-                  }`}
-                >
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-white">{item.title}</span>
-                    <span className="mt-0.5 block truncate font-mono text-[10px] text-muted">{item.subtitle}</span>
-                  </span>
-                  <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? 'border-primary bg-primary text-white' : 'border-border bg-background'}`}>
-                    {selected ? <Check className="h-3 w-3" /> : null}
-                  </span>
-                </button>
-              )
-            })}
+          <div className="grid">
+            {items.map((item) => (
+              <TechnicalListItem
+                key={item.id}
+                label={item.title}
+                description={item.subtitle}
+                descriptionVariant="technical"
+                presentation="row"
+                selected={item.id === selectedId}
+                density="technical"
+                trailing={item.id === selectedId ? <Check className="h-icon w-icon text-primary-light" /> : null}
+                onClick={() => onSelect(item.id)}
+              />
+            ))}
           </div>
         )}
       </ScrollArea>
@@ -111,29 +122,30 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
 
   if (providerFormVisible) {
     return (
-      <div className="max-w-3xl">
-        <div className="mb-4 border-b border-border/70 pb-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-light">Provider connection</p>
-          <h3 className="mt-1 text-base font-semibold text-white">Connect a model provider</h3>
-          <p className="mt-1 text-xs leading-5 text-muted">Create the credential without leaving the Agent creation flow.</p>
-        </div>
-        <ProviderCredentialCreateForm
-          projectId={projectId}
-          existingCredentials={flow.credentials}
-          formId="create-agent-provider-form"
-          showActions={false}
-          onPendingChange={setProviderPending}
-          onCreated={(credential) => {
-            flow.registerCreatedCredential(credential)
-            setShowProviderForm(false)
-          }}
-        />
-        <div className="mt-5 flex justify-end gap-2 border-t border-border/80 pt-4">
-          {flow.activeCredentials.length > 0 ? (
-            <Button type="button" variant="outline" onClick={() => setShowProviderForm(false)} disabled={providerPending}>Back</Button>
-          ) : null}
-          <Button type="submit" form="create-agent-provider-form" loading={providerPending}>Connect provider</Button>
-        </div>
+      <div className="mx-auto max-w-dialog-content">
+        <SectionBlock
+          eyebrow="Provider connection"
+          title="Connect a model provider"
+          description="Create the Project credential without leaving the Agent creation flow."
+        >
+          <ProviderCredentialCreateForm
+            projectId={projectId}
+            existingCredentials={flow.credentials}
+            formId="create-agent-provider-form"
+            showActions={false}
+            onPendingChange={setProviderPending}
+            onCreated={(credential) => {
+              flow.registerCreatedCredential(credential)
+              setShowProviderForm(false)
+            }}
+          />
+          <FormActions className="mt-ui-md">
+            {flow.activeCredentials.length > 0 ? (
+              <Button type="button" variant="outline" onClick={() => setShowProviderForm(false)} disabled={providerPending}>Back</Button>
+            ) : null}
+            <Button type="submit" form="create-agent-provider-form" loading={providerPending}>Connect provider</Button>
+          </FormActions>
+        </SectionBlock>
       </div>
     )
   }
@@ -143,90 +155,117 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
     if (model) flow.selectCatalogModel(model)
   }
 
-  return (
-    <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
-      <aside className="border-b border-border/70 pb-5 lg:border-b-0 lg:border-r lg:pb-0 lg:pr-5">
-        <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Provider</p>
-        <div className="mt-3 flex items-start gap-2.5">
-          <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary-light" />
-          <div className="min-w-0">
-            <p className="text-xs text-muted">Connection</p>
-            {flow.activeCredentials.length === 1 ? (
-              <p className="mt-1 truncate text-sm font-medium text-white">{flow.selectedCredential?.name || flow.activeCredentials[0].name}</p>
-            ) : (
-              <Select
-                value={flow.selectedCredential?.id || ''}
-                onChange={(event) => flow.selectCredential(event.target.value)}
-                options={flow.activeCredentials.map((credential) => ({ value: credential.id, label: `${credential.name} · ${providerLabel(credential.provider)}` }))}
-                className="mt-2 w-full"
-              />
-            )}
-          </div>
-        </div>
-        <Button type="button" size="sm" variant="ghost" className="mt-3 w-full justify-start" onClick={() => setShowProviderForm(true)}>
-          <Plus className="mr-2 h-4 w-4" />Add connection
-        </Button>
+  const sourceItems = [
+    ...(flow.usableAgentModels.length > 0 ? [{ value: 'existing', label: 'Existing models' }] : []),
+    { value: 'new', label: flow.canUseCatalog ? 'Provider catalog' : 'Manual model' },
+  ]
+  const sourceValue = flow.modelMode === 'existing' ? 'existing' : 'new'
 
-        <div className="mt-5 border-t border-border/70 pt-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">Model source</p>
-          <div className="mt-2 space-y-1">
-            {flow.usableAgentModels.length > 0 ? (
-              <Button type="button" size="sm" variant={flow.modelMode === 'existing' ? 'secondary' : 'ghost'} className="w-full justify-start" onClick={() => { setQuery(''); flow.showExistingModels() }}>
-                Existing models
-              </Button>
-            ) : null}
-            <Button type="button" size="sm" variant={flow.modelMode !== 'existing' ? 'secondary' : 'ghost'} className="w-full justify-start" onClick={() => { setQuery(''); flow.startNewModel() }}>
-              Add new model
+  return (
+    <div className="grid gap-ui-md lg:grid-cols-12">
+      <aside className="grid content-start gap-ui-md lg:col-span-4">
+        <SectionBlock
+          title="Provider"
+          description="Select the Project connection used by this generation model."
+          hierarchy="secondary"
+          density="compact"
+        >
+          <div className="grid gap-ui-sm">
+            {flow.activeCredentials.length === 1 ? (
+              <TechnicalListItem
+                label={flow.selectedCredential?.name || flow.activeCredentials[0].name}
+                description={providerLabel(flow.selectedCredential?.provider || flow.activeCredentials[0].provider)}
+                descriptionVariant="technical"
+                selected
+                density="technical"
+                trailing={<Check className="h-icon w-icon text-primary-light" />}
+              />
+            ) : (
+              <Field density="technical">
+                <FieldLabel>Connection</FieldLabel>
+                <Select
+                  value={flow.selectedCredential?.id || ''}
+                  onChange={(event) => flow.selectCredential(event.target.value)}
+                  options={flow.activeCredentials.map((credential) => ({
+                    value: credential.id,
+                    label: `${credential.name} · ${providerLabel(credential.provider)}`,
+                  }))}
+                />
+              </Field>
+            )}
+            <Button type="button" size="sm" variant="outline" onClick={() => setShowProviderForm(true)}>
+              <Plus className="h-icon-sm w-icon-sm" />Add connection
             </Button>
-            {flow.modelMode !== 'existing' && flow.canUseCatalog && flow.modelMode === 'manual' ? (
-              <Button type="button" size="sm" variant="ghost" className="w-full justify-start" onClick={flow.useCatalogMode}>Browse provider catalog</Button>
-            ) : null}
           </div>
-        </div>
+        </SectionBlock>
+
+        <SectionBlock
+          title="Model source"
+          description="Reuse a Project model or add a provider model."
+          hierarchy="secondary"
+          density="compact"
+        >
+          <SegmentedControl
+            items={sourceItems}
+            value={sourceValue}
+            onValueChange={(value) => {
+              setQuery('')
+              if (value === 'existing') flow.showExistingModels()
+              else flow.startNewModel()
+            }}
+            ariaLabel="Generation model source"
+            size="segment"
+            stretch={false}
+            className="w-fit max-w-full"
+          />
+          {flow.modelMode !== 'existing' && flow.canUseCatalog && flow.modelMode === 'manual' ? (
+            <Button type="button" size="sm" variant="ghost" className="mt-ui-sm" onClick={flow.useCatalogMode}>Browse provider catalog</Button>
+          ) : null}
+        </SectionBlock>
       </aside>
 
-      <section className="min-w-0">
-        <div className="mb-4">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-light">Generation model</p>
-          <h3 className="mt-1 text-base font-semibold text-white">Choose the model for this Agent</h3>
-          <p className="mt-1 text-xs text-muted">The selected model becomes the Agent Draft generation configuration.</p>
-        </div>
-
-        {flow.modelMode === 'existing' ? (
-          <SelectableModelList items={existingItems} selectedId={flow.selectedModel?.id} onSelect={flow.selectExistingModel} query={query} onQueryChange={setQuery} />
-        ) : flow.modelMode === 'catalog' ? (
-          flow.catalogError ? (
-            <div className="rounded-lg border border-border/80 bg-background/35 p-5 text-center">
-              <p className="text-sm font-medium text-white">Could not load provider catalog</p>
-              <div className="mt-4 flex justify-center gap-2">
-                <Button type="button" size="sm" variant="outline" onClick={flow.retryCatalog}>Retry</Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => flow.setManualModel('', '')}>Enter model ID</Button>
-              </div>
-            </div>
+      <section className="min-w-0 lg:col-span-8">
+        <SectionBlock
+          eyebrow="Generation model"
+          title="Choose the model for this Agent"
+          description="The selected model becomes the Agent Draft generation configuration."
+        >
+          {flow.modelMode === 'existing' ? (
+            <SelectableModelList items={existingItems} selectedId={flow.selectedModel?.id} onSelect={flow.selectExistingModel} query={query} onQueryChange={setQuery} />
+          ) : flow.modelMode === 'catalog' ? (
+            flow.catalogError ? (
+              <Alert variant="warning">
+                <AlertDescription>Could not load the provider catalog.</AlertDescription>
+                <div className="mt-ui-md flex gap-ui-sm">
+                  <Button type="button" size="sm" variant="outline" onClick={flow.retryCatalog}>Retry</Button>
+                  <Button type="button" size="sm" variant="ghost" onClick={() => flow.setManualModel('', '')}>Enter model ID</Button>
+                </div>
+              </Alert>
+            ) : (
+              <SelectableModelList items={catalogItems} selectedId={flow.selectedCatalogModel?.id} onSelect={selectCatalog} query={query} onQueryChange={setQuery} loading={flow.catalogLoading} />
+            )
           ) : (
-            <SelectableModelList items={catalogItems} selectedId={flow.selectedCatalogModel?.id} onSelect={selectCatalog} query={query} onQueryChange={setQuery} loading={flow.catalogLoading} />
-          )
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Model ID</label>
-              <Input value={flow.manualModelIdentifier} onChange={(event) => flow.setManualModel(event.target.value, flow.manualModelName)} placeholder="deepseek/deepseek-chat" className="font-mono text-xs" />
+            <div className="grid gap-ui-md sm:grid-cols-2">
+              <Field density="technical">
+                <FieldLabel>Model ID</FieldLabel>
+                <Input value={flow.manualModelIdentifier} onChange={(event) => flow.setManualModel(event.target.value, flow.manualModelName)} placeholder="deepseek/deepseek-chat" className="font-mono" />
+              </Field>
+              <Field density="technical">
+                <FieldLabel>Display name <FieldOptional /></FieldLabel>
+                <Input value={flow.manualModelName} onChange={(event) => flow.setManualModel(flow.manualModelIdentifier, event.target.value)} placeholder="Defaults to model ID" />
+              </Field>
             </div>
-            <div>
-              <label className="mb-1 block text-xs font-medium text-muted">Display name <span className="font-normal text-muted/70">(optional)</span></label>
-              <Input value={flow.manualModelName} onChange={(event) => flow.setManualModel(flow.manualModelIdentifier, event.target.value)} placeholder="Defaults to model ID" />
-            </div>
-          </div>
-        )}
+          )}
+        </SectionBlock>
       </section>
     </div>
   )
 }
 
 const STEPS = [
-  { id: 'details' as const, label: 'Agent details', detail: 'Identity and instructions' },
-  { id: 'model' as const, label: 'Model', detail: 'Provider and generation model' },
-  { id: 'review' as const, label: 'Review', detail: 'Confirm the initial Draft' },
+  { id: 'details' as const, label: 'Agent details', detail: 'Identity and objective' },
+  { id: 'model' as const, label: 'Model', detail: 'Provider and model' },
+  { id: 'review' as const, label: 'Review', detail: 'Confirm Draft' },
 ]
 
 export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: CreateAgentFlowModalProps) {
@@ -236,7 +275,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
     if (flow.step === 'details') {
       return (
         <Button type="button" onClick={flow.continueFromDetails}>
-          Continue<ArrowRight className="ml-2 h-4 w-4" />
+          Continue<ArrowRight className="h-icon w-icon" />
         </Button>
       )
     }
@@ -249,128 +288,94 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
     }
     return (
       <Button type="button" onClick={() => { void flow.createAgent() }} loading={flow.creatingAgent}>
-        <ShieldCheck className="mr-2 h-4 w-4" />Create agent
+        <ShieldCheck className="h-icon w-icon" />Create agent
       </Button>
     )
   }
 
   const currentIndex = flow.step === 'details' ? 0 : flow.step === 'model' ? 1 : 2
+  const stepperItems = STEPS.map((step, index) => ({
+    id: step.id,
+    label: step.label,
+    description: step.detail,
+    state: index < currentIndex ? 'complete' as const : index === currentIndex ? 'current' as const : 'pending' as const,
+  }))
 
   return (
     <Dialog
       open={open}
       onClose={flow.busy ? () => undefined : onClose}
       title="Create agent"
-      className="max-h-[calc(100svh-2rem)] max-w-[900px] overflow-hidden"
-      contentClassName="p-0"
+      variant="workspace"
+      height="workspace"
     >
       {flow.inventoryLoading ? (
-        <div className="p-6"><AgentCreationPreparing /></div>
+        <DialogBody spacing="workspace"><AgentCreationPreparing /></DialogBody>
       ) : flow.inventoryError ? (
-        <div className="p-6"><AgentCreationLoadError onRetry={flow.retryInventory} onCancel={onClose} /></div>
+        <DialogBody spacing="workspace"><AgentCreationLoadError onRetry={flow.retryInventory} onCancel={onClose} /></DialogBody>
       ) : (
-        <div className="grid h-[min(78svh,720px)] grid-rows-[minmax(0,1fr)_auto] overflow-hidden">
-          <div className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden lg:grid-cols-[210px_minmax(0,1fr)] lg:grid-rows-1">
-            <aside className="border-b border-border bg-background/20 lg:border-b-0 lg:border-r">
-              <div className="flex gap-1 overflow-x-auto p-3 lg:flex-col lg:overflow-visible">
-                {STEPS.map((step, index) => {
-                  const active = step.id === flow.step
-                  const complete = index < currentIndex
-                  return (
-                    <div
-                      key={step.id}
-                      className={`flex min-w-[160px] items-start gap-2.5 rounded-lg border px-3 py-2.5 lg:min-w-0 ${
-                        active
-                          ? 'border-primary/35 bg-primary/[0.08]'
-                          : 'border-transparent text-muted'
-                      }`}
-                    >
-                      <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border text-[10px] ${active ? 'border-primary text-primary-light' : complete ? 'border-emerald-500/40 text-emerald-300' : 'border-border'}`}>
-                        {complete ? <Check className="h-3 w-3" /> : index + 1}
-                      </span>
-                      <span className="min-w-0">
-                        <span className={`block text-xs font-medium ${active || complete ? 'text-white' : 'text-muted'}`}>{step.label}</span>
-                        <span className="mt-0.5 hidden text-[10px] leading-4 text-muted lg:block">{step.detail}</span>
-                      </span>
-                    </div>
-                  )
-                })}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <DialogContextBar>
+            <Stepper items={stepperItems} />
+          </DialogContextBar>
+
+          <DialogBody spacing="workspace" tone="subtle">
+            {flow.step === 'details' ? (
+              <SectionBlock
+                eyebrow="Agent Draft"
+                title="Define the Agent identity"
+                description="Define the role and primary outcome. Configure the full Behavior in the Agent editor."
+              >
+                <div className="grid gap-ui-md md:grid-cols-2">
+                  <Field density="technical">
+                    <FieldLabel>Name</FieldLabel>
+                    <Input value={flow.agentName} onChange={(event) => flow.setAgentName(event.target.value)} placeholder="Customer Support Agent" autoFocus />
+                  </Field>
+                  <Field density="technical">
+                    <FieldLabel>Description <FieldOptional /></FieldLabel>
+                    <Input value={flow.agentDescription} onChange={(event) => flow.setAgentDescription(event.target.value)} placeholder="Handles customer questions and support requests" />
+                  </Field>
+                  <Field density="technical" className="md:col-span-2">
+                    <FieldLabel>Objective</FieldLabel>
+                    <Textarea value={flow.agentObjective} onChange={(event) => flow.setAgentObjective(event.target.value)} aria-label="Objective" rows={4} placeholder="Resolve customer support requests accurately." />
+                    <FieldDescription>Initial Draft objective. Detailed Behavior can be configured after creation.</FieldDescription>
+                  </Field>
+                </div>
+              </SectionBlock>
+            ) : null}
+
+            {flow.step === 'model' ? <ModalModelStep flow={flow} projectId={projectId} /> : null}
+
+            {flow.step === 'review' && flow.selectedModel ? (
+              <div className="grid gap-ui-md">
+                <SectionBlock eyebrow="Review" title="Confirm the initial Agent Draft" description="Creation does not publish a Production release." />
+                <div className="grid gap-ui-md md:grid-cols-2">
+                  <ReadOnlyField label="Agent" value={flow.agentName} description={flow.agentDescription || 'No description'} />
+                  <ReadOnlyField
+                    label="Model"
+                    value={flow.selectedModel.name}
+                    descriptionVariant="technical"
+                    description={`${providerLabel(flow.selectedModel.provider)} · ${flow.selectedModel.model}`}
+                  />
+                  <ReadOnlyField label="Objective" value={flow.agentObjective} className="md:col-span-2" />
+                </div>
               </div>
-            </aside>
+            ) : null}
+          </DialogBody>
 
-            <ScrollArea className="min-h-0 bg-surface/35">
-              <div className="p-5">
-                {flow.step === 'details' ? (
-                  <div>
-                    <div className="mb-5">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-light">Agent Draft</p>
-                      <h3 className="mt-1 text-base font-semibold text-white">Define the Agent identity</h3>
-                      <p className="mt-1 text-xs leading-5 text-muted">Define the role and primary outcome. Configure the full Behavior in the Agent editor.</p>
-                    </div>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-muted">Name</label>
-                        <Input value={flow.agentName} onChange={(event) => flow.setAgentName(event.target.value)} placeholder="Customer Support Agent" autoFocus />
-                      </div>
-                      <div>
-                        <label className="mb-1 block text-xs font-medium text-muted">Description <span className="font-normal text-muted/70">(optional)</span></label>
-                        <Input value={flow.agentDescription} onChange={(event) => flow.setAgentDescription(event.target.value)} placeholder="Handles customer questions and support requests" />
-                      </div>
-                      <div className="md:col-span-2">
-                        <div className="mb-1 flex items-center justify-between gap-3">
-                          <label className="text-xs font-medium text-muted">Objective</label>
-                          <span className="text-[10px] text-muted">Initial Draft</span>
-                        </div>
-                        <Textarea value={flow.agentObjective} onChange={(event) => flow.setAgentObjective(event.target.value)} aria-label="Objective" rows={4} placeholder="Resolve customer support requests accurately." className="min-h-[120px]" />
-                      </div>
-                    </div>
-                  </div>
+          <DialogFooter
+            actions={(
+              <>
+                <Button type="button" variant="outline" onClick={onClose} disabled={flow.busy}>Cancel</Button>
+                {flow.step !== 'details' ? (
+                  <Button type="button" variant="outline" onClick={flow.goBack} disabled={flow.busy}>
+                    <ArrowLeft className="h-icon w-icon" />Back
+                  </Button>
                 ) : null}
-
-                {flow.step === 'model' ? <ModalModelStep flow={flow} projectId={projectId} /> : null}
-
-                {flow.step === 'review' && flow.selectedModel ? (
-                  <div>
-                    <div className="mb-5">
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-primary-light">Review</p>
-                      <h3 className="mt-1 text-base font-semibold text-white">Confirm the initial Agent Draft</h3>
-                      <p className="mt-1 text-xs text-muted">Creation does not publish a Production release.</p>
-                    </div>
-                    <div className="grid gap-5 md:grid-cols-2">
-                      <section className="border-b border-border/70 pb-4 md:border-b-0 md:border-r md:pb-0 md:pr-5">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Agent</p>
-                        <p className="mt-2 text-base font-semibold text-white">{flow.agentName}</p>
-                        <p className="mt-2 text-sm leading-5 text-muted">{flow.agentDescription || 'No description'}</p>
-                      </section>
-                      <section>
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Model</p>
-                        <p className="mt-2 text-base font-semibold text-white">{flow.selectedModel.name}</p>
-                        <p className="mt-2 truncate font-mono text-[11px] text-muted">{providerLabel(flow.selectedModel.provider)} · {flow.selectedModel.model}</p>
-                      </section>
-                      <section className="border-t border-border/70 pt-5 md:col-span-2">
-                        <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted">Objective</p>
-                        <div className="mt-3 max-h-[280px] overflow-y-auto rounded-lg border border-border/70 bg-background/30 p-4">
-                          <p className="whitespace-pre-wrap text-sm leading-6 text-white/90">{flow.agentObjective}</p>
-                        </div>
-                      </section>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </ScrollArea>
-          </div>
-
-          <div className="flex items-center justify-between gap-3 border-t border-border bg-surface/95 px-5 py-4 backdrop-blur">
-            <Button type="button" variant="outline" onClick={onClose} disabled={flow.busy}>Cancel</Button>
-            <div className="flex gap-2">
-              {flow.step !== 'details' ? (
-                <Button type="button" variant="outline" onClick={flow.goBack} disabled={flow.busy}>
-                  <ArrowLeft className="mr-2 h-4 w-4" />Back
-                </Button>
-              ) : null}
-              {footerPrimary()}
-            </div>
-          </div>
+                {footerPrimary()}
+              </>
+            )}
+          />
         </div>
       )}
     </Dialog>

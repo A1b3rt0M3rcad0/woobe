@@ -27,11 +27,11 @@ function CanvasPreparing() {
       aria-label="Preparing Network Canvas"
     >
       <div className={`flex flex-col items-center text-center transition-opacity duration-150 ${showMessage ? 'opacity-100' : 'opacity-0'}`}>
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/25 bg-primary/10 text-primary-light shadow-lg shadow-primary/10">
-          <Loader2 className="h-5 w-5 animate-spin" />
+        <div className="flex h-control-lg w-control-lg items-center justify-center rounded-control border border-primary/25 bg-primary/10 text-primary-light">
+          <Loader2 className="h-icon-lg w-icon-lg animate-spin" />
         </div>
-        <p className="mt-4 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-200">Preparing Canvas</p>
-        <p className="mt-1 text-[9px] text-muted">Positioning the Network composition.</p>
+        <p className="mt-ui-md font-mono text-system-label font-semibold uppercase tracking-ui-eyebrow text-slate-200">Preparing Canvas</p>
+        <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Positioning the Network composition.</p>
       </div>
     </div>
   )
@@ -169,7 +169,7 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
 
       <div
         ref={chromeRef}
-        className="absolute bottom-4 z-20 flex flex-col overflow-hidden rounded-xl border border-slate-700/90 bg-[#020817] shadow-xl shadow-black/30 transition-[left] duration-200"
+        className="absolute bottom-ui-md z-20 flex flex-col overflow-hidden rounded-control border border-border bg-background transition-[left] duration-200"
         style={{ left: leftInset + 16 }}
       >
         <button
@@ -180,9 +180,9 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
             viewportTouchedRef.current = true
             void zoomIn()
           }}
-          className="flex h-8 w-8 items-center justify-center border-b border-slate-700/75 bg-slate-900 text-slate-300 hover:bg-blue-950 hover:text-white"
+          className="flex h-control-sm w-control-sm items-center justify-center border-b border-border bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-white"
         >
-          <Plus className="h-4 w-4" />
+          <Plus className="h-icon w-icon" />
         </button>
         <button
           type="button"
@@ -192,9 +192,9 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
             viewportTouchedRef.current = true
             void zoomOut()
           }}
-          className="flex h-8 w-8 items-center justify-center border-b border-slate-700/75 bg-slate-900 text-slate-300 hover:bg-blue-950 hover:text-white"
+          className="flex h-control-sm w-control-sm items-center justify-center border-b border-border bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-white"
         >
-          <Minus className="h-4 w-4" />
+          <Minus className="h-icon w-icon" />
         </button>
         <button
           type="button"
@@ -204,14 +204,14 @@ export function NetworkCanvasChrome({ nodeCount, edgeCount, fitKey, viewportTouc
             viewportTouchedRef.current = false
             void fitVisibleArea(180)
           }}
-          className="flex h-8 w-8 items-center justify-center bg-slate-900 text-slate-300 hover:bg-blue-950 hover:text-white"
+          className="flex h-control-sm w-control-sm items-center justify-center bg-control/55 text-muted-foreground transition-colors hover:bg-accent hover:text-white"
         >
-          <Maximize2 className="h-4 w-4" />
+          <Maximize2 className="h-icon w-icon" />
         </button>
       </div>
 
       <div
-        className="pointer-events-none absolute top-4 z-10 flex items-center gap-2 rounded-xl border border-border bg-surface/90 px-3 py-2 text-[10px] text-muted shadow-lg transition-[left] duration-200"
+        className="pointer-events-none absolute top-ui-md z-10 flex items-center gap-ui-sm rounded-control border border-border bg-surface/90 px-ui-md py-ui-sm font-mono text-system-micro text-muted-foreground transition-[left] duration-200"
         style={{ left: leftInset + 16 }}
       >
         <Workflow className="h-3.5 w-3.5 text-primary-light" />

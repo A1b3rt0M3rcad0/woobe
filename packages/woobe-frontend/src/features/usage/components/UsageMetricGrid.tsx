@@ -22,12 +22,12 @@ function formatNumber(value: number | null, maximumFractionDigits = 0) {
 }
 
 function Change({ value, inverse = false }: { value: number | null; inverse?: boolean }) {
-  if (value === null) return <span className="text-muted">No previous baseline</span>
+  if (value === null) return <span className="text-muted-foreground">No previous baseline</span>
   const sign = value > 0 ? '+' : ''
   const positive = inverse ? value < 0 : value > 0
   const negative = inverse ? value > 0 : value < 0
   return (
-    <span className={positive ? 'text-emerald-300' : negative ? 'text-amber-300' : 'text-muted'}>
+    <span className={positive ? 'text-emerald-300' : negative ? 'text-amber-300' : 'text-muted-foreground'}>
       {sign}{value.toFixed(1)}% vs previous
     </span>
   )
@@ -43,18 +43,23 @@ interface MetricCardProps {
 
 function MetricCard({ label, value, description, icon: Icon, warning }: MetricCardProps) {
   return (
-    <div className="min-h-[118px] rounded-xl border border-border/90 bg-surface/70 p-4">
+    <div className="min-h-[104px] rounded-container border border-border bg-surface/[0.92] px-3.5 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.014)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted">{label}</p>
-          <p className="mt-2 truncate text-2xl font-semibold tracking-tight text-white" title={value}>{value}</p>
-          <div className={warning ? 'mt-1 text-xs text-amber-300' : 'mt-1 text-xs text-muted'}>{description}</div>
+          <p className="font-mono text-[8px] font-semibold uppercase tracking-[0.11em] text-muted-foreground">{label}</p>
+          <p className="mt-1.5 truncate font-mono text-xl font-bold tabular-nums tracking-tight text-slate-50" title={value}>{value}</p>
+          <div className={warning
+            ? 'mt-1 font-mono text-[8px] leading-4 text-amber-300'
+            : 'mt-1 font-mono text-[8px] leading-4 text-muted-foreground'}
+          >
+            {description}
+          </div>
         </div>
         <div className={warning
-          ? 'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-400/25 bg-amber-400/10 text-amber-300'
-          : 'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary/25 bg-primary/10 text-primary-light'}
+          ? 'flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-amber-400/25 bg-amber-400/[0.07] text-amber-300'
+          : 'flex h-7 w-7 shrink-0 items-center justify-center rounded-control border border-border bg-control text-primary-light'}
         >
-          <Icon className="h-4 w-4" />
+          <Icon className="h-3.5 w-3.5" />
         </div>
       </div>
     </div>
@@ -68,12 +73,12 @@ function SupportingMetric({ label, value, detail, icon: Icon }: {
   icon: LucideIcon
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/20 p-3">
-      <Icon className="h-4 w-4 shrink-0 text-primary-light" />
+    <div className="flex min-w-0 items-center gap-2.5 border-r border-border/70 px-3 py-2.5 last:border-r-0">
+      <Icon className="h-3.5 w-3.5 shrink-0 text-primary-light" />
       <div className="min-w-0">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted">{label}</p>
-        <p className="mt-1 text-sm font-semibold text-white">{value}</p>
-        <p className="mt-0.5 truncate text-[10px] text-muted" title={detail}>{detail}</p>
+        <p className="font-mono text-[8px] font-semibold uppercase tracking-[0.1em] text-muted-foreground">{label}</p>
+        <p className="mt-0.5 font-mono text-[11px] font-bold tabular-nums text-slate-100">{value}</p>
+        <p className="mt-0.5 truncate font-mono text-[8px] leading-4 text-muted-foreground" title={detail}>{detail}</p>
       </div>
     </div>
   )
@@ -87,7 +92,7 @@ export function UsageMetricGrid({ summary }: { summary: ProjectUsageSummary }) {
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <MetricCard
           icon={BadgeDollarSign}
           label="Operational cost"
@@ -132,7 +137,7 @@ export function UsageMetricGrid({ summary }: { summary: ProjectUsageSummary }) {
         />
       </div>
 
-      <div className="grid gap-3 rounded-xl border border-border/80 bg-surface/45 p-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid overflow-hidden rounded-container border border-border bg-surface/[0.76] sm:grid-cols-2 xl:grid-cols-6">
         <SupportingMetric
           icon={Activity}
           label="Direct Agent Runs"

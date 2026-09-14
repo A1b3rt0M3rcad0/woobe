@@ -169,15 +169,32 @@ function pointY(value: number, maxValue: number): number {
   return CHART_HEIGHT - CHART_PADDING - (value / Math.max(maxValue, 1)) * (CHART_HEIGHT - CHART_PADDING * 2)
 }
 
-function buildPath(values: number[], maxValue: number): string {
-  if (values.length === 0) return ''
-  return values.map((value, index) => `${index === 0 ? 'M' : 'L'} ${pointX(index, values.length).toFixed(2)} ${pointY(value, maxValue).toFixed(2)}`).join(' ')
+type ChartPoint = { x: number; y: number }
+
+function chartPoints(values: number[], maxValue: number): ChartPoint[] {
+  return values.map((value, index) => ({
+    x: pointX(index, values.length),
+    y: pointY(value, maxValue),
+  }))
+}
+
+function buildSmoothPath(values: number[], maxValue: number): string {
+  const points = chartPoints(values, maxValue)
+  if (points.length === 0) return ''
+  if (points.length === 1) return `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`
+
+  return points.slice(1).reduce((path, current, index) => {
+    const previous = points[index]
+    const distance = current.x - previous.x
+    const controlOffset = Math.min(distance * 0.42, 24)
+    return `${path} C ${(previous.x + controlOffset).toFixed(2)} ${previous.y.toFixed(2)} ${(current.x - controlOffset).toFixed(2)} ${current.y.toFixed(2)} ${current.x.toFixed(2)} ${current.y.toFixed(2)}`
+  }, `M ${points[0].x.toFixed(2)} ${points[0].y.toFixed(2)}`)
 }
 
 function buildAreaPath(values: number[], maxValue: number): string {
   if (values.length === 0) return ''
   const baseline = CHART_HEIGHT - CHART_PADDING
-  const line = buildPath(values, maxValue)
+  const line = buildSmoothPath(values, maxValue)
   return `${line} L ${pointX(values.length - 1, values.length).toFixed(2)} ${baseline} L ${pointX(0, values.length).toFixed(2)} ${baseline} Z`
 }
 
@@ -192,14 +209,14 @@ function latestActivityIndex(series: DashboardSeriesPoint[]): number {
 function ChartTicks({ model }: { model: DashboardViewModel }) {
   const ticks = getTickIndexes(model.series.length)
   return (
-    <div className="absolute bottom-0 left-0 right-0 flex justify-between overflow-hidden text-[10px] text-muted">
-      {ticks.map((index) => <span key={`${model.series[index]?.label}-${index}`} className="max-w-[92px] truncate">{model.series[index]?.label}</span>)}
+    <div className="absolute bottom-0 left-0 right-0 flex justify-between overflow-hidden font-mono text-[9px] text-muted">
+      {ticks.map((index) => <span key={`${model.series[index]?.label}-${index}`} className="max-w-[108px] truncate">{model.series[index]?.label}</span>)}
     </div>
   )
 }
 
 function ChartGrid() {
-  return <div className="absolute bottom-7 left-0 right-0 top-0 flex flex-col justify-between">{[0, 1, 2, 3].map((line) => <div key={line} className="border-t border-border/70" />)}</div>
+  return <div className="absolute bottom-7 left-0 right-0 top-0 flex flex-col justify-between">{[0, 1, 2, 3].map((line) => <div key={line} className="border-t border-border/55" />)}</div>
 }
 
 function RunActivityChart({ model }: { model: DashboardViewModel }) {
@@ -209,13 +226,15 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
   const agentValues = model.series.map((point) => point.agentRuns)
   const networkValues = model.series.map((point) => point.networkRuns)
   const maxValue = Math.max(...agentValues, ...networkValues, 1)
-  const agentPath = buildPath(agentValues, maxValue)
+  const agentPath = buildSmoothPath(agentValues, maxValue)
   const agentAreaPath = buildAreaPath(agentValues, maxValue)
   const hasAgentActivity = agentValues.some((value) => value > 0)
   const hasNetworkActivity = networkValues.some((value) => value > 0)
   const activePoint = model.series[activeIndex] ?? null
-  const bucketWidth = model.series.length > 0 ? (CHART_WIDTH - CHART_PADDING * 2) / model.series.length : 0
-  const networkBarWidth = Math.min(Math.max(bucketWidth * 0.34, 4), 16)
+  const activeX = activePoint ? pointX(activeIndex, model.series.length) : null
+  const bucketWidth = model.series.length > 1 ? (CHART_WIDTH - CHART_PADDING * 2) / (model.series.length - 1) : CHART_WIDTH - CHART_PADDING * 2
+  const networkBarWidth = Math.min(Math.max(bucketWidth * 0.18, 3), 7)
+  const hitWidth = Math.max(bucketWidth, 20)
 
   useEffect(() => {
     setSelectedIndex(latestActivityIndex(model.series))
@@ -226,36 +245,98 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
     <Panel className="h-full min-h-[330px]">
       <PanelHeader
         title="Run Activity"
-        action={<div className="rounded-full border border-border bg-background/70 px-3 py-1 text-right text-[10px] text-muted"><span className="block uppercase tracking-wide">Period total</span><b className="text-xs font-medium text-slate-200">{sum(agentValues).toLocaleString()} Agent Runs · {sum(networkValues).toLocaleString()} Network Runs</b></div>}
+        action={<div className="rounded-md border border-border bg-background/55 px-3 py-1.5 text-right font-mono text-[9px] text-muted"><span className="block uppercase tracking-[0.08em]">Period total</span><b className="mt-0.5 block text-[10px] font-medium text-slate-200">{sum(agentValues).toLocaleString()} Agent Runs · {sum(networkValues).toLocaleString()} Network Runs</b></div>}
       />
       <div className="px-5 pb-5">
-        <div className="mb-3 flex flex-wrap items-center gap-4 text-xs text-muted">
+        <div className="mb-3 flex flex-wrap items-center gap-4 font-mono text-[9px] text-muted">
           {hasAgentActivity && <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 rounded bg-blue-500" />Agent Runs</span>}
-          {hasNetworkActivity && <span className="flex items-center gap-1.5"><span className="h-3 w-2 rounded-sm bg-violet-500/80" />Network Runs</span>}
-          <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full bg-red-400" />Errors</span>
+          {hasNetworkActivity && <span className="flex items-center gap-1.5"><span className="h-3 w-1 rounded-sm bg-violet-500/80" />Network Runs</span>}
+          <span className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-red-400" />Errors</span>
         </div>
         <div className="relative h-[190px]">
           <ChartGrid />
-          <svg onMouseLeave={() => setHoverIndex(null)} className="absolute inset-x-0 top-0 h-[166px] w-full" viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`} preserveAspectRatio="none" aria-label="Agent Run line and Network Run bars by time bucket">
-            <defs><linearGradient id="agent-run-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" /><stop offset="100%" stopColor="#3b82f6" stopOpacity="0" /></linearGradient></defs>
+          <svg
+            onMouseLeave={() => setHoverIndex(null)}
+            className="absolute inset-x-0 top-0 h-[166px] w-full"
+            viewBox={`0 0 ${CHART_WIDTH} ${CHART_HEIGHT}`}
+            preserveAspectRatio="none"
+            aria-label="Agent Run area and Network Run bars by time bucket"
+          >
+            <defs>
+              <linearGradient id="agent-run-area" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity="0.28" />
+                <stop offset="55%" stopColor="#3b82f6" stopOpacity="0.10" />
+                <stop offset="95%" stopColor="#3b82f6" stopOpacity="0.01" />
+              </linearGradient>
+              <linearGradient id="network-run-bar" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#a78bfa" stopOpacity="0.9" />
+                <stop offset="100%" stopColor="#7c3aed" stopOpacity="0.45" />
+              </linearGradient>
+            </defs>
+
+            {activeX !== null && (
+              <line
+                x1={activeX}
+                x2={activeX}
+                y1={CHART_PADDING - 2}
+                y2={CHART_HEIGHT - CHART_PADDING}
+                stroke="#334155"
+                strokeWidth="1"
+                strokeDasharray="3 5"
+                opacity="0.8"
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
+
+            {hasAgentActivity && agentAreaPath && <path d={agentAreaPath} fill="url(#agent-run-area)" />}
+
             {hasNetworkActivity && model.series.map((point, index) => {
               if (point.networkRuns <= 0) return null
               const x = pointX(index, model.series.length)
               const y = pointY(point.networkRuns, maxValue)
               const baseline = CHART_HEIGHT - CHART_PADDING
-              return <rect key={`network-bar-${point.bucketStart}`} x={x - networkBarWidth / 2} y={y} width={networkBarWidth} height={Math.max(baseline - y, 1)} rx="2" fill="#8b5cf6" fillOpacity="0.72" />
+              return (
+                <rect
+                  key={`network-bar-${point.bucketStart}`}
+                  x={x - networkBarWidth / 2}
+                  y={y}
+                  width={networkBarWidth}
+                  height={Math.max(baseline - y, 2)}
+                  rx={Math.min(networkBarWidth / 2, 3)}
+                  fill="url(#network-run-bar)"
+                />
+              )
             })}
-            {hasAgentActivity && agentAreaPath && <path d={agentAreaPath} fill="url(#agent-run-area)" />}
-            {hasAgentActivity && agentPath && <path d={agentPath} fill="none" stroke="#3b82f6" strokeWidth="2" vectorEffect="non-scaling-stroke" />}
+
+            {hasAgentActivity && agentPath && (
+              <path
+                d={agentPath}
+                fill="none"
+                stroke="#3b82f6"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                vectorEffect="non-scaling-stroke"
+              />
+            )}
+
             {model.series.map((point, index) => {
               const x = pointX(index, model.series.length)
               const hasErrors = point.agentErrors + point.networkErrors > 0
               const isActive = activeIndex === index
+              const agentY = pointY(point.agentRuns, maxValue)
+              const left = Math.max(x - hitWidth / 2, 0)
+              const width = Math.min(hitWidth, CHART_WIDTH - left)
               return (
                 <g key={point.bucketStart} onMouseEnter={() => setHoverIndex(index)} onClick={() => setSelectedIndex(index)} className="cursor-pointer">
-                  <rect x={Math.max(x - 11, 0)} y={0} width={22} height={CHART_HEIGHT} fill="transparent" />
-                  {hasAgentActivity && point.agentRuns > 0 && <circle cx={x} cy={pointY(point.agentRuns, maxValue)} r={isActive ? 4 : 2.5} fill="#3b82f6" />}
-                  {hasErrors && <circle cx={x} cy={CHART_HEIGHT - 8} r={3} fill="#f87171" />}
+                  <rect x={left} y={0} width={width} height={CHART_HEIGHT} fill="transparent" />
+                  {isActive && (
+                    <>
+                      <circle cx={x} cy={agentY} r="5" fill="#020817" stroke="#60a5fa" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+                      <circle cx={x} cy={agentY} r="1.5" fill="#93c5fd" />
+                    </>
+                  )}
+                  {hasErrors && <circle cx={x} cy={CHART_HEIGHT - 8} r="3" fill="#f87171" />}
                 </g>
               )
             })}
@@ -263,14 +344,14 @@ function RunActivityChart({ model }: { model: DashboardViewModel }) {
           <ChartTicks model={model} />
         </div>
         {activePoint && (
-          <div className="flex flex-col gap-3 rounded-xl border border-border/80 bg-background/45 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-[150px]"><p className="text-[10px] font-medium uppercase tracking-wide text-muted">Selected interval</p><p className="mt-1 text-xs font-medium text-white">{activePoint.label}</p></div>
+          <div className="flex flex-col gap-3 rounded-md border border-border/80 bg-background/45 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-[150px]"><p className="font-mono text-[9px] font-medium uppercase tracking-[0.08em] text-muted">Selected interval</p><p className="mt-1 font-mono text-[10px] font-medium text-white">{activePoint.label}</p></div>
             <div className="grid flex-1 grid-cols-2 gap-3 sm:grid-cols-5">
-              <div><p className="text-[10px] text-muted">Agent Runs</p><p className="mt-1 text-sm font-semibold text-blue-300">{activePoint.agentRuns}</p></div>
-              <div><p className="text-[10px] text-muted">Network Runs</p><p className="mt-1 text-sm font-semibold text-violet-300">{activePoint.networkRuns}</p></div>
-              <div><p className="text-[10px] text-muted">Successful</p><p className="mt-1 text-sm font-semibold text-emerald-300">{activePoint.agentSuccess + activePoint.networkSuccess}</p></div>
-              <div><p className="text-[10px] text-muted">Errors</p><p className="mt-1 text-sm font-semibold text-red-300">{activePoint.agentErrors + activePoint.networkErrors}</p></div>
-              <div><p className="text-[10px] text-muted">Runtime cost</p><p className="mt-1 text-sm font-semibold text-white">{formatCost(activePoint.costUsd, activePoint.costUsd !== null)}</p></div>
+              <div><p className="font-mono text-[9px] text-muted">Agent Runs</p><p className="mt-1 font-mono text-sm font-semibold text-blue-300">{activePoint.agentRuns}</p></div>
+              <div><p className="font-mono text-[9px] text-muted">Network Runs</p><p className="mt-1 font-mono text-sm font-semibold text-violet-300">{activePoint.networkRuns}</p></div>
+              <div><p className="font-mono text-[9px] text-muted">Successful</p><p className="mt-1 font-mono text-sm font-semibold text-emerald-300">{activePoint.agentSuccess + activePoint.networkSuccess}</p></div>
+              <div><p className="font-mono text-[9px] text-muted">Errors</p><p className="mt-1 font-mono text-sm font-semibold text-red-300">{activePoint.agentErrors + activePoint.networkErrors}</p></div>
+              <div><p className="font-mono text-[9px] text-muted">Runtime cost</p><p className="mt-1 font-mono text-sm font-semibold text-white">{formatCost(activePoint.costUsd, activePoint.costUsd !== null)}</p></div>
             </div>
           </div>
         )}
@@ -409,9 +490,22 @@ function RuntimeAssets({ model }: { model: DashboardViewModel }) {
     ['Networks in Production', model.assets.productionNetworks],
   ]
   return (
-    <Panel className="h-full min-h-[250px]">
+    <Panel className="flex h-full min-h-[230px] flex-col overflow-hidden">
       <PanelHeader title="Runtime Assets" />
-      <div className="grid grid-cols-2 gap-x-5 gap-y-1 px-5 pb-5">{rows.map(([label, value]) => <div key={label} className="flex items-center justify-between gap-3 border-b border-border/50 py-2 text-xs last:border-b-0"><span className="text-slate-300">{label}</span><span className="font-semibold text-white">{value}</span></div>)}</div>
+      <div className="grid flex-1 grid-cols-1 border-t border-border/70 sm:grid-cols-2">
+        {rows.map(([label, value], index) => {
+          const isLast = index === rows.length - 1
+          return (
+            <div
+              key={label}
+              className={`flex min-h-10 items-center justify-between gap-3 border-b border-border/60 px-4 py-2.5 ${!isLast && index % 2 === 0 ? 'sm:border-r' : ''} ${isLast ? 'sm:col-span-2' : ''}`}
+            >
+              <span className="min-w-0 truncate font-mono text-[9px] text-muted-foreground">{label}</span>
+              <span className="shrink-0 font-mono text-xs font-semibold tabular-nums text-slate-50">{value}</span>
+            </div>
+          )
+        })}
+      </div>
     </Panel>
   )
 }
@@ -426,9 +520,25 @@ function KnowledgeBase({ model, onOpen }: { model: DashboardViewModel; onOpen: (
     { label: 'Storage', value: model.knowledge.storage, icon: Database, tone: 'text-violet-300' },
   ]
   return (
-    <Panel className="h-full min-h-[250px]">
+    <Panel className="flex h-full min-h-[230px] flex-col overflow-hidden">
       <PanelHeader title="Knowledge" />
-      <div className="grid grid-cols-2 gap-2 px-5 pb-5">{entries.map((entry) => { const Icon = entry.icon; return <div key={entry.label} className="rounded-xl border border-border/80 bg-background/50 p-3"><div className="flex items-center gap-2"><Icon className={`h-4 w-4 ${entry.tone}`} /><p className="truncate text-xs text-muted">{entry.label}</p></div><p className={`mt-2 text-lg font-semibold ${entry.tone}`}>{entry.value}</p></div> })}<div className="col-span-2 pt-1"><MiniLink label="Open Knowledge" onClick={onOpen} /></div></div>
+      <div className="grid flex-1 grid-cols-2 border-t border-border/70">
+        {entries.map((entry, index) => {
+          const Icon = entry.icon
+          return (
+            <div key={entry.label} className={`min-h-[62px] border-b border-border/60 px-4 py-3 ${index % 2 === 0 ? 'border-r' : ''}`}>
+              <div className="flex min-w-0 items-center gap-2">
+                <Icon className={`h-3.5 w-3.5 shrink-0 ${entry.tone}`} />
+                <p className="truncate font-mono text-[9px] text-muted-foreground">{entry.label}</p>
+              </div>
+              <p className={`mt-1.5 truncate font-mono text-base font-semibold leading-none tabular-nums ${entry.tone}`}>{entry.value}</p>
+            </div>
+          )
+        })}
+      </div>
+      <div className="border-t border-border/70 px-4 py-3">
+        <MiniLink label="Open Knowledge" onClick={onOpen} />
+      </div>
     </Panel>
   )
 }
@@ -437,13 +547,29 @@ function ToolsIntegrations({ model, onOpen }: { model: DashboardViewModel; onOpe
   const items = [
     { label: 'Tools', value: model.tools.total, icon: Wrench, tone: 'text-blue-300' },
     { label: 'Active', value: model.tools.active, icon: CheckCircle2, tone: 'text-emerald-300' },
-    { label: 'Inactive', value: model.tools.inactive, icon: Workflow, tone: 'text-slate-300' },
-    { label: 'Recent failures', value: String(model.tools.recentFailures), icon: XCircle, tone: model.tools.recentFailures > 0 ? 'text-red-300' : 'text-slate-300' },
+    { label: 'Inactive', value: model.tools.inactive, icon: Workflow, tone: 'text-slate-400' },
+    { label: 'Recent failures', value: String(model.tools.recentFailures), icon: XCircle, tone: model.tools.recentFailures > 0 ? 'text-red-300' : 'text-slate-400' },
   ]
   return (
-    <Panel className="h-full min-h-[250px]">
+    <Panel className="flex h-full min-h-[230px] flex-col overflow-hidden">
       <PanelHeader title="Tools" />
-      <div className="space-y-1 px-5 pb-5">{items.map((item) => { const Icon = item.icon; return <div key={item.label} className="flex items-center justify-between gap-3 rounded-lg px-1 py-2.5 text-sm"><span className="flex items-center gap-2 text-slate-200"><Icon className={`h-4 w-4 ${item.tone}`} />{item.label}</span><span className={`font-semibold ${item.tone}`}>{item.value}</span></div> })}<div className="pt-2"><MiniLink label="Manage Tools" onClick={onOpen} /></div></div>
+      <div className="flex-1 border-t border-border/70">
+        {items.map((item) => {
+          const Icon = item.icon
+          return (
+            <div key={item.label} className="flex min-h-10 items-center justify-between gap-3 border-b border-border/60 px-4 py-2.5">
+              <span className="flex min-w-0 items-center gap-2 font-mono text-[9px] text-muted-foreground">
+                <Icon className={`h-3.5 w-3.5 shrink-0 ${item.tone}`} />
+                <span className="truncate">{item.label}</span>
+              </span>
+              <span className={`shrink-0 font-mono text-xs font-semibold tabular-nums ${item.tone}`}>{item.value}</span>
+            </div>
+          )
+        })}
+      </div>
+      <div className="border-t border-border/70 px-4 py-3">
+        <MiniLink label="Manage Tools" onClick={onOpen} />
+      </div>
     </Panel>
   )
 }
@@ -494,7 +620,7 @@ export function DashboardDataState({ model, environment = 'all', onNavigate, onO
       <ChangesInPeriod model={model} environment={environment} onNavigate={onNavigate} />
 
       <StorySectionHeader title="Current Project State" description="Current deployable resources. Knowledge and Tools are Project-wide, not historical environment snapshots." />
-      <div className="grid grid-cols-1 gap-4 xl:grid-cols-3"><RuntimeAssets model={model} /><KnowledgeBase model={model} onOpen={() => onNavigate('knowledge')} /><ToolsIntegrations model={model} onOpen={() => onNavigate('tools')} /></div>
+      <div className="grid grid-cols-1 items-stretch gap-4 xl:grid-cols-3"><RuntimeAssets model={model} /><KnowledgeBase model={model} onOpen={() => onNavigate('knowledge')} /><ToolsIntegrations model={model} onOpen={() => onNavigate('tools')} /></div>
 
       <StorySectionHeader title="Latest executions" description="A compact operational handoff to the detailed Agent or Network workspace." />
       <RecentRuns model={model} onOpen={onOpenRun} onViewAll={() => onNavigate('traces')} />

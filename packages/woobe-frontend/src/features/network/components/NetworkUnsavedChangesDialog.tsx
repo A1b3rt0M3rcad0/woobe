@@ -1,4 +1,5 @@
 import { AlertTriangle, Save } from 'lucide-react'
+import { Alert, AlertDescription, Button, Dialog, TechnicalListItem } from '@woobe/ui'
 
 import type { Environment } from './networkWorkspaceTypes'
 
@@ -18,26 +19,30 @@ export function NetworkUnsavedChangesDialog({
   onConfirm: () => void
 }) {
   return (
-    <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-lg overflow-hidden rounded-2xl border border-border/90 bg-surface shadow-2xl shadow-black/40">
-        <div className="border-b border-border/90 p-5">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-400" />
-            <div>
-              <h2 className="text-base font-semibold text-white">Save Draft changes?</h2>
-              <p className="mt-1 text-xs leading-5 text-muted">Draft changes must be saved before opening {target}. The environment will only change after every required save succeeds.</p>
-            </div>
-          </div>
+    <Dialog open onClose={onClose} title="Save Draft changes?" className="max-w-dialog-compact">
+      <div className="space-y-ui-md">
+        <Alert variant="warning">
+          <AlertDescription>
+            <span className="flex items-start gap-ui-sm">
+              <AlertTriangle className="mt-ui-hairline h-icon w-icon shrink-0" />
+              <span>Draft changes must be saved before opening {target}. The environment will only change after every required save succeeds.</span>
+            </span>
+          </AlertDescription>
+        </Alert>
+
+        <div className="space-y-ui-sm">
+          {networkDirty ? <TechnicalListItem label="Network composition and settings" /> : null}
+          {agentNames.map((name) => <TechnicalListItem key={name} label={`Agent Draft · ${name}`} />)}
         </div>
-        <div className="space-y-2 p-5">
-          {networkDirty ? <div className="rounded-lg border border-border bg-background/35 px-3 py-2.5 text-[10px] text-slate-200">Network composition and settings</div> : null}
-          {agentNames.map((name) => <div key={name} className="rounded-lg border border-border bg-background/35 px-3 py-2.5 text-[10px] text-slate-200">Agent Draft · {name}</div>)}
-        </div>
-        <div className="flex justify-end gap-2 border-t border-border/90 p-4">
-          <button type="button" disabled={pending} onClick={onClose} className="rounded-lg border border-border px-3 py-2 text-[10px] font-medium text-muted hover:text-white disabled:opacity-45">Stay in Draft</button>
-          <button type="button" disabled={pending} onClick={onConfirm} className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-[10px] font-semibold text-white disabled:opacity-45"><Save className="h-3.5 w-3.5" />{pending ? 'Saving…' : `Save and open ${target}`}</button>
+
+        <div className="flex justify-end gap-ui-sm border-t border-border pt-ui-md">
+          <Button type="button" variant="outline" disabled={pending} onClick={onClose}>Stay in Draft</Button>
+          <Button type="button" disabled={pending} onClick={onConfirm}>
+            <Save className="mr-ui-xs h-icon-sm w-icon-sm" />
+            {pending ? 'Saving…' : `Save and open ${target}`}
+          </Button>
         </div>
       </div>
-    </div>
+    </Dialog>
   )
 }

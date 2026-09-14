@@ -1,21 +1,11 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import {
-  AlertCircle,
-  ArrowRight,
-  Bot,
-  Check,
-  History,
-  Loader2,
-  MessageSquare,
-  RotateCcw,
-  Send,
-  Square,
-} from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { Check, History, Loader2, MessageSquare, RotateCcw } from 'lucide-react'
+import { Badge, Button, EmptyStatePanel, TechnicalListItem } from '@woobe/ui'
 import { toast } from 'sonner'
 
 import type { Agent } from '@/features/agents/types'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
-import { ChatMessage } from '@/features/playground/components/ChatMessage'
+import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
 import { useAgentSessions, useAskStream, useSessionMessages } from '@/features/playground/hooks'
 import { getActiveAgentRun } from '@/features/playground/reattach-api'
 import type { StreamCallbacks } from '@/features/playground/stream-client'
@@ -27,7 +17,6 @@ import type {
   ToolCallInfo,
   UsageInfo,
 } from '@/features/playground/types'
-import { cn } from '@/lib/utils'
 import {
   getStoredNetworkAgentRunId,
   getStoredNetworkAgentSessionId,
@@ -118,33 +107,15 @@ function SessionItem({
   onSelect: () => void
 }) {
   return (
-    <button
-      type="button"
+    <TechnicalListItem
+      label={formatSessionDate(session.last_message_at || session.created_at)}
+      description={`${session.message_count} ${session.message_count === 1 ? 'message' : 'messages'}`}
+      meta={`${session.id.slice(0, 8)}…`}
+      selected={current}
+      trailing={current ? <Check className="h-icon-sm w-icon-sm text-primary-light" /> : null}
       onClick={onSelect}
-      className={cn(
-        'w-full rounded-lg border px-2.5 py-2 text-left transition-colors',
-        current
-          ? 'border-primary/35 bg-primary/10'
-          : 'border-border/75 bg-background/45 hover:border-primary/25 hover:bg-background/70',
-      )}
-    >
-      <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
-          <p className={cn('truncate text-[9px]', current ? 'font-medium text-white' : 'text-slate-200')}>
-            {formatSessionDate(session.last_message_at || session.created_at)}
-          </p>
-          <p className="mt-0.5 text-[8px] text-muted">
-            {session.message_count} {session.message_count === 1 ? 'message' : 'messages'} · {session.id.slice(0, 8)}…
-          </p>
-        </div>
-        {current && <Check className="mt-0.5 h-3 w-3 shrink-0 text-primary-light" />}
-      </div>
-    </button>
+    />
   )
-}
-
-function nearBottom(element: HTMLDivElement) {
-  return element.scrollHeight - element.scrollTop - element.clientHeight < 48
 }
 
 export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkAgentChatProps) {
@@ -164,12 +135,9 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
   const [sessionsOpen, setSessionsOpen] = useState(false)
   const [sessionToLoad, setSessionToLoad] = useState<string | null>(() => initialSessionId)
   const [historicalSessionPending, setHistoricalSessionPending] = useState(false)
-  const messagesRef = useRef<HTMLDivElement>(null)
   const sessionMenuRef = useRef<HTMLDivElement>(null)
-  const shouldStickRef = useRef(true)
   const accumulatedRef = useRef('')
   const metadataRef = useRef<Partial<AskResponse>>({})
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
   const activeRunIdRef = useRef<string | null>(getStoredNetworkAgentRunId(projectId, agent.id))
   const reattachingRunRef = useRef<string | null>(null)
   const finishedRunRef = useRef<string | null>(null)
@@ -375,7 +343,6 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     setPinnedPreviousSnapshot(false)
     setHistoricalSessionPending(true)
     setSessionToLoad(null)
-    shouldStickRef.current = true
   }, [historyQuery.data, historyQuery.isFetching, rememberSessionId, sessionToLoad])
 
   useEffect(() => {
@@ -446,12 +413,6 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     sessionToLoad,
   ])
 
-  useLayoutEffect(() => {
-    const element = messagesRef.current
-    if (!element || !shouldStickRef.current) return
-    element.scrollTop = element.scrollHeight
-  }, [messages, isSending])
-
   const startNewChat = useCallback(() => {
     cancel()
     finishActiveRun()
@@ -466,7 +427,6 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     setInput('')
     accumulatedRef.current = ''
     metadataRef.current = {}
-    if (textareaRef.current) textareaRef.current.style.height = 'auto'
     toast.success('New isolated Agent chat started')
   }, [cancel, currentSignature, finishActiveRun, rememberSessionId])
 
@@ -492,8 +452,8 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     setPinnedPreviousSnapshot(false)
   }
 
-  const send = async (rawContent?: string) => {
-    const content = (rawContent ?? input).trim()
+  const send = async (rawContent: string) => {
+    const content = rawContent.trim()
     if (!content || isSending || isInactive || historicalSessionPending) return
     if (configurationChanged && !pinnedPreviousSnapshot) {
       toast.warning('Start a new Chat or keep the previous Draft snapshot before sending')
@@ -513,7 +473,6 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
       { role: 'assistant', content: '', activity: { status: 'working', message: 'Working…' } },
     ])
     setInput('')
-    if (textareaRef.current) textareaRef.current.style.height = 'auto'
     setIsSending(true)
 
     try {
@@ -535,215 +494,140 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     }
   }
 
-  const handleInput = (event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setInput(event.target.value)
-    event.target.style.height = 'auto'
-    event.target.style.height = `${Math.min(event.target.scrollHeight, 96)}px`
-  }
-
   const restoringSession = Boolean(sessionToLoad)
+  const configurationBlocked = configurationChanged && !pinnedPreviousSnapshot && !historicalSessionPending
+  const runtimeBlocked = isInactive || historicalSessionPending || configurationBlocked || restoringSession
+  const runtimeBlockReason = isInactive
+    ? 'This Agent is inactive. Activate it before using Chat.'
+    : restoringSession
+      ? 'Loading the selected session.'
+      : historicalSessionPending
+        ? 'Choose Continue or Start new before sending another message.'
+        : configurationBlocked
+          ? 'The Draft changed during this Chat. Keep the previous snapshot or start a new Chat.'
+          : undefined
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
       <div
         ref={sessionMenuRef}
-        className="relative flex shrink-0 items-center gap-2 border-b border-border/80 bg-background/25 px-2.5 py-2"
+        className="relative flex shrink-0 items-center gap-ui-sm border-b border-border bg-background/25 px-ui-sm py-ui-sm"
       >
-        <MessageSquare className="h-3.5 w-3.5 shrink-0 text-primary-light" />
-        <div className="flex min-w-0 flex-1 items-center gap-2">
-          <p className="text-[10px] font-semibold text-white">Chat</p>
-          <span
-            className={cn(
-              'rounded border px-1.5 py-0.5 text-[8px] font-semibold uppercase',
-              isDirty
-                ? 'border-amber-500/30 bg-amber-500/10 text-amber-300'
-                : 'border-blue-500/30 bg-blue-500/10 text-blue-300',
-            )}
-          >
+        <MessageSquare className="h-icon w-icon shrink-0 text-primary-light" />
+        <div className="flex min-w-0 flex-1 items-center gap-ui-sm">
+          <p className="font-mono text-system-control font-semibold text-accent-foreground">Chat</p>
+          <Badge variant={isDirty ? 'warning' : 'default'} size="compact">
             {isDirty ? 'Draft preview' : 'Current Draft'}
-          </span>
+          </Badge>
         </div>
-        <button
+
+        <Button
           type="button"
-          onClick={() => setSessionsOpen((open) => !open)}
+          variant="outline"
+          size="xs"
+          onClick={() => setSessionsOpen((value) => !value)}
           disabled={isStateless}
           title={isStateless ? 'Stateless Agents do not persist sessions' : 'Open previous sessions'}
-          className="flex shrink-0 items-center gap-1 rounded-md border border-border/80 bg-background/40 px-2 py-1 text-[8px] text-muted hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
         >
-          <History className="h-3 w-3" />
+          <History className="h-icon-sm w-icon-sm" />
           Sessions
-        </button>
-        <button
-          type="button"
-          onClick={startNewChat}
-          className="flex shrink-0 items-center gap-1 rounded-md border border-border/80 bg-background/40 px-2 py-1 text-[8px] text-muted hover:text-white"
-        >
-          <RotateCcw className="h-3 w-3" />
+        </Button>
+        <Button type="button" variant="outline" size="xs" onClick={startNewChat}>
+          <RotateCcw className="h-icon-sm w-icon-sm" />
           New
-        </button>
+        </Button>
 
-        {sessionsOpen && (
-          <div className="absolute right-2 top-[calc(100%+6px)] z-50 flex max-h-[min(420px,65vh)] w-72 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-2xl shadow-black/50">
-            <div className="flex shrink-0 items-center border-b border-border/80 px-3 py-2.5">
+        {sessionsOpen ? (
+          <div className="absolute right-0 top-full z-popover mt-ui-xs flex max-h-popover w-dialog-sidebar flex-col overflow-hidden rounded-container border border-border bg-surface shadow-popup">
+            <div className="flex shrink-0 items-center border-b border-border px-ui-md py-ui-sm">
               <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-semibold text-white">Sessions</p>
-                <p className="mt-0.5 text-[8px] text-muted">Previous conversations for this Agent</p>
+                <p className="font-mono text-system-control font-semibold text-accent-foreground">Sessions</p>
+                <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Previous conversations for this Agent</p>
               </div>
-              {sessionsQuery.isFetching && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted" />}
+              {sessionsQuery.isFetching ? <Loader2 className="h-icon w-icon animate-spin text-muted-foreground" /> : null}
             </div>
-            <div className="scrollbar-thin min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2">
+
+            <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-ui-sm">
               {sessionsQuery.isLoading && sessions.length === 0 ? (
-                <div className="flex items-center justify-center gap-2 py-8 text-[9px] text-muted">
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <div className="flex items-center justify-center gap-ui-sm py-ui-xl font-mono text-system-label text-muted-foreground">
+                  <Loader2 className="h-icon w-icon animate-spin" />
                   Loading sessions…
                 </div>
               ) : sessions.length === 0 ? (
-                <div className="py-8 text-center">
-                  <History className="mx-auto h-5 w-5 text-muted" />
-                  <p className="mt-2 text-[9px] text-white">No previous sessions</p>
-                  <p className="mt-1 text-[8px] text-muted">Start a Chat to create the first session.</p>
+                <EmptyStatePanel compact icon={<History className="h-icon-lg w-icon-lg" />} title="No previous sessions" description="Start a Chat to create the first session." />
+              ) : (
+                <div className="grid gap-ui-xs">
+                  {sessions.map((session) => (
+                    <SessionItem
+                      key={session.id}
+                      session={session}
+                      current={session.id === sessionId}
+                      onSelect={() => selectSession(session.id)}
+                    />
+                  ))}
                 </div>
-              ) : sessions.map((session) => (
-                <SessionItem
-                  key={session.id}
-                  session={session}
-                  current={session.id === sessionId}
-                  onSelect={() => selectSession(session.id)}
-                />
-              ))}
-              {sessionsQuery.hasNextPage && (
-                <button
+              )}
+
+              {sessionsQuery.hasNextPage ? (
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
+                  className="mt-ui-sm w-full"
                   onClick={() => void sessionsQuery.fetchNextPage()}
                   disabled={sessionsQuery.isFetchingNextPage}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-border/75 bg-background/35 px-2 py-2 text-[8px] text-muted hover:text-white disabled:opacity-50"
                 >
-                  {sessionsQuery.isFetchingNextPage && <Loader2 className="h-3 w-3 animate-spin" />}
+                  {sessionsQuery.isFetchingNextPage ? <Loader2 className="h-icon-sm w-icon-sm animate-spin" /> : null}
                   Load more
-                </button>
-              )}
+                </Button>
+              ) : null}
             </div>
           </div>
-        )}
+        ) : null}
       </div>
 
-      <div
-        ref={messagesRef}
-        onScroll={(event) => { shouldStickRef.current = nearBottom(event.currentTarget) }}
-        className="scrollbar-thin min-h-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain p-3"
-      >
-        {restoringSession ? (
-          <div className="flex min-h-full items-center justify-center gap-2 text-[9px] text-muted">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Loading session…
-          </div>
-        ) : messages.length === 0 ? (
-          <div className="flex min-h-full flex-col items-center justify-center px-3 py-4 text-center">
-            <div className="mb-2 flex h-9 w-9 items-center justify-center rounded-xl border border-primary/25 bg-primary/10">
-              <Bot className="h-4 w-4 text-primary-light" />
-            </div>
-            <h2 className="text-[12px] font-semibold text-white">Chat with {agent.name}</h2>
-            <p className="mt-1 max-w-sm text-[9px] leading-4 text-muted">Validate the current Agent Draft in isolation.</p>
-            {isInactive ? (
-              <div className="mt-3 rounded-lg border border-red-500/25 bg-red-500/5 px-3 py-2 text-[9px] text-red-200">
-                This Agent is inactive. Activate it before using Chat.
-              </div>
-            ) : (
-              <div className="mt-3 grid w-full max-w-sm gap-1.5">
-                {suggestions.map((suggestion) => (
-                  <button
-                    key={suggestion}
-                    type="button"
-                    onClick={() => void send(suggestion)}
-                    className="group flex items-center justify-between gap-2 rounded-lg border border-border/80 bg-surface/45 px-3 py-2 text-left text-[9px] leading-4 text-muted hover:border-primary/30 hover:text-white"
-                  >
-                    <span>{suggestion}</span>
-                    <ArrowRight className="h-3 w-3 shrink-0 transition-transform group-hover:translate-x-0.5" />
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {messages.map((message, index) => (
-              <ChatMessage
-                key={`${message.created_at || 'live'}-${index}`}
-                message={message}
-                isStreaming={message.role === 'assistant' && isSending && index === messages.length - 1}
-                isLast={index === messages.length - 1}
-                agentName={agent.name}
-                variant="network"
-              />
-            ))}
-          </div>
-        )}
-      </div>
+      <ChatCanvas
+        messages={messages}
+        isSending={isSending}
+        isSessionLoading={restoringSession}
+        onSend={(content) => { void send(content) }}
+        onStop={() => { cancel() }}
+        agentName={agent.name}
+        assistantIcon="bot"
+        runtimeBlocked={runtimeBlocked}
+        runtimeBlockReason={runtimeBlockReason}
+        emptyTitle={`Chat with ${agent.name}`}
+        emptyDescription="Validate the current Agent Draft in isolation."
+        suggestions={suggestions}
+        composerValue={input}
+        onComposerValueChange={setInput}
+        composerPlaceholder="Message this Agent…"
+        composerStatusText={isStateless ? 'Stateless isolated test' : 'Session-aware isolated test'}
+        enableFirstRunSuccess={false}
+      />
 
-      {historicalSessionPending && (
-        <div className="flex shrink-0 items-center gap-2 border-t border-blue-500/20 bg-blue-500/[0.055] px-2.5 py-2 text-[8px] text-blue-100">
-          <History className="h-3.5 w-3.5 shrink-0 text-blue-300" />
-          <span className="min-w-0 flex-1">Historical session loaded. Continuing uses the current Agent Draft.</span>
-          <button type="button" onClick={startNewChat} className="shrink-0 font-medium text-muted hover:text-white">Start new</button>
-          <button type="button" onClick={continueHistoricalSession} className="shrink-0 rounded bg-primary px-2 py-1 font-medium text-white">Continue</button>
+      {historicalSessionPending ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-ui-sm border-t border-primary/20 bg-primary/[0.055] px-ui-sm py-ui-sm">
+          <History className="h-icon w-icon shrink-0 text-primary-light" />
+          <span className="min-w-0 flex-1 font-sans text-product-caption text-primary-light">Historical session loaded. Continuing uses the current Agent Draft.</span>
+          <Button type="button" variant="ghost" size="xs" onClick={startNewChat}>Start new</Button>
+          <Button type="button" size="xs" onClick={continueHistoricalSession}>Continue</Button>
         </div>
-      )}
+      ) : null}
 
-      {configurationChanged && !pinnedPreviousSnapshot && !historicalSessionPending && (
-        <div className="flex shrink-0 items-center gap-2 border-t border-amber-500/20 bg-amber-500/[0.055] px-2.5 py-2 text-[8px] text-amber-100">
-          <AlertCircle className="h-3.5 w-3.5 shrink-0 text-amber-400" />
-          <span className="min-w-0 flex-1 truncate">Draft changed during this Chat.</span>
-          <button type="button" onClick={() => setPinnedPreviousSnapshot(true)} className="shrink-0 font-medium text-amber-200 hover:text-white">Keep snapshot</button>
-          <button type="button" onClick={startNewChat} className="shrink-0 rounded bg-primary px-2 py-1 font-medium text-white">New Chat</button>
+      {configurationBlocked ? (
+        <div className="flex shrink-0 flex-wrap items-center gap-ui-sm border-t border-warning/20 bg-warning/[0.055] px-ui-sm py-ui-sm">
+          <span className="min-w-0 flex-1 font-sans text-product-caption text-warning">Draft changed during this Chat.</span>
+          <Button type="button" variant="ghost" size="xs" onClick={() => setPinnedPreviousSnapshot(true)}>Keep snapshot</Button>
+          <Button type="button" size="xs" onClick={startNewChat}>New Chat</Button>
         </div>
-      )}
-      {pinnedPreviousSnapshot && (
-        <div className="shrink-0 border-t border-border/70 bg-background/35 px-2.5 py-1.5 text-[8px] text-muted">
+      ) : null}
+
+      {pinnedPreviousSnapshot ? (
+        <div className="shrink-0 border-t border-border bg-background/35 px-ui-sm py-ui-xs font-mono text-system-meta text-muted-foreground">
           This Chat remains pinned to its previous Draft snapshot.
         </div>
-      )}
-
-      <div className="shrink-0 border-t border-border/80 bg-surface/65 p-2.5">
-        <div className="rounded-lg border border-border/90 bg-background/70 focus-within:border-primary/35 focus-within:ring-1 focus-within:ring-primary/10">
-          <textarea
-            ref={textareaRef}
-            value={input}
-            onChange={handleInput}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter' && !event.shiftKey) {
-                event.preventDefault()
-                void send()
-              }
-            }}
-            rows={1}
-            disabled={isInactive || isSending || historicalSessionPending}
-            placeholder={isInactive ? 'Agent inactive' : historicalSessionPending ? 'Choose Continue or Start new' : 'Message this Agent…'}
-            className="max-h-24 min-h-[38px] w-full resize-none bg-transparent px-3 py-2 text-[10px] leading-4 text-white outline-none placeholder:text-muted"
-          />
-          <div className="flex items-center justify-end border-t border-border/60 px-2 py-1.5">
-            {isSending ? (
-              <button
-                type="button"
-                onClick={() => { cancel() }}
-                className="flex h-7 w-7 items-center justify-center rounded-md border border-red-500/30 bg-red-500/10 text-red-200"
-                aria-label="Stop"
-              >
-                <Square className="h-3 w-3 fill-current" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void send()}
-                disabled={!input.trim() || isInactive || historicalSessionPending}
-                className="flex h-7 w-7 items-center justify-center rounded-md border border-primary/35 bg-primary text-white disabled:border-border disabled:bg-surface disabled:text-muted disabled:opacity-50"
-                aria-label="Send"
-              >
-                <Send className="h-3.5 w-3.5" />
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
+      ) : null}
     </div>
   )
 }

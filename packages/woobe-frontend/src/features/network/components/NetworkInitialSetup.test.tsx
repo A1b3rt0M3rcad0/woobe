@@ -16,8 +16,8 @@ describe('Network initial setup', () => {
 
     expect(markup).toContain('Create first Agent')
     expect(markup).not.toContain('Choose Agent')
-    expect(markup).toContain('One Agent is enough')
-    expect(markup).toContain('Saved automatically')
+    expect(markup).toContain('The first node and entry point are persisted together.')
+    expect(markup).toContain('A single entry Agent already creates a valid Network for testing.')
   })
 
   it('offers existing Agent selection without making specialists mandatory', () => {

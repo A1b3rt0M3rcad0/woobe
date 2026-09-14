@@ -147,8 +147,9 @@ describe('Skills navigation regression', () => {
   it('lists saved installations including disabled versions as operational cards and opens the Agent Skills editor', async () => {
     fixture.agent.settings = { runtime_config: { skills: { bindings: [{ skill_id: 'skill-1', skill_version_id: 'version-1', enabled: false }], snapshots: [fixture.snapshot] } } }
     await render(<><SkillsPage /><Location /></>)
-    await click([...container.querySelectorAll('button')].find(element => element.getAttribute('role') === 'tab' && element.textContent?.includes('Installed on Agents'))!)
-    expect(container.textContent).toContain('v1.0.0')
+    const views = container.querySelector('[role="group"][aria-label="Skills views"]')!
+    await click([...views.querySelectorAll('button')].find(element => element.textContent?.includes('Installed on Agents'))!)
+    await settle(() => expect(container.textContent).toContain('v1.0.0'))
     expect(container.textContent).toContain('Disabled')
     await click([...container.querySelectorAll('button')].find(element => element.getAttribute('aria-label') === 'Open Agent Skills for Reviewer')!)
     await settle(() => expect(container.querySelector('output')?.textContent).toContain('/agents/agent-1/playground?editor=skills'))

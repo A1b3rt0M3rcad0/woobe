@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Database, Plus } from 'lucide-react'
+import { Button } from '@woobe/ui'
 
 import { ErrorState } from '@/components/common/ErrorState'
 import { LoadingState } from '@/components/common/LoadingState'
@@ -14,7 +15,6 @@ import {
   ResourceToolbar,
 } from '@/components/common/ResourcePage'
 import { StatusBadge } from '@/components/common/StatusBadge'
-import { Button } from '@/components/ui/Button'
 import { CollectionDetailsModal } from '@/features/knowledge/components/CollectionDetailsModalV2'
 import { KnowledgeEmbeddingPanel } from '@/features/knowledge/components/CollectionVectorWorkspace'
 import { CreateCollectionModal } from '@/features/knowledge/components/CreateCollectionModal'
@@ -67,7 +67,7 @@ export default function KnowledgePage() {
             else setShowCreateEmbeddingModel(true)
           }}
         >
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus className="h-icon w-icon" />
           {section === 'collections' ? 'New Collection' : 'Add Embedding Model'}
         </Button>
       )}
@@ -101,15 +101,15 @@ export default function KnowledgePage() {
           {isLoading ? (
             <LoadingState message="Loading Collections" variant="panel" layout="compact-cards" />
           ) : isError ? (
-            <ErrorState error={error} onRetry={refetch} className="rounded-xl border border-border/80 bg-surface/40 py-10" />
+            <ErrorState error={error} onRetry={refetch} className="rounded-container border border-border bg-surface/70 py-10" />
           ) : visibleCollections.length > 0 ? (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid grid-cols-1 gap-ui-md md:grid-cols-2 xl:grid-cols-3">
               {visibleCollections.map((collection: Collection) => (
                 <ResourceCard
                   key={collection.id}
                   aria-label={`Open Collection ${collection.name}`}
                   onClick={() => setSelectedCollectionId(collection.id)}
-                  icon={<Database className="h-4 w-4" />}
+                  icon={<Database className="h-icon-lg w-icon-lg" />}
                   title={collection.name}
                   subtitle={collection.description || 'No description provided'}
                   status={collection.status ? <StatusBadge status={collection.status} size="compact" /> : undefined}
@@ -127,7 +127,7 @@ export default function KnowledgePage() {
             </div>
           ) : (
             <ResourceEmptyState
-              icon={<Database className="h-4 w-4" />}
+              icon={<Database className="h-icon-lg w-icon-lg" />}
               title={items.length === 0 ? 'No Collections yet' : 'No Collections found'}
               description={items.length === 0
                 ? 'Create the first Collection, then add Documents inside it.'

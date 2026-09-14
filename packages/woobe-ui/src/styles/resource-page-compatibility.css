@@ -1,0 +1,89 @@
+/*
+ * Woobe resource-page compatibility contract.
+ *
+ * Project resource pages are being migrated incrementally to semantic woobe-ui
+ * primitives. This layer keeps legacy page-local Tailwind choices aligned with
+ * the approved control-plane proportions while that migration is completed.
+ * New components should use the semantic aliases from the woobe-ui preset.
+ */
+
+.resource-page-shell {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.resource-page-shell :is(
+  label, legend, button, th, dt,
+  [role='tab'], [role='menuitem'], .uppercase, .tracking-wide, .tracking-wider,
+  .tracking-widest, .tabular-nums
+) {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.resource-page-shell :is(code, pre, kbd, samp, .font-mono) {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+}
+
+.resource-page-shell :is(input, select):not(.font-mono),
+.resource-page-shell textarea:not(.font-mono),
+.resource-page-shell [contenteditable='true']:not(.font-mono) {
+  font-family: 'Inter', system-ui, sans-serif;
+}
+
+.resource-page-shell [class*='rounded-2xl'],
+.resource-page-shell [class*='rounded-xl'] {
+  border-radius: 4px !important;
+}
+
+.resource-page-shell [class*='rounded-lg'] {
+  border-radius: 3px !important;
+}
+
+.resource-page-shell [class*='shadow-lg'],
+.resource-page-shell [class*='shadow-xl'],
+.resource-page-shell [class*='shadow-2xl'] {
+  box-shadow: none !important;
+}
+
+/* Legacy card titles should resolve to the 11–12px product hierarchy. */
+.resource-page-shell :is(.text-sm.font-medium, .text-sm.font-semibold, h3.text-sm, h4.text-sm) {
+  font-size: 0.6875rem !important;
+  line-height: 1rem !important;
+}
+
+.resource-page-shell :is(button.text-sm, label.text-sm) {
+  font-size: 0.625rem !important;
+  line-height: 0.875rem !important;
+}
+
+/* Legacy supporting copy is metadata, not body text. */
+.resource-page-shell :is(p.text-xs, span.text-xs, code.text-xs, button.text-xs, label.text-xs) {
+  font-size: 0.5625rem !important;
+  line-height: 0.875rem !important;
+}
+
+/* 7px legacy microcopy is kept technical, but never below the readable nano tier. */
+.resource-page-shell [class~='text-[7px]'] {
+  font-size: 0.5rem !important;
+  line-height: 0.625rem !important;
+}
+
+/* Raw 8px feature metadata predates the approved readable 9px metadata tier. */
+.resource-page-shell [class~='text-[8px]'] {
+  font-size: 0.5625rem !important;
+  line-height: 0.875rem !important;
+}
+
+/* Preserve compact metric emphasis without allowing old 18px cards to dominate. */
+.resource-page-shell .text-lg.font-semibold,
+.resource-page-shell .text-lg.font-bold {
+  font-size: 1.0625rem !important;
+  line-height: 1.25rem !important;
+}
+
+.resource-page-shell :is(.p-6.rounded-xl, .p-5.rounded-xl, .p-4.rounded-xl, .p-4.rounded-lg) {
+  padding: 0.75rem !important;
+}
+
+.resource-page-shell :is(.space-y-6, .space-y-5) > :not([hidden]) ~ :not([hidden]) {
+  margin-top: 0.75rem !important;
+}

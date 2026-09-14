@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { ChevronRight, Edit3, Lock, Maximize2, Minimize2, Rocket } from 'lucide-react'
+import { EmptyStatePanel, SegmentedControl } from '@woobe/ui'
 import { AgentConfigurationEditor } from '@/features/agents/components/AgentConfigurationEditor'
 import { ReleaseTab } from './ReleaseTab'
 import { ReleaseDetailsView } from './ReleaseDetailsView'
@@ -36,23 +37,25 @@ function EnvironmentSnapshotContent({
   const label = titleCaseEnvironment(environment)
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex shrink-0 items-center justify-between gap-3 border-b border-border/90 bg-background/25 px-3 py-2.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <Lock className="h-3.5 w-3.5 text-muted" />
-          <span className="text-[10px] font-medium text-muted">Viewing immutable {label}</span>
+      <div className="flex min-h-control shrink-0 items-center justify-between gap-ui-md border-b border-border bg-background/20 px-ui-md py-ui-sm">
+        <div className="flex min-w-0 items-center gap-ui-sm">
+          <Lock className="h-icon-sm w-icon-sm text-muted-foreground" />
+          <span className="truncate font-mono text-chrome-meta text-muted-foreground">Viewing immutable {label}</span>
         </div>
         {release ? <Badge variant={environment === 'production' ? 'success' : 'secondary'}>{release.version}</Badge> : null}
       </div>
       <ScrollArea className="min-h-0 flex-1">
         {loading && !release ? (
-          <div className="p-4 text-xs text-muted">Loading {label} snapshot…</div>
+          <div className="p-ui-lg font-mono text-chrome-label text-muted-foreground">Loading {label} snapshot…</div>
         ) : release ? (
-          <div className="p-4"><ReleaseDetailsView release={release} /></div>
+          <div className="p-ui-md"><ReleaseDetailsView release={release} /></div>
         ) : (
-          <div className="p-4">
-            <div className="rounded-xl border border-dashed border-border p-4 text-xs leading-5 text-muted">
-              {environment === 'staging' ? 'No Agent Staging snapshot has been created yet.' : 'No Agent Production release is active.'}
-            </div>
+          <div className="p-ui-md">
+            <EmptyStatePanel
+              compact
+              title={environment === 'staging' ? 'No Staging snapshot' : 'No Production release'}
+              description={environment === 'staging' ? 'Create Staging from the current Agent Draft to inspect its immutable snapshot.' : 'Publish an Agent Release to make Production configuration available.'}
+            />
           </div>
         )}
       </ScrollArea>
@@ -82,67 +85,45 @@ export function AgentInspector({
     <aside
       aria-label="Agent Inspector"
       className={cn(
-        'fixed bottom-0 right-0 top-[8rem] z-40 flex w-full max-w-[400px] shrink-0 flex-col border-l border-border/90 bg-surface shadow-xl shadow-black/20 transition-[width,max-width] duration-200 lg:static lg:z-auto lg:bg-surface/75 lg:shadow-sm lg:shadow-black/5',
-        expanded ? 'lg:w-[640px] lg:max-w-[65vw]' : 'lg:w-[400px] lg:max-w-[400px]',
+        'fixed bottom-0 right-0 top-playground-inspector z-workspace flex w-full max-w-inspector shrink-0 flex-col border-l border-border bg-surface transition-[width,max-width] duration-200 lg:static lg:z-auto lg:bg-surface/[0.78]',
+        expanded ? 'lg:w-inspector-expanded lg:max-w-inspector-expanded' : 'lg:w-inspector lg:max-w-inspector',
       )}
     >
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border/90 bg-background/25 px-3">
+      <div className="flex h-control shrink-0 items-center gap-ui-sm border-b border-border bg-background/20 px-ui-md">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[11px] font-semibold text-white">Agent settings</p>
+          <p className="truncate font-mono text-chrome-label font-semibold text-slate-50">Agent settings</p>
         </div>
 
-        <div role="tablist" aria-label="Inspector mode" className="flex shrink-0 items-center rounded-lg border border-border/80 bg-background/35 p-0.5">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={resolvedActiveTab === 'editor'}
-            onClick={() => onTabChange('editor')}
-            className={cn(
-              'flex h-8 items-center justify-center gap-1 rounded-md px-2 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
-              resolvedActiveTab === 'editor'
-                ? 'bg-surface text-white shadow-sm'
-                : 'text-muted hover:text-white',
-            )}
-          >
-            {environment === 'draft' ? <Edit3 className="h-3 w-3" /> : <Lock className="h-3 w-3" />}
-            {editorLabel}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={resolvedActiveTab === 'versions'}
-            onClick={() => onTabChange('versions')}
-            className={cn(
-              'flex h-8 items-center justify-center gap-1 rounded-md px-2 text-[10px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60',
-              resolvedActiveTab === 'versions'
-                ? 'bg-surface text-white shadow-sm'
-                : 'text-muted hover:text-white',
-            )}
-          >
-            <Rocket className="h-3 w-3" />
-            Versions
-          </button>
-        </div>
+        <SegmentedControl
+          ariaLabel="Inspector mode"
+          value={resolvedActiveTab}
+          onValueChange={onTabChange}
+          items={[
+            { value: 'editor', label: editorLabel, icon: environment === 'draft' ? <Edit3 className="h-icon-sm w-icon-sm" /> : <Lock className="h-icon-sm w-icon-sm" /> },
+            { value: 'versions', label: 'Versions', icon: <Rocket className="h-icon-sm w-icon-sm" /> },
+          ]}
+          className="shrink-0"
+        />
 
         <button
           type="button"
           onClick={() => setExpanded(current => !current)}
-          className="hidden h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-accent/60 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60 lg:flex"
+          className="hidden h-control-segment w-control-segment items-center justify-center rounded-control border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 lg:flex"
           aria-label={expanded ? 'Restore Inspector width' : 'Expand Inspector'}
           title={expanded ? 'Restore Inspector width' : 'Expand Inspector'}
           aria-pressed={expanded}
         >
-          {expanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+          {expanded ? <Minimize2 className="h-icon w-icon" /> : <Maximize2 className="h-icon w-icon" />}
         </button>
         {onCollapse ? (
           <button
             type="button"
             onClick={onCollapse}
-            className="flex h-8 w-8 items-center justify-center rounded-md text-muted transition-colors hover:bg-accent/60 hover:text-white focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/60"
+            className="flex h-control-segment w-control-segment items-center justify-center rounded-control border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
             aria-label="Collapse Inspector"
             title="Collapse Inspector"
           >
-            <ChevronRight className="h-3.5 w-3.5" />
+            <ChevronRight className="h-icon w-icon" />
           </button>
         ) : null}
       </div>

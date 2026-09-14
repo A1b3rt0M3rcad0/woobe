@@ -1,5 +1,6 @@
+import { Dialog } from '@woobe/ui'
+
 import { CollectionDocumentUploadPanel } from '@/features/knowledge/components/CollectionDocumentUploadPanel'
-import { Dialog } from '@/components/ui/Dialog'
 
 interface CollectionDocumentUploadModalProps {
   open: boolean
@@ -21,10 +22,11 @@ export function CollectionDocumentUploadModal({
       open={open && Boolean(collection)}
       onClose={onClose}
       title="Upload document"
-      className="max-h-[calc(100svh-2rem)] max-w-2xl overflow-hidden"
+      className="flex max-h-dialog max-w-dialog flex-col overflow-hidden"
+      contentClassName="min-h-0 flex-1 p-0"
     >
-      {collection && (
-        <div className="max-h-[calc(100svh-8rem)] overflow-y-auto pr-1">
+      {collection ? (
+        <div className="scrollbar-thin h-full min-h-0 overflow-y-auto p-ui-lg">
           <CollectionDocumentUploadPanel
             projectId={projectId}
             collection={collection}
@@ -32,7 +34,7 @@ export function CollectionDocumentUploadModal({
             onUploaded={onUploaded}
           />
         </div>
-      )}
+      ) : null}
     </Dialog>
   )
 }

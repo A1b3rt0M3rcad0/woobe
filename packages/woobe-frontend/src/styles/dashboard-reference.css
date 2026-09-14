@@ -1,0 +1,919 @@
+/*
+ * Project Overview + Project Sidebar
+ *
+ * This file intentionally mirrors the approved Woobe dashboard reference HTML.
+ * It is scoped to the project dashboard shell so feature behavior and domain
+ * components stay untouched while the rendered proportions converge on the
+ * reference: 258px sidebar, 72px topbar, 8–12px operational typography,
+ * compact 34px controls, 4px surfaces and border-driven hierarchy.
+ */
+
+.project-overview-main {
+  padding: 0 !important;
+  overflow: hidden !important;
+  background-color: #020817;
+  background-image:
+    linear-gradient(rgba(148, 163, 184, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.025) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.project-overview-main > .h-full {
+  background: transparent;
+}
+
+.project-overview-main [aria-busy] {
+  width: 100%;
+  max-width: none;
+  min-height: 100%;
+  padding: 0 !important;
+}
+
+.project-overview-main [aria-busy] > * {
+  margin-top: 0 !important;
+}
+
+/* Dashboard topbar — direct transcription of the approved HTML proportions. */
+.project-overview-main [aria-busy] > header.relative {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: 72px;
+  width: 100%;
+  overflow: visible !important;
+  border: 0 !important;
+  border-bottom: 1px solid #1e293b !important;
+  border-radius: 0 !important;
+  background: rgba(15, 23, 41, 0.96) !important;
+  padding: 12px 20px !important;
+  box-shadow: none !important;
+  backdrop-filter: blur(12px);
+}
+
+.project-overview-main [aria-busy] > header.relative > div {
+  min-height: 47px;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px !important;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:first-child {
+  min-width: 0;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:first-child > div:first-child {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 12px !important;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:first-child > div:first-child::before {
+  content: '⌘';
+  display: grid;
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  place-items: center;
+  margin-right: 1px;
+  padding-right: 12px;
+  border-right: 1px solid #1e293b;
+  color: #dbeafe;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:first-child > div:first-child > svg:first-child {
+  display: none;
+}
+
+.project-overview-main [aria-busy] > header.relative h1 {
+  margin: 0;
+  color: #f8fafc;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  line-height: 20px !important;
+  letter-spacing: 0.01em !important;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:first-child > p {
+  margin-top: 3px !important;
+  overflow: hidden;
+  color: #94a3b8 !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 9px !important;
+  line-height: 12px !important;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:first-child > div:first-child > span {
+  border-radius: 2px !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+  font-weight: 400 !important;
+  line-height: 10px !important;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:last-child {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+}
+
+.project-overview-main [aria-busy] > header.relative select,
+.project-overview-main [aria-busy] > header.relative > div > div:last-child > button {
+  height: 34px !important;
+  min-height: 34px !important;
+  border: 1px solid #1e293b !important;
+  border-radius: 3px !important;
+  background: #0b1220 !important;
+  padding: 0 10px !important;
+  color: #e2e8f0 !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 10px !important;
+  font-weight: 400 !important;
+  line-height: 14px !important;
+  box-shadow: none !important;
+}
+
+.project-overview-main [aria-busy] > header.relative select:focus,
+.project-overview-main [aria-busy] > header.relative > div > div:last-child > button:focus-visible {
+  border-color: #3b82f6 !important;
+  outline: none;
+  box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.3) !important;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:last-child > div {
+  display: inline-flex !important;
+  height: 34px !important;
+  max-width: none !important;
+  overflow: visible !important;
+  align-items: center;
+  gap: 2px !important;
+  border: 1px solid #1e293b !important;
+  border-radius: 3px !important;
+  background: #0b1220 !important;
+  padding: 3px !important;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:last-child > div > button {
+  height: 26px !important;
+  min-height: 26px !important;
+  gap: 0 !important;
+  border: 1px solid transparent !important;
+  border-radius: 2px !important;
+  background: transparent !important;
+  padding: 0 9px !important;
+  color: #7c8aa0 !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 9px !important;
+  font-weight: 400 !important;
+  line-height: 12px !important;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:last-child > div > button > span:first-child {
+  display: none;
+}
+
+.project-overview-main [aria-busy] > header.relative > div > div:last-child > div > button[aria-pressed='true'] {
+  border-color: #43484e !important;
+  background: #1e293b !important;
+  color: #fff !important;
+}
+
+/* Content width and rhythm. The dashboard deliberately fills the available
+ * project canvas; only the 18px edge gutters are retained from the reference. */
+.project-overview-main [aria-busy] > .space-y-5,
+.project-overview-main [aria-busy] > [aria-label='Loading project overview'],
+.project-overview-main [aria-busy] > section {
+  width: calc(100% - 36px);
+  max-width: none !important;
+  margin-right: auto !important;
+  margin-left: auto !important;
+  padding-top: 20px;
+  padding-bottom: 48px;
+}
+
+.project-overview-main [aria-busy] > div:not(.space-y-5):not([aria-label='Loading project overview']) {
+  width: calc(100% - 36px);
+  max-width: none !important;
+  margin: 12px auto 0 !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > * + * {
+  margin-top: 12px !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid {
+  gap: 12px !important;
+}
+
+/* Shared dashboard card grammar. */
+.project-overview-main [aria-busy] section[class*='bg-surface'] {
+  border: 1px solid #1e293b !important;
+  border-radius: 4px !important;
+  background: rgba(15, 23, 41, 0.96) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.018) !important;
+}
+
+.project-overview-main [aria-busy] section > div:first-child:has(h2) {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px !important;
+  padding: 15px 15px 0 !important;
+}
+
+.project-overview-main [aria-busy] section > div:first-child:has(h2) h2 {
+  color: #f8fafc !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  line-height: 16px !important;
+  letter-spacing: 0.015em !important;
+}
+
+.project-overview-main [aria-busy] section > div:first-child:has(h2) h2 + svg {
+  display: none;
+}
+
+.project-overview-main [aria-busy] section > [class*='px-5'] {
+  padding-right: 15px !important;
+  padding-left: 15px !important;
+}
+
+.project-overview-main [aria-busy] section > [class*='pb-5'] {
+  padding-bottom: 15px !important;
+}
+
+.project-overview-main [aria-busy] section .rounded-xl {
+  border-radius: 4px !important;
+}
+
+.project-overview-main [aria-busy] section .rounded-lg {
+  border-radius: 3px !important;
+}
+
+.project-overview-main [aria-busy] section .rounded-md {
+  border-radius: 2px !important;
+}
+
+/* Six overview metrics. */
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 12px !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section {
+  min-height: 150px !important;
+  padding: 15px !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section > div {
+  gap: 12px !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section p:first-child[class*='uppercase'] {
+  color: #7c8aa0 !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 9px !important;
+  font-weight: 700 !important;
+  line-height: 12px !important;
+  letter-spacing: 0.12em !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section [class~='text-2xl'] {
+  margin-top: 11px !important;
+  color: #f8fafc !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 28px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+  letter-spacing: -0.04em !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section [class~='text-lg'] {
+  margin-top: 5px !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 17px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section [class~='text-[10px]'] {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 8px !important;
+  line-height: 11px !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section [class~='h-10'][class~='w-10'] {
+  width: 31px !important;
+  height: 31px !important;
+  border: 1px solid #1e293b !important;
+  border-radius: 3px !important;
+  background: #0b1220 !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section [class~='h-10'][class~='w-10'] svg {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid:first-child > section > div > p:last-child {
+  min-height: 27px !important;
+  margin-top: 0 !important;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 9px !important;
+  line-height: 13px !important;
+}
+
+/* Story section separators. */
+.project-overview-main [aria-busy] > .space-y-5 > div[class~='pt-2'] {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-top: 24px !important;
+  margin-bottom: 10px !important;
+  padding-top: 0 !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > div[class~='pt-2']::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  flex: 0 0 5px;
+  background: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > div[class~='pt-2']::after {
+  content: '';
+  height: 1px;
+  flex: 1 1 auto;
+  background: #1e293b;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > div[class~='pt-2'] h2 {
+  color: #e9ecf0 !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 10px !important;
+  font-weight: 800 !important;
+  line-height: 12px !important;
+  letter-spacing: 0.12em !important;
+  text-transform: uppercase;
+}
+
+/* Run Activity and Reliability. */
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] section {
+  min-height: 345px !important;
+}
+
+.project-overview-main [aria-busy] section [class*='text-right'][class*='font-mono'][class*='border'] {
+  border-radius: 0 !important;
+  border-color: #1e293b !important;
+  background: #0b1220 !important;
+  padding: 6px 8px !important;
+  color: #878d94 !important;
+  font-size: 8px !important;
+  line-height: 11px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.project-overview-main [aria-busy] section [class*='text-right'][class*='font-mono'][class*='border'] b {
+  margin-top: 2px !important;
+  color: #d8dde2 !important;
+  font-size: 9px !important;
+  font-weight: 500 !important;
+  line-height: 12px !important;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.project-overview-main [aria-busy] section .mb-3.flex.flex-wrap.items-center {
+  gap: 15px !important;
+  margin-bottom: 12px !important;
+  color: #8a9097 !important;
+  font-size: 9px !important;
+}
+
+.project-overview-main [aria-busy] section .relative.h-\[190px\] {
+  height: 205px !important;
+  overflow: hidden;
+  border-top: 1px solid #1e293b;
+  border-bottom: 1px solid #1e293b;
+  background-image: linear-gradient(to bottom, rgba(255, 255, 255, 0.055) 1px, transparent 1px);
+  background-size: 100% 25%;
+}
+
+.project-overview-main [aria-busy] section .relative.h-\[190px\] > .absolute.bottom-7 {
+  display: none;
+}
+
+.project-overview-main [aria-busy] section .relative.h-\[190px\] > svg {
+  height: 176px !important;
+}
+
+.project-overview-main [aria-busy] section .relative.h-\[190px\] > .absolute.bottom-0 {
+  bottom: 4px !important;
+  padding: 0 4px;
+  color: #69717a !important;
+  font-size: 8px !important;
+}
+
+.project-overview-main [aria-busy] section .relative.h-\[190px\] + div {
+  margin-top: 12px !important;
+  border-radius: 0 !important;
+  border-color: #1e293b !important;
+  background: #0a1120 !important;
+  padding: 9px 10px !important;
+}
+
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 > div[class*='rounded-xl'] {
+  border-radius: 0 !important;
+  border-color: #1e293b !important;
+  background: #0b1220 !important;
+  padding: 11px !important;
+}
+
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 > div[class*='rounded-xl'] > .flex:first-child p:first-child {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+}
+
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 > div[class*='rounded-xl'] > .flex:first-child p.mt-1 {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+  line-height: 11px !important;
+}
+
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 > div[class*='rounded-xl'] > .flex:first-child .text-right p:first-child {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 15px !important;
+  font-weight: 800 !important;
+  line-height: 1 !important;
+}
+
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 .h-2\.5 {
+  height: 7px !important;
+  border-radius: 0 !important;
+  background: #1e293b !important;
+  box-shadow: none !important;
+}
+
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 .mt-3.grid.grid-cols-3 span {
+  color: #64748b !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+  line-height: 11px !important;
+}
+
+.project-overview-main [aria-busy] .space-y-3.px-5.pb-5 .mt-3.grid.grid-cols-3 b {
+  margin-top: 4px !important;
+  color: #f2f4f6 !important;
+  font-size: 10px !important;
+  line-height: 13px !important;
+}
+
+/* Operational Issues. */
+.project-overview-main [aria-busy] section[class*='border-red'] {
+  border-color: rgba(239, 68, 68, 0.28) !important;
+  background: rgba(127, 29, 29, 0.16) !important;
+}
+
+.project-overview-main [aria-busy] section[class*='border-red'] [class*='uppercase'] {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+  letter-spacing: 0.08em !important;
+}
+
+.project-overview-main [aria-busy] section[class*='border-red'] [class*='text-xs'],
+.project-overview-main [aria-busy] section[class*='border-red'] [class*='text-sm'] {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 9px !important;
+  line-height: 13px !important;
+}
+
+/* Change rows. */
+.project-overview-main [aria-busy] section .space-y-2 > button {
+  gap: 10px !important;
+  border-radius: 0 !important;
+  border-color: #1e293b !important;
+  background: #0a1120 !important;
+  padding: 9px 10px !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > button:hover {
+  border-color: #42474e !important;
+  background: #111b30 !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > button > span:first-child {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 0 !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > button b {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 13px !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > button [class*='text-xs'] {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+  line-height: 11px !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > button [class*='text-[10px]'],
+.project-overview-main [aria-busy] section .space-y-2 > button [class*='rounded-md'][class*='border'] {
+  border-radius: 2px !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+  line-height: 9px !important;
+}
+
+/* Current Project State. */
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-3'] {
+  gap: 12px !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-3'] section {
+  min-height: 0 !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-3'] section [class*='text-[9px]'] {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 9px !important;
+  line-height: 12px !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-3'] section [class~='text-xs'] {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px !important;
+  line-height: 14px !important;
+}
+
+.project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-3'] section [class~='text-base'] {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 15px !important;
+  line-height: 1 !important;
+}
+
+.project-overview-main [aria-busy] button[class*='text-primary-light'] {
+  color: #a9c2ff !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 9px !important;
+  font-weight: 400 !important;
+  line-height: 12px !important;
+}
+
+/* Recent Runs: one dense operational table, not floating cards. */
+.project-overview-main [aria-busy] section:has(> div:first-child h2):has(h2:first-child) .space-y-2 {
+  gap: 0 !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > div[class*='grid-cols-[110px'] {
+  padding: 0 10px 7px !important;
+  color: #727980 !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 8px !important;
+  font-weight: 400 !important;
+  letter-spacing: 0.05em !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > div[role='link'] {
+  min-height: 54px;
+  gap: 10px !important;
+  border: 0 !important;
+  border-top: 1px solid #1e293b !important;
+  border-radius: 0 !important;
+  background: #0a1120 !important;
+  padding: 9px 10px !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > div[role='link']:hover {
+  background: #111b30 !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > div[role='link'] [class*='rounded-md'][class*='border'] {
+  border-radius: 2px !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 8px !important;
+  line-height: 9px !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > div[role='link'] p {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > div[role='link'] p[class*='text-sm'] {
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 13px !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > div[role='link'] p[class*='text-xs'] {
+  font-size: 9px !important;
+  font-weight: 400 !important;
+  line-height: 12px !important;
+}
+
+.project-overview-main [aria-busy] section .space-y-2 > div[role='link'] p[class*='text-[10px]'] {
+  font-size: 8px !important;
+  line-height: 11px !important;
+}
+
+/* Project sidebar — mirror the same reference HTML used by the dashboard. */
+.w-project-sidebar {
+  width: 258px !important;
+  min-width: 258px;
+  background: #0f1729 !important;
+}
+
+.w-project-sidebar > header {
+  height: 72px !important;
+  gap: 11px !important;
+  border-bottom: 1px solid #1e293b !important;
+  padding: 0 18px !important;
+}
+
+.w-project-sidebar > header > div:first-child {
+  width: 29px !important;
+  height: 29px !important;
+}
+
+.w-project-sidebar > header > div:first-child svg {
+  width: 20px !important;
+  height: 20px !important;
+}
+
+.w-project-sidebar > header p:first-child {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  line-height: 17px !important;
+  letter-spacing: 0.02em !important;
+}
+
+.w-project-sidebar > header p:last-child {
+  margin-top: 1px !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 10px !important;
+  font-weight: 400 !important;
+  line-height: 12px !important;
+  letter-spacing: 0.12em !important;
+}
+
+.w-project-sidebar > div:nth-child(2) > nav {
+  padding: 14px 12px !important;
+}
+
+.w-project-sidebar > div:nth-child(2) > nav > section + section {
+  margin-top: 18px !important;
+}
+
+.w-project-sidebar > div:nth-child(2) > nav > section > p,
+.w-project-sidebar > section > p {
+  margin: 0 8px 7px !important;
+  padding: 0 !important;
+  color: #64748b !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  line-height: 12px !important;
+  letter-spacing: 0.15em !important;
+  text-transform: uppercase;
+}
+
+.w-project-sidebar > div:nth-child(2) > nav > section:first-child > p {
+  margin-top: 0 !important;
+}
+
+.w-project-sidebar > div:nth-child(2) > nav > section:first-child > div.relative > button {
+  width: 100%;
+  min-height: 55px;
+  border: 1px solid #1e293b !important;
+  border-radius: 4px !important;
+  background: #0f1729 !important;
+  padding: 11px 12px !important;
+  color: #f8fafc;
+}
+
+.w-project-sidebar > div:nth-child(2) > nav > section:first-child > div.relative > button:hover {
+  border-color: #38424f !important;
+}
+
+.w-project-sidebar > div:nth-child(2) > nav > section:first-child > div.relative > button span[class*='text-entity-title'] {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  line-height: 16px !important;
+}
+
+.w-project-sidebar > div:nth-child(2) > nav > section:first-child > div.relative > button span[class*='text-chrome-control'] {
+  margin-top: 2px !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 10px !important;
+  line-height: 13px !important;
+}
+
+.w-project-sidebar a[class*='h-control-nav'] {
+  width: 100%;
+  height: 36px !important;
+  gap: 10px !important;
+  border: 1px solid transparent !important;
+  border-radius: 2px !important;
+  background: transparent !important;
+  padding: 0 10px !important;
+  color: #cbd5e1 !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 16px !important;
+}
+
+.w-project-sidebar a[class*='h-control-nav'] svg {
+  width: 15px !important;
+  height: 15px !important;
+  flex: 0 0 15px;
+  color: #94a3b8 !important;
+}
+
+.w-project-sidebar a[class*='h-control-nav']:hover {
+  border-color: rgba(255, 255, 255, 0.06) !important;
+  background: rgba(255, 255, 255, 0.035) !important;
+  color: #fff !important;
+}
+
+.w-project-sidebar a[class*='h-control-nav'][aria-current='page'] {
+  border-color: #315da8 !important;
+  background: #172554 !important;
+  color: #fff !important;
+}
+
+.w-project-sidebar a[class*='h-control-nav'][aria-current='page'] svg {
+  color: #fff !important;
+}
+
+.w-project-sidebar > section {
+  border-top: 1px solid #1e293b !important;
+  padding: 12px !important;
+}
+
+.w-project-sidebar > section > p {
+  margin-left: 8px !important;
+}
+
+.w-project-sidebar > section button {
+  min-height: 36px !important;
+  gap: 10px !important;
+  border-radius: 2px !important;
+  padding: 0 10px !important;
+}
+
+.w-project-sidebar > section button > svg {
+  width: 15px !important;
+  height: 15px !important;
+}
+
+.w-project-sidebar > section button span.min-w-0 > span:first-child {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 12px !important;
+  font-weight: 400 !important;
+  line-height: 16px !important;
+}
+
+.w-project-sidebar > section button span.min-w-0 > span:last-child {
+  display: none;
+}
+
+.w-project-sidebar > div:last-of-type {
+  border-top: 1px solid #1e293b !important;
+  padding: 12px !important;
+}
+
+.w-project-sidebar > div:last-of-type > div {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  gap: 9px !important;
+  align-items: center;
+  border: 1px solid #1e293b !important;
+  border-radius: 4px !important;
+  background: #0f1729 !important;
+  padding: 8px !important;
+}
+
+.w-project-sidebar > div:last-of-type > div > button:first-child {
+  display: grid !important;
+  grid-template-columns: 30px minmax(0, 1fr) 15px;
+  gap: 9px !important;
+  align-items: center;
+}
+
+.w-project-sidebar > div:last-of-type > div > button:first-child > div:first-child {
+  width: 30px !important;
+  height: 30px !important;
+  border: 1px solid #2f4770 !important;
+  border-radius: 999px !important;
+  background: #172033 !important;
+  color: #fff !important;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+}
+
+.w-project-sidebar > div:last-of-type > div > button:first-child p:first-child {
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  line-height: 14px !important;
+}
+
+.w-project-sidebar > div:last-of-type > div > button:first-child p:last-child {
+  margin-top: 2px !important;
+  font-family: 'Inter', system-ui, sans-serif !important;
+  font-size: 9px !important;
+  line-height: 12px !important;
+}
+
+.w-project-sidebar > div:last-of-type > div > button:first-child > svg {
+  width: 15px !important;
+  height: 15px !important;
+}
+
+.w-project-sidebar > div:last-of-type > div > button:last-child {
+  width: 28px !important;
+  height: 28px !important;
+  border-radius: 3px !important;
+  padding: 0 !important;
+}
+
+.w-project-sidebar > div:last-of-type > div > button:last-child svg {
+  width: 14px !important;
+  height: 14px !important;
+}
+
+@media (min-width: 1580px) {
+  .project-overview-main [aria-busy] > .space-y-5 > .grid:first-child {
+    grid-template-columns: repeat(6, minmax(180px, 1fr)) !important;
+  }
+}
+
+@media (max-width: 1320px) {
+  .project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-12'] > div {
+    grid-column: span 12 / span 12 !important;
+  }
+
+  .project-overview-main [aria-busy] > .space-y-5 > .grid[class*='xl:grid-cols-3'] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 900px) {
+  .project-overview-main [aria-busy] > header.relative {
+    position: relative;
+    padding: 12px 14px !important;
+  }
+
+  .project-overview-main [aria-busy] > header.relative > div {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  .project-overview-main [aria-busy] > header.relative > div > div:last-child {
+    justify-content: flex-start !important;
+    overflow-x: auto;
+  }
+
+  .project-overview-main [aria-busy] > .space-y-5 > .grid:first-child {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .project-overview-main [aria-busy] > .space-y-5,
+  .project-overview-main [aria-busy] > [aria-label='Loading project overview'],
+  .project-overview-main [aria-busy] > section {
+    width: calc(100% - 20px);
+  }
+
+  .project-overview-main [aria-busy] > div:not(.space-y-5):not([aria-label='Loading project overview']) {
+    width: calc(100% - 20px);
+  }
+
+  .project-overview-main [aria-busy] > .space-y-5 > .grid:first-child {
+    grid-template-columns: 1fr !important;
+  }
+}
