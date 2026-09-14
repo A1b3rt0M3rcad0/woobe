@@ -29,7 +29,7 @@ export function ResourceCard({
     <button
       type={type}
       className={cn(
-        'group flex min-h-[9.25rem] w-full flex-col overflow-hidden rounded-container border border-border bg-surface/[0.94] text-left transition-colors',
+        'group flex min-h-resource-card w-full flex-col overflow-hidden rounded-container border border-border bg-surface/[0.94] text-left transition-colors',
         'hover:border-muted hover:bg-surface focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary',
         'disabled:cursor-not-allowed disabled:opacity-50',
         className,
