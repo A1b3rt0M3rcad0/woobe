@@ -3,6 +3,7 @@ export const woobeTypographyScale = {
   chromeMeta: ['0.5rem', { lineHeight: '0.625rem', letterSpacing: '0' }],
   chromeLabel: ['0.5625rem', { lineHeight: '0.75rem', letterSpacing: '0' }],
   chromeControl: ['0.625rem', { lineHeight: '0.875rem', letterSpacing: '0' }],
+  systemTiny: ['0.4375rem', { lineHeight: '0.625rem', letterSpacing: '0' }],
   systemNano: ['0.5rem', { lineHeight: '0.625rem', letterSpacing: '0' }],
   systemMicro: ['0.5rem', { lineHeight: '0.6875rem', letterSpacing: '0' }],
   systemMeta: ['0.5625rem', { lineHeight: '0.75rem', letterSpacing: '0' }],
