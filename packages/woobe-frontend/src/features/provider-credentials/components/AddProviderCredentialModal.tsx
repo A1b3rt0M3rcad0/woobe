@@ -24,7 +24,7 @@ const providers = [
 
 function buildCredentialMetadata(provider: string, baseUrl: string): Record<string, string> {
   if (provider === 'custom') return { provider_family: 'openai', compatibility: 'compatible', base_url: baseUrl.trim(), model_discovery_strategy: 'openai_compatible_models' }
-  if (provider === 'openrouter') return { provider_family: 'openrouter', compatibility: 'native', base_url: OPENROUTER_BASE_URL, model_discovery_strategy: 'openai_compatible_models' }
+  if (provider === 'openrouter') return { provider_family: 'openrouter', compatibility: 'native', base_url: OPENROUTER_BASE_URL, model_discovery_strategy: 'openrouter_models' }
   return { provider_family: 'openai', compatibility: 'native', model_discovery_strategy: 'openai_models' }
 }
 
