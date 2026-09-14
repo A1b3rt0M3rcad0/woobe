@@ -8,6 +8,7 @@ ROOT = Path(__file__).resolve().parents[2]
 AGENT_ROOT = ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent"
 NETWORK_ROOT = ROOT / "packages" / "woobe-core" / "src" / "modules" / "network"
 EXECUTION_ROOT = AGENT_ROOT / "infra" / "execution"
+CAPABILITIES_ROOT = EXECUTION_ROOT / "capabilities"
 STRATEGIES_ROOT = EXECUTION_ROOT / "strategies"
 STANDARD_STRATEGY = STRATEGIES_ROOT / "standard.py"
 RESOLVER = STRATEGIES_ROOT / "resolver.py"
@@ -53,27 +54,41 @@ def _calls(path: Path, method_name: str) -> bool:
 
 def test_execution_strategy_partition_is_explicit() -> None:
     assert STRATEGIES_ROOT.is_dir()
+    assert CAPABILITIES_ROOT.is_dir()
     assert (STRATEGIES_ROOT / "README.md").is_file()
     assert STANDARD_STRATEGY.is_file()
     assert RESOLVER.is_file()
+    assert (CAPABILITIES_ROOT / "preparation.py").is_file()
+    assert (CAPABILITIES_ROOT / "result_finalization.py").is_file()
     assert (
         AGENT_ROOT / "application" / "interfaces" / "execution_strategy.py"
     ).is_file()
 
 
-def test_only_standard_strategy_imports_legacy_instrumented_runner() -> None:
+def test_strategies_do_not_depend_on_legacy_instrumented_runner() -> None:
     module = "modules.agent.infra.execution.instrumented_execution_runner"
     violations: list[str] = []
 
-    for path in EXECUTION_ROOT.rglob("*.py"):
-        if path == STANDARD_STRATEGY:
-            continue
+    for path in STRATEGIES_ROOT.rglob("*.py"):
         if _imports_module(path, module, "run_instrumented_execution"):
             violations.append(path.relative_to(ROOT).as_posix())
 
     assert not violations, (
-        "Agent execution code bypasses ExecutionStrategy and calls the legacy runner: "
-        + ", ".join(violations)
+        "Execution Strategies must compose reusable capabilities instead of the legacy "
+        "instrumented runner: " + ", ".join(violations)
+    )
+
+
+def test_standard_strategy_composes_shared_execution_capabilities() -> None:
+    assert _imports_module(
+        STANDARD_STRATEGY,
+        "modules.agent.infra.execution.capabilities.preparation",
+        "prepare_execution",
+    )
+    assert _imports_module(
+        STANDARD_STRATEGY,
+        "modules.agent.infra.execution.capabilities.result_finalization",
+        "finalize_execution_result",
     )
 
 
