@@ -9,7 +9,7 @@ from modules.agent.application.context_assembler_registry import (
 )
 from modules.agent.application.context_policy import canonicalize_context_runtime_config
 from modules.agent.application.execution_strategy_config import (
-    canonicalize_execution_strategy_runtime_config,
+    execution_strategy_from_runtime_config,
 )
 from modules.agent.application.dtos.ai_dtos import CreateReleaseInput, CreateReleaseOutput
 from modules.agent.application.dtos.behavior_dtos import canonicalize_behavior_spec
@@ -38,7 +38,12 @@ _SNAPSHOT_FIELDS = (
 
 def _canonical_runtime_config(value) -> dict:
     runtime_config = canonicalize_context_assembler_runtime_config(value)
-    runtime_config = canonicalize_execution_strategy_runtime_config(runtime_config)
+    # Validate an explicit strategy, but do not backfill historical snapshots that
+    # predate this field. Absence is permanently defined as Standard, so preserving
+    # it avoids changing old snapshot material/hashes while keeping behavior stable.
+    strategy = execution_strategy_from_runtime_config(runtime_config)
+    if "execution_strategy" in runtime_config:
+        runtime_config["execution_strategy"] = strategy
     runtime_config = canonicalize_context_runtime_config(runtime_config)
     raw_rag = runtime_config.get("rag")
     runtime_config["rag"] = RAGRuntimeConfig.model_validate(
