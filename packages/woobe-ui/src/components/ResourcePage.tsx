@@ -115,16 +115,9 @@ export interface ResourceTab<T extends string> {
   count?: number
 }
 
-function ResourceCount({ children, active = false }: { children: ReactNode; active?: boolean }) {
+function ResourceCount({ children }: { children: ReactNode }) {
   return (
-    <span
-      className={cn(
-        'inline-flex shrink-0 items-center justify-center rounded-technical border px-ui-xs py-ui-hairline font-mono text-system-meta tabular-nums leading-none',
-        active
-          ? 'border-primary/30 bg-primary/[0.10] text-primary-light'
-          : 'border-border/70 bg-background/35 text-muted-foreground',
-      )}
-    >
+    <span className="shrink-0 font-mono text-system-meta font-normal tabular-nums text-muted-foreground">
       {children}
     </span>
   )
@@ -151,11 +144,9 @@ export function ResourceTabs<T extends string>({
         items={tabs.map((tab) => ({
           value: tab.value,
           label: (
-            <span className="flex min-w-0 items-center gap-ui-sm">
+            <span className="flex min-w-0 items-center gap-ui-xs">
               <span className="truncate">{tab.label}</span>
-              {tab.count !== undefined ? (
-                <ResourceCount active={tab.value === value}>{tab.count}</ResourceCount>
-              ) : null}
+              {tab.count !== undefined ? <ResourceCount>{tab.count}</ResourceCount> : null}
             </span>
           ),
         }))}
