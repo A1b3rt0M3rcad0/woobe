@@ -5,6 +5,8 @@ import {
   AlertDescription,
   Button,
   Dialog,
+  DialogContextBar,
+  DialogFooter,
   EmptyStatePanel,
   Field,
   FieldDescription,
@@ -78,6 +80,7 @@ function SelectableModelList({
                 label={item.title}
                 description={item.subtitle}
                 selected={item.id === selectedId}
+                density="compact"
                 trailing={item.id === selectedId ? <Check className="h-icon w-icon text-primary-light" /> : null}
                 onClick={() => onSelect(item.id)}
               />
@@ -117,6 +120,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
           eyebrow="Provider connection"
           title="Connect a model provider"
           description="Create the Project credential without leaving the Agent creation flow."
+          density="compact"
         >
           <ProviderCredentialCreateForm
             projectId={projectId}
@@ -161,6 +165,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
                 label={flow.selectedCredential?.name || flow.activeCredentials[0].name}
                 description={providerLabel(flow.selectedCredential?.provider || flow.activeCredentials[0].provider)}
                 selected
+                density="compact"
                 trailing={<Check className="h-icon w-icon text-primary-light" />}
               />
             ) : (
@@ -193,7 +198,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
             }}
             ariaLabel="Generation model source"
             stretch
-            size="compact"
+            size="segment"
           />
           {flow.modelMode !== 'existing' && flow.canUseCatalog && flow.modelMode === 'manual' ? (
             <Button type="button" size="sm" variant="ghost" className="mt-ui-sm" onClick={flow.useCatalogMode}>Browse provider catalog</Button>
@@ -206,6 +211,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
           eyebrow="Generation model"
           title="Choose the model for this Agent"
           description="The selected model becomes the Agent Draft generation configuration."
+          density="compact"
         >
           {flow.modelMode === 'existing' ? (
             <SelectableModelList items={existingItems} selectedId={flow.selectedModel?.id} onSelect={flow.selectExistingModel} query={query} onQueryChange={setQuery} />
@@ -240,9 +246,9 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
 }
 
 const STEPS = [
-  { id: 'details' as const, label: 'Agent details', detail: 'Identity and instructions' },
-  { id: 'model' as const, label: 'Model', detail: 'Provider and generation model' },
-  { id: 'review' as const, label: 'Review', detail: 'Confirm the initial Draft' },
+  { id: 'details' as const, label: 'Agent details', detail: 'Identity and objective' },
+  { id: 'model' as const, label: 'Model', detail: 'Provider and model' },
+  { id: 'review' as const, label: 'Review', detail: 'Confirm Draft' },
 ]
 
 export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: CreateAgentFlowModalProps) {
@@ -277,8 +283,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
       open={open}
       onClose={flow.busy ? () => undefined : onClose}
       title="Create agent"
-      className="flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden"
-      contentClassName="min-h-0 flex-1 p-0"
+      variant="workspace"
     >
       {flow.inventoryLoading ? (
         <div className="p-ui-lg"><AgentCreationPreparing /></div>
@@ -286,7 +291,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
         <div className="p-ui-lg"><AgentCreationLoadError onRetry={flow.retryInventory} onCancel={onClose} /></div>
       ) : (
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
-          <div className="shrink-0 border-b border-border bg-background/20 p-ui-sm">
+          <DialogContextBar className="p-ui-sm">
             <div className="grid gap-ui-xs sm:grid-cols-3">
               {STEPS.map((step, index) => {
                 const active = step.id === flow.step
@@ -297,13 +302,14 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                     label={`${index + 1} · ${step.label}`}
                     description={step.detail}
                     selected={active}
+                    density="compact"
                     meta={complete ? 'Complete' : active ? 'Current' : 'Pending'}
                     trailing={complete ? <Check className="h-icon-sm w-icon-sm text-success" /> : undefined}
                   />
                 )
               })}
             </div>
-          </div>
+          </DialogContextBar>
 
           <ScrollArea className="min-h-0 flex-1 bg-surface/25">
             <div className="p-ui-lg">
@@ -312,6 +318,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                   eyebrow="Agent Draft"
                   title="Define the Agent identity"
                   description="Define the role and primary outcome. Configure the full Behavior in the Agent editor."
+                  density="compact"
                 >
                   <div className="grid gap-ui-md md:grid-cols-2">
                     <Field>
@@ -338,13 +345,13 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                   <SectionBlock eyebrow="Review" title="Confirm the initial Agent Draft" description="Creation does not publish a Production release." density="compact" />
                   <div className="grid gap-ui-md md:grid-cols-2">
                     <SectionBlock title="Agent" density="compact">
-                      <TechnicalListItem label={flow.agentName} description={flow.agentDescription || 'No description'} />
+                      <TechnicalListItem density="compact" label={flow.agentName} description={flow.agentDescription || 'No description'} />
                     </SectionBlock>
                     <SectionBlock title="Model" density="compact">
-                      <TechnicalListItem label={flow.selectedModel.name} description={`${providerLabel(flow.selectedModel.provider)} · ${flow.selectedModel.model}`} />
+                      <TechnicalListItem density="compact" label={flow.selectedModel.name} description={`${providerLabel(flow.selectedModel.provider)} · ${flow.selectedModel.model}`} />
                     </SectionBlock>
                     <SectionBlock title="Objective" density="compact" className="md:col-span-2">
-                      <p className="whitespace-pre-wrap font-sans text-product-body leading-6 text-accent-foreground/90">{flow.agentObjective}</p>
+                      <p className="whitespace-pre-wrap font-sans text-product-small leading-5 text-accent-foreground/90">{flow.agentObjective}</p>
                     </SectionBlock>
                   </div>
                 </div>
@@ -352,17 +359,19 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
             </div>
           </ScrollArea>
 
-          <div className="flex shrink-0 items-center justify-between gap-ui-md border-t border-border bg-surface/95 px-ui-lg py-ui-md backdrop-blur">
-            <Button type="button" variant="outline" onClick={onClose} disabled={flow.busy}>Cancel</Button>
-            <div className="flex gap-ui-sm">
-              {flow.step !== 'details' ? (
-                <Button type="button" variant="outline" onClick={flow.goBack} disabled={flow.busy}>
-                  <ArrowLeft className="h-icon w-icon" />Back
-                </Button>
-              ) : null}
-              {footerPrimary()}
-            </div>
-          </div>
+          <DialogFooter
+            actions={(
+              <>
+                <Button type="button" variant="outline" onClick={onClose} disabled={flow.busy}>Cancel</Button>
+                {flow.step !== 'details' ? (
+                  <Button type="button" variant="outline" onClick={flow.goBack} disabled={flow.busy}>
+                    <ArrowLeft className="h-icon w-icon" />Back
+                  </Button>
+                ) : null}
+                {footerPrimary()}
+              </>
+            )}
+          />
         </div>
       )}
     </Dialog>
