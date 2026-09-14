@@ -119,7 +119,7 @@ function ResourceCount({ children, compact = false }: { children: ReactNode; com
   return (
     <span className={cn(
       'shrink-0 font-mono font-normal tabular-nums text-muted-foreground',
-      compact ? 'text-[7px] leading-[9px]' : 'text-system-meta',
+      compact ? 'text-system-nano' : 'text-system-meta',
     )}>
       {children}
     </span>
@@ -144,11 +144,11 @@ export function ResourceTabs<T extends string>({
         value={value}
         onValueChange={(next) => onChange(next as T)}
         size="technical"
-        className="p-ui-hairline [&>button]:!h-[22px] [&>button]:!px-[6px] [&>button]:!text-[7px] [&>button]:!leading-[9px]"
+        className="p-ui-hairline [&>button]:!h-control-xs [&>button]:!px-[7px] [&>button]:!text-[9px] [&>button]:!leading-[12px]"
         items={tabs.map((tab) => ({
           value: tab.value,
           label: (
-            <span className="flex min-w-0 items-center gap-[3px]">
+            <span className="flex min-w-0 items-center gap-ui-xs">
               <span className="truncate">{tab.label}</span>
               {tab.count !== undefined ? <ResourceCount compact>{tab.count}</ResourceCount> : null}
             </span>
