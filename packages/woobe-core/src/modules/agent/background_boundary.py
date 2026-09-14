@@ -87,6 +87,9 @@ from modules.agent.infra.execution.agent_tool_runtime_gateway import (
 from modules.agent.infra.execution.run_event_projector import (
     AgentRunEventProjector,
 )
+from modules.agent.infra.execution.strategies.resolver import (
+    build_execution_strategy_resolver,
+)
 from modules.agent.infra.execution.transaction_bounded_structured_output import (
     TransactionBoundedStructuredOutputRuntime,
 )
