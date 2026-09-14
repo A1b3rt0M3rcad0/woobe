@@ -72,7 +72,7 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
           : loadedReleaseVersion ? 'Ready to save as Draft' : 'Saved'
 
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background">
+    <div className="flex h-full min-h-0 min-w-0 flex-col overflow-hidden bg-background">
       <div className="flex min-h-control shrink-0 items-center gap-ui-sm border-b border-border bg-background/20 px-ui-md py-ui-sm">
         <div className="min-w-0 flex-1">
           <p className="truncate font-mono text-chrome-meta text-muted-foreground">{loadedReleaseVersion ? <>Draft based on <span className="text-primary-light">{loadedReleaseVersion}</span></> : 'Current Draft'}</p>
@@ -82,7 +82,7 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
         <Button size="sm" onClick={() => void saveDraft()} loading={createRelease.isPending} disabled={!isDirty && !loadedReleaseVersion} aria-invalid={hasValidationIssue || undefined}><Save className="h-icon-sm w-icon-sm" />Save</Button>
       </div>
       <AgentEditorNavigation value={section} onChange={setSection} />
-      <div className="scrollbar-thin min-h-0 flex-1 overflow-y-auto overscroll-contain">
+      <div className="scrollbar-thin min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
         {section === 'details' ? <AgentOverviewSettings onOpenBehavior={() => setSection('behavior')} /> : null}
         {section === 'behavior' ? <AgentBehaviorSettings /> : null}
         {section === 'runtime' ? <AgentRuntimeSettings projectId={projectId} /> : null}
