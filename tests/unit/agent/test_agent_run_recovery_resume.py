@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
 
+from modules.agent.application.execution_strategy_config import (
+    execution_strategy_from_runtime_config,
+)
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.infra.execution.agent_run_recovery_runtime import (
     AgentRunRecoveryExecutor,
     AgentRunRecoveryRequest,
+    AgentRunRecoveryRuntime,
 )
 from shared.contracts.execution_state import ExecutionLease
 from shared.contracts.run_event_journal import RunCheckpoint, RunJournalState
@@ -52,6 +57,53 @@ class _RecoveryBuffer:
     async def ensure_sequence_at_least(self, run_id, sequence):
         self.reconciled.append((run_id, sequence))
         return sequence
+
+
+def test_recovery_rehydrates_execution_strategy_from_accepted_snapshot() -> None:
+    agent_id = uuid4()
+    run = SimpleNamespace(
+        id=uuid4(),
+        project_id=uuid4(),
+        agent_id=agent_id,
+        session_id=None,
+        input_message_id=None,
+        trace_id=uuid4(),
+        agent_release_id=None,
+        environment="draft",
+        input_message="continue",
+        execution_snapshot={
+            "agent": {
+                "id": str(agent_id),
+                "provider": "openai",
+                "model": "snapshot-model",
+                "session_mode": "stateless",
+                "settings": {
+                    "runtime_config": {
+                        "execution_strategy": "standard",
+                    }
+                },
+            }
+        },
+    )
+    live_agent = SimpleNamespace(
+        settings={"runtime_config": {"execution_strategy": "react"}},
+    )
+    context = SimpleNamespace(
+        tool_snapshots=None,
+        agent_release_version=None,
+    )
+
+    accepted = AgentRunRecoveryRuntime._accepted_snapshot(run)
+    recovered = AgentRunRecoveryRuntime._apply_accepted_snapshot(
+        live_agent,
+        accepted,
+        context,
+    )
+
+    runtime_config = recovered.settings["runtime_config"]
+    assert runtime_config == {"execution_strategy": "standard"}
+    assert execution_strategy_from_runtime_config(runtime_config) == "standard"
+    assert recovered.model == "snapshot-model"
 
 
 @pytest.mark.asyncio
