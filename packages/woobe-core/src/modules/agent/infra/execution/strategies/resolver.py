@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-from modules.agent.application.execution_strategy_config import (
-    DEFAULT_EXECUTION_STRATEGY,
-)
 from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyResolver,
@@ -17,7 +14,7 @@ class BuiltinExecutionStrategyResolver:
 
     def __init__(self) -> None:
         self._strategies: dict[str, ExecutionStrategy] = {
-            DEFAULT_EXECUTION_STRATEGY: StandardExecutionStrategy(),
+            "standard": StandardExecutionStrategy(),
         }
 
     def resolve(self, name: str) -> ExecutionStrategy:
