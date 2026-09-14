@@ -7,13 +7,21 @@ export interface SectionBlockProps extends Omit<HTMLAttributes<HTMLElement>, 'ti
   actions?: ReactNode
   eyebrow?: ReactNode
   density?: 'compact' | 'default'
+  variant?: 'technical' | 'product'
 }
 
 const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
-  ({ className, title, description, actions, eyebrow, density = 'default', children, ...props }, ref) => {
+  ({ className, title, description, actions, eyebrow, density = 'default', variant = 'technical', children, ...props }, ref) => {
     const hasChildren = children !== null && children !== undefined && children !== false
-    const spacing = density === 'compact' ? 'px-ui-md py-ui-sm' : 'p-ui-lg'
-    const contentGap = hasChildren ? (density === 'compact' ? 'mb-ui-sm' : 'mb-ui-lg') : undefined
+    const product = variant === 'product'
+    const spacing = density === 'compact'
+      ? product ? 'p-ui-md' : 'px-ui-md py-ui-sm'
+      : 'p-ui-lg'
+    const contentGap = hasChildren
+      ? density === 'compact'
+        ? product ? 'mb-ui-md' : 'mb-ui-sm'
+        : 'mb-ui-lg'
+      : undefined
 
     return (
       <section ref={ref} className={cn('rounded-container border border-border bg-surface/70', spacing, className)} {...props}>
@@ -21,7 +29,14 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
           <div className={cn('flex items-start justify-between gap-ui-md', contentGap)}>
             <div className="min-w-0">
               {eyebrow ? <div className="mb-ui-xs font-mono text-system-nano uppercase tracking-ui-eyebrow text-muted-foreground">{eyebrow}</div> : null}
-              {title ? <div className="font-mono text-section-title font-semibold text-accent-foreground">{title}</div> : null}
+              {title ? (
+                <div className={cn(
+                  'text-section-title font-semibold text-accent-foreground',
+                  product ? 'font-sans' : 'font-mono',
+                )}>
+                  {title}
+                </div>
+              ) : null}
               {description ? <div className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{description}</div> : null}
             </div>
             {actions ? <div className="shrink-0">{actions}</div> : null}
