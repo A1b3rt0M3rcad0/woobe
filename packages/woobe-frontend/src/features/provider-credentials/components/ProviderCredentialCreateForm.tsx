@@ -122,6 +122,7 @@ export function ProviderCredentialCreateForm({
                 description={option.description}
                 selected={selected}
                 multiline
+                density="compact"
                 className="h-full items-start"
                 trailing={selected ? <Check className="h-icon w-icon text-primary-light" /> : null}
                 onClick={() => setProvider(option.value)}
