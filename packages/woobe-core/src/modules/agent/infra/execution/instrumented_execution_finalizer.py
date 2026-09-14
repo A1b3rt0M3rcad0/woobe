@@ -195,6 +195,9 @@ async def finalize_instrumented_execution(owner, **kw):
                 )
             )
 
+        # The finalizer measures only its own pre-commit work. The canonical
+        # AgentRun builder owns every metric formula shared by standalone and
+        # Network-deferred executions.
         finalization_work_ms = round(
             (time.monotonic() - finalization_started) * 1000
         )
