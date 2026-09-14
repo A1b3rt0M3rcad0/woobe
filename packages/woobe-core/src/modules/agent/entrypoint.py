@@ -122,6 +122,7 @@ from modules.agent.composition.factories.ask_agent_runtime_factory import (
 )
 from modules.agent.composition.factories.rag_runtime_factory import (
     build_rag_runtime_adapter,
+    list_rag_strategies,
 )
 
 __all__ = [
@@ -201,6 +202,7 @@ __all__ = [
     'list_prompt_versions_composer',
     'list_provider_credentials_composer',
     'list_provider_models_composer',
+    'list_rag_strategies',
     'list_release_activations_composer',
     'list_release_tests_composer',
     'list_releases_composer',
