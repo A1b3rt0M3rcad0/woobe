@@ -138,7 +138,7 @@ export function PlaygroundHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-ui-xs">
-          <div className="hidden min-w-[10rem] items-center gap-ui-xs xl:flex" title={strategyTitle}>
+          <div className="hidden min-w-[10rem] items-center gap-ui-xs lg:flex" title={strategyTitle}>
             <Route className="h-icon-sm w-icon-sm shrink-0 text-muted-foreground" />
             <Select
               aria-label="Playground Execution Strategy"
