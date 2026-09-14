@@ -1,6 +1,6 @@
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from modules.agent.infra.execution.instrumented_execution_runner import (
+from modules.agent.infra.execution.capabilities.preparation import (
     _messages_with_bound_capability_authority,
 )
 
