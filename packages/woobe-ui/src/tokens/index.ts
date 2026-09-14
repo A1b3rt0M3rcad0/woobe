@@ -1,3 +1,4 @@
+export { woobeFontSizes } from './typography'
 export { woobeCodeTheme, woobeColors, type WoobeCodeTheme, type WoobeColors } from './colors'
 export {
   woobeBreakpoints,

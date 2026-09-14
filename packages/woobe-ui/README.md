@@ -140,6 +140,10 @@ Internal navigation remains feature-dependent. A settings surface may use a side
 
 The frontend consumes `woobe-ui/tailwind-preset`. Prefer semantic aliases over arbitrary values.
 
+Font-size utility names are declared once in `woobeFontSizes` and consumed by both the Tailwind preset and `mergeWoobeClasses`. The shared `cn` helper and the frontend compatibility helper must use this configured merger. An unconfigured `twMerge` treats custom names such as `text-chrome-label` and `text-system-control` as colors, silently dropping either their size or their foreground color depending on class order. This can inflate controls to inherited body text even when their component source specifies the correct size.
+
+Do not solve that collision by reordering classes, adding `!important`, or resizing individual features. Keep semantic font-size names registered in the shared `font-size` class group.
+
 Examples:
 
 ```text
