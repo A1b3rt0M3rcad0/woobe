@@ -20,13 +20,13 @@ from modules.agent.infra.execution.capabilities.state import StrategyExecutionSt
 
 
 class _TwoPassToolStrategy:
-    """Test-only Strategy proving that orchestration can live outside the legacy runner."""
+    """Test-only Strategy proving orchestration can live outside the Standard algorithm."""
 
     async def execute(self, request: ExecutionStrategyRequest) -> InstrumentedExecution:
         prepared = prepare_execution(request)
         capabilities = build_execution_capabilities(
-            request=request,
             prepared=prepared,
+            strategy_name="test_two_pass",
         )
         state = StrategyExecutionState(messages=list(prepared.messages))
 
@@ -47,7 +47,6 @@ class _TwoPassToolStrategy:
 
         execution = state.finish()
         return await finalize_execution_result(
-            request=request,
             prepared=prepared,
             execution=execution,
             call_index=state.call_index,
