@@ -24,6 +24,18 @@ Do not introduce identities such as `standard:v1` or a second strategy-version s
 
 Historical snapshots without the field are permanently interpreted as `standard`.
 
+## Backend registry and product contract
+
+Selectable Strategy metadata is backend-owned and lives in:
+
+```text
+modules/agent/application/execution_strategy_registry.py
+```
+
+The registry exposes the stable product-facing descriptor consumed by API/UI surfaces: display name, description, behavior, recommended use cases, capabilities, limitations and default status. Frontends must render this contract instead of encoding how a concrete Strategy works.
+
+`execution_strategy_config.py` is intentionally limited to reading, validating and canonicalizing the Strategy selection in `runtime_config`. Concrete runtime implementations remain behind `ExecutionStrategyResolver` and are checked against the registry so catalog metadata and executable Strategies cannot silently diverge.
+
 ## Shared execution capabilities
 
 Strategies compose the execution operations exposed under:
@@ -66,7 +78,7 @@ standard -> StandardExecutionStrategy
 6. Use `capabilities.tools` for every Tool execution.
 7. Persist recovery boundaries through `capabilities.recovery` with an opaque Strategy cursor when the algorithm has durable continuation points.
 8. Finalize structured output through the shared result finalization capability.
-9. Register the Strategy explicitly in `resolver.py` and backend configuration validation.
-10. Add behavior, release/recovery, observability and architecture tests.
+9. Register the product descriptor in `execution_strategy_registry.py` and the concrete implementation in `resolver.py`.
+10. Add behavior, release/recovery, observability, registry-parity and architecture tests.
 
 Do not add plugin discovery, external adapters or Network-specific strategy selection unless those requirements are independently justified.
