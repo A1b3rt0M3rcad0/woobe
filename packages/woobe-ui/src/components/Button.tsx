@@ -2,7 +2,7 @@ import { forwardRef, type ButtonHTMLAttributes } from 'react'
 import { cn } from '../lib/cn'
 
 export type ButtonVariant = 'default' | 'secondary' | 'outline' | 'ghost' | 'destructive' | 'link'
-export type ButtonSize = 'xs' | 'default' | 'sm' | 'lg' | 'icon' | 'iconSm' | 'iconXs'
+export type ButtonSize = 'xs' | 'technical' | 'default' | 'sm' | 'lg' | 'icon' | 'iconSm' | 'iconXs'
 
 const variantClasses: Record<ButtonVariant, string> = {
   default: 'border border-primary bg-primary font-medium text-accent-foreground hover:border-primary-hover hover:bg-primary-hover',
@@ -15,6 +15,7 @@ const variantClasses: Record<ButtonVariant, string> = {
 
 const sizeClasses: Record<ButtonSize, string> = {
   xs: 'h-control-xs px-ui-sm text-chrome-meta',
+  technical: 'h-control-segment px-ui-sm text-chrome-meta',
   default: 'h-control px-ui-md text-chrome-control',
   sm: 'h-control-sm px-ui-sm text-chrome-label',
   lg: 'h-control-lg px-ui-lg text-chrome-control',
