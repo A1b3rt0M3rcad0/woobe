@@ -11,6 +11,7 @@ EXECUTION_ROOT = AGENT_ROOT / "infra" / "execution"
 STRATEGIES_ROOT = EXECUTION_ROOT / "strategies"
 STANDARD_STRATEGY = STRATEGIES_ROOT / "standard.py"
 RESOLVER = STRATEGIES_ROOT / "resolver.py"
+PRIMARY_RUNTIME = EXECUTION_ROOT / "instrumented_primary_mixin.py"
 RUNTIME_FACTORY = AGENT_ROOT / "composition" / "factories" / "ask_agent_runtime_factory.py"
 ASK_JOB_WORKER = (
     ROOT
@@ -89,6 +90,13 @@ def test_standard_strategy_is_only_composed_by_strategy_resolver() -> None:
     assert not violations, (
         "Concrete StandardExecutionStrategy leaked outside the resolver: "
         + ", ".join(violations)
+    )
+
+
+def test_primary_runtime_does_not_compose_concrete_strategy_resolver() -> None:
+    assert not _imports_module(
+        PRIMARY_RUNTIME,
+        "modules.agent.infra.execution.strategies.resolver",
     )
 
 
