@@ -6,6 +6,7 @@ from typing import Any, Callable, Coroutine
 
 from langchain_core.messages import SystemMessage
 
+from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.application.interfaces.context_policy import resolve_context_policy
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_context import current_execution
@@ -48,11 +49,11 @@ _skill_runtime_factory: Callable[[list[dict[str, Any]], Any, set[str]], Any] | N
 
 @dataclass(frozen=True, slots=True)
 class PreparedExecution:
-    """Resolved model/tool inputs shared by execution strategies.
+    """Resolved strategy-facing bindings for one Agent execution.
 
-    This object intentionally contains execution-local capabilities and resolved provider
-    state only. Agent Run lifecycle, persistence and terminal finalization remain owned by
-    the outer runtime.
+    The Strategy consumes this prepared view instead of repeatedly reaching back into
+    Runtime plumbing. Agent Run lifecycle, persistence and terminal Run/Trace finalization
+    remain owned by the outer runtime.
     """
 
     model: Any
@@ -67,6 +68,13 @@ class PreparedExecution:
     final_json_instruction: str | None
     pricing_snapshot: dict[str, Any] | None
     effective_output_tokens: int
+    json_enabled: bool
+    response_schema: dict[str, Any]
+    llm_factory: Any
+    api_key: str
+    base_url: str | None
+    clean_json_answer: Callable[..., Any]
+    context_assembler: ContextAssembler | None
 
 
 def configure_skill_runtime(
@@ -227,8 +235,9 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
 
     streaming_enabled = runtime_streaming_enabled()
     instruction = None
+    response_schema = request.response_format.get("schema", {})
     if request.json_enabled and has_tools:
-        schema_json = json.dumps(request.response_format.get("schema", {}), indent=2)
+        schema_json = json.dumps(response_schema, indent=2)
         instruction = (
             "When capability calls are complete, return only valid JSON matching this "
             "schema. You may call another bound capability first when still required. "
@@ -303,4 +312,11 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
         final_json_instruction=instruction,
         pricing_snapshot=pricing_snapshot,
         effective_output_tokens=effective_output_tokens,
+        json_enabled=request.json_enabled,
+        response_schema=response_schema,
+        llm_factory=request.llm_factory,
+        api_key=request.api_key,
+        base_url=request.base_url,
+        clean_json_answer=request.clean_json_answer,
+        context_assembler=request.context_assembler,
     )
