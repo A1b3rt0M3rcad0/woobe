@@ -83,7 +83,6 @@ async def test_model_capability_supports_multi_pass_strategy_without_legacy_runn
     for iteration in range(2):
         call_index = iteration + 1
         result, call = await capabilities.model.invoke(
-            model=prepared.model,
             messages=state.messages,
             phase=f"iterative_pass_{call_index}",
             call_index=call_index,
@@ -230,7 +229,6 @@ async def test_strategy_can_own_model_tool_model_loop_with_shared_capabilities(
     state = StrategyExecutionState(messages=list(prepared.messages))
 
     first_result, first_call = await capabilities.model.invoke(
-        model=prepared.model,
         messages=state.messages,
         phase="iterative_reasoning_1",
         call_index=1,
@@ -243,7 +241,6 @@ async def test_strategy_can_own_model_tool_model_loop_with_shared_capabilities(
     state.record_tool_batch(batch)
 
     second_result, second_call = await capabilities.model.invoke(
-        model=prepared.model,
         messages=state.messages,
         phase="iterative_reasoning_2",
         call_index=2,
