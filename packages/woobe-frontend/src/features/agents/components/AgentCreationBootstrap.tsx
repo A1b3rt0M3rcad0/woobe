@@ -19,6 +19,7 @@ export function AgentCreationLoadError({ onRetry, onCancel }: { onRetry: () => v
   return (
     <div className="flex min-h-80 items-center justify-center">
       <EmptyStatePanel
+        variant="error"
         icon={<RefreshCw className="h-icon-lg w-icon-lg" />}
         title="Could not prepare Agent setup"
         description="The Project Provider connections or generation models could not be loaded. No Agent data was changed."
@@ -30,7 +31,7 @@ export function AgentCreationLoadError({ onRetry, onCancel }: { onRetry: () => v
             </Button>
           </div>
         )}
-        className="w-full max-w-xl border-error/25 bg-error/[0.04]"
+        className="w-full max-w-xl"
       />
     </div>
   )
