@@ -7,9 +7,12 @@ import { UI_LAYER_CLASS } from '@/lib/ui-layers'
 import { cn } from '@/lib/utils'
 import {
   executionStrategyDescriptor,
+  executionStrategyFromRuntimeConfig,
   executionStrategySelectOptions,
+  withExecutionStrategy,
 } from '@/features/agents/executionStrategy'
-import { useExecutionStrategies } from '@/features/agents/hooks'
+import { useExecutionStrategies, useReleases } from '@/features/agents/hooks'
+import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { AgentControlsPopover } from './AgentControlsPopover'
 import { AgentLifecycleAction } from './AgentLifecycleAction'
 import { AgentManagerModal, type AgentManagerMode, type AgentManagerSection } from './AgentManagerModal'
@@ -22,10 +25,6 @@ interface PlaygroundHeaderProps {
   showRightPanel: boolean
   environment: RuntimeEnvironment
   environmentChangeDisabled?: boolean
-  executionStrategy: string
-  executionStrategyReadOnly: boolean
-  executionStrategyChangeDisabled?: boolean
-  onExecutionStrategyChange: (strategy: string) => void
   onEnvironmentChange: (environment: RuntimeEnvironment) => void
   onToggleLeftPanel: () => void
   onToggleRightPanel: () => void
@@ -48,10 +47,6 @@ export function PlaygroundHeader({
   showRightPanel,
   environment,
   environmentChangeDisabled = false,
-  executionStrategy,
-  executionStrategyReadOnly,
-  executionStrategyChangeDisabled = false,
-  onExecutionStrategyChange,
   onEnvironmentChange,
   onToggleLeftPanel,
   onToggleRightPanel,
@@ -62,14 +57,35 @@ export function PlaygroundHeader({
   const navigate = useNavigate()
   const { workspaceId } = useParams<{ workspaceId?: string; projectId: string }>()
   const [manager, setManager] = useState<{ section: AgentManagerSection; mode: AgentManagerMode } | null>(null)
+  const { state, setField } = useAgentEditor()
+  const { data: releases = [] } = useReleases(agent.id)
   const { data: executionStrategies = [], isLoading: executionStrategiesLoading, isError: executionStrategiesError } = useExecutionStrategies()
+
+  const immutableRelease = environment === 'staging'
+    ? releases.find((release) => release.status === 'staging') ?? null
+    : environment === 'production'
+      ? releases.find((release) => release.status === 'production') ?? null
+      : null
+  const executionRuntimeConfig = environment === 'draft'
+    ? state.runtimeConfig
+    : immutableRelease?.runtime_config ?? {}
+  const executionStrategy = executionStrategyFromRuntimeConfig(executionRuntimeConfig)
   const strategyOptions = executionStrategySelectOptions(executionStrategies, executionStrategy)
   const selectedStrategy = executionStrategyDescriptor(executionStrategies, executionStrategy)
   const strategyCatalogReady = !executionStrategiesLoading && !executionStrategiesError && executionStrategies.length > 0
-  const strategyDisabled = executionStrategyReadOnly || executionStrategyChangeDisabled || !strategyCatalogReady
-  const strategyTitle = executionStrategyReadOnly
-    ? `Execution Strategy ${selectedStrategy?.display_name ?? executionStrategy} is locked by the ${environment} snapshot.`
+  const strategyReadOnly = environment !== 'draft'
+  const strategyDisabled = strategyReadOnly || environmentChangeDisabled || !strategyCatalogReady
+  const strategyTitle = strategyReadOnly
+    ? `Execution Strategy ${selectedStrategy?.display_name ?? executionStrategy} is locked by the immutable ${environment} snapshot.`
     : selectedStrategy?.description ?? 'Select the Execution Strategy used by the next Draft Run.'
+
+  const handleExecutionStrategyChange = (strategy: string) => {
+    if (strategyReadOnly || environmentChangeDisabled || !strategyCatalogReady) return
+    setField(
+      'runtimeConfig',
+      withExecutionStrategy(state.runtimeConfig, strategy),
+    )
+  }
 
   const handleBack = () => {
     const historyIndex = window.history.state?.idx
@@ -133,10 +149,10 @@ export function PlaygroundHeader({
               value={executionStrategy}
               disabled={strategyDisabled}
               options={strategyOptions}
-              onChange={(event) => onExecutionStrategyChange(event.target.value)}
+              onChange={(event) => handleExecutionStrategyChange(event.target.value)}
               className="h-control-sm min-w-[8.5rem]"
             />
-            {executionStrategyReadOnly ? <Lock className="h-icon-sm w-icon-sm shrink-0 text-muted-foreground" aria-label="Strategy locked by snapshot" /> : null}
+            {strategyReadOnly ? <Lock className="h-icon-sm w-icon-sm shrink-0 text-muted-foreground" aria-label="Strategy locked by snapshot" /> : null}
           </div>
 
           <SegmentedControl
