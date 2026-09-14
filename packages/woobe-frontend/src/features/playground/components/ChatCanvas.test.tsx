@@ -112,4 +112,28 @@ describe('ChatCanvas shared Agent and Network surface', () => {
     expect(html).not.toContain('rounded-xl rounded-bl-md')
     expect(html).not.toContain('rounded-lg rounded-bl-sm')
   })
+
+  it('uses compact message and composer geometry for inspector chats', () => {
+    const html = renderToStaticMarkup(
+      <ChatCanvas
+        messages={[
+          { role: 'assistant', content: 'Inspector answer' },
+        ]}
+        isSending={false}
+        onSend={vi.fn()}
+        onStop={vi.fn()}
+        agentName="Inspector Agent"
+        composerStatusText="Session-aware isolated test"
+        density="compact"
+        enableFirstRunSuccess={false}
+      />,
+    )
+
+    expect(html).toContain('Inspector answer')
+    expect(html).toContain('rounded-control px-ui-sm py-ui-sm text-product-small')
+    expect(html).toContain('Copy response')
+    expect(html).toContain('p-ui-sm')
+    expect(html).toContain('Session-aware isolated test')
+    expect(html).not.toContain('rounded-container px-ui-md py-ui-sm text-product-reading')
+  })
 })
