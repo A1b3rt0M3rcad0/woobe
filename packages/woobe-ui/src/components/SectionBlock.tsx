@@ -14,14 +14,8 @@ const SectionBlock = forwardRef<HTMLElement, SectionBlockProps>(
   ({ className, title, description, actions, eyebrow, density = 'default', variant = 'technical', children, ...props }, ref) => {
     const hasChildren = children !== null && children !== undefined && children !== false
     const product = variant === 'product'
-    const spacing = density === 'compact'
-      ? product ? 'p-ui-md' : 'px-ui-md py-ui-sm'
-      : 'p-ui-lg'
-    const contentGap = hasChildren
-      ? density === 'compact'
-        ? product ? 'mb-ui-md' : 'mb-ui-sm'
-        : 'mb-ui-lg'
-      : undefined
+    const spacing = density === 'compact' ? 'p-ui-md' : 'p-ui-panel-inset'
+    const contentGap = hasChildren ? (density === 'compact' ? 'mb-ui-sm' : 'mb-ui-md') : undefined
 
     return (
       <section ref={ref} className={cn('rounded-container border border-border bg-surface/70', spacing, className)} {...props}>
