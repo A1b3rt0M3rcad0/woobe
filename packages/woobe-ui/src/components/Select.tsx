@@ -12,6 +12,8 @@ export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   placeholder?: string
 }
 
+const optionClassName = 'bg-surface font-sans text-system-control font-normal text-accent-foreground'
+
 const Select = forwardRef<HTMLSelectElement, SelectProps>(
   ({ className, invalid = false, options, placeholder, disabled, ...props }, ref) => (
     <div className="relative w-full">
@@ -28,9 +30,9 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
         )}
         {...props}
       >
-        {placeholder ? <option value="" disabled>{placeholder}</option> : null}
+        {placeholder ? <option value="" disabled className={optionClassName}>{placeholder}</option> : null}
         {options.map((option) => (
-          <option key={option.value} value={option.value} className="bg-surface text-accent-foreground">
+          <option key={option.value} value={option.value} className={optionClassName}>
             {option.label}
           </option>
         ))}
