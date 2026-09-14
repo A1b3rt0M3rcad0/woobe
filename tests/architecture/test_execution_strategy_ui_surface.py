@@ -31,6 +31,8 @@ def test_execution_runtime_settings_use_backend_strategy_catalog() -> None:
     assert "<Select" in field
     assert "withExecutionStrategy" in field
     assert "<AgentExecutionStrategyField" in runtime
+    assert "useExecutionStrategies" in runtime
+    assert "executionStrategyDescriptor" in runtime
 
 
 def test_playground_exposes_draft_strategy_selection_but_locks_snapshots() -> None:
