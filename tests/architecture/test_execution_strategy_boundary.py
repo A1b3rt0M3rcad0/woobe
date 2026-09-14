@@ -12,6 +12,8 @@ CAPABILITIES_ROOT = EXECUTION_ROOT / "capabilities"
 STRATEGIES_ROOT = EXECUTION_ROOT / "strategies"
 STANDARD_STRATEGY = STRATEGIES_ROOT / "standard.py"
 RESOLVER = STRATEGIES_ROOT / "resolver.py"
+STRATEGY_CONFIG = AGENT_ROOT / "application" / "execution_strategy_config.py"
+STRATEGY_REGISTRY = AGENT_ROOT / "application" / "execution_strategy_registry.py"
 MODEL_CAPABILITY = CAPABILITIES_ROOT / "model_invocation.py"
 TOOL_CAPABILITY = CAPABILITIES_ROOT / "tool_execution.py"
 RECOVERY_CAPABILITY = CAPABILITIES_ROOT / "recovery.py"
@@ -64,6 +66,8 @@ def test_execution_strategy_partition_is_explicit() -> None:
     assert (STRATEGIES_ROOT / "README.md").is_file()
     assert STANDARD_STRATEGY.is_file()
     assert RESOLVER.is_file()
+    assert STRATEGY_CONFIG.is_file()
+    assert STRATEGY_REGISTRY.is_file()
     for path in (
         CAPABILITIES_ROOT / "preparation.py",
         CAPABILITIES_ROOT / "result_finalization.py",
@@ -78,6 +82,32 @@ def test_execution_strategy_partition_is_explicit() -> None:
     assert (
         AGENT_ROOT / "application" / "interfaces" / "execution_strategy.py"
     ).is_file()
+
+
+def test_execution_strategy_metadata_is_owned_by_backend_registry() -> None:
+    registry = STRATEGY_REGISTRY.read_text(encoding="utf-8")
+    config = STRATEGY_CONFIG.read_text(encoding="utf-8")
+
+    assert "class ExecutionStrategyDescriptor" in registry
+    assert "class ExecutionStrategyRegistry" in registry
+    assert "build_execution_strategy_registry" in registry
+    assert "list_execution_strategies" in registry
+    assert 'DEFAULT_EXECUTION_STRATEGY = "standard"' in registry
+    assert "class ExecutionStrategyDescriptor" not in config
+    assert "_STANDARD_DESCRIPTOR" not in config
+    assert _imports_module(
+        STRATEGY_CONFIG,
+        "modules.agent.application.execution_strategy_registry",
+        "DEFAULT_EXECUTION_STRATEGY",
+    )
+
+
+def test_runtime_resolver_is_checked_against_backend_registry() -> None:
+    assert _imports_module(
+        RESOLVER,
+        "modules.agent.application.execution_strategy_registry",
+        "build_execution_strategy_registry",
+    )
 
 
 def test_strategies_do_not_depend_on_legacy_instrumented_runner() -> None:
@@ -210,6 +240,7 @@ def test_network_remains_agnostic_to_agent_execution_strategy() -> None:
     forbidden_fragments = (
         "modules.agent.application.interfaces.execution_strategy",
         "modules.agent.application.execution_strategy_config",
+        "modules.agent.application.execution_strategy_registry",
         "modules.agent.infra.execution.strategies",
     )
     violations: list[str] = []
@@ -240,9 +271,11 @@ def test_background_agent_worker_configures_strategy_resolver() -> None:
 
 
 def test_execution_strategy_names_are_not_versioned() -> None:
-    config_path = AGENT_ROOT / "application" / "execution_strategy_config.py"
-    content = config_path.read_text(encoding="utf-8")
+    registry = STRATEGY_REGISTRY.read_text(encoding="utf-8")
+    config = STRATEGY_CONFIG.read_text(encoding="utf-8")
 
-    assert 'DEFAULT_EXECUTION_STRATEGY = "standard"' in content
-    assert "standard:v1" not in content
-    assert "strategy_version" not in content
+    assert 'DEFAULT_EXECUTION_STRATEGY = "standard"' in registry
+    assert "standard:v1" not in registry
+    assert "strategy_version" not in registry
+    assert "standard:v1" not in config
+    assert "strategy_version" not in config
