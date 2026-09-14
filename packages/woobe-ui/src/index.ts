@@ -56,6 +56,7 @@ export { SegmentedControl, type SegmentedControlItem, type SegmentedControlProps
 export { Select, type SelectOption, type SelectProps } from './components/Select'
 export { Separator, type SeparatorProps } from './components/Separator'
 export { Skeleton } from './components/Skeleton'
+export { Stepper, type StepperItem, type StepperProps, type StepperState } from './components/Stepper'
 export { Table, type TableColumn, type TableProps } from './components/Table'
 export { Tabs, type TabItem, type TabsProps } from './components/Tabs'
 export { TechnicalListItem, type TechnicalListItemProps } from './components/TechnicalListItem'
