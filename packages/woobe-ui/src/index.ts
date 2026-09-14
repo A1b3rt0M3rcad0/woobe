@@ -30,6 +30,7 @@ export { EmptyStatePanel, type EmptyStatePanelProps } from './components/EmptySt
 export { Field, FieldDescription, FieldError, FieldLabel } from './components/Field'
 export { GuidedEmptyState, type GuidedEmptyStateProps } from './components/GuidedEmptyState'
 export { Input, type InputProps } from './components/Input'
+export { InputGroup, type InputGroupProps } from './components/InputGroup'
 export { JsonCodeBlock, type JsonCodeBlockProps } from './components/JsonCodeBlock'
 export { JsonEditor, type JsonEditorProps } from './components/JsonEditor'
 export { LoadingState, type LoadingLayout, type LoadingStateProps, type LoadingVariant } from './components/LoadingState'
