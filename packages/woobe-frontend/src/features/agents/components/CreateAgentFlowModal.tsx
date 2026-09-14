@@ -120,8 +120,6 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
           eyebrow="Provider connection"
           title="Connect a model provider"
           description="Create the Project credential without leaving the Agent creation flow."
-          density="compact"
-          variant="product"
         >
           <ProviderCredentialCreateForm
             projectId={projectId}
@@ -159,7 +157,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
   return (
     <div className="grid gap-ui-md lg:grid-cols-12">
       <aside className="grid content-start gap-ui-md lg:col-span-4">
-        <SectionBlock title="Provider" description="Select the Project connection used by this generation model." density="compact" variant="product">
+        <SectionBlock title="Provider" description="Select the Project connection used by this generation model.">
           <div className="grid gap-ui-sm">
             {flow.activeCredentials.length === 1 ? (
               <TechnicalListItem
@@ -171,7 +169,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
               />
             ) : (
               <Field>
-                <FieldLabel>Connection</FieldLabel>
+                <FieldLabel className="text-system-nano">Connection</FieldLabel>
                 <Select
                   value={flow.selectedCredential?.id || ''}
                   onChange={(event) => flow.selectCredential(event.target.value)}
@@ -188,7 +186,7 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
           </div>
         </SectionBlock>
 
-        <SectionBlock title="Model source" description="Reuse a Project model or add a provider model." density="compact" variant="product">
+        <SectionBlock title="Model source" description="Reuse a Project model or add a provider model.">
           <SegmentedControl
             items={sourceItems}
             value={sourceValue}
@@ -212,8 +210,6 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
           eyebrow="Generation model"
           title="Choose the model for this Agent"
           description="The selected model becomes the Agent Draft generation configuration."
-          density="compact"
-          variant="product"
         >
           {flow.modelMode === 'existing' ? (
             <SelectableModelList items={existingItems} selectedId={flow.selectedModel?.id} onSelect={flow.selectExistingModel} query={query} onQueryChange={setQuery} />
@@ -232,11 +228,11 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
           ) : (
             <div className="grid gap-ui-md sm:grid-cols-2">
               <Field>
-                <FieldLabel>Model ID</FieldLabel>
+                <FieldLabel className="text-system-nano">Model ID</FieldLabel>
                 <Input value={flow.manualModelIdentifier} onChange={(event) => flow.setManualModel(event.target.value, flow.manualModelName)} placeholder="deepseek/deepseek-chat" className="font-mono" />
               </Field>
               <Field>
-                <FieldLabel>Display name <span className="font-normal text-muted-foreground">(optional)</span></FieldLabel>
+                <FieldLabel className="text-system-nano">Display name <span className="font-normal text-muted-foreground">(optional)</span></FieldLabel>
                 <Input value={flow.manualModelName} onChange={(event) => flow.setManualModel(flow.manualModelIdentifier, event.target.value)} placeholder="Defaults to model ID" />
               </Field>
             </div>
@@ -299,15 +295,19 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                 const active = step.id === flow.step
                 const complete = index < currentIndex
                 return (
-                  <TechnicalListItem
+                  <div
                     key={step.id}
-                    label={`${index + 1} · ${step.label}`}
-                    description={step.detail}
-                    selected={active}
-                    density="compact"
-                    meta={complete ? 'Complete' : active ? 'Current' : 'Pending'}
-                    trailing={complete ? <Check className="h-icon-sm w-icon-sm text-success" /> : undefined}
-                  />
+                    className={`rounded-container border px-ui-md py-ui-sm ${active ? 'border-primary/35 bg-primary/[0.08]' : 'border-border/75 bg-background/25'}`}
+                  >
+                    <div className="flex min-w-0 items-start justify-between gap-ui-sm">
+                      <div className="min-w-0">
+                        <p className="truncate font-mono text-system-control font-semibold text-accent-foreground">{index + 1} · {step.label}</p>
+                        <p className="mt-ui-hairline truncate font-mono text-system-meta text-muted-foreground">{step.detail}</p>
+                        <p className="mt-ui-xs font-mono text-system-nano text-muted-foreground/80">{complete ? 'Complete' : active ? 'Current' : 'Pending'}</p>
+                      </div>
+                      {complete ? <Check className="mt-ui-hairline h-icon-sm w-icon-sm shrink-0 text-success" /> : null}
+                    </div>
+                  </div>
                 )
               })}
             </div>
@@ -320,22 +320,20 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                   eyebrow="Agent Draft"
                   title="Define the Agent identity"
                   description="Define the role and primary outcome. Configure the full Behavior in the Agent editor."
-                  density="compact"
-                  variant="product"
                 >
                   <div className="grid gap-ui-md md:grid-cols-2">
                     <Field>
-                      <FieldLabel>Name</FieldLabel>
+                      <FieldLabel className="text-system-nano">Name</FieldLabel>
                       <Input value={flow.agentName} onChange={(event) => flow.setAgentName(event.target.value)} placeholder="Customer Support Agent" autoFocus />
                     </Field>
                     <Field>
-                      <FieldLabel>Description <span className="font-normal text-muted-foreground">(optional)</span></FieldLabel>
+                      <FieldLabel className="text-system-nano">Description <span className="font-normal text-muted-foreground">(optional)</span></FieldLabel>
                       <Input value={flow.agentDescription} onChange={(event) => flow.setAgentDescription(event.target.value)} placeholder="Handles customer questions and support requests" />
                     </Field>
                     <Field className="md:col-span-2">
-                      <FieldLabel>Objective</FieldLabel>
+                      <FieldLabel className="text-system-nano">Objective</FieldLabel>
                       <Textarea value={flow.agentObjective} onChange={(event) => flow.setAgentObjective(event.target.value)} aria-label="Objective" rows={4} placeholder="Resolve customer support requests accurately." className="min-h-textarea" />
-                      <FieldDescription>Initial Draft objective. Detailed Behavior can be configured after creation.</FieldDescription>
+                      <FieldDescription className="font-mono text-system-nano">Initial Draft objective. Detailed Behavior can be configured after creation.</FieldDescription>
                     </Field>
                   </div>
                 </SectionBlock>
@@ -345,15 +343,15 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
 
               {flow.step === 'review' && flow.selectedModel ? (
                 <div className="grid gap-ui-md">
-                  <SectionBlock eyebrow="Review" title="Confirm the initial Agent Draft" description="Creation does not publish a Production release." density="compact" variant="product" />
+                  <SectionBlock eyebrow="Review" title="Confirm the initial Agent Draft" description="Creation does not publish a Production release." />
                   <div className="grid gap-ui-md md:grid-cols-2">
-                    <SectionBlock title="Agent" density="compact" variant="product">
+                    <SectionBlock title="Agent">
                       <TechnicalListItem density="compact" label={flow.agentName} description={flow.agentDescription || 'No description'} />
                     </SectionBlock>
-                    <SectionBlock title="Model" density="compact" variant="product">
+                    <SectionBlock title="Model">
                       <TechnicalListItem density="compact" label={flow.selectedModel.name} description={`${providerLabel(flow.selectedModel.provider)} · ${flow.selectedModel.model}`} />
                     </SectionBlock>
-                    <SectionBlock title="Objective" density="compact" variant="product" className="md:col-span-2">
+                    <SectionBlock title="Objective" className="md:col-span-2">
                       <p className="whitespace-pre-wrap font-sans text-product-small text-accent-foreground/90">{flow.agentObjective}</p>
                     </SectionBlock>
                   </div>
