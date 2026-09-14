@@ -39,6 +39,8 @@ This includes:
 
 `woobe-frontend` may keep feature-specific measurements when they are intrinsic to a domain component and have no reusable visual meaning. It should not introduce a new arbitrary font size, radius, control height, z-index, shared spacing rule or repeated shell dimension when an equivalent Woobe token exists.
 
+Migrated feature code should import shared primitives directly from `@woobe/ui`. Local compatibility wrappers are migration infrastructure, not the default path for new or migrated feature code. A feature may compose primitives differently, but it should not locally resize or restyle a shared `Button`, `Input`, `Textarea`, `Select`, `Field`, `SectionBlock`, `Dialog`, `Stepper`, loading state or technical row to create a second visual contract.
+
 The goal is not to remove every numeric value from feature code. The goal is to prevent feature code from becoming a second design system.
 
 ### Legitimate feature-owned geometry
@@ -66,7 +68,7 @@ primitive → shared presentation composition → feature component
 Examples:
 
 - `Button` is a primitive.
-- `SectionBlock`, `TechnicalListItem` and `EmptyStatePanel` are shared presentation compositions.
+- `SectionBlock`, `TechnicalListItem`, `Stepper` and `EmptyStatePanel` are shared presentation compositions.
 - `RuntimeAssetCard`, `NetworkGraphInspector` and Knowledge build workflows are feature components.
 
 Do not move a component into `woobe-ui` merely because it is visually complex. It belongs here only when it is presentation-only, domain-agnostic and has demonstrated reuse. Domain concepts such as Agent, Network, Run, Knowledge Collection, Release or Tool must not leak into this package.
@@ -77,6 +79,7 @@ Current reusable surface includes primitives and compositions such as:
 
 - Button
 - Input
+- InputGroup
 - Textarea
 - Select
 - Field
@@ -84,6 +87,7 @@ Current reusable surface includes primitives and compositions such as:
 - Badge
 - Card
 - Dialog
+- Stepper
 - SegmentedControl
 - Tabs
 - PanelHeader
@@ -105,18 +109,18 @@ Components enter `woobe-ui` only when they are presentation-only and have demons
 
 ## Dialog contract
 
-The Control Plane dialog grammar is derived from the operational density used by ChatSurface Details. Features may change the content composition, but they must not create an independent modal design language.
+The Control Plane dialog grammar is derived from the same operational density used by ChatSurface Details and the Project Overview reference. Features may change the content composition, but they must not create an independent modal design language.
 
 Use `Dialog` as the shell and keep the shared header, border, radius, typography, controls, internal scrolling and footer treatment. Dialog copy stays on the Woobe product/system type scale; a larger modal is not a reason to enlarge typography.
 
 Use the variants by intent:
 
 - `standard`: confirmations, small forms, secret reveals and bounded actions. It remains compact, but uses the same typography, borders, controls and footer grammar as larger dialogs.
-- `workspace`: configuration flows, inspectors and multi-step operational surfaces. It uses `max-w-dialog-wide` and `h-dialog-workspace`, keeps header/footer fixed, and gives scrolling to the content region.
+- `workspace`: configuration flows, inspectors and multi-step operational surfaces. It uses `max-w-dialog-wide` and `max-h-dialog`, while the content determines the actual height. Use `DialogContextBar`, `DialogBody` and `DialogFooter` when the feature needs fixed chrome with an independently scrolling body.
 
-The canonical workspace geometry is `68.75rem` maximum width and `min(56.25rem, calc(100svh - 2rem))` height. Features should not locally shrink or enlarge this shell with arbitrary `max-w-*` or viewport-height values unless the geometry is genuinely intrinsic to the feature.
+The canonical workspace width is `68.75rem` maximum. Height is content-driven and capped by `max-h-dialog`; features must not force a large fixed viewport-height shell merely because another workspace happens to be tall. Fixed height is valid only when it is intrinsic to the interaction.
 
-Internal navigation remains feature-dependent. A settings surface may use a sidebar, while a creation workflow may use a stepper. The reusable contract is the shell, density, hierarchy and control language, not forcing unrelated workflows into the same navigation structure.
+Internal navigation remains feature-dependent. A settings surface may use a sidebar, while a creation workflow may use a stepper. The reusable contract is the density, hierarchy, spacing, typography and control language, not forcing unrelated workflows into the same geometry or navigation structure.
 
 ## Semantic Tailwind contract
 
@@ -196,12 +200,17 @@ On workstation and ultrawide layouts, extra width should improve composition: pe
 - Primary: `#3b82f6`
 - Product typography: Inter
 - Technical typography: JetBrains Mono, with Fira Code/monospace fallback
+- Section title tier: `12px`
+- Shared control tier: `10px`
+- Caption/description tier: `9px`
+- Nano/status metadata tier: `8px`
 - Technical/small radius: `2px`
 - Common controls: `3px`
 - Cards and larger containers: `4px`
 - Default control height: `34px`
 - Compact control height: `30px`
-- Segmented control height: `27px`
+- Segmented control inner height: `26px` inside the `34px` segmented shell
+- Common panel/dialog inset: approximately `15px`
 
 The visual hierarchy is border-driven rather than shadow-driven. Blue is reserved for primary actions, focus, selection and operationally meaningful state. Technical typography is intentionally prominent in navigation, labels, controls, metadata, IDs, metrics and operational UI, while Inter remains the default for longer product copy and user-entered content.
 
@@ -212,7 +221,9 @@ Subtle grid/ASCII influence may appear as secondary identity, but it must not tu
 Before considering a migrated surface complete, verify that:
 
 - the feature still owns behavior and domain semantics while `woobe-ui` owns reusable appearance;
+- migrated code imports shared primitives directly from `@woobe/ui` unless a legacy compatibility boundary is explicitly required;
 - common controls, dialogs, sections, states and technical rows use the shared primitives/compositions when an equivalent exists;
+- no local feature override changes the canonical font size, control height, shared radius or recurring spacing of an imported primitive;
 - no new arbitrary type scale, common radius, semantic color, shared shell width, control height, shadow or layer was introduced locally;
 - loading, error, empty, disabled and read-only states follow the same visual grammar as the happy path;
 - nested overlays use the shared layer contract and preserve focus/Escape/body-lock behavior;
