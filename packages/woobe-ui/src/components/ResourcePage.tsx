@@ -109,6 +109,21 @@ export interface ResourceTab<T extends string> {
   count?: number
 }
 
+function ResourceCount({ children, active = false }: { children: ReactNode; active?: boolean }) {
+  return (
+    <span
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center rounded-technical border px-ui-xs py-ui-hairline font-mono text-system-meta tabular-nums leading-none',
+        active
+          ? 'border-primary/30 bg-primary/[0.10] text-primary-light'
+          : 'border-border/70 bg-background/35 text-muted-foreground',
+      )}
+    >
+      {children}
+    </span>
+  )
+}
+
 export function ResourceTabs<T extends string>({
   value,
   tabs,
@@ -129,10 +144,10 @@ export function ResourceTabs<T extends string>({
         items={tabs.map((tab) => ({
           value: tab.value,
           label: (
-            <span className="flex items-center gap-ui-xs">
-              <span>{tab.label}</span>
+            <span className="flex min-w-0 items-center gap-ui-sm">
+              <span className="truncate">{tab.label}</span>
               {tab.count !== undefined ? (
-                <span className="font-mono text-system-nano tabular-nums text-muted-foreground">{tab.count}</span>
+                <ResourceCount active={tab.value === value}>{tab.count}</ResourceCount>
               ) : null}
             </span>
           ),
@@ -193,7 +208,7 @@ export function ResourceSectionHeader({ title, description, count }: { title: st
       <div className="min-w-0">
         <div className="flex items-center gap-ui-sm">
           <h2 className="font-mono text-system-control font-bold uppercase tracking-ui-eyebrow text-slate-50">{title}</h2>
-          {count !== undefined ? <span className="font-mono text-system-meta tabular-nums text-muted-foreground">{count}</span> : null}
+          {count !== undefined ? <ResourceCount>{count}</ResourceCount> : null}
         </div>
         {description ? <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">{description}</p> : null}
       </div>
