@@ -10,12 +10,14 @@ export interface TechnicalListItemProps extends Omit<HTMLAttributes<HTMLDivEleme
   selected?: boolean
   disabled?: boolean
   multiline?: boolean
+  density?: 'compact' | 'default'
   title?: string
 }
 
 const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
-  ({ className, label, description, meta, leading, trailing, selected = false, disabled = false, multiline = false, onClick, onKeyDown, title, ...props }, ref) => {
+  ({ className, label, description, meta, leading, trailing, selected = false, disabled = false, multiline = false, density = 'default', onClick, onKeyDown, title, ...props }, ref) => {
     const interactive = Boolean(onClick)
+    const compact = density === 'compact'
 
     const handleClick = (event: MouseEvent<HTMLDivElement>) => {
       if (disabled) return
@@ -41,7 +43,8 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
         onClick={handleClick}
         onKeyDown={handleKeyDown}
         className={cn(
-          'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-ui-md rounded-container border px-ui-md py-ui-control-gap text-left transition-colors',
+          'grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-center rounded-container border text-left transition-colors',
+          compact ? 'gap-ui-sm px-ui-sm py-ui-xs' : 'gap-ui-md px-ui-md py-ui-control-gap',
           selected ? 'border-primary/35 bg-primary/[0.08]' : 'border-border/75 bg-background/25',
           interactive && !disabled && !selected && 'cursor-pointer hover:border-primary/25 hover:bg-control/35',
           interactive && !disabled && selected && 'cursor-pointer hover:bg-primary/[0.11]',
@@ -52,7 +55,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
       >
         {leading ? <span className="shrink-0">{leading}</span> : <span aria-hidden="true" />}
         <span className="min-w-0">
-          <span className={cn('block font-sans text-product-small font-semibold', multiline ? 'whitespace-normal break-words' : 'truncate', selected ? 'text-accent-foreground' : 'text-accent-foreground/85')}>{label}</span>
+          <span className={cn('block font-sans font-semibold', compact ? 'text-system-control' : 'text-product-small', multiline ? 'whitespace-normal break-words' : 'truncate', selected ? 'text-accent-foreground' : 'text-accent-foreground/85')}>{label}</span>
           {description ? <span className={cn('mt-ui-hairline block font-sans text-product-caption text-muted-foreground', multiline ? 'whitespace-normal leading-4' : 'truncate')}>{description}</span> : null}
           {meta ? <span className="mt-ui-hairline flex min-w-0 flex-wrap items-center gap-x-ui-sm gap-y-ui-xs font-mono text-system-meta text-muted-foreground">{meta}</span> : null}
         </span>
