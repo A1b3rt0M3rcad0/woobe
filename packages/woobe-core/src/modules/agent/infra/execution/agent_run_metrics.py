@@ -157,6 +157,7 @@ def build_agent_run_metrics(
             getattr(binding, "fallback_credential_id", None)
         ),
         "execution_context": context.execution_context,
+        "execution_strategy": getattr(context, "execution_strategy", None),
         "agent_release_id": _id_text(context.agent_release_id),
         "agent_release_version": context.agent_release_version,
         # Kept in diagnostics because the deferred Network transport currently
