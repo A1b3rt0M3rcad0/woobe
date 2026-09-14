@@ -215,6 +215,8 @@ function ModalModelStep({ flow, projectId }: { flow: AgentCreationFlowController
             }}
             ariaLabel="Generation model source"
             size="segment"
+            stretch={false}
+            className="w-fit max-w-full"
           />
           {flow.modelMode !== 'existing' && flow.canUseCatalog && flow.modelMode === 'manual' ? (
             <Button type="button" size="sm" variant="ghost" className="mt-ui-sm" onClick={flow.useCatalogMode}>Browse provider catalog</Button>
