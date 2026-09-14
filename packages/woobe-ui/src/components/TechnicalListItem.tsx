@@ -10,7 +10,7 @@ export interface TechnicalListItemProps extends Omit<HTMLAttributes<HTMLDivEleme
   selected?: boolean
   disabled?: boolean
   multiline?: boolean
-  density?: 'compact' | 'default'
+  density?: 'technical' | 'compact' | 'default'
   presentation?: 'card' | 'row' | 'plain'
   descriptionVariant?: 'product' | 'technical'
   title?: string
@@ -36,6 +36,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
     ...props
   }, ref) => {
     const interactive = Boolean(onClick)
+    const technical = density === 'technical'
     const compact = density === 'compact'
     const card = presentation === 'card'
     const row = presentation === 'row'
@@ -62,6 +63,25 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
       }
     }
 
+    const densitySpacing = technical
+      ? 'gap-ui-control-gap px-ui-sm py-ui-control-inset'
+      : compact
+        ? 'gap-ui-sm px-ui-sm py-ui-xs'
+        : 'gap-ui-md px-ui-md py-ui-control-gap'
+
+    const rowSpacing = technical
+      ? 'gap-ui-control-gap px-ui-sm py-ui-control-gap'
+      : 'gap-ui-sm px-ui-sm py-ui-sm'
+
+    const labelSize = technical ? 'text-system-meta' : compact ? 'text-system-control' : 'text-system-value'
+    const technicalDescriptionSize = technical ? 'text-system-tiny' : 'text-system-nano'
+    const productDescriptionSize = technical
+      ? 'text-system-tiny'
+      : presentation === 'card'
+        ? 'text-product-caption'
+        : 'text-system-micro'
+    const metaSize = technical ? 'text-system-tiny' : 'text-system-nano'
+
     return (
       <div
         ref={ref}
@@ -75,8 +95,9 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
           'grid w-full items-center text-left transition-colors',
           columns,
           card && 'rounded-container border',
-          card && (compact ? 'gap-ui-sm px-ui-sm py-ui-xs' : 'gap-ui-md px-ui-md py-ui-control-gap'),
-          row && 'gap-ui-sm border-b border-border/75 px-ui-sm py-ui-sm last:border-b-0',
+          card && densitySpacing,
+          row && 'border-b border-border/75 last:border-b-0',
+          row && rowSpacing,
           plain && 'gap-ui-sm border-0 bg-transparent p-0',
           card && (selected ? 'border-primary/35 bg-primary/[0.08]' : 'border-border/75 bg-background/25'),
           row && (selected ? 'bg-primary/[0.08]' : 'bg-transparent'),
@@ -94,7 +115,7 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
         <span className="min-w-0">
           <span className={cn(
             'block font-mono font-semibold',
-            compact ? 'text-system-control' : 'text-system-value',
+            labelSize,
             multiline ? 'whitespace-normal break-words' : 'truncate',
             selected ? 'text-accent-foreground' : 'text-accent-foreground/85',
           )}>
@@ -104,16 +125,21 @@ const TechnicalListItem = forwardRef<HTMLDivElement, TechnicalListItemProps>(
             <span className={cn(
               'mt-ui-hairline block text-muted-foreground',
               descriptionVariant === 'technical'
-                ? 'font-mono text-system-nano'
-                : presentation === 'card'
-                  ? 'font-sans text-product-caption'
-                  : 'font-sans text-system-micro',
+                ? cn('font-mono', technicalDescriptionSize)
+                : cn('font-sans', productDescriptionSize),
               multiline ? 'whitespace-normal break-words' : 'truncate',
             )}>
               {description}
             </span>
           ) : null}
-          {meta ? <span className="mt-ui-hairline flex min-w-0 flex-wrap items-center gap-x-ui-sm gap-y-ui-xs font-mono text-system-nano text-muted-foreground">{meta}</span> : null}
+          {meta ? (
+            <span className={cn(
+              'mt-ui-hairline flex min-w-0 flex-wrap items-center gap-x-ui-sm gap-y-ui-xs font-mono text-muted-foreground',
+              metaSize,
+            )}>
+              {meta}
+            </span>
+          ) : null}
         </span>
         {trailing ? <span className="shrink-0">{trailing}</span> : null}
       </div>
