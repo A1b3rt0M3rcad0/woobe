@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
-import { Button } from '@woobe/ui'
-import { Input } from '@/components/ui/Input'
+import { Button, Input, InputGroup } from '@woobe/ui'
 
 interface ProviderSecretInputProps {
   value: string
@@ -15,7 +14,20 @@ export function ProviderSecretInput({ value, onChange, placeholder = 'Paste your
   const [revealed, setRevealed] = useState(false)
 
   return (
-    <div className="relative">
+    <InputGroup
+      end={(
+        <Button
+          type="button"
+          variant="ghost"
+          size="iconSm"
+          onClick={() => setRevealed((current) => !current)}
+          aria-label={revealed ? 'Hide API key' : 'Show API key'}
+          className="text-muted-foreground"
+        >
+          {revealed ? <EyeOff className="h-icon w-icon" /> : <Eye className="h-icon w-icon" />}
+        </Button>
+      )}
+    >
       <Input
         type="text"
         name="provider-api-key"
@@ -31,18 +43,8 @@ export function ProviderSecretInput({ value, onChange, placeholder = 'Paste your
         data-1p-ignore
         data-lpignore="true"
         data-form-type="other"
-        className={`pr-10 font-mono text-system-control ${revealed ? '' : '[-webkit-text-security:disc]'}`}
+        className={`font-mono ${revealed ? '' : '[-webkit-text-security:disc]'}`}
       />
-      <Button
-        type="button"
-        variant="ghost"
-        size="iconSm"
-        onClick={() => setRevealed((current) => !current)}
-        aria-label={revealed ? 'Hide API key' : 'Show API key'}
-        className="absolute right-ui-xs top-1/2 -translate-y-1/2 text-muted-foreground"
-      >
-        {revealed ? <EyeOff className="h-icon w-icon" /> : <Eye className="h-icon w-icon" />}
-      </Button>
-    </div>
+    </InputGroup>
   )
 }
