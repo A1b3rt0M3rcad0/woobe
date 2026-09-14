@@ -44,7 +44,8 @@ export function executionStrategySelectOptions(
   }))
 
   if (!options.some((option) => option.value === selected)) {
-    return [{ value: selected, label: selected }, ...options]
+    const fallbackLabel = selected === DEFAULT_EXECUTION_STRATEGY ? 'Standard' : selected
+    return [{ value: selected, label: fallbackLabel }, ...options]
   }
 
   return options
