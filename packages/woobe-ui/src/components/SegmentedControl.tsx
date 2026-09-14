@@ -30,7 +30,7 @@ export function SegmentedControl({
   const sizeClass = size === 'technical'
     ? 'h-control-xs text-chrome-meta'
     : size === 'compact'
-      ? 'h-control-sm text-chrome-label'
+      ? 'h-control-segment text-chrome-label'
       : 'h-control-segment text-chrome-label'
 
   return (
