@@ -32,7 +32,6 @@ class _TwoPassToolStrategy:
 
         for iteration in range(1, 3):
             result, call = await capabilities.model.invoke(
-                model=prepared.model,
                 messages=state.messages,
                 phase=f"test_multi_loop_{iteration}",
                 call_index=iteration,
