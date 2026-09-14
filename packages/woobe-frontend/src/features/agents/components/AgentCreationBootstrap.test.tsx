@@ -9,7 +9,7 @@ describe('Agent creation bootstrap', () => {
 
     expect(markup).toContain('Preparing Agent setup')
     expect(markup).toContain('Loading Provider connections and generation models')
-    expect(markup).toContain('min-h-[520px]')
+    expect(markup).toContain('min-h-80')
   })
 
   it('offers retry and cancel when the inventory cannot be loaded', () => {
