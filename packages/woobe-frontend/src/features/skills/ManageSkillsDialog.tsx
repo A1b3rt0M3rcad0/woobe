@@ -6,13 +6,7 @@ export function ManageSkillsDialog({ onClose, title = 'Manage Skills', ...props 
   const [busy, setBusy] = useState(false)
 
   return (
-    <Dialog
-      open
-      onClose={busy ? () => undefined : onClose}
-      title={title}
-      className="flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden"
-      contentClassName="min-h-0 flex-1 p-0"
-    >
+    <Dialog open onClose={busy ? () => undefined : onClose} title={title} variant="workspace">
       <div className="scrollbar-thin h-full min-h-0 overflow-y-auto p-ui-lg">
         <SkillCatalog
           {...props}
