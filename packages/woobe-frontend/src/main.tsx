@@ -4,6 +4,7 @@ import App from './App'
 import './index.css'
 import './styles/dashboard-reference.css'
 import './styles/dashboard-fill.css'
+import './styles/chat-surface-details.css'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
