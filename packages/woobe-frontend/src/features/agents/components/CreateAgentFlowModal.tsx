@@ -65,7 +65,7 @@ function SelectableModelList({
         <Input value={query} onChange={(event) => onQueryChange(event.target.value)} placeholder="Search models" className="pl-9" />
       </div>
 
-      <ScrollArea className="h-72 rounded-container border border-border bg-background/25 p-ui-xs">
+      <ScrollArea className="h-60 rounded-container border border-border bg-background/25 p-ui-xs">
         {loading ? (
           <div className="grid gap-ui-xs">
             {Array.from({ length: 5 }).map((_, index) => <Skeleton key={index} className="h-control-row w-full" />)}
@@ -284,11 +284,12 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
       onClose={flow.busy ? () => undefined : onClose}
       title="Create agent"
       variant="workspace"
+      className="!max-w-dialog"
     >
       {flow.inventoryLoading ? (
-        <div className="p-ui-lg"><AgentCreationPreparing /></div>
+        <div className="p-ui-md"><AgentCreationPreparing /></div>
       ) : flow.inventoryError ? (
-        <div className="p-ui-lg"><AgentCreationLoadError onRetry={flow.retryInventory} onCancel={onClose} /></div>
+        <div className="p-ui-md"><AgentCreationLoadError onRetry={flow.retryInventory} onCancel={onClose} /></div>
       ) : (
         <div className="flex h-full min-h-0 flex-col overflow-hidden">
           <DialogContextBar className="p-ui-sm">
@@ -312,7 +313,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
           </DialogContextBar>
 
           <ScrollArea className="min-h-0 flex-1 bg-surface/25">
-            <div className="p-ui-lg">
+            <div className="p-ui-md">
               {flow.step === 'details' ? (
                 <SectionBlock
                   eyebrow="Agent Draft"
@@ -351,7 +352,7 @@ export function CreateAgentFlowModal({ open, onClose, projectId, onCreated }: Cr
                       <TechnicalListItem density="compact" label={flow.selectedModel.name} description={`${providerLabel(flow.selectedModel.provider)} · ${flow.selectedModel.model}`} />
                     </SectionBlock>
                     <SectionBlock title="Objective" density="compact" className="md:col-span-2">
-                      <p className="whitespace-pre-wrap font-sans text-product-small leading-5 text-accent-foreground/90">{flow.agentObjective}</p>
+                      <p className="whitespace-pre-wrap font-sans text-product-small text-accent-foreground/90">{flow.agentObjective}</p>
                     </SectionBlock>
                   </div>
                 </div>
