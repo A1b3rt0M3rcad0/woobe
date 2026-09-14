@@ -27,12 +27,31 @@ def test_execution_runtime_settings_use_backend_strategy_catalog() -> None:
     runtime = _source(AGENT_FEATURE / "components" / "AgentRuntimeSettings.tsx")
 
     assert "useExecutionStrategies" in field
-    assert "executionStrategySelectOptions" in field
-    assert "<Select" in field
+    assert "executionStrategyDescriptor" in field
     assert "withExecutionStrategy" in field
+    assert "<Dialog" in field
+    assert 'title="Select Execution Strategy"' in field
+    assert "recommended_for" in field
+    assert "capabilities" in field
+    assert "limitations" in field
+    assert "Runtime boundary" in field
     assert "<AgentExecutionStrategyField" in runtime
     assert "useExecutionStrategies" in runtime
     assert "executionStrategyDescriptor" in runtime
+
+
+def test_knowledge_manager_uses_shared_workspace_dialog() -> None:
+    knowledge = _source(PLAYGROUND / "components" / "ManageKnowledgeModal.tsx")
+
+    assert "from '@woobe/ui'" in knowledge
+    assert "<Dialog" in knowledge
+    assert 'variant="workspace"' in knowledge
+    assert 'height="workspace"' in knowledge
+    assert "<DialogContextBar>" in knowledge
+    assert "<DialogFooter" in knowledge
+    assert "CollectionDetailsModal" in knowledge
+    assert "CreateCollectionModal" in knowledge
+    assert "fixed inset-0" not in knowledge
 
 
 def test_playground_exposes_draft_strategy_selection_but_locks_snapshots() -> None:
