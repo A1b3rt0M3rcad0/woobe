@@ -212,7 +212,23 @@ function ProjectSkills({ workspaceId, projectId }: { workspaceId?: string; proje
       <div className="grid gap-ui-md">
         <p className="font-sans text-product-caption text-muted-foreground">Open the Agent’s Skills editor to review <span className="font-mono font-medium text-slate-100">{pending.package.name} {pending.version}</span> and save the installation in its draft.</p>
         <ResourceSearch label="Search Agents for Skill installation" placeholder="Search Agents…" value={agentQuery} onChange={setAgentQuery} />
-        {agents.isPending ? <LoadingState message="Loading Agents" /> : agents.isError ? <ErrorState error={agents.error} onRetry={() => void agents.refetch()} /> : availableAgents.length ? <div className="grid gap-ui-xs">{availableAgents.map(agent => <TechnicalListItem key={agent.id} label={agent.name} leading={<Bot className="h-icon w-icon text-primary-light" />} onClick={() => navigate(agentPath(agent.id, pending.skill_version_id))} />)}</div> : <p className="font-mono text-system-meta text-muted-foreground">{agentQuery ? 'No matching Agents.' : 'Create an Agent before installing this Skill.'}</p>}
+        {agents.isPending ? <LoadingState message="Loading Agents" /> : agents.isError ? <ErrorState error={agents.error} onRetry={() => void agents.refetch()} /> : availableAgents.length ? (
+          <div className="grid gap-ui-xs">
+            {availableAgents.map(agent => (
+              <button
+                key={agent.id}
+                type="button"
+                onClick={() => navigate(agentPath(agent.id, pending.skill_version_id))}
+                className="w-full rounded-container text-left focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40"
+              >
+                <TechnicalListItem
+                  label={agent.name}
+                  leading={<Bot className="h-icon w-icon text-primary-light" />}
+                />
+              </button>
+            ))}
+          </div>
+        ) : <p className="font-mono text-system-meta text-muted-foreground">{agentQuery ? 'No matching Agents.' : 'Create an Agent before installing this Skill.'}</p>}
       </div>
     </Dialog>}
   </ResourcePage>
