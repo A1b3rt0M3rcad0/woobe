@@ -18,9 +18,9 @@ import { ProviderSecretInput } from '@/features/provider-credentials/components/
 
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 const providers = [
-  { value: 'openai', label: 'OpenAI', description: 'Use models available from your OpenAI account.' },
-  { value: 'openrouter', label: 'OpenRouter', description: 'Access multiple generation and embedding providers through one connection.' },
-  { value: 'custom', label: 'OpenAI Compatible', description: 'Connect a provider or gateway that exposes an OpenAI-compatible API.' },
+  { value: 'openai', label: 'OpenAI', description: 'Native OpenAI models.' },
+  { value: 'openrouter', label: 'OpenRouter', description: 'Multi-provider gateway.' },
+  { value: 'custom', label: 'OpenAI Compatible', description: 'Custom OpenAI-compatible endpoint.' },
 ]
 const providerNames: Record<string, string> = { openai: 'OpenAI', openrouter: 'OpenRouter', custom: 'OpenAI Compatible' }
 
@@ -122,6 +122,7 @@ export function ProviderCredentialCreateForm({
                 description={option.description}
                 selected={selected}
                 multiline
+                className="h-full items-start"
                 trailing={selected ? <Check className="h-icon w-icon text-primary-light" /> : null}
                 onClick={() => setProvider(option.value)}
               />
