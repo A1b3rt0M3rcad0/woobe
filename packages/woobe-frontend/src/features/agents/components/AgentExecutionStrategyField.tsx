@@ -6,7 +6,6 @@ import {
   Dialog,
   DialogFooter,
   EmptyStatePanel,
-  MetricTile,
   ScrollArea,
   TechnicalListItem,
 } from '@woobe/ui'
@@ -23,7 +22,7 @@ import { cn } from '@/lib/utils'
 
 function DetailList({ items }: { items: string[] }) {
   if (!items.length) {
-    return <p className="font-sans text-product-caption text-muted-foreground">None declared.</p>
+    return <p className="font-sans text-product-caption text-muted-foreground">No metadata available.</p>
   }
 
   return (
@@ -52,13 +51,13 @@ export function AgentExecutionStrategyField({
 
   const selectedFallback = useMemo<ExecutionStrategyDescriptor>(() => ({
     name: selected,
-    display_name: selected === 'standard' ? 'Standard' : selected,
+    display_name: selected,
     description: '',
     behavior: '',
     recommended_for: [],
     capabilities: [],
     limitations: [],
-    is_default: selected === 'standard',
+    is_default: false,
   }), [selected])
 
   const availableStrategies = selectedDescriptor
@@ -91,7 +90,7 @@ export function AgentExecutionStrategyField({
       <section className={cn(!compact && 'rounded-container border border-border bg-surface p-ui-lg')} aria-label="Execution Strategy">
         <div>
           <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.1em] text-muted-foreground">Execution Strategy</p>
-          <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Controls how this Agent orchestrates model calls, Tools and execution loops.</p>
+          <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">Selects the backend-registered execution algorithm used by this Agent.</p>
         </div>
 
         <div className="mt-ui-md">
@@ -176,19 +175,13 @@ export function AgentExecutionStrategyField({
                       {focusedDescriptor.is_default ? <Badge variant="outline" size="compact">System default</Badge> : null}
                     </div>
                     <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">
-                      Agent-level execution algorithm. The selected value is frozen into immutable Agent Releases.
+                      {focusedCatalogBacked ? 'Backend-registered execution strategy.' : 'Snapshot selection not present in the active backend catalog.'}
                     </p>
                   </div>
                 </div>
 
                 {catalogReady && focusedCatalogBacked ? (
                   <>
-                    <div className="mt-ui-lg grid gap-ui-sm sm:grid-cols-3">
-                      <MetricTile label="Strategy" value={focusedDescriptor.name} />
-                      <MetricTile label="Runtime role" value="Orchestration" />
-                      <MetricTile label="Release behavior" value="Frozen in snapshot" />
-                    </div>
-
                     <div className="mt-ui-lg grid gap-ui-lg border-t border-border/75 pt-ui-lg md:grid-cols-2">
                       <div>
                         <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Description</p>
@@ -215,20 +208,13 @@ export function AgentExecutionStrategyField({
                         <div className="mt-ui-sm"><DetailList items={focusedDescriptor.limitations} /></div>
                       </div>
                     </div>
-
-                    <div className="mt-ui-lg rounded-container border border-border/75 bg-background/30 px-ui-md py-ui-md">
-                      <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Runtime boundary</p>
-                      <p className="mt-ui-sm font-sans text-product-small text-muted-foreground">
-                        This Strategy decides when and how Model and Tool capabilities are used. Agent Run lifecycle, Release resolution, Session continuity, Context Manager, Tool Policy/Human Approval, streaming, cancellation and Trace finalization remain owned by the Woobe Runtime.
-                      </p>
-                    </div>
                   </>
                 ) : (
                   <div className="mt-ui-lg">
                     <EmptyStatePanel
                       compact
                       title={isLoading ? 'Loading strategy details…' : 'Strategy details unavailable'}
-                      description="The current snapshot selection remains visible. Registry metadata appears when the backend catalog is available."
+                      description="The current snapshot selection remains visible. Backend registry metadata appears when the catalog is available."
                     />
                   </div>
                 )}
@@ -238,7 +224,7 @@ export function AgentExecutionStrategyField({
             <DialogFooter
               meta={(
                 <p className="font-sans text-product-caption text-muted-foreground">
-                  {focusedCatalogBacked ? `${focusedDescriptor.name}${focusedDescriptor.is_default ? ' · system default' : ''}` : 'Registry metadata unavailable'}
+                  {focusedCatalogBacked ? `${focusedDescriptor.name}${focusedDescriptor.is_default ? ' · system default' : ''}` : 'Backend registry metadata unavailable'}
                 </p>
               )}
               actions={(
