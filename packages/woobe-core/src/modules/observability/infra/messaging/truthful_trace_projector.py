@@ -21,6 +21,7 @@ from modules.observability.infra.messaging.trace_projector import (
 
 _RUNTIME_DIMENSION_FIELDS = (
     "execution_context",
+    "execution_strategy",
     "agent_release_id",
     "agent_release_version",
     "provider_model_id",
@@ -55,6 +56,7 @@ _COMPLETION_EVENT_FIELDS = (
     "successful_tool_calls",
     "structured_output",
     "execution_context",
+    "execution_strategy",
     "agent_release_id",
     "agent_release_version",
     "provider_model_id",
@@ -241,8 +243,8 @@ async def project_agent_event(
         "provider_model_id", "provider_credential_id",
         "fallback_provider_model_id", "fallback_credential_id",
         "model_binding", "fallback_model_binding", "execution_context",
-        "agent_release_id", "agent_release_version", "llm_call_count",
-        "tool_call_count",
+        "execution_strategy", "agent_release_id", "agent_release_version",
+        "llm_call_count", "tool_call_count",
     ):
         value = projection_payload.get(field)
         if value is None and field in diagnostics:

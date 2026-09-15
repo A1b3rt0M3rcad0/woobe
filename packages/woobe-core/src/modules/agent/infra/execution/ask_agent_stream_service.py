@@ -402,6 +402,8 @@ class AskAgentStreamService:
             "reason": reason,
             "partial": bool(partial_output),
         }
+        if diagnostics is not None:
+            payload["diagnostics"] = diagnostics
         event = AgentExecutionCancelledV1.create(
             agent_id=agent_id,
             session_id=session_id,

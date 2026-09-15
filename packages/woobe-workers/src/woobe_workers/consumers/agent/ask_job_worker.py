@@ -13,6 +13,7 @@ from modules.agent.background_boundary import (
 )
 from modules.agent.background_boundary import AgentUnitOfWork
 from modules.agent.background_boundary import AgentToolRuntimeGateway
+from modules.agent.background_boundary import build_execution_strategy_resolver
 from modules.agent.background_boundary import build_runtime_context_assembler
 from modules.agent.background_boundary import (
     TransactionBoundedStructuredOutputRuntime,
@@ -65,6 +66,9 @@ class AskJobWorker:
         )
         execution.configure_context_assembler(
             build_runtime_context_assembler(settings.default_context_manager)
+        )
+        execution.configure_execution_strategy_resolver(
+            build_execution_strategy_resolver()
         )
         execution.configure_rag_runtime(
             build_rag_runtime_adapter(

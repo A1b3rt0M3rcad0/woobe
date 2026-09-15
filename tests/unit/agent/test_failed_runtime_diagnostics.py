@@ -46,9 +46,11 @@ def test_failed_runtime_uses_same_truthful_diagnostics_contract() -> None:
             "fallback_credential_id": None,
         },
         failure_context=execution.failure_context,
+        execution_strategy="standard",
     )
 
     assert diagnostics["schema_version"] == 5
+    assert diagnostics["execution_strategy"] == "standard"
     assert diagnostics["agent_runtime_latency_ms"] == 1000
     assert diagnostics["llm_work_latency_ms"] == 500
     assert diagnostics["tool_wall_latency_ms"] == 250

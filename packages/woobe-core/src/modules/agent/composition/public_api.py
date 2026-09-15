@@ -3,6 +3,7 @@
 from modules.agent.composition.composers.skill_catalog_composer import skill_catalog_composer
 
 from modules.agent.application.context_assembler_registry import list_context_assemblers
+from modules.agent.application.execution_strategy_config import list_execution_strategies
 from modules.agent.application.dtos import AskInput, UploadDocumentFileInput
 from modules.agent.application.dtos.public_runtime_dtos import PublicRunRequest
 from modules.agent.application.dtos.vector_snapshot_dtos import (
@@ -312,6 +313,7 @@ __all__ = [
     'list_context_assemblers',
     'list_contract_versions_composer',
     'list_documents_composer',
+    'list_execution_strategies',
     'list_knowledge_versions_composer',
     'list_messages_composer',
     'list_model_configs_composer',

@@ -7,6 +7,8 @@ import pytest
 from sqlalchemy import delete, select
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
+from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.execution_context import new_execution_context
 from modules.agent.infra.database.models import AgentOutboxEventModel
 from modules.agent.infra.database.runtime_transaction_runner import AgentRuntimeTransactionRunner
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
@@ -47,6 +49,14 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
         project_id=project_id,
         agent_id=agent_id,
     )
+    execution_context = new_execution_context()
+    execution_context.trace_id = trace_id
+    execution_context.project_id = project_id
+    execution_context.agent_id = agent_id
+    execution_context.execution_context = "draft"
+    execution_context.execution_strategy = "standard"
+    execution_context.execution = InstrumentedExecution(result=None)
+    setattr(channel, "execution_context", execution_context)
     await channel.emit(
         "token",
         content="partial answer",
@@ -79,6 +89,7 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
             assert outbox.payload["request_id"]
             assert outbox.payload["reason"] == "cancel_requested"
             assert outbox.payload["partial"] is True
+            assert outbox.payload["diagnostics"]["execution_strategy"] == "standard"
 
             await project_agent_event(
                 event_type=outbox.event_type,
@@ -94,6 +105,7 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
             assert trace.ended_at is not None
             assert trace.data["last_event_type"] == "agent.execution.cancelled.v1"
             assert trace.data["cancellation_reason"] == "cancel_requested"
+            assert trace.data["execution_strategy"] == "standard"
 
             events = list(
                 (
@@ -111,6 +123,7 @@ async def test_explicit_cancel_projects_cancelled_trace_without_transport_semant
             )
             assert cancellation_event.payload["reason"] == "cancel_requested"
             assert cancellation_event.payload["partial"] is True
+            assert cancellation_event.payload["diagnostics"]["execution_strategy"] == "standard"
             assert all(
                 event.payload.get("event") != "agent.execution.completed.v1"
                 for event in events

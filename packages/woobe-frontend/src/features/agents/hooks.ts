@@ -12,6 +12,7 @@ import {
   getAgentRuntimeEnvironments,
   getAgents,
   getContextAssemblers,
+  getExecutionStrategies,
   getContract,
   getContracts,
   getKnowledgeVersions,
@@ -50,6 +51,13 @@ export function useContextAssemblers() {
   return useQuery({
     queryKey: ['context-assemblers'],
     queryFn: getContextAssemblers,
+    staleTime: Infinity,
+  })
+}
+export function useExecutionStrategies() {
+  return useQuery({
+    queryKey: ['execution-strategies'],
+    queryFn: getExecutionStrategies,
     staleTime: Infinity,
   })
 }

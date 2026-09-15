@@ -58,6 +58,19 @@ def _fallback_model_binding_payload(agent) -> dict[str, Any]:
     }
 
 
+def _runtime_binding_payload(context, input_dto) -> dict[str, Any]:
+    return {
+        "execution_context": (
+            context.execution_context
+            if context and context.execution_context
+            else input_dto.execution_context
+        ),
+        "execution_strategy": context.execution_strategy if context else None,
+        "agent_release_id": _id_text(context.agent_release_id if context else None),
+        "agent_release_version": context.agent_release_version if context else None,
+    }
+
+
 def _cost_diagnostics(llm_calls: list[dict[str, Any]]) -> dict[str, Any]:
     pricing_ids = []
     cost_reasons = []
@@ -123,6 +136,7 @@ def _diagnostics(
     binding_payload: dict[str, Any],
     fallback_binding_payload: dict[str, Any],
     failure_context: dict[str, Any],
+    execution_strategy: str | None,
 ) -> dict[str, Any]:
     llm_work_ms = sum(
         int(call.get("latency_ms") or 0)
@@ -177,6 +191,7 @@ def _diagnostics(
         "provider_credential_id": binding_payload["provider_credential_id"],
         "fallback_provider_model_id": fallback_binding_payload["fallback_provider_model_id"],
         "fallback_credential_id": fallback_binding_payload["fallback_credential_id"],
+        "execution_strategy": execution_strategy,
         "failure_phase": failure_context.get("phase"),
         "failure_call_index": failure_context.get("call_index"),
         "upstream_status": failure_context.get("upstream_status"),
@@ -206,7 +221,12 @@ async def finalize_failed_instrumented_execution(
     cost_details = _cost_diagnostics(execution.llm_calls)
     binding_payload = _model_binding_payload(agent)
     fallback_binding_payload = _fallback_model_binding_payload(agent)
-    trace_binding_payload = {**binding_payload, **fallback_binding_payload}
+    runtime_binding_payload = _runtime_binding_payload(context, input_dto)
+    trace_binding_payload = {
+        **binding_payload,
+        **fallback_binding_payload,
+        **runtime_binding_payload,
+    }
     failure_context = execution.failure_context or {}
 
     preliminary_total_ms = round((time.monotonic() - started_at) * 1000)
@@ -221,6 +241,7 @@ async def finalize_failed_instrumented_execution(
         binding_payload=binding_payload,
         fallback_binding_payload=fallback_binding_payload,
         failure_context=failure_context,
+        execution_strategy=runtime_binding_payload["execution_strategy"],
     )
     payload = {
         "run_id": str(run_id) if run_id else None,
@@ -289,6 +310,7 @@ async def finalize_failed_instrumented_execution(
             binding_payload=binding_payload,
             fallback_binding_payload=fallback_binding_payload,
             failure_context=failure_context,
+            execution_strategy=runtime_binding_payload["execution_strategy"],
         )
         payload.update(
             {

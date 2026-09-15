@@ -4,6 +4,9 @@ from woobe_api.http.agent.context_assembler_routes import (
     router as context_assembler_router,
 )
 from woobe_api.http.agent.credential_routes import router as credential_router
+from woobe_api.http.agent.execution_strategy_routes import (
+    router as execution_strategy_router,
+)
 from woobe_api.http.agent.mcp_tools_routes import router as mcp_tools_router
 from woobe_api.http.agent.rag_strategy_routes import router as rag_strategy_router
 from woobe_api.http.agent.release_activation_routes import (
@@ -28,6 +31,7 @@ HTTP_ROUTERS = (
     skill_router,
     context_assembler_router,
     rag_strategy_router,
+    execution_strategy_router,
     credential_router,
     release_activation_router,
     agent_router,

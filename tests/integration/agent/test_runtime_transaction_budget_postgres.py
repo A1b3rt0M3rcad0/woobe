@@ -18,6 +18,9 @@ from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.execution.frozen_snapshot_runtime import (
     FrozenSnapshotStructuredOutputRuntime,
 )
+from modules.agent.infra.execution.strategies.resolver import (
+    build_execution_strategy_resolver,
+)
 from modules.core.infra.database.models import ProjectModel
 from shared.infra.config import Settings
 from shared.infra.crypto import encrypt_secret
@@ -117,6 +120,7 @@ async def test_agent_happy_path_uses_exactly_two_postgres_commits() -> None:
         encryption_key=settings.encryption_key,
     )
     runtime.configure_context_assembler(StandardContextAssembler())
+    runtime.configure_execution_strategy_resolver(build_execution_strategy_resolver())
 
     commits = 0
 
@@ -154,6 +158,7 @@ async def test_agent_happy_path_uses_exactly_two_postgres_commits() -> None:
         # later projects a nested diagnostics view for Trace consumers.
         diagnostics = persisted_run.result
         assert diagnostics["schema_version"] == 5
+        assert diagnostics["execution_strategy"] == "standard"
         assert diagnostics["agent_runtime_latency_ms"] >= 0
         assert diagnostics["llm_work_latency_ms"] >= 0
         assert diagnostics["tool_wall_latency_ms"] == 0

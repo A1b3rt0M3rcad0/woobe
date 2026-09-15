@@ -37,6 +37,18 @@ export interface ContextAssemblerDescriptor {
   is_system_default_alias: boolean
 }
 
+/** Backend-owned presentation contract for one selectable Execution Strategy. */
+export interface ExecutionStrategyDescriptor {
+  name: string
+  display_name: string
+  description: string
+  behavior: string
+  recommended_for: string[]
+  capabilities: string[]
+  limitations: string[]
+  is_default: boolean
+}
+
 export interface Agent {
   id: string
   project_id: string

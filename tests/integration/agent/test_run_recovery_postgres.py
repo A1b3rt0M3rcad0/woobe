@@ -1,16 +1,32 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
+from unittest.mock import MagicMock
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import delete, select
 
+from modules.agent.application.dtos.runtime_dtos import AskInput
+from modules.agent.application.execution_strategy_config import (
+    execution_strategy_from_runtime_config,
+)
+from modules.agent.application.interfaces.execution_context import (
+    current_execution,
+    new_execution_context,
+)
 from modules.agent.infra.database.models import AgentModel, AgentOutboxEventModel
 from modules.agent.infra.database.run_models import AgentRunModel
-from woobe_workers.consumers.agent.run_recovery_worker import AgentRunRecoveryWorker
+from modules.agent.infra.database.runtime_transaction_runner import (
+    AgentRuntimeTransactionRunner,
+)
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.execution.agent_run_recovery_runtime import AgentRunRecoveryRuntime
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
+from shared.runtime.event_schema import EVENT_JOURNAL_STORAGE_VERSION
+from woobe_workers.consumers.agent.run_recovery_worker import AgentRunRecoveryWorker
 
 
 class _MissingHotState:
@@ -88,6 +104,110 @@ async def _cleanup(session_factory, *, run_id, agent_id) -> None:
             )
             await session.execute(delete(AgentRunModel).where(AgentRunModel.id == run_id))
             await session.execute(delete(AgentModel).where(AgentModel.id == agent_id))
+
+
+@pytest.mark.asyncio
+async def test_recovery_reads_execution_strategy_from_durable_accepted_snapshot() -> None:
+    settings = Settings.model_validate({})
+    engine = create_engine(settings)
+    session_factory = create_session_factory(engine)
+    project_id = uuid4()
+    agent_id = uuid4()
+    run_id = uuid4()
+    trace_id = uuid4()
+
+    try:
+        await _seed(
+            session_factory,
+            project_id=project_id,
+            agent_id=agent_id,
+            run_id=run_id,
+            trace_id=trace_id,
+        )
+        accepted_snapshot = {
+            "agent": {
+                "id": str(agent_id),
+                "name": "accepted-agent",
+                "description": "",
+                "behavior_spec": None,
+                "system_prompt": "",
+                "provider": "openai",
+                "model": "accepted-model",
+                "provider_model_id": None,
+                "provider_credential_id": None,
+                "fallback_provider": None,
+                "fallback_model": None,
+                "fallback_provider_model_id": None,
+                "fallback_credential_id": None,
+                "temperature": 0.2,
+                "max_output_tokens": 128,
+                "session_mode": "stateless",
+                "settings": {
+                    "runtime_config": {
+                        "execution_strategy": "standard",
+                    }
+                },
+            }
+        }
+        async with session_factory() as session:
+            async with session.begin():
+                agent = await session.get(AgentModel, agent_id)
+                run = await session.get(AgentRunModel, run_id)
+                assert agent is not None
+                assert run is not None
+                agent.settings = {
+                    "runtime_config": {
+                        # Deliberately unsupported in this PR. The mutable Agent state
+                        # must not influence recovery once Acceptance froze the Run.
+                        "execution_strategy": "react",
+                    }
+                }
+                run.storage_version = EVENT_JOURNAL_STORAGE_VERSION
+                run.execution_snapshot = accepted_snapshot
+
+        transactions = AgentRuntimeTransactionRunner(lambda: AgentUnitOfWork(engine))
+        runtime = AgentRunRecoveryRuntime(
+            transactions=transactions,
+            llm_factory=MagicMock(),
+            encryption_key=settings.encryption_key,
+        )
+        context = new_execution_context()
+        context.run_id = run_id
+        context.trace_id = trace_id
+        context.project_id = project_id
+        context.agent_id = agent_id
+        context.execution_context = "draft"
+        token = current_execution.set(context)
+        try:
+            accepted = await runtime._read_accepted_run(
+                AskInput(
+                    project_id=project_id,
+                    agent_id=agent_id,
+                    message="orphan me",
+                    execution_context="draft",
+                    metadata={"source": "run_recovery"},
+                )
+            )
+            recovered_agent = AgentRunRecoveryRuntime._apply_accepted_snapshot(
+                SimpleNamespace(settings={}),
+                accepted,
+                context,
+            )
+        finally:
+            current_execution.reset(token)
+
+        async with session_factory() as session:
+            mutable_agent = await session.get(AgentModel, agent_id)
+            assert mutable_agent is not None
+            assert mutable_agent.settings["runtime_config"]["execution_strategy"] == "react"
+
+        runtime_config = recovered_agent.settings["runtime_config"]
+        assert runtime_config["execution_strategy"] == "standard"
+        assert execution_strategy_from_runtime_config(runtime_config) == "standard"
+        assert recovered_agent.model == "accepted-model"
+    finally:
+        await _cleanup(session_factory, run_id=run_id, agent_id=agent_id)
+        await engine.dispose()
 
 
 @pytest.mark.asyncio
