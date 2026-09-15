@@ -6,6 +6,9 @@ from collections.abc import Awaitable, Callable
 from typing import Any, Protocol, cast
 from uuid import uuid4
 
+from modules.agent.application.execution_strategy_config import (
+    execution_strategy_from_runtime_config,
+)
 from modules.agent.application.runtime_output_validation import (
     ensure_model_result_has_public_output,
 )
@@ -23,15 +26,16 @@ from modules.agent.application.interfaces.execution_context import (
     new_execution_context,
     utc_now,
 )
+from modules.agent.application.interfaces.execution_strategy import (
+    ExecutionStrategyRequest,
+    ExecutionStrategyResolver,
+)
 from modules.agent.application.tool_converter import MCP_PROVIDER_ROUTE_SEPARATOR
 from modules.agent.domain.events import AgentExecutionFailedV1
 from modules.agent.infra.database.runtime_transaction_runner import (
     AgentRuntimeTransactionRunner,
 )
 from modules.agent.infra.execution.execution_instrumentation import aggregate_usage
-from modules.agent.infra.execution.instrumented_execution_runner import (
-    run_instrumented_execution,
-)
 from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
 
 logger = logging.getLogger(__name__)
@@ -46,6 +50,7 @@ class _PrimaryExecutionHost(Protocol):
     _llm_factory: Any
     _transactions: AgentRuntimeTransactionRunner
     _context_assembler: ContextAssembler | None
+    _execution_strategy_resolver: ExecutionStrategyResolver | None
     async def _execute_single_tool(self, tool_call: dict, tool_id: str) -> dict: ...
     def _clean_json_answer(self, answer: str) -> str: ...
 
@@ -73,9 +78,16 @@ def _copy_http_route_metadata(payload: dict[str, Any]) -> None:
 
 class InstrumentedPrimaryExecutionMixin:
     _context_assembler: ContextAssembler | None = None
+    _execution_strategy_resolver: ExecutionStrategyResolver | None = None
 
     def configure_context_assembler(self, assembler: ContextAssembler) -> None:
         self._context_assembler = assembler
+
+    def configure_execution_strategy_resolver(
+        self,
+        resolver: ExecutionStrategyResolver,
+    ) -> None:
+        self._execution_strategy_resolver = resolver
 
     async def execute(self, input_dto: Any) -> Any:
         metadata = input_dto.metadata if isinstance(input_dto.metadata, dict) else {}
@@ -162,6 +174,7 @@ class InstrumentedPrimaryExecutionMixin:
             ),
             "agent_release_id": str(context.agent_release_id) if context and context.agent_release_id else None,
             "agent_release_version": context.agent_release_version if context else None,
+            "execution_strategy": context.execution_strategy if context else None,
             "context_assembler": (
                 {
                     "name": context.context_assembler_name,
@@ -226,8 +239,12 @@ class InstrumentedPrimaryExecutionMixin:
             agent, session, trace_id = prepared[0], prepared[1], prepared[2]
             settings = getattr(agent, "settings", None)
             settings = settings if isinstance(settings, dict) else {}
+            runtime_config = settings.get("runtime_config")
             assembler_selection = context_assembler_selection_from_runtime_config(
-                settings.get("runtime_config")
+                runtime_config
+            )
+            context.execution_strategy = execution_strategy_from_runtime_config(
+                runtime_config
             )
             context.context_assembler_name = assembler_selection.selection_key.name
             context.context_assembler_version = assembler_selection.selection_key.version
@@ -276,21 +293,35 @@ class InstrumentedPrimaryExecutionMixin:
         messages: list,
     ) -> tuple[Any, list, bool, Any]:
         host = cast(_PrimaryExecutionHost, self)
+        settings = getattr(agent, "settings", None)
+        settings = settings if isinstance(settings, dict) else {}
+        strategy_name = execution_strategy_from_runtime_config(
+            settings.get("runtime_config")
+        )
+        context = current_execution.get()
+        if context:
+            context.execution_strategy = strategy_name
+        resolver = host._execution_strategy_resolver
+        if resolver is None:
+            raise RuntimeError("Agent execution strategy resolver is not configured")
+        strategy = resolver.resolve(strategy_name)
         try:
-            execution = await run_instrumented_execution(
-                llm_factory=host._llm_factory,
-                context_assembler=host._context_assembler,
-                execute_single_tool=host._execute_single_tool,
-                clean_json_answer=host._clean_json_answer,
-                agent=agent,
-                api_key=api_key,
-                base_url=base_url,
-                response_format=response_format,
-                json_enabled=json_enabled,
-                has_tools=has_tools,
-                agent_tools=agent_tools,
-                tool_name_to_id=tool_name_to_id,
-                messages=messages,
+            execution = await strategy.execute(
+                ExecutionStrategyRequest(
+                    llm_factory=host._llm_factory,
+                    context_assembler=host._context_assembler,
+                    execute_single_tool=host._execute_single_tool,
+                    clean_json_answer=host._clean_json_answer,
+                    agent=agent,
+                    api_key=api_key,
+                    base_url=base_url,
+                    response_format=response_format,
+                    json_enabled=json_enabled,
+                    has_tools=has_tools,
+                    agent_tools=agent_tools,
+                    tool_name_to_id=tool_name_to_id,
+                    messages=messages,
+                )
             )
         except InstrumentedExecutionError as exc:
             context = current_execution.get()

@@ -2,6 +2,7 @@ import { Package, Sparkles } from 'lucide-react'
 import { Badge, EmptyStatePanel, SectionBlock, TechnicalListItem } from '@woobe/ui'
 
 import { AgentBehaviorDetails } from '@/features/agents/components/AgentBehaviorDetails'
+import { executionStrategyFromRuntimeConfig } from '@/features/agents/executionStrategy'
 import { useKnowledgeVersions } from '@/features/agents/hooks'
 import type { AgentRelease } from '@/features/agents/types'
 import { SkillSnapshotSummary } from '@/features/skills/SkillSnapshotSummary'
@@ -49,6 +50,7 @@ export function ReleaseDetailsView({ release }: ReleaseDetailsViewProps) {
   const knowledgeVersion = knowledgeVersions.find((item) => item.id === release.knowledge_version_id) ?? null
   const runtimeConfig = recordValue(release.runtime_config)
   const ragConfig = recordValue(runtimeConfig.rag)
+  const executionStrategy = executionStrategyFromRuntimeConfig(runtimeConfig)
   const fields = outputFields(release)
   const fallback = release.fallback_provider || release.fallback_model
     ? `${release.fallback_provider ?? '—'}/${release.fallback_model ?? '—'}`
@@ -93,6 +95,7 @@ export function ReleaseDetailsView({ release }: ReleaseDetailsViewProps) {
 
       <SectionBlock title="Runtime" density="compact">
         <div className="grid gap-ui-xs sm:grid-cols-2">
+          <DetailRow label="Execution Strategy" value={executionStrategy === 'standard' ? 'Standard' : executionStrategy} />
           <DetailRow label="Session Mode" value={sessionModeLabel(release.session_mode)} />
           <DetailRow label="Context Manager" value={contextAssemblerLabel(release.runtime_config)} />
         </div>

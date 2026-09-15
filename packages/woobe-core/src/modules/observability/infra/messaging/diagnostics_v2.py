@@ -147,6 +147,7 @@ def build(payload: dict[str, Any]) -> dict[str, Any]:
         "structured_output": payload.get("parsed_output") is not None,
         "provider": payload.get("provider"),
         "model": payload.get("model"),
+        "execution_strategy": payload.get("execution_strategy"),
         "provider_model_id": payload.get("provider_model_id"),
         "provider_credential_id": payload.get("provider_credential_id"),
         "fallback_provider_model_id": payload.get("fallback_provider_model_id"),

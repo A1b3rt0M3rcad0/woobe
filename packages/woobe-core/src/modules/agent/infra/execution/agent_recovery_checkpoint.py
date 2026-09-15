@@ -15,6 +15,7 @@ _AGENT_CHECKPOINT_PHASES = {
     "agent_tool_boundary",
 }
 _AGENT_RESUME_POLICY = "continue_after_durable_tool_results"
+_STRATEGY_RESUME_POLICY = "continue_execution_strategy"
 
 
 def _serialize_capability_message(message: Any) -> dict[str, Any]:
@@ -94,6 +95,19 @@ def _restore_execution(value: dict[str, Any]) -> InstrumentedExecution:
     )
 
 
+def _restore_checkpoint_messages(value: Any) -> list[Any] | None:
+    if not isinstance(value, list):
+        return None
+    try:
+        return [
+            _restore_capability_message(item)
+            for item in value
+            if isinstance(item, dict)
+        ]
+    except (TypeError, ValueError):
+        return None
+
+
 def _valid_next_phase(value: Any) -> str | None:
     if not isinstance(value, str) or not value:
         return None
@@ -109,7 +123,20 @@ def _valid_next_phase(value: Any) -> str | None:
 
 
 @dataclass(frozen=True, slots=True)
+class StrategyExecutionResume:
+    """Opaque strategy continuation restored from a durable execution boundary."""
+
+    strategy_name: str
+    phase: str
+    cursor: dict[str, Any]
+    capability_messages: list[Any]
+    execution: InstrumentedExecution
+
+
+@dataclass(frozen=True, slots=True)
 class AgentExecutionResume:
+    """Legacy Standard-loop view kept for backwards-compatible callers/tests."""
+
     next_phase: str
     next_call_index: int
     round_index: int
@@ -117,6 +144,107 @@ class AgentExecutionResume:
     stopped_reason: str | None
     capability_messages: list[Any]
     execution: InstrumentedExecution
+
+
+def build_strategy_checkpoint_state(
+    *,
+    strategy_name: str,
+    phase: str,
+    messages: list[Any],
+    base_message_count: int,
+    execution: InstrumentedExecution,
+    cursor: dict[str, Any],
+) -> dict[str, Any]:
+    """Build a strategy-neutral durable continuation snapshot.
+
+    `cursor` belongs to the concrete Strategy. Recovery infrastructure persists it as an
+    opaque JSON-compatible mapping and never needs to understand loop semantics.
+    """
+    strategy_name = strategy_name.strip()
+    phase = phase.strip()
+    if not strategy_name:
+        raise ValueError("Execution Strategy checkpoint requires strategy_name")
+    if not phase:
+        raise ValueError("Execution Strategy checkpoint requires phase")
+    if base_message_count < 0 or base_message_count > len(messages):
+        raise ValueError("Execution Strategy checkpoint base message boundary is invalid")
+    if not isinstance(cursor, dict):
+        raise ValueError("Execution Strategy checkpoint cursor must be a mapping")
+
+    return {
+        "phase": phase,
+        "resume_policy": _STRATEGY_RESUME_POLICY,
+        "execution_strategy": strategy_name,
+        "strategy_cursor": deepcopy(cursor),
+        "capability_messages": [
+            _serialize_capability_message(message)
+            for message in messages[base_message_count:]
+        ],
+        "execution": _serialize_execution(execution),
+    }
+
+
+async def checkpoint_strategy_boundary(**kwargs: Any) -> None:
+    context = current_execution.get()
+    recorder = getattr(context, "run_event_recorder", None) if context is not None else None
+    if recorder is None:
+        return
+    await recorder.checkpoint(build_strategy_checkpoint_state(**kwargs), durable=True)
+
+
+def load_strategy_execution_resume(
+    value: Any,
+    *,
+    strategy_name: str,
+) -> StrategyExecutionResume | None:
+    """Load a generic Strategy checkpoint, with legacy Standard checkpoint support."""
+    if not isinstance(value, dict):
+        return None
+
+    if value.get("resume_policy") == _STRATEGY_RESUME_POLICY:
+        stored_strategy = value.get("execution_strategy")
+        phase = value.get("phase")
+        cursor = value.get("strategy_cursor")
+        raw_execution = value.get("execution")
+        messages = _restore_checkpoint_messages(value.get("capability_messages"))
+        if (
+            stored_strategy != strategy_name
+            or not isinstance(phase, str)
+            or not phase
+            or not isinstance(cursor, dict)
+            or not isinstance(raw_execution, dict)
+            or messages is None
+        ):
+            return None
+        try:
+            return StrategyExecutionResume(
+                strategy_name=strategy_name,
+                phase=phase,
+                cursor=deepcopy(cursor),
+                capability_messages=messages,
+                execution=_restore_execution(raw_execution),
+            )
+        except (TypeError, ValueError):
+            return None
+
+    if strategy_name != "standard":
+        return None
+    legacy = load_agent_execution_resume(value)
+    if legacy is None:
+        return None
+    return StrategyExecutionResume(
+        strategy_name="standard",
+        phase=str(value.get("phase") or "agent_tool_boundary"),
+        cursor={
+            "next_phase": legacy.next_phase,
+            "next_call_index": legacy.next_call_index,
+            "round_index": legacy.round_index,
+            "consecutive_failure_rounds": legacy.consecutive_failure_rounds,
+            "stopped_reason": legacy.stopped_reason,
+        },
+        capability_messages=legacy.capability_messages,
+        execution=legacy.execution,
+    )
 
 
 def build_agent_checkpoint_state(
@@ -131,6 +259,7 @@ def build_agent_checkpoint_state(
     consecutive_failure_rounds: int,
     stopped_reason: str | None = None,
 ) -> dict[str, Any]:
+    """Build the legacy Standard checkpoint shape for backwards compatibility."""
     if phase not in _AGENT_CHECKPOINT_PHASES:
         raise ValueError(f"Unsupported Agent recovery checkpoint phase: {phase}")
     if _valid_next_phase(next_phase) is None:
@@ -146,8 +275,6 @@ def build_agent_checkpoint_state(
         "round_index": max(0, int(round_index)),
         "consecutive_failure_rounds": max(0, int(consecutive_failure_rounds)),
         "stopped_reason": str(stopped_reason) if stopped_reason else None,
-        # Only capability continuation state is persisted here. Base user/system
-        # messages are reconstructed from the accepted Run/Session snapshot.
         "capability_messages": [
             _serialize_capability_message(message)
             for message in tool_loop_messages[base_message_count:]
@@ -175,16 +302,11 @@ def load_agent_execution_resume(value: Any) -> AgentExecutionResume | None:
     if next_phase is None:
         return None
 
-    raw_messages = value.get("capability_messages")
     raw_execution = value.get("execution")
-    if not isinstance(raw_messages, list) or not isinstance(raw_execution, dict):
+    messages = _restore_checkpoint_messages(value.get("capability_messages"))
+    if not isinstance(raw_execution, dict) or messages is None:
         return None
     try:
-        messages = [
-            _restore_capability_message(item)
-            for item in raw_messages
-            if isinstance(item, dict)
-        ]
         next_call_index = int(value.get("next_call_index") or 0)
         if next_call_index <= 0:
             return None
@@ -214,8 +336,12 @@ def clone_execution(execution: InstrumentedExecution) -> InstrumentedExecution:
 
 __all__ = [
     "AgentExecutionResume",
+    "StrategyExecutionResume",
     "build_agent_checkpoint_state",
+    "build_strategy_checkpoint_state",
     "checkpoint_agent_boundary",
+    "checkpoint_strategy_boundary",
     "clone_execution",
     "load_agent_execution_resume",
+    "load_strategy_execution_resume",
 ]

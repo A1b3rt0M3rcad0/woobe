@@ -1,10 +1,18 @@
 import { useState } from 'react'
-import { Badge, SegmentedControl } from '@woobe/ui'
+import { Badge, SegmentedControl, Select } from '@woobe/ui'
 import { Button } from '@/components/ui/Button'
-import { Code2, PanelRight, PanelLeft, Bot, ArrowLeft, History } from 'lucide-react'
+import { Code2, PanelRight, PanelLeft, Bot, ArrowLeft, History, Lock, Route } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { UI_LAYER_CLASS } from '@/lib/ui-layers'
 import { cn } from '@/lib/utils'
+import {
+  executionStrategyDescriptor,
+  executionStrategyForEnvironment,
+  executionStrategySelectOptions,
+  withExecutionStrategy,
+} from '@/features/agents/executionStrategy'
+import { useExecutionStrategies, useReleases } from '@/features/agents/hooks'
+import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { AgentControlsPopover } from './AgentControlsPopover'
 import { AgentLifecycleAction } from './AgentLifecycleAction'
 import { AgentManagerModal, type AgentManagerMode, type AgentManagerSection } from './AgentManagerModal'
@@ -49,6 +57,31 @@ export function PlaygroundHeader({
   const navigate = useNavigate()
   const { workspaceId } = useParams<{ workspaceId?: string; projectId: string }>()
   const [manager, setManager] = useState<{ section: AgentManagerSection; mode: AgentManagerMode } | null>(null)
+  const { state, setField } = useAgentEditor()
+  const { data: releases = [] } = useReleases(agent.id)
+  const { data: executionStrategies = [], isLoading: executionStrategiesLoading, isError: executionStrategiesError } = useExecutionStrategies()
+
+  const executionStrategy = executionStrategyForEnvironment(
+    environment,
+    state.runtimeConfig,
+    releases,
+  )
+  const strategyOptions = executionStrategySelectOptions(executionStrategies, executionStrategy)
+  const selectedStrategy = executionStrategyDescriptor(executionStrategies, executionStrategy)
+  const strategyCatalogReady = !executionStrategiesLoading && !executionStrategiesError && executionStrategies.length > 0
+  const strategyReadOnly = environment !== 'draft'
+  const strategyDisabled = strategyReadOnly || environmentChangeDisabled || !strategyCatalogReady
+  const strategyTitle = strategyReadOnly
+    ? `Execution Strategy ${selectedStrategy?.display_name ?? executionStrategy} is locked by the immutable ${environment} snapshot.`
+    : selectedStrategy?.description ?? 'Select the Execution Strategy used by the next Draft Run.'
+
+  const handleExecutionStrategyChange = (strategy: string) => {
+    if (strategyReadOnly || environmentChangeDisabled || !strategyCatalogReady) return
+    setField(
+      'runtimeConfig',
+      withExecutionStrategy(state.runtimeConfig, strategy),
+    )
+  }
 
   const handleBack = () => {
     const historyIndex = window.history.state?.idx
@@ -105,6 +138,19 @@ export function PlaygroundHeader({
         </div>
 
         <div className="flex shrink-0 items-center gap-ui-xs">
+          <div className="hidden min-w-[10rem] items-center gap-ui-xs lg:flex" title={strategyTitle}>
+            <Route className="h-icon-sm w-icon-sm shrink-0 text-muted-foreground" />
+            <Select
+              aria-label="Playground Execution Strategy"
+              value={executionStrategy}
+              disabled={strategyDisabled}
+              options={strategyOptions}
+              onChange={(event) => handleExecutionStrategyChange(event.target.value)}
+              className="h-control-sm min-w-[8.5rem]"
+            />
+            {strategyReadOnly ? <Lock className="h-icon-sm w-icon-sm shrink-0 text-muted-foreground" aria-label="Strategy locked by snapshot" /> : null}
+          </div>
+
           <SegmentedControl
             ariaLabel="Agent environment"
             value={environment}

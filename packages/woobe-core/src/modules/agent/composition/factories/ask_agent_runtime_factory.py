@@ -50,6 +50,9 @@ from modules.agent.infra.execution.instrumented_execution_runner import (
 from modules.agent.infra.execution.runtime_preparation import (
     configure_skill_binding_freezer,
 )
+from modules.agent.infra.execution.strategies.resolver import (
+    build_execution_strategy_resolver,
+)
 from modules.agent.presentation.controllers.ask_agent_controller import AskAgentController
 from shared.composition_resources import (
     EXECUTION_STATE_STORE,
@@ -110,6 +113,7 @@ def _configure_agent_runtime_dependencies(
     transactions: AgentRuntimeTransactionRunner,
     tool_runtime: AgentToolRuntimeGateway,
 ) -> None:
+    runtime.configure_execution_strategy_resolver(build_execution_strategy_resolver())
     runtime.configure_rag_embedding_factory(LangchainEmbeddingFactory())
     runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
     runtime.configure_vector_search_reader(

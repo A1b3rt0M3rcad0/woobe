@@ -1,4 +1,5 @@
 import { AgentBehaviorDetails } from '@/features/agents/components/AgentBehaviorDetails'
+import { executionStrategyFromRuntimeConfig } from '@/features/agents/executionStrategy'
 import { SkillSnapshotSummary } from '@/features/skills/SkillSnapshotSummary'
 import { ChevronDown } from 'lucide-react'
 
@@ -67,6 +68,8 @@ function SnapshotField({ label, value, mono = false }: { label: string; value: s
 }
 
 export function AgentSnapshotDetails({ release }: { release: AgentRelease }) {
+  const runtimeConfig = record(release.runtime_config)
+  const executionStrategy = executionStrategyFromRuntimeConfig(runtimeConfig)
   const tools = toolNames(release.runtime_config)
   const collections = release.collection_ids ?? []
   const output = outputSummary(release)
@@ -82,6 +85,7 @@ export function AgentSnapshotDetails({ release }: { release: AgentRelease }) {
           <SnapshotField label="Temperature" value={release.temperature} />
           <SnapshotField label="Max output tokens" value={release.max_output_tokens} />
           <SnapshotField label="Session mode" value={release.session_mode} />
+          <SnapshotField label="Execution strategy" value={executionStrategy === 'standard' ? 'Standard' : executionStrategy} mono />
           <SnapshotField label="Context manager" value={contextManager(release.runtime_config)} mono />
         </div>
         <p className="mt-2 text-[9px] text-muted">Created {formatDate(release.created_at)}{release.promoted_at ? ` · Promoted ${formatDate(release.promoted_at)}` : ''}</p>
