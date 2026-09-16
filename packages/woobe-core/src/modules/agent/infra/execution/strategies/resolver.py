@@ -4,27 +4,23 @@ from collections.abc import Callable
 
 from modules.agent.application.interfaces.execution_strategy import (
     ExecutableExecutionStrategy,
-    ExecutionStrategyDefinition,
+    ExecutionStrategy,
     ExecutionStrategyResolver,
 )
-from modules.agent.infra.execution.strategies.standard import (
-    build_standard_strategy_definition,
-)
+from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
 from modules.agent.infra.execution.strategy_runtime.runner import StrategyExecutionRunner
 
 
-_BUILTIN_EXECUTION_STRATEGY_DEFINITIONS: dict[
+_BUILTIN_EXECUTION_STRATEGY_FACTORIES: dict[
     str,
-    Callable[[], ExecutionStrategyDefinition],
+    Callable[[], ExecutionStrategy],
 ] = {
-    "standard": build_standard_strategy_definition,
+    StandardExecutionStrategy.name: StandardExecutionStrategy,
 }
 
 
 def builtin_execution_strategy_names() -> frozenset[str]:
-    """Expose implemented built-in identities without coupling infra to app metadata."""
-
-    return frozenset(_BUILTIN_EXECUTION_STRATEGY_DEFINITIONS)
+    return frozenset(_BUILTIN_EXECUTION_STRATEGY_FACTORIES)
 
 
 class BuiltinExecutionStrategyResolver:
@@ -35,7 +31,7 @@ class BuiltinExecutionStrategyResolver:
     def __init__(self) -> None:
         self._strategies: dict[str, ExecutableExecutionStrategy] = {
             name: StrategyExecutionRunner(factory())
-            for name, factory in _BUILTIN_EXECUTION_STRATEGY_DEFINITIONS.items()
+            for name, factory in _BUILTIN_EXECUTION_STRATEGY_FACTORIES.items()
         }
 
     def resolve(self, name: str) -> ExecutableExecutionStrategy:

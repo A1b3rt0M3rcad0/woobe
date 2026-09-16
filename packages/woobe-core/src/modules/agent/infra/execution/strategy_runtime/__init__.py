@@ -6,7 +6,8 @@ from modules.agent.infra.execution.strategy_runtime.builder import (
 )
 from modules.agent.infra.execution.strategy_runtime.runner import (
     StrategyExecutionRunner,
-    execute_strategy_definition,
+    execute_strategy,
+    execute_strategy_with_capabilities,
 )
 
 __all__ = [
@@ -15,5 +16,6 @@ __all__ = [
     "StrategyExecutionRunner",
     "build_strategy_context_from_capabilities",
     "build_strategy_execution",
-    "execute_strategy_definition",
+    "execute_strategy",
+    "execute_strategy_with_capabilities",
 ]

@@ -1,25 +1,16 @@
 from __future__ import annotations
 
-from enum import StrEnum
 from typing import Any
 
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
-from modules.agent.application.strategy_sdk import StrategyModelResult, StrategyPhase
-from modules.agent.infra.execution.capabilities.message_progression import (
-    terminal_response_messages,
+from modules.agent.application.strategy_sdk import (
+    StrategyModelResult,
+    StrategyPhase,
+    strategy_phase_value,
 )
-from modules.agent.infra.execution.capabilities.model_invocation import (
-    ModelInvocationCapability,
-)
-from modules.agent.infra.execution.strategy_runtime.runtime_state import (
-    StrategyRuntimeState,
-)
-
-
-def _phase_value(phase: StrategyPhase) -> str:
-    if isinstance(phase, StrEnum):
-        return phase.value
-    return str(phase)
+from modules.agent.infra.execution.capabilities.message_progression import terminal_response_messages
+from modules.agent.infra.execution.capabilities.model_invocation import ModelInvocationCapability
+from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
 
 
 class RuntimeStrategyModel:
@@ -62,7 +53,7 @@ class RuntimeStrategyModel:
         try:
             result, call = await capability.invoke(
                 messages=messages,
-                phase=_phase_value(phase),
+                phase=strategy_phase_value(phase),
                 call_index=call_index,
             )
         except InstrumentedExecutionError as exc:
@@ -90,7 +81,7 @@ class RuntimeStrategyModel:
         reason: str,
         phase: StrategyPhase,
     ) -> StrategyModelResult:
-        del messages  # final recovery deliberately rebuilds a bounded terminal prompt.
+        del messages
         terminal_model = self._final_model
         if terminal_model is None and self._final_model_factory is not None:
             terminal_model = self._final_model_factory()

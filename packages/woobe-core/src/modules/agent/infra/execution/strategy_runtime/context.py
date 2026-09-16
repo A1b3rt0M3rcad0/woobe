@@ -4,17 +4,14 @@ from typing import Any, Generic, TypeVar
 
 from modules.agent.application.strategy_sdk import (
     Completed,
+    ExecutionCheckpointBoundary,
     StrategyModelResult,
     Suspended,
     SuspensionReason,
 )
-from modules.agent.infra.execution.strategy_runtime.checkpoint import (
-    RuntimeStrategyCheckpoint,
-)
+from modules.agent.infra.execution.strategy_runtime.checkpoint import RuntimeStrategyCheckpoint
 from modules.agent.infra.execution.strategy_runtime.model import RuntimeStrategyModel
-from modules.agent.infra.execution.strategy_runtime.runtime_state import (
-    StrategyRuntimeState,
-)
+from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
 from modules.agent.infra.execution.strategy_runtime.tools import RuntimeStrategyTools
 
 
@@ -22,7 +19,7 @@ StateT = TypeVar("StateT")
 
 
 class RuntimeStrategyContext(Generic[StateT]):
-    """Concrete implementation of the stable StrategyContext SDK."""
+    """Concrete implementation of the stable StrategyContext API."""
 
     __slots__ = (
         "state",
@@ -47,8 +44,11 @@ class RuntimeStrategyContext(Generic[StateT]):
         self._checkpoint = checkpoint
         self._runtime_state = runtime_state
 
-    async def checkpoint(self) -> None:
-        await self._checkpoint.save(self.state)
+    async def checkpoint(
+        self,
+        boundary: ExecutionCheckpointBoundary = ExecutionCheckpointBoundary.TOOL,
+    ) -> None:
+        await self._checkpoint.save(self.state, boundary)
 
     def complete(self, result: StrategyModelResult | Any) -> Completed:
         self._runtime_state.execution.result = (

@@ -8,6 +8,16 @@ from typing import Any, Protocol
 StrategyPhase = str | StrEnum
 
 
+def strategy_phase_value(phase: StrategyPhase) -> str:
+    return phase.value if isinstance(phase, StrEnum) else str(phase)
+
+
+def strategy_phase_with_iteration(phase: StrategyPhase, iteration: int) -> str:
+    if iteration <= 0:
+        raise ValueError("Execution Strategy phase iteration must be positive")
+    return f"{strategy_phase_value(phase)}_{iteration}"
+
+
 @dataclass(frozen=True, slots=True)
 class StrategyModelResult:
     """Framework-neutral model result exposed to Execution Strategies."""

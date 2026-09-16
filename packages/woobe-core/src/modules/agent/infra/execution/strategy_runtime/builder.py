@@ -5,7 +5,7 @@ from typing import Any
 
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_strategy import (
-    ExecutionStrategyDefinition,
+    ExecutionStrategy,
     ExecutionStrategyRequest,
 )
 from modules.agent.application.strategy_sdk import (
@@ -20,9 +20,7 @@ from modules.agent.infra.execution.capabilities.preparation import (
     PreparedExecution,
     prepare_execution,
 )
-from modules.agent.infra.execution.strategy_runtime.checkpoint import (
-    RuntimeStrategyCheckpoint,
-)
+from modules.agent.infra.execution.strategy_runtime.checkpoint import RuntimeStrategyCheckpoint
 from modules.agent.infra.execution.strategy_runtime.context import RuntimeStrategyContext
 from modules.agent.infra.execution.strategy_runtime.model import RuntimeStrategyModel
 from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
@@ -55,7 +53,7 @@ def _resume_snapshot(value: Any) -> StrategyResumeSnapshot | None:
 
 def build_strategy_context_from_capabilities(
     *,
-    definition: ExecutionStrategyDefinition[Any],
+    strategy: ExecutionStrategy[Any],
     capabilities: ExecutionCapabilities,
     messages: list[Any],
     initial_phase: str,
@@ -85,11 +83,10 @@ def build_strategy_context_from_capabilities(
         initial_phase=initial_phase,
         bootstrap=dict(bootstrap or {}),
     )
-    state = definition.state_factory.create(initialization, snapshot)
+    state = strategy.state_type.create(initialization, snapshot)
     checkpoint = RuntimeStrategyCheckpoint(
         recovery=capabilities.recovery,
         runtime_state=runtime_state,
-        state_codec=definition.state_codec,
         base_message_count=len(messages),
     )
     context = RuntimeStrategyContext(
@@ -114,16 +111,16 @@ def build_strategy_context_from_capabilities(
 
 def build_strategy_execution(
     *,
-    definition: ExecutionStrategyDefinition[Any],
+    strategy: ExecutionStrategy[Any],
     request: ExecutionStrategyRequest,
 ) -> BuiltStrategyExecution:
     prepared = prepare_execution(request)
     capabilities = build_execution_capabilities(
         prepared=prepared,
-        strategy_name=definition.name,
+        strategy_name=strategy.name,
     )
     built = build_strategy_context_from_capabilities(
-        definition=definition,
+        strategy=strategy,
         capabilities=capabilities,
         messages=prepared.messages,
         initial_phase=prepared.initial_phase,
