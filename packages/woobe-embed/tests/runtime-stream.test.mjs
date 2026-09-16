@@ -25,39 +25,76 @@ async function loadRuntimeModule() {
 }
 
 const runtime = await loadRuntimeModule();
+const occurredAt = "2026-09-16T20:30:00Z";
+
+function semanticFrame({
+  type,
+  sequence,
+  payload = {},
+  runId = "run-1",
+  sessionId = "session-1",
+  runKind = "AGENT",
+}) {
+  const envelope = {
+    protocol_version: 2,
+    event_id: `event-${runKind.toLowerCase()}-${sequence}`,
+    run_id: runId,
+    session_id: sessionId,
+    run_kind: runKind,
+    sequence,
+    type,
+    occurred_at: occurredAt,
+    payload,
+  };
+  return `id: ${sequence}\nevent: ${type}\ndata: ${JSON.stringify(envelope)}`;
+}
 
 test("reattach accepts state jump 125 to 131 and then contiguous 132", () => {
   const state = { sequence: 125 };
-  const projection = runtime.parseRuntimeFrame(
-    'id: 131\nevent: run.state\ndata: {"type":"run.state","sequence":131,"status":"running","output":"current"}',
-  );
+  const projection = runtime.parseRuntimeFrame(semanticFrame({
+    type: "run.state",
+    sequence: 131,
+    payload: { status: "running", output: "current" },
+  }));
   assert.ok(projection);
   assert.equal(runtime.acceptRuntimeFrameSequence(projection, state), true);
   assert.equal(state.sequence, 131);
 
-  const live = runtime.parseRuntimeFrame(
-    'id: 132\nevent: token\ndata: {"type":"token","sequence":132,"content":"next"}',
-  );
+  const live = runtime.parseRuntimeFrame(semanticFrame({
+    type: "token",
+    sequence: 132,
+    payload: { content: "next" },
+  }));
   assert.ok(live);
   assert.equal(runtime.acceptRuntimeFrameSequence(live, state), true);
   assert.equal(state.sequence, 132);
 });
 
-test("network envelope resolves nested payload and logical sequence", () => {
-  const frame = runtime.parseRuntimeFrame(
-    'id: 7\nevent: run.state\ndata: {"protocol_version":1,"sequence":7,"execution_id":"run-1","data":{"status":"running","output":"hello","sequence":7}}',
-  );
+test("network envelope exposes canonical identity and logical sequence", () => {
+  const frame = runtime.parseRuntimeFrame(semanticFrame({
+    type: "run.state",
+    sequence: 7,
+    runId: "network-run-1",
+    sessionId: "network-session-1",
+    runKind: "NETWORK",
+    payload: { status: "running", output: "hello" },
+  }));
   assert.ok(frame);
   assert.equal(frame.sequence, 7);
+  assert.equal(frame.runId, "network-run-1");
+  assert.equal(frame.sessionId, "network-session-1");
+  assert.equal(frame.runKind, "NETWORK");
   assert.equal(frame.payload.output, "hello");
   assert.equal(frame.payload.status, "running");
 });
 
 test("duplicate incremental event is ignored", () => {
   const state = { sequence: 10 };
-  const duplicate = runtime.parseRuntimeFrame(
-    'id: 10\nevent: token\ndata: {"type":"token","sequence":10,"content":"duplicate"}',
-  );
+  const duplicate = runtime.parseRuntimeFrame(semanticFrame({
+    type: "token",
+    sequence: 10,
+    payload: { content: "duplicate" },
+  }));
   assert.ok(duplicate);
   assert.equal(runtime.acceptRuntimeFrameSequence(duplicate, state), false);
   assert.equal(state.sequence, 10);
@@ -65,9 +102,11 @@ test("duplicate incremental event is ignored", () => {
 
 test("incremental sequence gap forces reattach", () => {
   const state = { sequence: 10 };
-  const skipped = runtime.parseRuntimeFrame(
-    'id: 12\nevent: token\ndata: {"type":"token","sequence":12,"content":"gap"}',
-  );
+  const skipped = runtime.parseRuntimeFrame(semanticFrame({
+    type: "token",
+    sequence: 12,
+    payload: { content: "gap" },
+  }));
   assert.ok(skipped);
   assert.throws(
     () => runtime.acceptRuntimeFrameSequence(skipped, state),
@@ -78,9 +117,11 @@ test("incremental sequence gap forces reattach", () => {
 
 test("stale replacement state is ignored without rewinding sequence", () => {
   const state = { sequence: 20 };
-  const stale = runtime.parseRuntimeFrame(
-    'id: 19\nevent: run.state\ndata: {"type":"run.state","sequence":19,"status":"running","output":"old"}',
-  );
+  const stale = runtime.parseRuntimeFrame(semanticFrame({
+    type: "run.state",
+    sequence: 19,
+    payload: { status: "running", output: "old" },
+  }));
   assert.ok(stale);
   assert.equal(runtime.acceptRuntimeFrameSequence(stale, state), false);
   assert.equal(state.sequence, 20);
@@ -88,9 +129,15 @@ test("stale replacement state is ignored without rewinding sequence", () => {
 
 test("durable state is accepted without rewinding the hot sequence", () => {
   const state = { sequence: 20 };
-  const durable = runtime.parseRuntimeFrame(
-    'event: run.state\ndata: {"type":"run.state","status":"cancelled","output":"partial","realtime_available":false}',
-  );
+  const durable = runtime.parseRuntimeFrame(semanticFrame({
+    type: "run.state",
+    sequence: 0,
+    payload: {
+      status: "cancelled",
+      output: "partial",
+      realtime_available: false,
+    },
+  }));
   assert.ok(durable);
   assert.equal(runtime.acceptRuntimeFrameSequence(durable, state), true);
   assert.equal(state.sequence, 20);
@@ -124,7 +171,7 @@ test("retry policy exposes one attempt budget and deterministic backoff", () => 
 
 test("malformed SSE data is ignored instead of crashing the observer", () => {
   const malformed = runtime.parseRuntimeFrame(
-    'id: 21\nevent: token\ndata: {"protocol_version":1,"sequence":21,"content":',
+    'id: 21\nevent: token\ndata: {"protocol_version":2,"sequence":21,"payload":',
   );
   assert.equal(malformed, null);
 });
@@ -132,31 +179,47 @@ test("malformed SSE data is ignored instead of crashing the observer", () => {
 test("unsupported declared protocol version is rejected explicitly", () => {
   assert.throws(
     () => runtime.parseRuntimeFrame(
-      'id: 1\nevent: token\ndata: {"protocol_version":99,"sequence":1,"content":"x"}',
+      `event: heartbeat\ndata: ${JSON.stringify({ protocol_version: 99, type: "heartbeat", occurred_at: occurredAt })}`,
     ),
     (error) => error?.name === "RuntimeStreamProtocolError",
   );
 });
 
 test("terminal state and terminal events are classified explicitly", () => {
-  const completed = runtime.parseRuntimeFrame(
-    'event: run.state\ndata: {"type":"run.state","sequence":3,"status":"completed","output":"done"}',
-  );
-  const failed = runtime.parseRuntimeFrame(
-    'event: execution_failed\ndata: {"sequence":4,"message":"failed"}',
-  );
-  const cancelled = runtime.parseRuntimeFrame(
-    'event: execution_cancelled\ndata: {"sequence":5,"output":"partial","cancelled":true}',
-  );
-  const agentCancelled = runtime.parseRuntimeFrame(
-    'event: cancelled\ndata: {"sequence":6,"output":"partial","cancelled":true}',
-  );
-  const timedOut = runtime.parseRuntimeFrame(
-    'event: execution_timed_out\ndata: {"sequence":7,"message":"timeout"}',
-  );
-  const uncertain = runtime.parseRuntimeFrame(
-    'event: execution_failed\ndata: {"sequence":8,"uncertain":true}',
-  );
+  const completed = runtime.parseRuntimeFrame(semanticFrame({
+    type: "run.state",
+    sequence: 3,
+    payload: { status: "completed", output: "done" },
+  }));
+  const failed = runtime.parseRuntimeFrame(semanticFrame({
+    type: "execution_failed",
+    sequence: 4,
+    runKind: "NETWORK",
+    payload: { message: "failed" },
+  }));
+  const cancelled = runtime.parseRuntimeFrame(semanticFrame({
+    type: "execution_cancelled",
+    sequence: 5,
+    runKind: "NETWORK",
+    payload: { output: "partial", cancelled: true },
+  }));
+  const agentCancelled = runtime.parseRuntimeFrame(semanticFrame({
+    type: "cancelled",
+    sequence: 6,
+    payload: { output: "partial", cancelled: true },
+  }));
+  const timedOut = runtime.parseRuntimeFrame(semanticFrame({
+    type: "execution_timed_out",
+    sequence: 7,
+    runKind: "NETWORK",
+    payload: { message: "timeout" },
+  }));
+  const uncertain = runtime.parseRuntimeFrame(semanticFrame({
+    type: "execution_failed",
+    sequence: 8,
+    runKind: "NETWORK",
+    payload: { uncertain: true },
+  }));
   assert.ok(completed && failed && cancelled && agentCancelled && timedOut && uncertain);
   assert.equal(runtime.runtimeTerminalStatus(completed), "completed");
   assert.equal(runtime.runtimeTerminalStatus(failed), "failed");
