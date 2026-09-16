@@ -59,21 +59,16 @@ def test_knowledge_manager_uses_shared_workspace_dialog() -> None:
     assert "fixed inset-0" not in knowledge
 
 
-def test_playground_exposes_draft_strategy_selection_but_locks_snapshots() -> None:
+def test_playground_keeps_execution_strategy_configuration_in_runtime_inspector() -> None:
     header = _source(PLAYGROUND / "components" / "PlaygroundHeader.tsx")
-    strategy_helpers = _source(AGENT_FEATURE / "executionStrategy.ts")
+    runtime = _source(AGENT_FEATURE / "components" / "AgentRuntimeSettings.tsx")
 
-    assert "Playground Execution Strategy" in header
-    assert "useExecutionStrategies" in header
-    assert "useAgentEditor" in header
-    assert "useReleases" in header
-    assert "executionStrategyForEnvironment" in header
-    assert "withExecutionStrategy" in header
-    assert "strategyReadOnly = environment !== 'draft'" in header
-    assert "if (strategyReadOnly" in header
-    assert "if (environment === 'draft')" in strategy_helpers
-    assert "releases.find((item) => item.status === environment)" in strategy_helpers
-    assert "release?.runtime_config" in strategy_helpers
+    assert "Playground Execution Strategy" not in header
+    assert "useExecutionStrategies" not in header
+    assert "useAgentEditor" not in header
+    assert "useReleases" not in header
+    assert "withExecutionStrategy" not in header
+    assert "<AgentExecutionStrategyField" in runtime
 
 
 def test_frontend_and_backend_share_execution_strategy_catalog_endpoint() -> None:
