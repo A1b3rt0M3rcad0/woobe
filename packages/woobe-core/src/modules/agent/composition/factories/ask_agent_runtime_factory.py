@@ -24,15 +24,16 @@ from modules.agent.composition.factories.agent_uow_factory import (
     build_agent_read_uow,
     build_agent_uow,
 )
+from modules.agent.composition.factories.rag_runtime_factory import (
+    build_rag_runtime_adapter,
+)
 from modules.agent.composition.factories.run_persistence_factory import (
     build_agent_run_persistence,
 )
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
-from modules.agent.infra.adapters.langchain_embedding_factory import LangchainEmbeddingFactory
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.database.runtime_transaction_runner import AgentRuntimeTransactionRunner
-from modules.agent.infra.database.runtime_vector_search_reader import AgentRuntimeVectorSearchReader
 from modules.agent.infra.execution.agent_run_recovery_runtime import (
     AgentRunRecoveryExecutor,
     AgentRunRecoveryRuntime,
@@ -114,11 +115,13 @@ def _configure_agent_runtime_dependencies(
     tool_runtime: AgentToolRuntimeGateway,
 ) -> None:
     runtime.configure_execution_strategy_resolver(build_execution_strategy_resolver())
-    runtime.configure_rag_embedding_factory(LangchainEmbeddingFactory())
-    runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
-    runtime.configure_vector_search_reader(
-        AgentRuntimeVectorSearchReader(transactions).search
+    runtime.configure_rag_runtime(
+        build_rag_runtime_adapter(
+            transactions,
+            encryption_key=settings.encryption_key,
+        )
     )
+    runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
     runtime.configure_execution_state_store(
         BestEffortExecutionStateStore(EXECUTION_STATE_STORE)
     )

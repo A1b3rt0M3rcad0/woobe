@@ -14,9 +14,8 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
-from modules.agent.application.use_cases.vector_snapshot_rag_mixin import (
-    VectorSnapshotRAGMixin,
-)
+from modules.agent.application.rag.registry import RAGStrategyRegistry
+from modules.agent.application.rag.strategies.classic import ClassicRAGStrategy
 from modules.agent.domain.entities import (
     Agent,
     KnowledgeVersion,
@@ -28,6 +27,8 @@ from modules.agent.domain.vector_snapshot_entities import (
     VECTOR_SNAPSHOT_READY,
     VectorSnapshot,
 )
+from modules.agent.infra.execution.rag import embedding_capability as embedding_module
+from modules.agent.infra.execution.rag.runtime_adapter import RAGRuntimeAdapter
 from woobe_workers.consumers.agent.registry import AgentWorkerRegistry, register_agent_workers
 
 
@@ -35,16 +36,9 @@ class _OpenRouter402Error(RuntimeError):
     status_code = 402
 
 
-class _BaseRuntime:
-    def _apply_release_to_agent(self, agent, release):
-        return agent
-
-    def _apply_snapshot_override(self, agent, snapshot):
-        return agent
-
-
-class _RuntimeHost(VectorSnapshotRAGMixin, _BaseRuntime):
-    _encryption_key = "test-key"
+class _UnusedVectorSearch:
+    async def search(self, **_kwargs):
+        raise AssertionError("vector search must not run when query embedding fails")
 
 
 def test_embedding_402_is_normalized_without_raw_provider_payload():
@@ -131,31 +125,39 @@ async def test_rag_query_embedding_failure_records_terminal_metadata(monkeypatch
     )
     embedding_factory = MagicMock()
     embedding_factory.create_embedding_client.return_value = embedding_client
-    monkeypatch.setattr(
-        "modules.agent.application.use_cases.vector_snapshot_rag_mixin.decrypt_secret",
-        lambda *_args, **_kwargs: "api-key",
+    monkeypatch.setattr(embedding_module, "decrypt_secret", lambda *_args: "api-key")
+
+    registry = RAGStrategyRegistry()
+    registry.register("classic", ClassicRAGStrategy())
+    adapter = RAGRuntimeAdapter(
+        registry=registry,
+        embedding_factory=embedding_factory,
+        vector_search=_UnusedVectorSearch(),
+        encryption_key="test-key",
     )
 
-    uow = MagicMock()
-    uow.commit = AsyncMock()
-    uow.knowledge_versions.get_by_id = AsyncMock(return_value=knowledge)
-    uow.vector_snapshots.get_by_id = AsyncMock(return_value=snapshot)
-    uow.provider_models.get_by_id = AsyncMock(return_value=provider_model)
-    uow.provider_credentials.get_by_id = AsyncMock(return_value=credential)
-
-    host = _RuntimeHost()
-    host.configure_rag_embedding_factory(embedding_factory)
-    token = current_execution.set(new_execution_context())
+    execution_context = new_execution_context()
+    execution_context.execution_context = "production"
+    execution_context.prepared_rag = {
+        "knowledge": knowledge,
+        "snapshot": snapshot,
+        "provider_model": provider_model,
+        "credential": credential,
+        "snapshot_documents": [],
+    }
+    token = current_execution.set(execution_context)
     try:
         with pytest.raises(EmbeddingProviderError) as raised:
-            await host._load_rag_context(agent, "What is in the knowledge base?", uow)
-        execution_context = current_execution.get()
+            await adapter.retrieve(
+                agent=agent,
+                query="What is in the knowledge base?",
+                history=(),
+            )
     finally:
         current_execution.reset(token)
 
     assert str(raised.value) == "Embedding provider account has insufficient credits."
-    uow.commit.assert_awaited_once()
-    assert execution_context is not None
+    assert execution_context.rag_metadata is not None
     assert execution_context.rag_metadata["failure_phase"] == "rag_query_embedding"
     assert execution_context.rag_metadata["upstream_status"] == 402
     assert execution_context.rag_metadata["upstream_error_code"] == "insufficient_credits"

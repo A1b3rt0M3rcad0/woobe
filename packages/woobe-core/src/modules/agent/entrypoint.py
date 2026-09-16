@@ -121,6 +121,10 @@ from modules.agent.composition.public_api import (
 from modules.agent.composition.factories.ask_agent_runtime_factory import (
     build_agent_run_recovery_executor,
 )
+from modules.agent.composition.factories.rag_runtime_factory import (
+    build_rag_runtime_adapter,
+    list_rag_strategies,
+)
 
 __all__ = [
     "skill_catalog_composer",
@@ -139,6 +143,7 @@ __all__ = [
     'build_http_tool_executor',
     'build_internal_agent_runtime',
     'build_public_stream_components',
+    'build_rag_runtime_adapter',
     'bulk_update_mcp_tool_permissions_composer',
     'close_http_tool_executor',
     'complete_mcp_oauth_composer',
@@ -199,6 +204,7 @@ __all__ = [
     'list_prompt_versions_composer',
     'list_provider_credentials_composer',
     'list_provider_models_composer',
+    'list_rag_strategies',
     'list_release_activations_composer',
     'list_release_tests_composer',
     'list_releases_composer',

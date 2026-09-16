@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 ChunkingStrategy = Literal["recursive_text", "paragraph", "markdown_headings"]
@@ -64,6 +64,17 @@ class RAGRetrievalConfig(BaseModel):
 
 class RAGRuntimeConfig(RAGRetrievalConfig):
     """Canonical retrieval configuration persisted in Agent runtime_config.rag."""
+
+    strategy: str = Field(default="classic", min_length=1, max_length=64)
+    strategy_config: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("strategy")
+    @classmethod
+    def normalize_strategy(cls, value: str) -> str:
+        normalized = value.strip().lower()
+        if not normalized:
+            raise ValueError("strategy cannot be empty")
+        return normalized
 
 
 class RAGBuildConfig(BaseModel):
