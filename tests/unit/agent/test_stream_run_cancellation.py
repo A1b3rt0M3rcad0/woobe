@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 from uuid import uuid4
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -41,7 +42,11 @@ class _RunRepository:
 class _Transactions:
     def __init__(self, run: AgentRun) -> None:
         self.runs = _RunRepository(run)
-        self.repositories = SimpleNamespace(runs=self.runs)
+        self.repositories = SimpleNamespace(
+            runs=self.runs,
+            sessions=SimpleNamespace(get_by_id=AsyncMock(return_value=SimpleNamespace(last_message_at=None)), update=AsyncMock()),
+            messages=SimpleNamespace(create=AsyncMock(side_effect=lambda message: message)),
+        )
         self.outbox = _Outbox()
         self.write_calls = 0
 
@@ -64,7 +69,7 @@ class _DetachedUseCase:
         assert channel is not None
         channel.bind_execution(
             trace_id=self.run.trace_id,
-            session_id=None,
+            session_id=self.run.session_id,
             project_id=self.run.project_id,
             agent_id=self.run.agent_id,
         )
@@ -73,15 +78,11 @@ class _DetachedUseCase:
             self.run.id,
             {
                 "status": "running",
+                "session_id": str(self.run.session_id),
                 "project_id": str(self.run.project_id),
                 "agent_id": str(self.run.agent_id),
             },
             ttl_seconds=3600,
-        )
-        await self.store.append_event(
-            self.run.id,
-            "agent.run.accepted",
-            {"trace_id": str(self.run.trace_id)},
         )
         await channel.emit(
             "meta",
@@ -120,7 +121,7 @@ class _BlockingCancelableUseCase:
         assert channel is not None
         channel.bind_execution(
             trace_id=self.run.trace_id,
-            session_id=None,
+            session_id=self.run.session_id,
             project_id=self.run.project_id,
             agent_id=self.run.agent_id,
         )
@@ -129,6 +130,7 @@ class _BlockingCancelableUseCase:
             self.run.id,
             {
                 "status": "running",
+                "session_id": str(self.run.session_id),
                 "project_id": str(self.run.project_id),
                 "agent_id": str(self.run.agent_id),
             },
@@ -166,7 +168,7 @@ class _CancelledRaceUseCase:
         assert channel is not None
         channel.bind_execution(
             trace_id=self.run.trace_id,
-            session_id=None,
+            session_id=self.run.session_id,
             project_id=self.run.project_id,
             agent_id=self.run.agent_id,
         )
@@ -192,6 +194,7 @@ class _BlockingTokenPersistenceStore(InMemoryExecutionStateStore):
         payload,
         *,
         maxlen=2000,
+        **identity,
     ):
         if event_type == "token":
             self.token_persist_started.set()
@@ -201,11 +204,13 @@ class _BlockingTokenPersistenceStore(InMemoryExecutionStateStore):
             event_type,
             payload,
             maxlen=maxlen,
+            **identity,
         )
 
 
 def _run() -> AgentRun:
     return AgentRun(
+        session_id=uuid4(),
         project_id=uuid4(),
         agent_id=uuid4(),
         trace_id=uuid4(),
@@ -229,7 +234,7 @@ def _channel(run: AgentRun) -> RuntimeStreamChannel:
     channel = RuntimeStreamChannel()
     channel.bind_execution(
         trace_id=run.trace_id,
-        session_id=None,
+        session_id=run.session_id,
         project_id=run.project_id,
         agent_id=run.agent_id,
     )

@@ -28,10 +28,14 @@ def upgrade() -> None:
             id, project_id, agent_id, runtime_environment, opened_release_id,
             origin, status, mode, data, created_at, updated_at
         )
-        SELECT b.session_id, r.project_id, r.agent_id, r.environment,
+        SELECT b.session_id, r.project_id, r.agent_id,
+               CASE WHEN r.environment IN ('draft', 'staging', 'production')
+                    THEN r.environment WHEN r.environment = 'release'
+                    THEN 'production' ELSE 'draft' END,
                r.agent_release_id, left(r.origin, 32), 'active', 'chat',
                jsonb_build_object('legacy_run_id', r.id::text,
                                   'source', r.origin,
+                                  'legacy_environment', r.environment,
                                   'session_backfill', '0067'),
                r.created_at, r.updated_at
         FROM agent.agent_runs r

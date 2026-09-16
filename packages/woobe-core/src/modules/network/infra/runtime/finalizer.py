@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID
+from uuid import UUID, NAMESPACE_URL, uuid5
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
@@ -179,7 +179,11 @@ class NetworkRuntimeFinalizer:
                 if invocation_id is None or agent_id is None or node_id is None:
                     continue
                 parent_id = _uuid(item.get("parent_invocation_id"))
-                session_id = _uuid(item.get("agent_session_id"))
+                # Failed/cancelled invocations can terminate before Agent preparation.
+                # Preserve a stable isolated Session even for those child Runs.
+                session_id = _uuid(item.get("agent_session_id")) or uuid5(
+                    NAMESPACE_URL, f"woobe:network-invocation-session:{invocation_id}",
+                )
                 invocation_trace_id = _uuid(item.get("trace_id"))
                 hot_status = str(item.get("status") or "failed")
                 if hot_status == "completed":

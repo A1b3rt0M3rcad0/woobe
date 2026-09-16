@@ -13,7 +13,7 @@ class AgentInvocationArtifact:
     invocation_id: UUID
     project_id: UUID
     agent_id: UUID
-    session_id: UUID | None
+    session_id: UUID
     release_id: UUID | None
     parent_run_id: UUID | None
     trace_id: UUID | None

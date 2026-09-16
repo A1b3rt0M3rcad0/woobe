@@ -253,7 +253,7 @@ class TransactionBoundedStructuredOutputRuntime(
                 tenant_id=input_dto.tenant_id,
                 user_id=input_dto.user_id,
             )
-            history = hot_history
+            history = hot_history if self._uses_session_history(agent) else []
 
         # Every NetworkInvocation causes exactly one AgentRun. Reusing the UUID
         # gives the bulk finalizer a stable identity without a child SQL write.
@@ -287,7 +287,7 @@ class TransactionBoundedStructuredOutputRuntime(
         if context is not None:
             context.run_id = run_id
             context.trace_id = trace_id
-            context.session_id = session.id if session else None
+            context.session_id = session.id
             context.prepared_fallback = fallback_data
             context.prepared_tools = {str(tool.id): tool for tool in tools}
             context.prepared_tool_secrets = tool_secrets
@@ -303,7 +303,7 @@ class TransactionBoundedStructuredOutputRuntime(
                     "network_deferred": True,
                     "project_id": str(input_dto.project_id),
                     "agent_id": str(agent.id),
-                    "session_id": str(session.id) if session else None,
+                    "session_id": str(session.id),
                     "trace_id": str(trace_id),
                     "network_execution_id": (
                         str(context.network_execution_id)
@@ -444,7 +444,7 @@ class TransactionBoundedStructuredOutputRuntime(
                 "model": response_model,
                 "trace_id": str(trace_id),
                 "run_id": str(context.run_id) if context.run_id else None,
-                "session_id": str(session.id) if session else None,
+                "session_id": str(session.id),
                 "llm_calls": context.execution.llm_calls if context.execution else [],
             }
             await self._hot_terminal_pending(
@@ -454,7 +454,7 @@ class TransactionBoundedStructuredOutputRuntime(
             return AskOutput(
                 run_id=context.run_id,
                 answer=answer,
-                session_id=session.id if session else None,
+                session_id=session.id,
                 usage=usage,
                 sources=sources or [],
                 tool_calls=tool_calls_recorded or [],
@@ -504,7 +504,7 @@ class TransactionBoundedStructuredOutputRuntime(
                     "error": error,
                     "run_id": str(context.run_id) if context.run_id else None,
                     "trace_id": str(trace_id) if trace_id else None,
-                    "session_id": str(session.id) if session else None,
+                    "session_id": str(session.id),
                 },
             )
             return

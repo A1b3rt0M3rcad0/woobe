@@ -28,6 +28,7 @@ class _FailingTransactions:
 
 def _run() -> AgentRun:
     return AgentRun(
+        session_id=uuid4(),
         project_id=uuid4(),
         agent_id=uuid4(),
         trace_id=uuid4(),
@@ -53,7 +54,7 @@ async def test_agent_cancellation_does_not_emit_false_terminal_when_postgres_fin
     channel = RuntimeStreamChannel()
     channel.bind_execution(
         trace_id=run.trace_id,
-        session_id=None,
+        session_id=run.session_id,
         project_id=run.project_id,
         agent_id=run.agent_id,
     )
