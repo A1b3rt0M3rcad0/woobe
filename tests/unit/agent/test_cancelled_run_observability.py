@@ -54,6 +54,7 @@ class _Transactions:
 
 def _run() -> AgentRun:
     run = AgentRun(
+        session_id=uuid4(),
         project_id=uuid4(),
         agent_id=uuid4(),
         trace_id=uuid4(),
@@ -131,6 +132,7 @@ def _bind_live_execution(run: AgentRun, call: dict):
     context.started_at = time.monotonic() - 5.0
     context.run_id = run.id
     context.trace_id = run.trace_id
+    context.session_id = run.session_id
     context.project_id = run.project_id
     context.agent_id = run.agent_id
     context.execution_context = "playground"
@@ -161,7 +163,7 @@ async def test_cancelled_agent_run_persists_live_execution_diagnostics() -> None
     channel = RuntimeStreamChannel()
     channel.bind_execution(
         trace_id=run.trace_id,
-        session_id=None,
+        session_id=run.session_id,
         project_id=run.project_id,
         agent_id=run.agent_id,
     )
@@ -217,7 +219,7 @@ async def test_cancel_before_first_token_keeps_cancelled_invocation_and_context_
     channel = RuntimeStreamChannel()
     channel.bind_execution(
         trace_id=run.trace_id,
-        session_id=None,
+        session_id=run.session_id,
         project_id=run.project_id,
         agent_id=run.agent_id,
     )
