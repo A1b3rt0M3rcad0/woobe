@@ -2,13 +2,34 @@
 
 This package is the extension point for concrete Agent execution algorithms.
 
-The stable Runtime boundary is:
+The stable algorithm boundary is the internal Strategy SDK:
 
 ```text
+modules/agent/application/strategy_sdk/
 modules/agent/application/interfaces/execution_strategy.py
 ```
 
-An Execution Strategy controls **how an Agent conducts model/capability execution**. It may decide model invocation order, capability-loop behavior, continuation, termination, planning or reflection. It does not own Agent Run lifecycle, persistence, Release resolution, Session continuity, Tool Policy, Human Approval, Context Engineering infrastructure, streaming transport, cancellation infrastructure, Project isolation or Network orchestration.
+A concrete Strategy controls **how an Agent conducts model/capability execution**. It may decide invocation order, Tool loops, planning, reflection, replanning and termination. It does not own Agent Run lifecycle, persistence, Release resolution, Session continuity, Tool Policy, Human Approval, Context Engineering infrastructure, streaming transport, cancellation infrastructure, Project isolation or Network orchestration.
+
+## Dependency law
+
+The dependency direction is intentional and enforced by architecture tests:
+
+```text
+concrete Strategy
+      ↓
+application/strategy_sdk
+      ↓
+infra/execution/strategy_runtime
+      ↓
+infra/execution/capabilities
+      ↓
+durable runtime infrastructure
+```
+
+Concrete Strategies must not import runtime implementations, capabilities, databases, streaming, provider SDKs, workers, Network orchestration or another concrete Strategy. `strategies/resolver.py` is the only composition point allowed to know concrete Strategy definitions.
+
+The Strategy SDK must remain infrastructure-free. The Strategy Runtime is the authorized bridge from the SDK to runtime capabilities.
 
 ## Strategy identity
 
@@ -20,9 +41,7 @@ react
 plan_execute
 ```
 
-Do not introduce identities such as `standard:v1` or a second strategy-version system. Agent and Release snapshots already freeze `runtime_config.execution_strategy`.
-
-Historical snapshots without the field are permanently interpreted as `standard`.
+Do not introduce identities such as `standard:v1` or a second strategy-version system. Agent and Release snapshots already freeze `runtime_config.execution_strategy`. Historical snapshots without the field are permanently interpreted as `standard`.
 
 ## Backend registry and product contract
 
@@ -32,53 +51,44 @@ Selectable Strategy metadata is backend-owned and lives in:
 modules/agent/application/execution_strategy_registry.py
 ```
 
-The registry exposes the stable product-facing descriptor consumed by API/UI surfaces: display name, description, behavior, recommended use cases, capabilities, limitations and default status. Frontends must render this contract instead of encoding how a concrete Strategy works.
+The registry exposes presentation metadata consumed by API/UI surfaces. Concrete runtime implementations remain behind `ExecutionStrategyResolver`, and architecture tests keep registry identities aligned with executable implementations.
 
-`execution_strategy_config.py` is intentionally limited to reading, validating and canonicalizing the Strategy selection in `runtime_config`. Concrete runtime implementations remain behind `ExecutionStrategyResolver` and are checked against the registry so catalog metadata and executable Strategies cannot silently diverge.
+## Internal Strategy API
 
-## Shared execution capabilities
-
-Strategies compose the execution operations exposed under:
+Concrete algorithms receive only `StrategyContext`:
 
 ```text
-modules/agent/infra/execution/capabilities/
+ctx.state
+ctx.model
+ctx.tools
+ctx.checkpoint()
+ctx.complete()
+ctx.suspend()
 ```
 
-The capability layer separates:
+`ctx.model` hides model call indexing, durable instrumentation, Context Engineering and provider invocation. `ctx.tools` hides governed Tool execution and Tool evidence. `ctx.checkpoint()` persists the opaque Strategy cursor through the shared recovery capability. `ctx.complete()` produces a Strategy outcome without finalizing the outer Agent Run lifecycle.
 
-- execution preparation and resolved model/Tool/Skill bindings;
-- durable/instrumented model invocation;
-- governed durable Tool execution;
-- message progression helpers;
-- strategy-local execution state;
-- strategy-neutral durable recovery checkpoints with an opaque Strategy cursor;
-- structured result finalization.
+The suspension outcome is part of the SDK contract so async Tools/Human Approval can be added without redesigning concrete algorithms. The outer Agent Run WAITING lifecycle is intentionally not enabled by this refactor yet.
 
-A Strategy decides when, how often and in what order these capabilities are used, but it must not bypass the runtime-governed invocation paths. Concrete Strategies must not call provider adapters, Tool integrations, persistence or Agent Run lifecycle services directly.
+## Standard Strategy
 
-The recovery contract deliberately does not understand Standard-specific loop semantics. Each Strategy owns an opaque `strategy_cursor` and the recovery capability persists/restores it together with durable capability messages and execution evidence. Legacy Standard checkpoints remain readable for backwards compatibility.
-
-## Current strategy
+The built-in Standard Strategy lives under:
 
 ```text
-standard -> StandardExecutionStrategy
+strategies/standard/
 ```
 
-`StandardExecutionStrategy` owns the complete Standard orchestration: initial model invocation, Tool batches, follow-up rounds, circuit breaking, durable continuation checkpoints and terminal recovery. It composes shared capabilities and no longer depends on `run_instrumented_execution()` or `run_tool_loop()` as its algorithm boundary.
+- `strategy.py` contains the algorithm only;
+- `state.py` contains algorithm-local state plus state codec/factory;
+- `policy.py` owns limits and stop decisions;
+- `phases.py` centralizes phase/boundary identities;
+- `definition.py` composes the Strategy factory, state factory and codec;
+- `compat.py` keeps legacy focused entrypoints delegating to the same algorithm.
 
-`run_instrumented_execution()` and `run_tool_loop()` remain compatibility facades for existing focused callers/tests. Both delegate into the same Standard Strategy implementation rather than maintaining a second algorithm.
+The Standard algorithm must remain readable without understanding persistence, streaming, recovery storage or provider adapters.
 
-## Adding a future built-in strategy
+## Adding a future built-in Strategy
 
-1. Implement `ExecutionStrategy` in this directory.
-2. Resolve execution inputs through `prepare_execution()`.
-3. Build shared capabilities with a stable Strategy name.
-4. Keep algorithm-local state inside the Strategy and/or `StrategyExecutionState`.
-5. Use `capabilities.model` for every model invocation.
-6. Use `capabilities.tools` for every Tool execution.
-7. Persist recovery boundaries through `capabilities.recovery` with an opaque Strategy cursor when the algorithm has durable continuation points.
-8. Finalize structured output through the shared result finalization capability.
-9. Register the product descriptor in `execution_strategy_registry.py` and the concrete implementation in `resolver.py`.
-10. Add behavior, release/recovery, observability, registry-parity and architecture tests.
+A new Strategy should normally require only its own algorithm/state/policy/phases/codec plus registration in the resolver and product registry. If adding a Strategy requires editing Agent Run lifecycle, persistence, streaming or recovery infrastructure, either the SDK boundary is incomplete or the requirement is a genuinely reusable runtime capability that should be added below the SDK.
 
 Do not add plugin discovery, external adapters or Network-specific strategy selection unless those requirements are independently justified.
