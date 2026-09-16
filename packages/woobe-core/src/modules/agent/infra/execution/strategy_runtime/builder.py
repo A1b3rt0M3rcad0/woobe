@@ -8,10 +8,6 @@ from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
 )
-from modules.agent.application.strategy_sdk import (
-    StrategyInitialization,
-    StrategyResumeSnapshot,
-)
 from modules.agent.infra.execution.capabilities.bundle import (
     ExecutionCapabilities,
     build_execution_capabilities,
@@ -20,10 +16,13 @@ from modules.agent.infra.execution.capabilities.preparation import (
     PreparedExecution,
     prepare_execution,
 )
-from modules.agent.infra.execution.strategy_runtime.checkpoint import RuntimeStrategyCheckpoint
+from modules.agent.infra.execution.strategy_runtime.checkpoint import (
+    RuntimeStrategyCheckpoint,
+)
 from modules.agent.infra.execution.strategy_runtime.context import RuntimeStrategyContext
 from modules.agent.infra.execution.strategy_runtime.model import RuntimeStrategyModel
 from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
+from modules.agent.infra.execution.strategy_runtime.state import RuntimeStrategyStateStore
 from modules.agent.infra.execution.strategy_runtime.tools import RuntimeStrategyTools
 
 
@@ -31,6 +30,7 @@ from modules.agent.infra.execution.strategy_runtime.tools import RuntimeStrategy
 class BuiltStrategyContext:
     context: RuntimeStrategyContext[Any]
     runtime_state: StrategyRuntimeState
+    preflight_tool_call: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,17 +38,34 @@ class BuiltStrategyExecution:
     context: RuntimeStrategyContext[Any]
     runtime_state: StrategyRuntimeState
     prepared: PreparedExecution
+    preflight_tool_call: dict[str, Any] | None = None
 
 
-def _resume_snapshot(value: Any) -> StrategyResumeSnapshot | None:
+def _next_call_index(cursor: dict[str, Any] | None) -> int:
+    if cursor is None:
+        return 1
+    try:
+        next_call_index = int(cursor.get("next_call_index") or 1)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("Execution Strategy recovery cursor has invalid call index") from exc
+    if next_call_index <= 0:
+        raise RuntimeError("Execution Strategy recovery cursor has invalid call index")
+    return next_call_index
+
+
+def _preflight_tool_call(
+    bootstrap: dict[str, Any] | None,
+    *,
+    resuming: bool,
+) -> dict[str, Any] | None:
+    if resuming or not bootstrap:
+        return None
+    value = bootstrap.get("initial_tool_call")
     if value is None:
         return None
-    return StrategyResumeSnapshot(
-        phase=value.phase,
-        cursor=dict(value.cursor),
-        capability_messages=tuple(value.capability_messages),
-        execution=value.execution,
-    )
+    if not isinstance(value, dict):
+        raise ValueError("Execution Strategy initial_tool_call must be a mapping")
+    return value
 
 
 def build_strategy_context_from_capabilities(
@@ -63,31 +80,30 @@ def build_strategy_context_from_capabilities(
     bootstrap: dict[str, Any] | None = None,
 ) -> BuiltStrategyContext:
     resume = capabilities.recovery.load()
-    snapshot = _resume_snapshot(resume)
-    cursor = dict(snapshot.cursor) if snapshot is not None else {}
-    try:
-        next_call_index = int(cursor.get("next_call_index") or 1)
-    except (TypeError, ValueError) as exc:
-        raise RuntimeError("Execution Strategy recovery cursor has invalid call index") from exc
-    if next_call_index <= 0:
-        raise RuntimeError("Execution Strategy recovery cursor has invalid call index")
+    cursor = dict(resume.cursor) if resume is not None else None
+    next_call_index = _next_call_index(cursor)
 
     runtime_state = StrategyRuntimeState(
         execution=(
-            snapshot.execution if snapshot is not None else InstrumentedExecution(result=None)
+            resume.execution if resume is not None else InstrumentedExecution(result=None)
         ),
         call_index=max(0, next_call_index - 1),
+        messages=[
+            *messages,
+            *(resume.capability_messages if resume is not None else []),
+        ],
+        base_message_count=len(messages),
     )
-    initialization = StrategyInitialization(
-        messages=tuple(messages),
-        initial_phase=initial_phase,
-        bootstrap=dict(bootstrap or {}),
+    state_store = RuntimeStrategyStateStore()
+    state = state_store.create(
+        strategy.state_type,
+        cursor,
+        strategy_name=strategy.name,
     )
-    state = strategy.state_type.create(initialization, snapshot)
     checkpoint = RuntimeStrategyCheckpoint(
         recovery=capabilities.recovery,
         runtime_state=runtime_state,
-        base_message_count=len(messages),
+        state_store=state_store,
     )
     context = RuntimeStrategyContext(
         state=state,
@@ -95,6 +111,7 @@ def build_strategy_context_from_capabilities(
             capability=capabilities.model,
             runtime_state=runtime_state,
             base_messages=messages,
+            initial_phase=initial_phase,
             final_model=final_model,
             final_model_factory=final_model_factory,
             final_json_instruction=final_json_instruction,
@@ -104,9 +121,15 @@ def build_strategy_context_from_capabilities(
             runtime_state=runtime_state,
         ),
         checkpoint=checkpoint,
-        runtime_state=runtime_state,
     )
-    return BuiltStrategyContext(context=context, runtime_state=runtime_state)
+    return BuiltStrategyContext(
+        context=context,
+        runtime_state=runtime_state,
+        preflight_tool_call=_preflight_tool_call(
+            bootstrap,
+            resuming=resume is not None,
+        ),
+    )
 
 
 def build_strategy_execution(
@@ -132,4 +155,5 @@ def build_strategy_execution(
         context=built.context,
         runtime_state=built.runtime_state,
         prepared=prepared,
+        preflight_tool_call=built.preflight_tool_call,
     )

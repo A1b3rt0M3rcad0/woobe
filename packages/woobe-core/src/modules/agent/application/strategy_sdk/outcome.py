@@ -3,13 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any, TypeAlias
 
-from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.strategy_sdk.tools import SuspensionReason
 
 
 @dataclass(frozen=True, slots=True)
 class Completed:
-    execution: InstrumentedExecution
+    result: Any
 
 
 @dataclass(frozen=True, slots=True)

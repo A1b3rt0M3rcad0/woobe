@@ -9,10 +9,12 @@ from modules.agent.infra.execution.strategy_runtime.runner import (
     execute_strategy,
     execute_strategy_with_capabilities,
 )
+from modules.agent.infra.execution.strategy_runtime.state import RuntimeStrategyStateStore
 
 __all__ = [
     "BuiltStrategyContext",
     "BuiltStrategyExecution",
+    "RuntimeStrategyStateStore",
     "StrategyExecutionRunner",
     "build_strategy_context_from_capabilities",
     "build_strategy_execution",

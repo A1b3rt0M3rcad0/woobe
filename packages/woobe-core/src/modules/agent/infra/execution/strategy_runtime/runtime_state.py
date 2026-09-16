@@ -29,6 +29,8 @@ class StrategyRuntimeState:
         default_factory=lambda: InstrumentedExecution(result=None)
     )
     call_index: int = 0
+    messages: list[Any] = field(default_factory=list)
+    base_message_count: int = 0
 
     def next_call_index(self) -> int:
         self.call_index += 1
@@ -41,6 +43,9 @@ class StrategyRuntimeState:
             {"kind": "llm", "occurred_at": call["occurred_at"], "payload": call}
         )
 
+    def record_model_message(self, message: Any) -> None:
+        self.messages.append(message)
+
     def absorb_model_error(self, exc: InstrumentedExecutionError) -> None:
         self.execution.llm_calls.extend(exc.llm_calls)
         self.execution.timeline.extend(exc.timeline)
@@ -51,9 +56,10 @@ class StrategyRuntimeState:
 
     def record_tool_batch(self, batch: ToolExecutionBatch) -> None:
         self.execution.tool_wall_latency_ms += batch.wall_latency_ms
-        for info, _message, payload in batch.results:
+        for info, message, payload in batch.results:
             self.execution.tool_calls.append(info)
             self.execution.tool_call_duration_sum_ms += int(info.duration_ms or 0)
             self.execution.timeline.append(
                 {"kind": "tool", "occurred_at": payload["occurred_at"], "payload": payload}
             )
+            self.messages.append(message)

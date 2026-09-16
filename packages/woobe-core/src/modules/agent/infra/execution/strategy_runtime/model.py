@@ -8,18 +8,23 @@ from modules.agent.application.strategy_sdk import (
     StrategyPhase,
     strategy_phase_value,
 )
-from modules.agent.infra.execution.capabilities.message_progression import terminal_response_messages
-from modules.agent.infra.execution.capabilities.model_invocation import ModelInvocationCapability
+from modules.agent.infra.execution.capabilities.message_progression import (
+    terminal_response_messages,
+)
+from modules.agent.infra.execution.capabilities.model_invocation import (
+    ModelInvocationCapability,
+)
 from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
 
 
 class RuntimeStrategyModel:
-    """Strategy-facing Model facade with runtime instrumentation attached."""
+    """Strategy-facing Model facade with runtime instrumentation and conversation ownership."""
 
     __slots__ = (
         "_capability",
         "_runtime_state",
         "_base_messages",
+        "_initial_phase",
         "_final_model",
         "_final_model_factory",
         "_final_json_instruction",
@@ -31,6 +36,7 @@ class RuntimeStrategyModel:
         capability: ModelInvocationCapability,
         runtime_state: StrategyRuntimeState,
         base_messages: list[Any],
+        initial_phase: str,
         final_model: Any | None,
         final_model_factory: Any | None,
         final_json_instruction: str | None,
@@ -38,6 +44,7 @@ class RuntimeStrategyModel:
         self._capability = capability
         self._runtime_state = runtime_state
         self._base_messages = list(base_messages)
+        self._initial_phase = initial_phase
         self._final_model = final_model
         self._final_model_factory = final_model_factory
         self._final_json_instruction = final_json_instruction
@@ -59,29 +66,28 @@ class RuntimeStrategyModel:
         except InstrumentedExecutionError as exc:
             self._runtime_state.absorb_model_error(exc)
             raise
+
         self._runtime_state.record_model_call(call)
+        self._runtime_state.record_model_message(result)
         return StrategyModelResult(message=result)
 
     async def invoke(
         self,
         *,
-        messages: list[Any],
-        phase: StrategyPhase,
+        phase: StrategyPhase | None = None,
     ) -> StrategyModelResult:
         return await self._invoke(
             capability=self._capability,
-            messages=messages,
-            phase=phase,
+            messages=self._runtime_state.messages,
+            phase=phase or self._initial_phase,
         )
 
     async def finalize(
         self,
         *,
-        messages: list[Any],
         reason: str,
         phase: StrategyPhase,
     ) -> StrategyModelResult:
-        del messages
         terminal_model = self._final_model
         if terminal_model is None and self._final_model_factory is not None:
             terminal_model = self._final_model_factory()

@@ -1,15 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import StrEnum
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeAlias
+
+from modules.agent.application.strategy_sdk.contracts import ExecutionPhase
 
 
-StrategyPhase = str | StrEnum
+StrategyPhase: TypeAlias = str | ExecutionPhase
 
 
 def strategy_phase_value(phase: StrategyPhase) -> str:
-    return phase.value if isinstance(phase, StrEnum) else str(phase)
+    return phase.value if isinstance(phase, ExecutionPhase) else str(phase)
 
 
 def strategy_phase_with_iteration(phase: StrategyPhase, iteration: int) -> str:
@@ -44,14 +45,12 @@ class StrategyModel(Protocol):
     async def invoke(
         self,
         *,
-        messages: list[Any],
-        phase: StrategyPhase,
+        phase: StrategyPhase | None = None,
     ) -> StrategyModelResult: ...
 
     async def finalize(
         self,
         *,
-        messages: list[Any],
         reason: str,
         phase: StrategyPhase,
     ) -> StrategyModelResult: ...

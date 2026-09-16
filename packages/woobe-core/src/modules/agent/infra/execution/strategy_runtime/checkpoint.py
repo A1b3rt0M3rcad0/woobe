@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
-
 from modules.agent.application.strategy_sdk import (
     ExecutionCheckpointBoundary,
     ExecutionState,
 )
 from modules.agent.infra.execution.capabilities.recovery import StrategyRecoveryCapability
 from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
+from modules.agent.infra.execution.strategy_runtime.state import RuntimeStrategyStateStore
 
 
 class RuntimeStrategyCheckpoint:
@@ -16,7 +15,7 @@ class RuntimeStrategyCheckpoint:
     __slots__ = (
         "_recovery",
         "_runtime_state",
-        "_base_message_count",
+        "_state_store",
     )
 
     def __init__(
@@ -24,23 +23,25 @@ class RuntimeStrategyCheckpoint:
         *,
         recovery: StrategyRecoveryCapability,
         runtime_state: StrategyRuntimeState,
-        base_message_count: int,
+        state_store: RuntimeStrategyStateStore,
     ) -> None:
         self._recovery = recovery
         self._runtime_state = runtime_state
-        self._base_message_count = base_message_count
+        self._state_store = state_store
 
     async def save(
         self,
         state: ExecutionState,
         boundary: ExecutionCheckpointBoundary,
     ) -> None:
-        cursor = dict(state.checkpoint_cursor())
-        cursor["next_call_index"] = self._runtime_state.call_index + 1
+        cursor = {
+            "state": self._state_store.dump(state),
+            "next_call_index": self._runtime_state.call_index + 1,
+        }
         await self._recovery.checkpoint(
             phase=boundary.value,
-            messages=state.checkpoint_messages(),
-            base_message_count=self._base_message_count,
+            messages=self._runtime_state.messages,
+            base_message_count=self._runtime_state.base_message_count,
             execution=self._runtime_state.execution,
             cursor=cursor,
         )
