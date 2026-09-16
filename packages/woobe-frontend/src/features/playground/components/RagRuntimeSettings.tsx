@@ -90,12 +90,12 @@ export function RagRuntimeSettings({ open, value, onClose, onApply }: RagRuntime
       open={open}
       onClose={onClose}
       title="Runtime retrieval"
-      className="flex h-[min(760px,calc(100svh-2rem))] max-w-[min(74rem,calc(100vw-2rem))] flex-col overflow-hidden"
+      className="flex h-[min(760px,calc(100svh-2rem))] w-[calc(100vw-2rem)] !max-w-[80rem] flex-col overflow-hidden"
       contentClassName="min-h-0 flex-1 p-0"
     >
       <div className="flex h-full min-h-0 flex-col">
-        <div className="grid min-h-0 flex-1 md:grid-cols-[16rem_minmax(0,1fr)]">
-          <aside className="border-b border-border bg-background/25 p-ui-md md:border-b-0 md:border-r">
+        <div className="grid min-h-0 flex-1 lg:grid-cols-[17rem_minmax(0,1fr)]">
+          <aside className="border-b border-border bg-background/25 p-ui-md lg:border-b-0 lg:border-r">
             <section className="rounded-container border border-border bg-background/30 p-ui-md">
               <span className="flex h-9 w-9 items-center justify-center rounded-control border border-border bg-control text-primary-light">
                 <SlidersHorizontal className="h-icon w-icon" />
@@ -127,7 +127,7 @@ export function RagRuntimeSettings({ open, value, onClose, onApply }: RagRuntime
           </aside>
 
           <main className="scrollbar-thin min-h-0 min-w-0 overflow-y-auto p-ui-lg">
-            <div className="grid gap-ui-md lg:grid-cols-2">
+            <div className="grid gap-ui-md xl:grid-cols-2">
               <section className="rounded-container border border-border bg-surface/[0.72] p-ui-md">
                 <PanelHeader title="Search" description="Candidate retrieval and similarity filtering." />
                 <div className="grid gap-ui-md sm:grid-cols-2">
