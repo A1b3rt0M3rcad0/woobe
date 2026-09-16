@@ -151,12 +151,12 @@ export function ChatSurfaceLiveTestDialog({
       open={open}
       onClose={onClose}
       title="Test ChatSurface"
-      className="flex max-h-dialog max-w-dialog-wide flex-col overflow-hidden"
+      className="flex h-[min(760px,calc(100svh-2rem))] max-w-[min(90rem,calc(100vw-2rem))] flex-col overflow-hidden"
       contentClassName="min-h-0 flex-1 p-0"
     >
-      <div className="grid h-full min-h-0 lg:grid-cols-12">
-        <div className="min-h-0 bg-background/55 p-ui-md lg:col-span-9">
-          <div className="h-full min-h-96 overflow-hidden rounded-container border border-border bg-background">
+      <div className="grid h-full min-h-0 md:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="min-h-0 bg-background/55 p-ui-md">
+          <div className="h-full min-h-80 overflow-hidden rounded-container border border-border bg-background">
             {loading ? (
               <EmptyStatePanel
                 compact
@@ -189,10 +189,10 @@ export function ChatSurfaceLiveTestDialog({
           </div>
         </div>
 
-        <aside className="flex min-h-0 flex-col border-t border-border bg-surface/90 lg:col-span-3 lg:border-l lg:border-t-0">
+        <aside className="flex min-h-0 flex-col border-t border-border bg-surface/90 md:border-l md:border-t-0">
           <div className="shrink-0 border-b border-border p-ui-md">
             <TechnicalListItem
-              label={statusLabel(frameStatus)}
+              label="Runtime status"
               description="Live test"
               meta={<Badge variant={statusVariant(frameStatus)} size="compact">{statusLabel(frameStatus)}</Badge>}
             />
