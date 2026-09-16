@@ -10,7 +10,12 @@ from modules.agent.infra.execution.capabilities.preparation import (
     _messages_with_bound_capability_authority,
     configure_skill_runtime,
 )
-from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
+from modules.agent.infra.execution.strategies.standard import (
+    build_standard_strategy_definition,
+)
+from modules.agent.infra.execution.strategy_runtime.runner import (
+    execute_strategy_definition,
+)
 
 
 async def run_instrumented_execution(
@@ -35,7 +40,8 @@ async def run_instrumented_execution(
     remains only for focused legacy callers/tests and delegates to the same Standard Strategy
     used by production instead of maintaining a second execution algorithm.
     """
-    return await StandardExecutionStrategy().execute(
+    return await execute_strategy_definition(
+        build_standard_strategy_definition(),
         ExecutionStrategyRequest(
             llm_factory=llm_factory,
             execute_single_tool=execute_single_tool,
@@ -50,7 +56,7 @@ async def run_instrumented_execution(
             tool_name_to_id=tool_name_to_id,
             messages=messages,
             context_assembler=context_assembler,
-        )
+        ),
     )
 
 
