@@ -113,6 +113,82 @@ forbid_untyped_dependencies = true
 # composition and HTTP/SSE formatting belongs to presentation.
 
 [[rules]]
+id = "ARCH080"
+description = "concrete Execution Strategy algorithms depend only on the Strategy SDK, stable Application interfaces and their own package"
+source = [
+  "infra/execution/strategies/standard/strategy.py",
+  "infra/execution/strategies/standard/state.py",
+  "infra/execution/strategies/standard/policy.py",
+  "infra/execution/strategies/standard/phases.py",
+  "infra/execution/strategies/standard/definition.py",
+]
+allow = [
+  "modules.agent.application.strategy_sdk",
+  "modules.agent.application.interfaces",
+  "modules.agent.infra.execution.strategies.standard",
+]
+deny = [
+  "modules.agent.infra.execution.capabilities",
+  "modules.agent.infra.execution.strategy_runtime",
+  "modules.agent.infra.database",
+  "modules.agent.infra.execution.runtime_streaming",
+  "modules.agent.infra.execution.durable_execution_instrumentation",
+  "modules.network",
+  "woobe_api",
+  "woobe_workers",
+  "langchain",
+  "langchain_core",
+  "langchain_openai",
+  "openai",
+  "anthropic",
+  "sqlalchemy",
+  "redis",
+  "pymongo",
+]
+
+[[rules]]
+id = "ARCH081"
+description = "Strategy Runtime is the only bridge from the Strategy SDK to execution capabilities and cannot depend on concrete Strategies"
+source = ["infra/execution/strategy_runtime/**"]
+allow = [
+  "modules.agent.application.strategy_sdk",
+  "modules.agent.application.interfaces",
+  "modules.agent.infra.execution.strategy_runtime",
+  "modules.agent.infra.execution.capabilities",
+  "modules.agent.infra.execution",
+  "modules.agent.domain",
+  "shared",
+]
+deny = [
+  "modules.agent.infra.execution.strategies",
+  "modules.agent.presentation",
+  "modules.agent.composition",
+  "modules.network",
+  "woobe_api",
+  "woobe_workers",
+]
+
+[[rules]]
+id = "ARCH082"
+description = "Standard compatibility adapter may bridge legacy loop callers into the Strategy Runtime without widening the concrete algorithm boundary"
+source = ["infra/execution/strategies/standard/compat.py"]
+allow = [
+  "modules.agent.application.strategy_sdk",
+  "modules.agent.application.interfaces",
+  "modules.agent.infra.execution.capabilities",
+  "modules.agent.infra.execution.strategy_runtime",
+  "modules.agent.infra.execution.strategies.standard",
+]
+deny = [
+  "modules.agent.infra.database",
+  "modules.agent.presentation",
+  "modules.agent.composition",
+  "modules.network",
+  "woobe_api",
+  "woobe_workers",
+]
+
+[[rules]]
 id = "ARCH026"
 description = "composers are pure composition roots: they may wire concrete implementations but cannot depend directly on frameworks, transport primitives or configuration loaders"
 source = ["composition/composers/**"]
