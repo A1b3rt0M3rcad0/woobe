@@ -5,6 +5,7 @@ from typing import Any, Generic, TypeVar
 from modules.agent.application.strategy_sdk import (
     Completed,
     ExecutionCheckpointBoundary,
+    ExecutionState,
     StrategyModelResult,
     Suspended,
     SuspensionReason,
@@ -15,7 +16,7 @@ from modules.agent.infra.execution.strategy_runtime.runtime_state import Strateg
 from modules.agent.infra.execution.strategy_runtime.tools import RuntimeStrategyTools
 
 
-StateT = TypeVar("StateT")
+StateT = TypeVar("StateT", bound=ExecutionState)
 
 
 class RuntimeStrategyContext(Generic[StateT]):

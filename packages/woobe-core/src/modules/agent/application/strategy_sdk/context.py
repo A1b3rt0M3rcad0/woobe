@@ -2,13 +2,16 @@ from __future__ import annotations
 
 from typing import Any, Generic, Protocol, TypeVar
 
-from modules.agent.application.strategy_sdk.contracts import ExecutionCheckpointBoundary
+from modules.agent.application.strategy_sdk.contracts import (
+    ExecutionCheckpointBoundary,
+    ExecutionState,
+)
 from modules.agent.application.strategy_sdk.model import StrategyModel, StrategyModelResult
 from modules.agent.application.strategy_sdk.outcome import Completed, Suspended
 from modules.agent.application.strategy_sdk.tools import StrategyTools, SuspensionReason
 
 
-StateT = TypeVar("StateT")
+StateT = TypeVar("StateT", bound=ExecutionState)
 
 
 class StrategyContext(Protocol, Generic[StateT]):
