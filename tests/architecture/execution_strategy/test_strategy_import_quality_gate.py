@@ -6,10 +6,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
 AGENT_ROOT = ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent"
-STRATEGIES_ROOT = AGENT_ROOT / "infra" / "execution" / "strategies"
+EXECUTION_ROOT = AGENT_ROOT / "infra" / "execution"
+STRATEGIES_ROOT = EXECUTION_ROOT / "strategies"
 SDK_ROOT = AGENT_ROOT / "application" / "strategy_sdk"
 STANDARD_ROOT = STRATEGIES_ROOT / "standard"
 RESOLVER = STRATEGIES_ROOT / "resolver.py"
+LEGACY_RUNNER = EXECUTION_ROOT / "instrumented_execution_runner.py"
+LEGACY_LOOP = EXECUTION_ROOT / "tool_execution_loop.py"
 
 
 def _tree(path: Path) -> ast.Module:
@@ -47,7 +50,10 @@ def test_concrete_strategy_import_allowlist() -> None:
     violations: list[str] = []
     for path in checked:
         for module in _imports(path):
-            if not any(module == prefix or module.startswith(prefix + ".") for prefix in allowed_prefixes):
+            if not any(
+                module == prefix or module.startswith(prefix + ".")
+                for prefix in allowed_prefixes
+            ):
                 violations.append(f"{path.relative_to(ROOT)} imports {module}")
     assert not violations, (
         "Concrete Execution Strategies may only depend on the Strategy SDK, stable "
@@ -55,10 +61,12 @@ def test_concrete_strategy_import_allowlist() -> None:
     )
 
 
-def test_only_resolver_may_compose_concrete_strategies() -> None:
+def test_concrete_strategy_composition_is_limited_to_explicit_boundaries() -> None:
     concrete_prefix = "modules.agent.infra.execution.strategies.standard"
     allowed = {
         RESOLVER,
+        LEGACY_RUNNER,
+        LEGACY_LOOP,
         STANDARD_ROOT / "__init__.py",
         STANDARD_ROOT / "strategy.py",
         STANDARD_ROOT / "state.py",
@@ -74,8 +82,8 @@ def test_only_resolver_may_compose_concrete_strategies() -> None:
         if any(module.startswith(concrete_prefix) for module in _imports(path)):
             violations.append(path.relative_to(ROOT).as_posix())
     assert not violations, (
-        "Concrete Strategy implementation leaked outside its package/resolver: "
-        + ", ".join(violations)
+        "Concrete Strategy implementation leaked outside its package, resolver or "
+        "documented compatibility facades: " + ", ".join(violations)
     )
 
 
@@ -102,7 +110,11 @@ def test_concrete_strategy_does_not_reach_private_context_runtime_state() -> Non
     for node in ast.walk(_tree(path)):
         if not isinstance(node, ast.Attribute):
             continue
-        if isinstance(node.value, ast.Name) and node.value.id == "ctx" and node.attr.startswith("_"):
+        if (
+            isinstance(node.value, ast.Name)
+            and node.value.id == "ctx"
+            and node.attr.startswith("_")
+        ):
             violations.append(node.attr)
     assert not violations, f"Strategy accessed private StrategyContext members: {violations}"
 

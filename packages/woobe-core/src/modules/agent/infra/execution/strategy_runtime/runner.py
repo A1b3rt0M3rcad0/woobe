@@ -4,7 +4,6 @@ from dataclasses import dataclass
 
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_strategy import (
-    ExecutableExecutionStrategy,
     ExecutionStrategyDefinition,
     ExecutionStrategyRequest,
 )
