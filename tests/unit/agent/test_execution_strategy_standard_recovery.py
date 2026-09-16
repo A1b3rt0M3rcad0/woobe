@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
 
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
@@ -35,12 +35,14 @@ class _SequenceModel:
             AIMessage(content="Customer 123 is active."),
         ]
         self.invocation_count = 0
+        self.invocations: list[list] = []
 
     def bind_tools(self, _tools, *, tool_choice):
         assert tool_choice == "auto"
         return self
 
-    async def ainvoke(self, _messages):
+    async def ainvoke(self, messages):
+        self.invocations.append(list(messages))
         response = self.responses[self.invocation_count]
         self.invocation_count += 1
         return response
@@ -126,7 +128,13 @@ async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_to
     assert captured["durable"] is True
     assert captured["state"]["resume_policy"] == "continue_execution_strategy"
     assert captured["state"]["execution_strategy"] == "standard"
-    assert captured["state"]["strategy_cursor"]["next_phase"] == "tool_followup_1"
+    assert captured["state"]["strategy_cursor"]["state"] == {
+        "phase": "tool_followup_1",
+        "tool_round": 1,
+        "consecutive_failures": 0,
+        "stop_reason": None,
+    }
+    assert captured["state"]["strategy_cursor"]["next_call_index"] == 2
     assert model.invocation_count == 1
     assert tool_calls == 1
 
@@ -144,3 +152,5 @@ async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_to
     assert len(execution.tool_calls) == 1
     assert len(execution.llm_calls) == 2
     assert second_context.resume_state is None
+    assert any(isinstance(message, AIMessage) for message in model.invocations[1])
+    assert any(isinstance(message, ToolMessage) for message in model.invocations[1])

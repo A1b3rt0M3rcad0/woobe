@@ -122,7 +122,7 @@ def test_strategy_sdk_context_public_surface_stays_small() -> None:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         and not node.name.startswith("_")
     }
-    assert methods == {"checkpoint", "complete", "suspend"}
+    assert methods == {"checkpoint"}
 
 
 def test_concrete_strategy_does_not_reach_private_context_runtime_state() -> None:
@@ -138,6 +138,36 @@ def test_concrete_strategy_does_not_reach_private_context_runtime_state() -> Non
             ):
                 violations.append(f"{path.name}: ctx.{node.attr}")
     assert not violations, "Strategy accessed private StrategyContext members: " + ", ".join(violations)
+
+
+def test_concrete_strategy_state_does_not_own_runtime_recovery_plumbing() -> None:
+    forbidden_methods = {
+        "create",
+        "checkpoint_cursor",
+        "checkpoint_messages",
+        "record_model_result",
+        "record_tool_batch",
+    }
+    forbidden_symbols = {
+        "StrategyInitialization",
+        "StrategyResumeSnapshot",
+    }
+    violations: list[str] = []
+
+    for path in _strategy_files():
+        tree = _tree(path)
+        for node in ast.walk(tree):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                if node.name in forbidden_methods:
+                    violations.append(f"{path.name}: method {node.name}")
+            if isinstance(node, ast.Name) and node.id in forbidden_symbols:
+                violations.append(f"{path.name}: symbol {node.id}")
+
+    assert not violations, (
+        "Concrete Strategy state must contain algorithm data only; recovery, checkpoint "
+        "serialization and runtime message progression belong to Strategy Runtime: "
+        + ", ".join(violations)
+    )
 
 
 def test_strategy_sdk_has_no_concrete_strategy_names() -> None:

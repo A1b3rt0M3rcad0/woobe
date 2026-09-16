@@ -4,10 +4,10 @@ from types import SimpleNamespace
 
 import pytest
 
-from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.strategy_sdk import (
     Completed,
     ExecutionCheckpointBoundary,
+    ExecutionPhase,
     ExecutionPolicy,
     ExecutionState,
     ExecutionStopReason,
@@ -30,13 +30,12 @@ class _Model:
         self.results = list(results)
         self.phases: list[str] = []
 
-    async def invoke(self, *, messages, phase):
-        del messages
+    async def invoke(self, *, phase=None):
         self.phases.append(str(getattr(phase, "value", phase)))
         return self.results.pop(0)
 
-    async def finalize(self, *, messages, reason, phase):
-        del messages, reason
+    async def finalize(self, *, reason, phase):
+        del reason
         self.phases.append(str(getattr(phase, "value", phase)))
         return self.results.pop(0)
 
@@ -61,13 +60,6 @@ class _Context:
     async def checkpoint(self, boundary=ExecutionCheckpointBoundary.TOOL):
         self.checkpoints.append(boundary)
 
-    def complete(self, result):
-        message = result.message if isinstance(result, StrategyModelResult) else result
-        return Completed(InstrumentedExecution(result=message))
-
-    def suspend(self, *, reason, operation_ref=None, metadata=None):
-        return Suspended(reason=reason, operation_ref=operation_ref, metadata=metadata)
-
 
 def _model_result(*, content="", tool_calls=None):
     return StrategyModelResult(
@@ -76,12 +68,20 @@ def _model_result(*, content="", tool_calls=None):
 
 
 def test_standard_types_implement_shared_strategy_contracts() -> None:
-    state = StandardExecutionState(messages=[], next_phase=StandardPhase.RESPONSE_GENERATION.value)
+    state = StandardExecutionState()
     policy = StandardExecutionPolicy()
 
     assert isinstance(state, ExecutionState)
     assert isinstance(policy, ExecutionPolicy)
+    assert isinstance(StandardPhase.RESPONSE_GENERATION, ExecutionPhase)
     assert isinstance(StandardStopReason.CAPABILITY_ROUND_LIMIT, ExecutionStopReason)
+    assert "messages" not in StandardExecutionState.model_fields
+    assert state.model_dump(mode="json") == {
+        "phase": None,
+        "tool_round": 0,
+        "consecutive_failures": 0,
+        "stop_reason": None,
+    }
 
 
 @pytest.mark.asyncio
@@ -90,26 +90,24 @@ async def test_standard_algorithm_is_expressed_only_with_strategy_context_primit
         tool_calls=[{"id": "call-1", "name": "lookup", "args": {}}]
     )
     final = _model_result(content="done")
-    tool_message = SimpleNamespace(content="tool-result")
     batch = StrategyToolBatch(
         results=({"success": True},),
-        messages=(tool_message,),
+        messages=(SimpleNamespace(content="tool-result"),),
         has_failures=False,
     )
     state = StandardExecutionState(
-        messages=[SimpleNamespace(content="user")],
-        next_phase=StandardPhase.CAPABILITY_RESPONSE_GENERATION.value,
+        phase=StandardPhase.CAPABILITY_RESPONSE_GENERATION.value,
     )
     ctx = _Context(state=state, model=_Model([first, final]), tools=_Tools([batch]))
 
     outcome = await StandardExecutionStrategy().execute(ctx)
 
     assert isinstance(outcome, Completed)
-    assert outcome.execution.result.content == "done"
+    assert outcome.result.message.content == "done"
     assert ctx.checkpoints == [ExecutionCheckpointBoundary.TOOL]
     assert state.tool_round == 1
     assert state.consecutive_failures == 0
-    assert state.messages[-1] is tool_message
+    assert state.phase == "tool_followup_1"
     assert ctx.model.phases == [
         "capability_response_generation",
         "tool_followup_1",
@@ -130,8 +128,7 @@ async def test_standard_algorithm_can_return_suspension_without_run_lifecycle_ac
         operation_ref="job-123",
     )
     state = StandardExecutionState(
-        messages=[],
-        next_phase=StandardPhase.CAPABILITY_RESPONSE_GENERATION.value,
+        phase=StandardPhase.CAPABILITY_RESPONSE_GENERATION.value,
     )
     ctx = _Context(state=state, model=_Model([first]), tools=_Tools([batch]))
 

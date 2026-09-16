@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from types import SimpleNamespace
-from typing import Any
 
 import pytest
 
@@ -11,38 +9,17 @@ from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategyRequest,
 )
 from modules.agent.application.strategy_sdk import (
+    Completed,
+    ExecutionState,
     StrategyContext,
-    StrategyInitialization,
     StrategyOutcome,
-    StrategyResumeSnapshot,
     strategy_phase_with_iteration,
 )
 from modules.agent.infra.execution.strategy_runtime.runner import execute_strategy
 
 
-@dataclass(slots=True)
-class _TwoPassState:
-    messages: list[Any]
+class _TwoPassState(ExecutionState):
     iteration: int = 0
-
-    @classmethod
-    def create(
-        cls,
-        initialization: StrategyInitialization,
-        resume: StrategyResumeSnapshot | None,
-    ) -> "_TwoPassState":
-        if resume is None:
-            return cls(messages=list(initialization.messages))
-        return cls(
-            messages=[*initialization.messages, *resume.capability_messages],
-            iteration=max(0, int(resume.cursor.get("iteration") or 0)),
-        )
-
-    def checkpoint_cursor(self) -> dict[str, Any]:
-        return {"iteration": self.iteration}
-
-    def checkpoint_messages(self) -> list[Any]:
-        return self.messages
 
 
 class _TwoPassToolStrategy(ExecutionStrategy[_TwoPassState]):
@@ -58,20 +35,18 @@ class _TwoPassToolStrategy(ExecutionStrategy[_TwoPassState]):
         result = None
         for iteration in range(ctx.state.iteration + 1, 3):
             result = await ctx.model.invoke(
-                messages=ctx.state.messages,
                 phase=strategy_phase_with_iteration("test_multi_loop", iteration),
             )
             ctx.state.iteration = iteration
             if not result.has_tool_calls:
-                return ctx.complete(result)
+                return Completed(result)
 
-            ctx.state.messages.append(result.message)
-            batch = await ctx.tools.execute_many(result.tool_calls)
-            ctx.state.messages.extend(batch.messages)
+            await ctx.tools.execute_many(result.tool_calls)
+            await ctx.checkpoint()
 
         if result is None:
             raise RuntimeError("Test Strategy executed without a model invocation")
-        return ctx.complete(result)
+        return Completed(result)
 
 
 class _FakeBoundModel:
