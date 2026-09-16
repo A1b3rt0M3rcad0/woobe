@@ -38,7 +38,7 @@ class _LosingFinalizerUseCase:
         assert channel is not None
         channel.bind_execution(
             trace_id=self.run.trace_id,
-            session_id=None,
+            session_id=self.run.session_id,
             project_id=self.run.project_id,
             agent_id=self.run.agent_id,
         )
@@ -59,6 +59,7 @@ class _LosingFinalizerUseCase:
 
 def _run(status: AgentRunStatus) -> AgentRun:
     run = AgentRun(
+        session_id=uuid4(),
         project_id=uuid4(),
         agent_id=uuid4(),
         trace_id=uuid4(),
