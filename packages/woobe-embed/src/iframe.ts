@@ -300,7 +300,9 @@ function applyRuntimeFrame(
 ): RuntimeTerminalStatus | null {
   if (!acceptRuntimeFrameSequence(parsed, observer.sequence)) return null;
 
-  const { eventType, data, payload } = parsed;
+  const { eventType, payload } = parsed;
+  if (parsed.kind === "transport" && eventType !== "error") return null;
+  const data = payload;
   if (eventType === "tool_call_started" || eventType === "tool_call_completed") {
     ensureUi().updateSkillActivity(observer.assistant, payload);
   }

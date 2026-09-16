@@ -20,11 +20,10 @@ export class RuntimeStreamProtocolError extends Error {
 
 export const RUNTIME_STREAM_MAX_ATTEMPTS = 4
 export const RUNTIME_STREAM_RETRY_BASE_MS = 250
-export const RUNTIME_STREAM_PROTOCOL_VERSION = 1
+export const RUNTIME_STREAM_PROTOCOL_VERSION = 2
 
 export function validateRuntimeProtocolVersion(data: Record<string, unknown>): void {
   const value = data.protocol_version
-  if (value === undefined || value === null) return
   if (value !== RUNTIME_STREAM_PROTOCOL_VERSION) {
     throw new RuntimeStreamProtocolError(
       `Unsupported runtime stream protocol version: ${String(value)}`,
@@ -42,6 +41,8 @@ export function acceptRuntimeFrameSequence(
   ) {
     return true
   }
+
+  if (frame.kind === 'transport') return true
 
   const sequence = frame.sequence
   if (sequence === null) return true

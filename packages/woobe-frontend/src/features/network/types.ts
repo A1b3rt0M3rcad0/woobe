@@ -177,7 +177,7 @@ export interface NetworkMessageResource {
 }
 
 export interface NetworkRuntimeEvent {
-  protocol_version: 1
+  protocol_version: 2
   event_id?: string
   sequence?: number
   execution_id: string

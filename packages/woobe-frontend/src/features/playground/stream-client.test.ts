@@ -1,3 +1,4 @@
+import { runtimeTestEnvelope } from '@/lib/runtime-stream-test-fixtures'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/api/client', () => ({
@@ -32,28 +33,28 @@ function streamResponse(body: string, runId = 'run-1'): Response {
 }
 
 function runningState(sequence: number, output: string): string {
-  return `id: ${sequence}\nevent: run.state\ndata: ${JSON.stringify({
+  return `id: ${sequence}\nevent: run.state\ndata: ${JSON.stringify(runtimeTestEnvelope('run.state', {
     type: 'run.state',
     run_id: 'run-1',
     sequence,
     status: 'running',
     output,
-  })}\n\n`
+  }, 'AGENT'))}\n\n`
 }
 
 function completedState(sequence: number, output: string): string {
-  return `id: ${sequence}\nevent: run.state\ndata: ${JSON.stringify({
+  return `id: ${sequence}\nevent: run.state\ndata: ${JSON.stringify(runtimeTestEnvelope('run.state', {
     type: 'run.state',
     run_id: 'run-1',
     sequence,
     status: 'completed',
     output,
     result: { answer: output },
-  })}\n\n`
+  }, 'AGENT'))}\n\n`
 }
 
 function durableCancelledState(output: string): string {
-  return `event: run.state\ndata: ${JSON.stringify({
+  return `event: run.state\ndata: ${JSON.stringify(runtimeTestEnvelope('run.state', {
     type: 'run.state',
     run_id: 'run-1',
     sequence: null,
@@ -71,7 +72,7 @@ function durableCancelledState(output: string): string {
       output_tokens: 3,
       total_tokens: 11,
     },
-  })}\n\n`
+  }, 'AGENT'))}\n\n`
 }
 
 afterEach(() => {
@@ -105,7 +106,7 @@ describe('Agent runtime stream reattach', () => {
 
   it('rejects sequence gaps and reconciles through run.state instead of applying skipped delta', async () => {
     vi.useFakeTimers()
-    const skipped = `id: 5\nevent: token\ndata: ${JSON.stringify({
+    const skipped = `id: 5\nevent: token\ndata: ${JSON.stringify(runtimeTestEnvelope('token', {
       type: 'token',
       run_id: 'run-1',
       sequence: 5,
@@ -113,7 +114,7 @@ describe('Agent runtime stream reattach', () => {
       visibility: 'assistant',
       channel: 'final',
       phase: 'final_response_generation',
-    })}\n\n`
+    }, 'AGENT'))}\n\n`
     const fetchMock = vi.fn()
       .mockResolvedValueOnce(streamResponse(`${runningState(3, 'partial')}${skipped}`))
       .mockResolvedValueOnce(streamResponse(completedState(8, 'reconciled answer')))
@@ -174,13 +175,13 @@ describe('Agent runtime stream reattach', () => {
 
 describe('Agent runtime terminal response', () => {
   it('preserves the effective provider in the terminal response contract', async () => {
-    const done = `event: done\ndata: ${JSON.stringify({
+    const done = `event: done\ndata: ${JSON.stringify(runtimeTestEnvelope('done', {
       type: 'done',
       run_id: 'run-1',
       answer: 'provider answer',
       provider: 'openai',
       model: 'gpt-test',
-    })}\n\n`
+    }, 'AGENT'))}\n\n`
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(streamResponse(done)))
     const handlers = callbacks()
 
