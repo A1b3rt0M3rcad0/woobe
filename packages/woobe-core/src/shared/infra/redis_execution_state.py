@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from redis.asyncio import Redis
 
@@ -43,15 +43,21 @@ local event_type = ARGV[1]
 local payload = ARGV[2]
 local occurred_at = ARGV[3]
 local maxlen = tonumber(ARGV[4])
-local sequence = redis.call('HINCRBY', state_key, 'event_sequence', 1)
+local expected = tonumber(redis.call('HGET', state_key, 'event_sequence') or '0') + 1
+local explicit = tonumber(ARGV[6])
+if explicit and explicit ~= expected then
+  return redis.error_reply('Runtime sequence must be ' .. expected .. ', received ' .. explicit)
+end
+local sequence = expected
 local cursor = redis.call(
   'XADD', events_key, 'MAXLEN', '~', maxlen, '*',
+  'event_id', ARGV[5],
   'sequence', sequence,
   'type', event_type,
   'payload', payload,
   'at', occurred_at
 )
-redis.call('HSET', state_key, 'last_event_cursor', cursor, 'updated_at', occurred_at)
+redis.call('HSET', state_key, 'event_sequence', sequence, 'last_event_cursor', cursor, 'updated_at', occurred_at)
 local state_ttl_ms = redis.call('PTTL', state_key)
 if state_ttl_ms > 0 then
   redis.call('PEXPIRE', events_key, state_ttl_ms)
@@ -91,6 +97,7 @@ class RedisExecutionStateStore(ExecutionStateStore):
     def _event(cls, cursor: str, fields: dict[str, str]) -> ExecutionEvent:
         payload = cls._decode(fields.get("payload", "{}"))
         return ExecutionEvent(
+            event_id=str(fields.get("event_id") or ""),
             sequence=int(fields.get("sequence") or 0),
             cursor=str(cursor),
             event_type=str(fields.get("type") or "runtime.event"),
@@ -138,8 +145,13 @@ class RedisExecutionStateStore(ExecutionStateStore):
         payload: dict[str, Any],
         *,
         maxlen: int = 2000,
+        event_id: str | None = None,
+        sequence: int | None = None,
+        occurred_at: str | None = None,
     ) -> str | None:
-        occurred_at = datetime.now(timezone.utc).isoformat()
+        if sequence is not None and (isinstance(sequence, bool) or not isinstance(sequence, int) or sequence < 1):
+            raise ValueError("Explicit runtime sequence must be a positive integer")
+        occurred_at = occurred_at or datetime.now(timezone.utc).isoformat()
         result = await self._client.eval(
             _APPEND_EVENT_SCRIPT,
             2,
@@ -149,6 +161,8 @@ class RedisExecutionStateStore(ExecutionStateStore):
             self._encode(payload),
             occurred_at,
             max(1, int(maxlen)),
+            event_id or str(uuid4()),
+            sequence if sequence is not None else "",
         )
         if not result:
             return None

@@ -30,7 +30,8 @@ local cursor = redis.call(
   'schema_version', ARGV[6],
   'storage_version', ARGV[7],
   'metadata', ARGV[8],
-  'payload', ARGV[9]
+  'payload', ARGV[9],
+  'session_id', ARGV[10]
 )
 redis.call('HSET', state_key, 'last_buffer_cursor', cursor, 'updated_at', ARGV[5])
 return {cursor, sequence}
@@ -84,8 +85,10 @@ class RedisRunEventBuffer(RunEventBufferPort):
     def _event(cls, cursor: Any, fields: dict[str, Any]) -> BufferedRunEvent:
         metadata = cls._decode(fields.get("metadata"), {})
         payload = cls._decode(fields.get("payload"), {})
+        session_id = fields.get("session_id") or metadata.get("session_id") or metadata.get("network_session_id")
         return BufferedRunEvent(
             cursor=str(cursor),
+            session_id=UUID(str(session_id)) if session_id else None,
             run_id=UUID(str(fields["run_id"])),
             run_kind=str(fields["run_kind"]),
             sequence=int(fields["sequence"]),
@@ -102,6 +105,7 @@ class RedisRunEventBuffer(RunEventBufferPort):
         self,
         *,
         run_id: UUID,
+        session_id: UUID,
         run_kind: str,
         event_type: str,
         payload: dict[str, Any],
@@ -109,6 +113,8 @@ class RedisRunEventBuffer(RunEventBufferPort):
         schema_version: int = 1,
         storage_version: str = "event_journal_v1",
     ) -> RunEventAppendReceipt:
+        if session_id is None:
+            raise ValueError("Durable Run event requires a Session")
         normalized_type = validate_event_type(event_type)
         occurred_at = datetime.now(timezone.utc).isoformat()
         result = await self._client.eval(
@@ -125,6 +131,7 @@ class RedisRunEventBuffer(RunEventBufferPort):
             storage_version,
             self._encode(sanitize_run_event_value(metadata or {})),
             self._encode(sanitize_run_event_value(payload)),
+            str(session_id),
         )
         if not result:
             raise RuntimeError(f"Redis did not append durable Run event for {run_id}")

@@ -19,6 +19,7 @@ from modules.network.entrypoint import (
     SaveNetworkDraftRequest,
 )
 from shared.infra.errors import AuthorizationError
+from shared.runtime.contracts import runtime_state_frame
 from shared.runtime import (
     RunReference,
     RuntimeFrame,
@@ -349,7 +350,7 @@ async def _execution_stream(
             "degraded_reason": "runtime_event_gap",
         }
         yield network_runtime_sse(
-            RuntimeFrame("run.state", degraded, sequence=None),
+            runtime_state_frame(degraded),
             execution_id,
         )
 

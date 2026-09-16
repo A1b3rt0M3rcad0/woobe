@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from enum import StrEnum
 from typing import Any, Protocol, runtime_checkable
-from uuid import UUID
+from uuid import UUID, uuid4
 
 
 class RunKind(StrEnum):
@@ -51,11 +52,51 @@ class RunReference:
         return cls(run_id=run_id, kind=RunKind.NETWORK)
 
 
+RUNTIME_STREAM_PROTOCOL_VERSION = 2
+
+
 @dataclass(frozen=True, slots=True)
 class RuntimeFrame:
     event_type: str
     data: dict[str, Any]
     sequence: int | None = None
+
+
+@dataclass(frozen=True, slots=True, kw_only=True)
+class SemanticRuntimeEvent(RuntimeFrame):
+    run_id: UUID
+    session_id: UUID
+    run_kind: RunKind
+    event_id: str = field(default_factory=lambda: str(uuid4()))
+    occurred_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def __post_init__(self) -> None:
+        if not self.run_id or not self.session_id or not self.event_id or not self.occurred_at:
+            raise ValueError("Semantic runtime event requires Run and Session identity")
+        if isinstance(self.sequence, bool) or not isinstance(self.sequence, int) or self.sequence < 0:
+            raise ValueError("Semantic runtime event requires a nonnegative sequence")
+        if self.event_type in {"heartbeat", "run.realtime_unavailable"}:
+            raise ValueError("Transport frames cannot be semantic events")
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeControlFrame(RuntimeFrame):
+    occurred_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+
+    def __post_init__(self) -> None:
+        if self.sequence is not None:
+            raise ValueError("Transport frames cannot advance semantic ordering")
+
+
+def runtime_state_frame(state: dict[str, Any]) -> SemanticRuntimeEvent:
+    """A fresh observation at the public-stream watermark, never journal sequence."""
+    return SemanticRuntimeEvent(
+        event_type="run.state", data=dict(state),
+        sequence=int(state.get("sequence") or 0),
+        run_id=UUID(str(state["run_id"])),
+        session_id=UUID(str(state.get("session_id") or state["network_session_id"])),
+        run_kind=RunKind(str(state["kind"]).lower()),
+    )
 
 
 @runtime_checkable

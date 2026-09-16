@@ -4,6 +4,8 @@ from uuid import uuid4
 
 import pytest
 
+_SESSION_ID = uuid4()
+
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 from shared.runtime import RuntimeEventPublisher, RuntimeStreamReader
 
@@ -12,7 +14,7 @@ from shared.runtime import RuntimeEventPublisher, RuntimeStreamReader
 async def test_multiple_observers_receive_same_live_event_independently() -> None:
     store = InMemoryExecutionStateStore()
     run_id = uuid4()
-    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+    await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=3600)
     await store.append_event(run_id, "token", {"content": "1"})
 
     reader_a = RuntimeStreamReader(store, block_ms=20)
@@ -42,7 +44,7 @@ async def test_multiple_observers_receive_same_live_event_independently() -> Non
 async def test_reattach_snapshot_and_live_tail_do_not_duplicate_materialized_output() -> None:
     store = InMemoryExecutionStateStore()
     run_id = uuid4()
-    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+    await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=3600)
     await store.append_event(
         run_id,
         "token",
@@ -102,7 +104,7 @@ async def test_unavailable_hot_store_degrades_to_durable_state_without_run_failu
     reader = RuntimeStreamReader(_UnavailableStore())
 
     async def fallback():
-        return {
+        return {"session_id": str(_SESSION_ID),
             "status": "running",
             "output": "durable partial",
             "result": None,

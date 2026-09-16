@@ -43,9 +43,15 @@ class BestEffortExecutionStateStore(ExecutionStateStore):
         payload: dict[str, Any],
         *,
         maxlen: int = 2000,
+        event_id: str | None = None,
+        sequence: int | None = None,
+        occurred_at: str | None = None,
     ) -> str | None:
         return await self._write(
-            lambda: self._inner.append_event(run_id, event_type, payload, maxlen=maxlen)
+            lambda: self._inner.append_event(
+                run_id, event_type, payload, maxlen=maxlen,
+                event_id=event_id, sequence=sequence, occurred_at=occurred_at,
+            )
         )
 
     async def list_events_after(

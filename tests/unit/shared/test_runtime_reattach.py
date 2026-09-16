@@ -5,6 +5,8 @@ from uuid import uuid4
 
 import pytest
 
+_SESSION_ID = uuid4()
+
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 from shared.runtime import (
     RuntimeEventPublisher,
@@ -14,7 +16,7 @@ from shared.runtime import (
 
 
 async def _completed_fallback(run_id):
-    return {
+    return {"session_id": str(_SESSION_ID),
         "run_id": str(run_id),
         "status": "completed",
         "output": "durable answer",
@@ -23,7 +25,7 @@ async def _completed_fallback(run_id):
 
 
 async def _cancelled_fallback(run_id):
-    return {
+    return {"session_id": str(_SESSION_ID),
         "run_id": str(run_id),
         "status": "cancelled",
         "output": "durable partial",
@@ -45,7 +47,7 @@ async def _cancelled_fallback(run_id):
 async def test_reattach_folds_125_to_131_into_initial_state_then_tails_132() -> None:
     store = InMemoryExecutionStateStore()
     run_id = uuid4()
-    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+    await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=3600)
 
     for sequence in range(1, 132):
         await store.append_event(run_id, "token", {"content": f"{sequence},"})
@@ -53,7 +55,7 @@ async def test_reattach_folds_125_to_131_into_initial_state_then_tails_132() -> 
     await store.update(
         run_id,
         {
-            "runtime_projection": {
+            "runtime_projection": {"session_id": str(_SESSION_ID),
                 "run_id": str(run_id),
                 "kind": "AGENT",
                 "status": "running",
@@ -98,7 +100,7 @@ async def test_reattach_folds_125_to_131_into_initial_state_then_tails_132() -> 
 async def test_hot_run_without_events_waits_for_first_live_event() -> None:
     store = InMemoryExecutionStateStore()
     run_id = uuid4()
-    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+    await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=3600)
 
     reader = RuntimeStreamReader(store, block_ms=20)
     stream = reader.stream(
@@ -119,7 +121,7 @@ async def test_hot_run_without_events_waits_for_first_live_event() -> None:
     await store.append_event(
         run_id,
         "agent_activity",
-        {"status": "working", "message": "Working..."},
+        {"session_id": str(_SESSION_ID), "status": "working", "message": "Working..."},
     )
     live = await asyncio.wait_for(pending, timeout=1)
     assert live.event_type == "agent_activity"
@@ -131,7 +133,7 @@ async def test_hot_run_without_events_waits_for_first_live_event() -> None:
 async def test_events_published_after_high_watermark_are_not_lost() -> None:
     store = InMemoryExecutionStateStore()
     run_id = uuid4()
-    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+    await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=3600)
     for sequence in range(1, 132):
         await store.append_event(run_id, "token", {"content": str(sequence)})
 
@@ -157,7 +159,7 @@ async def test_events_published_after_high_watermark_are_not_lost() -> None:
 async def test_trim_gap_is_detected_instead_of_inventing_continuity() -> None:
     store = InMemoryExecutionStateStore()
     run_id = uuid4()
-    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+    await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=3600)
     for sequence in range(1, 6):
         await store.append_event(
             run_id,
@@ -168,7 +170,7 @@ async def test_trim_gap_is_detected_instead_of_inventing_continuity() -> None:
     await store.update(
         run_id,
         {
-            "runtime_projection": {
+            "runtime_projection": {"session_id": str(_SESSION_ID),
                 "run_id": str(run_id),
                 "kind": "AGENT",
                 "status": "running",
@@ -191,7 +193,7 @@ async def test_trim_gap_is_detected_instead_of_inventing_continuity() -> None:
 async def test_projection_checkpoint_never_hides_a_trim_gap() -> None:
     store = InMemoryExecutionStateStore()
     run_id = uuid4()
-    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+    await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=3600)
     for sequence in range(1, 6):
         await store.append_event(
             run_id,
@@ -202,7 +204,7 @@ async def test_projection_checkpoint_never_hides_a_trim_gap() -> None:
     await store.update(
         run_id,
         {
-            "runtime_projection": {
+            "runtime_projection": {"session_id": str(_SESSION_ID),
                 "run_id": str(run_id),
                 "kind": "AGENT",
                 "status": "running",
@@ -225,7 +227,7 @@ async def test_projection_checkpoint_never_hides_a_trim_gap() -> None:
 async def test_live_tail_gap_is_detected_after_initial_state() -> None:
     store = InMemoryExecutionStateStore()
     run_id = uuid4()
-    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+    await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=3600)
     await store.append_event(run_id, "token", {"content": "1"})
 
     reader = RuntimeStreamReader(store, block_ms=20)
@@ -250,7 +252,7 @@ async def test_live_tail_gap_is_detected_after_initial_state() -> None:
 async def test_usage_projection_accepts_nested_runtime_usage_payload() -> None:
     store = InMemoryExecutionStateStore()
     run_id = uuid4()
-    await store.create(run_id, {"status": "running"}, ttl_seconds=3600)
+    await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=3600)
     await store.append_event(
         run_id,
         "usage",
@@ -304,7 +306,7 @@ async def test_cancelled_durable_fallback_has_no_fabricated_hot_sequence() -> No
 
     state = await anext(stream)
     assert state.event_type == "run.state"
-    assert state.sequence is None
+    assert state.sequence == 0
     assert state.data["sequence"] is None
     assert state.data["status"] == "cancelled"
     assert state.data["output"] == "durable partial"

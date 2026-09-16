@@ -105,10 +105,10 @@ class ExplicitRuntimePersistenceMixin:
             barrier=self._run_durability_barrier,
             run_id=run_id,
             run_kind="agent",
+            session_id=session.id,
             metadata={
                 "project_id": str(input_dto.project_id),
                 "agent_id": str(agent.id),
-                "session_id": str(session.id),
                 "trace_id": str(trace_id),
                 "network_execution_id": (
                     str(context.network_execution_id)
@@ -467,7 +467,9 @@ class ExplicitRuntimePersistenceMixin:
 
         stream = current_runtime_stream.get()
         if stream is not None:
-            setattr(stream, "run_id", run_id)
+            stream.run_id = run_id
+            stream.session_id = session.id
+            await stream.emit("agent.run.accepted", trace_id=str(trace_id))
 
         await self._bind_durable_run_recorder(
             input_dto=input_dto,
@@ -526,11 +528,10 @@ class ExplicitRuntimePersistenceMixin:
                     },
                     ttl_seconds=self._execution_state_ttl_seconds,
                 )
-                await self._execution_state_store.append_event(
-                    run_id,
-                    "agent.run.accepted",
-                    {"trace_id": str(trace_id)},
-                )
+                if stream is None:
+                    await self._execution_state_store.append_event(
+                        run_id, "agent.run.accepted", {"trace_id": str(trace_id)},
+                    )
 
             rag_context, sources = await self._load_rag_context(
                 agent,

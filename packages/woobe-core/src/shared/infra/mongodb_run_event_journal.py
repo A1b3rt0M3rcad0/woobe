@@ -63,7 +63,7 @@ class MongoDBRunEventJournal(RunEventJournalPort):
             "trace_id": metadata.get("trace_id"),
             "agent_id": metadata.get("agent_id"),
             "network_id": metadata.get("network_id"),
-            "session_id": metadata.get("session_id"),
+            "session_id": str(event.session_id) if event.session_id else None,
             "network_session_id": metadata.get("network_session_id"),
             "network_execution_id": metadata.get("network_execution_id"),
             "invocation_id": metadata.get("invocation_id"),
@@ -76,8 +76,11 @@ class MongoDBRunEventJournal(RunEventJournalPort):
 
     @staticmethod
     def _event(document: dict[str, Any]) -> DurableRunEvent:
+        metadata = document.get("metadata") or {}
+        session_id = document.get("session_id") or metadata.get("session_id") or metadata.get("network_session_id")
         return DurableRunEvent(
             run_id=UUID(str(document["run_id"])),
+            session_id=UUID(str(session_id)) if session_id else None,
             run_kind=str(document["run_kind"]),
             sequence=int(document["sequence"]),
             event_id=str(document["event_id"]),

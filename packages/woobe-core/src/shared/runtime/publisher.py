@@ -50,6 +50,9 @@ class RuntimeEventPublisher:
         payload: dict[str, Any],
         *,
         force_projection: bool | None = None,
+        event_id: str | None = None,
+        sequence: int | None = None,
+        occurred_at: str | None = None,
     ) -> str | None:
         try:
             cursor = await self._store.append_event(
@@ -57,6 +60,7 @@ class RuntimeEventPublisher:
                 event_type,
                 payload,
                 maxlen=self._maxlen,
+                event_id=event_id, sequence=sequence, occurred_at=occurred_at,
             )
             now = time.monotonic()
             force = (

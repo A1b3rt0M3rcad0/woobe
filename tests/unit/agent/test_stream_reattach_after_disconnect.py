@@ -57,7 +57,7 @@ class _ControlledUseCase:
         assert channel is not None
         channel.bind_execution(
             trace_id=self.run.trace_id,
-            session_id=None,
+            session_id=self.run.session_id,
             project_id=self.run.project_id,
             agent_id=self.run.agent_id,
         )
@@ -66,6 +66,7 @@ class _ControlledUseCase:
             self.run.id,
             {
                 "status": "running",
+                "session_id": str(self.run.session_id),
                 "project_id": str(self.run.project_id),
                 "agent_id": str(self.run.agent_id),
             },
@@ -103,6 +104,7 @@ class _UnavailableStore:
 
 def _run() -> AgentRun:
     return AgentRun(
+        session_id=uuid4(),
         project_id=uuid4(),
         agent_id=uuid4(),
         trace_id=uuid4(),

@@ -29,6 +29,7 @@ from woobe_api.http.agent.controllers.ask_agent_stream_controller import (
 )
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.infra.errors import ConflictError, NotFoundError
+from shared.runtime.contracts import runtime_state_frame
 from shared.runtime import (
     RunReference,
     RuntimeFrame,
@@ -85,10 +86,10 @@ def _parse_sse(chunk: str) -> tuple[str | None, dict]:
 
 def _runtime_metadata(chunk: str) -> tuple[UUID | None, str | None]:
     event_type, payload = _parse_sse(chunk)
-    nested = payload.get("data")
+    nested = payload.get("payload")
     state = nested if isinstance(nested, dict) else payload
 
-    raw_run_id = payload.get("run_id") or payload.get("execution_id") or state.get("run_id")
+    raw_run_id = payload.get("run_id")
     run_id: UUID | None = None
     if raw_run_id:
         try:
@@ -354,7 +355,7 @@ class ApiChatRuntimeGateway:
                     "realtime_available": False,
                     "degraded_reason": "runtime_event_gap",
                 }
-                sse = formatter(RuntimeFrame("run.state", degraded, sequence=None))
+                sse = formatter(runtime_state_frame(degraded))
                 _, terminal_status = _runtime_metadata(sse)
                 yield ChatRuntimeChunk(
                     sse=sse,

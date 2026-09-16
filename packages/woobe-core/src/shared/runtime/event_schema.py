@@ -110,6 +110,7 @@ def buffered_to_durable(event: BufferedRunEvent) -> DurableRunEvent:
     validate_event_type(event.event_type)
     return DurableRunEvent(
         run_id=event.run_id,
+        session_id=event.session_id,
         run_kind=event.run_kind,
         sequence=event.sequence,
         event_id=event.event_id,

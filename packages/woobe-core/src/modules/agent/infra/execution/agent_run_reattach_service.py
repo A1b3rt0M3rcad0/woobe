@@ -12,6 +12,7 @@ from modules.agent.infra.database.runtime_transaction_runner import (
 from shared.contracts.errors import AuthorizationError, ConflictError, NotFoundError
 from shared.contracts.execution_state import ExecutionStateStore
 from shared.contracts.run_event_journal import RunEventJournalPort
+from shared.runtime.contracts import runtime_state_frame
 from shared.runtime import (
     RunReference,
     RuntimeFrame,
@@ -201,7 +202,7 @@ class AgentRunReattachService:
                 }
             )
             yield format_sse_frame(
-                RuntimeFrame("run.state", state, sequence=state.get("sequence"))
+                runtime_state_frame(state)
             )
 
     async def cancel(
