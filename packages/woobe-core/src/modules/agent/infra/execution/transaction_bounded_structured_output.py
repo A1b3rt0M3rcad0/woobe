@@ -161,7 +161,7 @@ class TransactionBoundedStructuredOutputRuntime(
                             "Pinned Agent Session does not belong to this Agent"
                         )
                     existing_session = True
-            elif str(getattr(agent.session_mode, "value", agent.session_mode)) == "stateful":
+            else:
                 session = Session(
                     id=uuid6.uuid7(),
                     project_id=input_dto.project_id,
@@ -173,7 +173,7 @@ class TransactionBoundedStructuredOutputRuntime(
                 )
             history = (
                 await self._load_history(repositories.messages, session)
-                if session is not None and existing_session
+                if session is not None and existing_session and self._uses_session_history(agent)
                 else []
             )
             response_format = self._get_response_format(agent)

@@ -108,7 +108,7 @@ class ExplicitRuntimePersistenceMixin:
             metadata={
                 "project_id": str(input_dto.project_id),
                 "agent_id": str(agent.id),
-                "session_id": str(session.id) if session else None,
+                "session_id": str(session.id),
                 "trace_id": str(trace_id),
                 "network_execution_id": (
                     str(context.network_execution_id)
@@ -332,7 +332,10 @@ class ExplicitRuntimePersistenceMixin:
             )
 
             session = await self._resolve_session(repositories.sessions, input_dto, agent)
-            history = await self._load_history(repositories.messages, session) if session else []
+            history = (
+                await self._load_history(repositories.messages, session)
+                if self._uses_session_history(agent) else []
+            )
             input_message_id = None
             if session:
                 created_user = await self._save_user_message(
@@ -366,7 +369,7 @@ class ExplicitRuntimePersistenceMixin:
                 AgentRun(
                     project_id=input_dto.project_id,
                     agent_id=agent.id,
-                    session_id=session.id if session else None,
+                    session_id=session.id,
                     agent_release_id=release_id,
                     input_message_id=input_message_id,
                     trace_id=trace_id,
@@ -387,7 +390,7 @@ class ExplicitRuntimePersistenceMixin:
                 "trace_id": str(trace_id),
                 "project_id": str(input_dto.project_id),
                 "agent_id": str(agent.id),
-                "session_id": str(session.id) if session else None,
+                "session_id": str(session.id),
                 "message_id": str(input_message_id) if input_message_id else None,
                 "model": agent.model,
                 "provider": agent.provider.value if hasattr(agent.provider, "value") else agent.provider,
@@ -397,14 +400,14 @@ class ExplicitRuntimePersistenceMixin:
             }
             requested = AgentExecutionRequestedV1.create(
                 agent_id=agent.id,
-                session_id=session.id if session else None,
+                session_id=session.id,
                 payload=execution_payload,
             )
             await outbox.write(requested)
             await outbox.write(
                 AgentExecutionStartedV1.create(
                     agent_id=agent.id,
-                    session_id=session.id if session else None,
+                    session_id=session.id,
                     payload={
                         "run_id": str(run.id),
                         "trace_id": str(trace_id),
@@ -458,7 +461,7 @@ class ExplicitRuntimePersistenceMixin:
             context.run_id = run_id
             context.project_id = input_dto.project_id
             context.agent_id = agent.id
-            context.session_id = session.id if session else None
+            context.session_id = session.id
             context.trace_id = trace_id
             context.storage_version = self._storage_version()
 
@@ -513,7 +516,7 @@ class ExplicitRuntimePersistenceMixin:
                         "phase": "prepared",
                         "project_id": str(input_dto.project_id),
                         "agent_id": str(agent.id),
-                        "session_id": str(session.id) if session else None,
+                        "session_id": str(session.id),
                         "trace_id": str(trace_id),
                         "environment": normalize_runtime_environment(input_dto.execution_context),
                         "network_execution_id": str(context.network_execution_id) if context and context.network_execution_id else None,
@@ -624,7 +627,7 @@ class ExplicitRuntimePersistenceMixin:
             await outbox.write(
                 AgentExecutionLLMCompletedV1.create(
                     agent_id=agent.id,
-                    session_id=session.id if session else None,
+                    session_id=session.id,
                     payload={
                         "run_id": str(run_id) if run_id else None,
                         "trace_id": str(trace_id),
@@ -641,7 +644,7 @@ class ExplicitRuntimePersistenceMixin:
                 await outbox.write(
                     AgentExecutionToolCompletedV1.create(
                         agent_id=agent.id,
-                        session_id=session.id if session else None,
+                        session_id=session.id,
                         payload={
                             "run_id": str(run_id) if run_id else None,
                             "trace_id": str(trace_id),
@@ -658,7 +661,7 @@ class ExplicitRuntimePersistenceMixin:
                 "trace_id": str(trace_id),
                 "project_id": str(input_dto.project_id),
                 "agent_id": str(agent.id),
-                "session_id": str(session.id) if session else None,
+                "session_id": str(session.id),
                 "message_id": str(message_id) if message_id else None,
                 "answer_length": len(answer),
                 "input_tokens": usage.input_tokens or 0,
@@ -679,14 +682,14 @@ class ExplicitRuntimePersistenceMixin:
                 await outbox.write(
                     AgentFallbackTriggeredV1.create(
                         agent_id=agent.id,
-                        session_id=session.id if session else None,
+                        session_id=session.id,
                         payload=fallback_info_result,
                     )
                 )
             await outbox.write(
                 AgentExecutionCompletedV1.create(
                     agent_id=agent.id,
-                    session_id=session.id if session else None,
+                    session_id=session.id,
                     payload=completion_payload,
                 )
             )
@@ -703,7 +706,7 @@ class ExplicitRuntimePersistenceMixin:
             return AskOutput(
                 run_id=run_id,
                 answer=answer,
-                session_id=session.id if session else None,
+                session_id=session.id,
                 message_id=message_id,
                 usage=usage,
                 sources=sources,
@@ -737,7 +740,7 @@ class ExplicitRuntimePersistenceMixin:
                 "trace_id": str(trace_id) if trace_id else None,
                 "project_id": str(input_dto.project_id),
                 "agent_id": str(agent.id),
-                "session_id": str(session.id) if session else None,
+                "session_id": str(session.id),
                 "error": error,
                 "failure_code": "runtime_error",
                 "completed_at": datetime.now(timezone.utc).isoformat(),

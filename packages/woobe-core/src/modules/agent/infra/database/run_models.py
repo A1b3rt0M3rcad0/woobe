@@ -37,9 +37,9 @@ class AgentRunModel(BaseModel):
 
     project_id: Mapped[UUID]
     agent_id: Mapped[UUID] = mapped_column(ForeignKey("agent.agents.id"))
-    session_id: Mapped[UUID | None] = mapped_column(
+    session_id: Mapped[UUID] = mapped_column(
         ForeignKey("agent.sessions.id"),
-        nullable=True,
+        nullable=False,
     )
     agent_release_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agent.agent_releases.id"),

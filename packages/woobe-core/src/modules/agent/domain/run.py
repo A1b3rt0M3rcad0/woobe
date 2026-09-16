@@ -22,6 +22,7 @@ class AgentRun:
     """One logical execution of one Agent."""
 
     project_id: UUID
+    session_id: UUID
     agent_id: UUID
     trace_id: UUID
     environment: str
@@ -29,7 +30,6 @@ class AgentRun:
     input_message: str
     execution_snapshot: dict[str, Any]
     id: UUID = field(default_factory=uuid6.uuid7)
-    session_id: UUID | None = None
     agent_release_id: UUID | None = None
     input_message_id: UUID | None = None
     output_message_id: UUID | None = None
@@ -48,3 +48,7 @@ class AgentRun:
     completed_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
+
+    def __post_init__(self) -> None:
+        if self.session_id is None:
+            raise ValueError("Agent Run requires a Session")
