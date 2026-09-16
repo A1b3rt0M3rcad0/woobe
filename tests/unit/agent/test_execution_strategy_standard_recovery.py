@@ -10,7 +10,12 @@ from modules.agent.application.interfaces.execution_context import (
     new_execution_context,
 )
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
-from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
+from modules.agent.infra.execution.strategies.standard import (
+    build_standard_strategy_definition,
+)
+from modules.agent.infra.execution.strategy_runtime.runner import (
+    execute_strategy_definition,
+)
 
 
 class _SimulatedCrash(RuntimeError):
@@ -86,6 +91,10 @@ def _request(model, execute_single_tool) -> ExecutionStrategyRequest:
     )
 
 
+async def _execute(request: ExecutionStrategyRequest):
+    return await execute_strategy_definition(build_standard_strategy_definition(), request)
+
+
 @pytest.mark.asyncio
 async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_tool() -> None:
     model = _SequenceModel()
@@ -114,9 +123,7 @@ async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_to
     first_token = current_execution.set(first_context)
     try:
         with pytest.raises(_SimulatedCrash):
-            await StandardExecutionStrategy().execute(
-                _request(model, execute_single_tool)
-            )
+            await _execute(_request(model, execute_single_tool))
     finally:
         current_execution.reset(first_token)
 
@@ -131,9 +138,7 @@ async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_to
     second_context.resume_state = captured["state"]
     second_token = current_execution.set(second_context)
     try:
-        execution = await StandardExecutionStrategy().execute(
-            _request(model, execute_single_tool)
-        )
+        execution = await _execute(_request(model, execute_single_tool))
     finally:
         current_execution.reset(second_token)
 

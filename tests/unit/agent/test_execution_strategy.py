@@ -11,6 +11,7 @@ from modules.agent.application.execution_strategy_config import (
 )
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_strategy import (
+    ExecutableExecutionStrategy,
     ExecutionStrategy,
     ExecutionStrategyRequest,
 )
@@ -28,7 +29,11 @@ from modules.agent.infra.execution.strategies.resolver import (
     BuiltinExecutionStrategyResolver,
     build_execution_strategy_resolver,
 )
-from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
+from modules.agent.infra.execution.strategies.standard import (
+    StandardExecutionStrategy,
+    build_standard_strategy_definition,
+)
+from modules.agent.infra.execution.strategy_runtime.runner import StrategyExecutionRunner
 from shared.contracts.errors import ValidationError
 
 
@@ -96,13 +101,23 @@ def test_release_runtime_config_rejects_unknown_execution_strategy() -> None:
         _canonical_runtime_config({"execution_strategy": "react"})
 
 
-def test_builtin_resolver_resolves_standard_strategy() -> None:
+def test_standard_definition_exposes_sdk_strategy() -> None:
+    definition = build_standard_strategy_definition()
+    strategy = definition.strategy_factory()
+
+    assert definition.name == "standard"
+    assert isinstance(strategy, StandardExecutionStrategy)
+    assert isinstance(strategy, ExecutionStrategy)
+
+
+def test_builtin_resolver_resolves_runtime_ready_standard_adapter() -> None:
     resolver = BuiltinExecutionStrategyResolver()
 
     strategy = resolver.resolve("standard")
 
-    assert isinstance(strategy, StandardExecutionStrategy)
-    assert isinstance(strategy, ExecutionStrategy)
+    assert isinstance(strategy, StrategyExecutionRunner)
+    assert isinstance(strategy, ExecutableExecutionStrategy)
+    assert strategy.definition.name == "standard"
 
 
 def test_builtin_resolver_rejects_unknown_name_defensively() -> None:
@@ -112,86 +127,10 @@ def test_builtin_resolver_rejects_unknown_name_defensively() -> None:
         resolver.resolve("missing")
 
 
-def test_resolver_builder_exposes_execution_strategy_contract() -> None:
+def test_resolver_builder_exposes_outer_execution_contract() -> None:
     resolver = build_execution_strategy_resolver()
 
-    assert isinstance(resolver.resolve("standard"), ExecutionStrategy)
-
-
-@pytest.mark.asyncio
-async def test_standard_strategy_composes_execution_capabilities(monkeypatch) -> None:
-    calls: list[str] = []
-    sentinel = InstrumentedExecution(result=SimpleNamespace(content="ok"))
-    prepared = SimpleNamespace(
-        messages=["prepared"],
-        final_model="final-model",
-        final_model_factory=None,
-        initial_phase="response_generation",
-        final_json_instruction=None,
-    )
-    capabilities = object()
-
-    def fake_prepare(request):
-        calls.append("prepare")
-        assert request.messages == ["hello"]
-        return prepared
-
-    def fake_build(**kwargs):
-        calls.append("capabilities")
-        assert kwargs["prepared"] is prepared
-        assert kwargs["strategy_name"] == "standard"
-        return capabilities
-
-    async def fake_loop(**kwargs):
-        calls.append("loop")
-        assert kwargs["capabilities"] is capabilities
-        assert kwargs["messages"] == ["prepared"]
-        assert kwargs["initial_phase"] == "response_generation"
-        return sentinel, 7
-
-    async def fake_finalize(**kwargs):
-        calls.append("finalize")
-        assert kwargs["prepared"] is prepared
-        assert kwargs["execution"] is sentinel
-        assert kwargs["call_index"] == 7
-        return sentinel
-
-    monkeypatch.setattr(
-        "modules.agent.infra.execution.strategies.standard.prepare_execution",
-        fake_prepare,
-    )
-    monkeypatch.setattr(
-        "modules.agent.infra.execution.strategies.standard.build_execution_capabilities",
-        fake_build,
-    )
-    monkeypatch.setattr(
-        "modules.agent.infra.execution.strategies.standard.run_standard_strategy_loop",
-        fake_loop,
-    )
-    monkeypatch.setattr(
-        "modules.agent.infra.execution.strategies.standard.finalize_execution_result",
-        fake_finalize,
-    )
-    request = ExecutionStrategyRequest(
-        llm_factory="factory",
-        execute_single_tool=lambda *_args: None,  # type: ignore[arg-type]
-        clean_json_answer=lambda value: value,
-        agent=SimpleNamespace(),  # type: ignore[arg-type]
-        api_key="secret",
-        base_url="https://provider.example/v1",
-        response_format={"type": "text"},
-        json_enabled=False,
-        has_tools=False,
-        agent_tools=[],
-        tool_name_to_id={},
-        messages=["hello"],
-        context_assembler=None,
-    )
-
-    result = await StandardExecutionStrategy().execute(request)
-
-    assert result is sentinel
-    assert calls == ["prepare", "capabilities", "loop", "finalize"]
+    assert isinstance(resolver.resolve("standard"), ExecutableExecutionStrategy)
 
 
 class _RecordingStrategy:

@@ -8,7 +8,12 @@ from langchain_core.messages import AIMessage
 
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
-from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
+from modules.agent.infra.execution.strategies.standard import (
+    build_standard_strategy_definition,
+)
+from modules.agent.infra.execution.strategy_runtime.runner import (
+    execute_strategy_definition,
+)
 
 
 class _SequenceModel:
@@ -88,6 +93,10 @@ def _request(
     )
 
 
+async def _execute(request: ExecutionStrategyRequest):
+    return await execute_strategy_definition(build_standard_strategy_definition(), request)
+
+
 @pytest.mark.asyncio
 async def test_standard_strategy_preserves_single_model_execution_without_tools() -> None:
     model = _SequenceModel([AIMessage(content="direct answer")])
@@ -96,7 +105,7 @@ async def test_standard_strategy_preserves_single_model_execution_without_tools(
     async def execute_single_tool(_tool_call, _tool_id):
         raise AssertionError("Tool execution must not run")
 
-    execution = await StandardExecutionStrategy().execute(
+    execution = await _execute(
         _request(
             factory=factory,
             execute_single_tool=execute_single_tool,
@@ -144,7 +153,7 @@ async def test_standard_strategy_preserves_model_tool_model_execution() -> None:
             "error": None,
         }
 
-    execution = await StandardExecutionStrategy().execute(
+    execution = await _execute(
         _request(
             factory=factory,
             execute_single_tool=execute_single_tool,
@@ -190,7 +199,7 @@ async def test_standard_strategy_preserves_valid_structured_json_without_repair(
     async def execute_single_tool(_tool_call, _tool_id):
         raise AssertionError("Tool execution must not run")
 
-    execution = await StandardExecutionStrategy().execute(
+    execution = await _execute(
         _request(
             factory=factory,
             execute_single_tool=execute_single_tool,
@@ -222,7 +231,7 @@ async def test_standard_strategy_preserves_structured_json_repair() -> None:
     async def execute_single_tool(_tool_call, _tool_id):
         raise AssertionError("Tool execution must not run")
 
-    execution = await StandardExecutionStrategy().execute(
+    execution = await _execute(
         _request(
             factory=factory,
             execute_single_tool=execute_single_tool,
@@ -257,7 +266,7 @@ async def test_standard_strategy_preserves_model_failure_instrumentation() -> No
         raise AssertionError("Tool execution must not run")
 
     with pytest.raises(InstrumentedExecutionError, match="provider down") as error:
-        await StandardExecutionStrategy().execute(
+        await _execute(
             _request(
                 factory=factory,
                 execute_single_tool=execute_single_tool,
@@ -300,7 +309,7 @@ async def test_standard_strategy_preserves_failed_tool_evidence() -> None:
             "error_code": "not_found",
         }
 
-    execution = await StandardExecutionStrategy().execute(
+    execution = await _execute(
         _request(
             factory=factory,
             execute_single_tool=execute_single_tool,
