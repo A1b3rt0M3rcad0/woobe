@@ -15,9 +15,7 @@ from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
 )
-from modules.agent.application.use_cases.ai_agent_cases import (
-    _force_strict_json_settings,
-)
+from modules.agent.application.use_cases.ai_agent_cases import _force_strict_json_settings
 from modules.agent.application.use_cases.release_lifecycle_use_cases_v2 import (
     _canonical_runtime_config,
 )
@@ -30,8 +28,8 @@ from modules.agent.infra.execution.strategies.resolver import (
     build_execution_strategy_resolver,
 )
 from modules.agent.infra.execution.strategies.standard import (
+    StandardExecutionState,
     StandardExecutionStrategy,
-    build_standard_strategy_definition,
 )
 from modules.agent.infra.execution.strategy_runtime.runner import StrategyExecutionRunner
 from shared.contracts.errors import ValidationError
@@ -101,12 +99,11 @@ def test_release_runtime_config_rejects_unknown_execution_strategy() -> None:
         _canonical_runtime_config({"execution_strategy": "react"})
 
 
-def test_standard_definition_exposes_sdk_strategy() -> None:
-    definition = build_standard_strategy_definition()
-    strategy = definition.strategy_factory()
+def test_standard_strategy_is_self_describing_sdk_strategy() -> None:
+    strategy = StandardExecutionStrategy()
 
-    assert definition.name == "standard"
-    assert isinstance(strategy, StandardExecutionStrategy)
+    assert strategy.name == "standard"
+    assert strategy.state_type is StandardExecutionState
     assert isinstance(strategy, ExecutionStrategy)
 
 
@@ -117,7 +114,8 @@ def test_builtin_resolver_resolves_runtime_ready_standard_adapter() -> None:
 
     assert isinstance(strategy, StrategyExecutionRunner)
     assert isinstance(strategy, ExecutableExecutionStrategy)
-    assert strategy.definition.name == "standard"
+    assert strategy.strategy.name == "standard"
+    assert isinstance(strategy.strategy, StandardExecutionStrategy)
 
 
 def test_builtin_resolver_rejects_unknown_name_defensively() -> None:

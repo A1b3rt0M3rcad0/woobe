@@ -9,10 +9,7 @@ AGENT_ROOT = ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent"
 EXECUTION_ROOT = AGENT_ROOT / "infra" / "execution"
 STRATEGIES_ROOT = EXECUTION_ROOT / "strategies"
 SDK_ROOT = AGENT_ROOT / "application" / "strategy_sdk"
-STANDARD_ROOT = STRATEGIES_ROOT / "standard"
 RESOLVER = STRATEGIES_ROOT / "resolver.py"
-LEGACY_RUNNER = EXECUTION_ROOT / "instrumented_execution_runner.py"
-LEGACY_LOOP = EXECUTION_ROOT / "tool_execution_loop.py"
 
 
 def _tree(path: Path) -> ast.Module:
@@ -29,7 +26,28 @@ def _imports(path: Path) -> list[str]:
     return result
 
 
-def test_concrete_strategy_import_allowlist() -> None:
+def _strategy_files() -> list[Path]:
+    return sorted(
+        path
+        for path in STRATEGIES_ROOT.glob("*.py")
+        if path.name not in {"__init__.py", "resolver.py"}
+    )
+
+
+def test_execution_strategies_are_flat_one_file_extensions() -> None:
+    nested_python = [
+        path.relative_to(ROOT).as_posix()
+        for path in STRATEGIES_ROOT.rglob("*.py")
+        if path.parent != STRATEGIES_ROOT
+    ]
+    assert not nested_python, (
+        "Execution Strategies must be one-file extensions; nested Strategy packages are "
+        "not allowed: " + ", ".join(nested_python)
+    )
+    assert _strategy_files(), "At least one concrete Execution Strategy must exist"
+
+
+def test_every_concrete_strategy_uses_strict_import_allowlist() -> None:
     allowed_prefixes = (
         "__future__",
         "dataclasses",
@@ -38,17 +56,9 @@ def test_concrete_strategy_import_allowlist() -> None:
         "modules.agent.application.strategy_sdk",
         "modules.agent.application.interfaces.execution",
         "modules.agent.application.interfaces.execution_strategy",
-        "modules.agent.infra.execution.strategies.standard",
-    )
-    checked = (
-        STANDARD_ROOT / "strategy.py",
-        STANDARD_ROOT / "state.py",
-        STANDARD_ROOT / "policy.py",
-        STANDARD_ROOT / "phases.py",
-        STANDARD_ROOT / "definition.py",
     )
     violations: list[str] = []
-    for path in checked:
+    for path in _strategy_files():
         for module in _imports(path):
             if not any(
                 module == prefix or module.startswith(prefix + ".")
@@ -56,34 +66,45 @@ def test_concrete_strategy_import_allowlist() -> None:
             ):
                 violations.append(f"{path.relative_to(ROOT)} imports {module}")
     assert not violations, (
-        "Concrete Execution Strategies may only depend on the Strategy SDK, stable "
-        "application interfaces and their own package:\n" + "\n".join(violations)
+        "Concrete Execution Strategies may only depend on the shared Strategy API and "
+        "stable Application interfaces:\n" + "\n".join(violations)
     )
 
 
-def test_concrete_strategy_composition_is_limited_to_explicit_boundaries() -> None:
-    concrete_prefix = "modules.agent.infra.execution.strategies.standard"
+def test_concrete_strategies_never_import_each_other() -> None:
+    prefix = "modules.agent.infra.execution.strategies."
+    violations: list[str] = []
+    for path in _strategy_files():
+        for module in _imports(path):
+            if module.startswith(prefix):
+                violations.append(f"{path.relative_to(ROOT)} imports {module}")
+    assert not violations, "\n".join(violations)
+
+
+def test_resolver_is_the_only_concrete_strategy_composition_point() -> None:
+    concrete_modules = {
+        f"modules.agent.infra.execution.strategies.{path.stem}"
+        for path in _strategy_files()
+    }
     allowed = {
         RESOLVER,
-        LEGACY_RUNNER,
-        LEGACY_LOOP,
-        STANDARD_ROOT / "__init__.py",
-        STANDARD_ROOT / "strategy.py",
-        STANDARD_ROOT / "state.py",
-        STANDARD_ROOT / "policy.py",
-        STANDARD_ROOT / "phases.py",
-        STANDARD_ROOT / "definition.py",
-        STANDARD_ROOT / "compat.py",
+        EXECUTION_ROOT / "instrumented_execution_runner.py",
+        EXECUTION_ROOT / "tool_execution_loop.py",
     }
     violations: list[str] = []
     for path in AGENT_ROOT.rglob("*.py"):
-        if path in allowed:
+        if path in allowed or path in _strategy_files():
             continue
-        if any(module.startswith(concrete_prefix) for module in _imports(path)):
+        imports = _imports(path)
+        if any(
+            module == concrete or module.startswith(concrete + ".")
+            for module in imports
+            for concrete in concrete_modules
+        ):
             violations.append(path.relative_to(ROOT).as_posix())
     assert not violations, (
-        "Concrete Strategy implementation leaked outside its package, resolver or "
-        "documented compatibility facades: " + ", ".join(violations)
+        "Concrete Strategy implementation leaked outside resolver or documented legacy "
+        "facades: " + ", ".join(violations)
     )
 
 
@@ -105,26 +126,26 @@ def test_strategy_sdk_context_public_surface_stays_small() -> None:
 
 
 def test_concrete_strategy_does_not_reach_private_context_runtime_state() -> None:
-    path = STANDARD_ROOT / "strategy.py"
     violations: list[str] = []
-    for node in ast.walk(_tree(path)):
-        if not isinstance(node, ast.Attribute):
-            continue
-        if (
-            isinstance(node.value, ast.Name)
-            and node.value.id == "ctx"
-            and node.attr.startswith("_")
-        ):
-            violations.append(node.attr)
-    assert not violations, f"Strategy accessed private StrategyContext members: {violations}"
+    for path in _strategy_files():
+        for node in ast.walk(_tree(path)):
+            if not isinstance(node, ast.Attribute):
+                continue
+            if (
+                isinstance(node.value, ast.Name)
+                and node.value.id == "ctx"
+                and node.attr.startswith("_")
+            ):
+                violations.append(f"{path.name}: ctx.{node.attr}")
+    assert not violations, "Strategy accessed private StrategyContext members: " + ", ".join(violations)
 
 
 def test_strategy_sdk_has_no_concrete_strategy_names() -> None:
-    forbidden = ("standard", "planner", "react", "reflection")
+    concrete_names = {path.stem.lower() for path in _strategy_files()}
     violations: list[str] = []
     for path in SDK_ROOT.rglob("*.py"):
         text = path.read_text(encoding="utf-8").lower()
-        for name in forbidden:
+        for name in concrete_names:
             if f'"{name}"' in text or f"'{name}'" in text:
                 violations.append(f"{path.relative_to(ROOT)} encodes {name}")
     assert not violations, "\n".join(violations)

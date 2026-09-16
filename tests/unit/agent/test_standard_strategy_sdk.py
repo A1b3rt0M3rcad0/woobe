@@ -7,15 +7,22 @@ import pytest
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.strategy_sdk import (
     Completed,
+    ExecutionCheckpointBoundary,
+    ExecutionPolicy,
+    ExecutionState,
+    ExecutionStopReason,
     StrategyModelResult,
     StrategyToolBatch,
     Suspended,
     SuspensionReason,
 )
-from modules.agent.infra.execution.strategies.standard.phases import StandardPhase
-from modules.agent.infra.execution.strategies.standard.policy import StandardExecutionPolicy
-from modules.agent.infra.execution.strategies.standard.state import StandardExecutionState
-from modules.agent.infra.execution.strategies.standard.strategy import StandardExecutionStrategy
+from modules.agent.infra.execution.strategies.standard import (
+    StandardExecutionPolicy,
+    StandardExecutionState,
+    StandardExecutionStrategy,
+    StandardPhase,
+    StandardStopReason,
+)
 
 
 class _Model:
@@ -49,10 +56,10 @@ class _Context:
         self.state = state
         self.model = model
         self.tools = tools
-        self.checkpoints = 0
+        self.checkpoints: list[ExecutionCheckpointBoundary] = []
 
-    async def checkpoint(self):
-        self.checkpoints += 1
+    async def checkpoint(self, boundary=ExecutionCheckpointBoundary.TOOL):
+        self.checkpoints.append(boundary)
 
     def complete(self, result):
         message = result.message if isinstance(result, StrategyModelResult) else result
@@ -66,6 +73,15 @@ def _model_result(*, content="", tool_calls=None):
     return StrategyModelResult(
         message=SimpleNamespace(content=content, tool_calls=list(tool_calls or []))
     )
+
+
+def test_standard_types_implement_shared_strategy_contracts() -> None:
+    state = StandardExecutionState(messages=[], next_phase=StandardPhase.RESPONSE_GENERATION.value)
+    policy = StandardExecutionPolicy()
+
+    assert isinstance(state, ExecutionState)
+    assert isinstance(policy, ExecutionPolicy)
+    assert isinstance(StandardStopReason.CAPABILITY_ROUND_LIMIT, ExecutionStopReason)
 
 
 @pytest.mark.asyncio
@@ -86,11 +102,11 @@ async def test_standard_algorithm_is_expressed_only_with_strategy_context_primit
     )
     ctx = _Context(state=state, model=_Model([first, final]), tools=_Tools([batch]))
 
-    outcome = await StandardExecutionStrategy(StandardExecutionPolicy()).execute(ctx)
+    outcome = await StandardExecutionStrategy().execute(ctx)
 
     assert isinstance(outcome, Completed)
     assert outcome.execution.result.content == "done"
-    assert ctx.checkpoints == 1
+    assert ctx.checkpoints == [ExecutionCheckpointBoundary.TOOL]
     assert state.tool_round == 1
     assert state.consecutive_failures == 0
     assert state.messages[-1] is tool_message
@@ -119,9 +135,9 @@ async def test_standard_algorithm_can_return_suspension_without_run_lifecycle_ac
     )
     ctx = _Context(state=state, model=_Model([first]), tools=_Tools([batch]))
 
-    outcome = await StandardExecutionStrategy(StandardExecutionPolicy()).execute(ctx)
+    outcome = await StandardExecutionStrategy().execute(ctx)
 
     assert isinstance(outcome, Suspended)
     assert outcome.reason is SuspensionReason.ASYNC_TOOL
     assert outcome.operation_ref == "job-123"
-    assert ctx.checkpoints == 1
+    assert ctx.checkpoints == [ExecutionCheckpointBoundary.TOOL]

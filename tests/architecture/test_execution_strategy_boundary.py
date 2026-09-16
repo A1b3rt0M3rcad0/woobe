@@ -13,13 +13,7 @@ EXECUTION_ROOT = AGENT_ROOT / "infra" / "execution"
 CAPABILITIES_ROOT = EXECUTION_ROOT / "capabilities"
 STRATEGY_RUNTIME_ROOT = EXECUTION_ROOT / "strategy_runtime"
 STRATEGIES_ROOT = EXECUTION_ROOT / "strategies"
-STANDARD_PACKAGE = STRATEGIES_ROOT / "standard"
-STANDARD_STRATEGY = STANDARD_PACKAGE / "strategy.py"
-STANDARD_STATE = STANDARD_PACKAGE / "state.py"
-STANDARD_POLICY = STANDARD_PACKAGE / "policy.py"
-STANDARD_PHASES = STANDARD_PACKAGE / "phases.py"
-STANDARD_DEFINITION = STANDARD_PACKAGE / "definition.py"
-STANDARD_COMPAT = STANDARD_PACKAGE / "compat.py"
+STANDARD_STRATEGY = STRATEGIES_ROOT / "standard.py"
 RESOLVER = STRATEGIES_ROOT / "resolver.py"
 STRATEGY_INTERFACE = APPLICATION_ROOT / "interfaces" / "execution_strategy.py"
 STRATEGY_CONFIG = APPLICATION_ROOT / "execution_strategy_config.py"
@@ -79,17 +73,18 @@ def _calls(path: Path, method_name: str) -> bool:
     return False
 
 
-def test_execution_strategy_partition_is_explicit() -> None:
+def test_execution_strategy_partition_is_explicit_and_flat() -> None:
     assert SDK_ROOT.is_dir()
     assert STRATEGY_RUNTIME_ROOT.is_dir()
     assert STRATEGIES_ROOT.is_dir()
-    assert STANDARD_PACKAGE.is_dir()
+    assert STANDARD_STRATEGY.is_file()
+    assert not (STRATEGIES_ROOT / "standard").exists()
     for path in (
+        SDK_ROOT / "contracts.py",
         SDK_ROOT / "context.py",
         SDK_ROOT / "model.py",
         SDK_ROOT / "tools.py",
         SDK_ROOT / "outcome.py",
-        SDK_ROOT / "state.py",
         STRATEGY_RUNTIME_ROOT / "builder.py",
         STRATEGY_RUNTIME_ROOT / "context.py",
         STRATEGY_RUNTIME_ROOT / "model.py",
@@ -97,12 +92,6 @@ def test_execution_strategy_partition_is_explicit() -> None:
         STRATEGY_RUNTIME_ROOT / "checkpoint.py",
         STRATEGY_RUNTIME_ROOT / "runtime_state.py",
         STRATEGY_RUNTIME_ROOT / "runner.py",
-        STANDARD_STRATEGY,
-        STANDARD_STATE,
-        STANDARD_POLICY,
-        STANDARD_PHASES,
-        STANDARD_DEFINITION,
-        STANDARD_COMPAT,
         RESOLVER,
         STRATEGY_INTERFACE,
     ):
@@ -130,7 +119,7 @@ def test_strategy_sdk_never_depends_on_infrastructure_or_provider_frameworks() -
     assert not violations, "\n".join(violations)
 
 
-def test_concrete_standard_algorithm_uses_sdk_not_runtime_implementation() -> None:
+def test_concrete_standard_algorithm_uses_shared_contracts_not_runtime_implementation() -> None:
     forbidden = (
         "modules.agent.infra.execution.capabilities",
         "modules.agent.infra.execution.strategy_runtime",
@@ -144,13 +133,8 @@ def test_concrete_standard_algorithm_uses_sdk_not_runtime_implementation() -> No
         "openai",
         "anthropic",
     )
-    checked = (STANDARD_STRATEGY, STANDARD_STATE, STANDARD_POLICY, STANDARD_PHASES, STANDARD_DEFINITION)
-    violations: list[str] = []
-    for path in checked:
-        for module in _imports(path):
-            if any(module.startswith(prefix) for prefix in forbidden):
-                violations.append(f"{path.relative_to(ROOT)} imports {module}")
-    assert not violations, "\n".join(violations)
+    for module in _imports(STANDARD_STRATEGY):
+        assert not any(module.startswith(prefix) for prefix in forbidden)
     assert _imports_module(
         STANDARD_STRATEGY,
         "modules.agent.application.strategy_sdk",
@@ -176,8 +160,8 @@ def test_strategy_runtime_is_the_only_bridge_to_capabilities() -> None:
 
 
 def test_strategy_runtime_never_depends_on_concrete_strategies() -> None:
-    violations: list[str] = []
     prefix = "modules.agent.infra.execution.strategies"
+    violations: list[str] = []
     for path in STRATEGY_RUNTIME_ROOT.rglob("*.py"):
         for module in _imports(path):
             if module.startswith(prefix):
@@ -194,7 +178,7 @@ def test_resolver_is_explicit_composition_point() -> None:
     assert _imports_module(
         RESOLVER,
         "modules.agent.infra.execution.strategies.standard",
-        "build_standard_strategy_definition",
+        "StandardExecutionStrategy",
     )
     assert not _imports_module(RESOLVER, "modules.agent.application.execution_strategy_registry")
     assert not _imports_module(RESOLVER, "modules.agent.application.execution_strategy_config")
@@ -232,12 +216,12 @@ def test_legacy_entrypoints_delegate_to_new_strategy_runtime() -> None:
     assert _imports_module(
         LEGACY_RUNNER,
         "modules.agent.infra.execution.strategy_runtime.runner",
-        "execute_strategy_definition",
+        "execute_strategy",
     )
     assert _imports_module(
         LEGACY_LOOP,
-        "modules.agent.infra.execution.strategies.standard",
-        "run_standard_strategy_loop",
+        "modules.agent.infra.execution.strategy_runtime.runner",
+        "execute_strategy_with_capabilities",
     )
 
 

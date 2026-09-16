@@ -8,12 +8,8 @@ from langchain_core.messages import AIMessage
 
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
-from modules.agent.infra.execution.strategies.standard import (
-    build_standard_strategy_definition,
-)
-from modules.agent.infra.execution.strategy_runtime.runner import (
-    execute_strategy_definition,
-)
+from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
+from modules.agent.infra.execution.strategy_runtime.runner import execute_strategy
 
 
 class _SequenceModel:
@@ -94,7 +90,7 @@ def _request(
 
 
 async def _execute(request: ExecutionStrategyRequest):
-    return await execute_strategy_definition(build_standard_strategy_definition(), request)
+    return await execute_strategy(StandardExecutionStrategy(), request)
 
 
 @pytest.mark.asyncio
