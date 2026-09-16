@@ -94,14 +94,17 @@ class _FallbackUseCase(InstrumentedFallbackMixin):
         assert channel is not None
         channel.bind_execution(
             trace_id=self.run.trace_id,
-            session_id=None,
+            session_id=self.run.session_id,
             project_id=self.run.project_id,
             agent_id=self.run.agent_id,
         )
         setattr(channel, "run_id", self.run.id)
         await self.store.create(
             self.run.id,
-            {"status": "running"},
+            {
+                "status": "running",
+                "session_id": str(self.run.session_id),
+            },
             ttl_seconds=3600,
         )
         await channel.emit(
@@ -139,14 +142,17 @@ class _JsonRepairUseCase:
         assert channel is not None
         channel.bind_execution(
             trace_id=self.run.trace_id,
-            session_id=None,
+            session_id=self.run.session_id,
             project_id=self.run.project_id,
             agent_id=self.run.agent_id,
         )
         setattr(channel, "run_id", self.run.id)
         await self.store.create(
             self.run.id,
-            {"status": "running"},
+            {
+                "status": "running",
+                "session_id": str(self.run.session_id),
+            },
             ttl_seconds=3600,
         )
         await channel.emit(
@@ -176,6 +182,7 @@ class _JsonRepairUseCase:
 
 def _run() -> AgentRun:
     return AgentRun(
+        session_id=uuid4(),
         project_id=uuid4(),
         agent_id=uuid4(),
         trace_id=uuid4(),
