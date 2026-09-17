@@ -101,10 +101,15 @@ export function Dialog({ open, onClose, title, children, className, contentClass
   const overlayRef = useRef<HTMLDivElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
   const previouslyFocusedRef = useRef<HTMLElement | null>(null)
+  const onCloseRef = useRef(onClose)
   const titleId = useId()
   const overlayId = useId()
   const contentScroll = scrollMode === 'content'
   const workspace = variant === 'workspace'
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
 
   useEffect(() => {
     if (!open || presentation !== 'modal') return
@@ -126,7 +131,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
       if (event.key === 'Escape') {
         event.preventDefault()
         event.stopPropagation()
-        onClose()
+        onCloseRef.current()
         return
       }
 
@@ -168,7 +173,7 @@ export function Dialog({ open, onClose, title, children, className, contentClass
         })
       }
     }
-  }, [onClose, open, overlayId, presentation])
+  }, [open, overlayId, presentation])
 
   if (!open) return null
 
