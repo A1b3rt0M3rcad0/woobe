@@ -85,7 +85,7 @@ class NetworkRuntimeLoader:
         consumer: str,
         snapshot: dict,
     ) -> dict:
-        fields = effective_contract.get("fields") or {}
+        fields = effective_contract.get("fields") if set(effective_contract).issubset({"fields", "additionalProperties"}) and isinstance(effective_contract.get("fields"), dict) else effective_contract
         return {
             name: deepcopy(snapshot[name])
             for name, field in fields.items()
