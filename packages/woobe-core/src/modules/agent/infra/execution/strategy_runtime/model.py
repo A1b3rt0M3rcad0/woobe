@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from langchain_core.messages import SystemMessage
+
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.strategy_sdk import (
     StrategyModelResult,
@@ -15,6 +17,58 @@ from modules.agent.infra.execution.capabilities.model_invocation import (
     ModelInvocationCapability,
 )
 from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
+
+
+def _messages_with_execution_directive(
+    messages: list[Any],
+    *,
+    phase: StrategyPhase,
+    directive: str | None,
+) -> list[Any]:
+    """Materialize one Strategy directive without mutating runtime-owned messages."""
+
+    if directive is None:
+        return messages
+    normalized = directive.strip()
+    if not normalized:
+        return messages
+
+    phase_value = strategy_phase_value(phase)
+    message = SystemMessage(
+        content=(
+            "<execution_directive>\n"
+            f"phase: {phase_value}\n"
+            "scope: current model invocation only\n\n"
+            "Follow this directive within the Agent's existing objective, "
+            "behavioral constraints, and Skills. It does not replace or mutate "
+            "them.\n\n"
+            f"{normalized}\n"
+            "</execution_directive>"
+        ),
+        additional_kwargs={
+            "woobe_context": {
+                "source_type": "SYSTEM",
+                "source_ref": f"execution_directive:{phase_value}",
+                "kind": "execution_directive",
+                "phase": phase_value,
+                "selection_method": "strategy_directive",
+                "trust": "system-controlled",
+                "sensitivity": "internal",
+            }
+        },
+    )
+
+    # Keep provider-facing System messages grouped at the beginning while making
+    # the directive the last system-level instruction before conversational input.
+    materialized = list(messages)
+    insertion = 0
+    while (
+        insertion < len(materialized)
+        and materialized[insertion].__class__.__name__ == "SystemMessage"
+    ):
+        insertion += 1
+    materialized.insert(insertion, message)
+    return materialized
 
 
 class RuntimeStrategyModel:
@@ -55,11 +109,17 @@ class RuntimeStrategyModel:
         capability: ModelInvocationCapability,
         messages: list[Any],
         phase: StrategyPhase,
+        directive: str | None = None,
     ) -> StrategyModelResult:
         call_index = self._runtime_state.next_call_index()
+        invocation_messages = _messages_with_execution_directive(
+            messages,
+            phase=phase,
+            directive=directive,
+        )
         try:
             result, call = await capability.invoke(
-                messages=messages,
+                messages=invocation_messages,
                 phase=strategy_phase_value(phase),
                 call_index=call_index,
             )
@@ -75,11 +135,13 @@ class RuntimeStrategyModel:
         self,
         *,
         phase: StrategyPhase | None = None,
+        directive: str | None = None,
     ) -> StrategyModelResult:
         return await self._invoke(
             capability=self._capability,
             messages=self._runtime_state.messages,
             phase=phase or self._initial_phase,
+            directive=directive,
         )
 
     async def finalize(
@@ -87,6 +149,7 @@ class RuntimeStrategyModel:
         *,
         reason: str,
         phase: StrategyPhase,
+        directive: str | None = None,
     ) -> StrategyModelResult:
         terminal_model = self._final_model
         if terminal_model is None and self._final_model_factory is not None:
@@ -117,6 +180,7 @@ class RuntimeStrategyModel:
                     reason,
                 ),
                 phase=phase,
+                directive=directive,
             )
         except InstrumentedExecutionError as exc:
             execution = self._runtime_state.execution
