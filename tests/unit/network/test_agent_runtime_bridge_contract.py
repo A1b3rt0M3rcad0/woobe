@@ -35,6 +35,9 @@ class _AgentOutput:
 class _RuntimeBridgeUseCase:
     async def execute(self, input_dto):
         assert input_dto.metadata["source"] == "network_runtime"
+        context = current_execution.get()
+        assert context is not None
+        assert context.tool_result_max_chars == 24_000
         return _AgentOutput()
 
 
@@ -153,6 +156,7 @@ def _invoke_kwargs(*, internal_tools=None, stream_handler=None):
             "parent_invocation_id": None,
             "network_node_id": str(uuid4()),
             "depth": 0,
+            "tool_result_max_chars": 24_000,
         },
         "stream_handler": stream_handler,
     }
