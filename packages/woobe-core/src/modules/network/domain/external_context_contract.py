@@ -23,9 +23,9 @@ class EffectiveExternalContextResolution:
 def _effective_fields(value: Any) -> dict[str, Any]:
     if value in (None, {}):
         return {}
-    if not isinstance(value, dict) or not isinstance(value.get("fields"), dict):
+    if not isinstance(value, dict):
         raise ExternalContextContractError("Effective External Context contract is invalid")
-    fields = value["fields"]
+    fields = value["fields"] if set(value).issubset({"fields", "additionalProperties"}) and isinstance(value.get("fields"), dict) else value
     for name, field in fields.items():
         if not isinstance(name, str) or not name:
             raise ExternalContextContractError(
@@ -64,7 +64,7 @@ def resolve_effective_external_context(
     fields = _effective_fields(effective_contract)
     raw_values = {} if request_values is None else request_values
     validated_request = validate_effective_external_context_values(
-        {"fields": fields},
+        fields,
         raw_values,
     )
     persisted = dict(session_values or {})
@@ -82,7 +82,7 @@ def resolve_effective_external_context(
         if scope == "session" and name in persisted:
             value = persisted[name]
             validate_effective_external_context_values(
-                {"fields": {name: field}},
+                {name: field},
                 {name: value},
             )
             snapshot[name] = deepcopy(value)
@@ -119,7 +119,7 @@ def consumer_external_context_contract(
         if "default" in consumer_spec:
             reconstructed["default"] = deepcopy(consumer_spec["default"])
         consumer_fields[name] = reconstructed
-    return normalize_external_context_contract({"fields": consumer_fields})
+    return normalize_external_context_contract(consumer_fields)
 
 
 def project_effective_external_context(
@@ -134,7 +134,7 @@ def project_effective_external_context(
     """
 
     contract = consumer_external_context_contract(effective_contract, consumer)
-    declared = contract["fields"]
+    declared = contract
     source = dict(snapshot or {})
     values = {
         name: deepcopy(source[name])
@@ -160,7 +160,7 @@ def _single_field_contract(
     }
     if "default" in consumer:
         value["default"] = deepcopy(consumer["default"])
-    return {"fields": {name: value}}
+    return {name: value}
 
 
 def classify_effective_external_context_change(
@@ -193,23 +193,19 @@ def classify_effective_external_context_change(
 
         old_consumers = old_field.get("consumers") or {}
         old_probe = {
-            "fields": {
-                name: {
-                    "schema": deepcopy(old_field.get("schema") or {}),
-                    "required": False,
-                    "scope": old_field.get("scope", "run"),
-                    "model": {"expose": False},
-                }
+            name: {
+                "schema": deepcopy(old_field.get("schema") or {}),
+                "required": False,
+                "scope": old_field.get("scope", "run"),
+                "model": {"expose": False},
             }
         }
         new_probe = {
-            "fields": {
-                name: {
-                    "schema": deepcopy(new_field.get("schema") or {}),
-                    "required": False,
-                    "scope": new_field.get("scope", "run"),
-                    "model": {"expose": False},
-                }
+            name: {
+                "schema": deepcopy(new_field.get("schema") or {}),
+                "required": False,
+                "scope": new_field.get("scope", "run"),
+                "model": {"expose": False},
             }
         }
         shape_kind = classify_external_context_change(old_probe, new_probe)
