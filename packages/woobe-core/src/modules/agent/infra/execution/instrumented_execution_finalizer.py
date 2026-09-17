@@ -150,19 +150,17 @@ async def finalize_instrumented_execution(owner, **kw):
     ) -> AskOutput:
         finalization_started_at = _utc_now()
         finalization_started = time.monotonic()
-        message_id = None
-        if session:
-            message = await owner._do_save_assistant_message(
-                repositories.messages,
-                repositories.sessions,
-                outbox,
-                session,
-                kw["answer"],
-                usage,
-                agent,
-                tool_calls=execution.tool_calls,
-            )
-            message_id = message.id
+        message = await owner._do_save_assistant_message(
+            repositories.messages,
+            repositories.sessions,
+            outbox,
+            session,
+            kw["answer"],
+            usage,
+            agent,
+            tool_calls=execution.tool_calls,
+        )
+        message_id = message.id
 
         for item in sorted(execution.timeline, key=lambda value: value.get("occurred_at", "")):
             event_payload = {
@@ -356,8 +354,8 @@ async def finalize_instrumented_execution(owner, **kw):
             "trace_id": trace_id_text,
             "project_id": project_id_text,
             "agent_id": agent_id_text,
-            "session_id": str(session.id) if session else None,
-            "message_id": str(message_id) if message_id else None,
+            "session_id": str(session.id),
+            "message_id": str(message_id),
             "answer_length": len(kw["answer"]),
             "input_tokens": canonical_usage.input_tokens,
             "output_tokens": canonical_usage.output_tokens,
@@ -404,7 +402,7 @@ async def finalize_instrumented_execution(owner, **kw):
         output = AskOutput(
             run_id=run_id,
             answer=kw["answer"],
-            session_id=session.id if session else None,
+            session_id=session.id,
             message_id=message_id,
             usage=canonical_usage,
             sources=sources,
