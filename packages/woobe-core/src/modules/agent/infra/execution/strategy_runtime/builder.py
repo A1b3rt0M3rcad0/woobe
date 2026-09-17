@@ -1,0 +1,159 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Any
+
+from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.execution_strategy import (
+    ExecutionStrategy,
+    ExecutionStrategyRequest,
+)
+from modules.agent.infra.execution.capabilities.bundle import (
+    ExecutionCapabilities,
+    build_execution_capabilities,
+)
+from modules.agent.infra.execution.capabilities.preparation import (
+    PreparedExecution,
+    prepare_execution,
+)
+from modules.agent.infra.execution.strategy_runtime.checkpoint import (
+    RuntimeStrategyCheckpoint,
+)
+from modules.agent.infra.execution.strategy_runtime.context import RuntimeStrategyContext
+from modules.agent.infra.execution.strategy_runtime.model import RuntimeStrategyModel
+from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
+from modules.agent.infra.execution.strategy_runtime.state import RuntimeStrategyStateStore
+from modules.agent.infra.execution.strategy_runtime.tools import RuntimeStrategyTools
+
+
+@dataclass(frozen=True, slots=True)
+class BuiltStrategyContext:
+    context: RuntimeStrategyContext[Any]
+    runtime_state: StrategyRuntimeState
+    preflight_tool_call: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BuiltStrategyExecution:
+    context: RuntimeStrategyContext[Any]
+    runtime_state: StrategyRuntimeState
+    prepared: PreparedExecution
+    preflight_tool_call: dict[str, Any] | None = None
+
+
+def _next_call_index(cursor: dict[str, Any] | None) -> int:
+    if cursor is None:
+        return 1
+    try:
+        next_call_index = int(cursor.get("next_call_index") or 1)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError("Execution Strategy recovery cursor has invalid call index") from exc
+    if next_call_index <= 0:
+        raise RuntimeError("Execution Strategy recovery cursor has invalid call index")
+    return next_call_index
+
+
+def _preflight_tool_call(
+    bootstrap: dict[str, Any] | None,
+    *,
+    resuming: bool,
+) -> dict[str, Any] | None:
+    if resuming or not bootstrap:
+        return None
+    value = bootstrap.get("initial_tool_call")
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("Execution Strategy initial_tool_call must be a mapping")
+    return value
+
+
+def build_strategy_context_from_capabilities(
+    *,
+    strategy: ExecutionStrategy[Any],
+    capabilities: ExecutionCapabilities,
+    messages: list[Any],
+    initial_phase: str,
+    final_model: Any | None = None,
+    final_model_factory: Any | None = None,
+    final_json_instruction: str | None = None,
+    bootstrap: dict[str, Any] | None = None,
+) -> BuiltStrategyContext:
+    resume = capabilities.recovery.load()
+    cursor = dict(resume.cursor) if resume is not None else None
+    next_call_index = _next_call_index(cursor)
+
+    runtime_state = StrategyRuntimeState(
+        execution=(
+            resume.execution if resume is not None else InstrumentedExecution(result=None)
+        ),
+        call_index=max(0, next_call_index - 1),
+        messages=[
+            *messages,
+            *(resume.capability_messages if resume is not None else []),
+        ],
+        base_message_count=len(messages),
+    )
+    state_store = RuntimeStrategyStateStore()
+    state = state_store.create(
+        strategy.state_type,
+        cursor,
+        strategy_name=strategy.name,
+    )
+    checkpoint = RuntimeStrategyCheckpoint(
+        recovery=capabilities.recovery,
+        runtime_state=runtime_state,
+        state_store=state_store,
+    )
+    context = RuntimeStrategyContext(
+        state=state,
+        model=RuntimeStrategyModel(
+            capability=capabilities.model,
+            runtime_state=runtime_state,
+            base_messages=messages,
+            initial_phase=initial_phase,
+            final_model=final_model,
+            final_model_factory=final_model_factory,
+            final_json_instruction=final_json_instruction,
+        ),
+        tools=RuntimeStrategyTools(
+            capability=capabilities.tools,
+            runtime_state=runtime_state,
+        ),
+        checkpoint=checkpoint,
+    )
+    return BuiltStrategyContext(
+        context=context,
+        runtime_state=runtime_state,
+        preflight_tool_call=_preflight_tool_call(
+            bootstrap,
+            resuming=resume is not None,
+        ),
+    )
+
+
+def build_strategy_execution(
+    *,
+    strategy: ExecutionStrategy[Any],
+    request: ExecutionStrategyRequest,
+) -> BuiltStrategyExecution:
+    prepared = prepare_execution(request)
+    capabilities = build_execution_capabilities(
+        prepared=prepared,
+        strategy_name=strategy.name,
+    )
+    built = build_strategy_context_from_capabilities(
+        strategy=strategy,
+        capabilities=capabilities,
+        messages=prepared.messages,
+        initial_phase=prepared.initial_phase,
+        final_model=prepared.final_model,
+        final_model_factory=prepared.final_model_factory,
+        final_json_instruction=prepared.final_json_instruction,
+    )
+    return BuiltStrategyExecution(
+        context=built.context,
+        runtime_state=built.runtime_state,
+        prepared=prepared,
+        preflight_tool_call=built.preflight_tool_call,
+    )

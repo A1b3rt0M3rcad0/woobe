@@ -11,6 +11,7 @@ from modules.agent.infra.execution.capabilities.preparation import (
     configure_skill_runtime,
 )
 from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
+from modules.agent.infra.execution.strategy_runtime.runner import execute_strategy
 
 
 async def run_instrumented_execution(
@@ -29,13 +30,10 @@ async def run_instrumented_execution(
     messages: list,
     context_assembler: ContextAssembler | None = None,
 ) -> InstrumentedExecution:
-    """Compatibility entrypoint for the pre-Strategy execution API.
+    """Compatibility entrypoint delegating to the same flat Standard Strategy."""
 
-    New runtime code resolves Strategies through `ExecutionStrategyResolver`. This function
-    remains only for focused legacy callers/tests and delegates to the same Standard Strategy
-    used by production instead of maintaining a second execution algorithm.
-    """
-    return await StandardExecutionStrategy().execute(
+    return await execute_strategy(
+        StandardExecutionStrategy(),
         ExecutionStrategyRequest(
             llm_factory=llm_factory,
             execute_single_tool=execute_single_tool,
@@ -50,7 +48,7 @@ async def run_instrumented_execution(
             tool_name_to_id=tool_name_to_id,
             messages=messages,
             context_assembler=context_assembler,
-        )
+        ),
     )
 
 

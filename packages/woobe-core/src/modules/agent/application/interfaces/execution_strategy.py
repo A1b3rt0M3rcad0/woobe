@@ -1,22 +1,24 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Callable, Coroutine, Protocol, runtime_checkable
+from typing import Any, Callable, Coroutine, Generic, Protocol, TypeVar, runtime_checkable
 
 from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.strategy_sdk import ExecutionState, StrategyContext, StrategyOutcome
 from modules.agent.domain.entities import Agent
+
+
+StateT = TypeVar("StateT", bound=ExecutionState)
 
 
 @dataclass(frozen=True, slots=True)
 class ExecutionStrategyRequest:
-    """Runtime-to-Strategy input for one Agent execution.
+    """Outer runtime input used to prepare one Agent execution.
 
-    This is the outer boundary supplied by the Agent Runtime. Concrete Strategies should
-    resolve it through the shared execution preparation/capability layer rather than
-    reaching into Runtime lifecycle services directly. The Runtime keeps ownership of
-    persistence, Agent Run lifecycle, release/recovery wiring, policy, streaming transport
-    and terminal observability guarantees.
+    Concrete Strategies never consume this request directly. The Strategy Runtime resolves
+    it into ``StrategyContext`` so algorithms stay independent from provider factories,
+    persistence, transport and lifecycle plumbing.
     """
 
     llm_factory: Any
@@ -35,14 +37,30 @@ class ExecutionStrategyRequest:
 
 
 @runtime_checkable
-class ExecutionStrategy(Protocol):
-    """Algorithm used by an Agent to conduct one execution."""
+class ExecutionStrategy(Protocol, Generic[StateT]):
+    """One concrete Agent execution algorithm."""
 
-    async def execute(self, request: ExecutionStrategyRequest) -> InstrumentedExecution: ...
+    name: str
+    state_type: type[StateT]
+
+    async def execute(
+        self,
+        ctx: StrategyContext[StateT],
+    ) -> StrategyOutcome: ...
+
+
+@runtime_checkable
+class ExecutableExecutionStrategy(Protocol):
+    """Outer-runtime adapter that executes a Strategy from a prepared request."""
+
+    async def execute(
+        self,
+        request: ExecutionStrategyRequest,
+    ) -> InstrumentedExecution: ...
 
 
 @runtime_checkable
 class ExecutionStrategyResolver(Protocol):
-    """Resolve the concrete algorithm selected by an Agent runtime snapshot."""
+    """Resolve a runtime-ready Strategy adapter selected by an Agent snapshot."""
 
-    def resolve(self, name: str) -> ExecutionStrategy: ...
+    def resolve(self, name: str) -> ExecutableExecutionStrategy: ...

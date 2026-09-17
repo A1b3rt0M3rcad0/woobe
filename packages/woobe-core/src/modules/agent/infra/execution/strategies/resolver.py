@@ -3,38 +3,38 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from modules.agent.application.interfaces.execution_strategy import (
+    ExecutableExecutionStrategy,
     ExecutionStrategy,
     ExecutionStrategyResolver,
 )
 from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
+from modules.agent.infra.execution.strategy_runtime.runner import StrategyExecutionRunner
 
 
 _BUILTIN_EXECUTION_STRATEGY_FACTORIES: dict[
     str,
     Callable[[], ExecutionStrategy],
 ] = {
-    "standard": StandardExecutionStrategy,
+    StandardExecutionStrategy.name: StandardExecutionStrategy,
 }
 
 
 def builtin_execution_strategy_names() -> frozenset[str]:
-    """Expose implemented built-in identities without coupling infra to app metadata."""
-
     return frozenset(_BUILTIN_EXECUTION_STRATEGY_FACTORIES)
 
 
 class BuiltinExecutionStrategyResolver:
-    """Resolve concrete built-in strategies behind the Application runtime contract."""
+    """Resolve built-in algorithms behind the outer runtime execution contract."""
 
     __slots__ = ("_strategies",)
 
     def __init__(self) -> None:
-        self._strategies: dict[str, ExecutionStrategy] = {
-            name: factory()
+        self._strategies: dict[str, ExecutableExecutionStrategy] = {
+            name: StrategyExecutionRunner(factory())
             for name, factory in _BUILTIN_EXECUTION_STRATEGY_FACTORIES.items()
         }
 
-    def resolve(self, name: str) -> ExecutionStrategy:
+    def resolve(self, name: str) -> ExecutableExecutionStrategy:
         strategy = self._strategies.get(name)
         if strategy is None:
             raise ValueError(f"Unsupported execution strategy: {name}")

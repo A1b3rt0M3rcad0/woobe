@@ -5,9 +5,7 @@ from typing import Any, Callable, Coroutine
 from modules.agent.application.interfaces.context_assembler import ContextAssembler
 from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.infra.execution.capabilities.bundle import ExecutionCapabilities
-from modules.agent.infra.execution.capabilities.model_invocation import (
-    ModelInvocationCapability,
-)
+from modules.agent.infra.execution.capabilities.model_invocation import ModelInvocationCapability
 from modules.agent.infra.execution.capabilities.recovery import StrategyRecoveryCapability
 from modules.agent.infra.execution.capabilities.tool_execution import ToolExecutionCapability
 from modules.agent.infra.execution.durable_execution_instrumentation import (
@@ -17,7 +15,10 @@ from modules.agent.infra.execution.durable_execution_instrumentation import (
 from modules.agent.infra.execution.strategies.standard import (
     MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS,
     MAX_TOOL_ROUNDS,
-    run_standard_strategy_loop,
+    StandardExecutionStrategy,
+)
+from modules.agent.infra.execution.strategy_runtime.runner import (
+    execute_strategy_with_capabilities,
 )
 
 
@@ -37,13 +38,8 @@ async def run_tool_loop(
     pricing_snapshot: dict[str, Any] | None = None,
     context_assembler: ContextAssembler | None = None,
 ) -> tuple[InstrumentedExecution, int]:
-    """Compatibility facade for callers of the pre-Strategy Standard loop API.
+    """Compatibility facade for callers of the pre-Strategy Standard loop API."""
 
-    The Standard algorithm now lives in `StandardExecutionStrategy`. Local aliases for
-    `invoke_llm` and `execute_tool_call` are deliberately injected so existing focused
-    tests can still replace the durable boundaries without bypassing the new capability
-    contracts in production.
-    """
     capabilities = ExecutionCapabilities(
         model=ModelInvocationCapability(
             model=model,
@@ -60,14 +56,15 @@ async def run_tool_loop(
         ),
         recovery=StrategyRecoveryCapability(strategy_name="standard"),
     )
-    return await run_standard_strategy_loop(
+    return await execute_strategy_with_capabilities(
+        strategy=StandardExecutionStrategy(),
         capabilities=capabilities,
         messages=messages,
         final_model=final_model,
         final_model_factory=final_model_factory,
         initial_phase=initial_phase,
         final_json_instruction=final_json_instruction,
-        initial_tool_call=initial_tool_call,
+        bootstrap={"initial_tool_call": initial_tool_call},
     )
 
 

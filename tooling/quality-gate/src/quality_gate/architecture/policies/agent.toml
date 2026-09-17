@@ -113,6 +113,74 @@ forbid_untyped_dependencies = true
 # composition and HTTP/SSE formatting belongs to presentation.
 
 [[rules]]
+id = "ARCH079"
+description = "Execution Strategy resolver is the explicit composition point for flat concrete Strategies"
+source = ["infra/execution/strategies/resolver.py"]
+allow = [
+  "modules.agent.application.interfaces",
+  "modules.agent.infra.execution.strategies",
+  "modules.agent.infra.execution.strategy_runtime",
+]
+deny = [
+  "modules.agent.infra.database",
+  "modules.agent.presentation",
+  "modules.agent.composition",
+  "modules.network",
+  "woobe_api",
+  "woobe_workers",
+]
+
+[[rules]]
+id = "ARCH080"
+description = "every flat concrete Execution Strategy depends only on the Strategy SDK and stable Application interfaces"
+source = ["infra/execution/strategies/*.py"]
+allow = [
+  "modules.agent.application.strategy_sdk",
+  "modules.agent.application.interfaces",
+]
+deny = [
+  "modules.agent.infra.execution.capabilities",
+  "modules.agent.infra.execution.strategy_runtime",
+  "modules.agent.infra.execution.strategies",
+  "modules.agent.infra.database",
+  "modules.agent.infra.execution.runtime_streaming",
+  "modules.agent.infra.execution.durable_execution_instrumentation",
+  "modules.network",
+  "woobe_api",
+  "woobe_workers",
+  "langchain",
+  "langchain_core",
+  "langchain_openai",
+  "openai",
+  "anthropic",
+  "sqlalchemy",
+  "redis",
+  "pymongo",
+]
+
+[[rules]]
+id = "ARCH081"
+description = "Strategy Runtime is the only bridge from the Strategy SDK to execution capabilities and cannot depend on concrete Strategies"
+source = ["infra/execution/strategy_runtime/**"]
+allow = [
+  "modules.agent.application.strategy_sdk",
+  "modules.agent.application.interfaces",
+  "modules.agent.infra.execution.strategy_runtime",
+  "modules.agent.infra.execution.capabilities",
+  "modules.agent.infra.execution",
+  "modules.agent.domain",
+  "shared",
+]
+deny = [
+  "modules.agent.infra.execution.strategies",
+  "modules.agent.presentation",
+  "modules.agent.composition",
+  "modules.network",
+  "woobe_api",
+  "woobe_workers",
+]
+
+[[rules]]
 id = "ARCH026"
 description = "composers are pure composition roots: they may wire concrete implementations but cannot depend directly on frameworks, transport primitives or configuration loaders"
 source = ["composition/composers/**"]

@@ -1,318 +1,159 @@
 from __future__ import annotations
 
-from typing import Any, Callable
+from dataclasses import dataclass
 
-from langchain_core.messages import AIMessage
-
-from modules.agent.application.interfaces.execution import (
-    InstrumentedExecution,
-    InstrumentedExecutionError,
+from modules.agent.application.interfaces.execution import InstrumentedExecutionError
+from modules.agent.application.interfaces.execution_strategy import ExecutionStrategy
+from modules.agent.application.strategy_sdk import (
+    Completed,
+    ExecutionCheckpointBoundary,
+    ExecutionPhase,
+    ExecutionPolicy,
+    ExecutionState,
+    ExecutionStopReason,
+    StrategyContext,
+    StrategyOutcome,
+    Suspended,
+    strategy_phase_with_iteration,
 )
-from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
-from modules.agent.infra.execution.capabilities.bundle import (
-    ExecutionCapabilities,
-    build_execution_capabilities,
+
+
+DEFAULT_MAX_TOOL_ROUNDS = 5
+DEFAULT_MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS = 2
+MAX_TOOL_ROUNDS = DEFAULT_MAX_TOOL_ROUNDS
+MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS = (
+    DEFAULT_MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS
 )
-from modules.agent.infra.execution.capabilities.message_progression import (
-    has_tool_calls,
-    sanitize_base_messages,
-    terminal_response_messages,
-)
-from modules.agent.infra.execution.capabilities.preparation import prepare_execution
-from modules.agent.infra.execution.capabilities.result_finalization import (
-    finalize_execution_result,
-)
-from modules.agent.infra.execution.capabilities.state import StrategyExecutionState
-
-MAX_TOOL_ROUNDS = 5
-MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS = 2
 
 
-def _failure_context(
-    context: dict[str, Any] | None,
-    *,
-    partial_result_available: bool,
-) -> dict[str, Any]:
-    return {
-        **(context or {}),
-        "partial_result_available": partial_result_available,
-    }
+class StandardPhase(ExecutionPhase):
+    RESPONSE_GENERATION = "response_generation"
+    CAPABILITY_RESPONSE_GENERATION = "capability_response_generation"
+    TOOL_FOLLOWUP = "tool_followup"
+    FINAL_RESPONSE_GENERATION = "final_response_generation"
 
 
-async def _invoke_terminal_recovery(
-    *,
-    capabilities: ExecutionCapabilities,
-    state: StrategyExecutionState,
-    base_messages: list,
-    stopped_reason: str,
-    call_index: int,
-    final_model: Any | None,
-    final_model_factory: Callable[[], Any] | None,
-    final_json_instruction: str | None,
-) -> Any:
-    terminal_model = final_model
-    if terminal_model is None and final_model_factory is not None:
-        terminal_model = final_model_factory()
-    if terminal_model is None:
-        execution = state.execution
-        raise InstrumentedExecutionError(
-            stopped_reason,
-            llm_calls=execution.llm_calls,
-            tool_calls=execution.tool_calls,
-            timeline=execution.timeline,
-            tool_wall_latency_ms=execution.tool_wall_latency_ms,
-            tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
-            failure_context=_failure_context(
-                execution.failure_context,
-                partial_result_available=bool(execution.tool_calls),
-            ),
-        )
-
-    terminal_capability = capabilities.model.for_model(terminal_model)
-    try:
-        result, call = await terminal_capability.invoke(
-            messages=terminal_response_messages(
-                base_messages,
-                final_json_instruction,
-                state.execution.tool_calls,
-                stopped_reason,
-            ),
-            phase="final_response_generation",
-            call_index=call_index,
-        )
-    except InstrumentedExecutionError as exc:
-        execution = state.execution
-        raise InstrumentedExecutionError(
-            str(exc),
-            llm_calls=execution.llm_calls + exc.llm_calls,
-            tool_calls=execution.tool_calls,
-            timeline=execution.timeline + exc.timeline,
-            tool_wall_latency_ms=execution.tool_wall_latency_ms,
-            tool_call_duration_sum_ms=execution.tool_call_duration_sum_ms,
-            failure_context=_failure_context(
-                exc.failure_context or execution.failure_context,
-                partial_result_available=bool(execution.tool_calls),
-            ),
-        ) from exc
-
-    state.record_model_result(result=result, call=call)
-    return result
+class StandardStopReason(ExecutionStopReason):
+    REPEATED_SEMANTIC_FAILURES = "repeated semantic capability failures"
+    CAPABILITY_ROUND_LIMIT = "capability round limit reached"
+    PROVIDER_REJECTED_FOLLOWUP = (
+        "the capability follow-up request was rejected by the provider"
+    )
 
 
-async def run_standard_strategy_loop(
-    *,
-    capabilities: ExecutionCapabilities,
-    messages: list,
-    initial_phase: str,
-    final_json_instruction: str | None,
-    final_model: Any | None = None,
-    final_model_factory: Callable[[], Any] | None = None,
-    initial_tool_call: dict[str, Any] | None = None,
-) -> tuple[InstrumentedExecution, int]:
-    """Execute the built-in Standard model/Tool algorithm using shared capabilities."""
-    base_messages = sanitize_base_messages(messages)
-    base_message_count = len(base_messages)
-    resume = capabilities.recovery.load()
+class StandardExecutionState(ExecutionState):
+    phase: str | None = None
+    tool_round: int = 0
+    consecutive_failures: int = 0
+    stop_reason: StandardStopReason | None = None
 
-    if resume is not None:
-        cursor = resume.cursor
-        next_phase = cursor.get("next_phase")
-        next_call_index = cursor.get("next_call_index")
-        if not isinstance(next_phase, str) or not next_phase:
-            raise InstrumentedExecutionError(
-                "Agent recovery checkpoint is missing next execution phase",
-                llm_calls=resume.execution.llm_calls,
-                tool_calls=resume.execution.tool_calls,
-                timeline=resume.execution.timeline,
+
+@dataclass(frozen=True, slots=True)
+class StandardExecutionPolicy(ExecutionPolicy[StandardExecutionState]):
+    max_tool_rounds: int = DEFAULT_MAX_TOOL_ROUNDS
+    max_consecutive_failures: int = DEFAULT_MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS
+
+    def __post_init__(self) -> None:
+        if self.max_tool_rounds <= 0:
+            raise ValueError("max_tool_rounds must be positive")
+        if self.max_consecutive_failures <= 0:
+            raise ValueError("max_consecutive_failures must be positive")
+
+    def stop_reason(
+        self,
+        state: StandardExecutionState,
+    ) -> StandardStopReason | None:
+        if state.consecutive_failures >= self.max_consecutive_failures:
+            return StandardStopReason.REPEATED_SEMANTIC_FAILURES
+        if state.tool_round >= self.max_tool_rounds:
+            return StandardStopReason.CAPABILITY_ROUND_LIMIT
+        return None
+
+
+class StandardExecutionStrategy(ExecutionStrategy[StandardExecutionState]):
+    """General-purpose model/Tool loop expressed only through shared Strategy primitives."""
+
+    name = "standard"
+    state_type = StandardExecutionState
+
+    def __init__(self, policy: StandardExecutionPolicy | None = None) -> None:
+        self.policy = policy or StandardExecutionPolicy()
+
+    async def execute(
+        self,
+        ctx: StrategyContext[StandardExecutionState],
+    ) -> StrategyOutcome:
+        state = ctx.state
+
+        if state.phase == StandardPhase.FINAL_RESPONSE_GENERATION.value:
+            result = await ctx.model.finalize(
+                reason=(
+                    state.stop_reason.value
+                    if state.stop_reason is not None
+                    else "Capability execution could not complete"
+                ),
+                phase=StandardPhase.FINAL_RESPONSE_GENERATION,
             )
-        try:
-            call_index = int(next_call_index)
-            round_index = max(0, int(cursor.get("round_index") or 0))
-            consecutive_failure_rounds = max(
-                0,
-                int(cursor.get("consecutive_failure_rounds") or 0),
-            )
-        except (TypeError, ValueError) as exc:
-            raise InstrumentedExecutionError(
-                "Agent recovery checkpoint contains an invalid Standard cursor",
-                llm_calls=resume.execution.llm_calls,
-                tool_calls=resume.execution.tool_calls,
-                timeline=resume.execution.timeline,
-            ) from exc
-        if call_index <= 0:
-            raise InstrumentedExecutionError(
-                "Agent recovery checkpoint contains an invalid next call index",
-                llm_calls=resume.execution.llm_calls,
-                tool_calls=resume.execution.tool_calls,
-                timeline=resume.execution.timeline,
-            )
-        stopped_reason = (
-            str(cursor["stopped_reason"])
-            if cursor.get("stopped_reason")
-            else None
-        )
-        state = StrategyExecutionState(
-            messages=[*base_messages, *resume.capability_messages],
-            execution=resume.execution,
-            call_index=max(0, call_index - 1),
-            iteration=round_index,
-        )
+            return Completed(result)
 
-        if next_phase == "final_response_generation":
-            if not stopped_reason:
-                raise InstrumentedExecutionError(
-                    "Agent recovery checkpoint is missing terminal stop reason",
-                    llm_calls=state.execution.llm_calls,
-                    tool_calls=state.execution.tool_calls,
-                    timeline=state.execution.timeline,
+        result = await ctx.model.invoke(phase=state.phase)
+
+        while result.has_tool_calls and state.tool_round < self.policy.max_tool_rounds:
+            tool_batch = await ctx.tools.execute_many(result.tool_calls)
+            state.tool_round += 1
+            state.consecutive_failures = (
+                state.consecutive_failures + 1
+                if tool_batch.has_failures
+                else 0
+            )
+
+            if tool_batch.requires_suspension:
+                if tool_batch.suspension_reason is None:
+                    raise RuntimeError(
+                        "Suspending Tool batch is missing a suspension reason"
+                    )
+                await ctx.checkpoint(ExecutionCheckpointBoundary.TOOL)
+                return Suspended(
+                    reason=tool_batch.suspension_reason,
+                    operation_ref=tool_batch.operation_ref,
                 )
-            await _invoke_terminal_recovery(
-                capabilities=capabilities,
-                state=state,
-                base_messages=base_messages,
-                stopped_reason=stopped_reason,
-                call_index=call_index,
-                final_model=final_model,
-                final_model_factory=final_model_factory,
-                final_json_instruction=final_json_instruction,
+
+            state.stop_reason = self.policy.stop_reason(state)
+            state.phase = (
+                StandardPhase.FINAL_RESPONSE_GENERATION.value
+                if state.stop_reason is not None
+                else strategy_phase_with_iteration(
+                    StandardPhase.TOOL_FOLLOWUP,
+                    state.tool_round,
+                )
             )
-            return state.finish(), call_index
+            await ctx.checkpoint(ExecutionCheckpointBoundary.TOOL)
 
-        result, call = await capabilities.model.invoke(
-            messages=state.messages,
-            phase=next_phase,
-            call_index=call_index,
-        )
-        state.record_model_result(result=result, call=call)
-    else:
-        state = StrategyExecutionState(messages=list(base_messages))
-        round_index = 0
-        consecutive_failure_rounds = 0
-        stopped_reason: str | None = None
-        call_index = 1
+            if state.stop_reason is not None:
+                break
 
-        if initial_tool_call is not None:
-            preflight = AIMessage(content="", tool_calls=[initial_tool_call])
-            state.messages.append(preflight)
-            batch = await capabilities.tools.execute_many([initial_tool_call])
-            state.record_tool_batch(batch)
-            await capabilities.recovery.checkpoint(
-                phase="agent_preflight_boundary",
-                messages=state.messages,
-                base_message_count=base_message_count,
-                execution=state.execution,
-                cursor={
-                    "next_phase": initial_phase,
-                    "next_call_index": 1,
-                    "round_index": 0,
-                    "consecutive_failure_rounds": 0,
-                    "stopped_reason": None,
-                },
+            try:
+                result = await ctx.model.invoke(phase=state.phase)
+            except InstrumentedExecutionError:
+                state.stop_reason = StandardStopReason.PROVIDER_REJECTED_FOLLOWUP
+                state.phase = StandardPhase.FINAL_RESPONSE_GENERATION.value
+                break
+
+        if state.stop_reason is not None and result.has_tool_calls:
+            result = await ctx.model.finalize(
+                reason=state.stop_reason.value,
+                phase=StandardPhase.FINAL_RESPONSE_GENERATION,
             )
 
-        result, call = await capabilities.model.invoke(
-            messages=state.messages,
-            phase=initial_phase,
-            call_index=call_index,
-        )
-        state.record_model_result(result=result, call=call)
-
-    while has_tool_calls(result) and round_index < MAX_TOOL_ROUNDS:
-        round_index += 1
-        state.iteration = round_index
-        state.messages.append(result)
-        tool_calls = list(getattr(result, "tool_calls", None) or [])
-        batch = await capabilities.tools.execute_many(tool_calls)
-        state.record_tool_batch(batch)
-
-        round_failed = any(info.success is False for info, _message, _payload in batch.results)
-        consecutive_failure_rounds = (
-            consecutive_failure_rounds + 1 if round_failed else 0
-        )
-        stopped_reason = None
-        if consecutive_failure_rounds >= MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS:
-            stopped_reason = "repeated semantic capability failures"
-        elif round_index >= MAX_TOOL_ROUNDS:
-            stopped_reason = "capability round limit reached"
-
-        next_call_index = call_index + 1
-        next_phase = (
-            "final_response_generation"
-            if stopped_reason
-            else f"tool_followup_{round_index}"
-        )
-        await capabilities.recovery.checkpoint(
-            phase="agent_tool_boundary",
-            messages=state.messages,
-            base_message_count=base_message_count,
-            execution=state.execution,
-            cursor={
-                "next_phase": next_phase,
-                "next_call_index": next_call_index,
-                "round_index": round_index,
-                "consecutive_failure_rounds": consecutive_failure_rounds,
-                "stopped_reason": stopped_reason,
-            },
-        )
-        if stopped_reason:
-            break
-
-        call_index = next_call_index
-        try:
-            result, call = await capabilities.model.invoke(
-                messages=state.messages,
-                phase=next_phase,
-                call_index=call_index,
-            )
-        except InstrumentedExecutionError as exc:
-            state.execution.llm_calls.extend(exc.llm_calls)
-            state.execution.timeline.extend(exc.timeline)
-            state.execution.failure_context = _failure_context(
-                exc.failure_context,
-                partial_result_available=bool(state.execution.tool_calls),
-            )
-            stopped_reason = (
-                "the capability follow-up request was rejected by the provider"
-            )
-            break
-        state.record_model_result(result=result, call=call)
-
-    requires_terminal_recovery = bool(stopped_reason) and has_tool_calls(result)
-    if requires_terminal_recovery:
-        call_index += 1
-        await _invoke_terminal_recovery(
-            capabilities=capabilities,
-            state=state,
-            base_messages=base_messages,
-            stopped_reason=stopped_reason or "Capability execution could not complete",
-            call_index=call_index,
-            final_model=final_model,
-            final_model_factory=final_model_factory,
-            final_json_instruction=final_json_instruction,
-        )
-
-    return state.finish(), call_index
+        return Completed(result)
 
 
-class StandardExecutionStrategy:
-    """Current Woobe Agent algorithm composed from reusable execution capabilities."""
-
-    async def execute(self, request: ExecutionStrategyRequest) -> InstrumentedExecution:
-        prepared = prepare_execution(request)
-        capabilities = build_execution_capabilities(
-            prepared=prepared,
-            strategy_name="standard",
-        )
-        execution, call_index = await run_standard_strategy_loop(
-            capabilities=capabilities,
-            messages=prepared.messages,
-            final_model=prepared.final_model,
-            final_model_factory=prepared.final_model_factory,
-            initial_phase=prepared.initial_phase,
-            final_json_instruction=prepared.final_json_instruction,
-        )
-        return await finalize_execution_result(
-            prepared=prepared,
-            execution=execution,
-            call_index=call_index,
-        )
+__all__ = [
+    "MAX_CONSECUTIVE_SEMANTIC_FAILURE_ROUNDS",
+    "MAX_TOOL_ROUNDS",
+    "StandardExecutionPolicy",
+    "StandardExecutionState",
+    "StandardExecutionStrategy",
+    "StandardPhase",
+    "StandardStopReason",
+]
