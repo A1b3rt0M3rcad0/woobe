@@ -7,6 +7,7 @@ import {
   createNetwork,
   createNetworkSession,
   getNetwork,
+  getNetworkExternalContextContract,
   getNetworkProductionActivations,
   getNetworkRuntimeEnvironments,
   getNetworkSessionMessages,
@@ -86,6 +87,14 @@ export function useNetworkRuntimeEnvironments(networkId?: string, projectId?: st
     queryFn: () => getNetworkRuntimeEnvironments(networkId!, projectId!),
     enabled: Boolean(networkId && projectId),
     staleTime: 15_000,
+  })
+}
+
+export function useNetworkExternalContextContract(networkId?: string, projectId?: string, environment?: NetworkEnvironment) {
+  return useQuery({
+    queryKey: ['network-external-context-contract', projectId, networkId, environment],
+    queryFn: () => getNetworkExternalContextContract(networkId!, projectId!, environment!),
+    enabled: Boolean(networkId && projectId && environment),
   })
 }
 
