@@ -35,6 +35,13 @@ def test_heartbeat_is_transport_without_order_or_domain_identity():
         RuntimeControlFrame('heartbeat', {}, sequence=1)
 
 
+def test_domain_events_cannot_fall_back_to_transport_frames():
+    with pytest.raises(ValueError, match='Unsupported runtime control frame'):
+        RuntimeControlFrame('agent_activity', {'status': 'thinking'})
+    with pytest.raises(ValueError, match='Unsupported runtime control frame'):
+        RuntimeControlFrame('token', {'content': 'hello'})
+
+
 @pytest.mark.asyncio
 @pytest.mark.parametrize('kind', [RunKind.AGENT, RunKind.NETWORK])
 async def test_initial_disconnect_reattach_keeps_identity_and_n_plus_one(kind):
