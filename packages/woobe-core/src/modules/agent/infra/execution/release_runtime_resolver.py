@@ -227,7 +227,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             normalized = normalize_external_context_contract(contract)
         except ExternalContextContractError as exc:
             raise ValidationError(str(exc)) from exc
-        if normalized["fields"]:
+        if normalized:
             settings["external_context_contract"] = normalized
         else:
             settings.pop("external_context_contract", None)
