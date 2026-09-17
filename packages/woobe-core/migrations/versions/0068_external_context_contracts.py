@@ -31,6 +31,15 @@ def upgrade() -> None:
         schema="network",
     )
     op.add_column(
+        "network_sessions",
+        sa.Column(
+            "external_context_session_values",
+            postgresql.JSONB(),
+            nullable=True,
+        ),
+        schema="network",
+    )
+    op.add_column(
         "network_executions",
         sa.Column("external_context_snapshot", postgresql.JSONB(), nullable=True),
         schema="network",
@@ -41,6 +50,11 @@ def downgrade() -> None:
     op.drop_column(
         "network_executions",
         "external_context_snapshot",
+        schema="network",
+    )
+    op.drop_column(
+        "network_sessions",
+        "external_context_session_values",
         schema="network",
     )
     op.drop_column(
