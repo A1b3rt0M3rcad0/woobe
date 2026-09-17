@@ -18,6 +18,7 @@ def validate_network_definition(
     hard_max_depth: int = 8,
     hard_max_invocations: int = 64,
     hard_timeout_seconds: int = 300,
+    hard_max_tool_result_chars: int = 64_000,
 ) -> None:
     if definition.schema_version != 2:
         raise NetworkGraphError("Unsupported Network definition schema version")
@@ -86,6 +87,11 @@ def validate_network_definition(
         raise NetworkGraphError(f"max_invocations must be between 1 and {hard_max_invocations}")
     if not 1 <= limits.timeout_seconds <= hard_timeout_seconds:
         raise NetworkGraphError(f"timeout_seconds must be between 1 and {hard_timeout_seconds}")
+    if not 1_000 <= limits.max_tool_result_chars <= hard_max_tool_result_chars:
+        raise NetworkGraphError(
+            "max_tool_result_chars must be between 1000 and "
+            f"{hard_max_tool_result_chars}"
+        )
 
     names: set[str] = set()
     for node in definition.nodes:
