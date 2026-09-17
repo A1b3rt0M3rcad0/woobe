@@ -16,20 +16,24 @@ from modules.agent.domain.release_versioning import ReleaseChangeKind
 
 def contract(*, required: bool = False, scope: str = "run", expose: bool = False):
     return {
-        "fields": {
-            "customer_id": {
-                "schema": {"type": "string"},
-                "required": required,
-                "scope": scope,
-                "model": {"expose": expose},
-            }
+        "customer_id": {
+            "schema": {"type": "string"},
+            "required": required,
+            "scope": scope,
+            "model": {"expose": expose},
         }
     }
 
 
-def test_contract_has_no_version() -> None:
-    with pytest.raises(ExternalContextContractError, match="not versioned"):
-        normalize_external_context_contract({"version": 1, "fields": {}})
+def test_contract_is_a_top_level_field_map() -> None:
+    normalized = normalize_external_context_contract(contract())
+    assert set(normalized) == {"customer_id"}
+    assert "fields" not in normalized
+
+
+def test_legacy_fields_wrapper_is_read_compatible_but_normalizes_flat() -> None:
+    normalized = normalize_external_context_contract({"fields": contract()})
+    assert normalized == contract()
 
 
 def test_unknown_request_fields_are_rejected() -> None:
@@ -72,7 +76,7 @@ def test_model_exposure_does_not_change_agent_projection() -> None:
 
 
 def test_add_optional_field_is_feature() -> None:
-    previous = {"fields": {}}
+    previous = {}
     candidate = contract(required=False)
     assert classify_external_context_change(previous, candidate) == ReleaseChangeKind.FEATURE
 
@@ -88,7 +92,7 @@ def test_add_required_field_breaks_compatibility() -> None:
 
 def test_removing_optional_field_breaks_because_contract_is_strict() -> None:
     assert (
-        classify_external_context_change(contract(required=False), {"fields": {}})
+        classify_external_context_change(contract(required=False), {})
         == ReleaseChangeKind.COMPATIBILITY
     )
 
@@ -125,19 +129,15 @@ def test_scope_change_breaks_compatibility() -> None:
 
 def test_enum_widening_is_feature_and_narrowing_breaks() -> None:
     previous = {
-        "fields": {
-            "locale": {
-                "schema": {"type": "string", "enum": ["pt-BR"]},
-                "required": False,
-            }
+        "locale": {
+            "schema": {"type": "string", "enum": ["pt-BR"]},
+            "required": False,
         }
     }
     widened = {
-        "fields": {
-            "locale": {
-                "schema": {"type": "string", "enum": ["pt-BR", "en-US"]},
-                "required": False,
-            }
+        "locale": {
+            "schema": {"type": "string", "enum": ["pt-BR", "en-US"]},
+            "required": False,
         }
     }
     assert classify_external_context_change(previous, widened) == ReleaseChangeKind.FEATURE
@@ -154,7 +154,7 @@ def test_network_contract_composes_consumers_without_global_required() -> None:
             "orders": contract(required=False, expose=False),
         }
     )
-    field = effective["fields"]["customer_id"]
+    field = effective["customer_id"]
     assert field["schema"] == {"type": "string"}
     assert field["consumers"]["support"]["required"] is True
     assert field["consumers"]["orders"]["required"] is False
