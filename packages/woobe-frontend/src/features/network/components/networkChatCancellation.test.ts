@@ -23,7 +23,7 @@ function failedThenTerminal(terminal: 'execution_cancelled' | 'execution_failed'
     {
       eventType: 'agent_invocation_started',
       event: {
-        protocol_version: 1,
+        protocol_version: 2,
         execution_id: 'execution-1',
         invocation_id: 'root',
         parent_invocation_id: null,
@@ -38,7 +38,7 @@ function failedThenTerminal(terminal: 'execution_cancelled' | 'execution_failed'
     {
       eventType: 'agent_invocation_failed',
       event: {
-        protocol_version: 1,
+        protocol_version: 2,
         execution_id: 'execution-1',
         invocation_id: 'root',
         parent_invocation_id: null,
@@ -58,7 +58,7 @@ function failedThenTerminal(terminal: 'execution_cancelled' | 'execution_failed'
     {
       eventType: terminal,
       event: {
-        protocol_version: 1,
+        protocol_version: 2,
         execution_id: 'execution-1',
         sequence: 3,
         created_at: '2026-08-28T12:00:01.100Z',
