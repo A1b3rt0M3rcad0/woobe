@@ -128,12 +128,42 @@ class McpToolConfig(BaseModel):
         return self
 
 
+def _restore_binding_omissions(
+    raw_config: dict[str, Any],
+    normalized: dict[str, Any],
+) -> dict[str, Any]:
+    """Keep omitted bindings distinguishable from an explicit empty binding map.
+
+    Pydantic defaults missing binding maps to ``{}``. Updates need to retain the
+    distinction so the application layer can preserve old bindings on omission while
+    still allowing callers to clear them explicitly with ``bindings: {}``.
+    """
+
+    if "bindings" not in raw_config:
+        normalized.pop("bindings", None)
+
+    raw_routes = raw_config.get("routes")
+    normalized_routes = normalized.get("routes")
+    if isinstance(raw_routes, list) and isinstance(normalized_routes, list):
+        for raw_route, normalized_route in zip(raw_routes, normalized_routes, strict=False):
+            if (
+                isinstance(raw_route, dict)
+                and isinstance(normalized_route, dict)
+                and "bindings" not in raw_route
+            ):
+                normalized_route.pop("bindings", None)
+    return normalized
+
+
 def _compile_http_config(
     raw_config: dict[str, Any],
     declared_schema: dict[str, Any] | None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     parsed = HttpToolConfig.model_validate(raw_config)
-    normalized = parsed.model_dump(exclude_none=True)
+    normalized = _restore_binding_omissions(
+        raw_config,
+        parsed.model_dump(exclude_none=True),
+    )
     validate_context_bindings(normalized)
     if is_http_tool_group(normalized):
         compiled_group = compile_http_tool_group_contract(normalized)
