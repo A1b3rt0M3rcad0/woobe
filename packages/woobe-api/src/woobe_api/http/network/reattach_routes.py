@@ -11,6 +11,7 @@ from shared.runtime.contracts import runtime_state_frame
 from shared.runtime.sse import format_sse_frame
 from shared.runtime import (
     RunReference,
+    RuntimeFrame,
     RuntimeObserver,
     RuntimeStreamGapError,
 )
@@ -87,6 +88,11 @@ def _durable_state(execution) -> dict:
     }
 
 
+def network_runtime_sse(frame: RuntimeFrame, execution_id: UUID) -> str:
+    del execution_id
+    return format_sse_frame(frame)
+
+
 @router.get("/executions/active")
 async def active_network_execution(
     request: Request,
@@ -144,7 +150,7 @@ async def reattach_network_execution(
                 durable_fallback=durable_fallback,
                 disconnect_check=request.is_disconnected,
             ):
-                yield format_sse_frame(frame)
+                yield network_runtime_sse(frame, execution_id)
         except RuntimeStreamGapError:
             latest = await _load_execution(request, execution_id)
             state = _durable_state(latest)
@@ -157,7 +163,10 @@ async def reattach_network_execution(
                     "degraded_reason": "runtime_event_gap",
                 }
             )
-            yield format_sse_frame(runtime_state_frame(state))
+            yield network_runtime_sse(
+                runtime_state_frame(state),
+                execution_id,
+            )
 
     return StreamingResponse(
         generate(),
