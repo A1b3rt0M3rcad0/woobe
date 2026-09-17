@@ -53,6 +53,14 @@ class RunReference:
 
 
 RUNTIME_STREAM_PROTOCOL_VERSION = 2
+RUNTIME_CONTROL_EVENT_TYPES = frozenset(
+    {
+        "heartbeat",
+        "run.realtime_unavailable",
+        "error",
+        "protocol.control",
+    }
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,7 +83,7 @@ class SemanticRuntimeEvent(RuntimeFrame):
             raise ValueError("Semantic runtime event requires Run and Session identity")
         if isinstance(self.sequence, bool) or not isinstance(self.sequence, int) or self.sequence < 0:
             raise ValueError("Semantic runtime event requires a nonnegative sequence")
-        if self.event_type in {"heartbeat", "run.realtime_unavailable"}:
+        if self.event_type in RUNTIME_CONTROL_EVENT_TYPES - {"error"}:
             raise ValueError("Transport frames cannot be semantic events")
 
 
@@ -86,6 +94,8 @@ class RuntimeControlFrame(RuntimeFrame):
     def __post_init__(self) -> None:
         if self.sequence is not None:
             raise ValueError("Transport frames cannot advance semantic ordering")
+        if self.event_type not in RUNTIME_CONTROL_EVENT_TYPES:
+            raise ValueError(f"Unsupported runtime control frame: {self.event_type}")
 
 
 def runtime_state_frame(state: dict[str, Any]) -> SemanticRuntimeEvent:
