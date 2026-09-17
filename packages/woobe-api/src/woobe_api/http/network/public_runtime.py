@@ -29,6 +29,7 @@ class PublicNetworkRunRequest(BaseModel):
     tenant_id: str | None = Field(default=None, max_length=128)
     user_id: str | None = Field(default=None, max_length=128)
     metadata: dict | None = None
+    external_context: dict | None = None
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=255)
 
 
@@ -129,6 +130,7 @@ async def _submit(
         project_id=principal.project_id,
         network_session_id=network_session.id,
         message=payload.message,
+        external_context=payload.external_context,
         idempotency_key=idempotency_key,
     )
     return principal, network_session, execution
