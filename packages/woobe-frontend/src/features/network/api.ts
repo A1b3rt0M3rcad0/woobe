@@ -53,6 +53,18 @@ export function updateNetworkRuntimeEnvironment(
   )
 }
 
+export function updateNetworkRuntimeEnvironmentContext(
+  networkId: string,
+  projectId: string,
+  environment: RuntimeEnvironment,
+  externalContextValues: Record<string, unknown>,
+): Promise<RuntimeEnvironmentState & { environment: RuntimeEnvironment }> {
+  return patch<RuntimeEnvironmentState & { environment: RuntimeEnvironment }>(
+    `/network/${networkId}/runtime-environments/${environment}`,
+    { project_id: projectId, external_context_values: externalContextValues },
+  )
+}
+
 export function updateNetworkMetadata(
   projectId: string,
   networkId: string,
