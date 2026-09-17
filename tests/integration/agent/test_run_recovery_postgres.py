@@ -16,7 +16,7 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
-from modules.agent.infra.database.models import AgentModel, AgentOutboxEventModel
+from modules.agent.infra.database.models import AgentModel, AgentOutboxEventModel, SessionModel
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.agent.infra.database.runtime_transaction_runner import (
     AgentRuntimeTransactionRunner,
@@ -41,6 +41,7 @@ class _UnavailableHotState:
 
 async def _seed(session_factory, *, project_id, agent_id, run_id, trace_id) -> None:
     started_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+    session_id = uuid4()
     async with session_factory() as session:
         async with session.begin():
             session.add(
@@ -66,11 +67,30 @@ async def _seed(session_factory, *, project_id, agent_id, run_id, trace_id) -> N
             )
         async with session.begin():
             session.add(
+                SessionModel(
+                    id=session_id,
+                    project_id=project_id,
+                    agent_id=agent_id,
+                    runtime_environment="draft",
+                    opened_release_id=None,
+                    chat_surface_id=None,
+                    origin="playground",
+                    external_session_id=None,
+                    tenant_id=None,
+                    user_id=None,
+                    status="active",
+                    mode="chat",
+                    data={"source": "run_recovery_test"},
+                    last_message_at=started_at,
+                )
+            )
+        async with session.begin():
+            session.add(
                 AgentRunModel(
                     id=run_id,
                     project_id=project_id,
                     agent_id=agent_id,
-                    session_id=None,
+                    session_id=session_id,
                     agent_release_id=None,
                     input_message_id=None,
                     output_message_id=None,
@@ -103,6 +123,7 @@ async def _cleanup(session_factory, *, run_id, agent_id) -> None:
                 )
             )
             await session.execute(delete(AgentRunModel).where(AgentRunModel.id == run_id))
+            await session.execute(delete(SessionModel).where(SessionModel.agent_id == agent_id))
             await session.execute(delete(AgentModel).where(AgentModel.id == agent_id))
 
 
