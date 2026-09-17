@@ -19,8 +19,12 @@ from modules.agent.application.system_instruction_assembler import assemble_syst
 from modules.agent.domain.entities import AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
 from modules.agent.domain.errors import ReleaseNotFoundError
+from modules.agent.domain.external_context_contract import (
+    ExternalContextContractError,
+    normalize_external_context_contract,
+)
 from modules.agent.domain.release_versioning import calculate_next_release_version
-from shared.contracts.errors import ConflictError
+from shared.contracts.errors import ConflictError, ValidationError
 
 
 _SINGLETON_STATUSES = {ReleaseStatus.draft, ReleaseStatus.staging, ReleaseStatus.production}
@@ -28,7 +32,7 @@ _SNAPSHOT_FIELDS = (
     "project_id", "agent_id", "prompt_version_id", "contract_version_id",
     "knowledge_version_id", "model_config_version_id", "provider_model_id",
     "fallback_provider_model_id", "name", "description", "behavior_spec", "system_prompt",
-    "response_format", "output_schema", "provider", "model",
+    "response_format", "output_schema", "external_context_contract", "provider", "model",
     "provider_credential_id", "fallback_provider", "fallback_model",
     "fallback_credential_id", "base_url", "temperature", "max_output_tokens",
     "session_mode", "agent_status", "collection_ids", "runtime_config",
@@ -52,6 +56,13 @@ def _canonical_runtime_config(value) -> dict:
     return runtime_config
 
 
+def _canonical_external_context_contract(value):
+    try:
+        return normalize_external_context_contract(value)
+    except ExternalContextContractError as exc:
+        raise ValidationError(str(exc)) from exc
+
+
 def _release_to_output(saved: AgentRelease) -> CreateReleaseOutput:
     return CreateReleaseOutput(
         id=saved.id,
@@ -72,6 +83,7 @@ def _release_to_output(saved: AgentRelease) -> CreateReleaseOutput:
         system_prompt=saved.system_prompt,
         response_format=saved.response_format,
         output_schema=saved.output_schema,
+        external_context_contract=saved.external_context_contract,
         provider=saved.provider,
         model=saved.model,
         provider_credential_id=saved.provider_credential_id,
@@ -136,6 +148,8 @@ class AutoCreateReleaseUseCase:
                 value = canonicalize_behavior_spec(value)
             elif field_name == "runtime_config":
                 value = _canonical_runtime_config(value)
+            elif field_name == "external_context_contract":
+                value = _canonical_external_context_contract(value)
             else:
                 value = deepcopy(value)
             setattr(release, field_name, value)
@@ -310,6 +324,8 @@ class ReleaseLifecycleUseCase:
             value = getattr(source, field_name)
             if field_name == "runtime_config":
                 value = _canonical_runtime_config(value)
+            elif field_name == "external_context_contract":
+                value = _canonical_external_context_contract(value)
             else:
                 value = deepcopy(value)
             setattr(target, field_name, value)
