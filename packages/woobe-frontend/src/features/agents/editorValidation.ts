@@ -102,34 +102,35 @@ export function outputContractError(state: AgentEditorState): string | null {
 
 function parseExternalContextContract(state: AgentEditorState): Record<string, unknown> | null {
   const raw = state.externalContextContract
+  if (raw == null) return null
   if (typeof raw === 'string') {
-    if (!raw.trim()) return { fields: {} }
+    if (!raw.trim()) return null
     try {
       const parsed = JSON.parse(raw)
-      return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-        ? parsed as Record<string, unknown>
-        : null
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+      const object = parsed as Record<string, unknown>
+      const legacyFields = object.fields
+      return legacyFields && typeof legacyFields === 'object' && !Array.isArray(legacyFields)
+        ? legacyFields as Record<string, unknown>
+        : object
     } catch {
       return null
     }
   }
-  return raw && typeof raw === 'object' && !Array.isArray(raw)
-    ? raw as unknown as Record<string, unknown>
-    : null
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const object = raw as unknown as Record<string, unknown>
+  const legacyFields = object.fields
+  return legacyFields && typeof legacyFields === 'object' && !Array.isArray(legacyFields)
+    ? legacyFields as Record<string, unknown>
+    : object
 }
 
 export function externalContextContractError(state: AgentEditorState): string | null {
+  if (state.externalContextContract == null || state.externalContextContract === '') return null
   const contract = parseExternalContextContract(state)
-  if (!contract) return 'External Context contract must be a valid JSON object.'
-  if ('version' in contract) return 'External Context has no independent version. Version the Agent Release instead.'
+  if (!contract) return 'External Context contract is invalid.'
 
-  const unknownRootKeys = Object.keys(contract).filter((key) => key !== 'fields')
-  if (unknownRootKeys.length > 0) return `External Context contract contains unsupported properties: ${unknownRootKeys.join(', ')}.`
-
-  const fields = contract.fields ?? {}
-  if (!fields || typeof fields !== 'object' || Array.isArray(fields)) return 'External Context contract fields must be a JSON object.'
-
-  for (const [name, rawField] of Object.entries(fields as Record<string, unknown>)) {
+  for (const [name, rawField] of Object.entries(contract)) {
     if (!name.trim()) return 'External Context field names cannot be blank.'
     if (!rawField || typeof rawField !== 'object' || Array.isArray(rawField)) return `External Context field '${name}' must be an object.`
     const field = rawField as Record<string, unknown>
@@ -156,7 +157,7 @@ export function validateAgentEditorState(state: AgentEditorState): AgentEditorVa
     return invalid('external-context', 'external_context_contract_invalid', externalContextError)
   }
 
-  const externalContextContract = parseExternalContextContract(state) ?? { fields: {} }
+  const externalContextContract = parseExternalContextContract(state)
   const normalizedExternalState: AgentEditorState = {
     ...state,
     // Runtime validation above proves the parsed object satisfies the stricter
