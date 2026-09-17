@@ -57,6 +57,11 @@ _install_column(
     mapped_column(String(64), nullable=True),
 )
 _install_column(
+    NetworkVersionModel,
+    "effective_external_context_contract",
+    mapped_column(JSONB, nullable=True),
+)
+_install_column(
     NetworkVersionModel, "agent_release_manifest", mapped_column(JSONB, nullable=True)
 )
 _install_column(
@@ -89,6 +94,11 @@ _install_column(
 )
 _install_column(
     NetworkExecutionModel, "output_parse_error", mapped_column(Text, nullable=True)
+)
+_install_column(
+    NetworkExecutionModel,
+    "external_context_snapshot",
+    mapped_column(JSONB, nullable=True),
 )
 _install_column(
     NetworkInvocationModel, "parsed_output", mapped_column(JSONB, nullable=True)
@@ -146,6 +156,9 @@ def version_extension_payload(version: NetworkVersionModel) -> dict[str, Any]:
         "public_output_contract": getattr(version, "public_output_contract", None),
         "public_output_contract_hash": getattr(
             version, "public_output_contract_hash", None
+        ),
+        "effective_external_context_contract": getattr(
+            version, "effective_external_context_contract", None
         ),
         "agent_release_manifest": getattr(version, "agent_release_manifest", None),
         "agent_release_manifest_hash": getattr(
