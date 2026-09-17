@@ -122,7 +122,7 @@ class EventJournalAgentRunPersistence:
             completed_at=completed_at,
         )
         canonical_usage = metrics.usage
-        message_id = uuid6.uuid7() if session is not None else None
+        message_id = uuid6.uuid7()
         sources = kw.get("sources") or []
         source_payloads = [
             source.model_dump() if hasattr(source, "model_dump") else source
@@ -137,8 +137,8 @@ class EventJournalAgentRunPersistence:
             "trace_id": str(kw["trace_id"]),
             "project_id": str(kw["input_dto"].project_id),
             "agent_id": str(agent.id),
-            "session_id": str(session.id) if session else None,
-            "message_id": str(message_id) if message_id else None,
+            "session_id": str(session.id),
+            "message_id": str(message_id),
             "answer": kw["answer"],
             "usage": canonical_usage.model_dump(),
             "input_tokens": canonical_usage.input_tokens,
@@ -196,34 +196,33 @@ class EventJournalAgentRunPersistence:
         # next user turn can start immediately after this method returns. Do not wait
         # for the asynchronous Mongo -> PostgreSQL Run projector to make the
         # Assistant turn visible, otherwise the next context assembly can omit it.
-        if session is not None and message_id is not None:
-            try:
-                await _materialize_assistant_session_message(
-                    owner,
-                    message_id=message_id,
-                    session=session,
-                    agent=agent,
-                    answer=kw["answer"],
-                    usage=canonical_usage,
-                    data=assistant_message_data,
-                )
-            except Exception as exc:
-                # The terminal event is already durable. A projection failure must
-                # not rewrite the completed Run as failed; the async projector will
-                # retry the same deterministic message id.
-                logger.warning(
-                    "Durable Agent Run %s completed but synchronous Assistant Session "
-                    "message projection failed; async projector will retry: %s",
-                    context.run_id,
-                    exc,
-                )
+        try:
+            await _materialize_assistant_session_message(
+                owner,
+                message_id=message_id,
+                session=session,
+                agent=agent,
+                answer=kw["answer"],
+                usage=canonical_usage,
+                data=assistant_message_data,
+            )
+        except Exception as exc:
+            # The terminal event is already durable. A projection failure must
+            # not rewrite the completed Run as failed; the async projector will
+            # retry the same deterministic message id.
+            logger.warning(
+                "Durable Agent Run %s completed but synchronous Assistant Session "
+                "message projection failed; async projector will retry: %s",
+                context.run_id,
+                exc,
+            )
 
         context.terminal_persisted = True
         await owner._hot_persisted("completed")
         output = AskOutput(
             run_id=context.run_id,
             answer=kw["answer"],
-            session_id=session.id if session else None,
+            session_id=session.id,
             message_id=message_id,
             usage=canonical_usage,
             sources=sources,
@@ -249,6 +248,7 @@ class EventJournalAgentRunPersistence:
     async def fail(self, owner: Any, **kw: Any) -> None:
         context, recorder = _recorder()
         execution = kw["execution"]
+        session = kw["session"]
         aggregate, usage_complete, cost_status = aggregate_usage(execution.llm_calls)
         metrics = build_agent_run_metrics(
             context=context,
@@ -267,7 +267,7 @@ class EventJournalAgentRunPersistence:
             "trace_id": str(kw["trace_id"]),
             "project_id": str(kw["input_dto"].project_id),
             "agent_id": str(kw["agent"].id),
-            "session_id": str(kw["session"].id) if kw.get("session") else None,
+            "session_id": str(session.id),
             "error": str(kw["error"]),
             "failure_code": str(failure_context.get("phase") or "runtime_error"),
             "usage": aggregate.model_dump(),
@@ -299,7 +299,7 @@ class EventJournalAgentRunPersistence:
             "trace_id": str(context.trace_id) if context.trace_id else None,
             "project_id": str(input_dto.project_id),
             "agent_id": str(context.agent_id or input_dto.agent_id),
-            "session_id": str(context.session_id) if context.session_id else None,
+            "session_id": str(recorder.session_id),
             "error": str(error),
             "failure_code": "prepare_failed",
             "completed_at": datetime.now(timezone.utc).isoformat(),
