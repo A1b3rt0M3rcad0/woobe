@@ -29,6 +29,29 @@ def _directive_messages(messages: list[Any]) -> list[Any]:
     return directives
 
 
+def _runtime_model(
+    *,
+    base_messages: list[Any],
+    runtime_state: StrategyRuntimeState,
+    invoke_fn,
+    final_model: Any | None = None,
+) -> RuntimeStrategyModel:
+    return RuntimeStrategyModel(
+        capability=ModelInvocationCapability(
+            model=object(),
+            provider="test",
+            model_name="test-model",
+            invoke_fn=invoke_fn,
+        ),
+        runtime_state=runtime_state,
+        base_messages=base_messages,
+        initial_phase="response_generation",
+        final_model=final_model,
+        final_model_factory=None,
+        final_json_instruction=None,
+    )
+
+
 @pytest.mark.asyncio
 async def test_runtime_strategy_model_directive_is_invocation_local() -> None:
     captured_messages: list[list[Any]] = []
@@ -53,19 +76,10 @@ async def test_runtime_strategy_model_directive_is_invocation_local() -> None:
         messages=list(base_messages),
         base_message_count=len(base_messages),
     )
-    model = RuntimeStrategyModel(
-        capability=ModelInvocationCapability(
-            model=object(),
-            provider="test",
-            model_name="test-model",
-            invoke_fn=fake_invoke_llm,
-        ),
-        runtime_state=runtime_state,
+    model = _runtime_model(
         base_messages=base_messages,
-        initial_phase="response_generation",
-        final_model=None,
-        final_model_factory=None,
-        final_json_instruction=None,
+        runtime_state=runtime_state,
+        invoke_fn=fake_invoke_llm,
     )
 
     await model.invoke(
@@ -87,6 +101,53 @@ async def test_runtime_strategy_model_directive_is_invocation_local() -> None:
 
     assert len(captured_messages) == 2
     assert _directive_messages(captured_messages[1]) == []
+    assert _directive_messages(runtime_state.messages) == []
+
+
+@pytest.mark.asyncio
+async def test_finalize_directive_is_invocation_local() -> None:
+    captured_messages: list[list[Any]] = []
+
+    async def fake_invoke_llm(**kwargs):
+        captured_messages.append(list(kwargs["messages"]))
+        call_index = kwargs["call_index"]
+        return (
+            AIMessage(content="final-result"),
+            {
+                "phase": kwargs["phase"],
+                "call_index": call_index,
+                "occurred_at": f"model-{call_index}",
+            },
+        )
+
+    base_messages = [
+        SystemMessage(content="Agent behavior"),
+        HumanMessage(content="Analyze the evidence."),
+    ]
+    runtime_state = StrategyRuntimeState(
+        messages=list(base_messages),
+        base_message_count=len(base_messages),
+    )
+    model = _runtime_model(
+        base_messages=base_messages,
+        runtime_state=runtime_state,
+        invoke_fn=fake_invoke_llm,
+        final_model=object(),
+    )
+
+    await model.finalize(
+        reason="capability round limit reached",
+        phase="final_response_generation",
+        directive="Synthesize the validated evidence into the final answer.",
+    )
+
+    directives = _directive_messages(captured_messages[0])
+    assert len(directives) == 1
+    assert (
+        directives[0].additional_kwargs["woobe_context"]["phase"]
+        == "final_response_generation"
+    )
+    assert "Synthesize the validated evidence" in directives[0].content
     assert _directive_messages(runtime_state.messages) == []
 
 
