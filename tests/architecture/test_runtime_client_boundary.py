@@ -87,3 +87,8 @@ def test_embed_consumes_runtime_through_thin_adapter() -> None:
     assert "acceptRuntimeFrameSequence" in source
     assert "parseRuntimeFrame" in source
     assert "runtimeTerminalStatus" in source
+    assert "waitForRuntimeRetry" in source
+    assert "RUNTIME_STREAM_MAX_ATTEMPTS" in source
+    assert "250 * (attempt + 1)" not in source
+    assert "data.type ===" not in source
+    assert "data.token" not in source
