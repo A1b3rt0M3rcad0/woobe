@@ -18,6 +18,12 @@ from modules.agent.application.tool_release_snapshots import (
 from modules.agent.domain.entities import Agent, AgentRelease, ProviderModel
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ReleaseStatus, ToolStatus
 from modules.agent.domain.errors import RuntimeEnvironmentNotReadyError
+from modules.agent.domain.external_context_contract import (
+    ExternalContextContractError,
+    model_external_context,
+    normalize_external_context_contract,
+    resolve_external_context,
+)
 from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
 from shared.contracts.errors import ConflictError, ValidationError
 from shared.contracts.llm_cost import provider_model_pricing_snapshot
@@ -95,59 +101,108 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             raise ConflictError("Agent Session is pinned to a different Release")
         return bound_release_id
 
-    async def _resolve_session(self, session_repo: Any, input_dto: AskInput, agent: Agent):
-        session = await super()._resolve_session(session_repo, input_dto, agent)
-        if session is None or self._is_network_runtime(input_dto):
-            return session
-
-        environment = normalize_runtime_environment(input_dto.execution_context)
-        data = _session_data(session.data)
-        dynamic_release = data.get("chat_surface_dynamic_release") is True
-        raw_environment = data.get("runtime_environment")
-        if raw_environment not in (None, ""):
-            session_environment = normalize_runtime_environment(str(raw_environment))
-            if session_environment != environment:
-                raise ConflictError(
-                    f"Agent Session belongs to {session_environment}, not {environment}"
-                )
+    def _resolve_external_context(
+        self,
+        *,
+        agent: Agent,
+        input_dto: AskInput,
+        session_data: dict[str, Any] | None,
+    ):
+        settings = dict(agent.settings or {})
+        raw_contract = settings.get("external_context_contract")
+        data = session_data or {}
+        persisted = data.get("external_context_session_values")
+        persisted_values = persisted if isinstance(persisted, dict) else {}
+        try:
+            contract = normalize_external_context_contract(raw_contract)
+            resolved = resolve_external_context(
+                contract,
+                input_dto.external_context,
+                session_values=persisted_values,
+            )
+            exposed = model_external_context(contract, resolved.snapshot)
+        except ExternalContextContractError as exc:
+            raise ValidationError(str(exc)) from exc
 
         context = current_execution.get()
-        resolved_release_id = input_dto.loaded_release_id
-        resolved_release_version = None
         if context is not None:
-            resolved_release_id = context.agent_release_id or resolved_release_id
-            resolved_release_version = context.agent_release_version
+            context.external_context_contract = deepcopy(contract)
+            context.external_context_snapshot = deepcopy(resolved.snapshot)
+            context.model_external_context = deepcopy(exposed) if exposed else None
+        return resolved
 
-        existing_release_id = _session_release_id(data)
-        if (
-            not dynamic_release
-            and environment != "draft"
-            and existing_release_id is not None
-            and resolved_release_id is not None
-            and existing_release_id != resolved_release_id
-        ):
-            raise ConflictError("Agent Session is pinned to a different Release")
+    async def _resolve_session(self, session_repo: Any, input_dto: AskInput, agent: Agent):
+        session = await super()._resolve_session(session_repo, input_dto, agent)
+        if session is None:
+            self._resolve_external_context(
+                agent=agent,
+                input_dto=input_dto,
+                session_data=None,
+            )
+            return None
 
+        data = _session_data(session.data)
         next_data = dict(data)
-        next_data["runtime_environment"] = environment
-        metadata = input_dto.metadata if isinstance(input_dto.metadata, dict) else {}
-        source = metadata.get("source")
-        if isinstance(source, str) and source:
-            next_data["source"] = source
 
-        if environment == "draft":
-            next_data.pop("loaded_release_id", None)
-            next_data.pop("release_version", None)
-        elif resolved_release_id is not None and dynamic_release:
-            next_data.pop("loaded_release_id", None)
-            next_data.pop("release_version", None)
-            next_data["last_release_id"] = str(resolved_release_id)
-            if resolved_release_version:
-                next_data["last_release_version"] = resolved_release_version
-        elif resolved_release_id is not None:
-            next_data["loaded_release_id"] = str(resolved_release_id)
-            if resolved_release_version:
-                next_data["release_version"] = resolved_release_version
+        if not self._is_network_runtime(input_dto):
+            environment = normalize_runtime_environment(input_dto.execution_context)
+            dynamic_release = data.get("chat_surface_dynamic_release") is True
+            raw_environment = data.get("runtime_environment")
+            if raw_environment not in (None, ""):
+                session_environment = normalize_runtime_environment(str(raw_environment))
+                if session_environment != environment:
+                    raise ConflictError(
+                        f"Agent Session belongs to {session_environment}, not {environment}"
+                    )
+
+            context = current_execution.get()
+            resolved_release_id = input_dto.loaded_release_id
+            resolved_release_version = None
+            if context is not None:
+                resolved_release_id = context.agent_release_id or resolved_release_id
+                resolved_release_version = context.agent_release_version
+
+            existing_release_id = _session_release_id(data)
+            if (
+                not dynamic_release
+                and environment != "draft"
+                and existing_release_id is not None
+                and resolved_release_id is not None
+                and existing_release_id != resolved_release_id
+            ):
+                raise ConflictError("Agent Session is pinned to a different Release")
+
+            next_data["runtime_environment"] = environment
+            metadata = input_dto.metadata if isinstance(input_dto.metadata, dict) else {}
+            source = metadata.get("source")
+            if isinstance(source, str) and source:
+                next_data["source"] = source
+
+            if environment == "draft":
+                next_data.pop("loaded_release_id", None)
+                next_data.pop("release_version", None)
+            elif resolved_release_id is not None and dynamic_release:
+                next_data.pop("loaded_release_id", None)
+                next_data.pop("release_version", None)
+                next_data["last_release_id"] = str(resolved_release_id)
+                if resolved_release_version:
+                    next_data["last_release_version"] = resolved_release_version
+            elif resolved_release_id is not None:
+                next_data["loaded_release_id"] = str(resolved_release_id)
+                if resolved_release_version:
+                    next_data["release_version"] = resolved_release_version
+
+        resolved_context = self._resolve_external_context(
+            agent=agent,
+            input_dto=input_dto,
+            session_data=next_data,
+        )
+        if resolved_context.session_values:
+            next_data["external_context_session_values"] = deepcopy(
+                resolved_context.session_values
+            )
+        else:
+            next_data.pop("external_context_session_values", None)
 
         if next_data != data:
             session.data = next_data
@@ -162,6 +217,20 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             raise ValidationError("Agent runtime_config snapshot is invalid")
         settings = dict(agent.settings or {})
         settings["runtime_config"] = deepcopy(runtime_config)
+        agent.settings = settings
+        return agent
+
+    @staticmethod
+    def _apply_external_context_contract_snapshot(agent: Agent, contract: Any) -> Agent:
+        settings = dict(agent.settings or {})
+        try:
+            normalized = normalize_external_context_contract(contract)
+        except ExternalContextContractError as exc:
+            raise ValidationError(str(exc)) from exc
+        if normalized["fields"]:
+            settings["external_context_contract"] = normalized
+        else:
+            settings.pop("external_context_contract", None)
         agent.settings = settings
         return agent
 
@@ -386,6 +455,9 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             input_dto.loaded_release_id = release.id
             self._bind_release_context(release)
             agent = self._apply_release_to_agent(agent, release)
+            agent = self._apply_external_context_contract_snapshot(
+                agent, getattr(release, "external_context_contract", None)
+            )
             agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)
             agent = self._apply_release_snapshot_ids(agent, release)
             return await self._resolve_provider_model_refs(uow, agent)
@@ -399,6 +471,9 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             input_dto.loaded_release_id = release.id
             self._bind_release_context(release)
             agent = self._apply_release_to_agent(agent, release)
+            agent = self._apply_external_context_contract_snapshot(
+                agent, getattr(release, "external_context_contract", None)
+            )
             agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)
             agent = self._apply_release_snapshot_ids(agent, release)
             return await self._resolve_provider_model_refs(uow, agent)
@@ -413,6 +488,9 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             input_dto.loaded_release_id = release.id
             self._bind_release_context(release)
             agent = self._apply_release_to_agent(agent, release)
+            agent = self._apply_external_context_contract_snapshot(
+                agent, getattr(release, "external_context_contract", None)
+            )
             agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)
             agent = self._apply_release_snapshot_ids(agent, release)
             return await self._resolve_provider_model_refs(uow, agent)
@@ -430,6 +508,10 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             if "runtime_config" in snapshot_override:
                 snapshot_override["runtime_config"] = merged_runtime_config
             agent = self._apply_snapshot_override(agent, snapshot_override)
+            if "external_context_contract" in snapshot_override:
+                agent = self._apply_external_context_contract_snapshot(
+                    agent, snapshot_override.get("external_context_contract")
+                )
             agent = self._apply_runtime_config_snapshot(agent, merged_runtime_config)
             self._apply_snapshot_provider_model_ids(agent, snapshot_override)
             return await self._resolve_provider_model_refs(uow, agent)
@@ -440,6 +522,9 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                 release = max(drafts, key=_release_sort_key)
                 self._bind_release_context(release)
                 agent = self._apply_release_to_agent(agent, release)
+                agent = self._apply_external_context_contract_snapshot(
+                    agent, getattr(release, "external_context_contract", None)
+                )
                 agent = self._apply_runtime_config_snapshot(agent, release.runtime_config)
                 agent = self._apply_release_snapshot_ids(agent, release)
                 return await self._resolve_provider_model_refs(uow, agent)
