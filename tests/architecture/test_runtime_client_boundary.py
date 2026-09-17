@@ -49,7 +49,7 @@ def test_runtime_client_owns_protocol_sequence_terminal_output_and_retry_policy(
         _source(path) for path in (RUNTIME_PROTOCOL, RUNTIME_SSE, RUNTIME_OBSERVER)
     )
     for required in (
-        "RUNTIME_STREAM_PROTOCOL_VERSION = 1",
+        "RUNTIME_STREAM_PROTOCOL_VERSION = 2",
         "RUNTIME_STREAM_MAX_ATTEMPTS = 4",
         "RUNTIME_STREAM_RETRY_BASE_MS = 250",
         "RuntimeStreamGapError",
