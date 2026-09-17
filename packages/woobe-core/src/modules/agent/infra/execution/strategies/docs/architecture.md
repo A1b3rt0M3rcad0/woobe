@@ -44,12 +44,51 @@ Model invocation order
 Tool-use loop structure
 algorithm-local counters
 planning or reflection phases
+per-invocation directives
 stop conditions
 checkpoint placement
 final outcome selection
 ```
 
 The current [`StandardExecutionStrategy`](../standard.py) is a Model/Tool loop. A future Planner or ReAct Strategy may use the same runtime primitives in a different order.
+
+## Phase and Directive
+
+A Phase and a Directive solve different problems.
+
+```text
+Phase       = stable semantic identity of an execution step
+Directive   = ephemeral Model behavior instruction for one invocation
+```
+
+The Phase is structural. It is useful to the Strategy algorithm, instrumentation, traces and recovery semantics. A Directive is an optional instruction supplied by the Strategy to refine how the Model should operate during that invocation.
+
+Example:
+
+```python
+result = await ctx.model.invoke(
+    phase=ReasoningPhase.REFLECT,
+    directive=(
+        "Evaluate the evidence collected so far, identify contradictions "
+        "and determine whether additional actions are required."
+    ),
+)
+```
+
+Directives are invocation-local. The Strategy Runtime materializes them only for the current Model call, routes them through Context Engineering, and never appends them to persistent conversation progression.
+
+A Directive does not mutate or replace:
+
+```text
+Agent Behavior
+Agent objective
+Skills
+Session state
+persistent context
+Release configuration
+```
+
+Dynamic business data, Tool results and other evidence should flow through normal context sources rather than being embedded in a Directive.
 
 ## What the Strategy Runtime already handles
 
@@ -68,6 +107,7 @@ State restoration
 recovery message reconstruction
 legacy recovery compatibility
 provider/model preparation
+per-invocation Directive materialization
 final execution result materialization
 ```
 
@@ -83,6 +123,15 @@ batch = await ctx.tools.execute_many(
 )
 
 await ctx.checkpoint()
+```
+
+And this is also normal when the Phase requires a specific cognitive behavior:
+
+```python
+result = await ctx.model.invoke(
+    phase=MyPhase.REFLECT,
+    directive="Inspect the current evidence and identify unresolved gaps.",
+)
 ```
 
 The Strategy should not manually maintain message history, call indexes or recovery cursors.
@@ -105,7 +154,7 @@ If a new algorithm appears to require changes there, classify the requirement fi
 
 If the behavior is specific to one algorithm, keep it in the Strategy file. Examples include planning order, reflection loops, replan rules and algorithm-specific termination.
 
-If several Strategies need the same capability and the current Strategy SDK cannot express it, a small shared primitive may belong in `strategy_sdk` and `strategy_runtime`.
+If several Strategies need the same capability and the current Strategy SDK cannot express it, a small shared primitive may belong in `strategy_sdk` and `strategy_runtime`. Per-invocation Directives are an example of such a shared primitive because multiple algorithms can require phase-specific Model behavior without changing Agent configuration.
 
 The rule is:
 
