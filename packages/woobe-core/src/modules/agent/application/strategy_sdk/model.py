@@ -46,11 +46,26 @@ class StrategyModel(Protocol):
         self,
         *,
         phase: StrategyPhase | None = None,
-    ) -> StrategyModelResult: ...
+        directive: str | None = None,
+    ) -> StrategyModelResult:
+        """Invoke the model for one Strategy phase.
+
+        ``directive`` is an ephemeral execution instruction scoped to this model
+        invocation. It refines how the model should operate during the current
+        phase without mutating the Agent behavior, objective, Skills, Session, or
+        persistent context.
+        """
+        ...
 
     async def finalize(
         self,
         *,
         reason: str,
         phase: StrategyPhase,
-    ) -> StrategyModelResult: ...
+        directive: str | None = None,
+    ) -> StrategyModelResult:
+        """Produce a terminal model response for one Strategy phase.
+
+        ``directive`` follows the same invocation-local semantics as ``invoke``.
+        """
+        ...
