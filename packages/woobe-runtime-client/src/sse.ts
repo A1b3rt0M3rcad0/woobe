@@ -42,7 +42,7 @@ export function parseRuntimeFrame(frame: string): ParsedRuntimeFrame | null {
   const control = data.event_id === undefined && data.run_id === undefined
     && data.session_id === undefined && data.sequence === undefined
   if (control) {
-    if (idLine || !['heartbeat', 'run.realtime_unavailable', 'error', 'agent_activity', 'protocol.control'].includes(type)) {
+    if (idLine || !['heartbeat', 'run.realtime_unavailable', 'error', 'protocol.control'].includes(type)) {
       throw new RuntimeStreamProtocolError('Invalid transport frame')
     }
     return { kind: 'transport', type, eventType: type, occurredAt, payload: payload ?? {}, sequence: null }
