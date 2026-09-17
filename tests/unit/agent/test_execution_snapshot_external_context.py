@@ -11,13 +11,11 @@ from modules.agent.domain.enums import Provider, ReleaseStatus, SessionMode
 
 def _contract() -> dict:
     return {
-        "fields": {
-            "customer_id": {
-                "schema": {"type": "string"},
-                "required": True,
-                "scope": "run",
-                "model": {"expose": False},
-            }
+        "customer_id": {
+            "schema": {"type": "string"},
+            "required": True,
+            "scope": "run",
+            "model": {"expose": False},
         }
     }
 
@@ -62,7 +60,7 @@ def test_release_snapshot_and_apply_preserve_external_context_contract() -> None
         session_mode=SessionMode.stateless,
         settings={
             "runtime_config": {},
-            "external_context_contract": {"fields": {}},
+            "external_context_contract": {},
         },
     )
 
