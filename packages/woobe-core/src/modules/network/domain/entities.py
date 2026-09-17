@@ -21,6 +21,7 @@ class NetworkLimits:
     max_depth: int = 4
     max_invocations: int = 16
     timeout_seconds: int = 90
+    tool_result_max_chars: int = 16_000
 
 
 @dataclass(frozen=True)
@@ -105,6 +106,7 @@ class NetworkDefinition:
                 max_depth=int(settings.get("max_depth", 4)),
                 max_invocations=int(settings.get("max_invocations", 16)),
                 timeout_seconds=int(settings.get("timeout_seconds", 90)),
+                tool_result_max_chars=int(settings.get("tool_result_max_chars", 16_000)),
             ),
             session_mode=str(settings.get("session_mode", "stateful")),
             schema_version=2,
@@ -138,6 +140,7 @@ class NetworkDefinition:
                 "max_depth": self.limits.max_depth,
                 "max_invocations": self.limits.max_invocations,
                 "timeout_seconds": self.limits.timeout_seconds,
+                "tool_result_max_chars": self.limits.tool_result_max_chars,
             },
         }
 

@@ -38,6 +38,14 @@ class _RuntimeBridgeUseCase:
         return _AgentOutput()
 
 
+class _ToolResultLimitBridgeUseCase(_RuntimeBridgeUseCase):
+    async def execute(self, input_dto):
+        context = current_execution.get()
+        assert context is not None
+        assert context.tool_result_max_chars == 24_000
+        return await super().execute(input_dto)
+
+
 class _StreamingBridgeUseCase(_RuntimeBridgeUseCase):
     async def execute(self, input_dto):
         assert input_dto.metadata["source"] == "network_runtime"
@@ -179,6 +187,18 @@ async def test_network_agent_bridge_returns_final_answer_through_public_agent_ru
     assert captured["http_executor"] is http_executor
     assert captured["internal_tool_handlers"] == {}
     assert captured["build_calls"] == 1
+
+
+@pytest.mark.asyncio
+async def test_network_agent_bridge_propagates_tool_result_limit(monkeypatch) -> None:
+    _patch_runtime(monkeypatch, _ToolResultLimitBridgeUseCase)
+    invoker, _settings, _http_executor = _invoker()
+    kwargs = _invoke_kwargs()
+    kwargs["network_context"]["tool_result_max_chars"] = 24_000
+
+    result = await invoker.invoke(**kwargs)
+
+    assert result.answer == "network final answer"
 
 
 @pytest.mark.asyncio

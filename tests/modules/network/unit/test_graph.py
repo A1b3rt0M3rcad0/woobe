@@ -118,6 +118,33 @@ def test_enforces_hard_limits() -> None:
         validate_network_definition(graph)
 
 
+def test_enforces_tool_result_max_chars_limit() -> None:
+    graph = definition()
+    graph = NetworkDefinition(
+        root_node_id=graph.root_node_id,
+        nodes=graph.nodes,
+        edges=graph.edges,
+        limits=NetworkLimits(
+            max_depth=4,
+            max_invocations=16,
+            timeout_seconds=90,
+            tool_result_max_chars=64_001,
+        ),
+    )
+    with pytest.raises(NetworkGraphError, match="tool_result_max_chars"):
+        validate_network_definition(graph)
+
+
+def test_legacy_definition_gets_larger_tool_result_default() -> None:
+    payload = definition().to_dict()
+    payload["settings"].pop("tool_result_max_chars")
+
+    restored = NetworkDefinition.from_dict(payload)
+
+    assert restored.limits.tool_result_max_chars == 16_000
+    assert restored.to_dict()["settings"]["tool_result_max_chars"] == 16_000
+
+
 def test_tool_names_are_stable_and_safe() -> None:
     node = NetworkNode(id=uuid4(), agent_id=uuid4(), label="Billing & Refunds")
     assert delegation_tool_name(node) == "delegate_to_billing_refunds"

@@ -76,8 +76,10 @@ export function validateNetworkGraph(definition: NetworkDefinition): NetworkEdit
   }
 
   const { max_depth, max_invocations, timeout_seconds } = definition.settings
+  const toolResultMaxChars = definition.settings.tool_result_max_chars ?? 16_000
   if (max_depth < 1 || max_depth > 8) issues.push({ code: 'max-depth', severity: 'error', message: 'Maximum depth must be between 1 and 8.' })
   if (max_invocations < 1 || max_invocations > 64) issues.push({ code: 'max-invocations', severity: 'error', message: 'Maximum invocations must be between 1 and 64.' })
   if (timeout_seconds < 1 || timeout_seconds > 300) issues.push({ code: 'timeout', severity: 'error', message: 'Timeout must be between 1 and 300 seconds.' })
+  if (toolResultMaxChars < 1000 || toolResultMaxChars > 64000) issues.push({ code: 'tool-result-max-chars', severity: 'error', message: 'Tool result max chars must be between 1000 and 64000.' })
   return issues
 }

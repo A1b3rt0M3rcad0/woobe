@@ -49,6 +49,7 @@ class RequestExecutionContext:
     parent_invocation_id: UUID | None = None
     network_node_id: UUID | None = None
     depth: int | None = None
+    tool_result_max_chars: int | None = None
     internal_tool_definitions: list[dict[str, Any]] | None = None
     internal_tool_name_to_id: dict[str, str] | None = None
     internal_tool_handlers: dict[

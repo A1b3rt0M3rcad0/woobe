@@ -684,6 +684,7 @@ class NetworkExecutor:
                         "network_node_id": str(node_id),
                         "depth": depth,
                         "draft_revision": execution.draft_revision,
+                        "tool_result_max_chars": definition.limits.tool_result_max_chars,
                     },
                     stream_handler=stream_agent_event,
                 )

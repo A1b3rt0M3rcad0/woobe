@@ -6,6 +6,7 @@ import { Button, EmptyStatePanel, Field, FieldLabel, Input, MetricTile, PanelHea
 
 import { useUpdateNetworkMetadata } from '@/features/network/hooks'
 
+import { DEFAULT_NETWORK_SETTINGS } from '../editor/networkDefinitionMapper'
 import type { NetworkDefinition } from '../types'
 import type { NetworkDefinitionChange } from '../editor/types'
 import { NetworkInspectorModal } from './NetworkInspectorModal'
@@ -32,8 +33,12 @@ export function NetworkOverviewInspector({
   const [metadataOverridden, setMetadataOverridden] = useState(false)
   const [displayIdentity, setDisplayIdentity] = useState({ name, description })
   const [identityDraft, setIdentityDraft] = useState({ name, description })
-  const [runtimeDraft, setRuntimeDraft] = useState(definition.settings)
+  const [runtimeDraft, setRuntimeDraft] = useState({
+    ...definition.settings,
+    tool_result_max_chars: definition.settings.tool_result_max_chars ?? DEFAULT_NETWORK_SETTINGS.tool_result_max_chars,
+  })
   const entryPoint = definition.nodes.find((item) => item.id === definition.root_node_id)?.label ?? 'Not selected'
+  const toolResultMaxChars = definition.settings.tool_result_max_chars ?? DEFAULT_NETWORK_SETTINGS.tool_result_max_chars ?? 16_000
 
   useEffect(() => {
     if (metadataOverridden) return
@@ -102,8 +107,8 @@ export function NetworkOverviewInspector({
         <SectionBlock
           density="compact"
           title="Runtime"
-          description={`${definition.settings.session_mode} · depth ${definition.settings.max_depth} · ${definition.settings.max_invocations} invocations · ${definition.settings.timeout_seconds}s`}
-          actions={<Button type="button" size="sm" variant="outline" onClick={() => { setRuntimeDraft(definition.settings); setRuntimeOpen(true) }}>{readOnly ? 'View' : 'Edit'}</Button>}
+          description={`${definition.settings.session_mode} · depth ${definition.settings.max_depth} · ${definition.settings.max_invocations} invocations · ${definition.settings.timeout_seconds}s · tool results ${toolResultMaxChars} chars`}
+          actions={<Button type="button" size="sm" variant="outline" onClick={() => { setRuntimeDraft({ ...definition.settings, tool_result_max_chars: toolResultMaxChars }); setRuntimeOpen(true) }}>{readOnly ? 'View' : 'Edit'}</Button>}
         />
       </div>
 
@@ -137,7 +142,7 @@ export function NetworkOverviewInspector({
       {runtimeOpen ? (
         <NetworkInspectorModal
           title={readOnly ? 'Runtime settings' : 'Edit runtime settings'}
-          description="These limits apply to future Network executions."
+          description="These limits apply to future Network executions. Tool result max chars controls how much Tool and delegation output can be materialized back to an Agent."
           onClose={() => setRuntimeOpen(false)}
           footer={readOnly ? (
             <Button type="button" variant="outline" onClick={() => setRuntimeOpen(false)}>Close</Button>
@@ -164,6 +169,10 @@ export function NetworkOverviewInspector({
             <Field>
               <FieldLabel>Timeout</FieldLabel>
               <Input disabled={readOnly} type="number" min={1} max={300} value={runtimeDraft.timeout_seconds} onChange={(event) => setRuntimeDraft((current) => ({ ...current, timeout_seconds: Number(event.target.value) }))} />
+            </Field>
+            <Field>
+              <FieldLabel>Tool result max chars</FieldLabel>
+              <Input disabled={readOnly} type="number" min={1000} max={64000} step={1000} value={runtimeDraft.tool_result_max_chars} onChange={(event) => setRuntimeDraft((current) => ({ ...current, tool_result_max_chars: Number(event.target.value) }))} />
             </Field>
           </div>
         </NetworkInspectorModal>
