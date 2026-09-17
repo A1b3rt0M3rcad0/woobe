@@ -88,7 +88,6 @@ export function ContractFieldBuilder({
             <Input
               value={row.name}
               disabled={disabled}
-              density="compact"
               spellCheck={false}
               onChange={(event) => update(index, { name: event.target.value })}
               aria-label={`Field ${index + 1} name`}
