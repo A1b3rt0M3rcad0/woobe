@@ -11,6 +11,7 @@ from modules.network.infra.database import models as network_models
 from modules.network.infra.database.models import (
     NetworkExecutionModel,
     NetworkInvocationModel,
+    NetworkSessionModel,
     NetworkVersionModel,
 )
 from shared.infra.database.base import BaseModel
@@ -89,6 +90,11 @@ if "ix_network_versions_release_fingerprint" not in {
         NetworkVersionModel.__table__.c.network_id,
         NetworkVersionModel.__table__.c.release_fingerprint,
     )
+_install_column(
+    NetworkSessionModel,
+    "external_context_session_values",
+    mapped_column(JSONB, nullable=True),
+)
 _install_column(
     NetworkExecutionModel, "parsed_output", mapped_column(JSONB, nullable=True)
 )
