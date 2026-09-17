@@ -4,9 +4,11 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { ChatCanvas, type ChatCanvasEntry } from '@/features/playground/components/ChatCanvas'
+import { RuntimeContextPanel } from '@/features/contracts/RuntimeContextPanel'
+import { filterContractValues } from '@/features/contracts/contractFields'
 import type { ChatMessage as PlaygroundChatMessage } from '@/features/playground/types'
 import { cancelNetworkExecution } from '@/features/network/api'
-import { useNetworkRuntimeEnvironments } from '@/features/network/hooks'
+import { useNetworkExternalContextContract, useNetworkRuntimeEnvironments, useUpdateNetworkRuntimeEnvironmentContext } from '@/features/network/hooks'
 import { useNetworkIdentity } from '@/features/network/NetworkIdentityContext'
 import { getActiveNetworkExecution } from '@/features/network/runtime-reattach-api'
 import { streamNetworkExecution } from '@/features/network/stream'
@@ -137,7 +139,14 @@ export function NetworkChatWorkspace({
   const queryClient = useQueryClient()
   const exactNetworkName = useNetworkIdentity() ?? networkName
   const runtimeStatesQuery = useNetworkRuntimeEnvironments(networkId, projectId)
+  const externalContextContractQuery = useNetworkExternalContextContract(networkId, projectId, environment)
+  const updateRuntimeContext = useUpdateNetworkRuntimeEnvironmentContext(networkId, projectId)
   const runtimeEnabled = runtimeStatesQuery.data?.[environment]?.enabled ?? true
+  const effectiveExternalContextContract = externalContextContractQuery.data ?? {}
+  const runtimeExternalContext = filterContractValues(
+    effectiveExternalContextContract,
+    runtimeStatesQuery.data?.[environment]?.external_context_values,
+  )
   const [text, setText] = useState('')
   const [localTurns, setLocalTurns] = useState<NetworkTurn[]>([])
   const [creatingSession, setCreatingSession] = useState(false)
@@ -473,7 +482,7 @@ export function NetworkChatWorkspace({
       const executionBindings = environment === 'draft'
         ? Object.fromEntries(Object.entries(bindings).map(([nodeId, binding]) => [nodeId, { ...binding, version: `r${expectedDraftRevision}`, dirty: false }])) as Record<AgentNodeId, NetworkBinding>
         : bindings
-      await streamNetworkExecution({ networkId, projectId, networkSessionId: session.id, message, expectedDraftRevision }, {
+      await streamNetworkExecution({ networkId, projectId, networkSessionId: session.id, message, expectedDraftRevision, externalContext: runtimeExternalContext }, {
         onExecutionId: (id) => {
           executionId = id
           executionIdRef.current = id
@@ -639,25 +648,41 @@ export function NetworkChatWorkspace({
     : undefined
 
   return (
-    <ChatCanvas
-      entries={chatEntries}
-      isSending={running}
-      isStopping={stopping}
-      isPreparing={creatingSession}
-      isSessionLoading={historyLoading}
-      onSend={(content) => { void send(content) }}
-      onStop={stop}
-      assistantIcon="network"
-      runtimeBlocked={Boolean(runtimeBlockReason)}
-      runtimeBlockReason={runtimeBlockReason}
-      emptyTitle="Test your Network"
-      emptyDescription="Every message starts at the entry Agent and executes the current Network composition."
-      suggestions={networkSuggestions}
-      composerValue={text}
-      onComposerValueChange={setText}
-      composerStatusText={composerStatusText}
-      preparingText="Preparing Network Session..."
-      enableFirstRunSuccess={false}
-    />
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <RuntimeContextPanel
+        environment={environment}
+        contract={effectiveExternalContextContract}
+        savedValues={runtimeStatesQuery.data?.[environment]?.external_context_values}
+        saving={updateRuntimeContext.isPending}
+        onSave={async (values) => {
+          try {
+            await updateRuntimeContext.mutateAsync({ environment, values })
+            toast.success(`${environment.charAt(0).toUpperCase() + environment.slice(1)} context values saved`)
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Could not save External Context values')
+          }
+        }}
+      />
+      <ChatCanvas
+        entries={chatEntries}
+        isSending={running}
+        isStopping={stopping}
+        isPreparing={creatingSession}
+        isSessionLoading={historyLoading}
+        onSend={(content) => { void send(content) }}
+        onStop={stop}
+        assistantIcon="network"
+        runtimeBlocked={Boolean(runtimeBlockReason)}
+        runtimeBlockReason={runtimeBlockReason}
+        emptyTitle="Test your Network"
+        emptyDescription="Every message starts at the entry Agent and executes the current Network composition."
+        suggestions={networkSuggestions}
+        composerValue={text}
+        onComposerValueChange={setText}
+        composerStatusText={composerStatusText}
+        preparingText="Preparing Network Session..."
+        enableFirstRunSuccess={false}
+      />
+    </div>
   )
 }
