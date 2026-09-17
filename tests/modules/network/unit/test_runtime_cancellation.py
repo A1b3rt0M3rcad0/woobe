@@ -159,6 +159,7 @@ def test_draft_execution_uses_captured_snapshot_without_network_version() -> Non
                 "max_depth": 4,
                 "max_invocations": 16,
                 "timeout_seconds": 90,
+                "max_tool_result_chars": 24_000,
             },
         },
         resolved_bindings_snapshot={
@@ -183,6 +184,7 @@ def test_draft_execution_uses_captured_snapshot_without_network_version() -> Non
     assert captured["execution_context"] == "playground"
     assert captured["snapshot_override"]["system_prompt"] == "Draft prompt"
     assert captured["network_context"]["draft_revision"] == 7
+    assert captured["network_context"]["tool_result_max_chars"] == 24_000
 
 
 def test_stateless_network_does_not_persist_agent_context() -> None:
