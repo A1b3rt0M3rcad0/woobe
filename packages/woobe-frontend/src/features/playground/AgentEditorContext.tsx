@@ -1,6 +1,6 @@
 import { behaviorFromSpec, behaviorToSpec, type AgentBehavior } from '@/features/agents/behavior'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Agent, AgentRelease } from '@/features/agents/types'
+import type { Agent, AgentRelease, ExternalContextContract } from '@/features/agents/types'
 import { getRelease } from '@/features/agents/api'
 import { useReleases } from '@/features/agents/hooks'
 import { useCredentials } from '@/features/provider-credentials/hooks'
@@ -19,6 +19,8 @@ export type ResponseFormat = {
 export type AgentSessionMode = 'stateful' | 'stateless'
 export type AgentToolPermissions = Record<string, Record<string, McpToolPermission>>
 
+const EMPTY_EXTERNAL_CONTEXT_CONTRACT: ExternalContextContract = { fields: {} }
+
 export type AgentEditorState = {
   name: string
   description: string
@@ -26,6 +28,7 @@ export type AgentEditorState = {
   sessionMode: AgentSessionMode
   responseFormat: ResponseFormat
   outputSchema: unknown | null
+  externalContextContract: ExternalContextContract | string
   provider: string
   model: string
   providerModelId: string | null
@@ -173,6 +176,12 @@ function runtimeConfigSnapshot(state: AgentEditorState): Record<string, unknown>
   }
 }
 
+function externalContextContractValue(value: unknown): ExternalContextContract {
+  const raw = recordValue(value)
+  const fields = recordValue(raw.fields)
+  return { fields: fields as ExternalContextContract['fields'] }
+}
+
 export function agentToEditorState(agent: Agent, collectionIds?: string[], knowledgeVersionId?: string | null, toolIds?: string[]): AgentEditorState {
   const settings = (agent.settings || {}) as Record<string, unknown>
   const responseFormat = recordValue(settings.response_format)
@@ -191,6 +200,9 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[], knowl
       repair_attempts: (responseFormat.repair_attempts as number) ?? undefined,
     },
     outputSchema: responseFormat.schema ?? null,
+    externalContextContract: settings.external_context_contract
+      ? externalContextContractValue(settings.external_context_contract)
+      : EMPTY_EXTERNAL_CONTEXT_CONTRACT,
     provider: agent.provider || '',
     model: agent.model || '',
     providerModelId: agent.provider_model_id || null,
@@ -247,6 +259,9 @@ export function releaseToEditorState(release: AgentRelease, current: AgentEditor
       repair_attempts: rf.repair_attempts as number | undefined,
     },
     outputSchema: release.output_schema ?? current.outputSchema,
+    externalContextContract: release.external_context_contract
+      ? externalContextContractValue(release.external_context_contract)
+      : EMPTY_EXTERNAL_CONTEXT_CONTRACT,
   }
 }
 
@@ -254,6 +269,10 @@ export function canonicalSnapshot(state: AgentEditorState): Record<string, unkno
   let schema = state.responseFormat.schema
   if (typeof schema === 'string') {
     try { schema = JSON.parse(schema) } catch { /* Preserve invalid raw editor text until a validation boundary. */ }
+  }
+  let externalContextContract: unknown = state.externalContextContract
+  if (typeof externalContextContract === 'string') {
+    try { externalContextContract = JSON.parse(externalContextContract) } catch { /* Preserve invalid raw editor text until validation. */ }
   }
   return {
     name: state.name,
@@ -268,6 +287,7 @@ export function canonicalSnapshot(state: AgentEditorState): Record<string, unkno
       repair_attempts: state.responseFormat.repair_attempts,
     },
     output_schema: schema,
+    external_context_contract: externalContextContract,
     provider_model_id: state.providerModelId,
     provider: state.provider,
     model: state.model,
