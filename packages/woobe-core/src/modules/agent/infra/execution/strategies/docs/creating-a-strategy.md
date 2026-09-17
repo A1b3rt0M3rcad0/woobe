@@ -149,6 +149,31 @@ result = await ctx.model.invoke(
 
 The Runtime owns the current conversation and call instrumentation.
 
+### Direct Model behavior for a Phase
+
+A Phase identifies **where the algorithm is**. An optional Directive describes **how the Model should operate for that invocation**.
+
+```python
+result = await ctx.model.invoke(
+    phase=PlannerPhase.REFLECT,
+    directive=(
+        "Evaluate the evidence collected so far, identify contradictions "
+        "and determine whether additional actions are required."
+    ),
+)
+```
+
+Directive semantics are intentionally narrow:
+
+```text
+Phase       = stable semantic identity of an execution step
+Directive   = ephemeral behavior instruction for one Model invocation
+```
+
+A Directive does not mutate or replace Agent Behavior, objective, Skills, Session state or persistent context. The Strategy supplies it again on a later invocation if the same behavior is still required.
+
+Use Directives for execution behavior such as planning, reflection, verification or synthesis. Do not use them as a transport for dynamic business payloads, Tool results, customer data or large context. Those values belong to the normal context pipeline.
+
 ### Execute Tools
 
 ```python
