@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { runtimeTestEnvelope } from '@/lib/runtime-stream-test-fixtures'
+
 vi.mock('@/lib/api/client', () => ({
   API_BASE_URL: 'http://api.test',
   ensureCsrfToken: vi.fn(async () => undefined),
@@ -19,12 +21,12 @@ function frame(
   executionId = 'execution-1',
 ) {
   return encoder.encode(
-    `id: ${sequence}\nevent: ${event}\ndata: ${JSON.stringify({
-      protocol_version: 1,
+    `id: ${sequence}\nevent: ${event}\ndata: ${JSON.stringify(runtimeTestEnvelope(event, {
       execution_id: executionId,
+      network_session_id: 'session-1',
       sequence,
       data,
-    })}\n\n`,
+    }, 'NETWORK'))}\n\n`,
   )
 }
 
