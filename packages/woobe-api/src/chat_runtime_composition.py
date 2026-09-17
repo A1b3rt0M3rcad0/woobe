@@ -185,6 +185,7 @@ class ApiChatRuntimeGateway:
                 "embed_protocol_version": 1,
                 "server_received_at": datetime.now(timezone.utc).isoformat(),
             },
+            external_context=runtime_request.external_context,
             execution_context="production",
             loaded_release_id=runtime_request.target_release_id,
         )
@@ -245,6 +246,7 @@ class ApiChatRuntimeGateway:
                 project_id=runtime_request.project_id,
                 network_session_id=runtime_request.session_id,
                 message=runtime_request.message,
+                external_context=runtime_request.external_context,
                 idempotency_key=f"chat:{runtime_request.message_request_id}",
             )
             execution_id = execution.id

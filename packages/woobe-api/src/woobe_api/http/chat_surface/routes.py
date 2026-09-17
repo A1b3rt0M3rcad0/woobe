@@ -526,6 +526,7 @@ async def stream_public_message(
         message_request_id=message_request.id,
         message=payload.message,
         metadata=dict(payload.metadata or {}),
+        external_context=dict(payload.external_context or {}),
         session_source=session_source,
         created=created,
         existing_run_id=message_request.target_run_id,
