@@ -13,6 +13,7 @@ export type RuntimeEnvironment = 'draft' | 'staging' | 'production'
 
 export interface RuntimeEnvironmentState {
   enabled: boolean
+  external_context_values?: Record<string, unknown>
   updated_by?: string | null
   updated_at?: string | null
 }
@@ -30,9 +31,7 @@ export interface ExternalContextFieldContract {
   description?: string
 }
 
-export interface ExternalContextContract {
-  fields: Record<string, ExternalContextFieldContract>
-}
+export type ExternalContextContract = Record<string, ExternalContextFieldContract>
 
 /** Backend-owned presentation contract for one registered Context Manager. */
 export interface ContextAssemblerDescriptor {
