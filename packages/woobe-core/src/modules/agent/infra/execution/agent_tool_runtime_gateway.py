@@ -6,6 +6,7 @@ from uuid import UUID
 
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
+from modules.agent.application.tool_context_bindings import apply_context_bindings
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.domain.enums import ToolStatus
@@ -67,10 +68,6 @@ class AgentToolRuntimeGateway:
         if internal_handler is not None:
             return await internal_handler(dict(input_data or {}))
 
-        runtime_input = dict(input_data or {})
-        if context and context.session_id:
-            runtime_input.setdefault(MCP_AGENT_SESSION_INPUT_KEY, str(context.session_id))
-
         snapshot = (
             (context.tool_snapshots or {}).get(str(tool_id))
             if context is not None
@@ -83,6 +80,15 @@ class AgentToolRuntimeGateway:
             tool = prepared.get(str(tool_id)) if prepared else None
             if tool is None or tool.status != ToolStatus.ACTIVE:
                 raise ToolNotFoundError(tool_id)
+
+        runtime_input = dict(input_data or {})
+        if context and context.session_id:
+            runtime_input.setdefault(MCP_AGENT_SESSION_INPUT_KEY, str(context.session_id))
+        runtime_input = apply_context_bindings(
+            getattr(tool, "config", None) or {},
+            runtime_input,
+            context.external_context_snapshot if context is not None else None,
+        )
 
         registry = build_tool_runtime_registry(
             settings=self._settings,
