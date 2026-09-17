@@ -5,6 +5,7 @@ import json
 from typing import Any
 
 from modules.agent.domain.entities import AgentRelease
+from modules.agent.domain.external_context_contract import classify_external_context_change
 from modules.agent.domain.release_versioning import ReleaseChangeKind
 
 
@@ -63,6 +64,13 @@ def classify_release_change(
     if previous.session_mode != candidate.session_mode:
         return ReleaseChangeKind.COMPATIBILITY
 
+    external_context_kind = classify_external_context_change(
+        previous.external_context_contract,
+        candidate.external_context_contract,
+    )
+    if external_context_kind is ReleaseChangeKind.COMPATIBILITY:
+        return ReleaseChangeKind.COMPATIBILITY
+
     simple_contract_kind = _simple_contract_change_kind(
         previous.output_schema,
         candidate.output_schema,
@@ -86,6 +94,8 @@ def classify_release_change(
     if _schema_adds_non_breaking_feature(previous_schema, candidate_schema):
         return ReleaseChangeKind.FEATURE
 
+    if external_context_kind is ReleaseChangeKind.FEATURE:
+        return ReleaseChangeKind.FEATURE
     return ReleaseChangeKind.CHANGE
 
 
