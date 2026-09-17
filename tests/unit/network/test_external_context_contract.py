@@ -29,7 +29,7 @@ def agent_contract(
     }
     if default is not None:
         field["default"] = default
-    return {"fields": {"customer_id": field}}
+    return {"customer_id": field}
 
 
 def test_effective_resolution_reuses_only_session_values() -> None:
@@ -70,24 +70,20 @@ def test_effective_resolution_rejects_undeclared_values() -> None:
 
 def test_projection_is_consumer_scoped_and_applies_default() -> None:
     support = {
-        "fields": {
-            "customer_id": {
-                "schema": {"type": "string"},
-                "required": True,
-                "scope": "run",
-                "default": "anonymous",
-                "model": {"expose": False},
-            }
+        "customer_id": {
+            "schema": {"type": "string"},
+            "required": True,
+            "scope": "run",
+            "default": "anonymous",
+            "model": {"expose": False},
         }
     }
     orders = {
-        "fields": {
-            "order_id": {
-                "schema": {"type": "string"},
-                "required": False,
-                "scope": "run",
-                "model": {"expose": False},
-            }
+        "order_id": {
+            "schema": {"type": "string"},
+            "required": False,
+            "scope": "run",
+            "model": {"expose": False},
         }
     }
     effective = compose_external_context_contracts(
