@@ -292,3 +292,71 @@ export interface McpOAuthCompleteRequest {
 export interface McpOAuthStatusRequest {
   tool_id: string
 }
+
+export interface McpOAuthStatusResponse {
+  status: string
+  connected: boolean
+  authorization_server_issuer?: string | null
+  scopes: string[]
+  expires_at?: string | null
+}
+
+export interface RefreshMcpToolsRequest {
+  tool_id: string
+  timeout_ms?: number
+}
+
+export interface RefreshMcpToolsResponse {
+  tool_id: string
+  discovered_count: number
+  initialized: boolean
+  status: string
+  error?: string | null
+  http_status?: number | null
+  phase?: string | null
+}
+
+export interface McpToolPermissionUpdate {
+  remote_tool_name: string
+  mode: McpToolPermissionMode
+  risk_level?: string
+}
+
+export interface UpdateMcpToolPermissionsRequest {
+  tool_id: string
+  permissions: McpToolPermissionUpdate[]
+}
+
+export interface BulkUpdateMcpToolPermissionsRequest {
+  tool_id: string
+  mode: McpToolPermissionMode
+  risk_level?: string
+}
+
+export interface McpToolPermissionsResponse {
+  tool_id: string
+  permissions: Array<{ name: string; mode: McpToolPermissionMode; risk_level?: string | null }>
+}
+
+export interface UpdateToolStatusRequest {
+  status: 'active' | 'inactive' | 'deprecated'
+}
+
+export interface Secret {
+  id: string
+  project_id: string
+  name: string
+  type: string
+  status?: string
+  data?: Record<string, unknown>
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CreateSecretRequest {
+  project_id: string
+  name: string
+  type?: string
+  value: string
+  data?: Record<string, unknown>
+}
