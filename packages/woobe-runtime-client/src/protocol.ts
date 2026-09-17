@@ -45,7 +45,6 @@ export function acceptRuntimeFrameSequence(
   if (frame.kind === 'transport') return true
 
   const sequence = frame.sequence
-  if (sequence === null) return true
 
   if (frame.eventType === 'run.state') {
     if (state.sequence !== null && sequence < state.sequence) return false
