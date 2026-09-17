@@ -198,7 +198,7 @@ async def _promote_atomic(
             effective_external_context_contract
         )
         release_fingerprint = metadata["fingerprint"]
-        if effective_external_context_contract.get("fields"):
+        if effective_external_context_contract:
             release_fingerprint = canonical_hash(
                 {
                     "base_release_fingerprint": metadata["fingerprint"],
