@@ -10,16 +10,20 @@ from modules.agent.domain.external_context_contract import (
     ExternalContextContractError,
     compose_external_context_contracts,
 )
-from modules.agent.domain.release_versioning import calculate_next_release_version
+from modules.agent.domain.release_versioning import (
+    ReleaseChangeKind,
+    calculate_next_release_version,
+)
 from modules.agent.infra.database.models import AgentReleaseModel
 from modules.network.domain.external_context_contract import (
     classify_effective_external_context_change,
     strongest_release_change,
 )
-from modules.network.domain.release_contracts import classify_contract_change
+from modules.network.domain.release_contracts import canonical_hash, classify_contract_change
 from modules.network.infra.database.models import (
     NetworkAgentContextModel,
     NetworkExecutionModel,
+    NetworkModel,
     NetworkProductionActivationModel,
     NetworkSessionModel,
     NetworkVersionModel,
@@ -28,6 +32,13 @@ from shared.infra.errors import ConflictError, NotFoundError, ValidationError
 
 
 _ACTIVE_STATUSES = {"queued", "running", "cancel_requested"}
+
+
+def _compose_contracts(contracts: dict[str, Any]) -> dict[str, Any]:
+    try:
+        return compose_external_context_contracts(contracts)
+    except ExternalContextContractError as exc:
+        raise ValidationError(str(exc)) from exc
 
 
 async def _effective_contract_for_version(
@@ -46,10 +57,24 @@ async def _effective_contract_for_version(
         if release is None:
             continue
         contracts[str(node.id)] = getattr(release, "external_context_contract", None)
-    try:
-        return compose_external_context_contracts(contracts)
-    except ExternalContextContractError as exc:
-        raise ValidationError(str(exc)) from exc
+    return _compose_contracts(contracts)
+
+
+async def _effective_contract_for_plan(
+    session: Any,
+    nodes: list[dict[str, Any]],
+) -> dict[str, Any]:
+    contracts: dict[str, Any] = {}
+    for item in nodes:
+        node_id = str(item.get("node_id") or "").strip()
+        selected_ref = item.get("selected_ref")
+        if not node_id or not selected_ref:
+            continue
+        release = await session.get(AgentReleaseModel, UUID(str(selected_ref)))
+        if release is None:
+            continue
+        contracts[node_id] = getattr(release, "external_context_contract", None)
+    return _compose_contracts(contracts)
 
 
 async def _latest_activation(
@@ -67,6 +92,64 @@ async def _latest_activation(
         .order_by(NetworkProductionActivationModel.created_at.desc())
         .limit(1)
     )
+
+
+async def _preview_with_effective_external_context(
+    self,
+    *,
+    network_id: UUID,
+    project_id: UUID,
+    environment,
+) -> dict[str, Any]:
+    plan = await self._external_context_base_preview_promotion(
+        network_id=network_id,
+        project_id=project_id,
+        environment=environment,
+    )
+    release_preview = plan.get("release_preview")
+    if not isinstance(release_preview, dict):
+        return plan
+
+    async with self._session_factory() as session:
+        network = await session.get(NetworkModel, network_id)
+        if network is None or network.project_id != project_id:
+            raise NotFoundError("Network not found")
+        candidate = await _effective_contract_for_plan(
+            session,
+            list(plan.get("nodes") or []),
+        )
+        previous = (
+            await session.get(NetworkVersionModel, network.production_version_id)
+            if network.production_version_id
+            else None
+        )
+        context_kind = classify_effective_external_context_change(
+            previous.effective_external_context_contract if previous else None,
+            candidate,
+        )
+        current_kind = ReleaseChangeKind(
+            str(release_preview.get("change_kind") or ReleaseChangeKind.CHANGE.value)
+        )
+        combined_kind = strongest_release_change(current_kind, context_kind)
+        existing_versions = list(
+            (
+                await session.scalars(
+                    select(NetworkVersionModel.version).where(
+                        NetworkVersionModel.network_id == network_id,
+                        NetworkVersionModel.kind == "release",
+                    )
+                )
+            ).all()
+        )
+
+    release_preview["change_kind"] = combined_kind.value
+    release_preview["next_version"] = calculate_next_release_version(
+        existing_versions,
+        combined_kind,
+    )
+    release_preview["effective_external_context_contract"] = deepcopy(candidate)
+    release_preview["effective_external_context_contract_hash"] = canonical_hash(candidate)
+    return plan
 
 
 async def _promote_with_effective_external_context(
@@ -191,8 +274,14 @@ def install_network_external_context_release_support() -> None:
 
     if hasattr(NetworkApplicationService, "_external_context_base_promote"):
         return
+    NetworkApplicationService._external_context_base_preview_promotion = (  # type: ignore[attr-defined]
+        NetworkApplicationService.preview_promotion
+    )
     NetworkApplicationService._external_context_base_promote = (  # type: ignore[attr-defined]
         NetworkApplicationService.promote
+    )
+    NetworkApplicationService.preview_promotion = (  # type: ignore[assignment]
+        _preview_with_effective_external_context
     )
     NetworkApplicationService.promote = _promote_with_effective_external_context  # type: ignore[assignment]
     NetworkApplicationService.reset_session_context = (  # type: ignore[assignment]
