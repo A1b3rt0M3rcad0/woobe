@@ -69,6 +69,16 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
             "timeout_seconds": 30,
         },
     }
+    external_context_contract = {
+        "fields": {
+            "customer_id": {
+                "schema": {"type": "string"},
+                "required": True,
+                "scope": "run",
+                "model": {"expose": False},
+            }
+        }
+    }
 
     credential = ProviderCredentialModel(
         id=credential_id,
@@ -110,7 +120,7 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
         max_output_tokens=64,
         session_mode="stateless",
         status="active",
-        settings={},
+        settings={"external_context_contract": external_context_contract},
     )
     agent.provider_model_id = provider_model_id
 
@@ -193,6 +203,7 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
             project_id=project_id,
             network_session_id=network_session_id,
             message="hello network",
+            external_context={"customer_id": "cus-network-1"},
             idempotency_key=f"fake-provider-{uuid4()}",
             expected_draft_revision=1,
         )
@@ -227,6 +238,7 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
         )
 
     assert execution is not None
+    assert execution.external_context_snapshot == {"customer_id": "cus-network-1"}
     assert execution.status == "completed", (
         execution.failure_code,
         execution.failure_detail,
@@ -256,4 +268,3 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
     assert run.usage["total_tokens"] == 12
 
     await engine.dispose()
-
