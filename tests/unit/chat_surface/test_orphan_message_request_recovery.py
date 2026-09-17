@@ -129,7 +129,7 @@ async def test_runtime_gateway_setup_failure_terminalizes_new_message_request(
             permissions=frozenset({"chat:send", "chat:stream"})
         ),
     )
-    payload = SimpleNamespace(message="hello", metadata=None)
+    payload = SimpleNamespace(message="hello", metadata=None, external_context=None)
 
     async def authorize(*_args, **_kwargs):
         return authorized
