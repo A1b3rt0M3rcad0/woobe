@@ -4,6 +4,7 @@ from uuid import uuid4
 import pytest
 
 from modules.agent.application.dtos.tools_dtos import CreateToolInput
+from modules.agent.application.interfaces.tool_runtime import MCP_REMOTE_TOOL_INPUT_KEY
 from modules.agent.application.tool_context_bindings import (
     ToolContextBindingError,
     apply_context_bindings,
@@ -54,7 +55,7 @@ def test_http_group_route_binding_is_selected_by_runtime_route() -> None:
     }
     result = apply_context_bindings(
         config,
-        {"__mcp_remote_tool": "orders"},
+        {MCP_REMOTE_TOOL_INPUT_KEY: "orders"},
         {"tenant_id": "tenant-1", "customer_id": "cus-1"},
     )
     assert result["tenant_id"] == "tenant-1"
