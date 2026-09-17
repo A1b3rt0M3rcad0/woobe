@@ -75,6 +75,7 @@ class RequestExecutionContext:
     model_capacity_units: int | None = None
     reserved_output_units: int | None = None
     active_tool_definitions: list[dict[str, Any]] | None = None
+    tool_result_max_chars: int | None = None
     context_selection_metadata: dict[str, Any] | None = None
     context_rag_sources: list[dict[str, Any]] | None = None
 
