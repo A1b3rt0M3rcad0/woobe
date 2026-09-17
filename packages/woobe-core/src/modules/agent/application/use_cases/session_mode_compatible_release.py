@@ -114,12 +114,11 @@ def _sync_agent_projection(agent: Any, draft: Any) -> None:
         settings.pop("response_format", None)
     else:
         settings["response_format"] = deepcopy(draft.response_format)
-    if draft.external_context_contract is None:
+    external_context_contract = getattr(draft, "external_context_contract", None)
+    if external_context_contract is None:
         settings.pop("external_context_contract", None)
     else:
-        settings["external_context_contract"] = deepcopy(
-            draft.external_context_contract
-        )
+        settings["external_context_contract"] = deepcopy(external_context_contract)
     if draft.base_url is None:
         settings.pop("base_url", None)
     else:
