@@ -13,10 +13,12 @@ import {
 } from "./protocol";
 import { randomUuid } from "./random-uuid";
 import {
+  RUNTIME_STREAM_MAX_ATTEMPTS,
   RuntimeStreamGapError,
   acceptRuntimeFrameSequence,
   parseRuntimeFrame,
   runtimeTerminalStatus,
+  waitForRuntimeRetry,
   type ParsedRuntimeFrame,
   type RuntimeSequenceState,
   type RuntimeTerminalStatus,
@@ -263,11 +265,8 @@ function appendError(error: unknown) {
 function publicActivity(data: unknown): PublicAgentActivity | null {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   const value = data as Record<string, unknown>;
-  const nested = value.data && typeof value.data === "object" && !Array.isArray(value.data)
-    ? (value.data as Record<string, unknown>)
-    : value;
-  const status = typeof nested.status === "string" ? nested.status : undefined;
-  const toolName = typeof nested.tool_name === "string" ? nested.tool_name : undefined;
+  const status = typeof value.status === "string" ? value.status : undefined;
+  const toolName = typeof value.tool_name === "string" ? value.tool_name : undefined;
   if (!status) return null;
   return { status, tool_name: toolName };
 }
@@ -302,7 +301,6 @@ function applyRuntimeFrame(
 
   const { eventType, payload } = parsed;
   if (parsed.kind === "transport" && eventType !== "error") return null;
-  const data = payload;
   if (eventType === "tool_call_started" || eventType === "tool_call_completed") {
     ensureUi().updateSkillActivity(observer.assistant, payload);
   }
@@ -316,8 +314,8 @@ function applyRuntimeFrame(
       setStoppingState(true);
       if (!wasStopping) emit("run.stopping", { resumed: true });
     }
-  } else if (eventType === "agent_activity" || data.type === "agent_activity") {
-    const activity = publicActivity(data);
+  } else if (eventType === "agent_activity") {
+    const activity = publicActivity(payload);
     if (activity) {
       const label = ensureUi().updateAssistantActivity(observer.assistant, activity);
       emit("run.activity", {
@@ -326,22 +324,15 @@ function applyRuntimeFrame(
       });
     }
   } else {
-    const token =
-      typeof data.token === "string"
-        ? data.token
-        : typeof data.content === "string"
-          ? data.content
-          : typeof payload.content === "string"
-            ? payload.content
-            : "";
+    const token = typeof payload.content === "string" ? payload.content : "";
 
-    if ((eventType === "token" || data.type === "token") && token) {
+    if (eventType === "token" && token) {
       beginStreaming(observer);
       observer.answer += token;
       ensureUi().updateAssistantStreaming(observer.assistant, observer.answer);
     }
 
-    if (eventType === "token_retract" || data.type === "token_retract") {
+    if (eventType === "token_retract") {
       const length = typeof payload.content_length === "number" ? payload.content_length : 0;
       if (length > 0) {
         replaceAnswer(
@@ -351,8 +342,8 @@ function applyRuntimeFrame(
       }
     }
 
-    if (eventType === "done" && typeof data.answer === "string") {
-      replaceAnswer(observer, data.answer);
+    if (eventType === "done" && typeof payload.answer === "string") {
+      replaceAnswer(observer, payload.answer);
     }
 
     if (
@@ -451,10 +442,6 @@ function finalizeObserver(
   );
 }
 
-function retryDelay(attempt: number): Promise<void> {
-  return new Promise((resolve) => window.setTimeout(resolve, 250 * (attempt + 1)));
-}
-
 async function observeRuntimeRun(
   firstResponse: Response,
   options: { resumed: boolean },
@@ -464,7 +451,7 @@ async function observeRuntimeRun(
   let response = firstResponse;
   let lastTransportError: unknown = null;
 
-  for (let attempt = 0; attempt < 4; attempt += 1) {
+  for (let attempt = 0; attempt < RUNTIME_STREAM_MAX_ATTEMPTS; attempt += 1) {
     try {
       const terminal = await consumeRuntimeStream(response, observer);
       if (terminal !== null) {
@@ -482,8 +469,8 @@ async function observeRuntimeRun(
       lastTransportError = error;
     }
 
-    if (attempt === 3) break;
-    await retryDelay(attempt);
+    if (attempt === RUNTIME_STREAM_MAX_ATTEMPTS - 1) break;
+    await waitForRuntimeRetry(attempt);
     response = await api(`/v1/chat/sessions/${sessionId}/active-run/stream`);
   }
 
