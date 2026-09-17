@@ -54,8 +54,11 @@ def _is_public_token_phase(phase: Any) -> bool:
 def _is_public_stream_chunk(chunk: str) -> bool:
     if _sse_type(chunk) != "token":
         return True
-    payload = _sse_payload(chunk)
-    if payload is None:
+    envelope = _sse_payload(chunk)
+    if envelope is None:
+        return False
+    payload = envelope.get("payload")
+    if not isinstance(payload, dict):
         return False
     return (
         payload.get("visibility", "assistant") == "assistant"
@@ -133,4 +136,3 @@ class AskAgentStreamController:
             self._service,
             self._environment_guard,
         )
-
