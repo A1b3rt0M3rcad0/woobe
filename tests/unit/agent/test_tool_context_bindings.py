@@ -3,11 +3,12 @@ from uuid import uuid4
 
 import pytest
 
-from modules.agent.application.dtos.tools_dtos import CreateToolInput
+from modules.agent.application.dtos.tools_dtos import CreateToolInput, UpdateToolInput
 from modules.agent.application.interfaces.tool_runtime import MCP_REMOTE_TOOL_INPUT_KEY
 from modules.agent.application.tool_context_bindings import (
     ToolContextBindingError,
     apply_context_bindings,
+    merge_context_bindings_for_update,
 )
 from modules.agent.application.tool_converter import agent_tool_to_openai_definition
 from modules.agent.domain.enums import ToolType
@@ -80,6 +81,111 @@ def test_http_tool_config_preserves_typed_bindings() -> None:
     )
     assert created.config is not None
     assert created.config["bindings"]["customer_id"] == binding("customer_id")
+
+
+def test_http_update_keeps_omitted_bindings_distinct_from_explicit_empty() -> None:
+    omitted = UpdateToolInput(
+        type=ToolType.HTTP,
+        config={
+            "protocol": "http",
+            "mode": "group",
+            "base_url": "https://example.com",
+            "routes": [
+                {
+                    "id": "orders",
+                    "name": "Orders",
+                    "description": "List orders",
+                    "path": "/orders/{{customer_id}}",
+                }
+            ],
+        },
+    )
+    assert omitted.config is not None
+    assert "bindings" not in omitted.config
+    assert "bindings" not in omitted.config["routes"][0]
+
+    explicit = UpdateToolInput(
+        type=ToolType.HTTP,
+        config={
+            "protocol": "http",
+            "url": "https://example.com/customers/{{customer_id}}",
+            "bindings": {},
+        },
+    )
+    assert explicit.config is not None
+    assert explicit.config["bindings"] == {}
+
+
+def test_update_merge_preserves_omitted_root_and_child_bindings() -> None:
+    existing = {
+        "protocol": "http",
+        "mode": "group",
+        "base_url": "https://example.com",
+        "bindings": {"tenant_id": binding("tenant_id")},
+        "routes": [
+            {
+                "id": "orders",
+                "operation_id": "orders",
+                "name": "Orders",
+                "bindings": {"customer_id": binding("customer_id")},
+            }
+        ],
+    }
+    candidate = {
+        "protocol": "http",
+        "mode": "group",
+        "base_url": "https://api.example.com",
+        "routes": [
+            {
+                "id": "orders",
+                "operation_id": "orders",
+                "name": "Orders v2",
+            }
+        ],
+    }
+
+    merged = merge_context_bindings_for_update(existing, candidate)
+    assert merged["bindings"] == existing["bindings"]
+    assert merged["routes"][0]["bindings"] == existing["routes"][0]["bindings"]
+
+    cleared = merge_context_bindings_for_update(
+        existing,
+        {
+            **candidate,
+            "bindings": {},
+            "routes": [{**candidate["routes"][0], "bindings": {}}],
+        },
+    )
+    assert cleared["bindings"] == {}
+    assert cleared["routes"][0]["bindings"] == {}
+
+
+def test_update_merge_preserves_omitted_mcp_discovered_tool_binding() -> None:
+    existing = {
+        "protocol": "mcp",
+        "mode": "server",
+        "server": {"url": "https://mcp.example.com"},
+        "bindings": {"tenant_id": binding("tenant_id")},
+        "discovered_tools": [
+            {
+                "name": "orders",
+                "bindings": {"customer_id": binding("customer_id")},
+            }
+        ],
+    }
+    candidate = {
+        "protocol": "mcp",
+        "mode": "server",
+        "server": {"url": "https://mcp.example.com/v2"},
+        "discovered_tools": [{"name": "orders"}],
+    }
+
+    merged = merge_context_bindings_for_update(existing, candidate)
+    assert merged["bindings"] == existing["bindings"]
+    assert (
+        merged["discovered_tools"][0]["bindings"]
+        == existing["discovered_tools"][0]["bindings"]
+    )
 
 
 def test_bound_http_parameter_is_hidden_from_model_schema() -> None:
