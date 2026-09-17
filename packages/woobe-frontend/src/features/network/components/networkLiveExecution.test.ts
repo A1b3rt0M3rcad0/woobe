@@ -9,7 +9,7 @@ function event(
   overrides: Partial<NetworkRuntimeEvent> = {},
 ): NetworkRuntimeEvent {
   return {
-    protocol_version: 1,
+    protocol_version: 2,
     execution_id: 'execution-1',
     data,
     created_at: '2026-07-16T12:00:00.000Z',
