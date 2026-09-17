@@ -134,6 +134,14 @@ describe('protocol v2 identity validation', () => {
     expect(state.sequence).toBe(8)
     expect(runtimeTerminalStatus(heartbeat)).toBeNull()
   })
+  it('rejects domain events that omit canonical Run and Session identity', () => {
+    expect(() => parseRuntimeFrame(
+      'event: agent_activity\ndata: {"protocol_version":2,"type":"agent_activity","occurred_at":"2026-09-16T20:00:00Z","payload":{"status":"thinking"}}',
+    )).toThrow(RuntimeStreamProtocolError)
+    expect(() => parseRuntimeFrame(
+      'event: token\ndata: {"protocol_version":2,"type":"token","occurred_at":"2026-09-16T20:00:00Z","payload":{"content":"hello"}}',
+    )).toThrow(RuntimeStreamProtocolError)
+  })
   it('rejects mismatched SSE identity and legacy emission', () => {
     expect(() => parseRuntimeFrame(`id: 2\nevent: token\ndata: ${JSON.stringify(event)}`)).toThrow(RuntimeStreamProtocolError)
     expect(() => parseRuntimeFrame(`event: token\ndata: ${JSON.stringify({ ...event, protocol_version: 1 })}`)).toThrow(RuntimeStreamProtocolError)
