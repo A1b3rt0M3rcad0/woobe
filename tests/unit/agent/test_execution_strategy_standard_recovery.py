@@ -3,7 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
-from langchain_core.messages import AIMessage
+from langchain_core.messages import AIMessage, ToolMessage
 
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
@@ -11,6 +11,7 @@ from modules.agent.application.interfaces.execution_context import (
 )
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
 from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
+from modules.agent.infra.execution.strategy_runtime.runner import execute_strategy
 
 
 class _SimulatedCrash(RuntimeError):
@@ -34,12 +35,14 @@ class _SequenceModel:
             AIMessage(content="Customer 123 is active."),
         ]
         self.invocation_count = 0
+        self.invocations: list[list] = []
 
     def bind_tools(self, _tools, *, tool_choice):
         assert tool_choice == "auto"
         return self
 
-    async def ainvoke(self, _messages):
+    async def ainvoke(self, messages):
+        self.invocations.append(list(messages))
         response = self.responses[self.invocation_count]
         self.invocation_count += 1
         return response
@@ -86,6 +89,10 @@ def _request(model, execute_single_tool) -> ExecutionStrategyRequest:
     )
 
 
+async def _execute(request: ExecutionStrategyRequest):
+    return await execute_strategy(StandardExecutionStrategy(), request)
+
+
 @pytest.mark.asyncio
 async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_tool() -> None:
     model = _SequenceModel()
@@ -114,16 +121,20 @@ async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_to
     first_token = current_execution.set(first_context)
     try:
         with pytest.raises(_SimulatedCrash):
-            await StandardExecutionStrategy().execute(
-                _request(model, execute_single_tool)
-            )
+            await _execute(_request(model, execute_single_tool))
     finally:
         current_execution.reset(first_token)
 
     assert captured["durable"] is True
     assert captured["state"]["resume_policy"] == "continue_execution_strategy"
     assert captured["state"]["execution_strategy"] == "standard"
-    assert captured["state"]["strategy_cursor"]["next_phase"] == "tool_followup_1"
+    assert captured["state"]["strategy_cursor"]["state"] == {
+        "phase": "tool_followup_1",
+        "tool_round": 1,
+        "consecutive_failures": 0,
+        "stop_reason": None,
+    }
+    assert captured["state"]["strategy_cursor"]["next_call_index"] == 2
     assert model.invocation_count == 1
     assert tool_calls == 1
 
@@ -131,9 +142,7 @@ async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_to
     second_context.resume_state = captured["state"]
     second_token = current_execution.set(second_context)
     try:
-        execution = await StandardExecutionStrategy().execute(
-            _request(model, execute_single_tool)
-        )
+        execution = await _execute(_request(model, execute_single_tool))
     finally:
         current_execution.reset(second_token)
 
@@ -143,3 +152,5 @@ async def test_standard_strategy_resumes_generic_checkpoint_without_replaying_to
     assert len(execution.tool_calls) == 1
     assert len(execution.llm_calls) == 2
     assert second_context.resume_state is None
+    assert any(isinstance(message, AIMessage) for message in model.invocations[1])
+    assert any(isinstance(message, ToolMessage) for message in model.invocations[1])

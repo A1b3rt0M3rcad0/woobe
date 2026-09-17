@@ -1,84 +1,37 @@
 # Agent Execution Strategies
 
-This package is the extension point for concrete Agent execution algorithms.
+An Execution Strategy defines **how an Agent carries out an execution**.
 
-The stable Runtime boundary is:
+From the outside, an Agent receives an input and eventually produces an output. Between those two points, the Agent may need to call a Model once, use Tools, continue for several rounds, stop because a limit was reached, or follow a different reasoning pattern.
 
-```text
-modules/agent/application/interfaces/execution_strategy.py
-```
+An Execution Strategy is the part of Woobe that defines that behavior.
 
-An Execution Strategy controls **how an Agent conducts model/capability execution**. It may decide model invocation order, capability-loop behavior, continuation, termination, planning or reflection. It does not own Agent Run lifecycle, persistence, Release resolution, Session continuity, Tool Policy, Human Approval, Context Engineering infrastructure, streaming transport, cancellation infrastructure, Project isolation or Network orchestration.
+For example, the current `standard` Strategy is the general-purpose execution used by Woobe. Future Strategies may introduce different execution styles, such as planning, ReAct-style iteration or reflection, without changing the rest of the Agent runtime.
 
-## Strategy identity
-
-Strategy identity is intentionally simple and unversioned:
+The convention is intentionally simple:
 
 ```text
-standard
-react
-plan_execute
+one Strategy = one Python file
 ```
-
-Do not introduce identities such as `standard:v1` or a second strategy-version system. Agent and Release snapshots already freeze `runtime_config.execution_strategy`.
-
-Historical snapshots without the field are permanently interpreted as `standard`.
-
-## Backend registry and product contract
-
-Selectable Strategy metadata is backend-owned and lives in:
 
 ```text
-modules/agent/application/execution_strategy_registry.py
+strategies/
+├── README.md
+├── resolver.py
+├── standard.py
+├── planner.py
+├── react.py
+└── reflection.py
 ```
 
-The registry exposes the stable product-facing descriptor consumed by API/UI surfaces: display name, description, behavior, recommended use cases, capabilities, limitations and default status. Frontends must render this contract instead of encoding how a concrete Strategy works.
+`standard.py` is the current reference implementation.
 
-`execution_strategy_config.py` is intentionally limited to reading, validating and canonicalizing the Strategy selection in `runtime_config`. Concrete runtime implementations remain behind `ExecutionStrategyResolver` and are checked against the registry so catalog metadata and executable Strategies cannot silently diverge.
+## Creating a new Execution Strategy
 
-## Shared execution capabilities
+This README is only an introduction to the concept.
 
-Strategies compose the execution operations exposed under:
+If you are going to build a new Execution Strategy, start with the documentation index:
 
-```text
-modules/agent/infra/execution/capabilities/
-```
+**[Execution Strategy documentation →](./docs/README.md)**
 
-The capability layer separates:
-
-- execution preparation and resolved model/Tool/Skill bindings;
-- durable/instrumented model invocation;
-- governed durable Tool execution;
-- message progression helpers;
-- strategy-local execution state;
-- strategy-neutral durable recovery checkpoints with an opaque Strategy cursor;
-- structured result finalization.
-
-A Strategy decides when, how often and in what order these capabilities are used, but it must not bypass the runtime-governed invocation paths. Concrete Strategies must not call provider adapters, Tool integrations, persistence or Agent Run lifecycle services directly.
-
-The recovery contract deliberately does not understand Standard-specific loop semantics. Each Strategy owns an opaque `strategy_cursor` and the recovery capability persists/restores it together with durable capability messages and execution evidence. Legacy Standard checkpoints remain readable for backwards compatibility.
-
-## Current strategy
-
-```text
-standard -> StandardExecutionStrategy
-```
-
-`StandardExecutionStrategy` owns the complete Standard orchestration: initial model invocation, Tool batches, follow-up rounds, circuit breaking, durable continuation checkpoints and terminal recovery. It composes shared capabilities and no longer depends on `run_instrumented_execution()` or `run_tool_loop()` as its algorithm boundary.
-
-`run_instrumented_execution()` and `run_tool_loop()` remain compatibility facades for existing focused callers/tests. Both delegate into the same Standard Strategy implementation rather than maintaining a second algorithm.
-
-## Adding a future built-in strategy
-
-1. Implement `ExecutionStrategy` in this directory.
-2. Resolve execution inputs through `prepare_execution()`.
-3. Build shared capabilities with a stable Strategy name.
-4. Keep algorithm-local state inside the Strategy and/or `StrategyExecutionState`.
-5. Use `capabilities.model` for every model invocation.
-6. Use `capabilities.tools` for every Tool execution.
-7. Persist recovery boundaries through `capabilities.recovery` with an opaque Strategy cursor when the algorithm has durable continuation points.
-8. Finalize structured output through the shared result finalization capability.
-9. Register the product descriptor in `execution_strategy_registry.py` and the concrete implementation in `resolver.py`.
-10. Add behavior, release/recovery, observability, registry-parity and architecture tests.
-
-Do not add plugin discovery, external adapters or Network-specific strategy selection unless those requirements are independently justified.
+The documentation explains what to create, where each piece belongs, how State and Policy should be used, how to register the Strategy, which tests are required, and which architecture boundaries must not be crossed. The existing [`standard.py`](./standard.py) implementation is used throughout the guide as the canonical example.

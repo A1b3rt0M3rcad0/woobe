@@ -4,53 +4,49 @@ from types import SimpleNamespace
 
 import pytest
 
-from modules.agent.application.interfaces.execution import InstrumentedExecution
 from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
 )
-from modules.agent.infra.execution.capabilities.bundle import (
-    build_execution_capabilities,
+from modules.agent.application.strategy_sdk import (
+    Completed,
+    ExecutionState,
+    StrategyContext,
+    StrategyOutcome,
+    strategy_phase_with_iteration,
 )
-from modules.agent.infra.execution.capabilities.preparation import prepare_execution
-from modules.agent.infra.execution.capabilities.result_finalization import (
-    finalize_execution_result,
-)
-from modules.agent.infra.execution.capabilities.state import StrategyExecutionState
+from modules.agent.infra.execution.strategy_runtime.runner import execute_strategy
 
 
-class _TwoPassToolStrategy:
-    """Test-only Strategy proving orchestration can live outside the Standard algorithm."""
+class _TwoPassState(ExecutionState):
+    iteration: int = 0
 
-    async def execute(self, request: ExecutionStrategyRequest) -> InstrumentedExecution:
-        prepared = prepare_execution(request)
-        capabilities = build_execution_capabilities(
-            prepared=prepared,
-            strategy_name="test_two_pass",
-        )
-        state = StrategyExecutionState(messages=list(prepared.messages))
 
-        for iteration in range(1, 3):
-            result, call = await capabilities.model.invoke(
-                messages=state.messages,
-                phase=f"test_multi_loop_{iteration}",
-                call_index=iteration,
+class _TwoPassToolStrategy(ExecutionStrategy[_TwoPassState]):
+    """Test-only Strategy proving a new algorithm needs only the Strategy SDK."""
+
+    name = "test_two_pass"
+    state_type = _TwoPassState
+
+    async def execute(
+        self,
+        ctx: StrategyContext[_TwoPassState],
+    ) -> StrategyOutcome:
+        result = None
+        for iteration in range(ctx.state.iteration + 1, 3):
+            result = await ctx.model.invoke(
+                phase=strategy_phase_with_iteration("test_multi_loop", iteration),
             )
-            state.iteration = iteration
-            state.record_model_result(result=result, call=call)
-            tool_calls = list(getattr(result, "tool_calls", None) or [])
-            if not tool_calls:
-                break
-            state.messages.append(result)
-            batch = await capabilities.tools.execute_many(tool_calls)
-            state.record_tool_batch(batch)
+            ctx.state.iteration = iteration
+            if not result.has_tool_calls:
+                return Completed(result)
 
-        execution = state.finish()
-        return await finalize_execution_result(
-            prepared=prepared,
-            execution=execution,
-            call_index=state.call_index,
-        )
+            await ctx.tools.execute_many(result.tool_calls)
+            await ctx.checkpoint()
+
+        if result is None:
+            raise RuntimeError("Test Strategy executed without a model invocation")
+        return Completed(result)
 
 
 class _FakeBoundModel:
@@ -156,7 +152,7 @@ async def test_test_strategy_implements_contract_and_owns_multi_step_loop(
     strategy = _TwoPassToolStrategy()
     assert isinstance(strategy, ExecutionStrategy)
 
-    execution = await strategy.execute(_request(execute_single_tool))
+    execution = await execute_strategy(strategy, _request(execute_single_tool))
 
     assert model_calls == [1, 2]
     assert executed_tools == ["tool-id"]

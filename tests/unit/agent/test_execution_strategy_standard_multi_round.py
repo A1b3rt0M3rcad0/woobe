@@ -7,6 +7,7 @@ from langchain_core.messages import AIMessage
 
 from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
 from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
+from modules.agent.infra.execution.strategy_runtime.runner import execute_strategy
 
 
 class _SequenceModel:
@@ -108,7 +109,7 @@ async def test_standard_strategy_supports_multiple_parallel_tools_and_followup_r
         context_assembler=None,
     )
 
-    execution = await StandardExecutionStrategy().execute(request)
+    execution = await execute_strategy(StandardExecutionStrategy(), request)
 
     assert model.invocation_count == 3
     assert sorted(executed[:2]) == ["call-1", "call-2"]

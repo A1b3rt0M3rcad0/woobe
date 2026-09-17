@@ -9,7 +9,9 @@ from modules.agent.application.execution_strategy_registry import (
     build_execution_strategy_registry,
     list_execution_strategies,
 )
-from modules.agent.application.interfaces.execution_strategy import ExecutionStrategy
+from modules.agent.application.interfaces.execution_strategy import (
+    ExecutableExecutionStrategy,
+)
 from modules.agent.infra.execution.strategies.resolver import (
     BuiltinExecutionStrategyResolver,
     builtin_execution_strategy_names,
@@ -74,4 +76,7 @@ def test_every_catalog_strategy_is_resolvable_by_runtime() -> None:
     resolver = BuiltinExecutionStrategyResolver()
 
     for descriptor in list_execution_strategies():
-        assert isinstance(resolver.resolve(str(descriptor["name"])), ExecutionStrategy)
+        assert isinstance(
+            resolver.resolve(str(descriptor["name"])),
+            ExecutableExecutionStrategy,
+        )
