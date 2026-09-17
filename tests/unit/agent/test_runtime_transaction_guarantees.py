@@ -245,7 +245,13 @@ class _Runtime(TransactionalAskAgentUseCase):
         return self.primary_credential
 
     async def _resolve_session(self, _repository, _input_dto, _agent):
-        return None
+        return SimpleNamespace(id=uuid4())
+
+    async def _save_user_message(self, *_args, **_kwargs):
+        return SimpleNamespace(id=uuid4())
+
+    async def _do_save_assistant_message(self, *_args, **_kwargs):
+        return SimpleNamespace(id=uuid4())
 
     def _decrypt_api_key(self, credential):
         assert not self._transactions.sql_scope_active, (

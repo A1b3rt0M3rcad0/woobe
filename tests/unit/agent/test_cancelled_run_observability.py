@@ -39,10 +39,37 @@ class _RunRepository:
         return run
 
 
+class _SessionRepository:
+    def __init__(self, session_id) -> None:
+        self.session = SimpleNamespace(id=session_id, last_message_at=None)
+
+    async def get_by_id(self, session_id):
+        return self.session if self.session.id == session_id else None
+
+    async def update(self, session):
+        self.session = session
+        return session
+
+
+class _MessageRepository:
+    def __init__(self) -> None:
+        self.items = []
+
+    async def create(self, message):
+        self.items.append(message)
+        return message
+
+
 class _Transactions:
     def __init__(self, run: AgentRun) -> None:
         self.runs = _RunRepository(run)
-        self.repositories = SimpleNamespace(runs=self.runs)
+        self.sessions = _SessionRepository(run.session_id)
+        self.messages = _MessageRepository()
+        self.repositories = SimpleNamespace(
+            runs=self.runs,
+            sessions=self.sessions,
+            messages=self.messages,
+        )
         self.outbox = _Outbox()
 
     async def run(self, operation):

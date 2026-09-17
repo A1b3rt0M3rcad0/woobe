@@ -114,7 +114,14 @@ def _principal(run: AgentRun) -> ProjectApiPrincipal:
     )
 
 
-def _journal_event(*, run_id, sequence: int, event_type: str, payload: dict) -> DurableRunEvent:
+def _journal_event(
+    *,
+    run_id,
+    session_id,
+    sequence: int,
+    event_type: str,
+    payload: dict,
+) -> DurableRunEvent:
     return DurableRunEvent(
         run_id=run_id,
         run_kind="network",
@@ -126,6 +133,7 @@ def _journal_event(*, run_id, sequence: int, event_type: str, payload: dict) -> 
         storage_version=EVENT_JOURNAL_STORAGE_VERSION,
         metadata={"visibility": "internal"},
         payload=payload,
+        session_id=session_id,
     )
 
 
@@ -212,6 +220,7 @@ async def test_hot_network_projection_preserves_agent_run_identity() -> None:
 @pytest.mark.asyncio
 async def test_durable_network_projection_preserves_agent_run_identity() -> None:
     execution_id = uuid4()
+    network_session_id = uuid4()
     invocation_id = uuid4()
     agent_run_id = uuid4()
     journal = InMemoryRunEventJournal()
@@ -219,12 +228,14 @@ async def test_durable_network_projection_preserves_agent_run_identity() -> None
         [
             _journal_event(
                 run_id=execution_id,
+                session_id=network_session_id,
                 sequence=1,
                 event_type="run.attempt.started",
                 payload={},
             ),
             _journal_event(
                 run_id=execution_id,
+                session_id=network_session_id,
                 sequence=2,
                 event_type="agent.invocation.started",
                 payload={
@@ -241,6 +252,7 @@ async def test_durable_network_projection_preserves_agent_run_identity() -> None
             ),
             _journal_event(
                 run_id=execution_id,
+                session_id=network_session_id,
                 sequence=3,
                 event_type="run.completed",
                 payload={"output": "done"},
@@ -263,5 +275,6 @@ async def test_durable_network_projection_preserves_agent_run_identity() -> None
     frame = await anext(stream)
 
     assert frame.event_type == "run.state"
+    assert frame.session_id == network_session_id
     assert frame.data["invocations"][0]["agent_run_id"] == str(agent_run_id)
     await stream.aclose()
