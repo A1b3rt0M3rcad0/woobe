@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAgent, useAgentRuntimeEnvironments, useReleases } from '@/features/agents/hooks'
+import { useAgent, useAgentRuntimeEnvironments, useReleases, useUpdateAgentRuntimeEnvironmentContext } from '@/features/agents/hooks'
 import { useAgentEditorSection } from '@/features/agents/components/AgentEditorNavigation'
 import { validateAgentEditorState } from '@/features/agents/editorValidation'
 import type { RuntimeEnvironment } from '@/features/agents/types'
@@ -14,6 +14,8 @@ import { PlaygroundHeader } from '@/features/playground/components/PlaygroundHea
 import { OperationsRail, type LeftPanelTab } from '@/features/playground/components/OperationsRail'
 import { OperationsPanel } from '@/features/playground/components/OperationsPanel'
 import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
+import { RuntimeContextPanel } from '@/features/contracts/RuntimeContextPanel'
+import { filterContractValues } from '@/features/contracts/contractFields'
 import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import { ApiModal } from '@/features/playground/components/ApiModal'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
@@ -143,12 +145,20 @@ function PlaygroundContent() {
   const { stream, reattach, cancel: cancelStream, disconnect: disconnectStream } = useAskStream()
   const queryClient = useQueryClient()
   const { mutateAsync: createRuntimeSession, isPending: creatingSession } = useCreateSession()
+  const updateRuntimeContext = useUpdateAgentRuntimeEnvironmentContext(agentId, projectId)
   const [environment, setEnvironment] = useState<RuntimeEnvironment>('draft')
 
   const p = (projId: string, ...segments: string[]) => workspaceProjectPath(workspaceId, projId, ...segments)
   const stagingRelease = useMemo(() => releases.find((release) => release.status === 'staging') ?? null, [releases])
   const productionRelease = useMemo(() => releases.find((release) => release.status === 'production') ?? null, [releases])
   const currentEnvironmentRelease = environment === 'staging' ? stagingRelease : environment === 'production' ? productionRelease : null
+  const activeExternalContextContract = environment === 'draft'
+    ? state.externalContextContract
+    : currentEnvironmentRelease?.external_context_contract ?? null
+  const runtimeExternalContext = filterContractValues(
+    activeExternalContextContract,
+    runtimeStatesQuery.data?.[environment]?.external_context_values,
+  )
 
   const {
     data: sessionPages,
@@ -549,6 +559,7 @@ function PlaygroundContent() {
         message: content,
         session_id: sessionIdForRun,
         execution_context: environment === 'draft' ? 'playground' : environment,
+        external_context: runtimeExternalContext,
         metadata: {
           source: 'playground',
           runtime_environment: environment,
@@ -760,7 +771,23 @@ function PlaygroundContent() {
               onTracesRetry={refetchTraces}
             />
           )}
-          <div className="flex-1 min-w-0 flex flex-col"><ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} onStop={handleStop} agentName={agent.name} runtimeBlocked={!runtimeEnabled || !environmentReady} runtimeBlockReason={runtimeBlockReason} /></div>
+          <div className="flex-1 min-w-0 flex flex-col">
+            <RuntimeContextPanel
+              environment={environment}
+              contract={activeExternalContextContract}
+              savedValues={runtimeStatesQuery.data?.[environment]?.external_context_values}
+              saving={updateRuntimeContext.isPending}
+              onSave={async (values) => {
+                try {
+                  await updateRuntimeContext.mutateAsync({ environment, values })
+                  toast.success(`${titleCaseEnvironment(environment)} context values saved`)
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : 'Could not save External Context values')
+                }
+              }}
+            />
+            <ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} onStop={handleStop} agentName={agent.name} runtimeBlocked={!runtimeEnabled || !environmentReady} runtimeBlockReason={runtimeBlockReason} />
+          </div>
           {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={releasesLoading} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
         </div>
       </div>
