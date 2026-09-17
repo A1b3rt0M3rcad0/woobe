@@ -127,7 +127,9 @@ jobs:
         run: |
           set -euo pipefail
           uv run alembic -c packages/woobe-core/alembic.ini upgrade head
-          uv run alembic -c packages/woobe-core/alembic.ini downgrade -1
+          # This probe specifically exercises migration 0067. Pin the database to
+          # its pre-0067 state instead of assuming 0067 is always the repository head.
+          uv run alembic -c packages/woobe-core/alembic.ini downgrade 0066
 
           docker exec -i -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
             psql -U postgres -d woobe -v ON_ERROR_STOP=1 <<'SQL'
