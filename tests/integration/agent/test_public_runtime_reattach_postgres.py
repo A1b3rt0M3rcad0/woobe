@@ -9,7 +9,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete
 
 import public_runtime_routes
-from modules.agent.infra.database.models import AgentModel
+from modules.agent.infra.database.models import AgentModel, SessionModel
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.agent.infra.database.runtime_transaction_runner import (
     AgentRuntimeTransactionRunner,
@@ -35,6 +35,7 @@ async def test_public_runtime_reattaches_cancelled_agent_from_durable_postgres(
 
     project_id = uuid4()
     agent_id = uuid4()
+    session_id = uuid4()
     run_id = uuid4()
     trace_id = uuid4()
     now = datetime.now(UTC)
@@ -64,11 +65,30 @@ async def test_public_runtime_reattaches_cancelled_agent_from_durable_postgres(
             )
         async with session.begin():
             session.add(
+                SessionModel(
+                    id=session_id,
+                    project_id=project_id,
+                    agent_id=agent_id,
+                    runtime_environment="production",
+                    opened_release_id=None,
+                    chat_surface_id=None,
+                    origin="runtime_api",
+                    external_session_id=None,
+                    tenant_id=None,
+                    user_id=None,
+                    status="active",
+                    mode="chat",
+                    data={"source": "public_runtime_reattach_test"},
+                    last_message_at=now,
+                )
+            )
+        async with session.begin():
+            session.add(
                 AgentRunModel(
                     id=run_id,
                     project_id=project_id,
                     agent_id=agent_id,
-                    session_id=None,
+                    session_id=session_id,
                     agent_release_id=None,
                     input_message_id=None,
                     output_message_id=None,
@@ -141,6 +161,9 @@ async def test_public_runtime_reattaches_cancelled_agent_from_durable_postgres(
         assert reattach.headers["content-type"].startswith("text/event-stream")
         assert reattach.headers["x-woobe-run-id"] == str(run_id)
         assert "event: run.state" in reattach.text
+        assert '"protocol_version": 2' in reattach.text
+        assert f'"run_id": "{run_id}"' in reattach.text
+        assert f'"session_id": "{session_id}"' in reattach.text
         assert '"status": "cancelled"' in reattach.text
         assert '"output": "persisted partial"' in reattach.text
         assert '"realtime_available": false' in reattach.text
@@ -155,6 +178,9 @@ async def test_public_runtime_reattaches_cancelled_agent_from_durable_postgres(
             async with session.begin():
                 await session.execute(
                     delete(AgentRunModel).where(AgentRunModel.id == run_id)
+                )
+                await session.execute(
+                    delete(SessionModel).where(SessionModel.id == session_id)
                 )
                 await session.execute(
                     delete(AgentModel).where(AgentModel.id == agent_id)
