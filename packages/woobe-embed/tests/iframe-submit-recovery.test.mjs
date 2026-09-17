@@ -57,6 +57,7 @@ const DEFAULT_APPEARANCE = { welcome_message: "" };
 const PROTOCOL_VERSION = 1;
 const randomUuid = () => "idempotency-test";
 const isHostMessage = () => false;
+const RUNTIME_STREAM_MAX_ATTEMPTS = 4;
 class RuntimeStreamGapError extends Error {}
 const acceptRuntimeFrameSequence = () => true;
 const parseRuntimeFrame = (frame) => {
