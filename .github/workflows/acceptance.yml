@@ -211,8 +211,10 @@ jobs:
                     AND session.agent_id = run.agent_id
                     AND session.runtime_environment = run.environment
                     AND session.origin = run.origin
-                    AND session.data ->> 'backfilled_from_legacy_run' = 'true'
                     AND session.data ->> 'legacy_run_id' = run.id::text
+                    AND session.data ->> 'source' = run.origin
+                    AND session.data ->> 'legacy_environment' = run.environment
+                    AND session.data ->> 'session_backfill' = '0067'
                   THEN 'ok'
                   ELSE 'invalid'
                 END
@@ -221,6 +223,7 @@ jobs:
                 WHERE run.id = '67000000-0000-0000-0000-000000000004';
               "
           )"
+          printf 'migration 0067 backfill probe: %s\n' "$backfill_probe"
           test "$backfill_probe" = "ok"
 
           session_count="$(
