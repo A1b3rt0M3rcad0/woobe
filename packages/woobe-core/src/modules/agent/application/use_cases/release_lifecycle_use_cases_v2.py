@@ -57,6 +57,8 @@ def _canonical_runtime_config(value) -> dict:
 
 
 def _canonical_external_context_contract(value):
+    if value is None:
+        return None
     try:
         return normalize_external_context_contract(value)
     except ExternalContextContractError as exc:
