@@ -10,10 +10,13 @@ import {
   EmptyStatePanel,
   SectionBlock,
   TechnicalListItem,
-  Textarea,
 } from '@woobe/ui'
 
 import { createChatSurfaceTestSession } from '@/features/chat-surfaces/api'
+import { useRelease } from '@/features/agents/hooks'
+import { useNetworkVersions } from '@/features/network/hooks'
+import { ContractValueForm } from '@/features/contracts/ContractValueForm'
+import { filterContractValues } from '@/features/contracts/contractFields'
 import type { ChatSurface, ChatSurfaceTestSession } from '@/features/chat-surfaces/types'
 import { API_BASE_URL } from '@/lib/api/client'
 
@@ -54,14 +57,6 @@ function statusVariant(status: FrameStatus) {
   return 'outline' as const
 }
 
-function parseExternalContext(value: string): Record<string, unknown> {
-  const parsed: unknown = JSON.parse(value)
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new Error('External Context must be a JSON object')
-  }
-  return parsed as Record<string, unknown>
-}
-
 export function ChatSurfaceLiveTestDialog({
   open,
   surface,
@@ -75,9 +70,19 @@ export function ChatSurfaceLiveTestDialog({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [frameStatus, setFrameStatus] = useState<FrameStatus>('starting')
-  const [externalContextText, setExternalContextText] = useState('{}')
   const [externalContext, setExternalContext] = useState<Record<string, unknown>>({})
-  const [externalContextError, setExternalContextError] = useState<string | null>(null)
+  const agentReleaseQuery = useRelease(
+    surface.target_type === 'agent' ? surface.target_id : undefined,
+    surface.target_type === 'agent' ? surface.target_release_id : undefined,
+  )
+  const networkVersionsQuery = useNetworkVersions(
+    surface.target_type === 'network' ? surface.target_id : undefined,
+    surface.target_type === 'network' ? surface.project_id : undefined,
+  )
+  const externalContextContract = useMemo(() => {
+    if (surface.target_type === 'agent') return agentReleaseQuery.data?.external_context_contract ?? {}
+    return networkVersionsQuery.data?.find((version) => version.id === surface.target_release_id)?.effective_external_context_contract ?? {}
+  }, [agentReleaseQuery.data?.external_context_contract, networkVersionsQuery.data, surface.target_release_id, surface.target_type])
 
   const embedOrigin = useMemo(() => resolveEmbedOrigin(), [])
   const frameUrl = useMemo(() => {
@@ -107,32 +112,26 @@ export function ChatSurfaceLiveTestDialog({
   }, [surface.id])
 
   const applyExternalContext = useCallback(() => {
-    try {
-      const next = parseExternalContext(externalContextText)
-      setExternalContext(next)
-      setExternalContextError(null)
-
-      if (session && instanceId) {
-        frameRef.current?.contentWindow?.postMessage({
-          protocolVersion: 1,
-          instanceId,
-          surfaceId: surface.public_id,
-          type: 'context.update',
-          payload: { externalContext: next },
-        }, embedOrigin)
-      }
-    } catch (parseError) {
-      setExternalContextError(
-        parseError instanceof Error ? parseError.message : 'External Context must be valid JSON',
-      )
+    const next = filterContractValues(externalContextContract, externalContext)
+    setExternalContext(next)
+    if (session && instanceId) {
+      frameRef.current?.contentWindow?.postMessage({
+        protocolVersion: 1,
+        instanceId,
+        surfaceId: surface.public_id,
+        type: 'context.update',
+        payload: { externalContext: next },
+      }, embedOrigin)
     }
-  }, [embedOrigin, externalContextText, instanceId, session, surface.public_id])
+  }, [embedOrigin, externalContext, externalContextContract, instanceId, session, surface.public_id])
 
   useEffect(() => {
-    setExternalContextText('{}')
     setExternalContext({})
-    setExternalContextError(null)
   }, [surface.id])
+
+  useEffect(() => {
+    setExternalContext((current) => filterContractValues(externalContextContract, current))
+  }, [externalContextContract])
 
   useEffect(() => {
     if (!open) {
@@ -261,27 +260,13 @@ export function ChatSurfaceLiveTestDialog({
               <SectionBlock title="External Context" density="compact">
                 <div className="grid gap-ui-sm">
                   <p className="font-sans text-product-small leading-5 text-muted-foreground">
-                    Fill the values expected by the pinned Agent or Network contract. The applied JSON is sent as <code className="font-mono">external_context</code> with the next message.
+                    Fill the fields declared by the pinned {surface.target_type === 'agent' ? 'Agent' : 'Network'} contract. No JSON is required.
                   </p>
-                  <Textarea
-                    value={externalContextText}
-                    onChange={(event) => setExternalContextText(event.target.value)}
-                    rows={8}
-                    density="compact"
-                    invalid={Boolean(externalContextError)}
-                    spellCheck={false}
-                    className="font-mono text-product-small"
-                    placeholder={'{\n  "customer_name": "Mariana Costa",\n  "current_page": "/billing"\n}'}
+                  <ContractValueForm
+                    contract={externalContextContract}
+                    values={externalContext}
+                    onChange={setExternalContext}
                   />
-                  {externalContextError ? (
-                    <p className="font-sans text-product-small text-destructive">
-                      {externalContextError}
-                    </p>
-                  ) : (
-                    <p className="font-sans text-product-small text-muted-foreground">
-                      Applying replaces the previous context for subsequent messages.
-                    </p>
-                  )}
                   <Button
                     type="button"
                     size="sm"
