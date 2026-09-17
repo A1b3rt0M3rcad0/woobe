@@ -164,8 +164,7 @@ class CreateToolInput(BaseModel):
         if self.config is None:
             return self
         if is_mcp_tool_type(self.type):
-            parsed = McpToolConfig.model_validate(self.config)
-            self.config = parsed.model_dump(exclude_none=True)
+            McpToolConfig.model_validate(self.config)
             validate_context_bindings(self.config)
         else:
             self.config, self.input_schema = _compile_http_config(self.config, self.input_schema)
@@ -224,8 +223,7 @@ class UpdateToolInput(BaseModel):
             return self
         protocol = self.type or self.config.get("protocol")
         if is_mcp_tool_type(protocol):
-            parsed = McpToolConfig.model_validate(self.config)
-            self.config = parsed.model_dump(exclude_none=True)
+            McpToolConfig.model_validate(self.config)
             validate_context_bindings(self.config)
         else:
             self.config, self.input_schema = _compile_http_config(self.config, self.input_schema)
