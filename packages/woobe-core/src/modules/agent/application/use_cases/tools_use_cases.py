@@ -27,6 +27,7 @@ from modules.agent.application.interfaces.ports import (
     ToolExecutionPort,
     ToolSecretResolverPort,
 )
+from modules.agent.application.tool_context_bindings import merge_context_bindings_for_update
 from modules.agent.domain.entities import Secret, Tool
 from modules.agent.domain.enums import ReleaseStatus, ToolStatus
 from modules.agent.domain.errors import ToolInUseError, ToolNotFoundError
@@ -198,7 +199,10 @@ class UpdateToolUseCase:
         if "agent_id" in input_dto.model_fields_set:
             tool.agent_id = input_dto.agent_id
         if input_dto.config is not None:
-            tool.config = input_dto.config
+            tool.config = merge_context_bindings_for_update(
+                tool.config,
+                input_dto.config,
+            )
         if input_dto.input_schema is not None:
             tool.input_schema = input_dto.input_schema
         if input_dto.output_schema is not None:
