@@ -111,6 +111,16 @@ export function promoteNetwork(
   })
 }
 
+export function getNetworkExternalContextContract(
+  networkId: string,
+  projectId: string,
+  environment: NetworkEnvironment,
+): Promise<Record<string, unknown>> {
+  return get<Record<string, unknown>>(`/network/${networkId}/management/external-context-contract`, {
+    params: { project_id: projectId, environment },
+  })
+}
+
 export function getNetworkVersions(
   networkId: string,
   projectId: string,
