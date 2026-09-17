@@ -123,10 +123,142 @@ jobs:
           export PATH="$pg_client_bin:$PATH"
           docker exec "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
             sh -c "pg_dump --version | grep -Eq ' 17\\.'"
-      - name: Migration rollback and re-upgrade
+      - name: Migration rollback, legacy Run backfill, and re-upgrade
         run: |
           set -euo pipefail
           uv run alembic -c packages/woobe-core/alembic.ini upgrade head
+          uv run alembic -c packages/woobe-core/alembic.ini downgrade -1
+
+          docker exec -i -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+            psql -U postgres -d woobe -v ON_ERROR_STOP=1 <<'SQL'
+          INSERT INTO identity.workspaces (id, name, slug, status)
+          VALUES (
+            '67000000-0000-0000-0000-000000000001',
+            'migration-0067-probe',
+            'migration-0067-probe',
+            'active'
+          );
+
+          INSERT INTO core.projects (id, workspace_id, name, slug, status, data)
+          VALUES (
+            '67000000-0000-0000-0000-000000000002',
+            '67000000-0000-0000-0000-000000000001',
+            'migration-0067-probe',
+            'migration-0067-probe',
+            'active',
+            '{}'::jsonb
+          );
+
+          INSERT INTO agent.agents (
+            id,
+            project_id,
+            name,
+            description,
+            type,
+            system_prompt,
+            provider,
+            model,
+            session_mode,
+            status,
+            settings
+          ) VALUES (
+            '67000000-0000-0000-0000-000000000003',
+            '67000000-0000-0000-0000-000000000002',
+            'migration-0067-probe',
+            '',
+            'assistant',
+            '',
+            'openai',
+            'migration-probe',
+            'stateless',
+            'active',
+            '{}'::jsonb
+          );
+
+          INSERT INTO agent.agent_runs (
+            id,
+            project_id,
+            agent_id,
+            session_id,
+            trace_id,
+            environment,
+            origin,
+            status,
+            input_message,
+            execution_snapshot
+          ) VALUES (
+            '67000000-0000-0000-0000-000000000004',
+            '67000000-0000-0000-0000-000000000002',
+            '67000000-0000-0000-0000-000000000003',
+            NULL,
+            '67000000-0000-0000-0000-000000000005',
+            'draft',
+            'playground',
+            'running',
+            'legacy migration probe',
+            '{}'::jsonb
+          );
+          SQL
+
+          uv run alembic -c packages/woobe-core/alembic.ini upgrade head
+
+          backfill_probe="$(
+            docker exec -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+              psql -U postgres -d woobe -Atv ON_ERROR_STOP=1 -c "
+                SELECT CASE
+                  WHEN run.session_id IS NOT NULL
+                    AND session.project_id = run.project_id
+                    AND session.agent_id = run.agent_id
+                    AND session.runtime_environment = run.environment
+                    AND session.origin = run.origin
+                    AND session.data ->> 'backfilled_from_legacy_run' = 'true'
+                    AND session.data ->> 'legacy_run_id' = run.id::text
+                  THEN 'ok'
+                  ELSE 'invalid'
+                END
+                FROM agent.agent_runs AS run
+                JOIN agent.sessions AS session ON session.id = run.session_id
+                WHERE run.id = '67000000-0000-0000-0000-000000000004';
+              "
+          )"
+          test "$backfill_probe" = "ok"
+
+          session_count="$(
+            docker exec -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+              psql -U postgres -d woobe -Atv ON_ERROR_STOP=1 -c "
+                SELECT count(*)
+                FROM agent.sessions
+                WHERE data ->> 'legacy_run_id' = '67000000-0000-0000-0000-000000000004';
+              "
+          )"
+          test "$session_count" = "1"
+
+          session_nullable="$(
+            docker exec -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+              psql -U postgres -d woobe -Atv ON_ERROR_STOP=1 -c "
+                SELECT is_nullable
+                FROM information_schema.columns
+                WHERE table_schema = 'agent'
+                  AND table_name = 'agent_runs'
+                  AND column_name = 'session_id';
+              "
+          )"
+          test "$session_nullable" = "NO"
+
+          docker exec -i -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+            psql -U postgres -d woobe -v ON_ERROR_STOP=1 <<'SQL'
+          DELETE FROM agent.agent_runs
+          WHERE id = '67000000-0000-0000-0000-000000000004';
+          DELETE FROM agent.sessions
+          WHERE data ->> 'legacy_run_id' = '67000000-0000-0000-0000-000000000004';
+          DELETE FROM agent.agents
+          WHERE id = '67000000-0000-0000-0000-000000000003';
+          DELETE FROM core.projects
+          WHERE id = '67000000-0000-0000-0000-000000000002';
+          DELETE FROM identity.workspaces
+          WHERE id = '67000000-0000-0000-0000-000000000001';
+          SQL
+
           uv run alembic -c packages/woobe-core/alembic.ini downgrade -1
           uv run alembic -c packages/woobe-core/alembic.ini upgrade head
           uv run alembic -c packages/woobe-core/alembic.ini check
