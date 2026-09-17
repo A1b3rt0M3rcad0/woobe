@@ -102,7 +102,7 @@ export function NetworkOverviewInspector({
         <SectionBlock
           density="compact"
           title="Runtime"
-          description={`${definition.settings.session_mode} · depth ${definition.settings.max_depth} · ${definition.settings.max_invocations} invocations · ${definition.settings.timeout_seconds}s`}
+          description={`${definition.settings.session_mode} · depth ${definition.settings.max_depth} · ${definition.settings.max_invocations} invocations · ${definition.settings.timeout_seconds}s · ${definition.settings.max_tool_result_chars.toLocaleString()} Tool result chars`}
           actions={<Button type="button" size="sm" variant="outline" onClick={() => { setRuntimeDraft(definition.settings); setRuntimeOpen(true) }}>{readOnly ? 'View' : 'Edit'}</Button>}
         />
       </div>
@@ -137,7 +137,7 @@ export function NetworkOverviewInspector({
       {runtimeOpen ? (
         <NetworkInspectorModal
           title={readOnly ? 'Runtime settings' : 'Edit runtime settings'}
-          description="These limits apply to future Network executions."
+          description="These limits apply to future Network executions. Tool result size controls how much of each Tool or delegated Agent result can be materialized back into the calling Agent context."
           onClose={() => setRuntimeOpen(false)}
           footer={readOnly ? (
             <Button type="button" variant="outline" onClick={() => setRuntimeOpen(false)}>Close</Button>
@@ -164,6 +164,10 @@ export function NetworkOverviewInspector({
             <Field>
               <FieldLabel>Timeout</FieldLabel>
               <Input disabled={readOnly} type="number" min={1} max={300} value={runtimeDraft.timeout_seconds} onChange={(event) => setRuntimeDraft((current) => ({ ...current, timeout_seconds: Number(event.target.value) }))} />
+            </Field>
+            <Field>
+              <FieldLabel>Max Tool result chars</FieldLabel>
+              <Input disabled={readOnly} type="number" min={1000} max={64000} step={1000} value={runtimeDraft.max_tool_result_chars} onChange={(event) => setRuntimeDraft((current) => ({ ...current, max_tool_result_chars: Number(event.target.value) }))} />
             </Field>
           </div>
         </NetworkInspectorModal>
