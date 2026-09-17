@@ -6,7 +6,10 @@ from uuid import UUID
 
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
-from modules.agent.application.tool_context_bindings import apply_context_bindings
+from modules.agent.application.tool_context_bindings import (
+    ToolContextBindingError,
+    apply_context_bindings,
+)
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.domain.enums import ToolStatus
@@ -84,11 +87,22 @@ class AgentToolRuntimeGateway:
         runtime_input = dict(input_data or {})
         if context and context.session_id:
             runtime_input.setdefault(MCP_AGENT_SESSION_INPUT_KEY, str(context.session_id))
-        runtime_input = apply_context_bindings(
-            getattr(tool, "config", None) or {},
-            runtime_input,
-            context.external_context_snapshot if context is not None else None,
-        )
+        try:
+            runtime_input = apply_context_bindings(
+                getattr(tool, "config", None) or {},
+                runtime_input,
+                context.external_context_snapshot if context is not None else None,
+            )
+        except ToolContextBindingError as exc:
+            return {
+                "success": False,
+                "output": {
+                    "error_code": "TOOL_CONTEXT_BINDING_ERROR",
+                    "message": str(exc),
+                },
+                "duration_ms": None,
+                "error": str(exc),
+            }
 
         registry = build_tool_runtime_registry(
             settings=self._settings,
