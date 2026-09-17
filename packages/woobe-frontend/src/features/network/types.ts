@@ -32,6 +32,7 @@ export interface NetworkDefinition {
     max_depth: number
     max_invocations: number
     timeout_seconds: number
+    tool_result_max_chars?: number
   }
 }
 
