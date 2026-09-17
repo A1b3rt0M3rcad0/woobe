@@ -10,6 +10,7 @@ import {
   EmptyStatePanel,
   SectionBlock,
   TechnicalListItem,
+  Textarea,
 } from '@woobe/ui'
 
 import { createChatSurfaceTestSession } from '@/features/chat-surfaces/api'
@@ -53,6 +54,14 @@ function statusVariant(status: FrameStatus) {
   return 'outline' as const
 }
 
+function parseExternalContext(value: string): Record<string, unknown> {
+  const parsed: unknown = JSON.parse(value)
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error('External Context must be a JSON object')
+  }
+  return parsed as Record<string, unknown>
+}
+
 export function ChatSurfaceLiveTestDialog({
   open,
   surface,
@@ -66,6 +75,9 @@ export function ChatSurfaceLiveTestDialog({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [frameStatus, setFrameStatus] = useState<FrameStatus>('starting')
+  const [externalContextText, setExternalContextText] = useState('{}')
+  const [externalContext, setExternalContext] = useState<Record<string, unknown>>({})
+  const [externalContextError, setExternalContextError] = useState<string | null>(null)
 
   const embedOrigin = useMemo(() => resolveEmbedOrigin(), [])
   const frameUrl = useMemo(() => {
@@ -92,6 +104,34 @@ export function ChatSurfaceLiveTestDialog({
     } finally {
       setLoading(false)
     }
+  }, [surface.id])
+
+  const applyExternalContext = useCallback(() => {
+    try {
+      const next = parseExternalContext(externalContextText)
+      setExternalContext(next)
+      setExternalContextError(null)
+
+      if (session && instanceId) {
+        frameRef.current?.contentWindow?.postMessage({
+          protocolVersion: 1,
+          instanceId,
+          surfaceId: surface.public_id,
+          type: 'context.update',
+          payload: { externalContext: next },
+        }, embedOrigin)
+      }
+    } catch (parseError) {
+      setExternalContextError(
+        parseError instanceof Error ? parseError.message : 'External Context must be valid JSON',
+      )
+    }
+  }, [embedOrigin, externalContextText, instanceId, session, surface.public_id])
+
+  useEffect(() => {
+    setExternalContextText('{}')
+    setExternalContext({})
+    setExternalContextError(null)
   }, [surface.id])
 
   useEffect(() => {
@@ -131,6 +171,7 @@ export function ChatSurfaceLiveTestDialog({
             token: session.session_token,
             hostOrigin: window.location.origin,
             apiBaseUrl: API_BASE_URL,
+            externalContext,
           },
         }, embedOrigin)
         return
@@ -144,7 +185,7 @@ export function ChatSurfaceLiveTestDialog({
 
     window.addEventListener('message', onMessage)
     return () => window.removeEventListener('message', onMessage)
-  }, [embedOrigin, instanceId, open, session, surface.public_id])
+  }, [embedOrigin, externalContext, instanceId, open, session, surface.public_id])
 
   return (
     <Dialog
@@ -214,6 +255,42 @@ export function ChatSurfaceLiveTestDialog({
                     description={session ? shortId(session.session_id) : 'Creating…'}
                     title={session?.session_id}
                   />
+                </div>
+              </SectionBlock>
+
+              <SectionBlock title="External Context" density="compact">
+                <div className="grid gap-ui-sm">
+                  <p className="font-sans text-product-small leading-5 text-muted-foreground">
+                    Fill the values expected by the pinned Agent or Network contract. The applied JSON is sent as <code className="font-mono">external_context</code> with the next message.
+                  </p>
+                  <Textarea
+                    value={externalContextText}
+                    onChange={(event) => setExternalContextText(event.target.value)}
+                    rows={8}
+                    density="compact"
+                    invalid={Boolean(externalContextError)}
+                    spellCheck={false}
+                    className="font-mono text-product-small"
+                    placeholder={'{\n  "customer_name": "Mariana Costa",\n  "current_page": "/billing"\n}'}
+                  />
+                  {externalContextError ? (
+                    <p className="font-sans text-product-small text-destructive">
+                      {externalContextError}
+                    </p>
+                  ) : (
+                    <p className="font-sans text-product-small text-muted-foreground">
+                      Applying replaces the previous context for subsequent messages.
+                    </p>
+                  )}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="w-full justify-center"
+                    onClick={applyExternalContext}
+                  >
+                    Apply context
+                  </Button>
                 </div>
               </SectionBlock>
 
