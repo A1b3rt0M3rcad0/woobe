@@ -26,6 +26,8 @@ class BufferedRunEvent:
     storage_version: str
     metadata: dict[str, Any]
     payload: dict[str, Any]
+    session_id: UUID | None = None  # None only for pre-v2 journal records.
+
 
 
 class RunEventBufferPort(Protocol):
@@ -35,6 +37,7 @@ class RunEventBufferPort(Protocol):
         self,
         *,
         run_id: UUID,
+        session_id: UUID,
         run_kind: str,
         event_type: str,
         payload: dict[str, Any],

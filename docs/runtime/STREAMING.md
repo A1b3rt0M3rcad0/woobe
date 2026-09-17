@@ -14,6 +14,34 @@ Finalization (durable PostgreSQL)
 
 SSE observes this lifecycle. Closing a tab, refreshing the page, losing the network, or disconnecting an SSE client only removes that observer. It must not cancel, restart, or duplicate the Run.
 
+Every accepted Run belongs to a Session. This includes stateless Agent execution: when the caller does not provide a Session, the runtime creates an isolated Session for identity and correlation. Stateless still means that previous Session history is not implicitly loaded into later execution context; it does not mean that the Run is sessionless.
+
+## Runtime stream protocol v2
+
+Every semantic Runtime event emitted after Acceptance is self-contained:
+
+```json
+{
+  "protocol_version": 2,
+  "event_id": "019...",
+  "run_id": "019...",
+  "session_id": "019...",
+  "run_kind": "AGENT",
+  "sequence": 42,
+  "type": "token",
+  "occurred_at": "2026-09-16T20:30:00Z",
+  "payload": {
+    "content": "Olá"
+  }
+}
+```
+
+`run_kind` is `AGENT` or `NETWORK`. For Network execution, canonical `run_id` is the Network execution identity and canonical `session_id` is the Network Session identity. Legacy/domain names such as `execution_id` and `network_session_id` may still exist behind internal adapters, but they are not a second public stream identity model.
+
+Transport/control frames are intentionally separate from semantic events. Heartbeats, realtime-degradation notices and failures that occur before a Run has been accepted do not invent `run_id`, `session_id` or a semantic sequence.
+
+The public protocol does not depend on a preceding `meta` event to discover identity. Every semantic event carries the Run and Session identity required to correlate it independently.
+
 ## Public observation model
 
 A client attaches to an existing Run and receives:
@@ -61,6 +89,10 @@ Woobe distinguishes:
 - Redis Stream ID/cursor: infrastructure cursor used to continue reading the stream.
 
 The domain and clients must not use the Redis Stream ID as the semantic ordering contract.
+
+For the Agent initial fast path, semantic identity and sequence are assigned before the event is delivered locally. Hot persistence must preserve that exact identity/order; it must not create a second sequence for the same public event. This keeps first-token latency independent from Redis while allowing reattach to continue from the exact next sequence.
+
+The durable Run Event Journal is a different internal stream and keeps its own journal sequence. Journal events and public Runtime events do not have 1:1 cardinality, so their sequences must not be artificially unified.
 
 ## Redis responsibilities
 
@@ -120,6 +152,8 @@ GET /network/executions/active?network_session_id={session_id}
 GET /network/executions/active?network_id={network_id}&environment={environment}
 ```
 
+The HTTP route can retain `execution_id` for domain/API compatibility, but the Runtime stream emitted by it uses canonical `run_id == execution_id` and `session_id == network_session_id`.
+
 Once the Network execution ID is known, the web client switches transport retries to the GET endpoint. Before the ID is available, the existing Network idempotency key is reused so retries resolve to the same logical Network Run.
 
 Network execution is worker-owned; observer disconnects do not own worker cancellation.
@@ -135,14 +169,14 @@ POST /v1/run/stream
 Authorization: Bearer $WOOBE_RUNTIME_KEY
 ```
 
-As soon as the client receives the canonical `run_id` in the stream state, it should retain it. Reattach is then:
+As soon as the client receives the canonical `run_id` and `session_id` in any semantic event, it can retain them. Reattach is then:
 
 ```text
 GET /v1/runs/{run_id}/stream
 Authorization: Bearer $WOOBE_RUNTIME_KEY
 ```
 
-For stateful Agent or Network runtimes, a caller that retained the Session ID but lost the Run ID may first resolve the active Run:
+A caller that retained the Session ID but lost the Run ID may first resolve the active Run:
 
 ```text
 GET /v1/sessions/{session_id}/active-run
@@ -151,7 +185,7 @@ Authorization: Bearer $WOOBE_RUNTIME_KEY
 
 Then it attaches to the returned `run_id` through `/v1/runs/{run_id}/stream`.
 
-For stateless Agents there is no durable Session identity to recover from, so the caller must retain the canonical `run_id` once it is emitted. This is an API-client responsibility, not a reason to submit the logical request again.
+Stateless Agent execution follows the same identity rule: it has an isolated Session even when the caller did not supply one. That Session is useful for correlation and active-Run recovery, but it must not be interpreted as permission to load previous conversational history into a later stateless execution.
 
 Runtime Key isolation is enforced again on reattach. A Runtime Key cannot attach a Run belonging to another Project, target Agent/Network, or environment. Reattach GETs require the `stream` interface and normal Runtime Key scope/rate-limit checks, but they do not consume an execution-concurrency permit because they observe an existing Run rather than start work.
 
@@ -161,15 +195,15 @@ Observation remains valid even if new-run admission is later disabled for the en
 
 ### Agent Playground
 
-For stateful Agents, the Playground persists the selected Session ID and active Run ID locally as pointers. After F5 it:
+The Playground persists the selected Session ID and active Run ID locally as pointers. After F5 it:
 
-1. reloads persisted Session history;
+1. reloads persisted Session history when the Agent/session policy allows continuity;
 2. resolves the active Run from the stored Run ID or `GET /runtime/runs/active`;
 3. attaches to the same Run;
 4. receives `run.state` with the output already produced;
 5. continues with the live tail.
 
-For stateless Agents, recovery uses the locally retained Run ID because no Session exists.
+For stateless Agents, the isolated Session remains a correlation boundary, but its prior history is not implicitly fed into subsequent Runs.
 
 ### Network workspace
 
@@ -190,9 +224,24 @@ using the existing ChatSurface Session token and host-origin binding. The same `
 
 ## SSE frames
 
+### Semantic event
+
+A semantic event uses protocol v2 and always carries:
+
+- `event_id`;
+- `run_id`;
+- `session_id`;
+- `run_kind`;
+- `sequence`;
+- `type`;
+- `occurred_at`;
+- `payload`.
+
+Consumers should read domain-specific fields from `payload`. They should not infer Runtime identity from payload aliases.
+
 ### `run.state`
 
-`run.state` is the initial replacement frame for an attach/reattach operation. It contains the effective current public projection, including the current output and status. For Network consumers it is wrapped in the existing `NetworkRuntimeEvent` envelope so the public protocol remains compatible.
+`run.state` is the initial replacement event for an attach/reattach operation. It uses the same canonical semantic envelope as live Agent and Network events. Its `sequence` is the high-watermark represented by the snapshot.
 
 ### Incremental events
 
@@ -200,7 +249,7 @@ After `run.state`, only events newer than the captured high-watermark are sent. 
 
 ### Heartbeat
 
-Heartbeat keeps long-lived connections active and is not part of the semantic event history.
+Heartbeat keeps long-lived connections active and is a transport frame, not part of the semantic event history and not part of semantic sequence ordering.
 
 ### Terminal state
 
@@ -214,7 +263,7 @@ Terminal statuses include:
 - `timed_out`;
 - `uncertain` when the runtime cannot safely assert the external outcome.
 
-If Redis data has expired for a terminal Run, the reattach endpoint synthesizes `run.state` from the durable PostgreSQL result and closes the stream.
+If Redis data has expired for a terminal Run, the reattach endpoint synthesizes canonical `run.state` from the durable PostgreSQL result and closes the stream.
 
 ## Cancellation
 
@@ -226,7 +275,7 @@ close browser / F5 / network loss / SSE abort
 → Run continues
 ```
 
-Cancellation requires an explicit Run operation or a runtime policy. Agent cancellation is represented by the hot cancellation flag and is finalized durably by the execution owner. The Playground Stop action now calls the explicit Agent Run cancellation endpoint. Network Stop continues to call the explicit Network execution cancellation path.
+Cancellation requires an explicit Run operation or a runtime policy. Agent cancellation is represented by the hot cancellation flag and is finalized durably by the execution owner. The Playground Stop action calls the explicit Agent Run cancellation endpoint. Network Stop continues to call the explicit Network execution cancellation path.
 
 ## Failure and degradation
 
@@ -236,7 +285,7 @@ For standalone Agent execution, hot-state writes are best-effort: a Redis public
 
 For Network execution, Redis remains part of the active orchestration store. After PostgreSQL finalization has succeeded, failure to publish the final Redis event is treated as realtime degradation rather than a failed Network Run.
 
-Clients can receive `run.realtime_unavailable` or a `run.state` with `realtime_available: false` when only durable state is available.
+Clients can receive `run.realtime_unavailable` or a `run.state` with `realtime_available: false` when only durable state is available. These are transport/degradation signals and do not create a second business outcome for the Run.
 
 ## Worker recovery boundary
 
@@ -293,9 +342,10 @@ Consumers should:
 3. apply contiguous newer events incrementally;
 4. reattach instead of guessing when a sequence gap is detected;
 5. distinguish transport failure from Run failure;
-6. retain the canonical `run_id`/`execution_id` as soon as it is observed;
-7. use explicit cancel when the user requests Stop;
-8. use durable Session/message history for terminal Runs after hot retention expires;
-9. never recover transport by submitting another logical execution once Run identity is known.
+6. retain canonical `run_id` and `session_id` as soon as a semantic event is observed;
+7. consume domain-specific data from the canonical `payload` rather than reconstructing identity from aliases;
+8. use explicit cancel when the user requests Stop;
+9. use durable Session/message history for terminal Runs after hot retention expires;
+10. never recover transport by submitting another logical execution once Run identity is known.
 
 The central rule is: **the Run belongs to the runtime; the connection belongs to the observer.**

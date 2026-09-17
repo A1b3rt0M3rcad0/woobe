@@ -17,6 +17,8 @@ class DurableRunEvent:
     storage_version: str
     metadata: dict[str, Any]
     payload: dict[str, Any]
+    session_id: UUID | None = None  # None only for pre-v2 journal records.
+
 
 
 @dataclass(frozen=True, slots=True)

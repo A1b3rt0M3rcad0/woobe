@@ -249,6 +249,7 @@ async def test_agent_projector_rejects_projection_gaps() -> None:
     run = AgentRun(
         project_id=uuid4(),
         agent_id=uuid4(),
+        session_id=uuid4(),
         trace_id=uuid4(),
         environment="draft",
         origin="runtime_api",
@@ -259,7 +260,7 @@ async def test_agent_projector_rejects_projection_gaps() -> None:
     repositories = SimpleNamespace(
         runs=FakeRuns(run),
         messages=FakeMessages(),
-        sessions=FakeSessions(SimpleNamespace(id=uuid4())),
+        sessions=FakeSessions(SimpleNamespace(id=run.session_id)),
     )
     projector = AgentRunEventProjector(FakeTransactions(repositories, FakeOutbox()))
     event = DurableRunEvent(
@@ -273,6 +274,7 @@ async def test_agent_projector_rejects_projection_gaps() -> None:
         storage_version=EVENT_JOURNAL_STORAGE_VERSION,
         metadata={},
         payload={},
+        session_id=run.session_id,
     )
 
     with pytest.raises(RuntimeError, match="projection gap"):

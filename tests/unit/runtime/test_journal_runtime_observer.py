@@ -5,6 +5,8 @@ from uuid import uuid4
 
 import pytest
 
+_SESSION_ID = uuid4()
+
 from shared.contracts.run_event_journal import DurableRunEvent
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 from shared.infra.in_memory_run_event_journal import InMemoryRunEventJournal
@@ -21,6 +23,7 @@ def _event(
 ) -> DurableRunEvent:
     return DurableRunEvent(
         run_id=run_id,
+        session_id=_SESSION_ID,
         run_kind=run_kind,
         sequence=sequence,
         event_id=f"event-{sequence}",
@@ -75,7 +78,8 @@ async def test_observer_replays_terminal_state_from_journal_without_hot_redis(
     state = await anext(stream)
 
     assert state.event_type == "run.state"
-    assert state.sequence is None
+    assert state.sequence == 0
+    assert state.session_id == _SESSION_ID
     assert state.data["sequence"] is None
     assert state.data["status"] == "completed"
     assert state.data["output"] == "journal answer"

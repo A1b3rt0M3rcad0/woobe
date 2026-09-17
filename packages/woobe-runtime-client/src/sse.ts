@@ -1,4 +1,4 @@
-import { validateRuntimeProtocolVersion } from './protocol'
+import { RuntimeStreamProtocolError, validateRuntimeProtocolVersion } from './protocol'
 import type { ParsedRuntimeFrame } from './types'
 
 function objectValue(value: unknown): Record<string, unknown> | null {
@@ -7,10 +7,12 @@ function objectValue(value: unknown): Record<string, unknown> | null {
     : null
 }
 
-function sequenceValue(value: unknown): number | null {
-  return typeof value === 'number' && Number.isInteger(value) && value >= 0
-    ? value
-    : null
+function requiredText(data: Record<string, unknown>, name: string): string {
+  const value = data[name]
+  if (typeof value !== 'string' || !value.trim()) {
+    throw new RuntimeStreamProtocolError(`Missing runtime event ${name}`)
+  }
+  return value
 }
 
 export function parseRuntimeFrame(frame: string): ParsedRuntimeFrame | null {
@@ -19,32 +21,45 @@ export function parseRuntimeFrame(frame: string): ParsedRuntimeFrame | null {
   const idLine = lines.find((line) => line.startsWith('id:'))
   const dataLines = lines.filter((line) => line.startsWith('data:'))
   if (!dataLines.length) return null
-
   let parsed: unknown
   try {
-    parsed = JSON.parse(
-      dataLines.map((line) => line.slice(5).trimStart()).join('\n'),
-    ) as unknown
+    parsed = JSON.parse(dataLines.map((line) => line.slice(5).trimStart()).join('\n'))
   } catch {
     return null
   }
-
   const data = objectValue(parsed)
   if (!data) return null
   validateRuntimeProtocolVersion(data)
-
-  const payload = objectValue(data.data) ?? data
-  const eventType = eventLine?.slice(6).trim()
-    || (typeof data.type === 'string' ? data.type : 'message')
-  const headerSequence = sequenceValue(data.sequence)
-  const payloadSequence = sequenceValue(payload.sequence)
-  const id = idLine?.slice(3).trim() ?? ''
-  const idSequence = /^\d+$/.test(id) ? Number(id) : null
-
+  const type = requiredText(data, 'type')
+  const occurredAt = requiredText(data, 'occurred_at')
+  if (!Number.isFinite(Date.parse(occurredAt))) {
+    throw new RuntimeStreamProtocolError('Invalid runtime event occurred_at')
+  }
+  if (eventLine && eventLine.slice(6).trim() !== type) {
+    throw new RuntimeStreamProtocolError('SSE event type differs from its envelope')
+  }
+  const payload = objectValue(data.payload)
+  const control = data.event_id === undefined && data.run_id === undefined
+    && data.session_id === undefined && data.sequence === undefined
+  if (control) {
+    if (idLine || !['heartbeat', 'run.realtime_unavailable', 'error', 'protocol.control'].includes(type)) {
+      throw new RuntimeStreamProtocolError('Invalid transport frame')
+    }
+    return { kind: 'transport', type, eventType: type, occurredAt, payload: payload ?? {}, sequence: null }
+  }
+  const sequence = data.sequence
+  if (!Number.isSafeInteger(sequence) || (sequence as number) < 0 || !payload
+      || !['AGENT', 'NETWORK'].includes(String(data.run_kind))
+      || ['heartbeat', 'run.realtime_unavailable'].includes(type)) {
+    throw new RuntimeStreamProtocolError('Invalid semantic runtime event envelope')
+  }
+  if (idLine && idLine.slice(3).trim() !== String(sequence)) {
+    throw new RuntimeStreamProtocolError('SSE cursor differs from semantic sequence')
+  }
   return {
-    eventType,
-    data,
-    payload,
-    sequence: headerSequence ?? payloadSequence ?? idSequence,
+    kind: 'semantic', type, eventType: type, occurredAt, payload,
+    eventId: requiredText(data, 'event_id'), runId: requiredText(data, 'run_id'),
+    sessionId: requiredText(data, 'session_id'), runKind: data.run_kind as 'AGENT' | 'NETWORK',
+    sequence: sequence as number,
   }
 }

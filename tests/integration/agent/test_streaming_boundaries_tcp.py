@@ -165,13 +165,30 @@ async def test_real_chatopenai_adapter_emits_first_token_before_upstream_complet
             current_runtime_stream.reset(context_token)
 
 
-def _sse(event_type: str, **payload: Any) -> str:
+def _semantic_sse(
+    event_type: str,
+    *,
+    sequence: int,
+    run_id: str,
+    session_id: str,
+    **payload: Any,
+) -> str:
     body = {
-        "protocol_version": 1,
+        "protocol_version": 2,
+        "event_id": f"event-{sequence}",
+        "run_id": run_id,
+        "session_id": session_id,
+        "run_kind": "AGENT",
+        "sequence": sequence,
         "type": event_type,
-        **payload,
+        "occurred_at": "2026-09-16T20:30:00Z",
+        "payload": payload,
     }
-    return f"event: {event_type}\ndata: {json.dumps(body)}\n\n"
+    return (
+        f"id: {sequence}\n"
+        f"event: {event_type}\n"
+        f"data: {json.dumps(body)}\n\n"
+    )
 
 
 class _ControlledHttpStreamService:
@@ -183,10 +200,18 @@ class _ControlledHttpStreamService:
     async def stream(self, input_dto, _is_disconnected=None):
         del input_dto
         run_id = "run-tcp-boundary"
-        yield _sse("meta", run_id=run_id)
-        yield _sse(
-            "token",
+        session_id = "session-tcp-boundary"
+        yield _semantic_sse(
+            "meta",
+            sequence=1,
             run_id=run_id,
+            session_id=session_id,
+        )
+        yield _semantic_sse(
+            "token",
+            sequence=2,
+            run_id=run_id,
+            session_id=session_id,
             content="Era",
             visibility="assistant",
             channel="final",
@@ -194,15 +219,23 @@ class _ControlledHttpStreamService:
         )
         self.first_token_emitted.set()
         await self.release.wait()
-        yield _sse(
+        yield _semantic_sse(
             "token",
+            sequence=3,
             run_id=run_id,
+            session_id=session_id,
             content=" uma vez",
             visibility="assistant",
             channel="final",
             phase="final_response_generation",
         )
-        yield _sse("done", run_id=run_id, answer="Era uma vez")
+        yield _semantic_sse(
+            "done",
+            sequence=4,
+            run_id=run_id,
+            session_id=session_id,
+            answer="Era uma vez",
+        )
         self.completed.set()
 
 
@@ -266,7 +299,10 @@ async def test_real_uvicorn_tcp_stream_delivers_first_sse_before_service_complet
                         timeout=2,
                     )
 
-                    assert first_token["content"] == "Era"
+                    assert first_token["protocol_version"] == 2
+                    assert first_token["run_id"] == "run-tcp-boundary"
+                    assert first_token["session_id"] == "session-tcp-boundary"
+                    assert first_token["payload"]["content"] == "Era"
                     assert service.completed.is_set() is False
 
                     service.release.set()
@@ -279,9 +315,8 @@ async def test_real_uvicorn_tcp_stream_delivers_first_sse_before_service_complet
                         timeout=2,
                     )
 
-                    assert second_token["content"] == " uma vez"
-                    assert terminal["answer"] == "Era uma vez"
+                    assert second_token["payload"]["content"] == " uma vez"
+                    assert terminal["payload"]["answer"] == "Era uma vez"
                     assert service.completed.is_set() is True
     finally:
         service.release.set()
-

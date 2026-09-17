@@ -14,6 +14,9 @@ from shared.runtime.contracts import (
     RunKind,
     RunReference,
     RuntimeFrame,
+    RuntimeControlFrame,
+    SemanticRuntimeEvent,
+    runtime_state_frame,
     RuntimeLiveEvent,
     RuntimeLiveSource,
 )
@@ -180,6 +183,7 @@ class RuntimeStreamReader:
         projection["sequence"] = high_watermark
         projection["run_id"] = str(run_id)
         projection["kind"] = run_kind.upper()
+        projection["session_id"] = hot.get("session_id") or hot.get("network_session_id")
         projection["realtime_available"] = True
         logger.info(
             "Runtime reattach state resolved",
@@ -222,11 +226,7 @@ class RuntimeStreamReader:
                 else None
             )
             sequence = state_sequence or 0
-            state_frame = RuntimeFrame(
-                "run.state",
-                projection,
-                sequence=state_sequence,
-            )
+            state_frame = runtime_state_frame(projection)
             frame_count += 1
             approx_stream_bytes += _frame_size(state_frame)
             yield state_frame
@@ -254,7 +254,7 @@ class RuntimeStreamReader:
                         run_id,
                         exc,
                     )
-                    unavailable_frame = RuntimeFrame(
+                    unavailable_frame = RuntimeControlFrame(
                         "run.realtime_unavailable",
                         {"run_id": str(run_id)},
                     )
@@ -268,7 +268,7 @@ class RuntimeStreamReader:
                     now = time.monotonic()
                     if now - last_heartbeat >= self._heartbeat_seconds:
                         last_heartbeat = now
-                        heartbeat = RuntimeFrame(
+                        heartbeat = RuntimeControlFrame(
                             "heartbeat",
                             {"run_id": str(run_id), "ts": _now_iso()},
                         )
@@ -305,15 +305,13 @@ class RuntimeStreamReader:
                         occurred_at=event.occurred_at,
                     )
                     sequence = event.sequence
-                    frame = RuntimeFrame(
-                        public_type,
-                        {
-                            "run_id": str(run_id),
-                            "sequence": event.sequence,
-                            "occurred_at": event.occurred_at,
-                            **public_payload,
-                        },
-                        sequence=event.sequence,
+                    frame = SemanticRuntimeEvent(
+                        event_type=public_type, data=public_payload,
+                        run_id=run_id,
+                        session_id=UUID(str(projection["session_id"])),
+                        run_kind=RunKind(run_kind.lower()),
+                        sequence=event.sequence, event_id=event.event_id,
+                        occurred_at=event.occurred_at,
                     )
                     frame_count += 1
                     live_event_count += 1
@@ -350,9 +348,11 @@ class RuntimeLocalSubscription:
         *,
         heartbeat_seconds: float,
         poll_seconds: float,
+        run_kind: RunKind,
         run_id_resolver: RunIdResolver | None = None,
         heartbeat_data: HeartbeatData | None = None,
     ) -> None:
+        self._run_kind = run_kind
         self._source = source
         self._queue = source.subscribe()
         self._heartbeat_seconds = max(1.0, heartbeat_seconds)
@@ -365,11 +365,14 @@ class RuntimeLocalSubscription:
         return self._run_id_resolver() if self._run_id_resolver is not None else None
 
     def _frame(self, event: RuntimeLiveEvent) -> RuntimeFrame:
-        payload = dict(event.payload)
-        run_id = self._resolved_run_id()
-        if run_id is not None and payload.get("run_id") is None:
-            payload["run_id"] = str(run_id)
-        return RuntimeFrame(event.event_type, payload, sequence=None)
+        if getattr(event, "sequence", None) is None:
+            return RuntimeControlFrame(event.event_type, dict(event.payload))
+        return SemanticRuntimeEvent(
+            event_type=event.event_type, data=dict(event.payload),
+            run_id=event.run_id, session_id=event.session_id,
+            run_kind=self._run_kind, sequence=event.sequence,
+            event_id=event.event_id, occurred_at=event.occurred_at,
+        )
 
     def _heartbeat_frame(self) -> RuntimeFrame:
         run_id = self._resolved_run_id()
@@ -379,7 +382,7 @@ class RuntimeLocalSubscription:
         }
         if self._heartbeat_data is not None:
             payload.update(self._heartbeat_data())
-        return RuntimeFrame("heartbeat", payload)
+        return RuntimeControlFrame("heartbeat", payload)
 
     async def stream(
         self,
@@ -488,7 +491,7 @@ class RuntimeObserver:
             )
             status = str(state.get("status") or "").lower()
             if cursor is None and status not in TERMINAL_RUNTIME_STATUSES:
-                yield RuntimeFrame("run.state", dict(state), sequence=None)
+                yield runtime_state_frame(state)
 
                 while True:
                     if disconnect_check is not None and await disconnect_check():
@@ -498,7 +501,7 @@ class RuntimeObserver:
                     try:
                         hot = await self._store.get(run.run_id)
                     except Exception:
-                        yield RuntimeFrame(
+                        yield RuntimeControlFrame(
                             "run.realtime_unavailable",
                             {"run_id": str(run.run_id)},
                         )
@@ -515,11 +518,7 @@ class RuntimeObserver:
                             run,
                             durable_fallback=durable_fallback,
                         )
-                        yield RuntimeFrame(
-                            "run.state",
-                            dict(terminal_state),
-                            sequence=None,
-                        )
+                        yield runtime_state_frame(terminal_state)
                         return
 
         async for frame in self._reader.stream(
@@ -539,9 +538,9 @@ class RuntimeObserver:
         run_id_resolver: RunIdResolver | None = None,
         heartbeat_data: HeartbeatData | None = None,
     ) -> RuntimeLocalSubscription:
-        del run_kind
         return RuntimeLocalSubscription(
             source,
+            run_kind=run_kind,
             heartbeat_seconds=self._heartbeat_seconds,
             poll_seconds=self._local_poll_seconds,
             run_id_resolver=run_id_resolver,

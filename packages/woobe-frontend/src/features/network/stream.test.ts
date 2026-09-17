@@ -1,3 +1,4 @@
+import { runtimeTestEnvelope } from '@/lib/runtime-stream-test-fixtures'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/api/client', () => ({
@@ -25,7 +26,7 @@ const TERMINAL_EVENT = {
 
 function terminalResponse(): Response {
   return new Response(
-    `id: 1\nevent: execution_completed\ndata: ${JSON.stringify(TERMINAL_EVENT)}\n\n`,
+    `id: 1\nevent: execution_completed\ndata: ${JSON.stringify(runtimeTestEnvelope('execution_completed', TERMINAL_EVENT, 'NETWORK'))}\n\n`,
     {
       status: 200,
       headers: {
@@ -38,10 +39,10 @@ function terminalResponse(): Response {
 
 function nonTerminalResponse(): Response {
   return new Response(
-    `id: 1\nevent: token\ndata: ${JSON.stringify({
+    `id: 1\nevent: token\ndata: ${JSON.stringify(runtimeTestEnvelope('token', {
       ...TERMINAL_EVENT,
       data: { content: 'partial', visibility: 'assistant', channel: 'final' },
-    })}\n\n`,
+    }, 'NETWORK'))}\n\n`,
     {
       status: 200,
       headers: {
@@ -54,8 +55,8 @@ function nonTerminalResponse(): Response {
 
 function completedStateResponse(sequence = 7): Response {
   return new Response(
-    `id: ${sequence}\nevent: run.state\ndata: ${JSON.stringify({
-      protocol_version: 1,
+    `id: ${sequence}\nevent: run.state\ndata: ${JSON.stringify(runtimeTestEnvelope('run.state', {
+      protocol_version: 2,
       execution_id: 'execution-1',
       sequence,
       data: {
@@ -66,7 +67,7 @@ function completedStateResponse(sequence = 7): Response {
         output: 'partial answer',
         trace_id: 'trace-1',
       },
-    })}\n\n`,
+    }, 'NETWORK'))}\n\n`,
     {
       status: 200,
       headers: {
@@ -79,7 +80,7 @@ function completedStateResponse(sequence = 7): Response {
 
 function gapResponse(): Response {
   const state = {
-    protocol_version: 1,
+    protocol_version: 2,
     execution_id: 'execution-1',
     sequence: 3,
     data: {
@@ -96,7 +97,7 @@ function gapResponse(): Response {
     data: { content: 'must-not-apply', visibility: 'assistant', channel: 'final' },
   }
   return new Response(
-    `id: 3\nevent: run.state\ndata: ${JSON.stringify(state)}\n\nid: 5\nevent: token\ndata: ${JSON.stringify(skipped)}\n\n`,
+    `id: 3\nevent: run.state\ndata: ${JSON.stringify(runtimeTestEnvelope('run.state', state, 'NETWORK'))}\n\nid: 5\nevent: token\ndata: ${JSON.stringify(runtimeTestEnvelope('token', skipped, 'NETWORK'))}\n\n`,
     {
       status: 200,
       headers: {
@@ -116,7 +117,7 @@ function eventEnvelope(sequence: number, data: Record<string, unknown>) {
 }
 
 function sseEvent(sequence: number, eventType: string, data: Record<string, unknown>) {
-  return `id: ${sequence}\nevent: ${eventType}\ndata: ${JSON.stringify(eventEnvelope(sequence, data))}\n\n`
+  return `id: ${sequence}\nevent: ${eventType}\ndata: ${JSON.stringify(runtimeTestEnvelope(eventType, eventEnvelope(sequence, data), 'NETWORK'))}\n\n`
 }
 
 function bodyFrom(fetchMock: ReturnType<typeof vi.fn>, index: number): Record<string, unknown> {
@@ -231,7 +232,7 @@ describe('streamNetworkExecution token delivery', () => {
 
   it('reconciles current state before continuing the live tail', async () => {
     const state = {
-      protocol_version: 1,
+      protocol_version: 2,
       execution_id: 'execution-1',
       sequence: 3,
       data: {
@@ -243,7 +244,7 @@ describe('streamNetworkExecution token delivery', () => {
       },
     }
     const body = [
-      `id: 3\nevent: run.state\ndata: ${JSON.stringify(state)}\n\n`,
+      `id: 3\nevent: run.state\ndata: ${JSON.stringify(runtimeTestEnvelope('run.state', state, 'NETWORK'))}\n\n`,
       sseEvent(4, 'token', { content: 'ld', visibility: 'assistant', channel: 'final' }),
       sseEvent(5, 'execution_completed', { trace_id: 'trace-1' }),
     ].join('')

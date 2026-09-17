@@ -21,7 +21,7 @@ function historyRecords(message: NetworkMessageResource, sessionId: string): Run
     return {
       eventType: item.event_type,
       event: {
-        protocol_version: 1,
+        protocol_version: 2,
         event_id: item.id,
         sequence: item.sequence,
         execution_id: execution.id,

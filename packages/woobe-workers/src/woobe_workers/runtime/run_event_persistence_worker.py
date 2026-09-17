@@ -9,6 +9,7 @@ from uuid import UUID
 from shared.contracts.run_event_buffer import BufferedRunEvent, RunEventBufferPort
 from shared.contracts.run_event_journal import DurableRunEvent, RunEventJournalPort
 from shared.contracts.run_event_projector import RunEventProjectorPort
+from shared.runtime.event_schema import buffered_to_durable
 
 logger = logging.getLogger(__name__)
 
@@ -48,18 +49,7 @@ class RunEventPersistenceWorker:
 
     @staticmethod
     def _durable_event(event: BufferedRunEvent) -> DurableRunEvent:
-        return DurableRunEvent(
-            run_id=event.run_id,
-            run_kind=event.run_kind,
-            sequence=event.sequence,
-            event_id=event.event_id,
-            event_type=event.event_type,
-            occurred_at=event.occurred_at,
-            schema_version=event.schema_version,
-            storage_version=event.storage_version,
-            metadata=dict(event.metadata),
-            payload=dict(event.payload),
-        )
+        return buffered_to_durable(event)
 
     async def _persist_batch(self, events: Sequence[BufferedRunEvent]) -> None:
         if not events:

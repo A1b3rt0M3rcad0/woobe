@@ -30,6 +30,7 @@ from modules.agent.infra.execution.structured_output_ask_use_case import (
 from shared.composition_resources import EXECUTION_STATE_STORE
 from shared.contracts.execution_state import ExecutionStateStore
 from shared.contracts.time import utc_now
+from shared.runtime.contracts import RuntimeControlFrame
 from shared.runtime import (
     RunKind,
     RunReference,
@@ -487,18 +488,6 @@ class AskAgentStreamService:
                 pass
         return persisted
 
-    @staticmethod
-    def _event_for_run(
-        event: RuntimeStreamEvent,
-        run_id: UUID | None,
-    ) -> RuntimeStreamEvent:
-        if run_id is None or event.payload.get("run_id") is not None:
-            return event
-        return RuntimeStreamEvent(
-            event_type=event.event_type,
-            payload={**event.payload, "run_id": str(run_id)},
-        )
-
     async def _watch_cancellation(
         self,
         input_dto: AskInput,
@@ -557,7 +546,8 @@ class AskAgentStreamService:
             try:
                 event = await asyncio.wait_for(channel.queue.get(), timeout=0.25)
                 run_id = getattr(channel, "run_id", None)
-                buffered.append(self._event_for_run(event, run_id))
+                if event.sequence is not None:
+                    buffered.append(event)
             except asyncio.TimeoutError:
                 event = None
 
@@ -572,12 +562,13 @@ class AskAgentStreamService:
             if run_id is not None and runtime_ready and buffered:
                 pending, buffered = buffered, []
                 for queued in pending:
-                    queued = self._event_for_run(queued, run_id)
                     await self._publisher.publish(
                         run_id,
                         "agent",
                         queued.event_type,
                         dict(queued.payload),
+                        event_id=queued.event_id, sequence=queued.sequence,
+                        occurred_at=queued.occurred_at,
                     )
                     if queued.event_type in _TERMINAL_STREAM_EVENTS:
                         terminal_seen = True
@@ -675,7 +666,7 @@ class AskAgentStreamService:
             error = execution_task.exception()
             if error is None:
                 return None
-            return RuntimeFrame("error", {"message": redact_text(str(error))})
+            return RuntimeControlFrame("error", {"message": redact_text(str(error))})
 
         async for frame in subscription.stream(
             disconnect_check=disconnect_check,

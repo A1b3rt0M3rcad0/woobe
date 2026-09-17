@@ -72,7 +72,7 @@ class _BlockingUseCase:
         assert channel is not None
         channel.bind_execution(
             trace_id=self.run.trace_id,
-            session_id=None,
+            session_id=self.run.session_id,
             project_id=self.run.project_id,
             agent_id=self.run.agent_id,
         )
@@ -81,6 +81,7 @@ class _BlockingUseCase:
             self.run.id,
             {
                 "status": "running",
+                "session_id": str(self.run.session_id),
                 "project_id": str(self.run.project_id),
                 "agent_id": str(self.run.agent_id),
             },
@@ -110,6 +111,7 @@ class _BlockingUseCase:
         return SimpleNamespace(
             model_dump=lambda **_: {
                 "run_id": str(self.run.id),
+                "session_id": str(self.run.session_id),
                 "trace_id": str(self.run.trace_id),
                 "answer": "completed after disconnect",
             }
@@ -118,6 +120,7 @@ class _BlockingUseCase:
 
 def _run() -> AgentRun:
     return AgentRun(
+        session_id=uuid4(),
         project_id=uuid4(),
         agent_id=uuid4(),
         trace_id=uuid4(),
@@ -184,6 +187,7 @@ async def test_http_stream_stays_attached_until_durable_cancelled_terminal() -> 
 
     meta = await _next_body_frame(iterator, "meta")
     assert str(run.id) in meta
+    assert str(run.session_id) in meta
     await asyncio.wait_for(use_case.started.wait(), timeout=1)
 
     # Client B issues the same control operation used by POST /runtime/runs/{id}/cancel
@@ -194,6 +198,7 @@ async def test_http_stream_stays_attached_until_durable_cancelled_terminal() -> 
     terminal = await _next_body_frame(iterator, "cancelled")
     assert '"persisted": true' in terminal
     assert '"output": "partial over http"' in terminal
+    assert str(run.session_id) in terminal
     await asyncio.wait_for(use_case.cancelled.wait(), timeout=1)
     assert transactions.repositories.runs.run.status == AgentRunStatus.CANCELLED
 
@@ -223,4 +228,3 @@ async def test_http_disconnect_disposes_only_observer_and_does_not_cancel_run() 
     use_case.release.set()
     await asyncio.wait_for(use_case.completed.wait(), timeout=1)
     assert use_case.cancelled.is_set() is False
-

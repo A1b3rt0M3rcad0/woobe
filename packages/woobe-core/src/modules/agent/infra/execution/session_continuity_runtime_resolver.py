@@ -78,9 +78,6 @@ class SessionContinuityReleaseRuntimeResolver(CanonicalExecutionSnapshotRuntimeR
 
         requested_session_id = input_dto.session_id
         session = await AskAgentUseCase._resolve_session(self, session_repo, input_dto, agent)
-        if session is None:
-            return None
-
         environment = normalize_runtime_environment(input_dto.execution_context)
         existing = requested_session_id is not None
         if existing:

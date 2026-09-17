@@ -20,6 +20,7 @@ async def test_redis_buffer_is_persisted_to_mongodb_with_contiguous_watermark() 
         pytest.skip("Redis and MongoDB are required for the Run journal integration test")
 
     run_id = uuid4()
+    session_id = uuid4()
     namespace = uuid4().hex
     stream_key = f"woobe:test:journal:{namespace}"
     dead_letter_key = f"woobe:test:journal:dead:{namespace}"
@@ -51,6 +52,7 @@ async def test_redis_buffer_is_persisted_to_mongodb_with_contiguous_watermark() 
 
         first = await buffer.append(
             run_id=run_id,
+            session_id=session_id,
             run_kind="agent",
             event_type="execution.started",
             metadata={"project_id": str(uuid4()), "attempt": 1},
@@ -58,6 +60,7 @@ async def test_redis_buffer_is_persisted_to_mongodb_with_contiguous_watermark() 
         )
         second = await buffer.append(
             run_id=run_id,
+            session_id=session_id,
             run_kind="agent",
             event_type="run.completed",
             metadata={"project_id": str(uuid4()), "attempt": 1},
@@ -71,6 +74,7 @@ async def test_redis_buffer_is_persisted_to_mongodb_with_contiguous_watermark() 
             block_ms=100,
         )
         assert [event.sequence for event in buffered] == [first.sequence, second.sequence]
+        assert {event.session_id for event in buffered} == {session_id}
 
         await worker._persist_batch(buffered)
 
@@ -78,6 +82,7 @@ async def test_redis_buffer_is_persisted_to_mongodb_with_contiguous_watermark() 
         state = await journal.get_state(run_id)
 
         assert [event.sequence for event in persisted] == [1, 2]
+        assert {event.session_id for event in persisted} == {session_id}
         assert [event.event_type for event in persisted] == [
             "execution.started",
             "run.completed",

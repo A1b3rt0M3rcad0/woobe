@@ -9,12 +9,28 @@ export interface RuntimeSequenceState {
   sequence: number | null
 }
 
-export interface ParsedRuntimeFrame {
+interface RuntimeFrameBase {
+  type: string
   eventType: string
-  data: Record<string, unknown>
   payload: Record<string, unknown>
-  sequence: number | null
+  occurredAt: string
 }
+
+export interface WoobeEvent extends RuntimeFrameBase {
+  kind: 'semantic'
+  eventId: string
+  runId: string
+  sessionId: string
+  runKind: 'AGENT' | 'NETWORK'
+  sequence: number
+}
+
+export interface RuntimeControlFrame extends RuntimeFrameBase {
+  kind: 'transport'
+  sequence: null
+}
+
+export type ParsedRuntimeFrame = WoobeEvent | RuntimeControlFrame
 
 export interface RuntimeOutputReconciliation {
   output: string

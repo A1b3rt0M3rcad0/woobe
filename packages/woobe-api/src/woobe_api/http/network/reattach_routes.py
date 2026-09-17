@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from uuid import UUID
 
 from fastapi import APIRouter, Request
@@ -8,6 +7,8 @@ from fastapi.responses import StreamingResponse
 
 from modules.network.entrypoint import NetworkBoundaryService, build_network_service
 from shared.infra.errors import ValidationError
+from shared.runtime.contracts import runtime_state_frame
+from shared.runtime.sse import format_sse_frame
 from shared.runtime import (
     RunReference,
     RuntimeFrame,
@@ -88,36 +89,8 @@ def _durable_state(execution) -> dict:
 
 
 def network_runtime_sse(frame: RuntimeFrame, execution_id: UUID) -> str:
-    payload = dict(frame.data)
-    if frame.event_type == "run.state":
-        envelope = {
-            "protocol_version": 1,
-            "sequence": frame.sequence,
-            "execution_id": str(execution_id),
-            "data": payload,
-            "created_at": payload.get("updated_at"),
-        }
-    else:
-        occurred_at = payload.pop("occurred_at", None)
-        payload.pop("run_id", None)
-        payload.pop("sequence", None)
-        envelope = {
-            "protocol_version": 1,
-            "sequence": frame.sequence,
-            "execution_id": str(execution_id),
-            "invocation_id": payload.pop("invocation_id", None),
-            "parent_invocation_id": payload.pop("parent_invocation_id", None),
-            "node_id": payload.pop("node_id", None),
-            "agent_id": payload.pop("agent_id", None),
-            "depth": payload.pop("depth", None),
-            "data": payload,
-            "created_at": occurred_at,
-        }
-    prefix = f"id: {frame.sequence}\n" if frame.sequence is not None else ""
-    return (
-        f"{prefix}event: {frame.event_type}\n"
-        f"data: {json.dumps(envelope, ensure_ascii=False, default=str)}\n\n"
-    )
+    del execution_id
+    return format_sse_frame(frame)
 
 
 @router.get("/executions/active")
@@ -191,7 +164,7 @@ async def reattach_network_execution(
                 }
             )
             yield network_runtime_sse(
-                RuntimeFrame("run.state", state, sequence=None),
+                runtime_state_frame(state),
                 execution_id,
             )
 

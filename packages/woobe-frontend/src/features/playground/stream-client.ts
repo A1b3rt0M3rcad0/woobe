@@ -195,10 +195,10 @@ function toolOf(item: Record<string, unknown>): ToolCallInfo {
   }
 }
 
-function responseOf(item: Record<string, unknown>): AskResponse {
+function responseOf(item: Record<string, unknown>, sessionId: string | null): AskResponse {
   return {
     answer: typeof item.answer === 'string' ? sanitizeAssistantContent(item.answer) : '',
-    session_id: stringOrNull(item.session_id),
+    session_id: sessionId,
     message_id: stringOrNull(item.message_id),
     usage: usageOf(item.usage),
     sources: Array.isArray(item.sources) ? item.sources as SourceInfo[] : [],
@@ -298,11 +298,11 @@ function reconcileRunState(
   callbacks: StreamCallbacks,
   state: RuntimeClientState,
 ): boolean {
-  const runId = stringOrNull(item.run_id)
+  const runId = runtime.kind === 'semantic' ? runtime.runId : null
   if (runId) state.runId = runId
   callbacks.onMeta({
     run_id: runId,
-    session_id: stringOrNull(item.session_id),
+    session_id: runtime.kind === 'semantic' ? runtime.sessionId : null,
     trace_id: stringOrNull(item.trace_id),
   })
   callbacks.onRunState?.(item)
@@ -344,7 +344,7 @@ function reconcileRunState(
       usage: result.usage ?? item.usage,
       parsed_output: result.parsed_output ?? item.parsed_output,
       output_parse_error: result.output_parse_error ?? item.output_parse_error,
-    }))
+    }, runtime.kind === 'semantic' ? runtime.sessionId : null))
   } else if (status === 'cancelled') callbacks.onCancelled?.(item)
   else callbacks.onError(new Error(
     typeof item.message === 'string'
@@ -371,8 +371,15 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks, state: RuntimeCli
     return false
   }
 
-  const item = runtime.data
+  const item = runtime.payload
   const type = runtime.eventType
+  if (runtime.kind === 'semantic') {
+    state.runId = runtime.runId
+    callbacks.onMeta({ run_id: runtime.runId, session_id: runtime.sessionId })
+  } else if (type !== 'error') {
+    if (type === 'run.realtime_unavailable') callbacks.onUnknownEvent?.(type, item)
+    return false
+  }
   if (!acceptSequence(runtime, frame, callbacks, state)) return false
   if (type === 'run.state') return reconcileRunState(runtime, item, callbacks, state)
   if (type === 'run.progress') return false
@@ -397,11 +404,11 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks, state: RuntimeCli
   else if (type === 'agent_activity') callbacks.onAgentActivity?.(activityOf(item))
   else if (type === 'sources') callbacks.onSources(Array.isArray(item.sources) ? item.sources as SourceInfo[] : [])
   else if (type === 'meta') {
-    const runId = stringOrNull(item.run_id)
+    const runId = runtime.kind === 'semantic' ? runtime.runId : null
     if (runId) state.runId = runId
     callbacks.onMeta({
       run_id: runId,
-      session_id: stringOrNull(item.session_id),
+      session_id: runtime.kind === 'semantic' ? runtime.sessionId : null,
       trace_id: stringOrNull(item.trace_id),
       request_id: stringOrNull(item.request_id),
     })
@@ -423,7 +430,7 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks, state: RuntimeCli
     callbacks.onToolCall?.(tool)
   } else if (type === 'heartbeat') callbacks.onHeartbeat?.(item)
   else if (type === 'done') {
-    const response = responseOf(item)
+    const response = responseOf(item, runtime.kind === 'semantic' ? runtime.sessionId : null)
     if (response.answer) state.output = response.answer
     callbacks.onDone(response)
     return true

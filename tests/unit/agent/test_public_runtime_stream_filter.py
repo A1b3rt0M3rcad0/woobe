@@ -5,10 +5,26 @@ from woobe_api.http.agent.controllers.ask_agent_stream_controller import (
 )
 
 
-def _event(event_type: str, payload: dict) -> str:
+_RUN_ID = "11111111-1111-4111-8111-111111111111"
+_SESSION_ID = "22222222-2222-4222-8222-222222222222"
+
+
+def _event(event_type: str, payload: dict, *, sequence: int = 1) -> str:
+    envelope = {
+        "protocol_version": 2,
+        "event_id": f"33333333-3333-4333-8333-{sequence:012d}",
+        "run_id": _RUN_ID,
+        "session_id": _SESSION_ID,
+        "run_kind": "AGENT",
+        "sequence": sequence,
+        "type": event_type,
+        "occurred_at": "2026-09-17T00:00:00+00:00",
+        "payload": payload,
+    }
     return (
+        f"id: {sequence}\n"
         f"event: {event_type}\n"
-        f"data: {json.dumps(payload)}\n\n"
+        f"data: {json.dumps(envelope)}\n\n"
     )
 
 
@@ -17,7 +33,6 @@ def test_public_agent_stream_rejects_legacy_tool_planning_tokens() -> None:
         _event(
             "token",
             {
-                "type": "token",
                 "visibility": "assistant",
                 "channel": "final",
                 "phase": "tool_planning",
@@ -32,7 +47,6 @@ def test_public_agent_stream_accepts_committed_capability_response_tokens() -> N
         _event(
             "token",
             {
-                "type": "token",
                 "visibility": "assistant",
                 "channel": "final",
                 "phase": "capability_response_generation",
@@ -47,7 +61,6 @@ def test_public_agent_stream_accepts_terminal_tool_followup_tokens() -> None:
         _event(
             "token",
             {
-                "type": "token",
                 "visibility": "assistant",
                 "channel": "final",
                 "phase": "tool_followup_1",
@@ -62,7 +75,6 @@ def test_public_agent_stream_accepts_final_response_tokens() -> None:
         _event(
             "token",
             {
-                "type": "token",
                 "visibility": "assistant",
                 "channel": "final",
                 "phase": "final_response_generation",
@@ -74,6 +86,5 @@ def test_public_agent_stream_accepts_final_response_tokens() -> None:
 
 def test_public_agent_stream_preserves_non_token_events() -> None:
     assert _is_public_stream_chunk(
-        _event("done", {"type": "done", "answer": "public answer"})
+        _event("done", {"answer": "public answer"})
     ) is True
-

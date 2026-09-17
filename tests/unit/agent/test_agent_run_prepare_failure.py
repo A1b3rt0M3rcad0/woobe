@@ -110,7 +110,10 @@ class _Runtime(TransactionalAskAgentUseCase):
         return self.credential
 
     async def _resolve_session(self, _repository, _input_dto, _agent):
-        return None
+        return SimpleNamespace(id=uuid4())
+
+    async def _save_user_message(self, *_args, **_kwargs):
+        return SimpleNamespace(id=uuid4())
 
     def _get_response_format(self, _agent):
         return {"enabled": False}

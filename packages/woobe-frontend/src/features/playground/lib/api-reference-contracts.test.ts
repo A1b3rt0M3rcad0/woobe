@@ -18,6 +18,30 @@ describe('public API reference contract', () => {
     expect(reference.request).not.toHaveProperty('execution_context')
   })
 
+  it('documents the canonical protocol v2 identity for semantic stream events', () => {
+    const reference = buildApiReferenceForSlot({
+      slot: 'production',
+      release: null,
+    })
+
+    expect(reference.stream_events.token.data).toMatchObject({
+      protocol_version: 2,
+      event_id: '<uuid>',
+      run_id: '<uuid>',
+      session_id: '<uuid>',
+      run_kind: 'AGENT',
+      sequence: 1,
+      type: 'token',
+      payload: expect.objectContaining({ content: '<partial token>' }),
+    })
+    expect(reference.stream_events.heartbeat.data).toEqual({
+      protocol_version: 2,
+      type: 'heartbeat',
+      occurred_at: '<iso datetime>',
+    })
+    expect(reference.sync_response_contract.data.session_id).toBe('<uuid>')
+  })
+
   it('generates an authenticated public runtime curl', () => {
     const curl = runtimeCurl('https://api.example.com')
 

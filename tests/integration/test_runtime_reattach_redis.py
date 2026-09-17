@@ -4,6 +4,8 @@ import os
 from uuid import uuid4
 
 import pytest
+
+_SESSION_ID = uuid4()
 from redis.asyncio import Redis
 
 from shared.infra.redis_execution_state import RedisExecutionStateStore
@@ -24,11 +26,11 @@ async def test_real_redis_reattach_folds_projection_to_high_watermark_then_tails
     lease_key = f"{state_key}:lease"
 
     async def durable_fallback():
-        return {"status": "completed", "output": "durable fallback", "result": {"answer": "durable fallback"}}
+        return {"session_id": str(_SESSION_ID), "status": "completed", "output": "durable fallback", "result": {"answer": "durable fallback"}}
 
     try:
         assert await client.ping() is True
-        await store.create(run_id, {"status": "running"}, ttl_seconds=60)
+        await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=60)
         for sequence in range(1, 132):
             await store.append_event(
                 run_id,
@@ -39,7 +41,7 @@ async def test_real_redis_reattach_folds_projection_to_high_watermark_then_tails
         await store.update(
             run_id,
             {
-                "runtime_projection": {
+                "runtime_projection": {"session_id": str(_SESSION_ID),
                     "run_id": str(run_id),
                     "kind": "AGENT",
                     "status": "running",
@@ -93,10 +95,10 @@ async def test_real_redis_supports_two_independent_run_observers() -> None:
     lease_key = f"{state_key}:lease"
 
     async def fallback():
-        return {"status": "running", "output": ""}
+        return {"session_id": str(_SESSION_ID), "status": "running", "output": ""}
 
     try:
-        await store.create(run_id, {"status": "running"}, ttl_seconds=60)
+        await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=60)
         await store.append_event(run_id, "token", {"content": "one"})
 
         stream_a = RuntimeStreamReader(store, block_ms=100).stream(run_id, "agent", durable_fallback=fallback)
@@ -130,7 +132,7 @@ async def test_real_redis_preserves_cancel_request_while_runtime_events_continue
     run_id = uuid4()
 
     try:
-        await store.create(run_id, {"status": "running", "phase": "llm"}, ttl_seconds=60)
+        await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running", "phase": "llm"}, ttl_seconds=60)
         assert await store.is_cancel_requested(run_id) is False
 
         await store.request_cancel(run_id)
@@ -161,7 +163,7 @@ async def test_real_redis_loss_after_durable_cancelled_terminal_falls_back_witho
     store = RedisExecutionStateStore(client, key_prefix=prefix)
     run_id = uuid4()
 
-    durable = {
+    durable = {"session_id": str(_SESSION_ID),
         "status": "cancelled",
         "output": "durable partial",
         "result": {"answer": "durable partial", "partial": True, "cancelled": True},
@@ -171,7 +173,7 @@ async def test_real_redis_loss_after_durable_cancelled_terminal_falls_back_witho
         return durable
 
     try:
-        await store.create(run_id, {"status": "running"}, ttl_seconds=60)
+        await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=60)
         await store.request_cancel(run_id)
         await store.delete(run_id)
 
@@ -183,7 +185,7 @@ async def test_real_redis_loss_after_durable_cancelled_terminal_falls_back_witho
         state = await anext(stream)
 
         assert state.event_type == "run.state"
-        assert state.sequence is None
+        assert state.sequence == 0
         assert state.data["status"] == "cancelled"
         assert state.data["output"] == "durable partial"
         assert state.data["realtime_available"] is False

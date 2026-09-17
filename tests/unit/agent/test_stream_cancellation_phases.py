@@ -96,7 +96,7 @@ class _PhaseUseCase:
         assert channel is not None
         channel.bind_execution(
             trace_id=self.run.trace_id,
-            session_id=None,
+            session_id=self.run.session_id,
             project_id=self.run.project_id,
             agent_id=self.run.agent_id,
         )
@@ -105,6 +105,7 @@ class _PhaseUseCase:
             self.run.id,
             {
                 "status": "running",
+                "session_id": str(self.run.session_id),
                 "project_id": str(self.run.project_id),
                 "agent_id": str(self.run.agent_id),
             },
@@ -140,7 +141,7 @@ class _BlockingToolUseCase:
         assert channel is not None
         channel.bind_execution(
             trace_id=self.run.trace_id,
-            session_id=None,
+            session_id=self.run.session_id,
             project_id=self.run.project_id,
             agent_id=self.run.agent_id,
         )
@@ -149,6 +150,7 @@ class _BlockingToolUseCase:
             self.run.id,
             {
                 "status": "running",
+                "session_id": str(self.run.session_id),
                 "project_id": str(self.run.project_id),
                 "agent_id": str(self.run.agent_id),
             },
@@ -181,6 +183,7 @@ class _CancelledRaceUseCase:
 
 def _run() -> AgentRun:
     return AgentRun(
+        session_id=uuid4(),
         project_id=uuid4(),
         agent_id=uuid4(),
         trace_id=uuid4(),
@@ -231,12 +234,14 @@ async def test_cancel_interrupts_active_model_phase_and_durably_terminalizes_run
     try:
         meta = await _next_frame(stream, "meta")
         assert str(run.id) in meta
+        assert str(run.session_id) in meta
         await asyncio.wait_for(use_case.model.started.wait(), timeout=1)
 
         await store.request_cancel(run.id)
         terminal = await _next_frame(stream, "cancelled")
 
         assert '"persisted": true' in terminal
+        assert str(run.session_id) in terminal
         await asyncio.wait_for(use_case.model.cancelled.wait(), timeout=1)
         assert transactions.runs.run.status == AgentRunStatus.CANCELLED
         assert transactions.runs.run.result is not None
@@ -265,6 +270,7 @@ async def test_cancel_interrupts_active_tool_boundary_without_marking_run_failed
         terminal = await _next_frame(stream, "cancelled")
 
         assert '"persisted": true' in terminal
+        assert str(run.session_id) in terminal
         await asyncio.wait_for(use_case.cancelled.wait(), timeout=1)
         assert transactions.runs.run.status == AgentRunStatus.CANCELLED
         assert transactions.runs.run.failure_code is None
@@ -289,7 +295,7 @@ async def test_cancel_failure_race_keeps_durable_failure_as_authoritative_winner
     runtime_channel = RuntimeStreamChannel()
     runtime_channel.bind_execution(
         trace_id=run.trace_id,
-        session_id=None,
+        session_id=run.session_id,
         project_id=run.project_id,
         agent_id=run.agent_id,
     )
@@ -300,6 +306,7 @@ async def test_cancel_failure_race_keeps_durable_failure_as_authoritative_winner
 
     terminal = await asyncio.wait_for(runtime_channel.queue.get(), timeout=1)
     assert terminal.event_type == "error"
+    assert terminal.session_id == run.session_id
     assert "provider failed first" in str(terminal.payload.get("message"))
     assert transactions.runs.run.status == AgentRunStatus.FAILED
     assert transactions.runs.save_calls == 0

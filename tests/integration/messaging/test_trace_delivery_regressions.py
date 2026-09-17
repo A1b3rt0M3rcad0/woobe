@@ -24,6 +24,32 @@ from woobe_workers.consumers.observability.inbox_consumer import (
 )
 
 
+def _runtime_sse(
+    event_type: str,
+    *,
+    sequence: int,
+    run_id: UUID,
+    session_id: UUID,
+    payload: dict,
+) -> str:
+    envelope = {
+        "protocol_version": 2,
+        "event_id": str(uuid4()),
+        "run_id": str(run_id),
+        "session_id": str(session_id),
+        "run_kind": "AGENT",
+        "sequence": sequence,
+        "type": event_type,
+        "occurred_at": "2026-09-17T00:00:00+00:00",
+        "payload": payload,
+    }
+    return (
+        f"id: {sequence}\n"
+        f"event: {event_type}\n"
+        f"data: {json.dumps(envelope)}\n\n"
+    )
+
+
 def test_execution_idempotency_is_scoped_to_trace_not_session() -> None:
     agent_id = uuid4()
     session_id = uuid4()
@@ -98,16 +124,32 @@ def test_observability_consumes_and_handles_requested_event() -> None:
 
 @pytest.mark.asyncio
 async def test_done_is_exposed_only_after_source_generator_finishes() -> None:
+    run_id = uuid4()
+    session_id = uuid4()
+
     class FakeService:
         committed = False
 
         async def stream(self, _input):
-            yield (
-                'data: {"type": "token", "content": "ok", '
-                '"visibility": "assistant", "channel": "final", '
-                '"phase": "response_generation"}\n\n'
+            yield _runtime_sse(
+                "token",
+                sequence=1,
+                run_id=run_id,
+                session_id=session_id,
+                payload={
+                    "content": "ok",
+                    "visibility": "assistant",
+                    "channel": "final",
+                    "phase": "response_generation",
+                },
             )
-            yield 'data: {"type": "done", "trace_id": "trace"}\n\n'
+            yield _runtime_sse(
+                "done",
+                sequence=2,
+                run_id=run_id,
+                session_id=session_id,
+                payload={"trace_id": "trace"},
+            )
             self.committed = True
 
     service = FakeService()
@@ -115,6 +157,7 @@ async def test_done_is_exposed_only_after_source_generator_finishes() -> None:
 
     first = await anext(stream)
     assert '"token"' in first
+    assert '"content": "ok"' in first
     assert service.committed is False
 
     second = await anext(stream)
@@ -123,11 +166,60 @@ async def test_done_is_exposed_only_after_source_generator_finishes() -> None:
 
 
 @pytest.mark.asyncio
-async def test_finalization_error_discards_pending_done() -> None:
+async def test_internal_v2_token_is_not_exposed_by_commit_safe_stream() -> None:
+    run_id = uuid4()
+    session_id = uuid4()
+
     class FakeService:
         async def stream(self, _input):
-            yield 'data: {"type": "done", "trace_id": "trace"}\n\n'
-            yield 'data: {"type": "error", "message": "commit failed"}\n\n'
+            yield _runtime_sse(
+                "token",
+                sequence=1,
+                run_id=run_id,
+                session_id=session_id,
+                payload={
+                    "content": "hidden",
+                    "visibility": "internal",
+                    "channel": "reasoning",
+                    "phase": "response_generation",
+                },
+            )
+            yield _runtime_sse(
+                "done",
+                sequence=2,
+                run_id=run_id,
+                session_id=session_id,
+                payload={"answer": "public"},
+            )
+
+    chunks = [chunk async for chunk in commit_safe_stream(FakeService(), object())]
+
+    assert len(chunks) == 1
+    assert '"done"' in chunks[0]
+    assert "hidden" not in chunks[0]
+
+
+@pytest.mark.asyncio
+async def test_finalization_error_discards_pending_done() -> None:
+    run_id = uuid4()
+    session_id = uuid4()
+
+    class FakeService:
+        async def stream(self, _input):
+            yield _runtime_sse(
+                "done",
+                sequence=1,
+                run_id=run_id,
+                session_id=session_id,
+                payload={"trace_id": "trace"},
+            )
+            yield _runtime_sse(
+                "error",
+                sequence=2,
+                run_id=run_id,
+                session_id=session_id,
+                payload={"message": "commit failed"},
+            )
 
     chunks = [chunk async for chunk in commit_safe_stream(FakeService(), object())]
 
@@ -154,4 +246,3 @@ async def test_agent_publisher_raises_when_confirm_is_false() -> None:
 
     with pytest.raises(RuntimeError, match="did not confirm"):
         await publisher.publish(envelope)
-

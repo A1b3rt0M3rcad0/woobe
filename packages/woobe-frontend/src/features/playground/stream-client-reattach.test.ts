@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { runtimeTestEnvelope } from '@/lib/runtime-stream-test-fixtures'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/api/client', () => ({
@@ -13,12 +14,12 @@ const encoder = new TextEncoder()
 
 function sse(sequence: number, event: string, payload: Record<string, unknown>) {
   return encoder.encode(
-    `id: ${sequence}\nevent: ${event}\ndata: ${JSON.stringify({
-      protocol_version: 1,
+    `id: ${sequence}\nevent: ${event}\ndata: ${JSON.stringify(runtimeTestEnvelope(event, {
+      protocol_version: 2,
       type: event,
       sequence,
       ...payload,
-    })}\n\n`,
+    }, 'AGENT'))}\n\n`,
   )
 }
 

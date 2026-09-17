@@ -74,6 +74,7 @@ class NetworkJournalTerminalFinalizer:
             barrier=self._barrier,
             run_id=execution_id,
             run_kind="network",
+            session_id=execution.network_session_id,
             metadata={
                 "project_id": str(execution.project_id),
                 "network_id": str(execution.network_id),

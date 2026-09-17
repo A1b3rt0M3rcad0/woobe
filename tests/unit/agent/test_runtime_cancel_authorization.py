@@ -34,6 +34,7 @@ class _Transactions:
 
 def _run() -> AgentRun:
     return AgentRun(
+        session_id=uuid4(),
         project_id=uuid4(),
         agent_id=uuid4(),
         trace_id=uuid4(),
@@ -66,7 +67,11 @@ def _principal(run: AgentRun, **overrides) -> ProjectApiPrincipal:
 async def test_agent_runtime_cancel_authorizes_exact_runtime_target_and_environment() -> None:
     run = _run()
     store = InMemoryExecutionStateStore()
-    await store.create(run.id, {"status": "running"}, ttl_seconds=3600)
+    await store.create(
+        run.id,
+        {"status": "running", "session_id": str(run.session_id)},
+        ttl_seconds=3600,
+    )
     service = AgentRunReattachService(
         transactions=_Transactions(run),
         state_store=store,

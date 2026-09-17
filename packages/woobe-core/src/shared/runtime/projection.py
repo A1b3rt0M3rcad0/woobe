@@ -138,6 +138,7 @@ def initial_projection(
     return {
         "run_id": str(run_id),
         "kind": run_kind.upper(),
+        "session_id": state.get("session_id") or state.get("network_session_id"),
         "status": status,
         "sequence": 0,
         "output": str(output or ""),

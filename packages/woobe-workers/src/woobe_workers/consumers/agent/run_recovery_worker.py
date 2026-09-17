@@ -39,7 +39,7 @@ class _RecoveryRunRecord:
     storage_version: str
     project_id: UUID
     agent_id: UUID
-    session_id: UUID | None
+    session_id: UUID
     input_message_id: UUID | None
     trace_id: UUID
     agent_release_id: UUID | None
@@ -372,6 +372,7 @@ class AgentRunRecoveryWorker:
             {
                 "status": "recovering",
                 "phase": "recovery_classification",
+                "session_id": str(run.session_id),
                 "attempt": attempt,
                 "storage_version": EVENT_JOURNAL_STORAGE_VERSION,
             },
@@ -391,6 +392,7 @@ class AgentRunRecoveryWorker:
             buffer=self._buffer,
             barrier=self._barrier,
             run_id=run.id,
+            session_id=run.session_id,
             run_kind="agent",
             metadata={
                 "project_id": str(run.project_id),

@@ -24,6 +24,7 @@ class ExecutionEvent:
     event_type: str
     payload: dict[str, Any]
     occurred_at: str
+    event_id: str
 
 
 class ExecutionStateStore(Protocol):
@@ -56,6 +57,9 @@ class ExecutionStateStore(Protocol):
         payload: dict[str, Any],
         *,
         maxlen: int = 2000,
+        event_id: str | None = None,
+        sequence: int | None = None,
+        occurred_at: str | None = None,
     ) -> str | None: ...
 
     async def list_events_after(

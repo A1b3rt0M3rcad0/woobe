@@ -1,3 +1,4 @@
+import { runtimeTestEnvelope } from '@/lib/runtime-stream-test-fixtures'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/api/client', () => ({
@@ -21,11 +22,11 @@ function request(): AskRequest {
 }
 
 function frame(event: string, payload: Record<string, unknown>) {
-  return `event: ${event}\ndata: ${JSON.stringify({
-    protocol_version: 1,
+  return `event: ${event}\ndata: ${JSON.stringify(runtimeTestEnvelope(event, {
+    protocol_version: 2,
     type: event,
     ...payload,
-  })}\n\n`
+  }, 'AGENT'))}\n\n`
 }
 
 function token(content: string) {
@@ -100,13 +101,14 @@ describe('standalone ReadableStream boundaries', () => {
 
   it('reassembles an SSE frame split across arbitrary reader chunks without waiting for EOF', async () => {
     let controller!: ReadableStreamDefaultController<Uint8Array>
+    const meta = frame('meta', { run_id: 'run-boundary' })
     const completeToken = token('fragmentado')
     const splitAt = Math.floor(completeToken.length / 2)
     const body = new ReadableStream<Uint8Array>({
       start(nextController) {
         controller = nextController
         controller.enqueue(encoder.encode(
-          `${frame('meta', { run_id: 'run-boundary' })}${completeToken.slice(0, splitAt)}`,
+          `${meta}${completeToken.slice(0, splitAt)}`,
         ))
       },
     })

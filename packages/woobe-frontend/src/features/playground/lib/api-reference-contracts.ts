@@ -184,7 +184,7 @@ export function buildApiReferenceForSlot({ slot, release }: BuildApiReferenceInp
   const requestWithSession = { message: 'Hello!', session_id: '<uuid>' }
   const dataContract = {
     answer: '<string>',
-    session_id: '<uuid | null>',
+    session_id: '<uuid>',
     message_id: '<uuid | null>',
     usage: buildUsageContract(),
     sources: [buildSourceContract()],
@@ -199,7 +199,7 @@ export function buildApiReferenceForSlot({ slot, release }: BuildApiReferenceInp
   }
   const dataExample = {
     answer: buildAnswerExample(parsedOutputExample, jsonEnabled),
-    session_id: '<uuid | null>',
+    session_id: '<uuid>',
     message_id: '<uuid | null>',
     usage: buildUsageContract(),
     sources: [],
@@ -212,6 +212,22 @@ export function buildApiReferenceForSlot({ slot, release }: BuildApiReferenceInp
     parsed_output: parsedOutputExample,
     output_parse_error: null,
   }
+
+  const semanticEnvelope = (
+    type: string,
+    sequence: number,
+    payload: Record<string, unknown>,
+  ) => ({
+    protocol_version: 2,
+    event_id: '<uuid>',
+    run_id: '<uuid>',
+    session_id: '<uuid>',
+    run_kind: 'AGENT',
+    sequence,
+    type,
+    occurred_at: '<iso datetime>',
+    payload,
+  })
 
   return {
     slot,
@@ -236,21 +252,34 @@ export function buildApiReferenceForSlot({ slot, release }: BuildApiReferenceInp
     stream_events: {
       token: {
         event: 'token',
-        data: {
-          type: 'token',
-          protocol_version: 1,
+        data: semanticEnvelope('token', 1, {
           request_id: '<uuid>',
-          occurred_at: '<iso datetime>',
           content: '<partial token>',
           phase: '<runtime phase>',
           provider,
           model,
+        }),
+      },
+      done: {
+        event: 'done',
+        data: semanticEnvelope('done', 2, dataExample),
+      },
+      error: {
+        event: 'error',
+        data: semanticEnvelope('error', 2, { message: '<error message>' }),
+      },
+      heartbeat: {
+        event: 'heartbeat',
+        data: {
+          protocol_version: 2,
+          type: 'heartbeat',
+          occurred_at: '<iso datetime>',
         },
       },
-      done: { event: 'done', data: { type: 'done', ...dataExample } },
-      error: { event: 'error', data: { type: 'error', message: '<error message>' } },
-      heartbeat: { event: 'heartbeat', data: { type: 'heartbeat', ts: '<iso datetime>' } },
-      cancelled: { event: 'cancelled', data: { type: 'cancelled', reason: '<reason>' } },
+      cancelled: {
+        event: 'cancelled',
+        data: semanticEnvelope('cancelled', 2, { reason: '<reason>' }),
+      },
     },
     job_create_response: {
       success: true,

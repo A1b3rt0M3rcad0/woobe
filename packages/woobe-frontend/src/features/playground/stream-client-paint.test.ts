@@ -1,3 +1,4 @@
+import { runtimeTestEnvelope } from '@/lib/runtime-stream-test-fixtures'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/lib/api/client', () => ({
@@ -12,11 +13,11 @@ import type { AskRequest } from './types'
 const encoder = new TextEncoder()
 
 function frame(event: string, payload: Record<string, unknown>) {
-  return `event: ${event}\ndata: ${JSON.stringify({
-    protocol_version: 1,
+  return `event: ${event}\ndata: ${JSON.stringify(runtimeTestEnvelope(event, {
+    protocol_version: 2,
     type: event,
     ...payload,
-  })}\n\n`
+  }, 'AGENT'))}\n\n`
 }
 
 function request(): AskRequest {

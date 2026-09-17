@@ -10,7 +10,7 @@ from uuid import UUID, uuid4
 
 from shared.observability.metrics import runtime_metrics
 
-RUNTIME_STREAM_PROTOCOL_VERSION = 1
+from shared.runtime.contracts import RUNTIME_STREAM_PROTOCOL_VERSION
 RUNTIME_STREAM_HEARTBEAT_SECONDS = 10.0
 _DURABLE_OUTPUT_BATCH_BYTES = 16_384
 _DURABLE_OUTPUT_FLUSH_INTERVAL_SECONDS = 0.2
@@ -120,6 +120,11 @@ class _ProviderControlTokenFilter:
 class RuntimeStreamEvent:
     event_type: str
     payload: dict[str, Any]
+    event_id: str = field(default_factory=lambda: str(uuid4()))
+    occurred_at: str = field(default_factory=_stream_utc_iso)
+    sequence: int | None = None
+    run_id: UUID | None = None
+    session_id: UUID | None = None
 
 
 @dataclass(frozen=True)
@@ -135,6 +140,8 @@ class RuntimeStreamChannel:
     request_id: UUID = field(default_factory=uuid4)
     queue: asyncio.Queue[RuntimeStreamEvent] = field(default_factory=asyncio.Queue)
     started_monotonic: float = field(default_factory=time.monotonic)
+    run_id: UUID | None = None
+    sequence: int = 0
     trace_id: UUID | None = None
     session_id: UUID | None = None
     project_id: UUID | None = None
@@ -293,14 +300,15 @@ class RuntimeStreamChannel:
         self._capture_public_state(event_type, payload)
         if event_type in {"done", "error", "cancelled"}:
             self.terminal_emitted = True
+        semantic = self.run_id is not None and self.session_id is not None
+        if semantic:
+            self.sequence += 1
         event = RuntimeStreamEvent(
             event_type=event_type,
-            payload={
-                "protocol_version": RUNTIME_STREAM_PROTOCOL_VERSION,
-                "request_id": str(self.request_id),
-                "occurred_at": _stream_utc_iso(),
-                **payload,
-            },
+            payload={"request_id": str(self.request_id), **payload},
+            sequence=self.sequence if semantic else None,
+            run_id=self.run_id if semantic else None,
+            session_id=self.session_id if semantic else None,
         )
         await self.queue.put(event)
         for observer_queue in tuple(self._observer_queues):

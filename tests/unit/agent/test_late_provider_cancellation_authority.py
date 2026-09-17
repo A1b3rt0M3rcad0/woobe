@@ -74,7 +74,7 @@ class _SwallowsCancellationUseCase:
         assert channel is not None
         channel.bind_execution(
             trace_id=self.run.trace_id,
-            session_id=None,
+            session_id=self.run.session_id,
             project_id=self.run.project_id,
             agent_id=self.run.agent_id,
         )
@@ -83,6 +83,7 @@ class _SwallowsCancellationUseCase:
             self.run.id,
             {
                 "status": "running",
+                "session_id": str(self.run.session_id),
                 "project_id": str(self.run.project_id),
                 "agent_id": str(self.run.agent_id),
             },
@@ -120,14 +121,17 @@ class _LateSuccessUseCase:
         assert channel is not None
         channel.bind_execution(
             trace_id=self.run.trace_id,
-            session_id=None,
+            session_id=self.run.session_id,
             project_id=self.run.project_id,
             agent_id=self.run.agent_id,
         )
         setattr(channel, "run_id", self.run.id)
         await self.store.create(
             self.run.id,
-            {"status": self.run.status.value},
+            {
+                "status": self.run.status.value,
+                "session_id": str(self.run.session_id),
+            },
             ttl_seconds=3600,
         )
         return SimpleNamespace(
@@ -140,6 +144,7 @@ class _LateSuccessUseCase:
 
 def _run(*, status: AgentRunStatus = AgentRunStatus.RUNNING) -> AgentRun:
     run = AgentRun(
+        session_id=uuid4(),
         project_id=uuid4(),
         agent_id=uuid4(),
         trace_id=uuid4(),

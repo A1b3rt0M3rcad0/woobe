@@ -17,10 +17,15 @@ class DurableRunEventRecorder:
     buffer: RunEventBufferPort
     barrier: RunDurabilityBarrier
     run_id: UUID
+    session_id: UUID
     run_kind: str
     metadata: dict[str, Any] = field(default_factory=dict)
     storage_version: str = EVENT_JOURNAL_STORAGE_VERSION
     attempt: int = 1
+
+    def __post_init__(self) -> None:
+        if self.session_id is None:
+            raise ValueError("Durable Run recorder requires a Session")
 
     async def emit(
         self,
@@ -37,6 +42,7 @@ class DurableRunEventRecorder:
         }
         receipt = await self.buffer.append(
             run_id=self.run_id,
+            session_id=self.session_id,
             run_kind=self.run_kind,
             event_type=event_type,
             payload=payload or {},

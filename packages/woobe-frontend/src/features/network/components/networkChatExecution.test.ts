@@ -30,7 +30,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'agent_invocation_started',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-1',
           invocation_id: 'invocation-1',
           parent_invocation_id: null,
@@ -45,7 +45,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'agent_invocation_completed',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-1',
           invocation_id: 'invocation-1',
           parent_invocation_id: null,
@@ -86,7 +86,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'agent_invocation_started',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-identity',
           invocation_id: 'span-1',
           parent_invocation_id: null,
@@ -101,7 +101,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'agent_run_identity',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-identity',
           invocation_id: 'span-1',
           parent_invocation_id: null,
@@ -116,7 +116,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'agent_invocation_completed',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-identity',
           invocation_id: 'span-1',
           parent_invocation_id: null,
@@ -148,7 +148,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'agent_invocation_started',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-failed',
           invocation_id: 'invocation-failed',
           parent_invocation_id: null,
@@ -163,7 +163,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'agent_invocation_failed',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-failed',
           invocation_id: 'invocation-failed',
           parent_invocation_id: null,
@@ -183,7 +183,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'execution_failed',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-failed',
           data: { code: 'runtime_configuration_error' },
           sequence: 4,
@@ -215,7 +215,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'agent_invocation_started',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-provider-failed',
           invocation_id: 'invocation-provider-failed',
           parent_invocation_id: null,
@@ -230,7 +230,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'agent_invocation_failed',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-provider-failed',
           invocation_id: 'invocation-provider-failed',
           parent_invocation_id: null,
@@ -251,7 +251,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'execution_failed',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-provider-failed',
           data: {
             code: 'provider_request_error',
@@ -285,7 +285,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'agent_invocation_started',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-partial',
           invocation_id: 'root',
           node_id: 'node-root',
@@ -299,7 +299,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'tool_call_started',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-partial',
           invocation_id: 'root',
           sequence: 2,
@@ -314,7 +314,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'tool_call_completed',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-partial',
           invocation_id: 'root',
           sequence: 3,
@@ -333,7 +333,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'agent_invocation_started',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-partial',
           invocation_id: 'child',
           parent_invocation_id: 'root',
@@ -348,7 +348,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'agent_invocation_completed',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-partial',
           invocation_id: 'child',
           parent_invocation_id: 'root',
@@ -363,7 +363,7 @@ describe('Network runtime event projection', () => {
       {
         eventType: 'agent_invocation_failed',
         event: {
-          protocol_version: 1,
+          protocol_version: 2,
           execution_id: 'execution-partial',
           invocation_id: 'root',
           node_id: 'node-root',

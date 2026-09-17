@@ -43,6 +43,7 @@ def _run() -> AgentRun:
     return AgentRun(
         project_id=uuid4(),
         agent_id=uuid4(),
+        session_id=uuid4(),
         trace_id=uuid4(),
         environment="production",
         origin="runtime_api",

@@ -5,7 +5,7 @@ from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from shared.contracts.execution_state import ExecutionEvent, ExecutionLease, ExecutionStateStore
 
@@ -55,13 +55,20 @@ class InMemoryExecutionStateStore(ExecutionStateStore):
         payload: dict[str, Any],
         *,
         maxlen: int = 2000,
+        event_id: str | None = None,
+        sequence: int | None = None,
+        occurred_at: str | None = None,
     ) -> str | None:
         async with self._lock:
             state = self._states.setdefault(run_id, {"run_id": str(run_id)})
-            sequence = int(state.get("event_sequence") or 0) + 1
+            expected = int(state.get("event_sequence") or 0) + 1
+            if sequence is not None and (isinstance(sequence, bool) or sequence != expected):
+                raise ValueError(f"Runtime sequence must be {expected}, received {sequence}")
+            sequence = expected
             cursor = str(sequence)
-            occurred_at = datetime.now(timezone.utc).isoformat()
+            occurred_at = occurred_at or datetime.now(timezone.utc).isoformat()
             event = ExecutionEvent(
+                event_id=event_id or str(uuid4()),
                 sequence=sequence,
                 cursor=cursor,
                 event_type=event_type,

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import delete, select
@@ -16,7 +16,7 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
-from modules.agent.infra.database.models import AgentModel, AgentOutboxEventModel
+from modules.agent.infra.database.models import AgentModel, AgentOutboxEventModel, SessionModel
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.agent.infra.database.runtime_transaction_runner import (
     AgentRuntimeTransactionRunner,
@@ -39,8 +39,9 @@ class _UnavailableHotState:
         raise RuntimeError("redis unavailable")
 
 
-async def _seed(session_factory, *, project_id, agent_id, run_id, trace_id) -> None:
+async def _seed(session_factory, *, project_id, agent_id, run_id, trace_id) -> UUID:
     started_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+    session_id = uuid4()
     async with session_factory() as session:
         async with session.begin():
             session.add(
@@ -66,11 +67,30 @@ async def _seed(session_factory, *, project_id, agent_id, run_id, trace_id) -> N
             )
         async with session.begin():
             session.add(
+                SessionModel(
+                    id=session_id,
+                    project_id=project_id,
+                    agent_id=agent_id,
+                    runtime_environment="draft",
+                    opened_release_id=None,
+                    chat_surface_id=None,
+                    origin="playground",
+                    external_session_id=None,
+                    tenant_id=None,
+                    user_id=None,
+                    status="active",
+                    mode="chat",
+                    data={"source": "run_recovery_test"},
+                    last_message_at=started_at,
+                )
+            )
+        async with session.begin():
+            session.add(
                 AgentRunModel(
                     id=run_id,
                     project_id=project_id,
                     agent_id=agent_id,
-                    session_id=None,
+                    session_id=session_id,
                     agent_release_id=None,
                     input_message_id=None,
                     output_message_id=None,
@@ -92,6 +112,7 @@ async def _seed(session_factory, *, project_id, agent_id, run_id, trace_id) -> N
                     completed_at=None,
                 )
             )
+    return session_id
 
 
 async def _cleanup(session_factory, *, run_id, agent_id) -> None:
@@ -103,6 +124,7 @@ async def _cleanup(session_factory, *, run_id, agent_id) -> None:
                 )
             )
             await session.execute(delete(AgentRunModel).where(AgentRunModel.id == run_id))
+            await session.execute(delete(SessionModel).where(SessionModel.agent_id == agent_id))
             await session.execute(delete(AgentModel).where(AgentModel.id == agent_id))
 
 
@@ -117,7 +139,7 @@ async def test_recovery_reads_execution_strategy_from_durable_accepted_snapshot(
     trace_id = uuid4()
 
     try:
-        await _seed(
+        session_id = await _seed(
             session_factory,
             project_id=project_id,
             agent_id=agent_id,
@@ -176,6 +198,7 @@ async def test_recovery_reads_execution_strategy_from_durable_accepted_snapshot(
         context.trace_id = trace_id
         context.project_id = project_id
         context.agent_id = agent_id
+        context.session_id = session_id
         context.execution_context = "draft"
         token = current_execution.set(context)
         try:
@@ -184,6 +207,7 @@ async def test_recovery_reads_execution_strategy_from_durable_accepted_snapshot(
                     project_id=project_id,
                     agent_id=agent_id,
                     message="orphan me",
+                    session_id=session_id,
                     execution_context="draft",
                     metadata={"source": "run_recovery"},
                 )

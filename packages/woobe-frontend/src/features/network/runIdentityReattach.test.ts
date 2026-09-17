@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { runtimeTestEnvelope } from '@/lib/runtime-stream-test-fixtures'
+
 vi.mock('@/lib/api/client', () => ({
   API_BASE_URL: 'http://api.test',
   ensureCsrfToken: vi.fn(async () => undefined),
@@ -10,35 +12,36 @@ vi.mock('@/lib/api/client', () => ({
 import { streamNetworkExecution } from './stream'
 
 function completedStateResponse(agentRunId: string): Response {
-  const state = {
-    protocol_version: 1,
-    execution_id: 'execution-1',
+  const payload = {
+    run_id: 'execution-1',
+    kind: 'NETWORK',
     sequence: 7,
-    data: {
-      run_id: 'execution-1',
-      kind: 'NETWORK',
-      sequence: 7,
-      status: 'completed',
-      output: 'done',
-      trace_id: 'trace-1',
-      invocations: [
-        {
-          id: 'invocation-1',
-          agent_run_id: agentRunId,
-          agent_id: 'agent-1',
-          node_id: 'node-1',
-          depth: 0,
-          label: 'Billing Agent',
-          status: 'completed',
-          trace_id: 'agent-trace-1',
-          started_at: '2026-09-10T20:00:00Z',
-          completed_at: '2026-09-10T20:00:01Z',
-        },
-      ],
-    },
+    status: 'completed',
+    output: 'done',
+    trace_id: 'trace-1',
+    invocations: [
+      {
+        id: 'invocation-1',
+        agent_run_id: agentRunId,
+        agent_id: 'agent-1',
+        node_id: 'node-1',
+        depth: 0,
+        label: 'Billing Agent',
+        status: 'completed',
+        trace_id: 'agent-trace-1',
+        started_at: '2026-09-10T20:00:00Z',
+        completed_at: '2026-09-10T20:00:01Z',
+      },
+    ],
   }
+  const envelope = runtimeTestEnvelope('run.state', {
+    execution_id: 'execution-1',
+    network_session_id: 'session-1',
+    sequence: 7,
+    data: payload,
+  }, 'NETWORK')
   return new Response(
-    `id: 7\nevent: run.state\ndata: ${JSON.stringify(state)}\n\n`,
+    `id: 7\nevent: run.state\ndata: ${JSON.stringify(envelope)}\n\n`,
     {
       status: 200,
       headers: {

@@ -44,6 +44,7 @@ class _MustNotTouchStore:
 
 def _run() -> AgentRun:
     return AgentRun(
+        session_id=uuid4(),
         project_id=uuid4(),
         agent_id=uuid4(),
         trace_id=uuid4(),
@@ -123,6 +124,8 @@ async def test_agent_reattach_degrades_to_durable_terminal_when_hot_store_is_una
     frame = await anext(stream)
 
     assert "event: run.state" in frame
+    assert f'\"run_id\": \"{run.id}\"' in frame
+    assert f'\"session_id\": \"{run.session_id}\"' in frame
     assert '\"status\": \"cancelled\"' in frame
     assert '\"output\": \"durable partial\"' in frame
     assert '\"realtime_available\": false' in frame

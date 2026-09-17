@@ -280,6 +280,8 @@ async def journal_runtime_state(
                         event.sequence,
                     )
                     return base
+                if event.session_id is not None:
+                    projection["session_id"] = str(event.session_id)
                 mapped = _public_runtime_event(event)
                 if mapped is not None:
                     public_type, public_payload = mapped

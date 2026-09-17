@@ -338,7 +338,7 @@ class AskAgentUseCase:
             session = await self._resolve_session(session_repo, input_dto, agent)
             history = (
                 await self._load_history(message_repo, session)
-                if session
+                if session and self._uses_session_history(agent)
                 else []
             )
 
@@ -905,7 +905,7 @@ class AskAgentUseCase:
         session_repo: SessionRepository,
         input_dto: AskInput,
         agent: Agent,
-    ) -> Session | None:
+    ) -> Session:
         if input_dto.session_id:
             try:
                 found = await session_repo.get_by_id(input_dto.session_id)
@@ -924,10 +924,6 @@ class AskAgentUseCase:
             else agent.session_mode
         )
         logger.info("RESOLVE SESSION: agent mode=%s, will create new", mode)
-        if mode == "stateless":
-            logger.info("RESOLVE SESSION: stateless mode, returning None")
-            return None
-
         session = Session(
             project_id=input_dto.project_id,
             agent_id=input_dto.agent_id,
@@ -1013,6 +1009,10 @@ class AskAgentUseCase:
         )
         await outbox.write(event)
         return created
+
+    @staticmethod
+    def _uses_session_history(agent: Agent) -> bool:
+        return str(getattr(agent.session_mode, "value", agent.session_mode)) != "stateless"
 
     async def _load_history(
         self,

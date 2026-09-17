@@ -7,6 +7,8 @@ from uuid import uuid4
 
 import pytest
 
+_SESSION_ID = uuid4()
+
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
 from shared.runtime import RunKind, RunReference, RuntimeFrame, RuntimeObserver
 
@@ -39,13 +41,13 @@ class _LiveSource:
 async def test_observer_uses_canonical_run_reference_for_hot_reattach() -> None:
     store = InMemoryExecutionStateStore()
     run_id = uuid4()
-    await store.create(run_id, {"status": "running"}, ttl_seconds=60)
+    await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=60)
     await store.append_event(run_id, "token", {"content": "hello"})
 
     observer = RuntimeObserver(store, block_ms=20)
 
     async def durable_fallback():
-        return {"status": "completed", "output": "durable"}
+        return {"session_id": str(_SESSION_ID), "status": "completed", "output": "durable"}
 
     stream = observer.observe(
         RunReference.agent(run_id),
@@ -53,11 +55,10 @@ async def test_observer_uses_canonical_run_reference_for_hot_reattach() -> None:
     )
     state = await anext(stream)
 
-    assert state == RuntimeFrame(
-        event_type="run.state",
-        data=state.data,
-        sequence=1,
-    )
+    assert state.event_type == "run.state"
+    assert state.sequence == 1
+    assert state.run_id == run_id
+    assert state.session_id == _SESSION_ID
     assert state.data["kind"] == "AGENT"
     assert state.data["output"] == "hello"
     await stream.aclose()
@@ -67,7 +68,7 @@ async def test_observer_uses_canonical_run_reference_for_hot_reattach() -> None:
 async def test_observer_waits_between_durable_acceptance_and_hot_runtime() -> None:
     store = InMemoryExecutionStateStore()
     run_id = uuid4()
-    durable = {"status": "queued", "output": ""}
+    durable = {"session_id": str(_SESSION_ID), "status": "queued", "output": ""}
     observer = RuntimeObserver(store, block_ms=20, local_poll_seconds=0.01)
 
     async def durable_fallback():
@@ -83,7 +84,7 @@ async def test_observer_waits_between_durable_acceptance_and_hot_runtime() -> No
     assert accepted.data["status"] == "queued"
     assert accepted.data["realtime_available"] is False
 
-    await store.create(run_id, {"status": "running"}, ttl_seconds=60)
+    await store.create(run_id, {"session_id": str(_SESSION_ID), "status": "running"}, ttl_seconds=60)
     await store.append_event(run_id, "execution_started", {})
 
     hot = await asyncio.wait_for(anext(stream), timeout=1)
@@ -97,7 +98,7 @@ async def test_observer_waits_between_durable_acceptance_and_hot_runtime() -> No
 async def test_observer_emits_durable_terminal_if_hot_runtime_never_materializes() -> None:
     store = InMemoryExecutionStateStore()
     run_id = uuid4()
-    durable = {"status": "queued", "output": ""}
+    durable = {"session_id": str(_SESSION_ID), "status": "queued", "output": ""}
     observer = RuntimeObserver(store, block_ms=20, local_poll_seconds=0.01)
 
     async def durable_fallback():
@@ -108,7 +109,7 @@ async def test_observer_emits_durable_terminal_if_hot_runtime_never_materializes
         durable_fallback=durable_fallback,
     )
     _ = await asyncio.wait_for(anext(stream), timeout=1)
-    durable.update({"status": "completed", "output": "done"})
+    durable.update({"session_id": str(_SESSION_ID), "status": "completed", "output": "done"})
 
     terminal = await asyncio.wait_for(anext(stream), timeout=1)
     assert terminal.event_type == "run.state"
@@ -124,8 +125,9 @@ async def test_observer_emits_durable_terminal_if_hot_runtime_never_materializes
 async def test_local_subscription_is_observer_only_and_does_not_own_source() -> None:
     store = InMemoryExecutionStateStore()
     observer = RuntimeObserver(store, heartbeat_seconds=60, local_poll_seconds=0.01)
-    source = _LiveSource()
+    from modules.agent.infra.execution.runtime_streaming import RuntimeStreamChannel
     run_id = uuid4()
+    source = RuntimeStreamChannel(run_id=run_id, session_id=_SESSION_ID)
 
     subscription = observer.subscribe_local(
         source,
@@ -137,8 +139,8 @@ async def test_local_subscription_is_observer_only_and_does_not_own_source() -> 
     await source.emit("token", content="first")
     frame = await asyncio.wait_for(anext(stream), timeout=1)
     assert frame.event_type == "token"
-    assert frame.sequence is None
-    assert frame.data["run_id"] == str(run_id)
+    assert frame.sequence == 1
+    assert frame.run_id == run_id
     assert frame.data["content"] == "first"
 
     await source.emit("done", answer="first")
@@ -147,4 +149,4 @@ async def test_local_subscription_is_observer_only_and_does_not_own_source() -> 
 
     with pytest.raises(StopAsyncIteration):
         await anext(stream)
-    assert source.observers == set()
+    assert source._observer_queues == set()
