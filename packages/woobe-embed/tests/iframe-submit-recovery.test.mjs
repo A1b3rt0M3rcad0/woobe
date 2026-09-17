@@ -81,6 +81,9 @@ globalThis.__woobeIframeTest = {
     initialized = true;
     ui = globalThis.__ui;
   },
+  setExternalContext(value) {
+    externalContext = value;
+  },
 };
 `;
   const output = ts.transpileModule(`${prelude}\n${source}\n${hooks}`, {
@@ -159,10 +162,40 @@ globalThis.__woobeIframeTest = {
   );
   return {
     sendMessage: context.__woobeIframeTest.sendMessage,
+    setExternalContext: context.__woobeIframeTest.setExternalContext,
     errors,
     messages,
   };
 }
+
+test("message submit forwards the current external context", async () => {
+  let submittedBody = null;
+  const harness = await loadIframeHarness(async (url, init = {}) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith("/messages:stream")) {
+      submittedBody = JSON.parse(String(init.body));
+      return sseDone("ok");
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  });
+
+  harness.setExternalContext({
+    customer_name: "Mariana Costa",
+    plan: "business",
+    current_page: "/billing/subscription",
+  });
+  await harness.sendMessage("Quero alterar meu plano");
+
+  assert.deepEqual(JSON.parse(JSON.stringify(submittedBody)), {
+    message: "Quero alterar meu plano",
+    external_context: {
+      customer_name: "Mariana Costa",
+      plan: "business",
+      current_page: "/billing/subscription",
+    },
+  });
+  assert.deepEqual(harness.errors, []);
+});
 
 test("ambiguous submit failure performs one canonical active Run lookup instead of polling the endpoint", async () => {
   const calls = [];
