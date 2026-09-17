@@ -4,7 +4,7 @@ from copy import deepcopy
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from modules.agent.domain.external_context_contract import (
     ExternalContextContractError,
@@ -18,10 +18,16 @@ from modules.network.domain.external_context_contract import (
 )
 from modules.network.domain.release_contracts import classify_contract_change
 from modules.network.infra.database.models import (
+    NetworkAgentContextModel,
+    NetworkExecutionModel,
     NetworkProductionActivationModel,
+    NetworkSessionModel,
     NetworkVersionModel,
 )
-from shared.infra.errors import ValidationError
+from shared.infra.errors import ConflictError, NotFoundError, ValidationError
+
+
+_ACTIVE_STATUSES = {"queued", "running", "cancel_requested"}
 
 
 async def _effective_contract_for_version(
@@ -144,6 +150,42 @@ async def _promote_with_effective_external_context(
         return created
 
 
+async def _reset_session_context_with_external_context(
+    self,
+    *,
+    network_id: UUID,
+    network_session_id: UUID,
+    project_id: UUID,
+) -> None:
+    async with self._session_factory() as session, session.begin():
+        network_session = await session.get(
+            NetworkSessionModel,
+            network_session_id,
+            with_for_update=True,
+        )
+        if (
+            network_session is None
+            or network_session.network_id != network_id
+            or network_session.project_id != project_id
+        ):
+            raise NotFoundError("Network Session not found")
+        active = await session.scalar(
+            select(NetworkExecutionModel.id).where(
+                NetworkExecutionModel.network_session_id == network_session_id,
+                NetworkExecutionModel.status.in_(_ACTIVE_STATUSES),
+            )
+        )
+        if active is not None:
+            raise ConflictError("Wait for the active execution before resetting context")
+
+        network_session.external_context_session_values = None
+        await session.execute(
+            delete(NetworkAgentContextModel).where(
+                NetworkAgentContextModel.network_session_id == network_session_id
+            )
+        )
+
+
 def install_network_external_context_release_support() -> None:
     from modules.network.infra.services.service import NetworkApplicationService
 
@@ -153,6 +195,9 @@ def install_network_external_context_release_support() -> None:
         NetworkApplicationService.promote
     )
     NetworkApplicationService.promote = _promote_with_effective_external_context  # type: ignore[assignment]
+    NetworkApplicationService.reset_session_context = (  # type: ignore[assignment]
+        _reset_session_context_with_external_context
+    )
 
 
 __all__ = ["install_network_external_context_release_support"]
