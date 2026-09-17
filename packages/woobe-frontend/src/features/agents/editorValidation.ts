@@ -159,7 +159,9 @@ export function validateAgentEditorState(state: AgentEditorState): AgentEditorVa
   const externalContextContract = parseExternalContextContract(state) ?? { fields: {} }
   const normalizedExternalState: AgentEditorState = {
     ...state,
-    externalContextContract: externalContextContract as AgentEditorState['externalContextContract'],
+    // Runtime validation above proves the parsed object satisfies the stricter
+    // ExternalContextContract shape before it enters the canonical snapshot.
+    externalContextContract: externalContextContract as unknown as AgentEditorState['externalContextContract'],
   }
 
   const responseFormat = responseFormatState(normalizedExternalState)
