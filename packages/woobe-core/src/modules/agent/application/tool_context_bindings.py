@@ -159,6 +159,75 @@ def strip_bound_parameters(
     return normalized_schema
 
 
+def _binding_child_key(value: Mapping[str, Any], *, kind: str) -> str | None:
+    if kind == "route":
+        identifier = str(value.get("id") or value.get("operation_id") or "").strip()
+    else:
+        identifier = str(value.get("name") or "").strip()
+    return identifier or None
+
+
+def _preserve_child_bindings(
+    existing: Mapping[str, Any],
+    candidate: dict[str, Any],
+    *,
+    collection: str,
+    kind: str,
+) -> None:
+    existing_items = existing.get(collection)
+    candidate_items = candidate.get(collection)
+    if not isinstance(existing_items, list) or not isinstance(candidate_items, list):
+        return
+
+    existing_by_key: dict[str, Mapping[str, Any]] = {}
+    for raw in existing_items:
+        if not isinstance(raw, Mapping):
+            continue
+        key = _binding_child_key(raw, kind=kind)
+        if key:
+            existing_by_key[key] = raw
+
+    for raw in candidate_items:
+        if not isinstance(raw, dict) or "bindings" in raw:
+            continue
+        key = _binding_child_key(raw, kind=kind)
+        previous = existing_by_key.get(key or "")
+        if previous is not None and "bindings" in previous:
+            raw["bindings"] = deepcopy(previous.get("bindings"))
+
+
+def merge_context_bindings_for_update(
+    existing_config: Mapping[str, Any] | None,
+    candidate_config: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Preserve trusted bindings when an editor does not submit binding fields.
+
+    Omitting ``bindings`` means "leave the existing binding unchanged". Sending
+    ``bindings: {}`` is explicit and clears it. The same rule applies to HTTP
+    group routes and discovered MCP tools, matched by their stable identifiers.
+    """
+
+    existing = dict(existing_config or {})
+    candidate = deepcopy(dict(candidate_config or {}))
+    if "bindings" not in candidate and "bindings" in existing:
+        candidate["bindings"] = deepcopy(existing.get("bindings"))
+
+    _preserve_child_bindings(
+        existing,
+        candidate,
+        collection="routes",
+        kind="route",
+    )
+    _preserve_child_bindings(
+        existing,
+        candidate,
+        collection="discovered_tools",
+        kind="discovered",
+    )
+    validate_context_bindings(candidate)
+    return candidate
+
+
 def validate_context_bindings(config: Mapping[str, Any] | None) -> None:
     raw = dict(config or {})
     _normalize_bindings(raw.get("bindings"))
@@ -175,6 +244,7 @@ __all__ = [
     "ToolContextBindingError",
     "apply_context_bindings",
     "effective_context_bindings",
+    "merge_context_bindings_for_update",
     "strip_bound_parameters",
     "validate_context_bindings",
 ]
