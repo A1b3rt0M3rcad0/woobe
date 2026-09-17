@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from typing import Any
 from uuid import uuid4
 
 import pytest
@@ -19,20 +20,18 @@ from modules.agent.infra.execution.strategy_runtime.model import (
 from modules.agent.infra.execution.strategy_runtime.runtime_state import StrategyRuntimeState
 
 
-def _directive_messages(messages):
-    return [
-        message
-        for message in messages
-        if getattr(message, "additional_kwargs", {})
-        .get("woobe_context", {})
-        .get("kind")
-        == "execution_directive"
-    ]
+def _directive_messages(messages: list[Any]) -> list[Any]:
+    directives = []
+    for message in messages:
+        metadata = getattr(message, "additional_kwargs", {}).get("woobe_context", {})
+        if metadata.get("kind") == "execution_directive":
+            directives.append(message)
+    return directives
 
 
 @pytest.mark.asyncio
 async def test_runtime_strategy_model_directive_is_invocation_local() -> None:
-    captured_messages: list[list] = []
+    captured_messages: list[list[Any]] = []
 
     async def fake_invoke_llm(**kwargs):
         captured_messages.append(list(kwargs["messages"]))
@@ -147,12 +146,18 @@ def test_execution_directive_is_accounted_as_mandatory_system_context() -> None:
     assert contribution.source_ref == "execution_directive:reflect"
     assert contribution.selection_method == "strategy_directive"
     assert contribution.trust == "system-controlled"
-    assert assembled.snapshot.estimated_input_units > baseline.snapshot.estimated_input_units
+    assert (
+        assembled.snapshot.estimated_input_units
+        > baseline.snapshot.estimated_input_units
+    )
     assert assembled.snapshot.materialized_hash != baseline.snapshot.materialized_hash
 
 
 def test_blank_directive_does_not_change_invocation_messages() -> None:
-    messages = [SystemMessage(content="Agent behavior"), HumanMessage(content="Hello")]
+    messages = [
+        SystemMessage(content="Agent behavior"),
+        HumanMessage(content="Hello"),
+    ]
 
     materialized = _messages_with_execution_directive(
         messages,
