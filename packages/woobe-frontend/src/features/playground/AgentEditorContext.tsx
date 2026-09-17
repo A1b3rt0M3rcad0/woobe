@@ -19,8 +19,6 @@ export type ResponseFormat = {
 export type AgentSessionMode = 'stateful' | 'stateless'
 export type AgentToolPermissions = Record<string, Record<string, McpToolPermission>>
 
-const EMPTY_EXTERNAL_CONTEXT_CONTRACT: ExternalContextContract = { fields: {} }
-
 export type AgentEditorState = {
   name: string
   description: string
@@ -28,7 +26,7 @@ export type AgentEditorState = {
   sessionMode: AgentSessionMode
   responseFormat: ResponseFormat
   outputSchema: unknown | null
-  externalContextContract: ExternalContextContract | string
+  externalContextContract: ExternalContextContract | string | null
   provider: string
   model: string
   providerModelId: string | null
@@ -176,10 +174,12 @@ function runtimeConfigSnapshot(state: AgentEditorState): Record<string, unknown>
   }
 }
 
-function externalContextContractValue(value: unknown): ExternalContextContract {
+function externalContextContractValue(value: unknown): ExternalContextContract | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const raw = recordValue(value)
-  const fields = recordValue(raw.fields)
-  return { fields: fields as ExternalContextContract['fields'] }
+  const legacy = recordValue(raw.fields)
+  const fields = Object.keys(legacy).length ? legacy : raw
+  return fields as ExternalContextContract
 }
 
 export function agentToEditorState(agent: Agent, collectionIds?: string[], knowledgeVersionId?: string | null, toolIds?: string[]): AgentEditorState {
@@ -200,9 +200,7 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[], knowl
       repair_attempts: (responseFormat.repair_attempts as number) ?? undefined,
     },
     outputSchema: responseFormat.schema ?? null,
-    externalContextContract: settings.external_context_contract
-      ? externalContextContractValue(settings.external_context_contract)
-      : EMPTY_EXTERNAL_CONTEXT_CONTRACT,
+    externalContextContract: externalContextContractValue(settings.external_context_contract),
     provider: agent.provider || '',
     model: agent.model || '',
     providerModelId: agent.provider_model_id || null,
@@ -259,9 +257,7 @@ export function releaseToEditorState(release: AgentRelease, current: AgentEditor
       repair_attempts: rf.repair_attempts as number | undefined,
     },
     outputSchema: release.output_schema ?? current.outputSchema,
-    externalContextContract: release.external_context_contract
-      ? externalContextContractValue(release.external_context_contract)
-      : EMPTY_EXTERNAL_CONTEXT_CONTRACT,
+    externalContextContract: externalContextContractValue(release.external_context_contract),
   }
 }
 
