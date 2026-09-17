@@ -8,11 +8,12 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.agent.domain.external_context_contract import compose_external_context_contracts
-from modules.agent.infra.database.models import AgentReleaseModel
 from modules.network.application.runtime import (
     NetworkExecutionSnapshot,
     NetworkVersionSnapshot,
+)
+from modules.network.domain.external_context_composition import (
+    compose_effective_external_context_contracts,
 )
 from modules.network.infra.database.models import (
     NetworkAgentContextModel,
@@ -118,8 +119,7 @@ class NetworkRuntimeLoader:
         return bound
 
     @staticmethod
-    async def _effective_contract(
-        session: AsyncSession,
+    def _effective_contract(
         *,
         version: NetworkVersionModel | None,
         bindings: dict,
@@ -132,24 +132,17 @@ class NetworkRuntimeLoader:
         if isinstance(persisted, dict):
             return deepcopy(persisted)
 
+        # Draft bindings already contain the immutable Agent snapshot accepted for this
+        # Network Run. Runtime must never reach back into the Agent catalog here.
         contracts: dict[str, object] = {}
         for consumer, binding in (bindings or {}).items():
             if not isinstance(binding, dict):
                 continue
             override = binding.get("snapshot_override")
-            if isinstance(override, dict):
-                contracts[str(consumer)] = override.get("external_context_contract")
+            if not isinstance(override, dict):
                 continue
-            release_id = binding.get("release_id")
-            if release_id:
-                release = await session.get(AgentReleaseModel, UUID(str(release_id)))
-                if release is not None:
-                    contracts[str(consumer)] = getattr(
-                        release,
-                        "external_context_contract",
-                        None,
-                    )
-        return compose_external_context_contracts(contracts)
+            contracts[str(consumer)] = override.get("external_context_contract")
+        return compose_effective_external_context_contracts(contracts)
 
     async def load(self, execution_id: UUID) -> LoadedNetworkExecution | None:
         async with self._session_factory() as session:
@@ -167,8 +160,7 @@ class NetworkRuntimeLoader:
                 if version is not None
                 else execution.resolved_bindings_snapshot or {}
             )
-            effective_contract = await self._effective_contract(
-                session,
+            effective_contract = self._effective_contract(
                 version=version,
                 bindings=source_bindings,
             )
