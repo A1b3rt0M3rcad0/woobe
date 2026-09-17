@@ -69,8 +69,7 @@ export function ContractValueForm({ contract, values, disabled = false, onChange
               <Input
                 value={inputValue(values[name])}
                 disabled={disabled}
-                density="compact"
-                type={type === 'integer' || type === 'number' ? 'number' : 'text'}
+                  type={type === 'integer' || type === 'number' ? 'number' : 'text'}
                 step={type === 'number' ? 'any' : undefined}
                 placeholder={field.required ? 'Required value' : 'Optional'}
                 onChange={(event) => setValue(name, coerceContractValue(type, event.target.value))}
