@@ -57,6 +57,12 @@ class RequestExecutionContext:
         Callable[[dict], Awaitable[dict]],
     ] | None = None
 
+    # External Context is resolved at Acceptance and frozen for the Run. Only
+    # explicitly exposed fields are copied into model_external_context.
+    external_context_contract: dict[str, Any] | None = None
+    external_context_snapshot: dict[str, Any] | None = None
+    model_external_context: dict[str, Any] | None = None
+
     # Durable Run journal state. The recorder is runtime-only and is never serialized.
     storage_version: str = "legacy_v1"
     run_attempt: int = 1
