@@ -35,7 +35,7 @@ type PreparedNetworkStreamInput = Omit<NetworkStreamInput, 'idempotencyKey'> & {
 
 export interface NetworkStreamCallbacks {
   onEvent: (eventType: string, event: NetworkRuntimeEvent) => void
-  onHeartbeat?: (event: NetworkRuntimeEvent) => void
+  onHeartbeat?: () => void
   onExecutionId?: (executionId: string) => void
 }
 
@@ -335,7 +335,14 @@ async function consumeResponse(
   const dispatchBlock = (block: string): boolean => {
     const runtime = parseRuntimeFrame(block)
     if (!runtime) return false
-    if (runtime.kind === 'transport') return false
+    if (runtime.kind === 'transport') {
+      if (runtime.eventType === 'heartbeat') callbacks.onHeartbeat?.()
+      if (runtime.eventType === 'error') {
+        const message = runtime.payload.message
+        throw new Error(typeof message === 'string' ? message : 'Network runtime error')
+      }
+      return false
+    }
     // Adapt canonical identity to the existing Network domain reducer.
     const event: NetworkRuntimeEvent = {
       ...runtime.payload,
@@ -347,10 +354,6 @@ async function consumeResponse(
     if (input.executionId !== runtime.runId) {
       input.executionId = runtime.runId
       callbacks.onExecutionId?.(runtime.runId)
-    }
-    if (runtime.eventType === 'heartbeat') {
-      callbacks.onHeartbeat?.(event)
-      return false
     }
     if (!acceptRuntimeFrameSequence(runtime, streamState)) return false
     if (runtime.sequence !== null) {
