@@ -11,8 +11,18 @@ from modules.agent.application.http_tool_contract import (
     compile_http_tool_contract,
     is_http_tool_group,
 )
+from modules.agent.application.tool_context_bindings import validate_context_bindings
 from modules.agent.application.tool_types import is_mcp_tool_type
 from modules.agent.domain.enums import RiskLevel, SecretType, ToolStatus, ToolType
+
+
+class ToolBindingSource(BaseModel):
+    kind: Literal["context"] = "context"
+    field: str = Field(..., min_length=1)
+
+
+class ToolInputBinding(BaseModel):
+    source: ToolBindingSource
 
 
 class HttpHeaderConfig(BaseModel):
@@ -37,6 +47,7 @@ class HttpRouteConfig(BaseModel):
     headers: list[HttpHeaderConfig] = Field(default_factory=list)
     body: str | dict[str, Any] | list[Any] | None = None
     variables: dict[str, Any] = Field(default_factory=dict)
+    bindings: dict[str, ToolInputBinding] = Field(default_factory=dict)
     input_schema: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None
     risk_level: Literal["low", "medium", "high", "critical"] = "low"
@@ -59,6 +70,7 @@ class HttpToolConfig(BaseModel):
     headers: list[HttpHeaderConfig] = Field(default_factory=list)
     body: str | dict[str, Any] | list[Any] | None = None
     variables: dict[str, Any] = Field(default_factory=dict)
+    bindings: dict[str, ToolInputBinding] = Field(default_factory=dict)
     auth: HttpAuthConfig | None = None
     timeout_ms: int | None = Field(default=None, ge=1)
 
@@ -89,6 +101,7 @@ class McpDiscoveredToolConfig(BaseModel):
     title: str | None = None
     description: str | None = None
     input_schema: dict[str, Any] | None = None
+    bindings: dict[str, ToolInputBinding] = Field(default_factory=dict)
     permission: dict[str, Any] | None = None
 
 
@@ -102,6 +115,7 @@ class McpToolConfig(BaseModel):
     input_schema_source: Literal["discovered", "manual"] = "manual"
     discovered_input_schema: dict[str, Any] | None = None
     discovered_tools: list[McpDiscoveredToolConfig] = Field(default_factory=list)
+    bindings: dict[str, ToolInputBinding] = Field(default_factory=dict)
     discovery_cache_ttl_seconds: int | None = Field(default=None, ge=0)
     timeout_ms: int | None = Field(default=None, ge=1)
 
@@ -120,6 +134,7 @@ def _compile_http_config(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     parsed = HttpToolConfig.model_validate(raw_config)
     normalized = parsed.model_dump(exclude_none=True)
+    validate_context_bindings(normalized)
     if is_http_tool_group(normalized):
         compiled_group = compile_http_tool_group_contract(normalized)
         return compiled_group.config, {
@@ -149,7 +164,9 @@ class CreateToolInput(BaseModel):
         if self.config is None:
             return self
         if is_mcp_tool_type(self.type):
-            McpToolConfig.model_validate(self.config)
+            parsed = McpToolConfig.model_validate(self.config)
+            self.config = parsed.model_dump(exclude_none=True)
+            validate_context_bindings(self.config)
         else:
             self.config, self.input_schema = _compile_http_config(self.config, self.input_schema)
         return self
@@ -207,7 +224,9 @@ class UpdateToolInput(BaseModel):
             return self
         protocol = self.type or self.config.get("protocol")
         if is_mcp_tool_type(protocol):
-            McpToolConfig.model_validate(self.config)
+            parsed = McpToolConfig.model_validate(self.config)
+            self.config = parsed.model_dump(exclude_none=True)
+            validate_context_bindings(self.config)
         else:
             self.config, self.input_schema = _compile_http_config(self.config, self.input_schema)
         return self
