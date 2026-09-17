@@ -65,6 +65,32 @@ ctx.tools
 ctx.checkpoint()
 ```
 
+## Phase-specific Directives stay narrow
+
+A Strategy may provide an optional Directive when invoking the Model:
+
+```python
+await ctx.model.invoke(
+    phase=MyPhase.REFLECT,
+    directive="Evaluate the current evidence and identify unresolved gaps.",
+)
+```
+
+The Directive defines invocation-local execution behavior. It must not be treated as a second Agent prompt or as a general context transport.
+
+Do not use a Directive to:
+
+```text
+replace Agent objective or Behavior
+bypass allowed/disallowed behavior constraints
+rewrite Skill semantics
+persist instructions into Session history
+carry large Tool results or business payloads
+smuggle runtime infrastructure state into the Model
+```
+
+If information is part of the task or evidence, use the normal context pipeline. If behavior is persistent Agent configuration, place it in Agent Behavior or the relevant Skill. Directives are only for behavior required by the current execution Phase.
+
 ## No Strategy-to-Strategy imports
 
 Concrete Strategies must not import one another.
@@ -93,6 +119,8 @@ StrategyResumeSnapshot
 ```
 
 Recovery, checkpoint serialization and message progression belong to Strategy Runtime.
+
+A Directive normally does not belong in State. It should be derived by the Strategy from the current Phase and algorithm state when the Model is invoked. Persist the data that determines the next Phase, not the temporary prompt overlay itself.
 
 ## Composition points
 
