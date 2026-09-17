@@ -151,11 +151,11 @@ export function ChatSurfaceLiveTestDialog({
       open={open}
       onClose={onClose}
       title="Test ChatSurface"
-      className="flex h-[min(760px,calc(100svh-2rem))] w-[min(96rem,calc(100vw-2rem))] max-w-none flex-col overflow-hidden"
+      className="flex h-[min(820px,calc(100svh-2rem))] w-[min(96rem,calc(100vw-2rem))] max-w-none flex-col overflow-hidden"
       contentClassName="min-h-0 flex-1 p-0"
     >
-      <div className="grid h-full min-h-0 sm:grid-cols-[minmax(0,1fr)_18rem] lg:grid-cols-[minmax(0,1fr)_22rem]">
-        <div className="min-h-0 bg-background/55 p-ui-md">
+      <div className="flex h-full min-h-0 flex-col lg:flex-row">
+        <div className="min-h-0 min-w-0 flex-1 bg-background/55 p-ui-md">
           <div className="h-full min-h-80 overflow-hidden rounded-container border border-border bg-background">
             {loading ? (
               <EmptyStatePanel
@@ -189,7 +189,7 @@ export function ChatSurfaceLiveTestDialog({
           </div>
         </div>
 
-        <aside className="flex min-h-0 flex-col border-t border-border bg-surface/90 sm:border-l sm:border-t-0">
+        <aside className="flex min-h-0 w-full shrink-0 flex-col border-t border-border bg-surface/90 lg:w-[22rem] lg:border-l lg:border-t-0">
           <div className="shrink-0 border-b border-border p-ui-md">
             <TechnicalListItem
               label="Runtime status"
