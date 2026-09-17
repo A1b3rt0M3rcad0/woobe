@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import delete, select
@@ -10,7 +10,7 @@ from sqlalchemy import delete, select
 from modules.agent.domain.events import AgentExecutionCompletedV1
 from modules.agent.domain.run import AgentRunStatus
 from modules.agent.infra.database.agent_run_repository import AgentRunTerminalConflict
-from modules.agent.infra.database.models import AgentModel, AgentOutboxEventModel
+from modules.agent.infra.database.models import AgentModel, AgentOutboxEventModel, SessionModel
 from modules.agent.infra.database.run_models import AgentRunModel
 from modules.agent.infra.database.runtime_transaction_runner import AgentRuntimeTransactionRunner
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
@@ -27,6 +27,7 @@ async def _cleanup(session_factory, *, run_id, agent_id) -> None:
                 )
             )
             await session.execute(delete(AgentRunModel).where(AgentRunModel.id == run_id))
+            await session.execute(delete(SessionModel).where(SessionModel.agent_id == agent_id))
             await session.execute(delete(AgentModel).where(AgentModel.id == agent_id))
 
 
@@ -39,8 +40,9 @@ async def _seed_run(
     trace_id,
     status: str,
     result: dict | None,
-) -> None:
+) -> UUID:
     now = datetime.now(timezone.utc)
+    session_id = uuid4()
     async with session_factory() as session:
         async with session.begin():
             session.add(
@@ -66,11 +68,30 @@ async def _seed_run(
             )
         async with session.begin():
             session.add(
+                SessionModel(
+                    id=session_id,
+                    project_id=project_id,
+                    agent_id=agent_id,
+                    runtime_environment="draft",
+                    opened_release_id=None,
+                    chat_surface_id=None,
+                    origin="runtime_api",
+                    external_session_id=None,
+                    tenant_id=None,
+                    user_id=None,
+                    status="active",
+                    mode="chat",
+                    data={"source": "terminal_immutability_test"},
+                    last_message_at=now,
+                )
+            )
+        async with session.begin():
+            session.add(
                 AgentRunModel(
                     id=run_id,
                     project_id=project_id,
                     agent_id=agent_id,
-                    session_id=None,
+                    session_id=session_id,
                     agent_release_id=None,
                     input_message_id=None,
                     output_message_id=None,
@@ -92,6 +113,7 @@ async def _seed_run(
                     completed_at=None if status == "running" else now,
                 )
             )
+    return session_id
 
 
 @pytest.mark.asyncio
@@ -105,7 +127,7 @@ async def test_late_completed_save_cannot_overwrite_cancelled_agent_run() -> Non
     trace_id = uuid4()
 
     try:
-        await _seed_run(
+        session_id = await _seed_run(
             session_factory,
             project_id=project_id,
             agent_id=agent_id,
@@ -120,7 +142,7 @@ async def test_late_completed_save_cannot_overwrite_cancelled_agent_run() -> Non
             await outbox.write(
                 AgentExecutionCompletedV1.create(
                     agent_id=agent_id,
-                    session_id=None,
+                    session_id=session_id,
                     payload={"run_id": str(run_id), "trace_id": str(trace_id), "answer": "late provider answer"},
                 )
             )
@@ -165,7 +187,7 @@ async def test_duplicate_completed_writer_rolls_back_its_outbox_side_effects() -
     trace_id = uuid4()
 
     try:
-        await _seed_run(
+        session_id = await _seed_run(
             session_factory,
             project_id=project_id,
             agent_id=agent_id,
@@ -180,7 +202,7 @@ async def test_duplicate_completed_writer_rolls_back_its_outbox_side_effects() -
             await outbox.write(
                 AgentExecutionCompletedV1.create(
                     agent_id=agent_id,
-                    session_id=None,
+                    session_id=session_id,
                     payload={"run_id": str(run_id), "trace_id": str(trace_id), "answer": "duplicate answer"},
                 )
             )
@@ -224,7 +246,7 @@ async def test_concurrent_cancel_and_completion_have_one_postgres_winner_and_rol
     completion_staged = asyncio.Event()
 
     try:
-        await _seed_run(
+        session_id = await _seed_run(
             session_factory,
             project_id=project_id,
             agent_id=agent_id,
@@ -253,7 +275,7 @@ async def test_concurrent_cancel_and_completion_have_one_postgres_winner_and_rol
             await outbox.write(
                 AgentExecutionCompletedV1.create(
                     agent_id=agent_id,
-                    session_id=None,
+                    session_id=session_id,
                     payload={"run_id": str(run_id), "trace_id": str(trace_id), "answer": "losing completion"},
                 )
             )
