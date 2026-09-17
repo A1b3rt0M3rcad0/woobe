@@ -25,8 +25,10 @@ function record(value: unknown): Record<string, unknown> {
 
 function normalizedExternalFields(value: unknown): Record<string, ExternalContextFieldContract> {
   const raw = record(value)
-  const legacy = record(raw.fields)
-  return (Object.keys(legacy).length ? legacy : raw) as Record<string, ExternalContextFieldContract>
+  const legacyValue = raw.fields
+  const legacy = record(legacyValue)
+  const isLegacy = Object.prototype.hasOwnProperty.call(raw, 'fields') && legacyValue !== null && typeof legacyValue === 'object' && !Array.isArray(legacyValue)
+  return (isLegacy ? legacy : raw) as Record<string, ExternalContextFieldContract>
 }
 
 function schemaType(value: unknown): ContractFieldType {
@@ -117,4 +119,9 @@ export function coerceContractValue(type: ContractFieldType, raw: string | boole
     return Number.isFinite(value) ? value : undefined
   }
   return String(raw)
+}
+
+export function filterContractValues(contract: unknown, values?: Record<string, unknown>): Record<string, unknown> {
+  const names = new Set(Object.keys(normalizedExternalFields(contract)))
+  return Object.fromEntries(Object.entries(values ?? {}).filter(([name]) => names.has(name)))
 }
