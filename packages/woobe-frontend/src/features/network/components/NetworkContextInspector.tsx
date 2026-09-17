@@ -9,7 +9,7 @@ import type { NetworkDefinition } from '../types'
 import type { NetworkDefinitionChange, NetworkEditorIssue, NetworkEditorSelection } from '../editor/types'
 import { NetworkGraphInspector } from './NetworkGraphInspector'
 import { NetworkWorkspaceBootstrap } from './NetworkWorkspaceBootstrap'
-import type { NetworkBinding } from './networkWorkspaceTypes'
+import type { Environment, NetworkBinding } from './networkWorkspaceTypes'
 import type { NetworkCenterMode, NetworkInspectionScope, NetworkInspectorContext } from './networkWorkspaceReducer'
 
 interface NetworkContextInspectorProps {
@@ -19,6 +19,7 @@ interface NetworkContextInspectorProps {
   inspectionLabel?: string | null
   inspectionKind?: 'run' | 'version' | null
   definition: NetworkDefinition
+  environment?: Environment
   agents: Agent[]
   bindings: Record<string, NetworkBinding>
   issues: NetworkEditorIssue[]
@@ -41,6 +42,7 @@ export function NetworkContextInspector({
   inspectionLabel,
   inspectionKind,
   definition,
+  environment = 'draft',
   agents,
   bindings,
   issues,
@@ -122,6 +124,7 @@ export function NetworkContextInspector({
           <NetworkGraphInspector
             embedded
             definition={definition}
+            environment={environment}
             agents={agents}
             bindings={bindings}
             issues={issues}
