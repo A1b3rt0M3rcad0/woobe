@@ -100,6 +100,46 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
         except ExternalContextContractError as exc:
             raise ValidationError(str(exc)) from exc
 
+    async def effective_external_context_contract(
+        self,
+        *,
+        network_id: UUID,
+        project_id: UUID,
+        environment: str,
+    ) -> dict[str, Any]:
+        try:
+            normalized_environment = NetworkEnvironment(environment)
+        except ValueError as exc:
+            raise ValidationError(f"Unsupported Network environment: {environment}") from exc
+
+        async with self._session_factory() as session:
+            network = await session.get(NetworkModel, network_id)
+            if network is None or network.project_id != project_id:
+                raise NotFoundError("Network not found")
+
+            if normalized_environment is NetworkEnvironment.DRAFT:
+                definition = self._definition(network.draft_definition)
+                bindings = await self._resolve_draft_bindings(session, definition, project_id)
+                return await self._effective_external_context_contract(
+                    session,
+                    definition=definition,
+                    bindings=bindings,
+                    version=None,
+                )
+
+            version_id = (
+                network.staging_version_id
+                if normalized_environment is NetworkEnvironment.STAGING
+                else network.production_version_id
+            )
+            if version_id is None:
+                return {}
+            version = await session.get(NetworkVersionModel, version_id)
+            if version is None or version.network_id != network_id or version.project_id != project_id:
+                raise NotFoundError("Network version not found")
+            persisted = getattr(version, "effective_external_context_contract", None)
+            return dict(persisted or {})
+
     async def submit_execution(
         self,
         *,
