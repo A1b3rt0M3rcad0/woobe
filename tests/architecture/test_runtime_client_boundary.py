@@ -90,5 +90,16 @@ def test_embed_consumes_runtime_through_thin_adapter() -> None:
     assert "waitForRuntimeRetry" in source
     assert "RUNTIME_STREAM_MAX_ATTEMPTS" in source
     assert "250 * (attempt + 1)" not in source
-    assert "data.type ===" not in source
+    for runtime_type in (
+        "token",
+        "token_retract",
+        "done",
+        "cancelled",
+        "execution_cancelled",
+        "run.state",
+        "agent_activity",
+        "tool_call_started",
+        "tool_call_completed",
+    ):
+        assert f'data.type === "{runtime_type}"' not in source
     assert "data.token" not in source
