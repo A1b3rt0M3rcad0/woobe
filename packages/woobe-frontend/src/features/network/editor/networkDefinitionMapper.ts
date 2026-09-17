@@ -8,6 +8,7 @@ export const DEFAULT_NETWORK_SETTINGS: NetworkDefinition['settings'] = {
   max_depth: 4,
   max_invocations: 16,
   timeout_seconds: 90,
+  max_tool_result_chars: 16_000,
 }
 
 const DRAFT_BINDING: NetworkAgentBindingSelector = { source: 'draft', release_id: null }
@@ -95,6 +96,7 @@ export function normalizeNetworkDefinition(value: unknown): NetworkDefinition {
       max_depth: Number.isFinite(rawSettings.max_depth) ? Number(rawSettings.max_depth) : DEFAULT_NETWORK_SETTINGS.max_depth,
       max_invocations: Number.isFinite(rawSettings.max_invocations) ? Number(rawSettings.max_invocations) : DEFAULT_NETWORK_SETTINGS.max_invocations,
       timeout_seconds: Number.isFinite(rawSettings.timeout_seconds) ? Number(rawSettings.timeout_seconds) : DEFAULT_NETWORK_SETTINGS.timeout_seconds,
+      max_tool_result_chars: Number.isFinite(rawSettings.max_tool_result_chars) ? Number(rawSettings.max_tool_result_chars) : DEFAULT_NETWORK_SETTINGS.max_tool_result_chars,
     },
   }
 }
