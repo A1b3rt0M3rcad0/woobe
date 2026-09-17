@@ -21,34 +21,28 @@ class ExternalContextResolution:
     session_values: dict[str, Any]
 
 
-def normalize_external_context_contract(value: Any) -> dict[str, Any]:
-    """Return the canonical, strict representation of an Agent External Context contract.
-
-    External Context contracts are intentionally not versioned. They are immutable only as
-    part of an Agent Release snapshot. Unknown contract keys and unknown request values are
-    rejected so Release compatibility can be reasoned about deterministically.
-    """
+def _raw_contract_fields(value: Any) -> dict[str, Any]:
+    """Return the field map while accepting the pre-builder PR shape for transition reads."""
 
     if value in (None, {}):
-        return {"fields": {}}
+        return {}
     if not isinstance(value, dict):
         raise ExternalContextContractError("External Context contract must be an object")
-    if "version" in value:
-        raise ExternalContextContractError(
-            "External Context contract is not versioned; version the Agent Release instead"
-        )
-    unknown_contract_keys = set(value) - {"fields"}
-    if unknown_contract_keys:
-        names = ", ".join(sorted(str(key) for key in unknown_contract_keys))
-        raise ExternalContextContractError(
-            f"External Context contract contains unknown properties: {names}"
-        )
 
-    raw_fields = value.get("fields", {})
-    if not isinstance(raw_fields, dict):
-        raise ExternalContextContractError("External Context contract fields must be an object")
+    if set(value).issubset({"fields", "additionalProperties"}) and isinstance(
+        value.get("fields"), dict
+    ):
+        return value["fields"]
 
+    return value
+
+
+def normalize_external_context_contract(value: Any) -> dict[str, Any]:
+    """Return the canonical top-level External Context field map."""
+
+    raw_fields = _raw_contract_fields(value)
     fields: dict[str, Any] = {}
+
     for raw_name, raw_field in raw_fields.items():
         name = str(raw_name).strip()
         if not name:
@@ -117,7 +111,7 @@ def normalize_external_context_contract(value: Any) -> dict[str, Any]:
             field["description"] = raw_field["description"]
         fields[name] = field
 
-    return {"fields": fields}
+    return fields
 
 
 def resolve_external_context(
@@ -127,19 +121,13 @@ def resolve_external_context(
     session_values: Mapping[str, Any] | None = None,
     enforce_required: bool = True,
 ) -> ExternalContextResolution:
-    """Validate request values and freeze one immutable execution snapshot.
+    """Validate request values and freeze one immutable execution snapshot."""
 
-    Session-scoped values are resolved in this order: request, previous Session value, default.
-    Run-scoped values are resolved in this order: request, default. Undeclared request keys are
-    always rejected.
-    """
-
-    normalized = normalize_external_context_contract(contract)
+    fields = normalize_external_context_contract(contract)
     raw_values = {} if request_values is None else request_values
     if not isinstance(raw_values, dict):
         raise ExternalContextContractError("External Context values must be an object")
 
-    fields = normalized["fields"]
     unknown = set(raw_values) - set(fields)
     if unknown:
         names = ", ".join(sorted(str(key) for key in unknown))
@@ -176,47 +164,36 @@ def resolve_external_context(
         if field["scope"] == "session":
             next_session_values[name] = deepcopy(value)
 
-    return ExternalContextResolution(
-        snapshot=snapshot,
-        session_values=next_session_values,
-    )
+    return ExternalContextResolution(snapshot=snapshot, session_values=next_session_values)
 
 
 def project_external_context(contract: Any, snapshot: Mapping[str, Any]) -> dict[str, Any]:
     """Project a shared snapshot to the fields declared by one Agent."""
 
-    normalized = normalize_external_context_contract(contract)
-    fields = normalized["fields"]
+    fields = normalize_external_context_contract(contract)
     projected = {name: deepcopy(snapshot[name]) for name in fields if name in snapshot}
-    resolve_external_context(normalized, projected, enforce_required=True)
+    resolve_external_context(fields, projected, enforce_required=True)
     return projected
 
 
 def model_external_context(contract: Any, snapshot: Mapping[str, Any]) -> dict[str, Any]:
     """Return only External Context values explicitly exposed to the model."""
 
-    normalized = normalize_external_context_contract(contract)
+    fields = normalize_external_context_contract(contract)
     return {
         name: deepcopy(snapshot[name])
-        for name, field in normalized["fields"].items()
+        for name, field in fields.items()
         if field["model"]["expose"] and name in snapshot
     }
 
 
 def classify_external_context_change(previous: Any, candidate: Any) -> ReleaseChangeKind:
-    """Classify Release compatibility caused by External Context changes.
+    """Classify Release compatibility caused by External Context changes."""
 
-    The contract is strict. Therefore removing any field is breaking, adding a required field is
-    breaking, and adding an optional field is a backward-compatible feature.
-    """
-
-    old = normalize_external_context_contract(previous)
-    new = normalize_external_context_contract(candidate)
-    if old == new:
+    old_fields = normalize_external_context_contract(previous)
+    new_fields = normalize_external_context_contract(candidate)
+    if old_fields == new_fields:
         return ReleaseChangeKind.CHANGE
-
-    old_fields = old["fields"]
-    new_fields = new["fields"]
     if set(old_fields) - set(new_fields):
         return ReleaseChangeKind.COMPATIBILITY
 
@@ -247,17 +224,12 @@ def classify_external_context_change(previous: Any, candidate: Any) -> ReleaseCh
 def compose_external_context_contracts(
     contracts: Mapping[str, Any],
 ) -> dict[str, Any]:
-    """Compose Agent contracts into a Network EffectiveExternalContextContract.
-
-    Schema and scope are shared semantics for a field and must match. Required/model exposure are
-    consumer-specific and are retained under `consumers`; they are not promoted to a global
-    Network requirement.
-    """
+    """Compose Agent contracts into the Network top-level effective field map."""
 
     effective_fields: dict[str, Any] = {}
     for consumer, raw_contract in contracts.items():
         contract = normalize_external_context_contract(raw_contract)
-        for name, field in contract["fields"].items():
+        for name, field in contract.items():
             existing = effective_fields.get(name)
             if existing is None:
                 existing = {
@@ -279,10 +251,19 @@ def compose_external_context_contracts(
                 consumer_contract["default"] = deepcopy(field["default"])
             existing["consumers"][str(consumer)] = consumer_contract
 
-    return {
-        "fields": effective_fields,
-        "additionalProperties": False,
-    }
+    return effective_fields
+
+
+def _effective_fields(effective_contract: Any) -> dict[str, Any]:
+    if effective_contract in (None, {}):
+        return {}
+    if not isinstance(effective_contract, dict):
+        raise ExternalContextContractError("Effective External Context contract is invalid")
+    if set(effective_contract).issubset({"fields", "additionalProperties"}) and isinstance(
+        effective_contract.get("fields"), dict
+    ):
+        return effective_contract["fields"]
+    return effective_contract
 
 
 def validate_effective_external_context_values(
@@ -291,15 +272,7 @@ def validate_effective_external_context_values(
 ) -> dict[str, Any]:
     """Validate the Network request boundary without imposing per-Agent required fields."""
 
-    if effective_contract in (None, {}):
-        fields: dict[str, Any] = {}
-    elif isinstance(effective_contract, dict) and isinstance(
-        effective_contract.get("fields"), dict
-    ):
-        fields = effective_contract["fields"]
-    else:
-        raise ExternalContextContractError("Effective External Context contract is invalid")
-
+    fields = _effective_fields(effective_contract)
     values = {} if request_values is None else request_values
     if not isinstance(values, dict):
         raise ExternalContextContractError("External Context values must be an object")
