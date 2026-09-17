@@ -123,7 +123,7 @@ describe('Behavior editor contracts', () => {
   it.each(['standalone', 'network'])('uses the same section navigation and Draft actions in %s', async surface => {
     await renderEditor(surface)
     const primary = container.querySelector('[aria-label="Agent configuration groups"]')!
-    expect([...primary.querySelectorAll('button')].map(item => item.textContent)).toEqual(['Agent', 'Execution', 'Capabilities', 'Output'])
+    expect([...primary.querySelectorAll('button')].map(item => item.textContent)).toEqual(['Agent', 'Execution', 'Capabilities', 'Contracts'])
     expect([...container.querySelectorAll('[aria-label="Agent configuration sections"] button')].map(item => item.textContent)).toEqual(['Overview', 'Behavior'])
     expect(container.querySelector('section[aria-label="Agent Identity"]')).toBeTruthy()
     expect(container.querySelector('section[aria-label="Behavior Summary"]')).toBeTruthy()
@@ -270,7 +270,7 @@ describe('Behavior editor contracts', () => {
   })
   it.each(['standalone', 'network'])('blocks invalid Output from another section and recovers after Reset in %s', async surface => {
     await renderEditor(surface)
-    await click(button('Output'))
+    await click(button('Contracts'))
     await click(container.querySelector('input[type="checkbox"]')!)
     await fill(input('Output contract'), '[]')
     await click(button('Agent'))
