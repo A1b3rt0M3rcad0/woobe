@@ -70,13 +70,11 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
         },
     }
     external_context_contract = {
-        "fields": {
-            "customer_id": {
-                "schema": {"type": "string"},
-                "required": True,
-                "scope": "run",
-                "model": {"expose": False},
-            }
+        "customer_id": {
+            "schema": {"type": "string"},
+            "required": True,
+            "scope": "run",
+            "model": {"expose": False},
         }
     }
 
