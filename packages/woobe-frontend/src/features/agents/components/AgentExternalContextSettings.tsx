@@ -1,36 +1,20 @@
 import { Braces } from 'lucide-react'
-import { Alert, AlertDescription, PanelHeader } from '@woobe/ui'
+import { Alert, AlertDescription, Checkbox, PanelHeader } from '@woobe/ui'
 
-import { JsonEditor } from '@/components/ui/JsonEditor'
+import { ContractFieldBuilder } from '@/features/contracts/ContractFieldBuilder'
+import { externalContractFromRows, externalContractRows } from '@/features/contracts/contractFields'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { externalContextContractError } from '../editorValidation'
 
-const DEFAULT_CONTRACT = `{
-  "fields": {}
-}`
-
-const EXAMPLE_CONTRACT = `{
-  "fields": {
-    "customer_id": {
-      "schema": { "type": "string" },
-      "required": true,
-      "scope": "session",
-      "model": { "expose": false },
-      "description": "Stable customer identifier supplied by the application"
-    }
-  }
-}`
-
-function contractText(value: unknown) {
-  if (typeof value === 'string') return value
-  return value && typeof value === 'object'
-    ? JSON.stringify(value, null, 2)
-    : DEFAULT_CONTRACT
-}
-
 export function AgentExternalContextSettings() {
   const { state, setField } = useAgentEditor()
+  const enabled = state.externalContextContract !== null
+  const rows = externalContractRows(state.externalContextContract)
   const error = externalContextContractError(state)
+
+  const toggle = (next: boolean) => {
+    setField('externalContextContract', next ? externalContractFromRows(rows) : null)
+  }
 
   return (
     <div className="min-w-0 max-w-full p-ui-md">
@@ -38,36 +22,39 @@ export function AgentExternalContextSettings() {
         <PanelHeader
           icon={<Braces className="h-icon w-icon" />}
           title="External Context"
-          description="Declare trusted values the application may supply to this Agent at Run or Session scope."
+          description="Declare the typed values applications may supply to this Agent."
+          actions={(
+            <label className="flex items-center gap-ui-sm font-mono text-system-label text-muted-foreground">
+              {enabled ? 'Enabled' : 'Disabled'}
+              <Checkbox checked={enabled} onChange={(event) => toggle(event.target.checked)} />
+            </label>
+          )}
         />
 
         <div className="grid min-w-0 gap-ui-md p-ui-md">
-          <div className="min-w-0 max-w-full">
-            <label className="mb-ui-sm block font-mono text-system-label font-medium uppercase tracking-system-label text-muted-foreground">
-              Contract
-            </label>
-            <JsonEditor
-              value={contractText(state.externalContextContract)}
-              onChange={(value) => setField('externalContextContract', value)}
-              editable
-              actions={['format', 'validate', 'clear']}
-              placeholder={EXAMPLE_CONTRACT}
+          {enabled ? (
+            <ContractFieldBuilder
+              kind="external"
+              rows={rows}
+              onChange={(next) => setField('externalContextContract', externalContractFromRows(next))}
             />
-            {error ? (
-              <Alert variant="destructive" className="mt-ui-sm">
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
-            ) : null}
-          </div>
+          ) : (
+            <p className="font-sans text-product-small text-muted-foreground">
+              This Agent does not declare an External Context contract. Enable it to add fields that can be supplied at Run or Session scope.
+            </p>
+          )}
 
-          <div className="rounded-container border border-border bg-background/20 px-ui-md py-ui-sm font-sans text-product-caption text-muted-foreground">
-            <p>
-              The boundary is strict: undeclared request fields are rejected. Each field may use <code>run</code> or <code>session</code> scope, be required or optional, define a default, and explicitly opt into model visibility with <code>model.expose</code>.
+          {error ? (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          {enabled ? (
+            <p className="font-sans text-product-caption text-muted-foreground">
+              The request boundary is strict. Field type, scope, requirement and model visibility are compiled into the Release contract automatically.
             </p>
-            <p className="mt-ui-xs">
-              This contract has no independent version. It is frozen inside the Agent Release and compatibility is derived from Release-to-Release changes.
-            </p>
-          </div>
+          ) : null}
         </div>
       </section>
     </div>
