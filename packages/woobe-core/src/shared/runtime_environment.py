@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from copy import deepcopy
 from typing import Literal
 from uuid import UUID
 
@@ -60,6 +61,27 @@ class RuntimeEnvironmentService:
                 updated_by=updated_by,
             )
 
+    async def set_external_context_values(
+        self,
+        *,
+        target_type: RuntimeTargetType,
+        target_id: UUID,
+        project_id: UUID,
+        environment: str,
+        values: dict[str, object],
+        updated_by: UUID | None,
+    ) -> RuntimeEnvironmentState:
+        async with self._session_factory() as session, session.begin():
+            return await set_runtime_environment_external_context_values(
+                session,
+                target_type=target_type,
+                target_id=target_id,
+                project_id=project_id,
+                environment=environment,
+                values=values,
+                updated_by=updated_by,
+            )
+
 
 def build_runtime_environment_service() -> RuntimeEnvironmentService:
     from shared.composition_resources import SESSION_FACTORY
@@ -74,6 +96,7 @@ class RuntimeEnvironmentState:
     project_id: UUID
     environment: RuntimeEnvironment
     enabled: bool
+    external_context_values: dict[str, object]
     updated_by: UUID | None
     updated_at: object | None
 
@@ -84,6 +107,7 @@ class RuntimeEnvironmentState:
             "project_id": str(self.project_id),
             "environment": self.environment,
             "enabled": self.enabled,
+            "external_context_values": deepcopy(self.external_context_values),
             "updated_by": str(self.updated_by) if self.updated_by else None,
             "updated_at": self.updated_at,
         }
@@ -207,6 +231,7 @@ async def list_runtime_environment_states(
                 {config['target_column']} AS target_id,
                 environment,
                 enabled,
+                external_context_values,
                 updated_by,
                 updated_at
             FROM {config['state_table']}
@@ -231,6 +256,7 @@ async def list_runtime_environment_states(
             project_id=row["project_id"],
             environment=environment,
             enabled=bool(row["enabled"]),
+            external_context_values=deepcopy(row["external_context_values"] or {}),
             updated_by=row["updated_by"],
             updated_at=row["updated_at"],
         )
@@ -270,6 +296,7 @@ async def set_runtime_environment_enabled(
                 {config['target_column']} AS target_id,
                 environment,
                 enabled,
+                external_context_values,
                 updated_by,
                 updated_at
             """
@@ -291,6 +318,68 @@ async def set_runtime_environment_enabled(
         project_id=row["project_id"],
         environment=normalized_environment,
         enabled=bool(row["enabled"]),
+        external_context_values=deepcopy(row["external_context_values"] or {}),
+        updated_by=row["updated_by"],
+        updated_at=row["updated_at"],
+    )
+
+
+async def set_runtime_environment_external_context_values(
+    session: AsyncSession,
+    *,
+    target_type: RuntimeTargetType,
+    target_id: UUID,
+    project_id: UUID,
+    environment: str,
+    values: dict[str, object],
+    updated_by: UUID | None,
+) -> RuntimeEnvironmentState:
+    normalized_environment = normalize_runtime_environment(environment)
+    await ensure_runtime_environment_states(
+        session,
+        target_type=target_type,
+        target_id=target_id,
+        project_id=project_id,
+    )
+    config = _target_config(target_type)
+    result = await session.execute(
+        text(
+            f"""
+            UPDATE {config['state_table']}
+            SET external_context_values = CAST(:external_context_values AS jsonb),
+                updated_by = :updated_by,
+                updated_at = now()
+            WHERE {config['target_column']} = :target_id
+              AND project_id = :project_id
+              AND environment = :environment
+            RETURNING
+                project_id,
+                {config['target_column']} AS target_id,
+                environment,
+                enabled,
+                external_context_values,
+                updated_by,
+                updated_at
+            """
+        ),
+        {
+            "target_id": target_id,
+            "project_id": project_id,
+            "environment": normalized_environment,
+            "external_context_values": __import__("json").dumps(values),
+            "updated_by": updated_by,
+        },
+    )
+    row = result.mappings().one_or_none()
+    if row is None:
+        raise NotFoundError(f"{target_type.capitalize()} runtime environment not found")
+    return RuntimeEnvironmentState(
+        target_type=target_type,
+        target_id=row["target_id"],
+        project_id=row["project_id"],
+        environment=normalized_environment,
+        enabled=bool(row["enabled"]),
+        external_context_values=deepcopy(row["external_context_values"] or {}),
         updated_by=row["updated_by"],
         updated_at=row["updated_at"],
     )
@@ -329,6 +418,7 @@ def runtime_states_payload(
     return {
         environment: {
             "enabled": state.enabled,
+            "external_context_values": deepcopy(state.external_context_values),
             "updated_by": str(state.updated_by) if state.updated_by else None,
             "updated_at": state.updated_at,
         }
