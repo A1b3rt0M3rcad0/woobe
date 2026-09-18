@@ -12,18 +12,11 @@ import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { cn } from '@/lib/utils'
 import { AgentContextConfigurationDialog } from './AgentContextConfigurationDialog'
 
-const LEGACY_DEFAULT_SELECTION = {
-  name: 'default',
-  version: 'v1',
-  strategy_name: 'stdcm',
-  strategy_version: 'v1',
-}
+const DEFAULT_CONTEXT_MANAGER = 'standard'
 
 type ContextManagerOption = {
-  strategyKey: string
+  name: string
   descriptor: ContextAssemblerDescriptor
-  selectionDescriptor: ContextAssemblerDescriptor
-  isSystemDefault: boolean
   catalogBacked: boolean
 }
 
@@ -33,42 +26,27 @@ function recordValue(value: unknown): Record<string, unknown> {
     : {}
 }
 
-function currentSelection(runtimeConfig: Record<string, unknown>) {
+function normalizeManagerName(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return DEFAULT_CONTEXT_MANAGER
+  const normalized = value.trim().toLowerCase()
+  if (normalized === 'stdcm' || normalized === 'default') return DEFAULT_CONTEXT_MANAGER
+  return normalized
+}
+
+function currentSelection(runtimeConfig: Record<string, unknown>): string {
   const raw = recordValue(runtimeConfig.context_assembler)
-  const name = typeof raw.name === 'string' && raw.name.trim()
-    ? raw.name.trim()
-    : LEGACY_DEFAULT_SELECTION.name
-  const version = typeof raw.version === 'string' && raw.version.trim()
-    ? raw.version.trim()
-    : LEGACY_DEFAULT_SELECTION.version
-  const strategyName = typeof raw.strategy_name === 'string' && raw.strategy_name.trim()
-    ? raw.strategy_name.trim()
-    : name === 'default' && version === 'v1'
-      ? LEGACY_DEFAULT_SELECTION.strategy_name
-      : name
-  const strategyVersion = typeof raw.strategy_version === 'string' && raw.strategy_version.trim()
-    ? raw.strategy_version.trim()
-    : name === 'default' && version === 'v1'
-      ? LEGACY_DEFAULT_SELECTION.strategy_version
-      : version
-  return {
-    name,
-    version,
-    strategy_name: strategyName,
-    strategy_version: strategyVersion,
-  }
-}
-
-function selectionKey(item: Pick<ContextAssemblerDescriptor, 'name' | 'version'>) {
-  return `${item.name}:${item.version}`
-}
-
-function strategyKey(item: Pick<ContextAssemblerDescriptor, 'strategy_name' | 'strategy_version'>) {
-  return `${item.strategy_name}:${item.strategy_version}`
+  const legacyStrategyName = raw.strategy_name
+  return normalizeManagerName(
+    typeof legacyStrategyName === 'string' && legacyStrategyName.trim()
+      ? legacyStrategyName
+      : raw.name,
+  )
 }
 
 function DetailList({ items }: { items: string[] }) {
-  if (!items.length) return <p className="font-sans text-product-caption text-muted-foreground">None declared.</p>
+  if (!items.length) {
+    return <p className="font-sans text-product-caption text-muted-foreground">None declared.</p>
+  }
   return (
     <div className="space-y-ui-sm">
       {items.map((item) => (
@@ -84,96 +62,66 @@ function DetailList({ items }: { items: string[] }) {
 export function AgentContextAssemblerField({ projectId, compact = false }: { projectId: string; compact?: boolean }) {
   const { state, setField } = useAgentEditor()
   const { data: assemblers = [], isLoading, isError } = useContextAssemblers()
-  const selected = useMemo(() => currentSelection(state.runtimeConfig), [state.runtimeConfig])
-  const selectedStrategyKey = strategyKey(selected)
+  const selectedName = useMemo(() => currentSelection(state.runtimeConfig), [state.runtimeConfig])
 
   const selectedFallback = useMemo<ContextAssemblerDescriptor>(() => ({
-    name: selected.name,
-    version: selected.version,
-    strategy_name: selected.strategy_name,
-    strategy_version: selected.strategy_version,
-    display_name: selected.strategy_name,
+    name: selectedName,
+    display_name: selectedName,
     description: '',
     behavior: '',
     recommended_for: [],
     capabilities: [],
     limitations: [],
     configuration: '',
-    is_default: selected.name === 'default',
-    is_system_default_alias: selected.name === 'default',
-  }), [selected])
+    supports_skills: false,
+    is_default: selectedName === DEFAULT_CONTEXT_MANAGER,
+  }), [selectedName])
 
-  const catalogOptions = useMemo<ContextManagerOption[]>(() => {
-    const groups = new Map<string, ContextAssemblerDescriptor[]>()
-
-    for (const item of assemblers) {
-      const key = strategyKey(item)
-      const group = groups.get(key)
-      if (group) group.push(item)
-      else groups.set(key, [item])
-    }
-
-    return Array.from(groups.entries())
-      .map(([key, entries]) => {
-        const strategyDescriptor = entries.find((item) => !item.is_system_default_alias) ?? entries[0]
-        const defaultAlias = entries.find((item) => item.is_default && item.is_system_default_alias)
-          ?? entries.find((item) => item.is_system_default_alias)
-
-        return {
-          strategyKey: key,
-          descriptor: strategyDescriptor,
-          selectionDescriptor: defaultAlias ?? strategyDescriptor,
-          isSystemDefault: Boolean(defaultAlias?.is_default),
-          catalogBacked: true,
-        }
-      })
+  const catalogOptions = useMemo<ContextManagerOption[]>(() => (
+    assemblers
+      .map((descriptor) => ({
+        name: descriptor.name,
+        descriptor,
+        catalogBacked: true,
+      }))
       .sort((left, right) => {
-        if (left.isSystemDefault !== right.isSystemDefault) return left.isSystemDefault ? -1 : 1
+        if (left.descriptor.is_default !== right.descriptor.is_default) {
+          return left.descriptor.is_default ? -1 : 1
+        }
         return left.descriptor.display_name.localeCompare(right.descriptor.display_name)
       })
-  }, [assemblers])
+  ), [assemblers])
 
-  const selectedCatalogOption = catalogOptions.find((option) => option.strategyKey === selectedStrategyKey)
+  const selectedCatalogOption = catalogOptions.find((option) => option.name === selectedName)
   const selectedDescriptor = selectedCatalogOption?.descriptor ?? selectedFallback
-
   const selectedFallbackOption = useMemo<ContextManagerOption>(() => ({
-    strategyKey: selectedStrategyKey,
+    name: selectedName,
     descriptor: selectedFallback,
-    selectionDescriptor: selectedFallback,
-    isSystemDefault: selected.name === 'default',
     catalogBacked: false,
-  }), [selected.name, selectedFallback, selectedStrategyKey])
-
+  }), [selectedName, selectedFallback])
   const availableOptions = selectedCatalogOption ? catalogOptions : [selectedFallbackOption, ...catalogOptions]
 
   const [open, setOpen] = useState(false)
   const [configureOpen, setConfigureOpen] = useState(false)
-  const [focusedStrategyKey, setFocusedStrategyKey] = useState<string | null>(null)
+  const [focusedName, setFocusedName] = useState<string | null>(null)
 
-  const focused = availableOptions.find((option) => option.strategyKey === (focusedStrategyKey || selectedStrategyKey)) ?? selectedFallbackOption
+  const focused = availableOptions.find((option) => option.name === (focusedName || selectedName)) ?? selectedFallbackOption
   const focusedDescriptor = focused.descriptor
-  const focusedIsCurrent = focused.strategyKey === selectedStrategyKey
-  const focusedSelectionKey = focusedIsCurrent ? selectionKey(selected) : selectionKey(focused.selectionDescriptor)
+  const focusedIsCurrent = focused.name === selectedName
   const catalogReady = !isLoading && !isError && assemblers.length > 0
   const incompatibleSkills = skillsConfig(state.runtimeConfig).bindings.some(item => item.enabled) && !focusedDescriptor.supports_skills
   const canApplySelection = catalogReady && focused.catalogBacked && !focusedIsCurrent && !incompatibleSkills
 
   const openSelector = () => {
-    setFocusedStrategyKey(selectedStrategyKey)
+    setFocusedName(selectedName)
     setOpen(true)
   }
 
   const applySelection = () => {
     if (!canApplySelection) return
-    const next = focused.selectionDescriptor
     setField('runtimeConfig', {
       ...state.runtimeConfig,
-      context_assembler: {
-        name: next.name,
-        version: next.version,
-        strategy_name: next.strategy_name,
-        strategy_version: next.strategy_version,
-      },
+      context_assembler: { name: focused.name },
     })
     setOpen(false)
   }
@@ -193,17 +141,17 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
             </span>
             <div className="min-w-0 flex-1">
               <p className="break-words font-mono text-system-label font-semibold text-slate-100">{selectedDescriptor.display_name}</p>
-              <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{selectedStrategyKey}</p>
+              <p className="mt-ui-xs font-mono text-system-meta text-muted-foreground">{selectedName}</p>
               {selectedDescriptor.description ? <p className="mt-ui-sm line-clamp-2 font-sans text-product-caption text-muted-foreground">{selectedDescriptor.description}</p> : null}
             </div>
           </div>
 
           <div className="mt-ui-md grid grid-cols-2 gap-ui-sm border-t border-border/75 pt-ui-md">
-            <Button type="button" size="sm" variant="outline" onClick={() => setConfigureOpen(true)} aria-label={`Configure context for ${selectedDescriptor.display_name}`}>
+            <Button type="button" size="sm" variant="outline" onClick={() => setConfigureOpen(true)} aria-label={'Configure context for ' + selectedDescriptor.display_name}>
               <Settings2 className="h-3.5 w-3.5" />
               Configure
             </Button>
-            <Button type="button" size="sm" variant="ghost" className="text-primary-light" onClick={openSelector} aria-label={`Change context manager. Current selection: ${selectedDescriptor.display_name}`}>
+            <Button type="button" size="sm" variant="ghost" className="text-primary-light" onClick={openSelector} aria-label={'Change context manager. Current selection: ' + selectedDescriptor.display_name}>
               Change
             </Button>
           </div>
@@ -218,26 +166,26 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
             <div className="shrink-0 border-b border-border/90 px-ui-lg py-ui-md">
               <p className="font-mono text-system-meta font-semibold uppercase tracking-[0.12em] text-muted-foreground">Registered managers</p>
               <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">
-                {isLoading ? 'Loading registry…' : isError ? 'Current selection only' : `${catalogOptions.length} available`}
+                {isLoading ? 'Loading registry…' : isError ? 'Current selection only' : String(catalogOptions.length) + ' available'}
               </p>
             </div>
 
             <ScrollArea className="min-h-0 flex-1 p-ui-md pr-ui-sm">
               <div className="space-y-ui-sm">
                 {availableOptions.map((option) => {
-                  const active = option.strategyKey === focused.strategyKey
-                  const current = option.strategyKey === selectedStrategyKey
+                  const active = option.name === focused.name
+                  const current = option.name === selectedName
                   const item = option.descriptor
                   return (
                     <TechnicalListItem
-                      key={option.strategyKey}
+                      key={option.name}
                       selected={active}
                       disabled={!option.catalogBacked && !current}
-                      onClick={() => setFocusedStrategyKey(option.strategyKey)}
+                      onClick={() => setFocusedName(option.name)}
                       leading={<BrainCircuit className="h-3.5 w-3.5 text-primary-light" />}
                       label={item.display_name}
-                      description={option.strategyKey}
-                      meta={option.isSystemDefault ? 'System default' : undefined}
+                      description={option.name}
+                      meta={item.is_default ? 'System default' : undefined}
                       trailing={current ? <span className="flex items-center gap-ui-xs font-mono text-system-meta uppercase text-primary-light"><Check className="h-3 w-3" />Selected</span> : null}
                     />
                   )
@@ -256,12 +204,12 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-ui-sm">
                       <h3 className="font-mono text-system-heading font-semibold text-slate-50">{focusedDescriptor.display_name}</h3>
-                      <span className="rounded-technical border border-border px-ui-xs py-ui-hairline font-mono text-system-meta text-muted-foreground">{focused.strategyKey}</span>
+                      <span className="rounded-technical border border-border px-ui-xs py-ui-hairline font-mono text-system-meta text-muted-foreground">{focused.name}</span>
                       {focusedIsCurrent ? <span className="rounded-technical border border-primary/30 bg-primary/10 px-ui-xs py-ui-hairline font-mono text-system-meta uppercase text-primary-light">Selected</span> : null}
-                      {focused.isSystemDefault ? <span className="rounded-technical border border-border bg-background/40 px-ui-xs py-ui-hairline font-mono text-system-meta uppercase text-muted-foreground">System default</span> : null}
+                      {focusedDescriptor.is_default ? <span className="rounded-technical border border-border bg-background/40 px-ui-xs py-ui-hairline font-mono text-system-meta uppercase text-muted-foreground">System default</span> : null}
                     </div>
                     <p className="mt-ui-xs font-sans text-product-caption text-muted-foreground">
-                      {focusedIsCurrent && selected.name !== 'default' ? 'Explicit strategy selection' : focused.isSystemDefault ? 'System default strategy' : 'Registered strategy'}
+                      {focusedDescriptor.is_default ? 'System default manager' : 'Registered manager'}
                     </p>
                   </div>
                 </div>
@@ -269,8 +217,8 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
                 {catalogReady && focused.catalogBacked ? (
                   <>
                     <div className="mt-ui-lg grid gap-ui-sm sm:grid-cols-3">
-                      <MetricTile label="Selection" value={focusedSelectionKey} />
-                      <MetricTile label="Resolved strategy" value={focused.strategyKey} />
+                      <MetricTile label="Selection" value={focused.name} />
+                      <MetricTile label="Identity" value={focusedDescriptor.name} />
                       <MetricTile label="Configuration" value={focusedDescriptor.configuration || 'Default'} />
                     </div>
 
@@ -290,7 +238,7 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
                     </div>
 
                     <div className="mt-ui-lg rounded-container border border-border/75 bg-background/30 px-ui-md py-ui-md font-sans text-product-small text-muted-foreground">
-                      Selecting <span className="font-mono text-slate-200">{selectionKey(focused.selectionDescriptor)}</span> freezes the resolved strategy <span className="font-mono text-slate-200">{focused.strategyKey}</span> in the Agent snapshot for immutable releases, replay, and rollback.
+                      Selecting <span className="font-mono text-slate-200">{focused.name}</span> freezes the stable Context Manager identity in the Agent snapshot.
                     </div>
                   </>
                 ) : (
@@ -300,7 +248,7 @@ export function AgentContextAssemblerField({ projectId, compact = false }: { pro
             </ScrollArea>
 
             <div className="flex shrink-0 items-center justify-between gap-ui-md border-t border-border/90 bg-background/20 px-ui-lg py-ui-md">
-              <p className="min-w-0 truncate font-sans text-product-caption text-muted-foreground">{focused.catalogBacked ? `${focused.strategyKey}${focused.isSystemDefault ? ' · system default' : ''}` : 'Registry metadata unavailable'}</p>
+              <p className="min-w-0 truncate font-sans text-product-caption text-muted-foreground">{focused.catalogBacked ? focused.name + (focusedDescriptor.is_default ? ' · system default' : '') : 'Registry metadata unavailable'}</p>
               <div className="flex shrink-0 items-center gap-ui-sm">
                 <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
                 {incompatibleSkills && <p role="alert" className="max-w-xs font-sans text-product-caption text-amber-400">Disable installed Skills before selecting a manager without Skills support.</p>}
