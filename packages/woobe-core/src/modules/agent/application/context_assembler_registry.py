@@ -5,30 +5,27 @@ from copy import deepcopy
 from dataclasses import dataclass, replace
 
 from modules.agent.application.context_managers.standard import StandardContextAssembler
-from modules.agent.application.context_managers.standard_v2 import StandardSkillsContextAssembler
 from modules.agent.application.interfaces.context_assembler import (
-    LEGACY_DEFAULT_CONTEXT_ASSEMBLER_KEY,
-    STANDARD_CONTEXT_ASSEMBLER_KEY,
+    DEFAULT_CONTEXT_MANAGER,
     ContextAssembler,
-    ContextAssemblerKey,
     ContextAssemblerSelection,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
     context_assembler_selection_from_runtime_config,
+    normalize_context_manager_name,
 )
 from shared.contracts.errors import ValidationError
 
 
-DEFAULT_CONTEXT_MANAGER_SETTING = "stdcm:v1"
+DEFAULT_CONTEXT_MANAGER_SETTING = DEFAULT_CONTEXT_MANAGER
 ContextAssemblerFactory = Callable[[], ContextAssembler]
 
 
 @dataclass(frozen=True, slots=True)
 class ContextAssemblerDescriptor:
-    """Backend-owned product metadata required for every registered Context Manager."""
+    """Backend-owned product metadata for one selectable Context Manager."""
 
-    key: ContextAssemblerKey
-    strategy_key: ContextAssemblerKey
+    name: str
     display_name: str
     description: str
     behavior: str
@@ -38,10 +35,11 @@ class ContextAssemblerDescriptor:
     configuration: str
     supports_skills: bool = False
     is_default: bool = False
-    is_system_default_alias: bool = False
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "name", normalize_context_manager_name(self.name))
         required_text = {
+            "name": self.name,
             "display_name": self.display_name,
             "description": self.description,
             "behavior": self.behavior,
@@ -49,28 +47,22 @@ class ContextAssemblerDescriptor:
         }
         for field_name, value in required_text.items():
             if not value.strip():
-                raise ValueError(f"Context assembler descriptor {field_name} must not be empty")
-
-        required_lists = {
+                raise ValueError(
+                    f"Context assembler descriptor {field_name} must not be empty"
+                )
+        for field_name, values in {
             "recommended_for": self.recommended_for,
             "capabilities": self.capabilities,
             "limitations": self.limitations,
-        }
-        for field_name, values in required_lists.items():
+        }.items():
             if not values or any(not item.strip() for item in values):
                 raise ValueError(
                     f"Context assembler descriptor {field_name} must contain non-empty values"
                 )
 
-        if self.is_default and not self.is_system_default_alias:
-            raise ValueError("Only a system default alias may be marked as default")
-
     def as_dict(self) -> dict[str, object]:
         return {
-            "name": self.key.name,
-            "version": self.key.version,
-            "strategy_name": self.strategy_key.name,
-            "strategy_version": self.strategy_key.version,
+            "name": self.name,
             "display_name": self.display_name,
             "description": self.description,
             "behavior": self.behavior,
@@ -80,12 +72,11 @@ class ContextAssemblerDescriptor:
             "configuration": self.configuration,
             "supports_skills": self.supports_skills,
             "is_default": self.is_default,
-            "is_system_default_alias": self.is_system_default_alias,
         }
 
 
 class ContextAssemblerRegistryError(ValueError):
-    """Base error for deterministic ContextAssembler catalog failures."""
+    pass
 
 
 class DuplicateContextAssemblerError(ContextAssemblerRegistryError):
@@ -105,198 +96,115 @@ class InvalidDefaultContextManagerError(ContextAssemblerRegistryError):
 
 
 class ContextAssemblerRegistry:
-    """Explicit in-process catalog of strategies plus one system-default alias."""
+    """Explicit in-process catalog of stable unversioned Context Managers."""
 
-    __slots__ = ("_entries", "_current_default_key")
+    __slots__ = ("_entries", "_default_name")
 
-    def __init__(self) -> None:
+    def __init__(self, *, default_name: str) -> None:
         self._entries: dict[
-            ContextAssemblerKey,
+            str,
             tuple[ContextAssemblerFactory, ContextAssemblerDescriptor],
         ] = {}
-        self._current_default_key: ContextAssemblerKey | None = None
+        self._default_name = normalize_context_manager_name(default_name)
 
     def register(
         self,
-        key: ContextAssemblerKey,
+        name: str,
         factory: ContextAssemblerFactory,
         *,
         descriptor: ContextAssemblerDescriptor,
     ) -> None:
-        """Register one explicit strategy identity."""
-
-        if key.name == "default":
-            raise ValueError(
-                "The 'default' Context Manager identity is reserved for the system-default alias"
-            )
-        if key in self._entries:
+        normalized = normalize_context_manager_name(name)
+        if normalized in self._entries:
             raise DuplicateContextAssemblerError(
-                f"Context assembler already registered: {key}"
+                f"Context Manager already registered: {normalized}"
             )
-        if descriptor.key != key or descriptor.strategy_key != key:
+        if descriptor.name != normalized:
             raise ValueError(
-                "Explicit Context Manager descriptor key and strategy_key must match registration key"
+                "Context Manager descriptor name must match registration name"
             )
-        if descriptor.is_default or descriptor.is_system_default_alias:
-            raise ValueError("Explicit strategy registrations cannot be system-default aliases")
-        self._entries[key] = (factory, descriptor)
-
-    def register_default_alias(
-        self,
-        *,
-        strategy_key: ContextAssemblerKey,
-    ) -> ContextAssemblerKey:
-        """Expose the configured strategy through the reserved ``default`` identity.
-
-        The alias version mirrors the configured strategy version. New Agent snapshots
-        additionally freeze ``strategy_name``/``strategy_version``, so changing the
-        system default later cannot alter existing Agent or Release behavior.
-        """
-
-        target = self._entries.get(strategy_key)
-        if target is None:
-            raise InvalidDefaultContextManagerError(
-                f"Configured default Context Manager is not registered: {strategy_key}"
-            )
-        if self._current_default_key is not None:
-            raise InvalidDefaultContextManagerError(
-                f"System default Context Manager already registered: {self._current_default_key}"
-            )
-
-        alias_key = ContextAssemblerKey(name="default", version=strategy_key.version)
-        if alias_key in self._entries:
-            raise DuplicateContextAssemblerError(
-                f"Context assembler already registered: {alias_key}"
-            )
-
-        factory, strategy_descriptor = target
-        alias_descriptor = replace(
-            strategy_descriptor,
-            key=alias_key,
-            strategy_key=strategy_key,
-            is_default=True,
-            is_system_default_alias=True,
+        self._entries[normalized] = (
+            factory,
+            replace(descriptor, is_default=normalized == self._default_name),
         )
-        self._entries[alias_key] = (factory, alias_descriptor)
-        self._current_default_key = alias_key
-        return alias_key
 
-    def contains(self, key: ContextAssemblerKey) -> bool:
-        return key in self._entries
-
-    def contains_strategy(self, key: ContextAssemblerKey) -> bool:
-        entry = self._entries.get(key)
-        return bool(entry and not entry[1].is_system_default_alias)
+    def contains(self, name: str) -> bool:
+        return normalize_context_manager_name(name) in self._entries
 
     def current_default(self) -> ContextAssemblerDescriptor:
-        if self._current_default_key is None:
-            raise InvalidDefaultContextManagerError(
-                "Context assembler registry has no system default"
-            )
-        return self._entries[self._current_default_key][1]
-
-    def create(self, key: ContextAssemblerKey) -> ContextAssembler:
-        entry = self._entries.get(key)
+        entry = self._entries.get(self._default_name)
         if entry is None:
-            raise UnknownContextAssemblerError(f"Unknown context assembler: {key}")
+            raise InvalidDefaultContextManagerError(
+                f"Configured default Context Manager is not registered: {self._default_name}"
+            )
+        return entry[1]
 
+    def create(self, name: str) -> ContextAssembler:
+        normalized = normalize_context_manager_name(name)
+        entry = self._entries.get(normalized)
+        if entry is None:
+            raise UnknownContextAssemblerError(
+                f"Unknown Context Manager: {normalized}"
+            )
         assembler = entry[0]()
         if not isinstance(assembler, ContextAssembler):
             raise InvalidContextAssemblerFactoryError(
-                f"Context assembler factory for {key} returned an incompatible object"
+                f"Context Manager factory for {normalized} returned an incompatible object"
             )
         return assembler
 
-    def create_strategy(self, strategy_key: ContextAssemblerKey) -> ContextAssembler:
-        if not self.contains_strategy(strategy_key):
-            raise UnknownContextAssemblerError(
-                f"Unknown context assembler strategy: {strategy_key}"
-            )
-        return self.create(strategy_key)
-
     def list_descriptors(self) -> tuple[ContextAssemblerDescriptor, ...]:
         return tuple(
-            self._entries[key][1]
-            for key in sorted(
-                self._entries,
-                key=lambda item: (
-                    0 if self._entries[item][1].is_default else 1,
-                    item.name,
-                    item.version,
+            sorted(
+                (entry[1] for entry in self._entries.values()),
+                key=lambda descriptor: (
+                    0 if descriptor.is_default else 1,
+                    descriptor.display_name.lower(),
+                    descriptor.name,
                 ),
             )
         )
 
 
 _STANDARD_DESCRIPTOR = ContextAssemblerDescriptor(
-    key=STANDARD_CONTEXT_ASSEMBLER_KEY,
-    strategy_key=STANDARD_CONTEXT_ASSEMBLER_KEY,
+    name=DEFAULT_CONTEXT_MANAGER,
     display_name="Standard Context Manager",
     description=(
         "Balanced deterministic context management for general-purpose Agent execution."
     ),
     behavior=(
         "Builds each Model Invocation context deterministically from the Agent's available "
-        "context sources, applying Context Policy v1 budgets, priorities, pressure handling, "
-        "ordering, deduplication, and provenance capture."
+        "context sources, applies Context Policy budgets, priorities, pressure handling, "
+        "ordering and provenance capture, and materializes Run-local Skills when enabled."
     ),
     recommended_for=(
         "General-purpose Agents that need predictable context behavior.",
-        "Production workloads where replayability and stable snapshot behavior matter.",
+        "Production workloads where stable context assembly and provenance matter.",
     ),
     capabilities=(
         "Preserves mandatory system instructions and the current user input.",
         "Balances session history, knowledge, tool, artifact, delegation, and runtime context within configured budgets.",
         "Applies pressure trimming, ordering, and deduplication before each Model Invocation.",
+        "Loads Skills on demand with per-Run retention and exact package provenance.",
         "Records source contributions and provenance in the Context Snapshot.",
     ),
     limitations=(
-        "Does not perform autonomous context planning or iterative retrieval.",
-        "Behavior is bounded by Context Policy v1 and the context sources available to the Agent.",
+        "Does not perform autonomous context planning or semantic long-horizon compaction.",
+        "Behavior is bounded by Context Policy and the context sources available to the Agent.",
     ),
-    configuration="Context Policy v1",
+    configuration="Context Policy",
+    supports_skills=True,
 )
 
 
-def _configured_default_strategy(value: str) -> ContextAssemblerKey:
-    try:
-        key = ContextAssemblerKey.parse(value)
-    except ValueError as exc:
-        raise InvalidDefaultContextManagerError(
-            "WOOBE_DEFAULT_CONTEXT_MANAGER must use '<strategy>:<version>'"
-        ) from exc
-    if key.name == "default":
-        raise InvalidDefaultContextManagerError(
-            "WOOBE_DEFAULT_CONTEXT_MANAGER must identify a concrete strategy, not the default alias"
-        )
-    return key
+def _configured_default_strategy(value: str) -> str:
+    raw_name = value.split(":", 1)[0]
+    return normalize_context_manager_name(raw_name)
 
 
-def _register_builtin_context_manager_strategies(
-    registry: ContextAssemblerRegistry,
-) -> None:
-    """Single explicit extension point for built-in Context Manager strategies.
-
-    Concrete implementations live under ``application/context_managers``. Add a
-    stable versioned strategy and its backend-owned descriptor here; Runtime code
-    must not import the concrete implementation directly.
-    """
-
-    skills_key = ContextAssemblerKey(name="stdcm", version="v2")
+def _register_builtin_context_managers(registry: ContextAssemblerRegistry) -> None:
     registry.register(
-        skills_key, lambda: StandardSkillsContextAssembler(StandardContextAssembler()),
-        descriptor=replace(
-            _STANDARD_DESCRIPTOR, key=skills_key, strategy_key=skills_key,
-            display_name="Standard Context Manager v2", supports_skills=True,
-            description="Deterministic context management with versioned Skills loaded on demand.",
-            behavior="Loads compact Skill discovery metadata and protects activated instructions and resources until the Agent Run ends. Preserves v1 source handling for other context.",
-            capabilities=(*_STANDARD_DESCRIPTOR.capabilities, "Loads Skills on demand with per-Run retention, bounded discovery, and exact package provenance."),
-            limitations=("Skills support text instructions and resources; arbitrary scripts are not executed.", "Activated instructions cannot be compacted; an insufficient budget blocks the invocation."),
-            configuration="Context Policy v1 with Skills budgets",
-        ),
-    )
-    registry.register(
-        STANDARD_CONTEXT_ASSEMBLER_KEY,
+        DEFAULT_CONTEXT_MANAGER,
         StandardContextAssembler,
         descriptor=_STANDARD_DESCRIPTOR,
     )
@@ -305,27 +213,23 @@ def _register_builtin_context_manager_strategies(
 def build_context_assembler_registry(
     default_context_manager: str = DEFAULT_CONTEXT_MANAGER_SETTING,
 ) -> ContextAssemblerRegistry:
-    """Build the deterministic catalog supported by this Woobe process."""
-
-    registry = ContextAssemblerRegistry()
-    _register_builtin_context_manager_strategies(registry)
-    registry.register_default_alias(
-        strategy_key=_configured_default_strategy(default_context_manager),
+    registry = ContextAssemblerRegistry(
+        default_name=_configured_default_strategy(default_context_manager)
     )
+    _register_builtin_context_managers(registry)
+    registry.current_default()
     return registry
 
 
 def build_context_assembler(
-    key: ContextAssemblerKey,
+    name: str,
     default_context_manager: str = DEFAULT_CONTEXT_MANAGER_SETTING,
 ) -> ContextAssembler:
-    """Resolve one exact selectable identity from the supported catalog."""
-
-    return build_context_assembler_registry(default_context_manager).create(key)
+    return build_context_assembler_registry(default_context_manager).create(name)
 
 
 class RegistryContextAssembler:
-    """Concurrency-safe dispatcher that executes the frozen strategy from each snapshot."""
+    """Concurrency-safe dispatcher for the Manager frozen in each Agent snapshot."""
 
     __slots__ = ("_registry",)
 
@@ -333,50 +237,22 @@ class RegistryContextAssembler:
         self._registry = registry
 
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
-        strategy_name = getattr(
-            request.runtime_context,
-            "context_assembler_strategy_name",
-            None,
-        )
-        strategy_version = getattr(
-            request.runtime_context,
-            "context_assembler_strategy_version",
-            None,
-        )
-        if strategy_name and strategy_version:
-            strategy_key = ContextAssemblerKey(
-                name=strategy_name,
-                version=strategy_version,
-            )
-        else:
-            # Compatibility for historical Runs that only carried selection identity.
-            name = getattr(request.runtime_context, "context_assembler_name", None)
-            version = getattr(request.runtime_context, "context_assembler_version", None)
-            selection_key = (
-                ContextAssemblerKey(name=name, version=version)
-                if name and version
-                else LEGACY_DEFAULT_CONTEXT_ASSEMBLER_KEY
-            )
-            strategy_key = (
-                STANDARD_CONTEXT_ASSEMBLER_KEY
-                if selection_key == LEGACY_DEFAULT_CONTEXT_ASSEMBLER_KEY
-                else selection_key
-            )
-        return self._registry.create_strategy(strategy_key).assemble(request)
+        raw_name = getattr(request.runtime_context, "context_assembler_name", None)
+        return self._registry.create(
+            normalize_context_manager_name(raw_name or DEFAULT_CONTEXT_MANAGER)
+        ).assemble(request)
 
 
 def build_runtime_context_assembler(
     default_context_manager: str = DEFAULT_CONTEXT_MANAGER_SETTING,
 ) -> ContextAssembler:
-    """Build the runtime dispatcher without exposing the registry to execution code."""
-
     return RegistryContextAssembler(
         build_context_assembler_registry(default_context_manager)
     )
 
 
 def _has_context_assembler_selection(value: object) -> bool:
-    return isinstance(value, dict) and isinstance(value.get("context_assembler"), dict)
+    return isinstance(value, dict) and value.get("context_assembler") is not None
 
 
 def validate_context_assembler_runtime_config(
@@ -388,37 +264,15 @@ def validate_context_assembler_runtime_config(
     registry = build_context_assembler_registry(default_context_manager)
 
     if use_current_default_if_missing and not _has_context_assembler_selection(value):
-        descriptor = registry.current_default()
-        return ContextAssemblerSelection(
-            selection_key=descriptor.key,
-            strategy_key=descriptor.strategy_key,
-        )
+        return ContextAssemblerSelection(registry.current_default().name)
 
     try:
         selection = context_assembler_selection_from_runtime_config(value)
     except ValueError as exc:
         raise ValidationError(str(exc)) from exc
 
-    if not registry.contains_strategy(selection.strategy_key):
-        raise ValidationError(
-            f"Unsupported context assembler strategy: {selection.strategy_key}"
-        )
-
-    if selection.selection_key.name == "default":
-        if selection.selection_key.version != selection.strategy_key.version:
-            raise ValidationError(
-                "System default Context Manager selection version must match the frozen strategy version"
-            )
-    else:
-        if selection.selection_key != selection.strategy_key:
-            raise ValidationError(
-                "Explicit Context Manager selection must match the resolved strategy"
-            )
-        if not registry.contains(selection.selection_key):
-            raise ValidationError(
-                f"Unsupported context assembler: {selection.selection_key}"
-            )
-
+    if not registry.contains(selection.name):
+        raise ValidationError(f"Unsupported Context Manager: {selection.name}")
     return selection
 
 
