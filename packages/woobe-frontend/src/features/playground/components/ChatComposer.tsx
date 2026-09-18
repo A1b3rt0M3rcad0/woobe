@@ -162,11 +162,11 @@ export function ChatComposer({
             </Button>
           </div>
           <div className="flex min-w-0 shrink-0 items-center gap-ui-sm">
-            {!compact ? (
+            {compact ? <span className="sr-only">{resolvedStatus}</span> : (
               <span className="hidden max-w-[17.5rem] truncate font-mono text-system-micro text-muted-foreground/80 sm:inline">
                 {resolvedStatus}
               </span>
-            ) : null}
+            )}
             {isSending ? (
               <Button
                 type="button"
