@@ -249,6 +249,8 @@ def compose_external_context_contracts(
             }
             if "default" in field:
                 consumer_contract["default"] = deepcopy(field["default"])
+            if "description" in field:
+                consumer_contract["description"] = field["description"]
             existing["consumers"][str(consumer)] = consumer_contract
 
     return effective_fields
