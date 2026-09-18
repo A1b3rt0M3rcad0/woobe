@@ -50,6 +50,17 @@ export function normalizeToolInputBindings(bindings?: ToolInputBindings): ToolIn
   )
 }
 
+export function toolInputBindingsForSchema(
+  schema: Record<string, unknown> | null | undefined,
+  bindings?: ToolInputBindings,
+): ToolInputBindings {
+  const allowed = new Set(toolInputDescriptors(schema).map((input) => input.name))
+  return Object.fromEntries(
+    Object.entries(normalizeToolInputBindings(bindings))
+      .filter(([target]) => allowed.has(target)),
+  )
+}
+
 export function invalidToolInputBindingTargets(bindings?: ToolInputBindings): string[] {
   return Object.entries(bindings || {})
     .filter(([target, binding]) => !target.trim() || !String(binding?.source?.field || '').trim())
