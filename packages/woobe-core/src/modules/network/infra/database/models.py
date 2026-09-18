@@ -108,6 +108,9 @@ class NetworkVersionModel(BaseModel):
     definition: Mapped[dict[str, Any]] = mapped_column(JSONB)
     resolved_bindings: Mapped[dict[str, Any]] = mapped_column(JSONB)
     composition_hash: Mapped[str] = mapped_column(String(64))
+    effective_external_context_contract: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
     created_by: Mapped[UUID | None]
     rollback_of_version_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("network.network_versions.id")
@@ -164,6 +167,9 @@ class NetworkSessionModel(BaseModel):
     tenant_id: Mapped[str | None] = mapped_column(String(128))
     user_id: Mapped[str | None] = mapped_column(String(128))
     external_session_id: Mapped[str | None] = mapped_column(String(255))
+    external_context_session_values: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
     status: Mapped[str] = mapped_column(String(32), default="active")
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
@@ -260,6 +266,9 @@ class NetworkExecutionModel(BaseModel):
         JSONB, nullable=True
     )
     resolved_bindings_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    external_context_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB, nullable=True
     )
     output_message: Mapped[str | None] = mapped_column(Text)
