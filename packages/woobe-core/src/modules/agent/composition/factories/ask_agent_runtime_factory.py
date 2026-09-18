@@ -3,9 +3,6 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable, Mapping
 from uuid import UUID
 
-from modules.agent.application.context_assembler_registry import (
-    build_runtime_context_assembler,
-)
 from modules.agent.application.execution_snapshot import (
     AgentExecutionSnapshotResolver,
     apply_agent_execution_snapshot,
@@ -31,6 +28,9 @@ from modules.agent.composition.factories.run_persistence_factory import (
     build_agent_run_persistence,
 )
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
+from modules.agent.infra.context_management.managers.resolver import (
+    build_runtime_context_assembler,
+)
 from modules.agent.infra.adapters.langchain_llm_factory import LangchainLLMFactory
 from modules.agent.infra.adapters.tool_executor import HttpToolExecutor
 from modules.agent.infra.database.runtime_transaction_runner import AgentRuntimeTransactionRunner
