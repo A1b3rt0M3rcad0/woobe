@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from modules.agent.application.context_assembler_registry import build_runtime_context_assembler
@@ -260,9 +261,6 @@ def _runtime_agent_config() -> dict:
 
 def _materialized_model_text(messages: list) -> str:
     return "\n".join(str(message.content) for message in messages)
-
-
-import pytest
 
 
 @pytest.mark.asyncio
