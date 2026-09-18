@@ -177,9 +177,10 @@ function runtimeConfigSnapshot(state: AgentEditorState): Record<string, unknown>
 function externalContextContractValue(value: unknown): ExternalContextContract | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null
   const raw = recordValue(value)
-  const legacy = recordValue(raw.fields)
-  const fields = Object.keys(legacy).length ? legacy : raw
-  return fields as ExternalContextContract
+  const legacyValue = raw.fields
+  const legacy = recordValue(legacyValue)
+  const isLegacy = Object.prototype.hasOwnProperty.call(raw, 'fields') && legacyValue !== null && typeof legacyValue === 'object' && !Array.isArray(legacyValue)
+  return (isLegacy ? legacy : raw) as ExternalContextContract
 }
 
 export function agentToEditorState(agent: Agent, collectionIds?: string[], knowledgeVersionId?: string | null, toolIds?: string[]): AgentEditorState {
