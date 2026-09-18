@@ -7,8 +7,10 @@ from uuid import uuid4
 import pytest
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from modules.agent.application.context_managers import standard
-from modules.agent.application.context_managers.standard import StandardContextAssembler
+from modules.agent.infra.context_management.manager_runtime import runner as manager_runner
+from modules.agent.infra.context_management.manager_runtime.runner import ContextManagerRunner
+from modules.agent.infra.context_management.managers.resolver import build_context_assembler
+from modules.agent.infra.context_management.managers.standard import StandardContextManager
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
     ContextAssemblyOutput,
@@ -44,7 +46,7 @@ def _request() -> ContextAssemblyRequest:
 
 
 def test_standard_context_assembler_implements_behavioral_contract() -> None:
-    assembler = StandardContextAssembler()
+    assembler = build_context_assembler("standard")
 
     assert isinstance(assembler, ContextAssembler)
 
@@ -59,7 +61,7 @@ def test_standard_context_assembler_implements_behavioral_contract() -> None:
     assert result.snapshot.agent_run_id == request.agent_run_id
 
 
-def test_standard_context_assembler_is_transparent_adapter(monkeypatch) -> None:
+def test_context_manager_runner_is_transparent_runtime_adapter(monkeypatch) -> None:
     request = _request()
     captured: dict[str, Any] = {}
     sentinel = cast(ContextAssemblyOutput, object())
@@ -69,24 +71,22 @@ def test_standard_context_assembler_is_transparent_adapter(monkeypatch) -> None:
         return sentinel
 
     monkeypatch.setattr(
-        standard,
+        manager_runner,
         "assemble_context",
         fake_assemble_context,
     )
 
-    result = StandardContextAssembler().assemble(request)
+    result = ContextManagerRunner(StandardContextManager()).assemble(request)
 
     assert result is sentinel
-    assert captured == {
-        "messages": request.messages,
-        "model_invocation_id": request.model_invocation_id,
-        "agent_run_id": request.agent_run_id,
-        "project_id": request.project_id,
-        "provider": request.provider,
-        "model": request.model,
-        "runtime_context": request.runtime_context,
-        "policy": request.policy,
-    }
+    assert captured["messages"] == request.messages
+    assert captured["model_invocation_id"] == request.model_invocation_id
+    assert captured["agent_run_id"] == request.agent_run_id
+    assert captured["project_id"] == request.project_id
+    assert captured["provider"] == request.provider
+    assert captured["model"] == request.model
+    assert captured["runtime_context"] is request.runtime_context
+    assert captured["policy"].model_dump(mode="json") == request.policy.model_dump(mode="json")
 
 
 @dataclass(frozen=True, slots=True)

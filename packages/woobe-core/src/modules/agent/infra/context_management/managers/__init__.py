@@ -1,13 +1,10 @@
-from modules.agent.infra.context_management.managers.resolver import (
-    build_context_assembler,
-    build_context_manager_resolver,
-    build_runtime_context_assembler,
-    builtin_context_manager_names,
+"""Concrete Context Manager implementations.
+
+Runtime resolution lives in resolver.py and is imported explicitly by composition.
+"""
+
+from modules.agent.infra.context_management.managers.standard import (
+    StandardContextManager,
 )
 
-__all__ = [
-    "build_context_assembler",
-    "build_context_manager_resolver",
-    "build_runtime_context_assembler",
-    "builtin_context_manager_names",
-]
+__all__ = ["StandardContextManager"]
