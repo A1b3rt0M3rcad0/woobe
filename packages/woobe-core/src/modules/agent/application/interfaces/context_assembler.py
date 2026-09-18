@@ -20,6 +20,8 @@ def normalize_context_manager_name(value: str) -> str:
     normalized = value.strip().lower()
     if not normalized:
         raise ValueError("Context Manager name must not be empty")
+    if normalized in {"stdcm:v1", "stdcm:v2", "default:v1"}:
+        return DEFAULT_CONTEXT_MANAGER
     return _LEGACY_CONTEXT_MANAGER_ALIASES.get(normalized, normalized)
 
 

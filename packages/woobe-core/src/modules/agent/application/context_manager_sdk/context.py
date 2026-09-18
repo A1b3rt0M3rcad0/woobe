@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Protocol
+from typing import Literal, Protocol
 
 from modules.agent.application.context_manager_sdk.contracts import ContextManagerOutcome
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
@@ -35,11 +35,15 @@ class ContextCandidates(Protocol):
     def deduplicate(
         self,
         *,
-        strategy: str,
+        strategy: Literal["none", "content_hash"],
         sources: list[ContextSourceType],
     ) -> None: ...
 
-    def order(self, *, strategy: str) -> None: ...
+    def order(
+        self,
+        *,
+        strategy: Literal["preserve_input", "source_priority"],
+    ) -> None: ...
 
 
 class ContextBudget(Protocol):
