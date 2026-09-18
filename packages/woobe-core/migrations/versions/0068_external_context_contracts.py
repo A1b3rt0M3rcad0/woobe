@@ -17,26 +17,6 @@ depends_on = None
 
 def upgrade() -> None:
     op.add_column(
-        "agent_runtime_environment_states",
-        sa.Column(
-            "external_context_values",
-            postgresql.JSONB(),
-            nullable=False,
-            server_default=sa.text("'{}'::jsonb"),
-        ),
-        schema="agent",
-    )
-    op.add_column(
-        "network_runtime_environment_states",
-        sa.Column(
-            "external_context_values",
-            postgresql.JSONB(),
-            nullable=False,
-            server_default=sa.text("'{}'::jsonb"),
-        ),
-        schema="network",
-    )
-    op.add_column(
         "agent_releases",
         sa.Column("external_context_contract", postgresql.JSONB(), nullable=True),
         schema="agent",
@@ -67,16 +47,6 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_column(
-        "network_runtime_environment_states",
-        "external_context_values",
-        schema="network",
-    )
-    op.drop_column(
-        "agent_runtime_environment_states",
-        "external_context_values",
-        schema="agent",
-    )
     op.drop_column(
         "network_executions",
         "external_context_snapshot",
