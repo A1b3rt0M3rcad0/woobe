@@ -1,14 +1,13 @@
 import { isSkillOperation, operationLabel } from '@/features/skills/operations'
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { ChatCanvas, type ChatCanvasEntry } from '@/features/playground/components/ChatCanvas'
-import { RuntimeContextPanel } from '@/features/contracts/RuntimeContextPanel'
-import { filterContractValues } from '@/features/contracts/contractFields'
+import { contractForScope, filterContractValues } from '@/features/contracts/contractFields'
 import type { ChatMessage as PlaygroundChatMessage } from '@/features/playground/types'
 import { cancelNetworkExecution } from '@/features/network/api'
-import { useNetworkExternalContextContract, useNetworkRuntimeEnvironments, useUpdateNetworkRuntimeEnvironmentContext } from '@/features/network/hooks'
+import { useNetworkExternalContextContract, useNetworkRuntimeEnvironments } from '@/features/network/hooks'
 import { useNetworkIdentity } from '@/features/network/NetworkIdentityContext'
 import { getActiveNetworkExecution } from '@/features/network/runtime-reattach-api'
 import { streamNetworkExecution } from '@/features/network/stream'
@@ -140,13 +139,20 @@ export function NetworkChatWorkspace({
   const exactNetworkName = useNetworkIdentity() ?? networkName
   const runtimeStatesQuery = useNetworkRuntimeEnvironments(networkId, projectId)
   const externalContextContractQuery = useNetworkExternalContextContract(networkId, projectId, environment)
-  const updateRuntimeContext = useUpdateNetworkRuntimeEnvironmentContext(networkId, projectId)
   const runtimeEnabled = runtimeStatesQuery.data?.[environment]?.enabled ?? true
   const effectiveExternalContextContract = externalContextContractQuery.data ?? {}
-  const runtimeExternalContext = filterContractValues(
-    effectiveExternalContextContract,
-    runtimeStatesQuery.data?.[environment]?.external_context_values,
+  const runContextContract = useMemo(
+    () => contractForScope(effectiveExternalContextContract, 'run'),
+    [effectiveExternalContextContract],
   )
+  const sessionContextContract = useMemo(
+    () => contractForScope(effectiveExternalContextContract, 'session'),
+    [effectiveExternalContextContract],
+  )
+  const storedEnvironmentContext = runtimeStatesQuery.data?.[environment]?.external_context_values
+  const [externalContextValues, setExternalContextValues] = useState<Record<string, unknown>>({})
+  const externalContextOwnerRef = useRef<string | null>(null)
+  const externalContextDirtyRef = useRef(false)
   const [text, setText] = useState('')
   const [localTurns, setLocalTurns] = useState<NetworkTurn[]>([])
   const [creatingSession, setCreatingSession] = useState(false)
@@ -173,6 +179,55 @@ export function NetworkChatWorkspace({
 
   const changed = Boolean(activeSession && environment !== 'draft' && activeSession.networkVersion !== currentVersionId)
   const turns = useMemo(() => reconcileNetworkTurns(historyTurns, localTurns), [historyTurns, localTurns])
+
+  useLayoutEffect(() => {
+    const persistedSessionValues = activeSession?.externalContextSessionValues ?? {}
+    const environmentValues = filterContractValues(
+      effectiveExternalContextContract,
+      storedEnvironmentContext,
+    )
+    const sessionValues = {
+      ...filterContractValues(sessionContextContract, environmentValues),
+      ...filterContractValues(sessionContextContract, persistedSessionValues),
+    }
+    const baselineValues = {
+      ...environmentValues,
+      ...sessionValues,
+    }
+    const owner = `${environment}:${activeSession?.id ?? 'none'}`
+    const previousOwner = externalContextOwnerRef.current
+    const previousEnvironment = previousOwner?.split(':', 1)[0] ?? null
+    const automaticSessionBinding = previousOwner === `${environment}:none` && Boolean(activeSession?.id)
+    const contextDirty = externalContextDirtyRef.current
+
+    setExternalContextValues((current) => {
+      const currentValues = filterContractValues(effectiveExternalContextContract, current)
+      if (previousOwner === null || previousEnvironment !== environment) return baselineValues
+      if (previousOwner !== owner && !automaticSessionBinding) {
+        return {
+          ...filterContractValues(runContextContract, currentValues),
+          ...sessionValues,
+        }
+      }
+      return contextDirty ? currentValues : baselineValues
+    })
+
+    if (previousOwner !== owner && !automaticSessionBinding) externalContextDirtyRef.current = false
+    externalContextOwnerRef.current = owner
+  }, [
+    activeSession?.externalContextSessionValues,
+    activeSession?.id,
+    effectiveExternalContextContract,
+    environment,
+    runContextContract,
+    sessionContextContract,
+    storedEnvironmentContext,
+  ])
+
+  const handleExternalContextValuesChange = useCallback((values: Record<string, unknown>) => {
+    externalContextDirtyRef.current = true
+    setExternalContextValues(filterContractValues(effectiveExternalContextContract, values))
+  }, [effectiveExternalContextContract])
 
   useLayoutEffect(() => {
     onSelectSessionRef.current = onSelectSession
@@ -482,7 +537,7 @@ export function NetworkChatWorkspace({
       const executionBindings = environment === 'draft'
         ? Object.fromEntries(Object.entries(bindings).map(([nodeId, binding]) => [nodeId, { ...binding, version: `r${expectedDraftRevision}`, dirty: false }])) as Record<AgentNodeId, NetworkBinding>
         : bindings
-      await streamNetworkExecution({ networkId, projectId, networkSessionId: session.id, message, expectedDraftRevision, externalContext: runtimeExternalContext }, {
+      await streamNetworkExecution({ networkId, projectId, networkSessionId: session.id, message, expectedDraftRevision, externalContext: externalContextValues }, {
         onExecutionId: (id) => {
           executionId = id
           executionIdRef.current = id
@@ -649,20 +704,6 @@ export function NetworkChatWorkspace({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <RuntimeContextPanel
-        environment={environment}
-        contract={effectiveExternalContextContract}
-        savedValues={runtimeStatesQuery.data?.[environment]?.external_context_values}
-        saving={updateRuntimeContext.isPending}
-        onSave={async (values) => {
-          try {
-            await updateRuntimeContext.mutateAsync({ environment, values })
-            toast.success(`${environment.charAt(0).toUpperCase() + environment.slice(1)} context values saved`)
-          } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Could not save External Context values')
-          }
-        }}
-      />
       <ChatCanvas
         entries={chatEntries}
         isSending={running}
@@ -682,6 +723,9 @@ export function NetworkChatWorkspace({
         composerStatusText={composerStatusText}
         preparingText="Preparing Network Session..."
         enableFirstRunSuccess={false}
+        externalContextContract={effectiveExternalContextContract}
+        externalContextValues={externalContextValues}
+        onExternalContextValuesChange={handleExternalContextValuesChange}
       />
     </div>
   )
