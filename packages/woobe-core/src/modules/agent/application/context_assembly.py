@@ -163,6 +163,20 @@ def _context_metadata(message: Any) -> dict[str, Any]:
     return dict(raw) if isinstance(raw, dict) else {}
 
 
+def _is_contract_exposed_external_context(message: Any) -> bool:
+    """Return whether one Runtime contribution was explicitly exposed by the Agent contract.
+
+    External Context model visibility is authorized by model.expose before Context
+    assembly. Historical frozen Context Policies may omit the generic RUNTIME source,
+    so that broad source filter must not silently revoke the narrower contract decision.
+    """
+
+    metadata = _context_metadata(message)
+    return (
+        metadata.get("source_ref") == "external_context"
+        and metadata.get("selection_method") == "runtime_external_context"
+    )
+
 def _message_modality(message: Any) -> str:
     metadata = _context_metadata(message)
     explicit = metadata.get("modality")
@@ -594,7 +608,9 @@ def assemble_context(
         reason_summary[source.value] = reason_summary.get(source.value, 0) + 1
 
     for index, source in enumerate(sources):
-        if source not in allowed:
+        if source not in allowed and not _is_contract_exposed_external_context(
+            working[index]
+        ):
             keep[index] = False
             record_exclusion(source, "source_not_allowed")
         elif source == ContextSourceType.SESSION and index not in session_keep:
