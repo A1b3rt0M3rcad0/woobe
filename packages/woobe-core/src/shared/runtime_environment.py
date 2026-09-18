@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from copy import deepcopy
+import json
 from typing import Literal
 from uuid import UUID
 
@@ -366,7 +367,7 @@ async def set_runtime_environment_external_context_values(
             "target_id": target_id,
             "project_id": project_id,
             "environment": normalized_environment,
-            "external_context_values": __import__("json").dumps(values),
+            "external_context_values": json.dumps(values),
             "updated_by": updated_by,
         },
     )
