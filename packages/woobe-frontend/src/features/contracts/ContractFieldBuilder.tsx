@@ -102,7 +102,7 @@ export function ContractFieldBuilder({
                       value={row.name}
                       disabled={disabled}
                       spellCheck={false}
-                      className="h-control-sm px-ui-xs"
+                      className="!h-control-sm !px-ui-xs"
                       onChange={(event) => update(index, { name: event.target.value })}
                       aria-label={`Field ${index + 1} name`}
                     />
@@ -111,7 +111,7 @@ export function ContractFieldBuilder({
                       value={row.type}
                       disabled={disabled}
                       options={CONTRACT_FIELD_TYPE_OPTIONS}
-                      className="h-control-sm pl-ui-xs pr-5"
+                      className="!h-control-sm !pl-ui-xs !pr-5"
                       onChange={(event) => update(index, { type: event.target.value as ContractFieldType })}
                       aria-label={`Field ${row.name || index + 1} type`}
                     />
@@ -120,7 +120,7 @@ export function ContractFieldBuilder({
                       value={row.scope}
                       disabled={disabled}
                       options={SCOPE_OPTIONS}
-                      className="h-control-sm pl-ui-xs pr-5"
+                      className="!h-control-sm !pl-ui-xs !pr-5"
                       onChange={(event) => update(index, { scope: event.target.value as 'run' | 'session' })}
                       aria-label={`Field ${row.name || index + 1} scope`}
                     />
