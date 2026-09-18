@@ -254,6 +254,7 @@ function PlaygroundContent() {
     const previousOwner = externalContextOwnerRef.current
     const previousEnvironment = previousOwner?.split(':', 1)[0] ?? null
     const automaticSessionBinding = previousOwner === `${environment}:none` && Boolean(selectedSessionId)
+    const contextDirty = externalContextDirtyRef.current
 
     setExternalContextValues((current) => {
       const currentValues = filterContractValues(activeExternalContextContract, current)
@@ -264,7 +265,7 @@ function PlaygroundContent() {
           ...sessionValues,
         }
       }
-      return externalContextDirtyRef.current ? currentValues : baselineValues
+      return contextDirty ? currentValues : baselineValues
     })
 
     if (previousOwner !== owner && !automaticSessionBinding) externalContextDirtyRef.current = false
