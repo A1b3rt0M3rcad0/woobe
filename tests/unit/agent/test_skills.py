@@ -7,19 +7,12 @@ from uuid import uuid4
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from modules.agent.application.context_assembler_registry import build_context_assembler
-from modules.agent.application.context_managers.standard import StandardContextAssembler
-from modules.agent.application.context_managers.standard_v2 import (
-    StandardSkillsContextAssembler,
-)
+from modules.agent.infra.context_management.managers.resolver import build_context_assembler
 from modules.agent.application.context_assembly import (
     ContextBudgetExceeded,
     estimate_input_units,
 )
-from modules.agent.application.interfaces.context_assembler import (
-    ContextAssemblerKey,
-    ContextAssemblyRequest,
-)
+from modules.agent.application.interfaces.context_assembler import ContextAssemblyRequest
 from modules.agent.application.interfaces.context_policy import (
     ContextPolicyV1,
     SkillContextPolicy,
@@ -72,7 +65,7 @@ def version():
 
 def runtime_config(version):
     return {
-        "context_assembler": {"name": "stdcm", "version": "v2"},
+        "context_assembler": {"name": "standard"},
         "context": {
             "allowed_sources": ["SYSTEM", "USER_INPUT", "SESSION", "TOOL", "SKILL"],
             "skills": {},
@@ -191,8 +184,8 @@ async def test_one_fixed_version_per_skill_and_integrity(version):
 
 async def test_enabled_skills_require_compatible_context_manager(version):
     config = runtime_config(version)
-    config["context_assembler"]["version"] = "v1"
-    with pytest.raises(ValidationError, match="v2"):
+    config["context_assembler"] = {"name": "adaptive"}
+    with pytest.raises(ValidationError, match="Standard Context Manager"):
         await freeze_skill_bindings(
             None, project_id=version.project_id, runtime_config=config
         )
@@ -252,7 +245,7 @@ def test_progressive_loading_deduplication_provenance_and_run_isolation(version)
         {"skill_version_id": str(version.id), "path": "references/checklist.md"},
         tool_call_id="read",
     )["success"]
-    assembled = StandardSkillsContextAssembler(StandardContextAssembler()).assemble(
+    assembled = build_context_assembler("standard").assemble(
         request(runtime)
     )
     assert (
@@ -311,7 +304,7 @@ def test_budget_declines_new_content_without_truncating_active_instructions(vers
         {"skill_version_id": str(version.id), "path": "references/checklist.md"},
         tool_call_id="r",
     )["success"]
-    assembled = StandardSkillsContextAssembler(StandardContextAssembler()).assemble(
+    assembled = build_context_assembler("standard").assemble(
         request(
             runtime,
             ContextPolicyV1(
@@ -335,10 +328,10 @@ def test_budget_declines_new_content_without_truncating_active_instructions(vers
         messages=[SystemMessage(content="x" * 2000), HumanMessage(content="Input")],
     )
     with pytest.raises(ContextBudgetExceeded):
-        StandardSkillsContextAssembler(StandardContextAssembler()).assemble(oversized)
+        build_context_assembler("standard").assemble(oversized)
 
 
-def test_legacy_context_unchanged_without_skills(version):
+def test_standard_context_is_stable_without_active_skills(version):
     policy = ContextPolicyV1()
     assert "skills" not in policy.model_dump(mode="json")
     context_request = request(
@@ -346,7 +339,7 @@ def test_legacy_context_unchanged_without_skills(version):
     )
     context_request.runtime_context.skill_context = None
     original = StandardContextAssembler().assemble(context_request)
-    updated = StandardSkillsContextAssembler(StandardContextAssembler()).assemble(
+    updated = build_context_assembler("standard").assemble(
         context_request
     )
     assert original.messages == updated.messages
@@ -437,9 +430,7 @@ async def test_real_model_loop_activates_visible_skill_only_when_requested(versi
                 SystemMessage(content="Review invoices"),
                 HumanMessage(content="Please review"),
             ],
-            context_assembler=build_context_assembler(
-                ContextAssemblerKey("stdcm", "v2")
-            ),
+            context_assembler=build_context_assembler("standard"),
         )
         assert [tool_names for tool_names, _messages in observed] == [
             normal_skill_tools,

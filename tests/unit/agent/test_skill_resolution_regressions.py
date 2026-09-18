@@ -9,8 +9,7 @@ from uuid import uuid4
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from modules.agent.application.context_assembler_registry import build_context_assembler
-from modules.agent.application.interfaces.context_assembler import ContextAssemblerKey
+from modules.agent.infra.context_management.managers.resolver import build_context_assembler
 from modules.agent.application.interfaces.context_policy import (
     SkillContextPolicy,
     resolve_context_policy,
@@ -63,7 +62,7 @@ def _calculate_method_version() -> SkillVersion:
 
 def _runtime_config(version: SkillVersion) -> dict:
     return {
-        "context_assembler": {"name": "stdcm", "version": "v2"},
+        "context_assembler": {"name": "standard"},
         "context": {
             "allowed_sources": ["SYSTEM", "USER_INPUT", "SESSION", "TOOL", "SKILL"],
             "skills": {},
@@ -307,9 +306,7 @@ async def test_visible_skill_is_activated_directly_from_normal_model_call(provid
                 AIMessage(content="10"),
                 HumanMessage(content="Quanto é 1 + 1?"),
             ],
-            context_assembler=build_context_assembler(
-                ContextAssemblerKey("stdcm", "v2")
-            ),
+            context_assembler=build_context_assembler("standard"),
         )
     finally:
         current_execution.reset(token)
@@ -382,9 +379,7 @@ async def test_unrelated_request_answers_directly_without_skill_operation() -> N
                 ),
                 HumanMessage(content="Como se vai?"),
             ],
-            context_assembler=build_context_assembler(
-                ContextAssemblerKey("stdcm", "v2")
-            ),
+            context_assembler=build_context_assembler("standard"),
         )
     finally:
         current_execution.reset(token)

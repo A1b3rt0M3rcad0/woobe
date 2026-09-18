@@ -7,7 +7,7 @@ from uuid import uuid4
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from modules.agent.application.context_assembler_registry import build_runtime_context_assembler
+from modules.agent.infra.context_management.managers.resolver import build_runtime_context_assembler
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.interfaces.execution_context import current_execution, new_execution_context
 from modules.agent.application.skill_bindings import freeze_skill_bindings, frozen_enabled_skills
@@ -94,7 +94,7 @@ async def test_skill_instructions_cross_real_preparation_and_registry(monkeypatc
         package=package, package_hash=skill_package_hash(package),
     )
     config = {
-        'context_assembler': {'name': 'stdcm', 'version': 'v2'},
+        'context_assembler': {'name': 'standard'},
         'context': {'allowed_sources': ['SYSTEM', 'USER_INPUT', 'SESSION', 'TOOL', 'SKILL'], 'skills': {}},
         'skills': {
             'bindings': [{'skill_id': str(version.skill_id), 'skill_version_id': str(version.id), 'enabled': True}],
@@ -147,8 +147,7 @@ async def test_skill_instructions_cross_real_preparation_and_registry(monkeypatc
         assert execution.result.content == 'SKILL_CONTEXT_REACHED_MODEL'
         assert len(model.received) == 2
         assert model.bound_names == {'skills_activate', 'skills_read_resource'}
-        assert context.context_assembler_strategy_name == 'stdcm'
-        assert context.context_assembler_strategy_version == 'v2'
+        assert context.context_assembler_name == 'standard'
         assert context.prepare_started_at is not None
         snapshot = execution.llm_calls[-1]['context_snapshot']
         assert snapshot['manifest']['skills']['active_versions'] == [str(version.id)]

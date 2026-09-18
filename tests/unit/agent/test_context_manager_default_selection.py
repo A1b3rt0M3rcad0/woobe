@@ -25,13 +25,13 @@ def _deps():
 
 
 @pytest.mark.asyncio
-async def test_create_agent_freezes_system_default_selection_and_strategy() -> None:
+async def test_create_agent_freezes_stable_system_default_selection() -> None:
     agent_repo, credential_repo, outbox = _deps()
     use_case = CreateAgentUseCase(
         agent_repo,
         credential_repo,
         outbox,
-        default_context_manager="stdcm:v1",
+        default_context_manager="standard",
     )
 
     saved = await use_case.execute(
@@ -43,10 +43,7 @@ async def test_create_agent_freezes_system_default_selection_and_strategy() -> N
     )
 
     assert saved.settings["runtime_config"]["context_assembler"] == {
-        "name": "default",
-        "version": "v1",
-        "strategy_name": "stdcm",
-        "strategy_version": "v1",
+        "name": "standard",
     }
 
 
@@ -57,7 +54,7 @@ async def test_create_agent_preserves_explicit_context_manager_selection() -> No
         agent_repo,
         credential_repo,
         outbox,
-        default_context_manager="stdcm:v1",
+        default_context_manager="standard",
     )
 
     saved = await use_case.execute(
@@ -77,10 +74,7 @@ async def test_create_agent_preserves_explicit_context_manager_selection() -> No
     )
 
     assert saved.settings["runtime_config"]["context_assembler"] == {
-        "name": "stdcm",
-        "version": "v1",
-        "strategy_name": "stdcm",
-        "strategy_version": "v1",
+        "name": "standard",
     }
 
 
