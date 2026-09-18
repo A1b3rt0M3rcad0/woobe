@@ -35,27 +35,38 @@ describe('ChatComposer runtime state', () => {
     expect(html).not.toContain('aria-label="Stopping generation"')
   })
 
-  it('surfaces Run-scoped External Context beside the message composer', () => {
+  it('surfaces Run and Session External Context together beside the message composer', () => {
     const html = renderToStaticMarkup(
       <ChatComposer
         isSending={false}
         onSend={vi.fn()}
         onStop={vi.fn()}
-        runContextContract={{
+        externalContextContract={{
           current_page: {
             schema: { type: 'string' },
             required: true,
             scope: 'run',
             model: { expose: true },
           },
+          customer_id: {
+            schema: { type: 'string' },
+            required: true,
+            scope: 'session',
+            model: { expose: false },
+          },
         }}
-        runContextValues={{}}
-        onRunContextValuesChange={vi.fn()}
+        externalContextValues={{ customer_id: 'cus-1' }}
+        onExternalContextValuesChange={vi.fn()}
       />,
     )
 
-    expect(html).toContain('Run Context')
+    expect(html).toContain('External Context')
+    expect(html).toContain('2 fields')
+    expect(html).toContain('current_page')
+    expect(html).toContain('customer_id')
+    expect(html).toContain('session')
     expect(html).toContain('1 required missing')
+    expect(html).not.toContain('Successful Runs clear them automatically.')
   })
 
   it('keeps runtime blocking more authoritative than transient run state text', () => {
