@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from modules.agent.application.context_manager_sdk import ContextManagerOutcome
 from modules.agent.application.interfaces.context_assembler import ContextAssemblyRequest
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
@@ -62,18 +64,49 @@ class RuntimeContextCandidates:
     def deduplicate(
         self,
         *,
-        strategy: str,
+        strategy: Literal["none", "content_hash"],
         sources: list[ContextSourceType],
     ) -> None:
-        if strategy not in {"none", "content_hash"}:
-            raise ValueError(f"Unsupported context deduplication strategy: {strategy}")
         self._policy.deduplication.strategy = strategy
         self._policy.deduplication.sources = list(dict.fromkeys(sources))
 
-    def order(self, *, strategy: str) -> None:
-        if strategy not in {"preserve_input", "source_priority"}:
-            raise ValueError(f"Unsupported context ordering strategy: {strategy}")
+    def order(
+        self,
+        *,
+        strategy: Literal["preserve_input", "source_priority"],
+    ) -> None:
         self._policy.ordering.strategy = strategy
+
+
+class RuntimeContextBudget:
+    __slots__ = ("_policy",)
+
+    def __init__(self, policy: ContextPolicyV1) -> None:
+        self._policy = policy
+
+    def configure(
+        self,
+        *,
+        max_input_units: int | None,
+        runtime_reserve_units: int,
+    ) -> None:
+        self._policy.budget.max_input_units = max_input_units
+        self._policy.budget.runtime_reserve_units = runtime_reserve_units
+
+    def pressure(
+        self,
+        *,
+        moderate_at: float,
+        high_at: float,
+        critical_at: float,
+    ) -> None:
+        if not 0 < moderate_at < high_at < critical_at <= 1:
+            raise ValueError(
+                "Context pressure thresholds must satisfy 0 < moderate < high < critical <= 1"
+            )
+        self._policy.pressure.moderate_at = moderate_at
+        self._policy.pressure.high_at = high_at
+        self._policy.pressure.critical_at = critical_at
 
 
 class RuntimeContextSources:
@@ -92,6 +125,7 @@ class RuntimeContextManagerContext:
     __slots__ = (
         "policy",
         "candidates",
+        "budget",
         "sources",
         "_request",
         "_effective_policy",
@@ -102,6 +136,7 @@ class RuntimeContextManagerContext:
         self.policy = request.policy
         self._effective_policy = request.policy.model_copy(deep=True)
         self.candidates = RuntimeContextCandidates(self._effective_policy)
+        self.budget = RuntimeContextBudget(self._effective_policy)
         self.sources = RuntimeContextSources()
 
     @property

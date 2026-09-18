@@ -42,6 +42,25 @@ class ContextCandidates(Protocol):
     def order(self, *, strategy: str) -> None: ...
 
 
+class ContextBudget(Protocol):
+    """Budget and pressure controls applied by the shared Context Runtime."""
+
+    def configure(
+        self,
+        *,
+        max_input_units: int | None,
+        runtime_reserve_units: int,
+    ) -> None: ...
+
+    def pressure(
+        self,
+        *,
+        moderate_at: float,
+        high_at: float,
+        critical_at: float,
+    ) -> None: ...
+
+
 class ContextSources(Protocol):
     """Optional materialization sources a Manager may enable."""
 
@@ -53,6 +72,7 @@ class ContextManagerContext(Protocol):
 
     policy: ContextPolicyV1
     candidates: ContextCandidates
+    budget: ContextBudget
     sources: ContextSources
 
     @property

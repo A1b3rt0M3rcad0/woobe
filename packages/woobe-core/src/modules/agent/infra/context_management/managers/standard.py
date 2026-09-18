@@ -24,37 +24,27 @@ class StandardContextManager:
             max_units=policy.session.max_units,
         )
 
-        ctx.candidates.cap(
-            ContextSourceType.CHECKPOINT,
-            policy.checkpoints.max_units,
-        )
-        ctx.candidates.cap(
-            ContextSourceType.MEMORY,
-            policy.memory.max_units,
-        )
-        ctx.candidates.cap(
-            ContextSourceType.KNOWLEDGE,
-            policy.knowledge.max_units,
-        )
-        ctx.candidates.cap(
-            ContextSourceType.TOOL,
-            policy.tools.max_result_units,
-        )
-        ctx.candidates.cap(
-            ContextSourceType.ARTIFACT,
-            policy.artifacts.max_units,
-        )
-        ctx.candidates.cap(
-            ContextSourceType.DELEGATION,
-            policy.delegation.max_units,
-        )
+        ctx.candidates.cap(ContextSourceType.CHECKPOINT, policy.checkpoints.max_units)
+        ctx.candidates.cap(ContextSourceType.MEMORY, policy.memory.max_units)
+        ctx.candidates.cap(ContextSourceType.KNOWLEDGE, policy.knowledge.max_units)
+        ctx.candidates.cap(ContextSourceType.TOOL, policy.tools.max_result_units)
+        ctx.candidates.cap(ContextSourceType.ARTIFACT, policy.artifacts.max_units)
+        ctx.candidates.cap(ContextSourceType.DELEGATION, policy.delegation.max_units)
 
         ctx.candidates.deduplicate(
             strategy=policy.deduplication.strategy,
             sources=policy.deduplication.sources,
         )
-        ctx.candidates.order(
-            strategy=policy.ordering.strategy,
+        ctx.candidates.order(strategy=policy.ordering.strategy)
+
+        ctx.budget.configure(
+            max_input_units=policy.budget.max_input_units,
+            runtime_reserve_units=policy.budget.runtime_reserve_units,
+        )
+        ctx.budget.pressure(
+            moderate_at=policy.pressure.moderate_at,
+            high_at=policy.pressure.high_at,
+            critical_at=policy.pressure.critical_at,
         )
 
         if ctx.has_active_skills:
