@@ -7,8 +7,11 @@ PLAYGROUND_PAGE = FRONTEND / "pages" / "AgentPlaygroundPage.tsx"
 PLAYGROUND_HEADER = (
     FRONTEND / "features" / "playground" / "components" / "PlaygroundHeader.tsx"
 )
-RUNTIME_CONTEXT = (
-    FRONTEND / "features" / "contracts" / "RuntimeContextPanel.tsx"
+CHAT_COMPOSER = (
+    FRONTEND / "features" / "playground" / "components" / "ChatComposer.tsx"
+)
+SESSIONS_PANEL = (
+    FRONTEND / "features" / "playground" / "components" / "SessionsPanel.tsx"
 )
 
 
@@ -16,25 +19,26 @@ def _source(path: Path) -> str:
     return path.read_text(encoding="utf-8")
 
 
-def test_external_context_values_are_opened_from_playground_header() -> None:
+def test_external_context_is_not_a_global_playground_header_action() -> None:
     page = _source(PLAYGROUND_PAGE)
     header = _source(PLAYGROUND_HEADER)
 
-    assert "onExternalContextClick={() => setShowContextModal(true)}" in page
-    assert "externalContextFieldCount={externalContextFieldCount}" in page
     assert "currentEnvironmentRelease?.external_context_contract ?? null" in page
-    assert 'title="External Context"' in header
-    assert 'aria-label="External Context"' in header
-    assert "<Braces" in header
+    assert "onExternalContextClick" not in page
+    assert "onExternalContextClick" not in header
+    assert 'aria-label="External Context"' not in header
 
 
-def test_external_context_values_use_modal_instead_of_inline_chat_panel() -> None:
+def test_external_context_values_follow_run_and_session_scope() -> None:
     page = _source(PLAYGROUND_PAGE)
-    modal = _source(RUNTIME_CONTEXT)
+    composer = _source(CHAT_COMPOSER)
+    sessions = _source(SESSIONS_PANEL)
 
-    chat_index = page.index("<ChatCanvas")
-    modal_index = page.index("<RuntimeContextPanel")
-    assert modal_index > chat_index
-    assert "open={showContextModal}" in page
-    assert "<Dialog" in modal
-    assert 'title="External Context"' in modal
+    assert "contractForScope(activeExternalContextContract, 'run')" in page
+    assert "contractForScope(activeExternalContextContract, 'session')" in page
+    assert "runContextContract={runContextContract}" in page
+    assert "sessionContextContract={sessionContextContract}" in page
+    assert "Run Context" in composer
+    assert "Successful Runs clear them automatically." in composer
+    assert "Session Context" in sessions
+    assert "selected Session" in sessions
