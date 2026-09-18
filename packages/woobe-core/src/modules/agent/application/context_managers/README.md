@@ -1,64 +1,75 @@
 # Context Managers
 
-This package is the explicit extension point for concrete Agent Context Manager strategies.
+Context Managers define **how Woobe assembles the effective context for each Model Invocation**.
 
-The Runtime boundary is **not** implemented here. The boundary is:
+The target programming model mirrors Execution Strategies:
 
 ```text
-modules/agent/application/interfaces/context_assembler.py
+Concrete Context Manager
+        │
+        ▼
+ContextManagerContext
+        │
+        ▼
+Context Manager Runtime
+        │
+        ▼
+ContextAssembler
+        │
+        ▼
+Model Invocation
 ```
 
-Runtime/execution code depends only on `ContextAssembler`. Concrete strategies live in this directory and are selected through `context_assembler_registry.py`.
+Concrete Managers own the context-selection algorithm. Shared runtime code owns classification, budgets, materialization, Context Snapshots, provenance, integrity rules, and provider-facing assembly.
 
-## Add a new built-in Context Manager
+## Stable identities
 
-1. Create one strategy module here, for example `adaptive.py`.
-2. Implement the structural `ContextAssembler` contract:
+Context Managers use stable, unversioned product identities, following the same model as Execution Strategies.
 
-   ```python
-   class AdaptiveContextAssembler:
-       def assemble(
-           self,
-           request: ContextAssemblyRequest,
-       ) -> ContextAssemblyOutput:
-           ...
-   ```
+Examples:
 
-3. Give the strategy a stable versioned identity such as `adaptive:v1`.
-4. Add complete backend-owned `ContextAssemblerDescriptor` metadata in `context_assembler_registry.py`.
-5. Register the concrete strategy in `_register_builtin_context_manager_strategies(...)` in `context_assembler_registry.py`.
-6. Add focused strategy/registry tests. The API and frontend catalog are populated from the Registry; do not hardcode the strategy in the frontend.
+```text
+standard
+adaptive
+long-horizon
+```
 
-## Versioning rules
+Do not publish product identities such as:
 
-- Never change the meaning of an identity already referenced by Agent/Release snapshots. Publish a new version instead (`adaptive:v1` -> `adaptive:v2`).
-- `default` is reserved for the System Default alias. Concrete strategies must use their own identity.
-- `WOOBE_DEFAULT_CONTEXT_MANAGER` points to a concrete registered strategy such as `stdcm:v1`, never `default:v1`.
-- Existing snapshots keep both their selection identity and frozen concrete strategy identity for replay and rollback.
+```text
+stdcm:v1
+stdcm:v2
+adaptive:v3
+```
+
+The implementation of a Manager may evolve while its semantic identity remains stable. Compatibility for historical persisted identities belongs to migration/runtime compatibility code rather than the selectable Manager catalog.
+
+## Standard
+
+`standard` is the canonical general-purpose Context Manager.
+
+Skills support is part of Standard behavior. The previous split between `stdcm:v1` and `stdcm:v2` is being consolidated; there is no separate public "Standard v2" Manager.
+
+## Target developer workflow
+
+A normal new Context Manager should require approximately:
+
+```text
+1. create one Manager file
+2. implement assemble(ctx)
+3. select/cap/order context sources
+4. apply budget behavior
+5. complete the context
+6. register in the resolver
+7. register product metadata
+8. test
+```
+
+Adding one normal Manager should not require modifying Context Manager Runtime internals.
 
 ## Runtime rules
 
-- Do not import a concrete Context Manager from `infra/execution`.
-- Do not add strategy-specific branches to Agent Runtime invocation paths.
-- Keep per-invocation mutable state inside `ContextAssemblyRequest`/local call scope. Runtime may share one manager instance across concurrent Runs.
-- Context Managers decide how context is assembled. They do not own model execution, Tool execution, Run lifecycle, Knowledge storage, or Network orchestration.
-
-## Current built-in strategy
-
-```text
-stdcm:v1 -> StandardContextAssembler
-```
-
-Implementation:
-
-```text
-modules/agent/application/context_managers/standard.py
-```
-
-The Standard strategy currently delegates to the existing deterministic `context_assembly.py` algorithm. Future strategies may use different internal algorithms while preserving the same `ContextAssembler` boundary.
-
-## Standard v2: Skills
-
-`stdcm:v2` is composed by the registry as `StandardSkillsContextAssembler` with a standard assembler dependency. It materializes Run-local Skill catalog, instruction and resource contributions, protects complete procedures from compaction and records package/version provenance. Its activation state belongs to the Run, not the shared manager instance. The system default remains `stdcm:v1`; published v1 identities retain their behavior.
-
-See [Agent Skills](../../../../../../../docs/skills/README.md) for package, API, budget and rollout contracts. Manager catalog metadata declares `supports_skills`; the frontend uses that contract to select compatible strategies.
+- Context Managers decide the assembly algorithm.
+- Managers do not own model execution, Tool execution, Run lifecycle, persistence, Knowledge storage, or Network orchestration.
+- Provider integrity, mandatory context invariants, budget enforcement, snapshots, hashes, and provenance belong to the shared Context Manager Runtime.
+- Runtime/execution code depends on stable Context Manager/ContextAssembler contracts, not concrete Manager implementations.
