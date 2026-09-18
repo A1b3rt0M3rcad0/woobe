@@ -231,6 +231,9 @@ async def create_network_session(
             "title": session.title,
             "status": session.status,
             "last_message_at": session.last_message_at,
+            "external_context_session_values": getattr(
+                session, "external_context_session_values", None
+            ),
             "message_count": 0,
             "trace_count": 0,
             "created_at": session.created_at,
@@ -257,6 +260,9 @@ async def list_network_sessions(network_id: UUID, project_id: UUID, request: Req
                 "title": item.title,
                 "status": item.status,
                 "last_message_at": item.last_message_at,
+                "external_context_session_values": getattr(
+                    item, "external_context_session_values", None
+                ),
                 "created_at": item.created_at,
                 "message_count": message_count_value,
                 "trace_count": trace_count_value,
