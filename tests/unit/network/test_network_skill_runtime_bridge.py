@@ -44,7 +44,7 @@ async def test_network_bridge_preserves_agent_skill_snapshot_override(monkeypatc
         "provider": "openai",
         "model": "test",
         "runtime_config": {
-            "context_assembler": {"name": "stdcm", "version": "v2"},
+            "context_assembler": {"name": "standard"},
             "skills": {
                 "bindings": [
                     {
@@ -154,7 +154,7 @@ async def test_network_executor_forwards_frozen_draft_skill_snapshot_to_agent_in
         "provider": "openai",
         "model": "test",
         "runtime_config": {
-            "context_assembler": {"name": "stdcm", "version": "v2"},
+            "context_assembler": {"name": "standard"},
             "context": {
                 "allowed_sources": [
                     "SYSTEM",

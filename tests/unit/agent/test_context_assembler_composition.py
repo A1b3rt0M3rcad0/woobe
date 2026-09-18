@@ -3,7 +3,9 @@ from __future__ import annotations
 from typing import Any, cast
 from unittest.mock import MagicMock
 
-from modules.agent.application.context_assembler_registry import RegistryContextAssembler
+from modules.agent.infra.context_management.managers.resolver import (
+    ResolvedContextAssembler,
+)
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
     ContextAssemblyOutput,
@@ -20,7 +22,7 @@ from shared.infra.config import Settings
 def _assert_registry_context_assembler(runtime) -> None:
     assert isinstance(
         getattr(runtime, "_context_assembler", None),
-        RegistryContextAssembler,
+        ResolvedContextAssembler,
     )
 
 
@@ -65,14 +67,14 @@ def test_default_composition_builds_snapshot_aware_dispatcher_with_configured_st
         build_dispatcher,
     )
 
-    settings = Settings.model_validate({"default_context_manager": "stdcm:v1"})
+    settings = Settings.model_validate({"default_context_manager": "standard"})
     runtime, _transactions = ask_agent_runtime_factory.build_ask_agent_use_case(
         settings,
         http_executor=MagicMock(),
     )
 
     assert runtime._context_assembler is assembler
-    assert calls == ["stdcm:v1"]
+    assert calls == ["standard"]
 
 
 def test_internal_network_agent_runtime_composition_wires_registry_dispatcher() -> None:
