@@ -9,6 +9,11 @@ import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
 import { HttpRequestBodyEditor } from '@/features/tools/components/HttpRequestBodyEditor'
 import {
+  invalidToolInputBindingTargets,
+  normalizeToolInputBindings,
+  ToolInputBindingsEditor,
+} from '@/features/tools/components/ToolInputBindingsEditor'
+import {
   effectiveHttpHeaders,
   inspectHttpRouteContract,
   inspectHttpToolContract,
@@ -500,6 +505,10 @@ export function ApiFirstToolForm({
     if (!['GET', 'HEAD'].includes(route.method) && route.body.trim()) {
       try { JSON.parse(route.body) } catch { nextErrors.body = 'Request body must be valid JSON.' }
     }
+    const invalidBindings = invalidToolInputBindingTargets(route.bindings)
+    if (invalidBindings.length) {
+      nextErrors.bindings = `Configure the External Context field for: ${invalidBindings.join(', ')}.`
+    }
     const preview = inspectHttpRouteContract(groupConfigPreview, {
       ...route,
       headers: normalizeHeaders(route.headers),
@@ -550,6 +559,7 @@ export function ApiFirstToolForm({
       headers: routeHeaders,
       body: canHaveBody && route.body.trim() ? route.body.trim() : undefined,
       variables: route.variables || {},
+      bindings: normalizeToolInputBindings(route.bindings),
       input_schema: preview.inputSchema,
       output_schema: route.output_schema,
       risk_level: route.risk_level || 'low',
@@ -751,6 +761,11 @@ export function ApiFirstToolForm({
                           <button type="button" onClick={() => editRoute(route)} className="min-w-0 flex-1 text-left">
                             <p className="truncate text-sm font-medium text-white">{route.name}</p>
                             <p className="mt-0.5 truncate font-mono text-[11px] text-muted">{route.path}</p>
+                            {Object.keys(route.bindings || {}).length ? (
+                              <p className="mt-1 font-mono text-[9px] text-primary-light">
+                                {Object.keys(route.bindings || {}).length} context binding{Object.keys(route.bindings || {}).length === 1 ? '' : 's'}
+                              </p>
+                            ) : null}
                           </button>
                           <Button type="button" size="sm" variant="ghost" className="text-red-300" onClick={() => removeRoute(route.id)} aria-label={`Remove ${route.name}`}>
                             <Trash2 className="h-3.5 w-3.5" />
@@ -853,9 +868,22 @@ export function ApiFirstToolForm({
             ) : null}
 
             {routeContract?.parameterNames.length ? (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                <span>Agent inputs</span>
-                {routeContract.parameterNames.map((parameter) => <span key={parameter} className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[10px] text-white">{parameter}</span>)}
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs font-medium text-white">Inputs</p>
+                  <p className="mt-0.5 text-[11px] text-muted">
+                    Choose whether each value is provided by the Agent or resolved from External Context at runtime.
+                  </p>
+                </div>
+                <ToolInputBindingsEditor
+                  schema={routeContract.inputSchema}
+                  bindings={routeEditor.draft.bindings}
+                  onChange={(bindings) => {
+                    updateRouteDraft({ bindings })
+                    setRouteErrors((current) => ({ ...current, bindings: '' }))
+                  }}
+                />
+                <FieldError message={routeErrors.bindings} />
               </div>
             ) : null}
 
