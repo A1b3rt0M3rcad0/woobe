@@ -6,6 +6,7 @@ interface ContractValueFormProps {
   contract: unknown
   values: Record<string, unknown>
   disabled?: boolean
+  density?: 'default' | 'compact'
   onChange: (values: Record<string, unknown>) => void
 }
 
@@ -19,7 +20,7 @@ function inputValue(value: unknown) {
   return typeof value === 'string' || typeof value === 'number' ? String(value) : ''
 }
 
-export function ContractValueForm({ contract, values, disabled = false, onChange }: ContractValueFormProps) {
+export function ContractValueForm({ contract, values, disabled = false, density = 'default', onChange }: ContractValueFormProps) {
   const fields = contractFields(contract)
   const entries = Object.entries(fields)
 
@@ -44,7 +45,12 @@ export function ContractValueForm({ contract, values, disabled = false, onChange
           : {}
         const required = Boolean(field.required) || Object.values(consumers).some((consumer) => Boolean(consumer?.required))
         return (
-          <div key={name} className="grid min-h-control grid-cols-[minmax(110px,0.8fr)_minmax(150px,1.4fr)] items-center gap-ui-sm py-ui-xs">
+          <div
+            key={name}
+            className={density === 'compact'
+              ? 'grid min-w-0 gap-ui-xs py-ui-sm'
+              : 'grid min-h-control grid-cols-[minmax(110px,0.8fr)_minmax(150px,1.4fr)] items-center gap-ui-sm py-ui-xs'}
+          >
             <div className="min-w-0">
               <p className="truncate font-mono text-system-control text-accent-foreground">{name}</p>
               <p className="font-mono text-system-label text-muted-foreground">
