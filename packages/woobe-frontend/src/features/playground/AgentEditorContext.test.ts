@@ -44,7 +44,7 @@ describe('AgentEditorContext session mode', () => {
 })
 
 describe('AgentEditorContext context manager snapshot', () => {
-  it('preserves the explicit strategy identity in the Agent Draft snapshot', () => {
+  it('normalizes an explicit legacy strategy identity in the Agent Draft snapshot', () => {
     const selection = {
       name: 'adaptive',
       version: 'v1',
@@ -60,11 +60,11 @@ describe('AgentEditorContext context manager snapshot', () => {
       },
     })
 
-    expect(state.runtimeConfig.context_assembler).toEqual(selection)
-    expect((canonicalSnapshot(state).runtime_config as Record<string, unknown>).context_assembler).toEqual(selection)
+    expect(state.runtimeConfig.context_assembler).toEqual({ name: 'adaptive' })
+    expect((canonicalSnapshot(state).runtime_config as Record<string, unknown>).context_assembler).toEqual({ name: 'adaptive' })
   })
 
-  it('hydrates the frozen system-default selection and resolved strategy from a release', () => {
+  it('normalizes a frozen legacy Standard selection from a release', () => {
     const current = agentToEditorState(agent)
     const selection = {
       name: 'default',
@@ -83,7 +83,7 @@ describe('AgentEditorContext context manager snapshot', () => {
       },
     }, current)
 
-    expect(state.runtimeConfig.context_assembler).toEqual(selection)
+    expect(state.runtimeConfig.context_assembler).toEqual({ name: 'standard' })
   })
 })
 

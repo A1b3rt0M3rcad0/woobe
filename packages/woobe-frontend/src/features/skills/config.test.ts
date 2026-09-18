@@ -4,7 +4,7 @@ import { enableSkillsContext, installSkill, readSkillFiles, skillsConfig } from 
 import type { ContextAssemblerDescriptor } from '@/features/agents/types'
 import type { SkillSnapshot } from './types'
 
-const manager: ContextAssemblerDescriptor = { name: 'stdcm', version: 'v2', strategy_name: 'stdcm', strategy_version: 'v2', supports_skills: true, display_name: 'Standard v2', description: '', behavior: '', recommended_for: [], capabilities: [], limitations: [], configuration: '', is_default: false, is_system_default_alias: false }
+const manager: ContextAssemblerDescriptor = { name: 'standard', supports_skills: true, display_name: 'Standard Context Manager', description: '', behavior: '', recommended_for: [], capabilities: [], limitations: [], configuration: '', is_default: true }
 const snapshot: SkillSnapshot = { skill_id: 'skill', skill_version_id: 'version-1', project_id: 'project', version: '1.0.0', package_hash: 'hash', package: { name: 'invoice-review', description: 'Review invoices', instructions: 'Check totals', skill_md: 'Check totals', resources: {}, required_tools: [] } }
 
 describe('Agent Skills configuration', () => {
