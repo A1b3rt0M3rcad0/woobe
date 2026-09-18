@@ -45,10 +45,15 @@ def test_chat_surface_insecure_origins_are_opt_in(
     assert enabled_settings.chat_surface_allow_insecure_origins is True
 
 
-def test_default_context_manager_is_loaded_from_environment(
+@pytest.mark.parametrize(
+    "configured",
+    ["standard", "stdcm:v1", "stdcm:v2", "default:v1"],
+)
+def test_default_context_manager_normalizes_to_standard(
+    configured: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setenv("WOOBE_DEFAULT_CONTEXT_MANAGER", "  stdcm:v1  ")
+    monkeypatch.setenv("WOOBE_DEFAULT_CONTEXT_MANAGER", configured)
 
     settings = Settings(
         edition="core",
@@ -56,20 +61,21 @@ def test_default_context_manager_is_loaded_from_environment(
         encryption_key="e" * 16,
     )
 
-    assert settings.default_context_manager == "stdcm:v1"
+    assert settings.default_context_manager == "standard"
 
 
 @pytest.mark.parametrize(
     "value",
     [
-        "default:v1",
-        "stdcm",
+        "",
+        "default",
+        "adaptive:v2",
         "stdcm:",
         ":v1",
         "stdcm:v1:extra",
     ],
 )
-def test_default_context_manager_rejects_invalid_or_alias_values(
+def test_default_context_manager_rejects_invalid_new_identity(
     value: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -77,7 +83,7 @@ def test_default_context_manager_rejects_invalid_or_alias_values(
 
     with pytest.raises(
         ValidationError,
-        match="WOOBE_DEFAULT_CONTEXT_MANAGER must identify a concrete strategy",
+        match="WOOBE_DEFAULT_CONTEXT_MANAGER must identify a concrete unversioned Context Manager",
     ):
         Settings(
             edition="core",

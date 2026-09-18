@@ -4,20 +4,10 @@ import ast
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-AGENT_ROOT = (
-    ROOT
-    / "packages"
-    / "woobe-core"
-    / "src"
-    / "modules"
-    / "agent"
-)
+AGENT_ROOT = ROOT / "packages" / "woobe-core" / "src" / "modules" / "agent"
 AGENT_EXECUTION = AGENT_ROOT / "infra" / "execution"
 AGENT_RUNTIME_FACTORY = (
-    AGENT_ROOT
-    / "composition"
-    / "factories"
-    / "ask_agent_runtime_factory.py"
+    AGENT_ROOT / "composition" / "factories" / "ask_agent_runtime_factory.py"
 )
 ASK_JOB_WORKER = (
     ROOT
@@ -33,13 +23,16 @@ _CONTEXT_ASSEMBLY = AGENT_ROOT / "application" / "context_assembly.py"
 _CONTEXT_ASSEMBLER_CONTRACT = (
     AGENT_ROOT / "application" / "interfaces" / "context_assembler.py"
 )
-_CONTEXT_MANAGERS_ROOT = AGENT_ROOT / "application" / "context_managers"
+_CONTEXT_MANAGERS_ROOT = AGENT_ROOT / "infra" / "context_management" / "managers"
 _CONTEXT_MANAGERS_README = _CONTEXT_MANAGERS_ROOT / "README.md"
-_STANDARD_ASSEMBLER = _CONTEXT_MANAGERS_ROOT / "standard.py"
+_STANDARD_MANAGER = _CONTEXT_MANAGERS_ROOT / "standard.py"
+_MANAGER_RESOLVER = _CONTEXT_MANAGERS_ROOT / "resolver.py"
+_MANAGER_RUNTIME = AGENT_ROOT / "infra" / "context_management" / "manager_runtime"
 _CONTEXT_ASSEMBLER_REGISTRY = (
     AGENT_ROOT / "application" / "context_assembler_registry.py"
 )
-_STANDARD_ASSEMBLER_MODULE = "modules.agent.application.context_managers.standard"
+_STANDARD_MANAGER_MODULE = "modules.agent.infra.context_management.managers.standard"
+_MANAGER_RESOLVER_MODULE = "modules.agent.infra.context_management.managers.resolver"
 _CONTEXT_ASSEMBLER_REGISTRY_MODULE = (
     "modules.agent.application.context_assembler_registry"
 )
@@ -143,91 +136,75 @@ def _context_assembler_configured_names(
 ) -> set[str]:
     names: set[str] = set()
     for node in ast.walk(function):
-        if not isinstance(node, ast.Call):
-            continue
-        if not isinstance(node.func, ast.Attribute):
-            continue
-        if node.func.attr != "configure_context_assembler":
-            continue
-        if isinstance(node.func.value, ast.Name):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "configure_context_assembler"
+            and isinstance(node.func.value, ast.Name)
+        ):
             names.add(node.func.value.id)
     return names
 
 
-def test_context_manager_strategy_partition_is_explicit() -> None:
+def test_context_manager_partition_is_explicit() -> None:
     assert _CONTEXT_MANAGERS_ROOT.is_dir()
     assert _CONTEXT_MANAGERS_README.is_file()
-    assert _STANDARD_ASSEMBLER.is_file()
-    assert not (AGENT_ROOT / "application" / "standard_context_assembler.py").exists()
+    assert _STANDARD_MANAGER.is_file()
+    assert _MANAGER_RESOLVER.is_file()
+    assert _MANAGER_RUNTIME.is_dir()
+
+
+def test_application_catalog_does_not_import_concrete_manager() -> None:
+    imports: list[str] = []
+    for node in ast.walk(_tree(_CONTEXT_ASSEMBLER_REGISTRY)):
+        if isinstance(node, ast.ImportFrom) and node.module == _STANDARD_MANAGER_MODULE:
+            imports.append(str(node.module))
+    assert not imports
+
+
+def test_concrete_manager_uses_sdk_not_outer_assembler_request() -> None:
+    tree = _tree(_STANDARD_MANAGER)
+    forbidden = {
+        "modules.agent.application.interfaces.context_assembler",
+        _LEGACY_ASSEMBLY_MODULE,
+    }
+    violations = [
+        str(node.module)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.module in forbidden
+    ]
+    assert not violations
+
+
+def test_legacy_assemble_context_is_owned_by_manager_runtime() -> None:
+    consumers: list[str] = []
+    for path in AGENT_ROOT.rglob("*.py"):
+        for node in ast.walk(_tree(path)):
+            if (
+                isinstance(node, ast.ImportFrom)
+                and node.module == _LEGACY_ASSEMBLY_MODULE
+                and any(alias.name == "assemble_context" for alias in node.names)
+            ):
+                consumers.append(path.relative_to(ROOT).as_posix())
+
+    assert consumers == [
+        "packages/woobe-core/src/modules/agent/infra/context_management/manager_runtime/runner.py"
+    ]
 
 
 def test_agent_execution_depends_only_on_context_assembler_contract() -> None:
     violations: list[str] = []
-
     forbidden_modules = {
-        _STANDARD_ASSEMBLER_MODULE,
+        _STANDARD_MANAGER_MODULE,
+        _MANAGER_RESOLVER_MODULE,
         _CONTEXT_ASSEMBLER_REGISTRY_MODULE,
     }
     for path in AGENT_EXECUTION.rglob("*.py"):
         for node in ast.walk(_tree(path)):
-            if isinstance(node, ast.ImportFrom):
-                if node.module in forbidden_modules:
-                    violations.append(
-                        f"{path.relative_to(ROOT).as_posix()} imports {node.module}"
-                    )
-            elif isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name in forbidden_modules:
-                        violations.append(
-                            f"{path.relative_to(ROOT).as_posix()} imports {alias.name}"
-                        )
-
-    assert not violations, "\n".join(violations)
-
-
-def test_standard_context_assembler_is_composed_only_by_application_registry() -> None:
-    violations: list[str] = []
-
-    for path in AGENT_ROOT.rglob("*.py"):
-        if path in {_STANDARD_ASSEMBLER, _CONTEXT_ASSEMBLER_REGISTRY}:
-            continue
-        for node in ast.walk(_tree(path)):
-            if isinstance(node, ast.ImportFrom):
-                if node.module == _STANDARD_ASSEMBLER_MODULE:
-                    violations.append(
-                        f"{path.relative_to(ROOT).as_posix()} imports StandardContextAssembler"
-                    )
-            elif isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name == _STANDARD_ASSEMBLER_MODULE:
-                        violations.append(
-                            f"{path.relative_to(ROOT).as_posix()} imports StandardContextAssembler"
-                        )
-
-    assert not violations, "\n".join(violations)
-
-
-def test_legacy_assemble_context_is_only_consumed_by_standard_adapter() -> None:
-    violations: list[str] = []
-
-    for path in AGENT_ROOT.rglob("*.py"):
-        if path == _STANDARD_ASSEMBLER:
-            continue
-        for node in ast.walk(_tree(path)):
-            if isinstance(node, ast.ImportFrom):
-                if node.module == _LEGACY_ASSEMBLY_MODULE and any(
-                    alias.name == "assemble_context" for alias in node.names
-                ):
-                    violations.append(
-                        f"{path.relative_to(ROOT).as_posix()} imports assemble_context directly"
-                    )
-            elif isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name == _LEGACY_ASSEMBLY_MODULE:
-                        violations.append(
-                            f"{path.relative_to(ROOT).as_posix()} imports context_assembly module directly"
-                        )
-
+            if isinstance(node, ast.ImportFrom) and node.module in forbidden_modules:
+                violations.append(
+                    f"{path.relative_to(ROOT).as_posix()} imports {node.module}"
+                )
     assert not violations, "\n".join(violations)
 
 
@@ -235,7 +212,6 @@ def test_context_assembly_runtime_contract_covers_every_runtime_state_read() -> 
     required = _runtime_context_reads(_tree(_CONTEXT_ASSEMBLY))
     declared = _runtime_context_contract_fields(_tree(_CONTEXT_ASSEMBLER_CONTRACT))
     missing = sorted(required - declared)
-
     assert not missing, (
         "ContextAssemblyRuntimeContext is missing fields read by context_assembly.py: "
         + ", ".join(missing)
@@ -244,10 +220,8 @@ def test_context_assembly_runtime_contract_covers_every_runtime_state_read() -> 
 
 def test_every_model_invocation_propagates_context_assembler_explicitly() -> None:
     violations: list[str] = []
-
     for path in AGENT_EXECUTION.rglob("*.py"):
-        tree = _tree(path)
-        for node in ast.walk(tree):
+        for node in ast.walk(_tree(path)):
             if not isinstance(node, ast.Call):
                 continue
             name = _call_name(node)
@@ -260,17 +234,14 @@ def test_every_model_invocation_propagates_context_assembler_explicitly() -> Non
                 continue
             if not _has_keyword(node, "context_assembler"):
                 violations.append(
-                    f"{path.relative_to(ROOT).as_posix()} calls {name}(...) "
-                    "without context_assembler"
+                    f"{path.relative_to(ROOT).as_posix()} calls {name}(...) without context_assembler"
                 )
-
     assert not violations, "\n".join(violations)
 
 
 def test_background_worker_gets_runtime_dispatcher_only_from_public_boundary() -> None:
     boundary_names: set[str] = set()
-    direct_standard_imports: list[str] = []
-    direct_registry_imports: list[str] = []
+    direct_resolver_imports: list[str] = []
 
     for node in ast.walk(_tree(ASK_JOB_WORKER)):
         if not isinstance(node, ast.ImportFrom):
@@ -278,23 +249,11 @@ def test_background_worker_gets_runtime_dispatcher_only_from_public_boundary() -
         names = {alias.name for alias in node.names}
         if node.module == _BACKGROUND_BOUNDARY_MODULE:
             boundary_names.update(names)
-        if "StandardContextAssembler" in names:
-            direct_standard_imports.append(str(node.module))
-        if node.module == _CONTEXT_ASSEMBLER_REGISTRY_MODULE:
-            direct_registry_imports.append(str(node.module))
+        if node.module == _MANAGER_RESOLVER_MODULE:
+            direct_resolver_imports.append(str(node.module))
 
-    assert "build_runtime_context_assembler" in boundary_names, (
-        "AskJobWorker must obtain the snapshot-aware ContextAssembler through "
-        "modules.agent.background_boundary"
-    )
-    assert not direct_standard_imports, (
-        "AskJobWorker must not import StandardContextAssembler directly: "
-        + ", ".join(direct_standard_imports)
-    )
-    assert not direct_registry_imports, (
-        "AskJobWorker must not bypass Agent background boundary for the registry: "
-        + ", ".join(direct_registry_imports)
-    )
+    assert "build_runtime_context_assembler" in boundary_names
+    assert not direct_resolver_imports
 
 
 def test_production_runtime_composition_configures_context_assembler_explicitly() -> None:
@@ -311,15 +270,13 @@ def test_production_runtime_composition_configures_context_assembler_explicitly(
         ),
     ]
     violations: list[str] = []
-
     for path, function_name, constructor_name in cases:
         function = _find_function(_tree(path), function_name)
         constructed = _assigned_constructor_names(function, constructor_name)
         configured = _context_assembler_configured_names(function)
         if not constructed:
             violations.append(
-                f"{path.relative_to(ROOT).as_posix()} no longer constructs "
-                f"{constructor_name} in {function_name}"
+                f"{path.relative_to(ROOT).as_posix()} no longer constructs {constructor_name}"
             )
             continue
         for variable_name in sorted(constructed - configured):
@@ -327,5 +284,4 @@ def test_production_runtime_composition_configures_context_assembler_explicitly(
                 f"{path.relative_to(ROOT).as_posix()} constructs {constructor_name} "
                 f"as {variable_name} without configure_context_assembler(...)"
             )
-
     assert not violations, "\n".join(violations)
