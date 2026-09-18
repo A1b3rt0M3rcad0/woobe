@@ -24,7 +24,7 @@ export function RuntimeContextPanel({
   saving = false,
   onSave,
 }: RuntimeContextPanelProps) {
-  const fields = contractFields(contract)
+  const fields = useMemo(() => contractFields(contract), [contract])
   const fieldNames = useMemo(() => new Set(Object.keys(fields)), [fields])
   const [values, setValues] = useState<Record<string, unknown>>({})
 
