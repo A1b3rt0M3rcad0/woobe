@@ -1,6 +1,9 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useMemo, useRef, useState } from 'react'
 import { Button } from '@woobe/ui'
-import { Loader2, Paperclip, Send, Square, Wrench } from 'lucide-react'
+import { Braces, ChevronDown, ChevronRight, Loader2, Paperclip, Send, Square, Wrench } from 'lucide-react'
+
+import { ContractValueForm } from '@/features/contracts/ContractValueForm'
+import { contractFields } from '@/features/contracts/contractFields'
 
 interface ChatComposerProps {
   isSending: boolean
@@ -16,6 +19,9 @@ interface ChatComposerProps {
   statusText?: string
   preparingText?: string
   density?: 'default' | 'compact'
+  runContextContract?: unknown
+  runContextValues?: Record<string, unknown>
+  onRunContextValuesChange?: (values: Record<string, unknown>) => void
 }
 
 export function ChatComposer({
@@ -32,12 +38,23 @@ export function ChatComposer({
   statusText,
   preparingText = 'Preparing...',
   density = 'default',
+  runContextContract,
+  runContextValues = {},
+  onRunContextValuesChange,
 }: ChatComposerProps) {
   const [internalInput, setInternalInput] = useState('')
+  const [runContextOpen, setRunContextOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const input = value ?? internalInput
   const blocked = isSending || isPreparing || runtimeBlocked
   const compact = density === 'compact'
+  const runFields = useMemo(() => contractFields(runContextContract), [runContextContract])
+  const runFieldEntries = Object.entries(runFields)
+  const missingRequiredRunFields = runFieldEntries.filter(([name, field]) => {
+    if (!field.required) return false
+    const fieldValue = runContextValues[name]
+    return fieldValue === undefined || fieldValue === null || fieldValue === ''
+  }).length
 
   const setInput = useCallback((next: string) => {
     if (value === undefined) setInternalInput(next)
@@ -77,6 +94,47 @@ export function ChatComposer({
 
   return (
     <div className={compact ? 'min-w-0 border-t border-border bg-surface/[0.78] p-ui-sm' : 'min-w-0 border-t border-border bg-surface/[0.78] p-ui-md'}>
+      {runFieldEntries.length > 0 ? (
+        <div className="mb-ui-xs overflow-hidden rounded-control border border-border/80 bg-background/30">
+          <button
+            type="button"
+            onClick={() => setRunContextOpen((current) => !current)}
+            className="flex min-h-control w-full items-center gap-ui-xs px-ui-sm text-left transition-colors hover:bg-control/35"
+            aria-expanded={runContextOpen}
+          >
+            {runContextOpen
+              ? <ChevronDown className="h-icon-sm w-icon-sm text-muted-foreground" />
+              : <ChevronRight className="h-icon-sm w-icon-sm text-muted-foreground" />}
+            <Braces className="h-icon-sm w-icon-sm text-primary-light" />
+            <span className="font-mono text-system-control font-medium text-slate-100">Run Context</span>
+            <span className="font-sans text-product-caption text-muted-foreground">
+              {runFieldEntries.length} field{runFieldEntries.length === 1 ? '' : 's'}
+            </span>
+            {missingRequiredRunFields > 0 ? (
+              <span className="ml-auto rounded-technical border border-amber-400/25 bg-amber-400/[0.06] px-ui-xs font-mono text-system-meta text-amber-300">
+                {missingRequiredRunFields} required missing
+              </span>
+            ) : (
+              <span className="ml-auto font-mono text-system-meta text-muted-foreground">per execution</span>
+            )}
+          </button>
+          {runContextOpen ? (
+            <div className="border-t border-border/70 px-ui-sm pb-ui-sm">
+              <p className="py-ui-xs font-sans text-product-caption text-muted-foreground">
+                These values are attached only to the next Agent Run. Successful Runs clear them automatically.
+              </p>
+              <ContractValueForm
+                contract={runContextContract}
+                values={runContextValues}
+                disabled={blocked}
+                density="compact"
+                onChange={onRunContextValuesChange ?? (() => undefined)}
+              />
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className="min-w-0 max-w-full rounded-container border border-border bg-control/40 transition-colors focus-within:border-primary/45 focus-within:ring-1 focus-within:ring-primary/15">
         <textarea
           ref={textareaRef}
@@ -135,11 +193,6 @@ export function ChatComposer({
             )}
           </div>
         </div>
-        {compact && resolvedStatus ? (
-          <div className="truncate border-t border-border/45 px-ui-sm py-ui-xs font-mono text-system-micro text-muted-foreground/80" title={resolvedStatus}>
-            {resolvedStatus}
-          </div>
-        ) : null}
       </div>
     </div>
   )
