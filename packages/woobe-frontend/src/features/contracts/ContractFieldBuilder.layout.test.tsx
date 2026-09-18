@@ -23,7 +23,7 @@ describe('ContractFieldBuilder responsive layout', () => {
     expect(markup).not.toContain('overflow-x')
   })
 
-  it('keeps External Context fields as dense collapsed rows', () => {
+  it('uses the same compact row grammar for External Context with its own contract controls', () => {
     const markup = renderToStaticMarkup(
       <ContractFieldBuilder
         kind="external"
@@ -39,17 +39,19 @@ describe('ContractFieldBuilder responsive layout', () => {
       />,
     )
 
-    expect(markup).toContain('grid-cols-[minmax(88px,1fr)_72px_72px_34px_38px_28px_28px]')
+    expect(markup).toContain('grid-cols-[minmax(88px,1fr)_78px_78px_42px_46px_28px_28px]')
+    expect(markup).toContain('Name')
+    expect(markup).toContain('Type')
+    expect(markup).toContain('Scope')
     expect(markup).toContain('Req.')
     expect(markup).toContain('Model')
-    expect(markup).toContain('1 field')
-    expect(markup).toContain('aria-expanded="false"')
+    expect(markup).toContain('aria-label="Edit customer_id description"')
     expect(markup).not.toContain('<textarea')
     expect(markup).not.toContain('Customer identity for the current conversation')
     expect(markup).not.toContain('overflow-x')
   })
 
-  it('does not multiply vertical detail panels when the contract has many fields', () => {
+  it('keeps ten External Context fields at one compact row per field', () => {
     const rows = Array.from({ length: 10 }, (_, index) => ({
       name: `field_${index + 1}`,
       type: 'string' as const,
@@ -63,9 +65,9 @@ describe('ContractFieldBuilder responsive layout', () => {
       <ContractFieldBuilder kind="external" rows={rows} onChange={vi.fn()} />,
     )
 
-    expect(markup).toContain('10 fields')
-    expect(markup.match(/aria-expanded="false"/g)).toHaveLength(10)
+    expect(markup.match(/aria-label="Edit field_\d+ description"/g)).toHaveLength(10)
     expect(markup).not.toContain('<textarea')
     expect(markup).not.toContain('Description 10')
+    expect(markup).not.toContain('aria-expanded')
   })
 })
