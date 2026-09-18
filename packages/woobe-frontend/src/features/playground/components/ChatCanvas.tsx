@@ -46,9 +46,9 @@ interface ChatCanvasProps {
   preparingText?: string
   enableFirstRunSuccess?: boolean
   density?: 'default' | 'compact'
-  runContextContract?: unknown
-  runContextValues?: Record<string, unknown>
-  onRunContextValuesChange?: (values: Record<string, unknown>) => void
+  externalContextContract?: unknown
+  externalContextValues?: Record<string, unknown>
+  onExternalContextValuesChange?: (values: Record<string, unknown>) => void
 }
 
 const defaultSuggestions = [
@@ -133,9 +133,9 @@ export function ChatCanvas({
   preparingText,
   enableFirstRunSuccess = true,
   density = 'default',
-  runContextContract,
-  runContextValues,
-  onRunContextValuesChange,
+  externalContextContract,
+  externalContextValues,
+  onExternalContextValuesChange,
 }: ChatCanvasProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesContentRef = useRef<HTMLDivElement>(null)
@@ -317,9 +317,9 @@ export function ChatCanvas({
         statusText={composerStatusText}
         preparingText={preparingText}
         density={density}
-        runContextContract={runContextContract}
-        runContextValues={runContextValues}
-        onRunContextValuesChange={onRunContextValuesChange}
+        externalContextContract={externalContextContract}
+        externalContextValues={externalContextValues}
+        onExternalContextValuesChange={onExternalContextValuesChange}
       />
     </section>
   )
