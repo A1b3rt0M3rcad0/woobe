@@ -1,0 +1,59 @@
+import { renderToStaticMarkup } from 'react-dom/server'
+import { describe, expect, it, vi } from 'vitest'
+
+import {
+  invalidToolInputBindingTargets,
+  normalizeToolInputBindings,
+  ToolInputBindingsEditor,
+  toolInputDescriptors,
+} from './ToolInputBindingsEditor'
+
+describe('ToolInputBindingsEditor', () => {
+  const schema = {
+    type: 'object',
+    properties: {
+      customer_id: { type: 'string' },
+      limit: { type: 'integer' },
+    },
+    required: ['customer_id'],
+  }
+
+  it('renders model and External Context sources in one compact input contract', () => {
+    const html = renderToStaticMarkup(
+      <ToolInputBindingsEditor
+        schema={schema}
+        bindings={{
+          customer_id: {
+            source: { kind: 'context', field: 'customer_id' },
+          },
+        }}
+        onChange={vi.fn()}
+      />,
+    )
+
+    expect(html).toContain('customer_id')
+    expect(html).toContain('limit')
+    expect(html).toContain('External Context')
+    expect(html).toContain('Model-provided')
+    expect(html).toContain('customer_id External Context field')
+  })
+
+  it('derives required/type metadata from the input schema', () => {
+    expect(toolInputDescriptors(schema)).toEqual([
+      { name: 'customer_id', type: 'string', required: true },
+      { name: 'limit', type: 'integer', required: false },
+    ])
+  })
+
+  it('normalizes fields for persistence and detects incomplete bindings', () => {
+    expect(normalizeToolInputBindings({
+      customer_id: { source: { kind: 'context', field: ' customer_id ' } },
+    })).toEqual({
+      customer_id: { source: { kind: 'context', field: 'customer_id' } },
+    })
+
+    expect(invalidToolInputBindingTargets({
+      customer_id: { source: { kind: 'context', field: '   ' } },
+    })).toEqual(['customer_id'])
+  })
+})
