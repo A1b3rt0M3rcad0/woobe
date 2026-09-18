@@ -1,16 +1,11 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, replace
 
-from modules.agent.application.context_managers.standard import StandardContextAssembler
 from modules.agent.application.interfaces.context_assembler import (
     DEFAULT_CONTEXT_MANAGER,
-    ContextAssembler,
     ContextAssemblerSelection,
-    ContextAssemblyOutput,
-    ContextAssemblyRequest,
     context_assembler_selection_from_runtime_config,
     normalize_context_manager_name,
 )
@@ -18,12 +13,11 @@ from shared.contracts.errors import ValidationError
 
 
 DEFAULT_CONTEXT_MANAGER_SETTING = DEFAULT_CONTEXT_MANAGER
-ContextAssemblerFactory = Callable[[], ContextAssembler]
 
 
 @dataclass(frozen=True, slots=True)
 class ContextAssemblerDescriptor:
-    """Backend-owned product metadata for one selectable Context Manager."""
+    """Backend-owned product contract for one selectable Context Manager."""
 
     name: str
     display_name: str
@@ -48,16 +42,18 @@ class ContextAssemblerDescriptor:
         for field_name, value in required_text.items():
             if not value.strip():
                 raise ValueError(
-                    f"Context assembler descriptor {field_name} must not be empty"
+                    f"Context Manager descriptor {field_name} must not be empty"
                 )
-        for field_name, values in {
+
+        required_lists = {
             "recommended_for": self.recommended_for,
             "capabilities": self.capabilities,
             "limitations": self.limitations,
-        }.items():
+        }
+        for field_name, values in required_lists.items():
             if not values or any(not item.strip() for item in values):
                 raise ValueError(
-                    f"Context assembler descriptor {field_name} must contain non-empty values"
+                    f"Context Manager descriptor {field_name} must contain non-empty values"
                 )
 
     def as_dict(self) -> dict[str, object]:
@@ -87,76 +83,53 @@ class UnknownContextAssemblerError(ContextAssemblerRegistryError):
     pass
 
 
-class InvalidContextAssemblerFactoryError(TypeError):
-    pass
-
-
 class InvalidDefaultContextManagerError(ContextAssemblerRegistryError):
     pass
 
 
 class ContextAssemblerRegistry:
-    """Explicit in-process catalog of stable unversioned Context Managers."""
+    """Backend-owned product catalog; runtime factories live in infrastructure."""
 
-    __slots__ = ("_entries", "_default_name")
+    __slots__ = ("_descriptors",)
 
-    def __init__(self, *, default_name: str) -> None:
-        self._entries: dict[
-            str,
-            tuple[ContextAssemblerFactory, ContextAssemblerDescriptor],
-        ] = {}
-        self._default_name = normalize_context_manager_name(default_name)
+    def __init__(self) -> None:
+        self._descriptors: dict[str, ContextAssemblerDescriptor] = {}
 
-    def register(
-        self,
-        name: str,
-        factory: ContextAssemblerFactory,
-        *,
-        descriptor: ContextAssemblerDescriptor,
-    ) -> None:
-        normalized = normalize_context_manager_name(name)
-        if normalized in self._entries:
+    def register(self, descriptor: ContextAssemblerDescriptor) -> None:
+        if descriptor.name in self._descriptors:
             raise DuplicateContextAssemblerError(
-                f"Context Manager already registered: {normalized}"
+                f"Context Manager already registered: {descriptor.name}"
             )
-        if descriptor.name != normalized:
-            raise ValueError(
-                "Context Manager descriptor name must match registration name"
-            )
-        self._entries[normalized] = (
-            factory,
-            replace(descriptor, is_default=normalized == self._default_name),
-        )
+        self._descriptors[descriptor.name] = descriptor
 
     def contains(self, name: str) -> bool:
-        return normalize_context_manager_name(name) in self._entries
+        return normalize_context_manager_name(name) in self._descriptors
 
-    def current_default(self) -> ContextAssemblerDescriptor:
-        entry = self._entries.get(self._default_name)
-        if entry is None:
-            raise InvalidDefaultContextManagerError(
-                f"Configured default Context Manager is not registered: {self._default_name}"
-            )
-        return entry[1]
-
-    def create(self, name: str) -> ContextAssembler:
+    def get(self, name: str) -> ContextAssemblerDescriptor:
         normalized = normalize_context_manager_name(name)
-        entry = self._entries.get(normalized)
-        if entry is None:
+        descriptor = self._descriptors.get(normalized)
+        if descriptor is None:
             raise UnknownContextAssemblerError(
                 f"Unknown Context Manager: {normalized}"
             )
-        assembler = entry[0]()
-        if not isinstance(assembler, ContextAssembler):
-            raise InvalidContextAssemblerFactoryError(
-                f"Context Manager factory for {normalized} returned an incompatible object"
+        return descriptor
+
+    def current_default(self) -> ContextAssemblerDescriptor:
+        defaults = [
+            descriptor
+            for descriptor in self._descriptors.values()
+            if descriptor.is_default
+        ]
+        if len(defaults) != 1:
+            raise InvalidDefaultContextManagerError(
+                "Context Manager registry must contain exactly one default"
             )
-        return assembler
+        return defaults[0]
 
     def list_descriptors(self) -> tuple[ContextAssemblerDescriptor, ...]:
         return tuple(
             sorted(
-                (entry[1] for entry in self._entries.values()),
+                self._descriptors.values(),
                 key=lambda descriptor: (
                     0 if descriptor.is_default else 1,
                     descriptor.display_name.lower(),
@@ -173,9 +146,9 @@ _STANDARD_DESCRIPTOR = ContextAssemblerDescriptor(
         "Balanced deterministic context management for general-purpose Agent execution."
     ),
     behavior=(
-        "Builds each Model Invocation context deterministically from the Agent's available "
-        "context sources, applies Context Policy budgets, priorities, pressure handling, "
-        "ordering and provenance capture, and materializes Run-local Skills when enabled."
+        "Builds each Model Invocation context deterministically from available context "
+        "sources, applying Context Policy budgets, priorities, pressure handling, "
+        "ordering, provenance capture, and Run-local Skills materialization."
     ),
     recommended_for=(
         "General-purpose Agents that need predictable context behavior.",
@@ -197,62 +170,35 @@ _STANDARD_DESCRIPTOR = ContextAssemblerDescriptor(
 )
 
 
-def _configured_default_strategy(value: str) -> str:
-    raw_name = value.split(":", 1)[0]
-    return normalize_context_manager_name(raw_name)
-
-
-def _register_builtin_context_managers(registry: ContextAssemblerRegistry) -> None:
-    registry.register(
-        DEFAULT_CONTEXT_MANAGER,
-        StandardContextAssembler,
-        descriptor=_STANDARD_DESCRIPTOR,
-    )
+def _configured_default_name(value: str) -> str:
+    return normalize_context_manager_name(value.split(":", 1)[0])
 
 
 def build_context_assembler_registry(
     default_context_manager: str = DEFAULT_CONTEXT_MANAGER_SETTING,
 ) -> ContextAssemblerRegistry:
-    registry = ContextAssemblerRegistry(
-        default_name=_configured_default_strategy(default_context_manager)
+    """Build product metadata without importing concrete infrastructure Managers."""
+
+    default_name = _configured_default_name(default_context_manager)
+    registry = ContextAssemblerRegistry()
+    registry.register(
+        replace(
+            _STANDARD_DESCRIPTOR,
+            is_default=_STANDARD_DESCRIPTOR.name == default_name,
+        )
     )
-    _register_builtin_context_managers(registry)
-    registry.current_default()
+    default = registry.current_default()
+    if default.name != default_name:
+        raise InvalidDefaultContextManagerError(
+            f"Configured default Context Manager is not registered: {default_name}"
+        )
     return registry
 
 
-def build_context_assembler(
-    name: str,
-    default_context_manager: str = DEFAULT_CONTEXT_MANAGER_SETTING,
-) -> ContextAssembler:
-    return build_context_assembler_registry(default_context_manager).create(name)
-
-
-class RegistryContextAssembler:
-    """Concurrency-safe dispatcher for the Manager frozen in each Agent snapshot."""
-
-    __slots__ = ("_registry",)
-
-    def __init__(self, registry: ContextAssemblerRegistry) -> None:
-        self._registry = registry
-
-    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
-        raw_name = getattr(request.runtime_context, "context_assembler_name", None)
-        return self._registry.create(
-            normalize_context_manager_name(raw_name or DEFAULT_CONTEXT_MANAGER)
-        ).assemble(request)
-
-
-def build_runtime_context_assembler(
-    default_context_manager: str = DEFAULT_CONTEXT_MANAGER_SETTING,
-) -> ContextAssembler:
-    return RegistryContextAssembler(
-        build_context_assembler_registry(default_context_manager)
-    )
-
-
-def _has_context_assembler_selection(value: object) -> bool:
-    return isinstance(value, dict) and value.get("context_assembler") is not None
+SUPPORTED_CONTEXT_MANAGERS = frozenset(
+    descriptor.name
+    for descriptor in build_context_assembler_registry().list_descriptors()
+)
 
 
 def validate_context_assembler_runtime_config(
@@ -263,7 +209,11 @@ def validate_context_assembler_runtime_config(
 ) -> ContextAssemblerSelection:
     registry = build_context_assembler_registry(default_context_manager)
 
-    if use_current_default_if_missing and not _has_context_assembler_selection(value):
+    has_selection = (
+        isinstance(value, dict)
+        and value.get("context_assembler") is not None
+    )
+    if use_current_default_if_missing and not has_selection:
         return ContextAssemblerSelection(registry.current_default().name)
 
     try:
@@ -284,6 +234,7 @@ def canonicalize_context_assembler_runtime_config(
 ) -> dict:
     if value is not None and not isinstance(value, dict):
         raise ValidationError("Agent runtime_config must be an object")
+
     runtime_config = deepcopy(value) if isinstance(value, dict) else {}
     selection = validate_context_assembler_runtime_config(
         runtime_config,
@@ -303,3 +254,17 @@ def list_context_assemblers(
             default_context_manager
         ).list_descriptors()
     ]
+
+
+__all__ = [
+    "DEFAULT_CONTEXT_MANAGER_SETTING",
+    "SUPPORTED_CONTEXT_MANAGERS",
+    "ContextAssemblerDescriptor",
+    "ContextAssemblerRegistry",
+    "InvalidDefaultContextManagerError",
+    "UnknownContextAssemblerError",
+    "build_context_assembler_registry",
+    "canonicalize_context_assembler_runtime_config",
+    "list_context_assemblers",
+    "validate_context_assembler_runtime_config",
+]
