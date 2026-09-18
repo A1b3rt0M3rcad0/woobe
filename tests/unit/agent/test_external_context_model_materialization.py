@@ -3,8 +3,9 @@ from __future__ import annotations
 from types import SimpleNamespace
 from uuid import uuid4
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
+from modules.agent.application.context_assembler_registry import build_runtime_context_assembler
 from modules.agent.application.context_assembly import assemble_context
 from modules.agent.application.context_policy import ContextPolicyV1
 from modules.agent.application.dtos.runtime_dtos import AskInput
@@ -13,6 +14,7 @@ from modules.agent.application.interfaces.execution_context import (
     new_execution_context,
 )
 from modules.agent.domain.external_context_contract import compose_external_context_contracts
+from modules.agent.infra.execution.instrumented_execution_runner import run_instrumented_execution
 from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.network.domain.external_context_contract import (
     project_effective_external_context,
@@ -219,3 +221,99 @@ def test_network_projection_resolver_and_context_manager_materialize_exposed_fie
         )
     finally:
         current_execution.reset(token)
+
+
+class _CapturingModel:
+    def __init__(self) -> None:
+        self.received: list = []
+
+    async def ainvoke(self, messages, **_kwargs):
+        self.received = list(messages)
+        return AIMessage(content="Alberto")
+
+
+class _CapturingFactory:
+    def __init__(self, model: _CapturingModel) -> None:
+        self.model = model
+
+    def create_chat_model(self, **_kwargs):
+        return self.model
+
+
+async def _unused_tool(*_args, **_kwargs):
+    raise AssertionError("No Tool should execute in this regression test")
+
+
+def _runtime_agent_config() -> dict:
+    return {
+        "context": {
+            "allowed_sources": [
+                "SYSTEM",
+                "USER_INPUT",
+                "SESSION",
+                "TOOL",
+                "SKILL",
+            ]
+        }
+    }
+
+
+def _materialized_model_text(messages: list) -> str:
+    return "\n".join(str(message.content) for message in messages)
+
+
+import pytest
+
+
+@pytest.mark.asyncio
+async def test_actual_model_invocation_receives_contract_exposed_external_context() -> None:
+    context = new_execution_context()
+    context.project_id = uuid4()
+    context.agent_id = uuid4()
+    context.run_id = uuid4()
+    context.network_execution_id = uuid4()
+    context.network_invocation_id = uuid4()
+    context.network_node_id = uuid4()
+    context.external_context_contract = _contract()
+    context.external_context_snapshot = {"age": 18, "name": "Alberto"}
+    context.model_external_context = {"name": "Alberto"}
+
+    model = _CapturingModel()
+    factory = _CapturingFactory(model)
+    agent = SimpleNamespace(
+        project_id=context.project_id,
+        provider="custom",
+        model="test-model",
+        temperature=0.2,
+        max_output_tokens=1000,
+        settings={"runtime_config": _runtime_agent_config()},
+    )
+
+    token = current_execution.set(context)
+    try:
+        await run_instrumented_execution(
+            llm_factory=factory,
+            execute_single_tool=_unused_tool,
+            clean_json_answer=lambda value: value,
+            agent=agent,
+            api_key="fixture",
+            base_url=None,
+            response_format={},
+            json_enabled=False,
+            has_tools=False,
+            agent_tools=[],
+            tool_name_to_id={},
+            messages=[
+                SystemMessage(content="You are a support Agent."),
+                HumanMessage(content="Qual é meu nome?"),
+            ],
+            context_assembler=build_runtime_context_assembler(),
+        )
+    finally:
+        current_execution.reset(token)
+
+    materialized = _materialized_model_text(model.received)
+    assert "External Context supplied by the runtime" in materialized
+    assert '"name"' in materialized
+    assert '"Alberto"' in materialized
+    assert '"age"' not in materialized
