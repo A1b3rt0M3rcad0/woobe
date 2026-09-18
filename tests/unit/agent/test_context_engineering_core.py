@@ -486,3 +486,43 @@ def test_reported_provider_usage_replaces_estimate_for_pressure_measurement():
     assert enriched.manifest["metrics"]["headroom_units"] == 50
     assert enriched.manifest["metrics"]["headroom_ratio"] == pytest.approx(50 / 900)
     assert enriched.manifest["health"]["status"] == "critical"
+
+
+def test_exposed_external_context_is_materialized_as_runtime_context() -> None:
+    runtime = _runtime_context(
+        external_context_contract={
+            "name": {
+                "schema": {"type": "string"},
+                "required": True,
+                "scope": "run",
+                "model": {"expose": True},
+                "description": "Preferred name of the current user",
+            }
+        },
+        model_external_context={"name": "Alberto"},
+    )
+    result = _assemble(
+        [
+            SystemMessage(content="system"),
+            HumanMessage(content="sabe meu nome?"),
+        ],
+        runtime_context=runtime,
+    )
+
+    runtime_message = next(
+        message
+        for message in result.messages
+        if message.additional_kwargs.get("woobe_context", {}).get("source_type")
+        == "RUNTIME"
+    )
+    assert "Alberto" in runtime_message.content
+    assert "Preferred name of the current user" in runtime_message.content
+
+    contribution = next(
+        item
+        for item in result.snapshot.contributions
+        if item.source_type == ContextSourceType.RUNTIME
+    )
+    assert contribution.source_ref == "external_context"
+    assert contribution.metadata["selection_method"] == "runtime_external_context"
+    assert result.snapshot.manifest["sources"]["RUNTIME"]["count"] == 1

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
 from modules.agent.application.dtos.runtime_dtos import AskInput
@@ -99,6 +100,18 @@ class SessionContinuityReleaseRuntimeResolver(CanonicalExecutionSnapshotRuntimeR
         source = metadata.get("source")
         if isinstance(source, str) and source:
             next_data["source"] = source
+
+        resolved_context = self._resolve_external_context(
+            agent=agent,
+            input_dto=input_dto,
+            session_data=next_data,
+        )
+        if resolved_context.session_values:
+            next_data["external_context_session_values"] = deepcopy(
+                resolved_context.session_values
+            )
+        else:
+            next_data.pop("external_context_session_values", None)
 
         changed = next_data != (getattr(session, "data", None) or {})
         if not existing:
