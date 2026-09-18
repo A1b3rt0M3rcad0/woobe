@@ -35,6 +35,29 @@ describe('ChatComposer runtime state', () => {
     expect(html).not.toContain('aria-label="Stopping generation"')
   })
 
+  it('surfaces Run-scoped External Context beside the message composer', () => {
+    const html = renderToStaticMarkup(
+      <ChatComposer
+        isSending={false}
+        onSend={vi.fn()}
+        onStop={vi.fn()}
+        runContextContract={{
+          current_page: {
+            schema: { type: 'string' },
+            required: true,
+            scope: 'run',
+            model: { expose: true },
+          },
+        }}
+        runContextValues={{}}
+        onRunContextValuesChange={vi.fn()}
+      />,
+    )
+
+    expect(html).toContain('Run Context')
+    expect(html).toContain('1 required missing')
+  })
+
   it('keeps runtime blocking more authoritative than transient run state text', () => {
     const html = renderToStaticMarkup(
       <ChatComposer
