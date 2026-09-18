@@ -1,4 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it, vi } from 'vitest'
 
 import { createEmptyNetworkDefinition } from '../editor/networkDefinitionMapper'
@@ -32,8 +33,15 @@ describe('Network context inspector bootstrap', () => {
     expect(markup).not.toContain('Node settings')
   })
   it.each(['chat', 'canvas'] as const)('uses the same responsive inspector width in %s mode', (centerMode) => {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry: false },
+        mutations: { retry: false },
+      },
+    })
     const markup = renderToStaticMarkup(
-      <NetworkContextInspector
+      <QueryClientProvider client={queryClient}>
+        <NetworkContextInspector
         context="network"
         centerMode={centerMode}
         inspectionScope={{ type: 'current' }}
@@ -49,9 +57,10 @@ describe('Network context inspector bootstrap', () => {
         onContext={vi.fn()}
         onLocateOnCanvas={vi.fn()}
         onSelect={vi.fn()}
-        onMetadata={vi.fn()}
-        onChange={vi.fn()}
-      />,
+          onMetadata={vi.fn()}
+          onChange={vi.fn()}
+        />
+      </QueryClientProvider>,
     )
 
     expect(markup).toContain('xl:w-inspector-workspace')
@@ -59,5 +68,4 @@ describe('Network context inspector bootstrap', () => {
     expect(markup).not.toContain('w-[400px]')
     expect(markup).not.toContain('w-[520px]')
   })
-
 })
