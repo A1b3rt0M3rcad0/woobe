@@ -78,7 +78,7 @@ export function ContractFieldBuilder({
       <div className="divide-y divide-border/70">
         {rows.map((row, index) => (
           <div
-            key={`${index}:${row.name}`}
+            key={index}
             className={
               kind === 'external'
                 ? 'grid min-h-control grid-cols-[minmax(120px,1.4fr)_110px_105px_72px_100px_32px] items-center gap-ui-xs px-ui-xs py-ui-xs'
