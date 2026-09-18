@@ -60,7 +60,7 @@ export function externalContractFromRows(rows: ContractFieldRow[]): ExternalCont
           required: row.required,
           scope: row.scope,
           model: { expose: row.expose },
-          ...(row.description?.trim() ? { description: row.description.trim() } : {}),
+          ...(row.description?.trim() ? { description: row.description } : {}),
         },
       ]),
   )

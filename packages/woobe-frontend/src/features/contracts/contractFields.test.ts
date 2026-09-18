@@ -86,6 +86,21 @@ describe('contract field builders', () => {
     expect(externalContractFromRows(rows)).toEqual(contract)
   })
 
+  it('preserves spaces while a description is being edited', () => {
+    const contract = externalContractFromRows([
+      {
+        name: 'name',
+        type: 'string',
+        required: true,
+        scope: 'run',
+        expose: true,
+        description: 'Preferred name of the current user ',
+      },
+    ])
+
+    expect(contract.name.description).toBe('Preferred name of the current user ')
+  })
+
   it('omits blank descriptions instead of persisting visual-editor noise', () => {
     const contract = externalContractFromRows([
       {
