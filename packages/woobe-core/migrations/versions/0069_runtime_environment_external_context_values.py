@@ -4,9 +4,7 @@ Revision ID: 0069
 Revises: 0068
 """
 
-import sqlalchemy as sa
 from alembic import op
-from sqlalchemy.dialects import postgresql
 
 
 revision = "0069"
@@ -16,25 +14,21 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column(
-        "agent_runtime_environment_states",
-        sa.Column(
-            "external_context_values",
-            postgresql.JSONB(),
-            nullable=False,
-            server_default=sa.text("'{}'::jsonb"),
-        ),
-        schema="agent",
+    # 0068 existed in the feature branch before these columns were introduced.
+    # Some developer databases may therefore already contain them even though
+    # their Alembic revision is still 0068. IF NOT EXISTS makes the repair
+    # safe for both the old-0068 and transient-new-0068 database shapes.
+    op.execute(
+        """
+        ALTER TABLE agent.agent_runtime_environment_states
+        ADD COLUMN IF NOT EXISTS external_context_values JSONB NOT NULL DEFAULT '{}'::jsonb
+        """
     )
-    op.add_column(
-        "network_runtime_environment_states",
-        sa.Column(
-            "external_context_values",
-            postgresql.JSONB(),
-            nullable=False,
-            server_default=sa.text("'{}'::jsonb"),
-        ),
-        schema="network",
+    op.execute(
+        """
+        ALTER TABLE network.network_runtime_environment_states
+        ADD COLUMN IF NOT EXISTS external_context_values JSONB NOT NULL DEFAULT '{}'::jsonb
+        """
     )
 
 
