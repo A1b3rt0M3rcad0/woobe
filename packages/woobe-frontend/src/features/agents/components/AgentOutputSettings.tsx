@@ -24,7 +24,7 @@ export function AgentOutputSettings() {
   })
 
   return (
-    <div className="min-w-0 max-w-full p-ui-md">
+    <div className="min-w-0 max-w-full p-ui-sm 2xl:p-ui-md">
       <section className="min-w-0 max-w-full rounded-container border border-border bg-surface/[0.72]">
         <PanelHeader
           icon={<FileJson2 className="h-icon w-icon" />}
@@ -43,7 +43,7 @@ export function AgentOutputSettings() {
           )}
         />
 
-        <div className="grid min-w-0 gap-ui-md p-ui-md">
+        <div className="grid min-w-0 gap-ui-md p-ui-sm 2xl:p-ui-md">
           {enabled ? (
             <ContractFieldBuilder
               kind="output"
