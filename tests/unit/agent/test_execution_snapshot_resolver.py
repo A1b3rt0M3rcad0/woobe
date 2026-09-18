@@ -34,12 +34,7 @@ def _skill_runtime(project_id, skill_id, skill_version_id, *, snapshots=True):
         "package": package,
     }
     return {
-        "context_assembler": {
-            "name": "stdcm",
-            "version": "v2",
-            "strategy_name": "stdcm",
-            "strategy_version": "v2",
-        },
+        "context_assembler": {"name": "standard"},
         "context": {
             "allowed_sources": ["SYSTEM", "USER_INPUT", "SESSION", "TOOL", "SKILL"],
             "skills": {},
