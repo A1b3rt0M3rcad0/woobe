@@ -177,6 +177,7 @@ def _is_contract_exposed_external_context(message: Any) -> bool:
         and metadata.get("selection_method") == "runtime_external_context"
     )
 
+
 def _message_modality(message: Any) -> str:
     metadata = _context_metadata(message)
     explicit = metadata.get("modality")
