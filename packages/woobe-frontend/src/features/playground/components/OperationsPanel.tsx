@@ -34,6 +34,9 @@ interface OperationsPanelProps {
   tracesError?: boolean
   tracesErrorMessage?: string
   onTracesRetry?: () => void
+  sessionContextContract?: unknown
+  sessionContextValues?: Record<string, unknown>
+  onSessionContextValuesChange?: (values: Record<string, unknown>) => void
 }
 
 type RunDetailView = 'run' | 'evidence'
@@ -59,6 +62,9 @@ export function OperationsPanel(props: OperationsPanelProps) {
     tracesError,
     tracesErrorMessage,
     onTracesRetry,
+    sessionContextContract,
+    sessionContextValues,
+    onSessionContextValuesChange,
   } = props
   const [runDetailView, setRunDetailView] = useState<RunDetailView>('run')
   const streamState = useAgentStreamStopState()
@@ -119,7 +125,22 @@ export function OperationsPanel(props: OperationsPanelProps) {
     <div className="flex h-full min-h-0 w-operations-panel shrink-0 flex-col overflow-hidden border-r border-border bg-surface/[0.74]">
       {sessionInteractionBlocked ? <div className="shrink-0 border-b border-border bg-background/25 px-ui-md py-ui-sm font-sans text-product-caption text-muted-foreground">{streamState === 'stopping' ? 'Stopping the active Agent Run. Session changes unlock after terminal finalization.' : 'An Agent Run is active. Session changes unlock after the Run reaches a terminal state.'}</div> : null}
       <ScrollArea className={cn('min-h-0 flex-1', sessionInteractionBlocked && 'pointer-events-none opacity-60')}>
-        <SessionsPanel sessions={sessions} currentSessionId={sessionId} sessionMode={sessionMode} onSelectSession={onSelectSession} onLoadMoreSessions={onLoadMoreSessions} hasMoreSessions={hasMoreSessions} isInitialLoading={sessionsLoading} isLoadingMore={sessionsLoadingMore} isError={sessionsError} errorMessage={sessionsErrorMessage} onRetry={onSessionsRetry} />
+        <SessionsPanel
+          sessions={sessions}
+          currentSessionId={sessionId}
+          sessionMode={sessionMode}
+          onSelectSession={onSelectSession}
+          onLoadMoreSessions={onLoadMoreSessions}
+          hasMoreSessions={hasMoreSessions}
+          isInitialLoading={sessionsLoading}
+          isLoadingMore={sessionsLoadingMore}
+          isError={sessionsError}
+          errorMessage={sessionsErrorMessage}
+          onRetry={onSessionsRetry}
+          sessionContextContract={sessionContextContract}
+          sessionContextValues={sessionContextValues}
+          onSessionContextValuesChange={onSessionContextValuesChange}
+        />
       </ScrollArea>
     </div>
   )
