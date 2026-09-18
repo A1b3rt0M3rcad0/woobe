@@ -4,7 +4,7 @@ from copy import deepcopy
 from datetime import datetime, timezone
 from uuid import UUID
 
-from modules.agent.application.context_assembler_registry import (
+from modules.agent.application.context_manager_registry import (
     canonicalize_context_assembler_runtime_config,
 )
 from modules.agent.application.context_policy import canonicalize_context_runtime_config

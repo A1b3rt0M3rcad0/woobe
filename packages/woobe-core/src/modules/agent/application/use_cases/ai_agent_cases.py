@@ -4,7 +4,7 @@ from uuid import UUID
 from modules.agent.application.interfaces.skill_repository import SkillRepository
 from modules.agent.application.skill_bindings import freeze_skill_bindings
 
-from modules.agent.application.context_assembler_registry import (
+from modules.agent.application.context_manager_registry import (
     DEFAULT_CONTEXT_MANAGER_SETTING,
     canonicalize_context_assembler_runtime_config,
 )
