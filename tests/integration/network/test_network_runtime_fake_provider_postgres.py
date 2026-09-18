@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 from uuid import uuid4
 
+import httpx
 import pytest
 from sqlalchemy import event, select
 from sqlalchemy.orm import Session as SyncSession
@@ -30,12 +32,24 @@ from shared.security.crypto import encrypt_secret
 
 
 @pytest.mark.asyncio
-async def test_network_runtime_executes_real_agent_against_fake_custom_provider_with_two_commits() -> None:
+async def test_network_runtime_executes_real_agent_against_fake_custom_provider_with_two_commits(
+    monkeypatch,
+) -> None:
     settings = Settings()
     fake_provider_url = os.environ.get("WOOBE_TEST_FAKE_PROVIDER_URL")
     assert fake_provider_url, (
         "WOOBE_TEST_FAKE_PROVIDER_URL must point to the deterministic fake provider"
     )
+
+    provider_requests = []
+    send = httpx.AsyncClient.send
+
+    async def capture_provider_request(client, request, *args, **kwargs):
+        if str(request.url).startswith(fake_provider_url) and request.url.path.endswith("/chat/completions"):
+            provider_requests.append(json.loads(request.content))
+        return await send(client, request, *args, **kwargs)
+
+    monkeypatch.setattr(httpx.AsyncClient, "send", capture_provider_request)
 
     engine = create_engine(settings)
     session_factory = create_session_factory(engine)
@@ -70,6 +84,12 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
         },
     }
     external_context_contract = {
+        "name": {
+            "schema": {"type": "string"},
+            "required": True,
+            "scope": "run",
+            "model": {"expose": True},
+        },
         "customer_id": {
             "schema": {"type": "string"},
             "required": True,
@@ -201,7 +221,7 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
             project_id=project_id,
             network_session_id=network_session_id,
             message="hello network",
-            external_context={"customer_id": "cus-network-1"},
+            external_context={"name": "Alberto", "customer_id": "cus-network-1"},
             idempotency_key=f"fake-provider-{uuid4()}",
             expected_draft_revision=1,
         )
@@ -236,13 +256,21 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
         )
 
     assert execution is not None
-    assert execution.external_context_snapshot == {"customer_id": "cus-network-1"}
+    assert execution.external_context_snapshot == {
+        "name": "Alberto", "customer_id": "cus-network-1",
+    }
     assert execution.status == "completed", (
         execution.failure_code,
         execution.failure_detail,
     )
     assert execution.output_message == "Woobe release gate passed"
     assert execution.failure_code is None
+
+    assert len(provider_requests) == 1
+    model_messages = json.dumps(provider_requests[0]["messages"], ensure_ascii=False)
+    assert "External Context supplied by the runtime" in model_messages
+    assert "Alberto" in model_messages
+    assert "cus-network-1" not in model_messages
 
     assert len(invocations) == 1
     invocation = invocations[0]
@@ -266,3 +294,4 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
     assert run.usage["total_tokens"] == 12
 
     await engine.dispose()
+

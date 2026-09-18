@@ -129,6 +129,13 @@ class TransactionBoundedStructuredOutputRuntime(
     async def _prepare_deferred_network(self, input_dto):
         async def read_prepare(repositories, _outbox):
             agent = await self._load_agent(repositories, input_dto)
+            # Network Acceptance already merged session values into this frozen
+            # projection; child Session state must not override the accepted input.
+            self._resolve_external_context(
+                agent=agent,
+                input_dto=input_dto,
+                session_data=None,
+            )
             credential = await self._load_credential(repositories.provider_credentials, agent)
             fallback_credential = None
             if agent.fallback_credential_id:

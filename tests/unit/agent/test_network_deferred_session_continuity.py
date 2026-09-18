@@ -2,21 +2,25 @@ from __future__ import annotations
 
 import json
 from types import SimpleNamespace
+from unittest.mock import AsyncMock
 from uuid import UUID, uuid4
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
+from modules.agent.application.context_assembler_registry import build_runtime_context_assembler
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
 from modules.agent.infra.execution import transaction_bounded_structured_output as runtime_module
+from modules.agent.infra.execution.instrumented_execution_runner import run_instrumented_execution
 from modules.agent.infra.execution.transaction_bounded_structured_output import (
     TransactionBoundedStructuredOutputRuntime,
     _network_hot_session_history,
 )
+from shared.contracts.errors import ValidationError
 
 
 class _SessionRepository:
@@ -121,6 +125,87 @@ async def _prepare_tool_state(*_args, **_kwargs):
 
 async def _prepare_rag_binding(*_args, **_kwargs):
     return None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "values,invalid",
+    [
+        pytest.param({"name": "Alberto", "age": 18}, False, id="exposed-and-hidden"),
+        pytest.param({"age": 18}, True, id="missing-required"),
+        pytest.param({"name": "Alberto", "age": "18"}, True, id="invalid-type"),
+        pytest.param({"name": "Alberto", "age": 18, "extra": 1}, True, id="undeclared"),
+    ],
+)
+async def test_deferred_network_resolves_external_context_before_hot_state(
+    monkeypatch, values, invalid,
+) -> None:
+    monkeypatch.setattr(runtime_module, "prepare_tool_state", _prepare_tool_state)
+    monkeypatch.setattr(runtime_module, "prepare_rag_binding", _prepare_rag_binding)
+    project_id, agent_id = uuid4(), uuid4()
+    transactions = _CountingTransactions()
+    runtime = _Runtime(transactions=transactions, project_id=project_id, agent_id=agent_id)
+    state_store = _ExecutionStateStore(transactions, {})
+    runtime.configure_execution_state_store(state_store)
+    agent = await runtime._load_agent(None, None)
+    agent.provider, agent.model = "custom", "test-model"
+    agent.temperature, agent.max_output_tokens = 0.0, 1000
+    agent.settings["external_context_contract"] = {
+        "name": {
+            "schema": {"type": "string"}, "required": True,
+            "scope": "session", "model": {"expose": True},
+        },
+        "age": {
+            "schema": {"type": "integer"}, "required": True,
+            "scope": "run", "model": {"expose": False},
+        },
+        "language": {
+            "schema": {"type": "string"}, "default": "pt-BR",
+            "scope": "run", "model": {"expose": True},
+        },
+    }
+    monkeypatch.setattr(runtime, "_load_agent", AsyncMock(return_value=agent))
+    request = _input(project_id=project_id, agent_id=agent_id, session_id=None)
+    request.external_context = values
+    context = new_execution_context()
+    context.project_id, context.agent_id = project_id, agent_id
+    context.network_execution_id, context.network_invocation_id = uuid4(), uuid4()
+    token = current_execution.set(context)
+    try:
+        if invalid:
+            with pytest.raises(ValidationError):
+                await runtime._prepare_deferred_network(request)
+            assert state_store.created == []
+        else:
+            prepared = await runtime._prepare_deferred_network(request)
+            assert context.external_context_snapshot == {
+                "name": "Alberto", "age": 18, "language": "pt-BR",
+            }
+            assert context.model_external_context == {"name": "Alberto", "language": "pt-BR"}
+            model = SimpleNamespace(ainvoke=AsyncMock(return_value=AIMessage(content="ok")))
+            await run_instrumented_execution(
+                llm_factory=SimpleNamespace(create_chat_model=lambda **_kwargs: model),
+                execute_single_tool=AsyncMock(side_effect=AssertionError("No Tool expected")),
+                clean_json_answer=lambda value: value,
+                agent=agent,
+                api_key="fixture",
+                base_url=None,
+                response_format={},
+                json_enabled=False,
+                has_tools=False,
+                agent_tools=[],
+                tool_name_to_id={},
+                messages=[SystemMessage(content="You are a support Agent."), *prepared[11]],
+                context_assembler=build_runtime_context_assembler(),
+            )
+            model.ainvoke.assert_awaited_once()
+            received = "\n".join(str(message.content) for message in model.ainvoke.await_args.args[0])
+            assert "Alberto" in received
+            assert "pt-BR" in received
+            assert '"age"' not in received
+        assert transactions.write_calls == 0
+    finally:
+        current_execution.reset(token)
 
 
 def _input(*, project_id, agent_id, session_id, message="second question"):
@@ -411,3 +496,4 @@ async def test_third_stateful_invocation_reuses_two_completed_hot_rounds(
     ]
     assert messages[-1].content == "third request"
     assert transactions.write_calls == 0
+
