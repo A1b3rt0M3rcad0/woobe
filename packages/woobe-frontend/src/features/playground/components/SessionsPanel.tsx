@@ -1,10 +1,12 @@
 import { useEffect, useRef } from 'react'
 import { Button, EmptyStatePanel, TechnicalListItem } from '@woobe/ui'
 import { CopyButton } from '@/components/common/CopyButton'
-import { Activity, AlertTriangle, Circle, Clock, Loader2, MessageSquare, RefreshCw } from 'lucide-react'
+import { Activity, AlertTriangle, Braces, Circle, Clock, Loader2, MessageSquare, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useAgentStreamStopState } from '@/features/playground/stream-stop-state'
 import type { SessionListItem } from '@/features/playground/types'
+import { ContractValueForm } from '@/features/contracts/ContractValueForm'
+import { contractFields } from '@/features/contracts/contractFields'
 
 interface SessionsPanelProps {
   sessions: SessionListItem[]
@@ -18,6 +20,9 @@ interface SessionsPanelProps {
   isError?: boolean
   errorMessage?: string
   onRetry?: () => void
+  sessionContextContract?: unknown
+  sessionContextValues?: Record<string, unknown>
+  onSessionContextValuesChange?: (values: Record<string, unknown>) => void
 }
 
 function formatDate(dateStr: string | null): string {
@@ -64,6 +69,9 @@ export function SessionsPanel({
   isError = false,
   errorMessage,
   onRetry,
+  sessionContextContract,
+  sessionContextValues = {},
+  onSessionContextValuesChange,
 }: SessionsPanelProps) {
   const sentinelRef = useRef<HTMLDivElement | null>(null)
   const runtimeState = useAgentStreamStopState()
@@ -74,6 +82,7 @@ export function SessionsPanel({
       : 'Wait for the active Agent Run to finish or stop it before changing Sessions'
     : undefined
   const selectedSessionMissing = Boolean(currentSessionId) && !sessions.some((session) => session.id === currentSessionId)
+  const sessionContextFieldCount = Object.keys(contractFields(sessionContextContract)).length
 
   useEffect(() => {
     const node = sentinelRef.current
@@ -121,6 +130,27 @@ export function SessionsPanel({
             <CopyButton text={currentSessionId} />
           </div>
           <code className="block truncate font-mono text-system-label text-slate-200" title={currentSessionId}>{currentSessionId}</code>
+
+          {sessionContextFieldCount > 0 ? (
+            <div className="mt-ui-sm border-t border-border/70 pt-ui-sm">
+              <div className="mb-ui-sm flex items-start gap-ui-xs">
+                <Braces className="mt-ui-hairline h-icon-sm w-icon-sm shrink-0 text-primary-light" />
+                <div className="min-w-0">
+                  <p className="font-mono text-system-control font-medium text-slate-100">Session Context</p>
+                  <p className="mt-ui-hairline font-sans text-product-caption leading-4 text-muted-foreground">
+                    Values apply to the selected Session. The next Run binds changes and the runtime reuses them across later Runs.
+                  </p>
+                </div>
+              </div>
+              <ContractValueForm
+                contract={sessionContextContract}
+                values={sessionContextValues}
+                disabled={runtimeBusy}
+                density="compact"
+                onChange={onSessionContextValuesChange ?? (() => undefined)}
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
 
