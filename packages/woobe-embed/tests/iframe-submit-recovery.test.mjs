@@ -197,6 +197,37 @@ test("message submit forwards the current external context", async () => {
   assert.deepEqual(harness.errors, []);
 });
 
+test("completed Runs keep the current external context for the next message", async () => {
+  const submittedBodies = [];
+  const harness = await loadIframeHarness(async (url, init = {}) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith("/messages:stream")) {
+      submittedBodies.push(JSON.parse(String(init.body)));
+      return sseDone("ok");
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  });
+
+  harness.setExternalContext({
+    customer_id: "cus-1",
+    locale: "pt-BR",
+  });
+
+  await harness.sendMessage("primeira");
+  await harness.sendMessage("segunda");
+
+  assert.equal(submittedBodies.length, 2);
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(submittedBodies.map((body) => body.external_context))),
+    [
+      { customer_id: "cus-1", locale: "pt-BR" },
+      { customer_id: "cus-1", locale: "pt-BR" },
+    ],
+    "terminal Run completion must not clear the iframe External Context working values",
+  );
+  assert.deepEqual(harness.errors, []);
+});
+
 test("ambiguous submit failure performs one canonical active Run lookup instead of polling the endpoint", async () => {
   const calls = [];
   let activeLookups = 0;
