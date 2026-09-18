@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Badge, SegmentedControl } from '@woobe/ui'
 import { Button } from '@/components/ui/Button'
-import { Braces, Code2, PanelRight, PanelLeft, Bot, ArrowLeft, History } from 'lucide-react'
+import { Code2, PanelRight, PanelLeft, Bot, ArrowLeft, History } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { UI_LAYER_CLASS } from '@/lib/ui-layers'
 import { cn } from '@/lib/utils'
@@ -21,8 +21,6 @@ interface PlaygroundHeaderProps {
   onToggleLeftPanel: () => void
   onToggleRightPanel: () => void
   onApiClick: () => void
-  onExternalContextClick: () => void
-  externalContextFieldCount?: number
   onSettingsClick?: () => void
   releaseVersion?: string
   releaseStatus?: ReleaseStatus
@@ -45,8 +43,6 @@ export function PlaygroundHeader({
   onToggleLeftPanel,
   onToggleRightPanel,
   onApiClick,
-  onExternalContextClick,
-  externalContextFieldCount = 0,
   releaseVersion,
   releaseStatus,
 }: PlaygroundHeaderProps) {
@@ -138,21 +134,6 @@ export function PlaygroundHeader({
             <Code2 className="h-icon w-icon" />
             <span className="hidden xl:inline">API</span>
           </Button>
-
-          <button
-            type="button"
-            onClick={onExternalContextClick}
-            className="relative flex h-control-sm w-control-sm items-center justify-center rounded-control border border-border bg-control/40 text-muted-foreground transition-colors hover:bg-control hover:text-slate-50"
-            title="External Context"
-            aria-label="External Context"
-          >
-            <Braces className="h-icon w-icon" />
-            {externalContextFieldCount > 0 ? (
-              <span className="absolute -right-1 -top-1 min-w-3 rounded-full border border-border bg-surface px-1 font-mono text-[7px] leading-3 text-primary-light">
-                {externalContextFieldCount}
-              </span>
-            ) : null}
-          </button>
 
           <AgentControlsPopover agent={agent} projectId={projectId} />
           <AgentLifecycleAction agentId={agent.id} environment={environment} disabled={environmentChangeDisabled} onManageAgent={openManager} />
