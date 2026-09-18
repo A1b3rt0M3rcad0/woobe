@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { useAgent, useAgentRuntimeEnvironments, useReleases, useUpdateAgentRuntimeEnvironmentContext } from '@/features/agents/hooks'
+import { useAgent, useAgentRuntimeEnvironments, useReleases } from '@/features/agents/hooks'
 import { useAgentEditorSection } from '@/features/agents/components/AgentEditorNavigation'
 import { validateAgentEditorState } from '@/features/agents/editorValidation'
 import type { RuntimeEnvironment } from '@/features/agents/types'
@@ -14,8 +14,7 @@ import { PlaygroundHeader } from '@/features/playground/components/PlaygroundHea
 import { OperationsRail, type LeftPanelTab } from '@/features/playground/components/OperationsRail'
 import { OperationsPanel } from '@/features/playground/components/OperationsPanel'
 import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
-import { RuntimeContextPanel } from '@/features/contracts/RuntimeContextPanel'
-import { contractFields, filterContractValues } from '@/features/contracts/contractFields'
+import { contractForScope, filterContractValues } from '@/features/contracts/contractFields'
 import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import { ApiModal } from '@/features/playground/components/ApiModal'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
@@ -145,7 +144,6 @@ function PlaygroundContent() {
   const { stream, reattach, cancel: cancelStream, disconnect: disconnectStream } = useAskStream()
   const queryClient = useQueryClient()
   const { mutateAsync: createRuntimeSession, isPending: creatingSession } = useCreateSession()
-  const updateRuntimeContext = useUpdateAgentRuntimeEnvironmentContext(agentId, projectId)
   const [environment, setEnvironment] = useState<RuntimeEnvironment>('draft')
 
   const p = (projId: string, ...segments: string[]) => workspaceProjectPath(workspaceId, projId, ...segments)
@@ -155,13 +153,15 @@ function PlaygroundContent() {
   const activeExternalContextContract = environment === 'draft'
     ? state.externalContextContract
     : currentEnvironmentRelease?.external_context_contract ?? null
-  const runtimeExternalContext = filterContractValues(
-    activeExternalContextContract,
-    runtimeStatesQuery.data?.[environment]?.external_context_values,
+  const runContextContract = useMemo(
+    () => contractForScope(activeExternalContextContract, 'run'),
+    [activeExternalContextContract],
   )
-  const externalContextFieldCount = Object.keys(
-    contractFields(activeExternalContextContract),
-  ).length
+  const sessionContextContract = useMemo(
+    () => contractForScope(activeExternalContextContract, 'session'),
+    [activeExternalContextContract],
+  )
+  const storedEnvironmentContext = runtimeStatesQuery.data?.[environment]?.external_context_values
 
   const {
     data: sessionPages,
@@ -211,7 +211,8 @@ function PlaygroundContent() {
   const [rightPanelTab, setRightPanelTab] = useState('editor')
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null)
   const [showApiModal, setShowApiModal] = useState(false)
-  const [showContextModal, setShowContextModal] = useState(false)
+  const [runContextValues, setRunContextValues] = useState<Record<string, unknown>>({})
+  const [sessionContextValues, setSessionContextValues] = useState<Record<string, unknown>>({})
   const accumulatedRef = useRef('')
   const metadataRef = useRef<Partial<AskResponse>>({})
   const syncedSessionRef = useRef<string | null>(null)
@@ -229,6 +230,22 @@ function PlaygroundContent() {
   const isStateless = agentSessionMode === 'stateless'
   const sessionIdForRun = isStateless ? null : sessionIdState
   const selectedSessionId = sessionIdState
+  const selectedSession = useMemo(
+    () => sessions.find((session) => session.id === selectedSessionId) ?? null,
+    [selectedSessionId, sessions],
+  )
+
+  useEffect(() => {
+    setRunContextValues(filterContractValues(runContextContract, storedEnvironmentContext))
+  }, [environment, runContextContract, storedEnvironmentContext])
+
+  useEffect(() => {
+    const persisted = selectedSession?.data?.external_context_session_values
+    const persistedValues = persisted && typeof persisted === 'object' && !Array.isArray(persisted)
+      ? persisted as Record<string, unknown>
+      : storedEnvironmentContext
+    setSessionContextValues(filterContractValues(sessionContextContract, persistedValues))
+  }, [environment, selectedSession, selectedSessionId, sessionContextContract, storedEnvironmentContext])
 
   const {
     data: backendTraces = [],
@@ -563,7 +580,10 @@ function PlaygroundContent() {
         message: content,
         session_id: sessionIdForRun,
         execution_context: environment === 'draft' ? 'playground' : environment,
-        external_context: runtimeExternalContext,
+        external_context: {
+          ...sessionContextValues,
+          ...runContextValues,
+        },
         metadata: {
           source: 'playground',
           runtime_environment: environment,
@@ -622,7 +642,9 @@ function PlaygroundContent() {
             return updated
           })
           setLastResponse(meta as AskResponse)
+          setRunContextValues({})
           rememberRunId(null)
+          if (!isStateless) void refetchSessions()
           if (!isStateless && meta.session_id) syncedSessionRef.current = meta.session_id
           if (meta.trace_id) setTimeout(() => setSelectedTraceId(meta.trace_id!), 100)
         },
@@ -725,8 +747,6 @@ function PlaygroundContent() {
           onToggleLeftPanel={() => setShowLeftPanel(!showLeftPanel)}
           onToggleRightPanel={() => setShowRightPanel(!showRightPanel)}
           onApiClick={() => setShowApiModal(true)}
-          onExternalContextClick={() => setShowContextModal(true)}
-          externalContextFieldCount={externalContextFieldCount}
           onSettingsClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))}
           releaseVersion={productionRelease?.version}
           releaseStatus={productionRelease?.status}
@@ -775,30 +795,29 @@ function PlaygroundContent() {
               tracesError={tracesError}
               tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined}
               onTracesRetry={refetchTraces}
+              sessionContextContract={sessionContextContract}
+              sessionContextValues={sessionContextValues}
+              onSessionContextValuesChange={setSessionContextValues}
             />
           )}
           <div className="flex-1 min-w-0 flex flex-col">
-            <ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} onStop={handleStop} agentName={agent.name} runtimeBlocked={!runtimeEnabled || !environmentReady} runtimeBlockReason={runtimeBlockReason} />
+            <ChatCanvas
+              messages={messages}
+              isSending={isSending}
+              isSessionLoading={isSessionLoading}
+              onSend={handleSend}
+              onStop={handleStop}
+              agentName={agent.name}
+              runtimeBlocked={!runtimeEnabled || !environmentReady}
+              runtimeBlockReason={runtimeBlockReason}
+              runContextContract={runContextContract}
+              runContextValues={runContextValues}
+              onRunContextValuesChange={setRunContextValues}
+            />
           </div>
           {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={releasesLoading} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
         </div>
       </div>
-      <RuntimeContextPanel
-        open={showContextModal}
-        onClose={() => setShowContextModal(false)}
-        environment={environment}
-        contract={activeExternalContextContract}
-        savedValues={runtimeStatesQuery.data?.[environment]?.external_context_values}
-        saving={updateRuntimeContext.isPending}
-        onSave={async (values) => {
-          try {
-            await updateRuntimeContext.mutateAsync({ environment, values })
-            toast.success(`${titleCaseEnvironment(environment)} context values saved`)
-          } catch (error) {
-            toast.error(error instanceof Error ? error.message : 'Could not save External Context values')
-          }
-        }}
-      />
       <ApiModal open={showApiModal} onClose={() => setShowApiModal(false)} agent={agent} projectId={projectId!} workspaceProjectPathFn={(projId, ...segments) => p(projId, ...segments)} />
     </ErrorBoundary>
   )
