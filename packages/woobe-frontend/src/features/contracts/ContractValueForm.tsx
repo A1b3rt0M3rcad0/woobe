@@ -1,4 +1,4 @@
-import { Checkbox, Input, Select } from '@woobe/ui'
+import { Input, Select } from '@woobe/ui'
 
 import { contractFields, coerceContractValue, type ContractFieldType } from './contractFields'
 
@@ -39,23 +39,30 @@ export function ContractValueForm({ contract, values, disabled = false, onChange
       {entries.map(([name, field]) => {
         const type = fieldType(field)
         const enumValues = Array.isArray(field.schema?.enum) ? field.schema?.enum : null
+        const consumers = field && typeof field === 'object' && 'consumers' in field && field.consumers && typeof field.consumers === 'object' && !Array.isArray(field.consumers)
+          ? field.consumers as Record<string, { required?: boolean }>
+          : {}
+        const required = Boolean(field.required) || Object.values(consumers).some((consumer) => Boolean(consumer?.required))
         return (
           <div key={name} className="grid min-h-control grid-cols-[minmax(110px,0.8fr)_minmax(150px,1.4fr)] items-center gap-ui-sm py-ui-xs">
             <div className="min-w-0">
               <p className="truncate font-mono text-system-control text-accent-foreground">{name}</p>
               <p className="font-mono text-system-label text-muted-foreground">
-                {type}{field.scope ? ` · ${field.scope}` : ''}{field.required ? ' · required' : ''}
+                {type}{field.scope ? ` · ${field.scope}` : ''}{required ? ' · required' : ''}
               </p>
             </div>
             {type === 'boolean' ? (
-              <div className="flex items-center justify-end pr-ui-xs">
-                <Checkbox
-                  checked={Boolean(values[name])}
-                  disabled={disabled}
-                  onChange={(event) => setValue(name, event.target.checked)}
-                  aria-label={name}
-                />
-              </div>
+              <Select
+                value={values[name] === true ? 'true' : values[name] === false ? 'false' : ''}
+                disabled={disabled}
+                options={[
+                  { value: '', label: required ? 'Select value' : 'Unset' },
+                  { value: 'true', label: 'True' },
+                  { value: 'false', label: 'False' },
+                ]}
+                onChange={(event) => setValue(name, coerceContractValue(type, event.target.value))}
+                aria-label={name}
+              />
             ) : enumValues?.length ? (
               <Select
                 value={inputValue(values[name])}
@@ -71,7 +78,7 @@ export function ContractValueForm({ contract, values, disabled = false, onChange
                 disabled={disabled}
                   type={type === 'integer' || type === 'number' ? 'number' : 'text'}
                 step={type === 'number' ? 'any' : undefined}
-                placeholder={field.required ? 'Required value' : 'Optional'}
+                placeholder={required ? 'Required value' : 'Optional'}
                 onChange={(event) => setValue(name, coerceContractValue(type, event.target.value))}
                 aria-label={name}
               />
