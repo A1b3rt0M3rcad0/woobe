@@ -16,7 +16,12 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.domain.entities import Agent
+from modules.agent.domain.enums import Provider, SessionMode
 from modules.agent.domain.external_context_contract import compose_external_context_contracts
+from modules.agent.infra.execution.frozen_snapshot_runtime import (
+    FrozenSnapshotStructuredOutputRuntime,
+)
 from modules.agent.infra.execution.instrumented_execution_runner import run_instrumented_execution
 from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.network.domain.external_context_contract import (
@@ -456,3 +461,117 @@ def test_external_context_remains_structurally_valid_under_context_budget_pressu
     parsed = json.loads(serialized_payload)
     assert "profile" in parsed
     assert isinstance(parsed["profile"], dict)
+
+
+@pytest.mark.asyncio
+async def test_network_frozen_snapshot_external_context_reaches_actual_model_and_evidence() -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    frozen_contract = _contract()
+    live_agent = Agent(
+        id=agent_id,
+        project_id=project_id,
+        provider=Provider.custom,
+        model="live-model",
+        session_mode=SessionMode.stateful,
+        settings={
+            "external_context_contract": {
+                "legacy_name": {
+                    "schema": {"type": "string"},
+                    "required": False,
+                    "scope": "run",
+                    "model": {"expose": False},
+                }
+            },
+            "runtime_config": {},
+        },
+    )
+    frozen_snapshot = {
+        "provider": "custom",
+        "model": "test-model",
+        "session_mode": "stateful",
+        "external_context_contract": frozen_contract,
+        "runtime_config": _runtime_agent_config(),
+    }
+
+    runtime = FrozenSnapshotStructuredOutputRuntime.__new__(
+        FrozenSnapshotStructuredOutputRuntime
+    )
+    runtime._apply_snapshot_override(live_agent, frozen_snapshot)
+
+    context = new_execution_context()
+    context.project_id = project_id
+    context.agent_id = agent_id
+    context.run_id = uuid4()
+    context.network_execution_id = uuid4()
+    context.network_invocation_id = uuid4()
+    context.network_node_id = uuid4()
+    context.model_capacity_units = None
+    context.reserved_output_units = None
+    context.active_tool_definitions = []
+    context.context_selection_metadata = {}
+    context.rag_metadata = {}
+    context.context_rag_sources = []
+    context.input_message_id = uuid4()
+
+    request = AskInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        message="Qual é meu nome?",
+        external_context={"age": 18, "name": "Alberto"},
+        execution_context="playground",
+        metadata={"source": "network_runtime", "defer_persistence": True},
+    )
+    resolver = ReleaseRuntimeResolver.__new__(ReleaseRuntimeResolver)
+    model = _CapturingModel()
+
+    token = current_execution.set(context)
+    try:
+        resolver._resolve_external_context(
+            agent=live_agent,
+            input_dto=request,
+            session_data={},
+        )
+
+        execution = await run_instrumented_execution(
+            llm_factory=_CapturingFactory(model),
+            execute_single_tool=_unused_tool,
+            clean_json_answer=lambda value: value,
+            agent=live_agent,
+            api_key="fixture",
+            base_url=None,
+            response_format={},
+            json_enabled=False,
+            has_tools=False,
+            agent_tools=[],
+            tool_name_to_id={},
+            messages=[
+                SystemMessage(content="You are a support Agent."),
+                HumanMessage(content=request.message),
+            ],
+            context_assembler=build_runtime_context_assembler(),
+        )
+    finally:
+        current_execution.reset(token)
+
+    assert live_agent.settings["external_context_contract"] == frozen_contract
+    assert context.external_context_snapshot == {"age": 18, "name": "Alberto"}
+    assert context.model_external_context == {"name": "Alberto"}
+
+    materialized = _materialized_model_text(model.received)
+    assert "External Context supplied by the runtime" in materialized
+    assert '"name"' in materialized
+    assert '"Alberto"' in materialized
+    assert '"age"' not in materialized
+
+    snapshot = execution.llm_calls[-1]["context_snapshot"]
+    external_context_contributions = [
+        contribution
+        for contribution in snapshot["contributions"]
+        if contribution["source_ref"] == "external_context"
+    ]
+    assert len(external_context_contributions) == 1
+    assert (
+        external_context_contributions[0]["selection_method"]
+        == "runtime_external_context"
+    )
