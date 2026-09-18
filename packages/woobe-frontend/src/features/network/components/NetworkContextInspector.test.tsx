@@ -31,4 +31,33 @@ describe('Network context inspector bootstrap', () => {
     expect(markup).toContain('Preparing Network')
     expect(markup).not.toContain('Node settings')
   })
+  it.each(['chat', 'canvas'] as const)('uses the same responsive inspector width in %s mode', (centerMode) => {
+    const markup = renderToStaticMarkup(
+      <NetworkContextInspector
+        context="network"
+        centerMode={centerMode}
+        inspectionScope={{ type: 'current' }}
+        definition={createEmptyNetworkDefinition()}
+        agents={[]}
+        bindings={{}}
+        issues={[]}
+        selection={{ type: 'network' }}
+        readOnly
+        name="Project Network"
+        description=""
+        agentWorkspace={null}
+        onContext={vi.fn()}
+        onLocateOnCanvas={vi.fn()}
+        onSelect={vi.fn()}
+        onMetadata={vi.fn()}
+        onChange={vi.fn()}
+      />,
+    )
+
+    expect(markup).toContain('xl:w-inspector-workspace')
+    expect(markup).toContain('w-[min(94vw,32.5rem)]')
+    expect(markup).not.toContain('w-[400px]')
+    expect(markup).not.toContain('w-[520px]')
+  })
+
 })
