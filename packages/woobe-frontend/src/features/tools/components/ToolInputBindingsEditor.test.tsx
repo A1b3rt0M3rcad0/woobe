@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   invalidToolInputBindingTargets,
   normalizeToolInputBindings,
+  toolInputBindingsForSchema,
   ToolInputBindingsEditor,
   toolInputDescriptors,
 } from './ToolInputBindingsEditor'
@@ -43,6 +44,15 @@ describe('ToolInputBindingsEditor', () => {
       { name: 'customer_id', type: 'string', required: true },
       { name: 'limit', type: 'integer', required: false },
     ])
+  })
+
+  it('drops stale bindings when an input no longer exists in the schema', () => {
+    expect(toolInputBindingsForSchema(schema, {
+      customer_id: { source: { kind: 'context', field: 'customer_id' } },
+      removed_input: { source: { kind: 'context', field: 'old_value' } },
+    })).toEqual({
+      customer_id: { source: { kind: 'context', field: 'customer_id' } },
+    })
   })
 
   it('normalizes fields for persistence and detects incomplete bindings', () => {
