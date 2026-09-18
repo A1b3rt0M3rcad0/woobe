@@ -108,7 +108,12 @@ export function contractFields(value: unknown): Record<string, ExternalContextFi
 }
 
 export function coerceContractValue(type: ContractFieldType, raw: string | boolean): unknown {
-  if (type === 'boolean') return Boolean(raw)
+  if (type === 'boolean') {
+    if (typeof raw === 'boolean') return raw
+    if (raw === 'true') return true
+    if (raw === 'false') return false
+    return undefined
+  }
   if (raw === '') return undefined
   if (type === 'integer') {
     const value = Number.parseInt(String(raw), 10)
