@@ -50,6 +50,11 @@ export function ContractValueForm({ contract, values, disabled = false, onChange
               <p className="font-mono text-system-label text-muted-foreground">
                 {type}{field.scope ? ` · ${field.scope}` : ''}{required ? ' · required' : ''}
               </p>
+              {field.description ? (
+                <p className="mt-ui-hairline font-sans text-product-caption leading-4 text-muted-foreground">
+                  {field.description}
+                </p>
+              ) : null}
             </div>
             {type === 'boolean' ? (
               <Select

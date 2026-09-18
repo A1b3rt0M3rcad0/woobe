@@ -8,6 +8,7 @@ export interface ContractFieldRow {
   required: boolean
   scope: 'run' | 'session'
   expose: boolean
+  description?: string
 }
 
 export const CONTRACT_FIELD_TYPE_OPTIONS = [
@@ -44,6 +45,7 @@ export function externalContractRows(value: unknown): ContractFieldRow[] {
     required: Boolean(field.required),
     scope: field.scope === 'session' ? 'session' : 'run',
     expose: Boolean(field.model?.expose),
+    description: typeof field.description === 'string' ? field.description : '',
   }))
 }
 
@@ -58,6 +60,7 @@ export function externalContractFromRows(rows: ContractFieldRow[]): ExternalCont
           required: row.required,
           scope: row.scope,
           model: { expose: row.expose },
+          ...(row.description?.trim() ? { description: row.description.trim() } : {}),
         },
       ]),
   )

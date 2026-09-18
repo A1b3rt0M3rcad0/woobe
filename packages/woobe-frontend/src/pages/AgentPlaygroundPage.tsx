@@ -15,7 +15,7 @@ import { OperationsRail, type LeftPanelTab } from '@/features/playground/compone
 import { OperationsPanel } from '@/features/playground/components/OperationsPanel'
 import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
 import { RuntimeContextPanel } from '@/features/contracts/RuntimeContextPanel'
-import { filterContractValues } from '@/features/contracts/contractFields'
+import { contractFields, filterContractValues } from '@/features/contracts/contractFields'
 import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import { ApiModal } from '@/features/playground/components/ApiModal'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
@@ -159,6 +159,9 @@ function PlaygroundContent() {
     activeExternalContextContract,
     runtimeStatesQuery.data?.[environment]?.external_context_values,
   )
+  const externalContextFieldCount = Object.keys(
+    contractFields(activeExternalContextContract),
+  ).length
 
   const {
     data: sessionPages,
@@ -208,6 +211,7 @@ function PlaygroundContent() {
   const [rightPanelTab, setRightPanelTab] = useState('editor')
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null)
   const [showApiModal, setShowApiModal] = useState(false)
+  const [showContextModal, setShowContextModal] = useState(false)
   const accumulatedRef = useRef('')
   const metadataRef = useRef<Partial<AskResponse>>({})
   const syncedSessionRef = useRef<string | null>(null)
@@ -721,6 +725,8 @@ function PlaygroundContent() {
           onToggleLeftPanel={() => setShowLeftPanel(!showLeftPanel)}
           onToggleRightPanel={() => setShowRightPanel(!showRightPanel)}
           onApiClick={() => setShowApiModal(true)}
+          onExternalContextClick={() => setShowContextModal(true)}
+          externalContextFieldCount={externalContextFieldCount}
           onSettingsClick={() => navigate(p(projectId!, 'agents', agentId!, 'edit'))}
           releaseVersion={productionRelease?.version}
           releaseStatus={productionRelease?.status}
@@ -772,25 +778,27 @@ function PlaygroundContent() {
             />
           )}
           <div className="flex-1 min-w-0 flex flex-col">
-            <RuntimeContextPanel
-              environment={environment}
-              contract={activeExternalContextContract}
-              savedValues={runtimeStatesQuery.data?.[environment]?.external_context_values}
-              saving={updateRuntimeContext.isPending}
-              onSave={async (values) => {
-                try {
-                  await updateRuntimeContext.mutateAsync({ environment, values })
-                  toast.success(`${titleCaseEnvironment(environment)} context values saved`)
-                } catch (error) {
-                  toast.error(error instanceof Error ? error.message : 'Could not save External Context values')
-                }
-              }}
-            />
             <ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} onStop={handleStop} agentName={agent.name} runtimeBlocked={!runtimeEnabled || !environmentReady} runtimeBlockReason={runtimeBlockReason} />
           </div>
           {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={releasesLoading} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
         </div>
       </div>
+      <RuntimeContextPanel
+        open={showContextModal}
+        onClose={() => setShowContextModal(false)}
+        environment={environment}
+        contract={activeExternalContextContract}
+        savedValues={runtimeStatesQuery.data?.[environment]?.external_context_values}
+        saving={updateRuntimeContext.isPending}
+        onSave={async (values) => {
+          try {
+            await updateRuntimeContext.mutateAsync({ environment, values })
+            toast.success(`${titleCaseEnvironment(environment)} context values saved`)
+          } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Could not save External Context values')
+          }
+        }}
+      />
       <ApiModal open={showApiModal} onClose={() => setShowApiModal(false)} agent={agent} projectId={projectId!} workspaceProjectPathFn={(projId, ...segments) => p(projId, ...segments)} />
     </ErrorBoundary>
   )

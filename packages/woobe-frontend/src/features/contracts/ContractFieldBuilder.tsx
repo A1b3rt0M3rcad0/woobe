@@ -55,6 +55,7 @@ export function ContractFieldBuilder({
       required: false,
       scope: 'run',
       expose: kind === 'output',
+      description: '',
     },
   ])
 
@@ -85,13 +86,25 @@ export function ContractFieldBuilder({
                 : 'grid min-h-control grid-cols-[minmax(100px,1fr)_90px_54px_24px] items-center gap-ui-xs px-ui-xs py-ui-xs'
             }
           >
-            <Input
-              value={row.name}
-              disabled={disabled}
-              spellCheck={false}
-              onChange={(event) => update(index, { name: event.target.value })}
-              aria-label={`Field ${index + 1} name`}
-            />
+            <div className="grid min-w-0 gap-ui-xs">
+              <Input
+                value={row.name}
+                disabled={disabled}
+                spellCheck={false}
+                onChange={(event) => update(index, { name: event.target.value })}
+                aria-label={`Field ${index + 1} name`}
+              />
+              {kind === 'external' ? (
+                <Input
+                  value={row.description ?? ''}
+                  disabled={disabled}
+                  spellCheck={false}
+                  placeholder="Describe this field for the Agent"
+                  onChange={(event) => update(index, { description: event.target.value })}
+                  aria-label={`Field ${row.name || index + 1} description`}
+                />
+              ) : null}
+            </div>
             <Select
               value={row.type}
               disabled={disabled}
