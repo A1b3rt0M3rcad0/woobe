@@ -211,8 +211,9 @@ function PlaygroundContent() {
   const [rightPanelTab, setRightPanelTab] = useState('editor')
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null)
   const [showApiModal, setShowApiModal] = useState(false)
-  const [runContextValues, setRunContextValues] = useState<Record<string, unknown>>({})
-  const [sessionContextValues, setSessionContextValues] = useState<Record<string, unknown>>({})
+  const [externalContextValues, setExternalContextValues] = useState<Record<string, unknown>>({})
+  const externalContextOwnerRef = useRef<string | null>(null)
+  const externalContextDirtyRef = useRef(false)
   const accumulatedRef = useRef('')
   const metadataRef = useRef<Partial<AskResponse>>({})
   const syncedSessionRef = useRef<string | null>(null)
@@ -236,16 +237,65 @@ function PlaygroundContent() {
   )
 
   useEffect(() => {
-    setRunContextValues(filterContractValues(runContextContract, storedEnvironmentContext))
-  }, [environment, runContextContract, storedEnvironmentContext])
-
-  useEffect(() => {
     const persisted = selectedSession?.data?.external_context_session_values
-    const persistedValues = persisted && typeof persisted === 'object' && !Array.isArray(persisted)
+    const persistedSessionValues = persisted && typeof persisted === 'object' && !Array.isArray(persisted)
       ? persisted as Record<string, unknown>
-      : storedEnvironmentContext
-    setSessionContextValues(filterContractValues(sessionContextContract, persistedValues))
-  }, [environment, selectedSession, selectedSessionId, sessionContextContract, storedEnvironmentContext])
+      : {}
+    const environmentValues = filterContractValues(activeExternalContextContract, storedEnvironmentContext)
+    const sessionValues = {
+      ...filterContractValues(sessionContextContract, environmentValues),
+      ...filterContractValues(sessionContextContract, persistedSessionValues),
+    }
+    const baselineValues = {
+      ...environmentValues,
+      ...sessionValues,
+    }
+    const owner = `${environment}:${selectedSessionId ?? 'none'}`
+    const previousOwner = externalContextOwnerRef.current
+    const previousEnvironment = previousOwner?.split(':', 1)[0] ?? null
+    const automaticSessionBinding = previousOwner === `${environment}:none` && Boolean(selectedSessionId)
+
+    setExternalContextValues((current) => {
+      const currentValues = filterContractValues(activeExternalContextContract, current)
+      if (previousOwner === null || previousEnvironment !== environment) return baselineValues
+      if (previousOwner !== owner && !automaticSessionBinding) {
+        return {
+          ...filterContractValues(runContextContract, currentValues),
+          ...sessionValues,
+        }
+      }
+      return externalContextDirtyRef.current ? currentValues : baselineValues
+    })
+
+    if (previousOwner !== owner && !automaticSessionBinding) externalContextDirtyRef.current = false
+    externalContextOwnerRef.current = owner
+  }, [
+    activeExternalContextContract,
+    environment,
+    runContextContract,
+    selectedSession,
+    selectedSessionId,
+    sessionContextContract,
+    storedEnvironmentContext,
+  ])
+
+  const handleExternalContextValuesChange = useCallback((values: Record<string, unknown>) => {
+    externalContextDirtyRef.current = true
+    setExternalContextValues(filterContractValues(activeExternalContextContract, values))
+  }, [activeExternalContextContract])
+
+  const handleSessionContextValuesChange = useCallback((values: Record<string, unknown>) => {
+    externalContextDirtyRef.current = true
+    setExternalContextValues((current) => ({
+      ...filterContractValues(runContextContract, current),
+      ...filterContractValues(sessionContextContract, values),
+    }))
+  }, [runContextContract, sessionContextContract])
+
+  const sessionContextValues = useMemo(
+    () => filterContractValues(sessionContextContract, externalContextValues),
+    [externalContextValues, sessionContextContract],
+  )
 
   const {
     data: backendTraces = [],
@@ -580,10 +630,7 @@ function PlaygroundContent() {
         message: content,
         session_id: sessionIdForRun,
         execution_context: environment === 'draft' ? 'playground' : environment,
-        external_context: {
-          ...sessionContextValues,
-          ...runContextValues,
-        },
+        external_context: externalContextValues,
         metadata: {
           source: 'playground',
           runtime_environment: environment,
@@ -642,7 +689,6 @@ function PlaygroundContent() {
             return updated
           })
           setLastResponse(meta as AskResponse)
-          setRunContextValues({})
           rememberRunId(null)
           if (!isStateless) void refetchSessions()
           if (!isStateless && meta.session_id) syncedSessionRef.current = meta.session_id
@@ -797,7 +843,7 @@ function PlaygroundContent() {
               onTracesRetry={refetchTraces}
               sessionContextContract={sessionContextContract}
               sessionContextValues={sessionContextValues}
-              onSessionContextValuesChange={setSessionContextValues}
+              onSessionContextValuesChange={handleSessionContextValuesChange}
             />
           )}
           <div className="flex-1 min-w-0 flex flex-col">
@@ -810,9 +856,9 @@ function PlaygroundContent() {
               agentName={agent.name}
               runtimeBlocked={!runtimeEnabled || !environmentReady}
               runtimeBlockReason={runtimeBlockReason}
-              runContextContract={runContextContract}
-              runContextValues={runContextValues}
-              onRunContextValuesChange={setRunContextValues}
+              externalContextContract={activeExternalContextContract}
+              externalContextValues={externalContextValues}
+              onExternalContextValuesChange={handleExternalContextValuesChange}
             />
           </div>
           {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={releasesLoading} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
