@@ -101,6 +101,11 @@ class AgentRuntimeEnvironmentStateModel(BaseModel):
         default=True,
         server_default=text("true"),
     )
+    external_context_values: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+    )
     updated_by: Mapped[UUID | None] = mapped_column(nullable=True)
 
 
