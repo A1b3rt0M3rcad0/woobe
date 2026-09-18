@@ -6,12 +6,18 @@ import { Button } from '@/components/ui/Button'
 import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import {
+  invalidToolInputBindingTargets,
+  normalizeToolInputBindings,
+  ToolInputBindingsEditor,
+} from '@/features/tools/components/ToolInputBindingsEditor'
+import {
   bulkUpdateMcpToolPermissions,
   disconnectMcpOAuth,
   refreshMcpTools,
   startMcpOAuth,
   updateMcpToolPermissions,
 } from '@/features/tools/api'
+import { useUpdateTool } from '@/features/tools/hooks'
 import type {
   DiscoveredMcpTool,
   McpReadiness,
@@ -19,6 +25,7 @@ import type {
   McpToolPermission,
   McpToolPermissionMode,
   Tool,
+  ToolInputBindings,
 } from '@/features/tools/types'
 
 const MCP_CONNECT_STATE_PREFIX = 'projectrai:mcp-connect:'
@@ -227,12 +234,16 @@ interface Props {
   summaryNote?: ReactNode
   tool: Tool
   onChanged?: () => void | Promise<void>
+  allowBindingEdit?: boolean
   permissionOverrides?: Record<string, McpToolPermission>
   onPermissionOverridesChange?: (permissions: Record<string, McpToolPermission>) => void
 }
 
-export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, permissionOverrides, onPermissionOverridesChange }: Props) {
+export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, allowBindingEdit = false, permissionOverrides, onPermissionOverridesChange }: Props) {
+  const updateTool = useUpdateTool()
   const [manageOpen, setManageOpen] = useState(false)
+  const [bindingToolName, setBindingToolName] = useState<string | null>(null)
+  const [bindingDraft, setBindingDraft] = useState<ToolInputBindings>({})
   const [busyKey, setBusyKey] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const draftPermissionMode = permissionOverrides !== undefined && Boolean(onPermissionOverridesChange)
@@ -257,6 +268,7 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
     if (!normalized) return discovered
     return discovered.filter((item) => [item.name, item.title, item.description].some((value) => String(value || '').toLowerCase().includes(normalized)))
   }, [discovered, query])
+  const bindingTool = bindingToolName ? baseDiscovered.find((item) => item.name === bindingToolName) ?? null : null
 
   const handleConnect = async () => {
     try {
@@ -279,6 +291,50 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
       toast.success('MCP tools updated')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load MCP tools')
+    } finally {
+      setBusyKey(null)
+    }
+  }
+
+  const openBindings = (item: DiscoveredMcpTool) => {
+    setBindingToolName(item.name)
+    setBindingDraft(item.bindings || {})
+  }
+
+  const closeBindings = () => {
+    setBindingToolName(null)
+    setBindingDraft({})
+  }
+
+  const saveBindings = async () => {
+    if (!bindingTool) return
+    const invalid = invalidToolInputBindingTargets(bindingDraft)
+    if (invalid.length) {
+      toast.error(`Configure the External Context field for: ${invalid.join(', ')}`)
+      return
+    }
+    try {
+      setBusyKey(`bindings:${bindingTool.name}`)
+      const config = mcpConfig(tool)
+      const nextDiscovered = (config.discovered_tools || []).map((item) => (
+        item.name === bindingTool.name
+          ? { ...item, bindings: normalizeToolInputBindings(bindingDraft) }
+          : item
+      ))
+      await updateTool.mutateAsync({
+        toolId: tool.id,
+        data: {
+          config: {
+            ...config,
+            discovered_tools: nextDiscovered,
+          },
+        },
+      })
+      await onChanged?.()
+      toast.success(`Input bindings updated for ${bindingTool.title || bindingTool.name}`)
+      closeBindings()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update MCP input bindings')
     } finally {
       setBusyKey(null)
     }
@@ -400,8 +456,20 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
                       <p className="truncate text-xs font-medium text-white">{item.title || item.name}</p>
                       <p className="mt-0.5 truncate font-mono text-[10px] text-muted">{item.name}</p>
                       {item.description ? <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-muted">{item.description}</p> : null}
+                      {Object.keys(item.bindings || {}).length ? (
+                        <p className="mt-1 font-mono text-[9px] text-primary-light">
+                          {Object.keys(item.bindings || {}).length} context binding{Object.keys(item.bindings || {}).length === 1 ? '' : 's'}
+                        </p>
+                      ) : null}
                     </div>
-                    <PermissionControl mode={mode} busyKey={busyKey} itemName={item.name} onChange={(next) => handleSingle(item.name, next)} />
+                    <div className="flex flex-wrap items-center justify-end gap-2">
+                      {allowBindingEdit && item.input_schema ? (
+                        <Button type="button" size="sm" variant="outline" onClick={() => openBindings(item)}>
+                          Inputs
+                        </Button>
+                      ) : null}
+                      <PermissionControl mode={mode} busyKey={busyKey} itemName={item.name} onChange={(next) => handleSingle(item.name, next)} />
+                    </div>
                   </div>
                 )
               })}
@@ -416,6 +484,37 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
             <Button variant="outline" onClick={() => setManageOpen(false)}>Done</Button>
           </div>
         </div>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(bindingTool)}
+        onClose={closeBindings}
+        title={bindingTool ? `Input bindings: ${bindingTool.title || bindingTool.name}` : 'Input bindings'}
+        className="max-w-3xl"
+        scrollMode="content"
+      >
+        {bindingTool ? (
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-medium text-white">Input sources</p>
+              <p className="mt-1 text-xs text-muted">
+                Agent inputs remain model-provided. External Context inputs are injected from the immutable Run snapshot.
+              </p>
+            </div>
+            <ToolInputBindingsEditor
+              schema={bindingTool.input_schema || undefined}
+              bindings={bindingDraft}
+              disabled={busyKey === `bindings:${bindingTool.name}`}
+              onChange={setBindingDraft}
+            />
+            <div className="flex justify-end gap-2 border-t border-border pt-3">
+              <Button type="button" variant="outline" onClick={closeBindings}>Cancel</Button>
+              <Button type="button" loading={busyKey === `bindings:${bindingTool.name}`} onClick={() => void saveBindings()}>
+                Save bindings
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Dialog>
     </div>
   )
