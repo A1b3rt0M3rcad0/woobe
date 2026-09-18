@@ -532,7 +532,7 @@ export function ToolSettingsModal({ tool, onClose, onSaved, projectControls = fa
       title="Available capabilities"
       description="Review the operations exposed by this Project Tool. Agent-specific Allow, Review or Deny decisions remain part of the Agent Draft and Release snapshot."
     >
-      {mcp ? <McpProviderPanel tool={tool} onChanged={refreshParent} /> : <HttpProviderPanel tool={tool} />}
+      {mcp ? <McpProviderPanel tool={tool} onChanged={refreshParent} allowBindingEdit /> : <HttpProviderPanel tool={tool} />}
     </SectionBlock>
   ) : null
 
