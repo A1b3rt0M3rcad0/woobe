@@ -54,7 +54,7 @@ export function ContractFieldBuilder({
       type: 'string',
       required: false,
       scope: 'run',
-      expose: true,
+      expose: kind === 'output',
     },
   ])
 
