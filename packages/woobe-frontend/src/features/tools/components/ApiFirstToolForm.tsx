@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/Textarea'
 import { HttpRequestBodyEditor } from '@/features/tools/components/HttpRequestBodyEditor'
 import {
   invalidToolInputBindingTargets,
-  normalizeToolInputBindings,
+  toolInputBindingsForSchema,
   ToolInputBindingsEditor,
 } from '@/features/tools/components/ToolInputBindingsEditor'
 import {
@@ -559,7 +559,7 @@ export function ApiFirstToolForm({
       headers: routeHeaders,
       body: canHaveBody && route.body.trim() ? route.body.trim() : undefined,
       variables: route.variables || {},
-      bindings: normalizeToolInputBindings(route.bindings),
+      bindings: toolInputBindingsForSchema(preview.inputSchema, route.bindings),
       input_schema: preview.inputSchema,
       output_schema: route.output_schema,
       risk_level: route.risk_level || 'low',
