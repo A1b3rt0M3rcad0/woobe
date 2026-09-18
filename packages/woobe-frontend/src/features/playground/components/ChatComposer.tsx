@@ -19,9 +19,9 @@ interface ChatComposerProps {
   statusText?: string
   preparingText?: string
   density?: 'default' | 'compact'
-  runContextContract?: unknown
-  runContextValues?: Record<string, unknown>
-  onRunContextValuesChange?: (values: Record<string, unknown>) => void
+  externalContextContract?: unknown
+  externalContextValues?: Record<string, unknown>
+  onExternalContextValuesChange?: (values: Record<string, unknown>) => void
 }
 
 export function ChatComposer({
@@ -38,21 +38,25 @@ export function ChatComposer({
   statusText,
   preparingText = 'Preparing...',
   density = 'default',
-  runContextContract,
-  runContextValues = {},
-  onRunContextValuesChange,
+  externalContextContract,
+  externalContextValues = {},
+  onExternalContextValuesChange,
 }: ChatComposerProps) {
   const [internalInput, setInternalInput] = useState('')
-  const [runContextOpen, setRunContextOpen] = useState(false)
+  const [externalContextOpen, setExternalContextOpen] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const input = value ?? internalInput
   const blocked = isSending || isPreparing || runtimeBlocked
   const compact = density === 'compact'
-  const runFields = useMemo(() => contractFields(runContextContract), [runContextContract])
-  const runFieldEntries = Object.entries(runFields)
-  const missingRequiredRunFields = runFieldEntries.filter(([name, field]) => {
-    if (!field.required) return false
-    const fieldValue = runContextValues[name]
+  const externalContextFields = useMemo(() => contractFields(externalContextContract), [externalContextContract])
+  const externalContextFieldEntries = Object.entries(externalContextFields)
+  const missingRequiredExternalContextFields = externalContextFieldEntries.filter(([name, field]) => {
+    const consumers = field && typeof field === 'object' && 'consumers' in field && field.consumers && typeof field.consumers === 'object' && !Array.isArray(field.consumers)
+      ? field.consumers as Record<string, { required?: boolean }>
+      : {}
+    const required = Boolean(field.required) || Object.values(consumers).some((consumer) => Boolean(consumer?.required))
+    if (!required) return false
+    const fieldValue = externalContextValues[name]
     return fieldValue === undefined || fieldValue === null || fieldValue === ''
   }).length
 
@@ -94,41 +98,41 @@ export function ChatComposer({
 
   return (
     <div className={compact ? 'min-w-0 border-t border-border bg-surface/[0.78] p-ui-sm' : 'min-w-0 border-t border-border bg-surface/[0.78] p-ui-md'}>
-      {runFieldEntries.length > 0 ? (
+      {externalContextFieldEntries.length > 0 ? (
         <div className="mb-ui-xs overflow-hidden rounded-control border border-border/80 bg-background/30">
           <button
             type="button"
-            onClick={() => setRunContextOpen((current) => !current)}
+            onClick={() => setExternalContextOpen((current) => !current)}
             className="flex min-h-control w-full items-center gap-ui-xs px-ui-sm text-left transition-colors hover:bg-control/35"
-            aria-expanded={runContextOpen}
+            aria-expanded={externalContextOpen}
           >
-            {runContextOpen
+            {externalContextOpen
               ? <ChevronDown className="h-icon-sm w-icon-sm text-muted-foreground" />
               : <ChevronRight className="h-icon-sm w-icon-sm text-muted-foreground" />}
             <Braces className="h-icon-sm w-icon-sm text-primary-light" />
-            <span className="font-mono text-system-control font-medium text-slate-100">Run Context</span>
+            <span className="font-mono text-system-control font-medium text-slate-100">External Context</span>
             <span className="font-sans text-product-caption text-muted-foreground">
-              {runFieldEntries.length} field{runFieldEntries.length === 1 ? '' : 's'}
+              {externalContextFieldEntries.length} field{externalContextFieldEntries.length === 1 ? '' : 's'}
             </span>
-            {missingRequiredRunFields > 0 ? (
+            {missingRequiredExternalContextFields > 0 ? (
               <span className="ml-auto rounded-technical border border-amber-400/25 bg-amber-400/[0.06] px-ui-xs font-mono text-system-meta text-amber-300">
-                {missingRequiredRunFields} required missing
+                {missingRequiredExternalContextFields} required missing
               </span>
             ) : (
-              <span className="ml-auto font-mono text-system-meta text-muted-foreground">per execution</span>
+              <span className="ml-auto font-mono text-system-meta text-muted-foreground">run + session</span>
             )}
           </button>
-          {runContextOpen ? (
+          {externalContextOpen ? (
             <div className="border-t border-border/70 px-ui-sm pb-ui-sm">
               <p className="py-ui-xs font-sans text-product-caption text-muted-foreground">
-                These values are attached only to the next Agent Run. Successful Runs clear them automatically.
+                Fields stay available while testing. Run-scoped values are sent on each execution; Session-scoped values are persisted by the Runtime when a Session is available.
               </p>
               <ContractValueForm
-                contract={runContextContract}
-                values={runContextValues}
+                contract={externalContextContract}
+                values={externalContextValues}
                 disabled={blocked}
                 density="compact"
-                onChange={onRunContextValuesChange ?? (() => undefined)}
+                onChange={onExternalContextValuesChange ?? (() => undefined)}
               />
             </div>
           ) : null}
