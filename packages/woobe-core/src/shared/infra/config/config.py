@@ -98,7 +98,7 @@ class Settings(BaseSettings):
     run_event_dead_letter_stream: str = "woobe:runtime:journal:dead"
     run_event_output_batch_bytes: int = Field(default=16384, ge=1024, le=1048576)
     run_event_output_flush_interval_ms: int = Field(default=200, ge=10, le=5000)
-    default_context_manager: str = "stdcm:v1"
+    default_context_manager: str = "standard"
     chat_surface_enabled: bool = True
     chat_surface_allow_insecure_origins: bool = False
     chat_token_signing_key: str = ""
@@ -185,19 +185,14 @@ class Settings(BaseSettings):
     @field_validator("default_context_manager", mode="before")
     @classmethod
     def validate_default_context_manager(cls, value: object) -> str:
-        normalized = str(value).strip()
-        name, separator, version = normalized.partition(":")
-        if (
-            not separator
-            or not name.strip()
-            or not version.strip()
-            or ":" in version
-            or name.strip() == "default"
-        ):
+        normalized = str(value).strip().lower()
+        if normalized in {"stdcm:v1", "stdcm:v2", "default:v1"}:
+            return "standard"
+        if not normalized or ":" in normalized or normalized == "default":
             raise ValueError(
-                "WOOBE_DEFAULT_CONTEXT_MANAGER must identify a concrete strategy as '<name>:<version>'"
+                "WOOBE_DEFAULT_CONTEXT_MANAGER must identify a concrete unversioned Context Manager"
             )
-        return f"{name.strip()}:{version.strip()}"
+        return normalized
 
     @field_validator("database_url", mode="before")
     @classmethod
