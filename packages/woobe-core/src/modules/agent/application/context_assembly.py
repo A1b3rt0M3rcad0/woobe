@@ -309,7 +309,7 @@ def _trim_external_context_message_to_units(
 
     try:
         payload = json.loads(content[len(_EXTERNAL_CONTEXT_PREAMBLE) :])
-    except (TypeError, ValueError, json.JSONDecodeError):
+    except (TypeError, ValueError):
         return message, False
     if not isinstance(payload, dict):
         return message, False
