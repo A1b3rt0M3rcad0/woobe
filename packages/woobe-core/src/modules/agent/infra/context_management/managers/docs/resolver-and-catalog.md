@@ -13,7 +13,7 @@ The resolver owns concrete factories and wraps Managers with `ContextManagerRunn
 ## Catalog
 
 ```text
-application/context_assembler_registry.py
+application/context_manager_registry.py
 ```
 
 The application catalog owns product-facing metadata only.

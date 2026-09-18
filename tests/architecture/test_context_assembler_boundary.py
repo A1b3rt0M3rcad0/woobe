@@ -34,7 +34,7 @@ _CONTEXT_ASSEMBLER_REGISTRY = (
 _STANDARD_MANAGER_MODULE = "modules.agent.infra.context_management.managers.standard"
 _MANAGER_RESOLVER_MODULE = "modules.agent.infra.context_management.managers.resolver"
 _CONTEXT_ASSEMBLER_REGISTRY_MODULE = (
-    "modules.agent.application.context_assembler_registry"
+    "modules.agent.application.context_manager_registry"
 )
 _BACKGROUND_BOUNDARY_MODULE = "modules.agent.background_boundary"
 _LEGACY_ASSEMBLY_MODULE = "modules.agent.application.context_assembly"

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from modules.agent.application.context_assembler_registry import (
+from modules.agent.application.context_manager_registry import (
     ContextAssemblerDescriptor,
     ContextAssemblerRegistry,
     DuplicateContextAssemblerError,
