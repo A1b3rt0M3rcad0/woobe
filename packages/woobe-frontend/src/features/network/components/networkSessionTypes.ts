@@ -31,7 +31,7 @@ export interface NetworkSession {
   status: 'active' | 'closed'
   createdAt: string
   lastMessageAt: string | null
-  externalContextSessionValues: Record<string, unknown>
+  externalContextSessionValues?: Record<string, unknown>
   messageCount: number
   traceCount: number
   agentContexts: NetworkAgentContext[]
