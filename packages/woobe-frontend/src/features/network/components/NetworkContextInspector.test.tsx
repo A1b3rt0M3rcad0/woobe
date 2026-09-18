@@ -32,6 +32,7 @@ describe('Network context inspector bootstrap', () => {
     expect(markup).toContain('Preparing Network')
     expect(markup).not.toContain('Node settings')
   })
+
   it.each(['chat', 'canvas'] as const)('uses the same responsive inspector width in %s mode', (centerMode) => {
     const queryClient = new QueryClient({
       defaultOptions: {
@@ -39,24 +40,25 @@ describe('Network context inspector bootstrap', () => {
         mutations: { retry: false },
       },
     })
+
     const markup = renderToStaticMarkup(
       <QueryClientProvider client={queryClient}>
         <NetworkContextInspector
-        context="network"
-        centerMode={centerMode}
-        inspectionScope={{ type: 'current' }}
-        definition={createEmptyNetworkDefinition()}
-        agents={[]}
-        bindings={{}}
-        issues={[]}
-        selection={{ type: 'network' }}
-        readOnly
-        name="Project Network"
-        description=""
-        agentWorkspace={null}
-        onContext={vi.fn()}
-        onLocateOnCanvas={vi.fn()}
-        onSelect={vi.fn()}
+          context="network"
+          centerMode={centerMode}
+          inspectionScope={{ type: 'current' }}
+          definition={createEmptyNetworkDefinition()}
+          agents={[]}
+          bindings={{}}
+          issues={[]}
+          selection={{ type: 'network' }}
+          readOnly
+          name="Project Network"
+          description=""
+          agentWorkspace={null}
+          onContext={vi.fn()}
+          onLocateOnCanvas={vi.fn()}
+          onSelect={vi.fn()}
           onMetadata={vi.fn()}
           onChange={vi.fn()}
         />
