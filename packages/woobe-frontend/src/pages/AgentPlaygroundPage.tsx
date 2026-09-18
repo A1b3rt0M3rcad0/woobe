@@ -537,7 +537,7 @@ function PlaygroundContent() {
     if (environment === 'draft') {
       const validation = validateAgentEditorState(state)
       if (!validation.valid) {
-        setEditorSection('output')
+        setEditorSection(validation.issue.section)
         setRightPanelTab('editor')
         setShowRightPanel(true)
         toast.error(validation.issue.message)
