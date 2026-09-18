@@ -3,6 +3,8 @@ from __future__ import annotations
 from types import SimpleNamespace
 from uuid import uuid4
 
+import json
+
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
@@ -315,3 +317,142 @@ async def test_actual_model_invocation_receives_contract_exposed_external_contex
     assert '"name"' in materialized
     assert '"Alberto"' in materialized
     assert '"age"' not in materialized
+
+
+def _external_context_messages(result) -> list:
+    return [
+        message
+        for message in result.messages
+        if (
+            isinstance(getattr(message, "additional_kwargs", None), dict)
+            and (
+                message.additional_kwargs.get("woobe_context", {}).get("source_ref")
+                == "external_context"
+            )
+        )
+    ]
+
+
+def test_structured_external_context_reaches_model_without_losing_json_types() -> None:
+    contract = {
+        "profile": {
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "active": {"type": "boolean"},
+                    "age": {"type": "integer"},
+                    "roles": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                },
+                "required": ["active", "age", "roles"],
+                "additionalProperties": False,
+            },
+            "required": True,
+            "scope": "session",
+            "model": {"expose": True},
+            "description": "Authenticated user profile.",
+        },
+        "secret": {
+            "schema": {"type": "string"},
+            "required": True,
+            "scope": "session",
+            "model": {"expose": False},
+        },
+    }
+    runtime = _runtime_context(
+        external_context_contract=contract,
+        external_context_snapshot={
+            "profile": {
+                "active": True,
+                "age": 18,
+                "roles": ["admin", "billing"],
+            },
+            "secret": "must-not-reach-model",
+        },
+        model_external_context={
+            "profile": {
+                "active": True,
+                "age": 18,
+                "roles": ["admin", "billing"],
+            }
+        },
+    )
+
+    result = _assemble(runtime)
+    messages = _external_context_messages(result)
+
+    assert len(messages) == 1
+    payload = json.loads(str(messages[0].content).split("\n", 1)[1])
+    assert payload == {
+        "profile": {
+            "description": "Authenticated user profile.",
+            "value": {
+                "active": True,
+                "age": 18,
+                "roles": ["admin", "billing"],
+            },
+        }
+    }
+    assert "must-not-reach-model" not in _materialized_text(result)
+
+
+def test_repeated_model_invocations_on_same_run_materialize_one_identical_context_message_each() -> None:
+    runtime = _runtime_context()
+
+    first = _assemble(runtime)
+    second = _assemble(runtime)
+
+    first_messages = _external_context_messages(first)
+    second_messages = _external_context_messages(second)
+
+    assert len(first_messages) == 1
+    assert len(second_messages) == 1
+    assert first_messages[0].content == second_messages[0].content
+    assert _materialized_text(first).count("External Context supplied by the runtime") == 1
+    assert _materialized_text(second).count("External Context supplied by the runtime") == 1
+
+
+def test_external_context_remains_structurally_valid_under_context_budget_pressure() -> None:
+    large_value = "x" * 2_000
+    contract = {
+        "profile": {
+            "schema": {"type": "string"},
+            "required": True,
+            "scope": "run",
+            "model": {"expose": True},
+            "description": "Large runtime profile.",
+        }
+    }
+    runtime = _runtime_context(
+        external_context_contract=contract,
+        external_context_snapshot={"profile": large_value},
+        model_external_context={"profile": large_value},
+        model_capacity_units=512,
+        reserved_output_units=128,
+    )
+    policy = ContextPolicyV1.model_validate(
+        {
+            "allowed_sources": [
+                "SYSTEM",
+                "USER_INPUT",
+                "SESSION",
+                "TOOL",
+                "SKILL",
+            ],
+            "budget": {
+                "max_input_units": 256,
+                "runtime_reserve_units": 0,
+            },
+        }
+    )
+
+    result = _assemble(runtime, policy=policy)
+    messages = _external_context_messages(result)
+
+    assert len(messages) == 1
+    serialized_payload = str(messages[0].content).split("\n", 1)[1]
+    parsed = json.loads(serialized_payload)
+    assert "profile" in parsed
+    assert isinstance(parsed["profile"], dict)
