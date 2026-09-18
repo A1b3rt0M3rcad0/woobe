@@ -114,22 +114,37 @@ def test_network_defaults_remain_consumer_specific_for_the_same_field() -> None:
     }
 
 
-def test_network_consumer_reconstruction_preserves_field_description() -> None:
+def test_network_consumer_reconstruction_preserves_consumer_specific_description() -> None:
     effective = compose_external_context_contracts(
         {
             "root": {
                 "name": _field(
                     required=True,
                     expose=True,
-                    description="Authenticated customer name.",
+                    description="Authenticated customer name for greeting.",
                 )
-            }
+            },
+            "specialist": {
+                "name": _field(
+                    required=False,
+                    expose=True,
+                    description="Customer name used for specialist lookup context.",
+                )
+            },
         }
     )
 
     root = consumer_external_context_contract(effective, "root")
+    specialist = consumer_external_context_contract(effective, "specialist")
 
-    assert root["name"]["description"] == "Authenticated customer name."
+    assert (
+        root["name"]["description"]
+        == "Authenticated customer name for greeting."
+    )
+    assert (
+        specialist["name"]["description"]
+        == "Customer name used for specialist lookup context."
+    )
 
 
 def test_session_value_update_is_reused_by_next_network_run() -> None:
