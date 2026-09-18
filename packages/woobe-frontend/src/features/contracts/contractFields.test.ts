@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   externalContractFromRows,
   externalContractRows,
+  contractForScope,
   filterContractValues,
   outputSchemaFromRows,
 } from './contractFields'
@@ -56,6 +57,26 @@ describe('contract field builders', () => {
       required: ['answer'],
       additionalProperties: false,
     })
+  })
+
+  it('projects External Context by Run and Session scope', () => {
+    const contract = {
+      current_page: {
+        schema: { type: 'string' },
+        required: true,
+        scope: 'run',
+        model: { expose: true },
+      },
+      customer_id: {
+        schema: { type: 'string' },
+        required: true,
+        scope: 'session',
+        model: { expose: false },
+      },
+    }
+
+    expect(Object.keys(contractForScope(contract, 'run'))).toEqual(['current_page'])
+    expect(Object.keys(contractForScope(contract, 'session'))).toEqual(['customer_id'])
   })
 
   it('drops persisted values that are no longer declared by the selected environment contract', () => {
