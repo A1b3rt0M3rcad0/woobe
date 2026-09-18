@@ -110,6 +110,18 @@ export function contractFields(value: unknown): Record<string, ExternalContextFi
   return normalizedExternalFields(value)
 }
 
+export function contractForScope(
+  value: unknown,
+  scope: 'run' | 'session',
+): ExternalContextContract {
+  return Object.fromEntries(
+    Object.entries(normalizedExternalFields(value)).filter(([, field]) => {
+      const fieldScope = field.scope === 'session' ? 'session' : 'run'
+      return fieldScope === scope
+    }),
+  )
+}
+
 export function coerceContractValue(type: ContractFieldType, raw: string | boolean): unknown {
   if (type === 'boolean') {
     if (typeof raw === 'boolean') return raw
