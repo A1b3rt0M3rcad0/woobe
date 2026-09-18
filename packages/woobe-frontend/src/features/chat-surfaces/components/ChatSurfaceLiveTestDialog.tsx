@@ -71,18 +71,30 @@ export function ChatSurfaceLiveTestDialog({
   const [error, setError] = useState<string | null>(null)
   const [frameStatus, setFrameStatus] = useState<FrameStatus>('starting')
   const [externalContext, setExternalContext] = useState<Record<string, unknown>>({})
+  const effectiveReleaseId = session?.target_release_id ?? surface.target_release_id
   const agentReleaseQuery = useRelease(
     surface.target_type === 'agent' ? surface.target_id : undefined,
-    surface.target_type === 'agent' ? surface.target_release_id : undefined,
+    surface.target_type === 'agent' ? effectiveReleaseId : undefined,
   )
   const networkVersionsQuery = useNetworkVersions(
     surface.target_type === 'network' ? surface.target_id : undefined,
     surface.target_type === 'network' ? surface.project_id : undefined,
   )
+  const networkVersion = useMemo(
+    () => networkVersionsQuery.data?.find((version) => version.id === effectiveReleaseId),
+    [effectiveReleaseId, networkVersionsQuery.data],
+  )
   const externalContextContract = useMemo(() => {
     if (surface.target_type === 'agent') return agentReleaseQuery.data?.external_context_contract ?? {}
-    return networkVersionsQuery.data?.find((version) => version.id === surface.target_release_id)?.effective_external_context_contract ?? {}
-  }, [agentReleaseQuery.data?.external_context_contract, networkVersionsQuery.data, surface.target_release_id, surface.target_type])
+    return networkVersion?.effective_external_context_contract ?? {}
+  }, [agentReleaseQuery.data?.external_context_contract, networkVersion?.effective_external_context_contract, surface.target_type])
+  const externalContextContractLoading = surface.target_type === 'agent'
+    ? agentReleaseQuery.isLoading
+    : networkVersionsQuery.isLoading
+  const externalContextContractError = surface.target_type === 'agent'
+    ? agentReleaseQuery.isError
+    : networkVersionsQuery.isError || (!networkVersionsQuery.isLoading && Boolean(session) && !networkVersion)
+  const externalContextContractResolved = Boolean(session) && !externalContextContractLoading && !externalContextContractError
 
   const embedOrigin = useMemo(() => resolveEmbedOrigin(), [])
   const frameUrl = useMemo(() => {
@@ -130,8 +142,9 @@ export function ChatSurfaceLiveTestDialog({
   }, [surface.id])
 
   useEffect(() => {
+    if (!externalContextContractResolved) return
     setExternalContext((current) => filterContractValues(externalContextContract, current))
-  }, [externalContextContract])
+  }, [externalContextContract, externalContextContractResolved])
 
   useEffect(() => {
     if (!open) {
@@ -262,20 +275,35 @@ export function ChatSurfaceLiveTestDialog({
                   <p className="font-sans text-product-small leading-5 text-muted-foreground">
                     Fill the fields declared by the pinned {surface.target_type === 'agent' ? 'Agent' : 'Network'} contract. No JSON is required.
                   </p>
-                  <ContractValueForm
-                    contract={externalContextContract}
-                    values={externalContext}
-                    onChange={setExternalContext}
-                  />
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    className="w-full justify-center"
-                    onClick={applyExternalContext}
-                  >
-                    Apply context
-                  </Button>
+                  {!session || externalContextContractLoading ? (
+                    <p className="font-sans text-product-small text-muted-foreground">
+                      Loading External Context contract…
+                    </p>
+                  ) : externalContextContractError ? (
+                    <Alert variant="destructive">
+                      <AlertTitle>Unable to load External Context contract</AlertTitle>
+                      <AlertDescription>
+                        The pinned Release contract could not be resolved for this Session.
+                      </AlertDescription>
+                    </Alert>
+                  ) : (
+                    <>
+                      <ContractValueForm
+                        contract={externalContextContract}
+                        values={externalContext}
+                        onChange={setExternalContext}
+                      />
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        className="w-full justify-center"
+                        onClick={applyExternalContext}
+                      >
+                        Apply context
+                      </Button>
+                    </>
+                  )}
                 </div>
               </SectionBlock>
 
