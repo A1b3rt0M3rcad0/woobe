@@ -158,7 +158,7 @@ export function ToolInputBindingsEditor({
 
       <div className="border-t border-border/70 px-3 py-2">
         <p className="text-[10px] leading-4 text-muted">
-          External Context bindings are resolved from the immutable Run snapshot and removed from the model-visible Tool input schema.
+          External Context bindings are resolved from the immutable Run snapshot and removed from the model-visible Tool input schema. Run/Session lifetime remains defined by the consuming Agent contract.
         </p>
       </div>
     </div>
