@@ -315,3 +315,37 @@ def test_network_frozen_snapshot_can_restore_external_context_contract_when_live
     runtime._apply_snapshot_override(agent, snapshot)
 
     assert agent.settings["external_context_contract"] == frozen_contract
+
+
+def test_frozen_snapshot_explicit_null_clears_live_external_context_contract() -> None:
+    agent = Agent(
+        project_id=uuid4(),
+        provider=Provider.custom,
+        model="current-model",
+        session_mode=SessionMode.stateful,
+        settings={
+            "external_context_contract": {
+                "legacy_name": {
+                    "schema": {"type": "string"},
+                    "required": False,
+                    "scope": "run",
+                    "model": {"expose": False},
+                }
+            },
+            "runtime_config": {},
+        },
+    )
+    snapshot = {
+        "provider": "custom",
+        "model": "frozen-model",
+        "session_mode": "stateful",
+        "external_context_contract": None,
+        "runtime_config": {},
+    }
+
+    runtime = FrozenSnapshotStructuredOutputRuntime.__new__(
+        FrozenSnapshotStructuredOutputRuntime
+    )
+    runtime._apply_snapshot_override(agent, snapshot)
+
+    assert "external_context_contract" not in agent.settings
