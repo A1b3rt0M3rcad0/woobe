@@ -896,7 +896,7 @@ export default function NetworkPage() {
       </div>
     </div>
   ) : (
-    <NetworkGraphEditor definition={workspaceDefinition} environment={environment} agents={projectAgents} issues={workspaceIssues} selection={selection} readOnly={inspectorReadOnly} activePath={activePath} inspectionLabel={snapshotInspection?.title ?? null} onClearInspection={clearSnapshotInspection} onChange={changeEditor} onSelect={selectWorkspace} onAddAgent={() => openCatalog('add-specialist')} />
+    <NetworkGraphEditor definition={workspaceDefinition} agents={projectAgents} issues={workspaceIssues} selection={selection} readOnly={inspectorReadOnly} activePath={activePath} inspectionLabel={snapshotInspection?.title ?? null} onClearInspection={clearSnapshotInspection} onChange={changeEditor} onSelect={selectWorkspace} onAddAgent={() => openCatalog('add-specialist')} />
   )
 
   const chatContent = (
