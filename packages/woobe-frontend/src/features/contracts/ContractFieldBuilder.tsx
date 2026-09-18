@@ -63,14 +63,14 @@ export function ContractFieldBuilder({
       <div
         className={
           kind === 'external'
-            ? 'grid grid-cols-[minmax(120px,1.4fr)_110px_105px_72px_100px_32px] items-center gap-ui-xs border-b border-border px-ui-xs pb-ui-xs font-mono text-system-label uppercase tracking-system-label text-muted-foreground'
-            : 'grid grid-cols-[minmax(140px,1.5fr)_120px_82px_32px] items-center gap-ui-xs border-b border-border px-ui-xs pb-ui-xs font-mono text-system-label uppercase tracking-system-label text-muted-foreground'
+            ? 'grid grid-cols-[minmax(56px,1fr)_66px_66px_38px_66px_24px] items-center gap-ui-xs border-b border-border px-ui-xs pb-ui-xs font-mono text-system-label uppercase tracking-system-label text-muted-foreground'
+            : 'grid grid-cols-[minmax(100px,1fr)_90px_54px_24px] items-center gap-ui-xs border-b border-border px-ui-xs pb-ui-xs font-mono text-system-label uppercase tracking-system-label text-muted-foreground'
         }
       >
         <span>Name</span>
         <span>Type</span>
         {kind === 'external' ? <span>Scope</span> : null}
-        <span className="text-center">Required</span>
+        <span className="text-center">{kind === 'external' ? 'Req.' : 'Required'}</span>
         {kind === 'external' ? <span>Model</span> : null}
         <span />
       </div>
@@ -81,8 +81,8 @@ export function ContractFieldBuilder({
             key={index}
             className={
               kind === 'external'
-                ? 'grid min-h-control grid-cols-[minmax(120px,1.4fr)_110px_105px_72px_100px_32px] items-center gap-ui-xs px-ui-xs py-ui-xs'
-                : 'grid min-h-control grid-cols-[minmax(140px,1.5fr)_120px_82px_32px] items-center gap-ui-xs px-ui-xs py-ui-xs'
+                ? 'grid min-h-control grid-cols-[minmax(56px,1fr)_66px_66px_38px_66px_24px] items-center gap-ui-xs px-ui-xs py-ui-xs'
+                : 'grid min-h-control grid-cols-[minmax(100px,1fr)_90px_54px_24px] items-center gap-ui-xs px-ui-xs py-ui-xs'
             }
           >
             <Input
@@ -96,6 +96,7 @@ export function ContractFieldBuilder({
               value={row.type}
               disabled={disabled}
               options={CONTRACT_FIELD_TYPE_OPTIONS}
+              className="pl-ui-xs pr-5"
               onChange={(event) => update(index, { type: event.target.value as ContractFieldType })}
               aria-label={`Field ${row.name || index + 1} type`}
             />
@@ -104,6 +105,7 @@ export function ContractFieldBuilder({
                 value={row.scope}
                 disabled={disabled}
                 options={SCOPE_OPTIONS}
+                className="pl-ui-xs pr-5"
                 onChange={(event) => update(index, { scope: event.target.value as 'run' | 'session' })}
                 aria-label={`Field ${row.name || index + 1} scope`}
               />
@@ -121,6 +123,7 @@ export function ContractFieldBuilder({
                 value={row.expose ? 'expose' : 'hidden'}
                 disabled={disabled}
                 options={MODEL_OPTIONS}
+                className="pl-ui-xs pr-5"
                 onChange={(event) => update(index, { expose: event.target.value === 'expose' })}
                 aria-label={`Field ${row.name || index + 1} model visibility`}
               />
