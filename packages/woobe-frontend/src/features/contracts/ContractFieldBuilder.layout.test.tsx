@@ -23,7 +23,7 @@ describe('ContractFieldBuilder responsive layout', () => {
     expect(markup).not.toContain('overflow-x')
   })
 
-  it('renders External Context as readable field cards instead of a compressed table', () => {
+  it('keeps External Context fields as dense collapsed rows', () => {
     const markup = renderToStaticMarkup(
       <ContractFieldBuilder
         kind="external"
@@ -39,12 +39,33 @@ describe('ContractFieldBuilder responsive layout', () => {
       />,
     )
 
-    expect(markup).toContain('Field 1')
-    expect(markup).toContain('Description')
-    expect(markup).toContain('Required at runtime')
-    expect(markup).toContain('Expose to model')
-    expect(markup).toContain('Session values persist across Runs')
-    expect(markup).not.toContain('grid-cols-[minmax(56px,1fr)_66px_66px_38px_66px_24px]')
+    expect(markup).toContain('grid-cols-[minmax(88px,1fr)_72px_72px_34px_38px_28px_28px]')
+    expect(markup).toContain('Req.')
+    expect(markup).toContain('Model')
+    expect(markup).toContain('1 field')
+    expect(markup).toContain('aria-expanded="false"')
+    expect(markup).not.toContain('<textarea')
+    expect(markup).not.toContain('Customer identity for the current conversation')
     expect(markup).not.toContain('overflow-x')
+  })
+
+  it('does not multiply vertical detail panels when the contract has many fields', () => {
+    const rows = Array.from({ length: 10 }, (_, index) => ({
+      name: `field_${index + 1}`,
+      type: 'string' as const,
+      required: index % 2 === 0,
+      scope: index % 2 === 0 ? 'run' as const : 'session' as const,
+      expose: true,
+      description: `Description ${index + 1}`,
+    }))
+
+    const markup = renderToStaticMarkup(
+      <ContractFieldBuilder kind="external" rows={rows} onChange={vi.fn()} />,
+    )
+
+    expect(markup).toContain('10 fields')
+    expect(markup.match(/aria-expanded="false"/g)).toHaveLength(10)
+    expect(markup).not.toContain('<textarea')
+    expect(markup).not.toContain('Description 10')
   })
 })
