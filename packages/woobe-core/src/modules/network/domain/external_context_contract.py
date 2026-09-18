@@ -118,6 +118,8 @@ def consumer_external_context_contract(
         }
         if "default" in consumer_spec:
             reconstructed["default"] = deepcopy(consumer_spec["default"])
+        if "description" in consumer_spec:
+            reconstructed["description"] = consumer_spec["description"]
         consumer_fields[name] = reconstructed
     return normalize_external_context_contract(consumer_fields)
 
@@ -160,6 +162,8 @@ def _single_field_contract(
     }
     if "default" in consumer:
         value["default"] = deepcopy(consumer["default"])
+    if "description" in consumer:
+        value["description"] = consumer["description"]
     return {name: value}
 
 
