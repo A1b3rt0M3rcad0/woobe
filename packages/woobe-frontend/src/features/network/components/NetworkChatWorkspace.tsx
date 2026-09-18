@@ -70,6 +70,8 @@ const LIVE_EXECUTION_EVENT_TYPES = new Set([
   'execution_cancelled',
 ])
 
+const EMPTY_EXTERNAL_CONTEXT_CONTRACT: Record<string, never> = {}
+
 const networkSuggestions = [
   'Test a request that should be answered by the entry Agent.',
   'Test a request that should require delegation to a specialist.',
@@ -140,7 +142,7 @@ export function NetworkChatWorkspace({
   const runtimeStatesQuery = useNetworkRuntimeEnvironments(networkId, projectId)
   const externalContextContractQuery = useNetworkExternalContextContract(networkId, projectId, environment)
   const runtimeEnabled = runtimeStatesQuery.data?.[environment]?.enabled ?? true
-  const effectiveExternalContextContract = externalContextContractQuery.data ?? {}
+  const effectiveExternalContextContract = externalContextContractQuery.data ?? EMPTY_EXTERNAL_CONTEXT_CONTRACT
   const runContextContract = useMemo(
     () => contractForScope(effectiveExternalContextContract, 'run'),
     [effectiveExternalContextContract],
