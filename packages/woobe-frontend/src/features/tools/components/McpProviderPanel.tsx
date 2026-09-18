@@ -7,7 +7,7 @@ import { Dialog } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import {
   invalidToolInputBindingTargets,
-  normalizeToolInputBindings,
+  toolInputBindingsForSchema,
   ToolInputBindingsEditor,
 } from '@/features/tools/components/ToolInputBindingsEditor'
 import {
@@ -318,7 +318,7 @@ export function McpProviderPanel({ tool, footerActions, summaryNote, onChanged, 
       const config = mcpConfig(tool)
       const nextDiscovered = (config.discovered_tools || []).map((item) => (
         item.name === bindingTool.name
-          ? { ...item, bindings: normalizeToolInputBindings(bindingDraft) }
+          ? { ...item, bindings: toolInputBindingsForSchema(bindingTool.input_schema || undefined, bindingDraft) }
           : item
       ))
       await updateTool.mutateAsync({
