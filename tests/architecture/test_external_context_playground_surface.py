@@ -22,6 +22,7 @@ def test_external_context_values_are_opened_from_playground_header() -> None:
 
     assert "onExternalContextClick={() => setShowContextModal(true)}" in page
     assert "externalContextFieldCount={externalContextFieldCount}" in page
+    assert "currentEnvironmentRelease?.external_context_contract ?? null" in page
     assert 'title="External Context"' in header
     assert 'aria-label="External Context"' in header
     assert "<Braces" in header

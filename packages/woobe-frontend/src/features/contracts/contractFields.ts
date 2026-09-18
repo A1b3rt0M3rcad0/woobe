@@ -45,7 +45,7 @@ export function externalContractRows(value: unknown): ContractFieldRow[] {
     required: Boolean(field.required),
     scope: field.scope === 'session' ? 'session' : 'run',
     expose: Boolean(field.model?.expose),
-    description: typeof field.description === 'string' ? field.description : '',
+    ...(typeof field.description === 'string' ? { description: field.description } : {}),
   }))
 }
 
