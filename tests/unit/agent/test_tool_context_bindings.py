@@ -8,6 +8,7 @@ from modules.agent.application.interfaces.tool_runtime import MCP_REMOTE_TOOL_IN
 from modules.agent.application.tool_context_bindings import (
     ToolContextBindingError,
     apply_context_bindings,
+    collect_project_environment_binding_keys,
     merge_context_bindings_for_update,
 )
 from modules.agent.application.tool_converter import agent_tool_to_openai_definition
@@ -16,6 +17,10 @@ from modules.agent.domain.enums import ToolType
 
 def binding(field: str) -> dict:
     return {"source": {"kind": "context", "field": field}}
+
+
+def project_environment_binding(field: str) -> dict:
+    return {"source": {"kind": "project_environment", "field": field}}
 
 
 def test_context_binding_overrides_model_supplied_value() -> None:
@@ -35,6 +40,47 @@ def test_context_binding_fails_when_snapshot_value_is_unavailable() -> None:
     config = {"bindings": {"customer_id": binding("customer_id")}}
     with pytest.raises(ToolContextBindingError, match="customer_id"):
         apply_context_bindings(config, {}, {})
+
+
+def test_project_environment_binding_overrides_model_supplied_value() -> None:
+    config = {"bindings": {"api_key": project_environment_binding("API_KEY")}}
+    result = apply_context_bindings(
+        config,
+        {"api_key": "model-forged-value", "query": "recent orders"},
+        {},
+        {"API_KEY": "runtime-secret"},
+    )
+    assert result == {
+        "api_key": "runtime-secret",
+        "query": "recent orders",
+    }
+
+
+def test_project_environment_binding_fails_when_value_is_unavailable() -> None:
+    config = {"bindings": {"api_key": project_environment_binding("API_KEY")}}
+    with pytest.raises(ToolContextBindingError, match="Project Environment key 'API_KEY'"):
+        apply_context_bindings(config, {}, {}, {})
+
+
+def test_collect_project_environment_binding_keys_includes_root_and_children() -> None:
+    config = {
+        "protocol": "http",
+        "mode": "group",
+        "base_url": "https://example.com",
+        "bindings": {"tenant": project_environment_binding("TENANT_ID")},
+        "routes": [
+            {
+                "id": "orders",
+                "operation_id": "orders",
+                "name": "Orders",
+                "description": "List orders",
+                "path": "/orders",
+                "bindings": {"api_key": project_environment_binding("API_KEY")},
+            }
+        ],
+    }
+
+    assert collect_project_environment_binding_keys(config) == {"TENANT_ID", "API_KEY"}
 
 
 def test_http_group_route_binding_is_selected_by_runtime_route() -> None:
@@ -61,6 +107,26 @@ def test_http_group_route_binding_is_selected_by_runtime_route() -> None:
     )
     assert result["tenant_id"] == "tenant-1"
     assert result["customer_id"] == "cus-1"
+
+
+def test_http_tool_config_accepts_project_environment_binding() -> None:
+    created = CreateToolInput(
+        project_id=uuid4(),
+        type=ToolType.HTTP,
+        name="Customer",
+        config={
+            "protocol": "http",
+            "url": "https://example.com/customers",
+            "bindings": {"api_key": project_environment_binding("API_KEY")},
+        },
+        input_schema={
+            "type": "object",
+            "properties": {"api_key": {"type": "string"}},
+            "required": ["api_key"],
+        },
+    )
+    assert created.config is not None
+    assert created.config["bindings"]["api_key"] == project_environment_binding("API_KEY")
 
 
 def test_http_tool_config_preserves_typed_bindings() -> None:
