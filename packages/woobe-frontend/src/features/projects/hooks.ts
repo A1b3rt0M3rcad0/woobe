@@ -10,7 +10,6 @@ import {
   grantProjectSubjectAccess,
   revokeProjectSubjectAccess,
   getProjectEnvironmentKeys,
-  getProjectEnvironmentKeyUsage,
   upsertProjectEnvironmentKey,
   deleteProjectEnvironmentKey,
 } from './api'
@@ -135,17 +134,6 @@ export function useRevokeProjectAccess() {
   })
 }
 
-
-export function useProjectEnvironmentKeyUsage(
-  projectId: string | undefined,
-  key: string | undefined,
-) {
-  return useQuery({
-    queryKey: ['project-environment-key-usage', projectId, key],
-    queryFn: () => getProjectEnvironmentKeyUsage(projectId!, key!),
-    enabled: Boolean(projectId && key),
-  })
-}
 
 
 export function useProjectEnvironmentKeys(projectId: string | undefined) {
