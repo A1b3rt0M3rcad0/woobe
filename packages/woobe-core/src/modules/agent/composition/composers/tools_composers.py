@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from modules.agent.application import mcp_oauth
 from modules.agent.application import mcp_oauth_flow_safety as mcp_oauth_flows
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase
@@ -7,6 +9,9 @@ from modules.agent.application.mcp_permissions import (
 )
 from modules.agent.application.mcp_tool_bootstrap import McpToolBootstrapper
 from modules.agent.application.mcp_tool_refresh import RefreshMcpProviderToolsUseCase
+from modules.agent.application.project_environment_references import (
+    list_project_environment_tool_references,
+)
 from modules.agent.application.runtime_tool_use_cases import (
     RuntimeExecuteToolUseCase,
     RuntimeTestToolUseCase,
@@ -74,6 +79,20 @@ from modules.agent.presentation.controllers.update_tool_status_controller import
 )
 from shared.infra.transactional_handler import TransactionalHandler
 from shared.project_environment import build_project_environment_service
+
+
+async def project_environment_tool_references(
+    project_id: UUID,
+    key: str,
+) -> list[dict[str, str]]:
+    uow = AgentUnitOfWork(DATABASE_ENGINE).mark_read_only()
+    async with uow:
+        repo = SQLAlchemyAgentToolRepository(uow)
+        return await list_project_environment_tool_references(
+            repo,
+            project_id=project_id,
+            key=key,
+        )
 
 
 def create_tool_composer() -> TransactionalHandler:
