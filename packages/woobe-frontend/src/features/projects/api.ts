@@ -1,4 +1,4 @@
-import { del, get, post, patch } from '@/lib/api/client'
+import { del, get, post, patch, put } from '@/lib/api/client'
 import type {
   Project,
   ProjectAccessSummary,
@@ -6,6 +6,8 @@ import type {
   ProjectAccessSubject,
   CreateProjectRequest,
   UpdateProjectRequest,
+  ProjectEnvironmentKey,
+  UpsertProjectEnvironmentKeyRequest,
 } from './types'
 
 interface ProjectAccessMutationResponse {
@@ -56,4 +58,26 @@ export async function revokeProjectSubjectAccess(
   subjectId: string,
 ): Promise<void> {
   return del<void>(`/core/projects/${projectId}/access/${subjectType}/${subjectId}`)
+}
+
+
+export async function getProjectEnvironmentKeys(projectId: string): Promise<ProjectEnvironmentKey[]> {
+  return get<ProjectEnvironmentKey[]>(`/core/projects/${projectId}/environment-keys`)
+}
+
+export async function upsertProjectEnvironmentKey(
+  projectId: string,
+  key: string,
+  data: UpsertProjectEnvironmentKeyRequest,
+): Promise<ProjectEnvironmentKey> {
+  return put<ProjectEnvironmentKey>(
+    `/core/projects/${projectId}/environment-keys/${encodeURIComponent(key)}`,
+    data,
+  )
+}
+
+export async function deleteProjectEnvironmentKey(projectId: string, key: string): Promise<void> {
+  return del<void>(
+    `/core/projects/${projectId}/environment-keys/${encodeURIComponent(key)}`,
+  )
 }
