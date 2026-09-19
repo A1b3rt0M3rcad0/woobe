@@ -95,3 +95,20 @@ async def test_project_environment_reader_materializes_secret_only_on_resolution
         "API_URL": "https://api.example.com",
         "API_KEY": "runtime-secret",
     }
+
+
+
+@pytest.mark.asyncio
+async def test_project_environment_reader_skips_database_when_no_keys_are_referenced() -> None:
+    session = _Session([])
+    reader = SQLAlchemyProjectEnvironmentReader(
+        SimpleNamespace(session=session),
+        encryption_key="test-key",
+    )
+
+    await reader.require_keys(
+        project_id=uuid4(),
+        keys=set(),
+    )
+
+    assert session.calls == []
