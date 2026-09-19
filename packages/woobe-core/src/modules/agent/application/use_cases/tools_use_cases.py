@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
 from uuid import UUID
 
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
@@ -27,6 +28,9 @@ from modules.agent.application.interfaces.ports import (
     ToolExecutionPort,
     ToolSecretResolverPort,
 )
+from modules.agent.application.project_environment_references import (
+    collect_tool_project_environment_keys,
+)
 from modules.agent.application.tool_context_bindings import merge_context_bindings_for_update
 from modules.agent.domain.entities import Secret, Tool
 from modules.agent.domain.enums import ReleaseStatus, ToolStatus
@@ -43,6 +47,9 @@ from modules.agent.application.interfaces.repositories import (
     SecretRepository,
     ToolRepository,
 )
+
+
+ProjectEnvironmentKeyValidator = Callable[..., Awaitable[None]]
 
 
 def _value(value: object) -> object:
@@ -80,12 +87,20 @@ class CreateToolUseCase:
         repo: ToolRepository,
         outbox: OutboxEventWriter,
         mcp_bootstrapper: McpToolBootstrapper | None = None,
+        project_environment_key_validator: ProjectEnvironmentKeyValidator | None = None,
     ) -> None:
         self.repo = repo
         self._outbox = outbox
         self._mcp_bootstrapper = mcp_bootstrapper
+        self._project_environment_key_validator = project_environment_key_validator
 
     async def execute(self, input_dto: CreateToolInput) -> CreateToolOutput:
+        if self._project_environment_key_validator is not None:
+            await self._project_environment_key_validator(
+                project_id=input_dto.project_id,
+                keys=collect_tool_project_environment_keys(input_dto.config),
+            )
+
         tool = Tool(
             project_id=input_dto.project_id,
             agent_id=input_dto.agent_id,
@@ -185,9 +200,11 @@ class UpdateToolUseCase:
         self,
         repo: ToolRepository,
         outbox: OutboxEventWriter,
+        project_environment_key_validator: ProjectEnvironmentKeyValidator | None = None,
     ) -> None:
         self._repo = repo
         self._outbox = outbox
+        self._project_environment_key_validator = project_environment_key_validator
 
     async def execute(self, tool_id: UUID, input_dto: UpdateToolInput) -> CreateToolOutput:
         tool = await self._repo.get_by_id(tool_id)
@@ -199,10 +216,16 @@ class UpdateToolUseCase:
         if "agent_id" in input_dto.model_fields_set:
             tool.agent_id = input_dto.agent_id
         if input_dto.config is not None:
-            tool.config = merge_context_bindings_for_update(
+            next_config = merge_context_bindings_for_update(
                 tool.config,
                 input_dto.config,
             )
+            if self._project_environment_key_validator is not None:
+                await self._project_environment_key_validator(
+                    project_id=tool.project_id,
+                    keys=collect_tool_project_environment_keys(next_config),
+                )
+            tool.config = next_config
         if input_dto.input_schema is not None:
             tool.input_schema = input_dto.input_schema
         if input_dto.output_schema is not None:
