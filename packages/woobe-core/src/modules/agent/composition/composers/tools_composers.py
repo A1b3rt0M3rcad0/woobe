@@ -94,7 +94,8 @@ def _project_environment(
 
 
 def project_environment_tool_usage_composer() -> TransactionalHandler:
-    uow = AgentUnitOfWork(DATABASE_ENGINE).mark_read_only()
+    uow = AgentUnitOfWork(DATABASE_ENGINE)
+    uow.mark_read_only()
     repo = SQLAlchemyAgentToolRepository(uow)
     use_case = ProjectEnvironmentToolUsageUseCase(repo)
     controller = ProjectEnvironmentToolUsageController(use_case)
