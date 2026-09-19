@@ -473,3 +473,101 @@ async def test_streaming_executes_release_tool_snapshot(monkeypatch):
     assert executed_tool.config == tool.config
     assert output["success"] is True
     transactions.run.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_tool_gateway_resolves_runtime_templates_without_mutating_snapshot(monkeypatch):
+    tool = _tool()
+    tool.config = {
+        "method": "POST",
+        "url": "{{project_env.API_URL}}/customers/{{external_context.customer_id}}",
+        "headers": [
+            {
+                "key": "Authorization",
+                "value": "Bearer {{project_env.API_KEY}}",
+            }
+        ],
+    }
+    snapshot = tool_to_release_snapshot(tool)
+    context = new_execution_context()
+    context.tool_snapshots = {str(tool.id): snapshot}
+    context.external_context_snapshot = {"customer_id": "cus_123"}
+    context.prepared_project_environment = {
+        "API_URL": "https://staging.example.test",
+        "API_KEY": "staging-secret",
+    }
+    token = current_execution.set(context)
+
+    result = SimpleNamespace(
+        success=True,
+        output={"ok": True},
+        duration_ms=3,
+        error=None,
+    )
+    registry = SimpleNamespace(execute=AsyncMock(return_value=result))
+    transactions = SimpleNamespace(
+        run=AsyncMock(
+            side_effect=AssertionError("release snapshot must not read from DB")
+        )
+    )
+    monkeypatch.setattr(
+        "modules.agent.infra.execution.agent_tool_runtime_gateway.build_tool_runtime_registry",
+        lambda **_kwargs: registry,
+    )
+
+    gateway = AgentToolRuntimeGateway(
+        transactions,
+        SimpleNamespace(encryption_key="test-encryption-key"),
+        object(),
+    )
+    try:
+        output = await gateway.execute_tool(tool.id, {})
+    finally:
+        current_execution.reset(token)
+
+    executed_tool = registry.execute.await_args.args[0]
+    assert executed_tool.config["url"] == "https://staging.example.test/customers/cus_123"
+    assert executed_tool.config["headers"][0]["value"] == "Bearer staging-secret"
+    assert snapshot["config"]["url"] == (
+        "{{project_env.API_URL}}/customers/{{external_context.customer_id}}"
+    )
+    assert output["success"] is True
+
+
+@pytest.mark.asyncio
+async def test_tool_gateway_returns_deterministic_error_for_missing_project_environment(monkeypatch):
+    tool = _tool()
+    tool.config = {
+        "method": "GET",
+        "url": "{{project_env.API_URL}}/customers",
+    }
+    snapshot = tool_to_release_snapshot(tool)
+    context = new_execution_context()
+    context.tool_snapshots = {str(tool.id): snapshot}
+    context.prepared_project_environment = {}
+    token = current_execution.set(context)
+
+    registry = SimpleNamespace(
+        execute=AsyncMock(
+            side_effect=AssertionError("unresolved Tool must not reach runtime adapter")
+        )
+    )
+    monkeypatch.setattr(
+        "modules.agent.infra.execution.agent_tool_runtime_gateway.build_tool_runtime_registry",
+        lambda **_kwargs: registry,
+    )
+    gateway = AgentToolRuntimeGateway(
+        SimpleNamespace(run=AsyncMock()),
+        SimpleNamespace(encryption_key="test-encryption-key"),
+        object(),
+    )
+
+    try:
+        output = await gateway.execute_tool(tool.id, {})
+    finally:
+        current_execution.reset(token)
+
+    assert output["success"] is False
+    assert output["output"]["error_code"] == "TOOL_TEMPLATE_RESOLUTION_ERROR"
+    assert "API_URL" in output["output"]["message"]
+    registry.execute.assert_not_awaited()
