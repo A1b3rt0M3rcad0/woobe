@@ -13,6 +13,9 @@ HTTP_TOOL_CONTRACT_VERSION = 1
 HTTP_TOOL_GROUP_CONTRACT_VERSION = 2
 HTTP_TOOL_GROUP_MODE = "group"
 TEMPLATE_PATTERN = re.compile(r"\{\{([A-Za-z_][A-Za-z0-9_]*)\}\}")
+_RUNTIME_TEMPLATE_PATTERN = re.compile(
+    r"\{\{\s*(?:external_context|project_env)\.[A-Za-z_][A-Za-z0-9_]*\s*\}\}"
+)
 _SINGLE_BRACE_PATTERN = re.compile(r"(?<!\{)\{([A-Za-z_][A-Za-z0-9_]*)\}(?!\})")
 _OPERATION_ID_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _PERMISSION_MODES = {"allow", "deny", "review"}
@@ -128,6 +131,16 @@ def compile_http_tool_contract(
 
 def _normalize_base_url(value: Any) -> str:
     raw = str(value or "").strip()
+    if _RUNTIME_TEMPLATE_PATTERN.search(raw):
+        if "?" in raw or "#" in raw:
+            raise HttpToolContractError(
+                "HTTP_TOOL_GROUP_BASE_URL_INVALID",
+                "HTTP API base_url cannot contain query parameters or fragments.",
+            )
+        # The concrete URL is validated again after Tool runtime templates are
+        # resolved, immediately before request rendering.
+        return raw.rstrip("/")
+
     parsed = urlparse(raw)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise HttpToolContractError(
