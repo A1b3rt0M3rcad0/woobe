@@ -8,6 +8,9 @@ from modules.agent.infra.database.agent_run_repository import SQLAlchemyAgentRun
 from modules.agent.infra.database.project_access_repository import (
     SQLAlchemyProjectAccessRepository,
 )
+from modules.agent.infra.database.project_environment_reader import (
+    SQLAlchemyProjectEnvironmentReader,
+)
 from modules.agent.infra.database.provider_model_repositories import (
     SQLAlchemyAgentReleaseRepositoryWithProviderModels,
     SQLAlchemyAgentRepositoryWithProviderModels,
@@ -51,6 +54,7 @@ class AgentRuntimeRepositories:
     runs: SQLAlchemyAgentRunRepository
     project_access: SQLAlchemyProjectAccessRepository
     environment: SQLAlchemyAgentRuntimeEnvironmentReader
+    project_environment: SQLAlchemyProjectEnvironmentReader
     tools: SQLAlchemyAgentToolRepository
     tool_secrets: SQLAlchemyAgentToolSecretRepository
     agent_collections: SQLAlchemyAgentCollectionRepository
@@ -73,6 +77,7 @@ def build_agent_runtime_repositories(
         runs=SQLAlchemyAgentRunRepository(uow),
         project_access=SQLAlchemyProjectAccessRepository(uow),
         environment=SQLAlchemyAgentRuntimeEnvironmentReader(uow),
+        project_environment=SQLAlchemyProjectEnvironmentReader(uow),
         tools=SQLAlchemyAgentToolRepository(uow),
         tool_secrets=SQLAlchemyAgentToolSecretRepository(uow),
         agent_collections=SQLAlchemyAgentCollectionRepository(uow),
