@@ -50,6 +50,8 @@ describe('ProjectEnvironmentSettings dependencies', () => {
     expect(html).toContain('Used by Tools')
     expect(html).toContain('Billing API, Orders API')
     expect(html).toContain('Edit these Tools to use another Project Environment key')
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*aria-label="Delete API_KEY"/)
+    const deleteButton = html.match(/<button[^>]*aria-label="Delete API_KEY"[^>]*>/)?.[0]
+    expect(deleteButton).toBeDefined()
+    expect(deleteButton).toContain('disabled=""')
   })
 })
