@@ -14,13 +14,13 @@ class ToolContextBindingError(ValueError):
     pass
 
 
-def _normalize_bindings(raw: Any) -> dict[str, str]:
+def _normalize_bindings(raw: Any) -> dict[str, tuple[str, str]]:
     if raw in (None, {}):
         return {}
     if not isinstance(raw, dict):
         raise ToolContextBindingError("Tool bindings must be an object")
 
-    normalized: dict[str, str] = {}
+    normalized: dict[str, tuple[str, str]] = {}
     for raw_target, raw_binding in raw.items():
         target = str(raw_target).strip()
         if not target:
@@ -50,23 +50,24 @@ def _normalize_bindings(raw: Any) -> dict[str, str]:
             raise ToolContextBindingError(
                 f"Tool binding '{target}'.source contains unknown properties: {names}"
             )
-        if source.get("kind") != "context":
+        kind = str(source.get("kind") or "").strip()
+        if kind not in {"context", "project_environment"}:
             raise ToolContextBindingError(
-                f"Tool binding '{target}'.source.kind must be 'context'"
+                f"Tool binding '{target}'.source.kind must be 'context' or 'project_environment'"
             )
         field = str(source.get("field") or "").strip()
         if not field:
             raise ToolContextBindingError(
                 f"Tool binding '{target}'.source.field cannot be blank"
             )
-        normalized[target] = field
+        normalized[target] = (kind, field)
     return normalized
 
 
 def _child_bindings(
     config: Mapping[str, Any],
     target_identifier: str | None,
-) -> dict[str, str]:
+) -> dict[str, tuple[str, str]]:
     if not target_identifier:
         return {}
 
@@ -94,7 +95,7 @@ def effective_context_bindings(
     config: Mapping[str, Any] | None,
     *,
     target_identifier: str | None = None,
-) -> dict[str, str]:
+) -> dict[str, tuple[str, str]]:
     raw = dict(config or {})
     bindings = _normalize_bindings(raw.get("bindings"))
     bindings.update(_child_bindings(raw, target_identifier))
@@ -105,6 +106,7 @@ def apply_context_bindings(
     config: Mapping[str, Any] | None,
     input_data: Mapping[str, Any] | None,
     external_context_snapshot: Mapping[str, Any] | None,
+    project_environment: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     runtime_input = dict(input_data or {})
     target_identifier = str(
@@ -118,15 +120,58 @@ def apply_context_bindings(
         return runtime_input
 
     snapshot = dict(external_context_snapshot or {})
-    for target, field in bindings.items():
-        if field not in snapshot:
-            raise ToolContextBindingError(
-                f"External Context field '{field}' required by Tool binding '{target}' is unavailable"
-            )
+    environment = dict(project_environment or {})
+    for target, (kind, field) in bindings.items():
+        if kind == "context":
+            if field not in snapshot:
+                raise ToolContextBindingError(
+                    f"External Context field '{field}' required by Tool binding '{target}' is unavailable"
+                )
+            value = snapshot[field]
+        else:
+            if field not in environment:
+                raise ToolContextBindingError(
+                    f"Project Environment key '{field}' required by Tool binding '{target}' is unavailable"
+                )
+            value = environment[field]
+
         # Runtime bindings are authoritative. Model-provided values cannot override
-        # trusted application context.
-        runtime_input[target] = deepcopy(snapshot[field])
+        # trusted runtime material.
+        runtime_input[target] = deepcopy(value)
     return runtime_input
+
+
+def collect_project_environment_binding_keys(
+    config: Mapping[str, Any] | None,
+) -> set[str]:
+    """Collect every Project Environment key referenced by Tool input bindings.
+
+    Acceptance prepares the union for the accepted Tool snapshot. Child route/MCP
+    bindings are included because the model may choose any exposed capability later.
+    """
+
+    raw = dict(config or {})
+    keys = {
+        field
+        for kind, field in _normalize_bindings(raw.get("bindings")).values()
+        if kind == "project_environment"
+    }
+    if is_http_tool_group(raw):
+        for route in raw.get("routes") or []:
+            if isinstance(route, dict):
+                keys.update(
+                    field
+                    for kind, field in _normalize_bindings(route.get("bindings")).values()
+                    if kind == "project_environment"
+                )
+    for discovered in raw.get("discovered_tools") or []:
+        if isinstance(discovered, dict):
+            keys.update(
+                field
+                for kind, field in _normalize_bindings(discovered.get("bindings")).values()
+                if kind == "project_environment"
+            )
+    return keys
 
 
 def strip_bound_parameters(
@@ -243,6 +288,7 @@ def validate_context_bindings(config: Mapping[str, Any] | None) -> None:
 __all__ = [
     "ToolContextBindingError",
     "apply_context_bindings",
+    "collect_project_environment_binding_keys",
     "effective_context_bindings",
     "merge_context_bindings_for_update",
     "strip_bound_parameters",
