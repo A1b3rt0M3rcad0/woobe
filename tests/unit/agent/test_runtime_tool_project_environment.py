@@ -133,6 +133,20 @@ async def test_tool_test_resolves_templates_and_authoritative_bindings() -> None
     assert call.args[2]["tenant_id"] == "tenant-prod"
 
 
+def test_tool_test_defaults_to_draft_environment() -> None:
+    input_dto = TestToolInput(
+        type=ToolType.HTTP,
+        project_id=uuid4(),
+        config={
+            "protocol": "http",
+            "url": "https://example.com/customers",
+            "method": "GET",
+        },
+    )
+
+    assert input_dto.environment == "draft"
+
+
 @pytest.mark.asyncio
 async def test_tool_test_requires_project_id_only_when_project_environment_is_used() -> None:
     registry = SimpleNamespace(test=AsyncMock(return_value=_result()))
