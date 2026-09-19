@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from shared.infra.crypto import encrypt_secret
+from shared.infra.errors import ValidationError
 from shared.project_environment import (
     PreparedProjectEnvironmentValue,
     materialize_project_environment_values,
@@ -48,7 +49,7 @@ def test_project_environment_key_accepts_identifier_style_names(key: str) -> Non
     ["", "API-KEY", "API.KEY", "1API_KEY", "API KEY"],
 )
 def test_project_environment_key_rejects_invalid_names(key: str) -> None:
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         normalize_project_environment_key(key)
 
 
@@ -56,5 +57,5 @@ def test_project_environment_kind_is_explicit() -> None:
     assert normalize_project_environment_kind("value") == "value"
     assert normalize_project_environment_kind("secret") == "secret"
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValidationError):
         normalize_project_environment_kind("credential")
