@@ -16,7 +16,6 @@ import { toast } from 'sonner'
 
 import {
   useDeleteProjectEnvironmentKey,
-  useProjectEnvironmentKeyUsage,
   useProjectEnvironmentKeys,
   useUpsertProjectEnvironmentKey,
 } from '@/features/projects/hooks'
@@ -41,8 +40,7 @@ interface EnvironmentKeyRowProps {
 function EnvironmentKeyRow({ projectId, item }: EnvironmentKeyRowProps) {
   const upsert = useUpsertProjectEnvironmentKey()
   const remove = useDeleteProjectEnvironmentKey()
-  const usage = useProjectEnvironmentKeyUsage(projectId, item.key)
-  const referencedTools = usage.data?.tools || []
+  const referencedTools = item.used_by_tools || []
   const inUse = referencedTools.length > 0
   const [kind, setKind] = useState<ProjectEnvironmentKind>(item.kind)
   const [values, setValues] = useState<Record<ProjectEnvironment, string>>({
@@ -136,7 +134,7 @@ function EnvironmentKeyRow({ projectId, item }: EnvironmentKeyRowProps) {
           variant="ghost"
           onClick={() => void deleteKey()}
           loading={remove.isPending}
-          disabled={usage.isPending || inUse}
+          disabled={inUse}
           title={inUse ? 'Edit or delete dependent Tools before removing this key' : undefined}
           aria-label={`Delete ${item.key}`}
         >
