@@ -10,7 +10,6 @@ from modules.agent.application.mcp_permissions import (
 from modules.agent.application.mcp_tool_bootstrap import McpToolBootstrapper
 from modules.agent.application.mcp_tool_refresh import RefreshMcpProviderToolsUseCase
 from modules.agent.application.project_environment_references import (
-    list_project_environment_tool_references,
     project_environment_tool_usage as read_project_environment_tool_usage,
 )
 from modules.agent.application.runtime_tool_use_cases import (
@@ -91,20 +90,6 @@ async def project_environment_tool_usage(
         return await read_project_environment_tool_usage(
             repo,
             project_id=project_id,
-        )
-
-
-async def project_environment_tool_references(
-    project_id: UUID,
-    key: str,
-) -> list[dict[str, str]]:
-    uow = AgentUnitOfWork(DATABASE_ENGINE).mark_read_only()
-    async with uow:
-        repo = SQLAlchemyAgentToolRepository(uow)
-        return await list_project_environment_tool_references(
-            repo,
-            project_id=project_id,
-            key=key,
         )
 
 
