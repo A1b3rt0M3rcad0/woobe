@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Literal, Mapping
 from uuid import UUID
 
-from sqlalchemy import text
+from sqlalchemy import bindparam, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from shared.infra.config import Settings
@@ -60,18 +60,19 @@ async def read_project_environment_values(
     if not normalized_keys:
         return {}
 
+    statement = text(
+        """
+        SELECT k.key, k.kind, v.stored_value
+        FROM core.project_environment_keys AS k
+        JOIN core.project_environment_values AS v
+          ON v.key_id = k.id
+         AND v.environment = :environment
+        WHERE k.project_id = :project_id
+          AND k.key IN :keys
+        """
+    ).bindparams(bindparam("keys", expanding=True))
     result = await session.execute(
-        text(
-            """
-            SELECT k.key, k.kind, v.stored_value
-            FROM core.project_environment_keys AS k
-            JOIN core.project_environment_values AS v
-              ON v.key_id = k.id
-             AND v.environment = :environment
-            WHERE k.project_id = :project_id
-              AND k.key = ANY(:keys)
-            """
-        ),
+        statement,
         {
             "project_id": project_id,
             "environment": normalized_environment,
