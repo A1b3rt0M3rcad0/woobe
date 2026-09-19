@@ -27,9 +27,17 @@ const TemplateSymbolsContext = createContext<ToolTemplateSymbol[]>([])
 
 function agentContract(agent: Agent | undefined): ExternalContextContract {
   const raw = agent?.settings?.external_context_contract
-  return raw && typeof raw === 'object' && !Array.isArray(raw)
-    ? raw as ExternalContextContract
-    : {}
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return {}
+  const record = raw as Record<string, unknown>
+  const legacyFields = record.fields
+  if (
+    legacyFields
+    && typeof legacyFields === 'object'
+    && !Array.isArray(legacyFields)
+  ) {
+    return legacyFields as ExternalContextContract
+  }
+  return record as ExternalContextContract
 }
 
 function schemaType(field: ExternalContextContract[string]): string {
