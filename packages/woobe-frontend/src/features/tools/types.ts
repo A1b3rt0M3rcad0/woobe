@@ -204,8 +204,11 @@ export interface CreateToolRequest {
 
 export interface TestToolRequest {
   type?: ToolProtocol
+  project_id?: string
+  environment?: 'draft' | 'staging' | 'production'
   config: ToolConfig
   input_data?: Record<string, unknown>
+  external_context?: Record<string, unknown>
   timeout_ms?: number
 }
 
