@@ -10,6 +10,7 @@ import {
   grantProjectSubjectAccess,
   revokeProjectSubjectAccess,
   getProjectEnvironmentKeys,
+  getProjectEnvironmentKeyUsage,
   upsertProjectEnvironmentKey,
   deleteProjectEnvironmentKey,
 } from './api'
@@ -131,6 +132,18 @@ export function useRevokeProjectAccess() {
       void queryClient.invalidateQueries({ queryKey: ['workspace-members'] })
       void queryClient.invalidateQueries({ queryKey: ['workspace-invites'] })
     },
+  })
+}
+
+
+export function useProjectEnvironmentKeyUsage(
+  projectId: string | undefined,
+  key: string | undefined,
+) {
+  return useQuery({
+    queryKey: ['project-environment-key-usage', projectId, key],
+    queryFn: () => getProjectEnvironmentKeyUsage(projectId!, key!),
+    enabled: Boolean(projectId && key),
   })
 }
 
