@@ -6,6 +6,10 @@ import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
+import {
+  ToolTemplateInput,
+  ToolTemplateTextarea,
+} from '@/features/tools/components/ToolTemplateAutocomplete'
 
 type BodyMode = 'fields' | 'raw'
 type BodyFieldType = 'text' | 'number' | 'boolean' | 'parameter' | 'json'
@@ -168,12 +172,19 @@ export function HttpRequestBodyEditor({ value, onChange }: HttpRequestBodyEditor
                   onChange={(event) => updateField(index, { value: event.target.value })}
                   options={[{ value: 'false', label: 'false' }, { value: 'true', label: 'true' }]}
                 />
-              ) : (
+              ) : field.type === 'parameter' ? (
                 <Input
                   value={field.value}
                   onChange={(event) => updateField(index, { value: event.target.value })}
-                  placeholder={field.type === 'parameter' ? 'input_name' : field.type === 'json' ? '{"nested":true}' : 'Value'}
-                  className={field.type === 'parameter' || field.type === 'json' ? 'font-mono text-xs' : undefined}
+                  placeholder="input_name"
+                  className="font-mono text-xs"
+                />
+              ) : (
+                <ToolTemplateInput
+                  value={field.value}
+                  onValueChange={(value) => updateField(index, { value })}
+                  placeholder={field.type === 'json' ? '{"nested":true}' : 'Value'}
+                  className={field.type === 'json' ? 'font-mono text-xs' : undefined}
                 />
               )}
               <Button type="button" size="sm" variant="ghost" className="text-red-300" onClick={() => removeField(index)} aria-label="Remove body field">
@@ -191,10 +202,10 @@ export function HttpRequestBodyEditor({ value, onChange }: HttpRequestBodyEditor
         </div>
       ) : (
         <div className="space-y-2">
-          <Textarea
+          <ToolTemplateTextarea
             value={value}
-            onChange={(event) => onChange(event.target.value)}
-            placeholder={'{\n  "query": "{{query}}",\n  "limit": 10\n}'}
+            onValueChange={onChange}
+            placeholder={'{\n  "query": "{{query}}",\n  "tenant": "{{external_context.tenant_id}}"\n}'}
             className="min-h-[170px] font-mono text-xs"
           />
           <div className="flex flex-wrap gap-2">
