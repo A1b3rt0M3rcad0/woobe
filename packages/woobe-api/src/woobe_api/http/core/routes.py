@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request as FastAPIRequest
 
-from modules.agent.entrypoint import project_environment_tool_usage
+from modules.agent.entrypoint import project_environment_tool_usage_composer
 
 from modules.core.entrypoint import (
     create_api_key_composer,
@@ -51,6 +51,17 @@ def _principal_user_id(request: FastAPIRequest) -> UUID:
 def _project_access_service(request: FastAPIRequest) -> ProjectAccessService:
     del request
     return build_project_access_service()
+
+
+async def _project_environment_tool_usage(
+    request: FastAPIRequest,
+) -> dict[str, list[dict[str, str]]]:
+    response = await request_adapter(
+        request,
+        project_environment_tool_usage_composer(),
+    )
+    data = response.body.get("data") if isinstance(response.body, dict) else None
+    return data if isinstance(data, dict) else {}
 
 
 @router.get("/projects")
@@ -214,7 +225,7 @@ async def list_project_environment_keys(
         project_id=project_id,
     )
     data = await build_project_environment_service().list_keys(project_id=project_id)
-    usage = await project_environment_tool_usage(project_id)
+    usage = await _project_environment_tool_usage(request)
     for item in data:
         item["used_by_tools"] = usage.get(str(item["key"]), [])
     return {"success": True, "message": "ok", "data": data}
@@ -259,7 +270,7 @@ async def delete_project_environment_key(
         user_id=_principal_user_id(request),
         project_id=project_id,
     )
-    references = (await project_environment_tool_usage(project_id)).get(key, [])
+    references = (await _project_environment_tool_usage(request)).get(key, [])
     if references:
         names = ", ".join(item["name"] for item in references)
         raise ConflictError(
