@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import uuid4
+
 import pytest
 
 from shared.infra.crypto import encrypt_secret
@@ -93,7 +95,7 @@ async def test_require_project_environment_keys_accepts_existing_keys() -> None:
     )
 
     await service.require_keys(
-        project_id=__import__("uuid").uuid4(),
+        project_id=uuid4(),
         keys={"API_URL", "API_KEY"},
     )
 
@@ -107,6 +109,6 @@ async def test_require_project_environment_keys_rejects_missing_keys() -> None:
 
     with pytest.raises(ValidationError, match="API_KEY"):
         await service.require_keys(
-            project_id=__import__("uuid").uuid4(),
+            project_id=uuid4(),
             keys={"API_URL", "API_KEY"},
         )
