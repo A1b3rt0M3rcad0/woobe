@@ -7,7 +7,6 @@ import type {
   CreateProjectRequest,
   UpdateProjectRequest,
   ProjectEnvironmentKey,
-  ProjectEnvironmentKeyUsage,
   UpsertProjectEnvironmentKeyRequest,
 } from './types'
 
@@ -74,15 +73,6 @@ export async function upsertProjectEnvironmentKey(
   return put<ProjectEnvironmentKey>(
     `/core/projects/${projectId}/environment-keys/${encodeURIComponent(key)}`,
     data,
-  )
-}
-
-export async function getProjectEnvironmentKeyUsage(
-  projectId: string,
-  key: string,
-): Promise<ProjectEnvironmentKeyUsage> {
-  return get<ProjectEnvironmentKeyUsage>(
-    `/core/projects/${projectId}/environment-keys/${encodeURIComponent(key)}/usage`,
   )
 }
 
