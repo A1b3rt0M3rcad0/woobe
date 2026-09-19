@@ -97,7 +97,7 @@ def create_tool_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     tool_repo = SQLAlchemyAgentToolRepository(uow)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-        mcp_bootstrapper = McpToolBootstrapper(
+    mcp_bootstrapper = McpToolBootstrapper(
         get_http_tool_executor(),
         project_environment_resolver=PROJECT_ENVIRONMENT.resolve_values,
     )
@@ -115,7 +115,7 @@ def update_tool_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     tool_repo = SQLAlchemyAgentToolRepository(uow)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-        use_case = UpdateToolUseCase(
+    use_case = UpdateToolUseCase(
         tool_repo,
         outbox,
         project_environment_key_validator=PROJECT_ENVIRONMENT.require_keys,
@@ -175,7 +175,7 @@ def test_tool_composer() -> TransactionalHandler:
         settings=SETTINGS,
         executor=get_http_tool_executor(),
     )
-        use_case = RuntimeTestToolUseCase(
+    use_case = RuntimeTestToolUseCase(
         runtime_registry=registry,
         project_environment_resolver=PROJECT_ENVIRONMENT.resolve_values,
     )
@@ -201,7 +201,7 @@ def refresh_mcp_tools_composer() -> TransactionalHandler:
         executor=runtime_executor,
         cipher=cipher,
     )
-        use_case = RefreshMcpProviderToolsUseCase(
+    use_case = RefreshMcpProviderToolsUseCase(
         tool_repo=tool_repo,
         executor=runtime_executor,
         secret_resolver=resolver,
