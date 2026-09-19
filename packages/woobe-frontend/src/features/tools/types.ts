@@ -3,7 +3,7 @@ export type ToolChildPermissionMode = 'allow' | 'deny' | 'review'
 export type McpToolPermissionMode = ToolChildPermissionMode
 
 export interface ToolContextBindingSource {
-  kind: 'context'
+  kind: 'context' | 'project_environment'
   field: string
 }
 
