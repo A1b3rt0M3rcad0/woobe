@@ -97,6 +97,7 @@ class AgentToolRuntimeGateway:
                 getattr(tool, "config", None) or {},
                 runtime_input,
                 context.external_context_snapshot if context is not None else None,
+                context.prepared_project_environment if context is not None else None,
             )
         except ToolContextBindingError as exc:
             return {
