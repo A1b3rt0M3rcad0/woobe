@@ -54,7 +54,6 @@ class AgentRuntimeRepositories:
     runs: SQLAlchemyAgentRunRepository
     project_access: SQLAlchemyProjectAccessRepository
     environment: SQLAlchemyAgentRuntimeEnvironmentReader
-    project_environment: SQLAlchemyProjectEnvironmentReader
     tools: SQLAlchemyAgentToolRepository
     tool_secrets: SQLAlchemyAgentToolSecretRepository
     agent_collections: SQLAlchemyAgentCollectionRepository
@@ -62,6 +61,7 @@ class AgentRuntimeRepositories:
     knowledge_versions: SQLAlchemyKnowledgeVersionRepository
     vector_snapshots: SQLAlchemyVectorSnapshotRepository
     skills: SQLAlchemySkillRepository | None = None
+    project_environment: SQLAlchemyProjectEnvironmentReader | None = None
 
 
 def build_agent_runtime_repositories(
