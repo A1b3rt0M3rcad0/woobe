@@ -40,7 +40,6 @@ class SQLAlchemyProjectEnvironmentReader:
             keys=keys,
         )
 
-
     async def require_keys(
         self,
         *,
