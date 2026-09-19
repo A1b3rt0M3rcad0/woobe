@@ -145,8 +145,10 @@ async def test_decrypted_tool_secret_exists_only_in_execution_memory(monkeypatch
         assert name == "API_TOKEN"
         return SimpleNamespace(encrypted_value="encrypted-tool-secret")
 
+    expected_project_id = project_id
+
     async def read_project_environment_values(*, project_id, environment, keys):
-        assert project_id == project_id
+        assert project_id == expected_project_id
         assert environment == "draft"
         assert keys == {"PROJECT_TOKEN"}
         return {
