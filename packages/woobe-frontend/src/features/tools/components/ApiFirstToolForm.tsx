@@ -9,6 +9,10 @@ import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
 import { HttpRequestBodyEditor } from '@/features/tools/components/HttpRequestBodyEditor'
 import {
+  ToolTemplateAutocompleteProvider,
+  ToolTemplateInput,
+} from '@/features/tools/components/ToolTemplateAutocomplete'
+import {
   invalidToolInputBindingTargets,
   toolInputBindingsForSchema,
   ToolInputBindingsEditor,
@@ -57,6 +61,8 @@ interface ApiFirstToolFormProps {
   cancelLabel?: string
   loading?: boolean
   initialTool?: Tool | null
+  projectId?: string
+  agentId?: string | null
   onSubmit: (value: ApiFirstToolFormSubmitValue) => Promise<void>
   onCancel: () => void
 }
@@ -265,10 +271,10 @@ function HeaderRows({
               Not sent by this route · Restore as override
             </button>
           ) : (
-            <Input
+            <ToolTemplateInput
               value={header.value}
-              onChange={(event) => updateHeader(header.id, { value: event.target.value, mode: 'set' })}
-              placeholder="Value or {{secret:name}}"
+              onValueChange={(value) => updateHeader(header.id, { value, mode: 'set' })}
+              placeholder="Value, {{external_context.*}} or {{project_env.*}}"
               className="font-mono text-xs"
             />
           )}
@@ -395,6 +401,8 @@ export function ApiFirstToolForm({
   cancelLabel = 'Cancel',
   loading = false,
   initialTool = null,
+  projectId,
+  agentId,
   onSubmit,
   onCancel,
 }: ApiFirstToolFormProps) {
@@ -680,7 +688,11 @@ export function ApiFirstToolForm({
         : submitLabel === 'Create' ? 'Create API' : submitLabel
 
   return (
-    <form onSubmit={submit} className="min-h-full">
+    <ToolTemplateAutocompleteProvider
+      projectId={projectId || initialTool?.project_id}
+      agentId={agentId ?? initialTool?.agent_id}
+    >
+      <form onSubmit={submit} className="min-h-full">
       <div className="space-y-5 p-6">
         {step === 'type' ? (
           <div className="space-y-4">
@@ -721,7 +733,7 @@ export function ApiFirstToolForm({
               <>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted">Base URL *</label>
-                  <Input autoFocus value={baseUrl} onChange={(event) => updateBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" className="font-mono text-xs" />
+                  <ToolTemplateInput autoFocus value={baseUrl} onValueChange={updateBaseUrl} placeholder="https://api.example.com/v1 or {{project_env.API_URL}}" className="font-mono text-xs" />
                   <p className="mt-1 text-[11px] text-muted">All routes remain under this domain and base path.</p>
                   <FieldError message={errors.baseUrl} />
                 </div>
@@ -793,7 +805,7 @@ export function ApiFirstToolForm({
               <>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted">MCP Server URL *</label>
-                  <Input autoFocus value={mcpUrl} onChange={(event) => updateMcpUrl(event.target.value)} placeholder="https://mcp.example.com/mcp" className="font-mono text-xs" />
+                  <ToolTemplateInput autoFocus value={mcpUrl} onValueChange={updateMcpUrl} placeholder="https://mcp.example.com/mcp or {{project_env.MCP_URL}}" className="font-mono text-xs" />
                   <p className="mt-1 text-[11px] text-muted">Public tools are loaded automatically after creation.</p>
                   <FieldError message={errors.mcpUrl} />
                 </div>
@@ -841,7 +853,7 @@ export function ApiFirstToolForm({
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted">Relative path *</label>
-                <Input autoFocus value={routeEditor.draft.path} onChange={(event) => { updateRouteDraft({ path: event.target.value }); setRouteErrors((current) => ({ ...current, path: '' })) }} placeholder="/employees/{{employee_id}}" className="font-mono text-xs" />
+                <ToolTemplateInput autoFocus value={routeEditor.draft.path} onValueChange={(value) => { updateRouteDraft({ path: value }); setRouteErrors((current) => ({ ...current, path: '' })) }} placeholder="/employees/{{employee_id}}" className="font-mono text-xs" />
                 <FieldError message={routeErrors.path} />
               </div>
             </div>
@@ -926,6 +938,7 @@ export function ApiFirstToolForm({
         <Button type="button" variant="outline" onClick={cancelCurrentStep}>{step === 'route' ? 'Cancel' : cancelLabel}</Button>
         {step !== 'type' ? <Button type="submit" loading={loading} disabled={primaryDisabled}>{primaryLabel}</Button> : null}
       </div>
-    </form>
+      </form>
+    </ToolTemplateAutocompleteProvider>
   )
 }
