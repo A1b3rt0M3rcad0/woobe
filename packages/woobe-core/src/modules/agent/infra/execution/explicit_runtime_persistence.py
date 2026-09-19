@@ -39,7 +39,6 @@ from modules.agent.infra.execution.runtime_streaming import current_runtime_stre
 from shared.contracts.execution_state import ExecutionStateStore
 from shared.contracts.run_event_buffer import RunEventBufferPort
 from shared.infra.crypto import decrypt_secret
-from shared.project_environment import materialize_project_environment_values
 from shared.runtime.durability import RunDurabilityBarrier
 from shared.runtime.event_schema import EVENT_JOURNAL_STORAGE_VERSION, LEGACY_STORAGE_VERSION
 from shared.runtime.journal_recorder import DurableRunEventRecorder
@@ -513,16 +512,12 @@ class ExplicitRuntimePersistenceMixin:
                 name: decrypt_secret(ciphertext, self._encryption_key)
                 for name, ciphertext in encrypted_tool_secrets.items()
             }
-            project_environment = materialize_project_environment_values(
-                prepared_project_environment,
-                encryption_key=self._encryption_key,
-            )
 
             if context is not None:
                 context.prepared_fallback = fallback_data
                 context.prepared_tools = {str(tool.id): tool for tool in tools}
                 context.prepared_tool_secrets = tool_secrets
-                context.prepared_project_environment = project_environment
+                context.prepared_project_environment = prepared_project_environment
                 context.prepared_rag = rag_binding
 
             if self._execution_state_store is not None:
