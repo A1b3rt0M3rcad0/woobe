@@ -38,7 +38,8 @@ async def test_gateway_overwrites_model_argument_with_frozen_external_context(
 
     class Registry:
         async def execute(self, runtime_tool, input_data):
-            assert runtime_tool is tool
+            assert runtime_tool is not tool
+            assert runtime_tool.config == tool.config
             captured.update(input_data)
             return SimpleNamespace(
                 success=True,
