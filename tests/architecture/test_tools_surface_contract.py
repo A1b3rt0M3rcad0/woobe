@@ -47,6 +47,15 @@ class TestToolsRouteRegistration:
         source = AGENT_ROUTES.read_text(encoding="utf-8")
         assert "encrypted_value" not in source
 
+    def test_project_environment_tool_test_requires_project_access(self):
+        source = AGENT_ROUTES.read_text(encoding="utf-8")
+        test_route = source.split('@tools_router.post("/tools/test")', 1)[1].split(
+            '@tools_router.post("/tools/execute")',
+            1,
+        )[0]
+        assert "build_project_access_service().require_project_access" in test_route
+        assert 'payload.get("project_id")' in test_route
+
     def test_no_network_imports_in_schemas(self):
         schemas_path = (
             PROJECT_ROOT
