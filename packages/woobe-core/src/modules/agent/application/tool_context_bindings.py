@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import re
 from typing import Any, Mapping
 
 from modules.agent.application.interfaces.http_tool_contract import (
@@ -8,6 +9,9 @@ from modules.agent.application.interfaces.http_tool_contract import (
     is_http_tool_group,
 )
 from modules.agent.application.interfaces.tool_runtime import MCP_REMOTE_TOOL_INPUT_KEY
+
+
+_PROJECT_ENVIRONMENT_KEY_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class ToolContextBindingError(ValueError):
@@ -59,6 +63,10 @@ def _normalize_bindings(raw: Any) -> dict[str, tuple[str, str]]:
         if not field:
             raise ToolContextBindingError(
                 f"Tool binding '{target}'.source.field cannot be blank"
+            )
+        if kind == "project_environment" and not _PROJECT_ENVIRONMENT_KEY_PATTERN.fullmatch(field):
+            raise ToolContextBindingError(
+                f"Tool binding '{target}'.source.field must be a valid Project Environment key"
             )
         normalized[target] = (kind, field)
     return normalized
