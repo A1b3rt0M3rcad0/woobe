@@ -54,13 +54,14 @@ export function ToolTemplateAutocompleteProvider({
   const symbols = useMemo<ToolTemplateSymbol[]>(() => {
     const environmentSymbols: ToolTemplateSymbol[] = (environmentQuery.data || []).map((item) => {
       const configured = (['draft', 'staging', 'production'] as const)
-        .filter((environment) => item.values[environment]?.configured)
-        .map((environment) => environment[0].toUpperCase())
+        .map((environment) => (
+          `${environment[0].toUpperCase() + environment.slice(1)} ${item.values[environment]?.configured ? '✓' : '—'}`
+        ))
         .join(' · ')
       return {
         namespace: 'project_env',
         name: item.key,
-        detail: `${item.kind === 'secret' ? 'Secret' : 'Value'}${configured ? ` · ${configured}` : ' · Not configured'}`,
+        detail: `${item.kind === 'secret' ? 'Secret' : 'Value'} · ${configured}`,
         description: item.kind === 'secret'
           ? 'Project Environment secret. The stored value is never exposed to the Agent.'
           : 'Project Environment value resolved from the Tool execution environment.',
