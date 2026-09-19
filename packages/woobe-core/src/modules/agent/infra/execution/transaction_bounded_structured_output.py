@@ -21,7 +21,11 @@ from modules.agent.application.use_cases.structured_output_contract import (
 from modules.agent.domain.entities import Session
 from modules.agent.infra.execution.explicit_runtime_persistence import ExplicitRuntimePersistenceMixin
 from modules.agent.infra.execution.runtime_preparation import prepare_skill_state
-from modules.agent.infra.execution.runtime_preparation import prepare_rag_binding, prepare_tool_state
+from modules.agent.infra.execution.runtime_preparation import (
+    prepare_project_environment_state,
+    prepare_rag_binding,
+    prepare_tool_state,
+)
 from modules.agent.infra.execution.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
     _TOOL_GROUNDING_RUNTIME_RULES,
@@ -31,6 +35,7 @@ from modules.agent.infra.execution.transaction_bounded_rag import (
     _rag_history_context,
 )
 from shared.infra.crypto import decrypt_secret
+from shared.project_environment import materialize_project_environment_values
 from shared.runtime_environment import normalize_runtime_environment
 
 
@@ -148,6 +153,12 @@ class TransactionBoundedStructuredOutputRuntime(
                 tool_from_snapshot=tool_from_release_snapshot,
                 tool_with_permissions=tool_with_permission_overrides,
             )
+            prepared_project_environment = await prepare_project_environment_state(
+                repositories,
+                project_id=input_dto.project_id,
+                environment=normalize_runtime_environment(input_dto.execution_context),
+                tools=tools,
+            )
             await prepare_skill_state(repositories, agent=agent)
             rag_binding = await prepare_rag_binding(repositories, agent=agent)
             session = None
@@ -200,6 +211,7 @@ class TransactionBoundedStructuredOutputRuntime(
                 fallback_credential,
                 tools,
                 encrypted_tool_secrets,
+                prepared_project_environment,
                 rag_binding,
                 history,
                 response_format,
@@ -216,6 +228,7 @@ class TransactionBoundedStructuredOutputRuntime(
             fallback_credential,
             tools,
             encrypted_tool_secrets,
+            prepared_project_environment,
             rag_binding,
             history,
             response_format,
@@ -291,6 +304,10 @@ class TransactionBoundedStructuredOutputRuntime(
             name: decrypt_secret(value, self._encryption_key)
             for name, value in encrypted_tool_secrets.items()
         }
+        project_environment = materialize_project_environment_values(
+            prepared_project_environment,
+            encryption_key=self._encryption_key,
+        )
         if context is not None:
             context.run_id = run_id
             context.trace_id = trace_id
@@ -298,6 +315,7 @@ class TransactionBoundedStructuredOutputRuntime(
             context.prepared_fallback = fallback_data
             context.prepared_tools = {str(tool.id): tool for tool in tools}
             context.prepared_tool_secrets = tool_secrets
+            context.prepared_project_environment = project_environment
             context.prepared_rag = rag_binding
             setattr(context, "defer_persistence", True)
 
