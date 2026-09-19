@@ -83,6 +83,12 @@ const RISKS = [
   { value: 'critical', label: 'Critical' },
 ]
 
+const RUNTIME_TEMPLATE_PATTERN = /\{\{\s*(?:external_context|project_env)\.[A-Za-z_][A-Za-z0-9_]*\s*\}\}/
+
+function containsRuntimeTemplate(value: string): boolean {
+  return RUNTIME_TEMPLATE_PATTERN.test(value)
+}
+
 const ROUTE_STATUSES = [
   { value: 'active', label: 'Active' },
   { value: 'inactive', label: 'Inactive' },
@@ -609,7 +615,7 @@ export function ApiFirstToolForm({
     const nextErrors: Record<string, string> = {}
     if (protocol === 'mcp') {
       if (!mcpUrl.trim()) nextErrors.mcpUrl = 'MCP Server URL is required.'
-      else {
+      else if (!containsRuntimeTemplate(mcpUrl)) {
         try {
           const parsed = new URL(mcpUrl.trim())
           if (!['http:', 'https:'].includes(parsed.protocol)) nextErrors.mcpUrl = 'Use an HTTP or HTTPS URL.'
@@ -618,7 +624,11 @@ export function ApiFirstToolForm({
       if (!name.trim()) nextErrors.name = 'Display name is required.'
     } else {
       if (!baseUrl.trim()) nextErrors.baseUrl = 'Base URL is required.'
-      else {
+      else if (containsRuntimeTemplate(baseUrl)) {
+        if (baseUrl.includes('?') || baseUrl.includes('#')) {
+          nextErrors.baseUrl = 'Base URL cannot contain query parameters or fragments.'
+        }
+      } else {
         try {
           const parsed = new URL(baseUrl.trim())
           if (!['http:', 'https:'].includes(parsed.protocol)) nextErrors.baseUrl = 'Use an HTTP or HTTPS URL.'
