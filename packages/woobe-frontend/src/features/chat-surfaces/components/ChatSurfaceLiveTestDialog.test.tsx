@@ -48,6 +48,10 @@ vi.mock('@/features/network/hooks', async original => ({
   }),
 }))
 
+const expectedEmbedOrigin = new URL(
+  import.meta.env.VITE_CHAT_EMBED_URL?.trim() || 'http://localhost:8081',
+).origin
+
 const surface = {
   id: 'surface-1',
   public_id: 'surface-public',
@@ -224,6 +228,6 @@ describe('ChatSurface live test External Context', () => {
           age: 18,
         },
       },
-    }, 'http://localhost:8081')
+    }, expectedEmbedOrigin)
   })
 })
