@@ -35,17 +35,7 @@ async def project_environment_tool_usage(
     return usage
 
 
-async def list_project_environment_tool_references(
-    repo: ToolRepository,
-    *,
-    project_id: UUID,
-    key: str,
-) -> list[dict[str, str]]:
-    return (await project_environment_tool_usage(repo, project_id=project_id)).get(key, [])
-
-
 __all__ = [
     "collect_tool_project_environment_keys",
-    "list_project_environment_tool_references",
     "project_environment_tool_usage",
 ]
