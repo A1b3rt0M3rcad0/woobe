@@ -17,7 +17,7 @@ from modules.agent.domain.enums import RiskLevel, SecretType, ToolStatus, ToolTy
 
 
 class ToolBindingSource(BaseModel):
-    kind: Literal["context"] = "context"
+    kind: Literal["context", "project_environment"] = "context"
     field: str = Field(..., min_length=1)
 
 
