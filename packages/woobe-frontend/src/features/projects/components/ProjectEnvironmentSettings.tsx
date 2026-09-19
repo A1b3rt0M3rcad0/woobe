@@ -63,7 +63,10 @@ function EnvironmentKeyRow({ projectId, item }: EnvironmentKeyRowProps) {
     for (const environment of ENVIRONMENTS) {
       if (clear.has(environment)) continue
       const value = values[environment]
-      if (kind === 'value' || value.length > 0) {
+      if (kind === 'value') {
+        if (item.kind === 'secret' && value.length === 0) continue
+        payloadValues[environment] = value
+      } else if (value.length > 0) {
         payloadValues[environment] = value
       }
     }
