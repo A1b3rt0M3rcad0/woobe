@@ -42,7 +42,7 @@ export function useCreateTool() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tools'] })
       queryClient.invalidateQueries({ queryKey: ['agent-tools'] })
-      queryClient.invalidateQueries({ queryKey: ['project-environment-key-usage'] })
+      queryClient.invalidateQueries({ queryKey: ['project-environment-keys'] })
     },
   })
 }
@@ -54,7 +54,7 @@ export function useUpdateTool() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tools'] })
       queryClient.invalidateQueries({ queryKey: ['agent-tools'] })
-      queryClient.invalidateQueries({ queryKey: ['project-environment-key-usage'] })
+      queryClient.invalidateQueries({ queryKey: ['project-environment-keys'] })
     },
   })
 }
@@ -66,7 +66,7 @@ export function useUpdateToolStatus() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tools'] })
       queryClient.invalidateQueries({ queryKey: ['agent-tools'] })
-      queryClient.invalidateQueries({ queryKey: ['project-environment-key-usage'] })
+      queryClient.invalidateQueries({ queryKey: ['project-environment-keys'] })
     },
   })
 }
@@ -78,7 +78,7 @@ export function useDeleteTool() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tools'] })
       queryClient.invalidateQueries({ queryKey: ['agent-tools'] })
-      queryClient.invalidateQueries({ queryKey: ['project-environment-key-usage'] })
+      queryClient.invalidateQueries({ queryKey: ['project-environment-keys'] })
     },
   })
 }
