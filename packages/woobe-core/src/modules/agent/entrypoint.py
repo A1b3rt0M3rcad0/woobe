@@ -217,6 +217,7 @@ __all__ = [
     'new_execution_context',
     'poll_mcp_oauth_device_composer',
     'project_environment_tool_references',
+    'project_environment_tool_usage',
     'preview_vector_snapshot_composer',
     'PreviewVectorSnapshotInput',
     'promote_release_composer',
