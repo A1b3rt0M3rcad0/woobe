@@ -2,6 +2,8 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request as FastAPIRequest
 
+from modules.agent.entrypoint import project_environment_tool_references
+
 from modules.core.entrypoint import (
     create_api_key_composer,
 )
@@ -31,7 +33,7 @@ from modules.core.entrypoint import (
     update_api_key_credential_composer,
 )
 from modules.core.entrypoint import ProjectAccessService, build_project_access_service
-from shared.infra.errors import AuthenticationError, ValidationError
+from shared.infra.errors import AuthenticationError, ConflictError, ValidationError
 from shared.project_environment import build_project_environment_service
 from woobe_api.http.shared.adapters import request_adapter, response_adapter
 
@@ -244,6 +246,28 @@ async def upsert_project_environment_key(
     return {"success": True, "message": "ok", "data": data}
 
 
+@router.get("/projects/{project_id}/environment-keys/{key}/usage")
+async def get_project_environment_key_usage(
+    request: FastAPIRequest,
+    project_id: UUID,
+    key: str,
+):
+    await _project_access_service(request).require_project_access(
+        user_id=_principal_user_id(request),
+        project_id=project_id,
+    )
+    references = await project_environment_tool_references(project_id, key)
+    return {
+        "success": True,
+        "message": "ok",
+        "data": {
+            "key": key,
+            "in_use": bool(references),
+            "tools": references,
+        },
+    }
+
+
 @router.delete("/projects/{project_id}/environment-keys/{key}")
 async def delete_project_environment_key(
     request: FastAPIRequest,
@@ -254,6 +278,14 @@ async def delete_project_environment_key(
         user_id=_principal_user_id(request),
         project_id=project_id,
     )
+    references = await project_environment_tool_references(project_id, key)
+    if references:
+        names = ", ".join(item["name"] for item in references)
+        raise ConflictError(
+            f"Project Environment key '{key}' is used by Tool(s): {names}. "
+            "Edit or delete those Tools before removing this key."
+        )
+
     await build_project_environment_service().delete_key(
         project_id=project_id,
         key=key,
