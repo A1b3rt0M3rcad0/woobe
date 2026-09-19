@@ -117,6 +117,44 @@ class ProjectEnvironmentService:
         self._session_factory = session_factory
         self._encryption_key = encryption_key
 
+    async def require_keys(
+        self,
+        *,
+        project_id: UUID,
+        keys: set[str],
+    ) -> None:
+        normalized = {
+            normalize_project_environment_key(key)
+            for key in keys
+            if str(key).strip()
+        }
+        if not normalized:
+            return
+
+        async with self._session_factory() as session:
+            result = await session.execute(
+                text(
+                    """
+                    SELECT key
+                    FROM core.project_environment_keys
+                    WHERE project_id = :project_id
+                      AND key IN :keys
+                    """
+                ).bindparams(bindparam("keys", expanding=True)),
+                {
+                    "project_id": project_id,
+                    "keys": sorted(normalized),
+                },
+            )
+            existing = {str(row[0]) for row in result.all()}
+
+        missing = sorted(normalized - existing)
+        if missing:
+            names = ", ".join(missing)
+            raise ValidationError(
+                f"Project Environment key(s) do not exist in this Project: {names}"
+            )
+
     async def list_keys(self, *, project_id: UUID) -> list[dict[str, object]]:
         async with self._session_factory() as session:
             exists = await session.scalar(
