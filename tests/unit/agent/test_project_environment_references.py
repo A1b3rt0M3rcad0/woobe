@@ -128,3 +128,31 @@ async def test_project_environment_tool_usage_aggregates_each_key_once() -> None
     assert usage["API_KEY"] == [
         {"id": str(first.id), "name": "Billing API"},
     ]
+
+
+
+def test_collect_tool_project_environment_keys_includes_mcp_discovered_tools() -> None:
+    config = {
+        "protocol": "mcp",
+        "server": {
+            "url": "{{project_env.MCP_URL}}",
+        },
+        "discovered_tools": [
+            {
+                "name": "lookup_customer",
+                "bindings": {
+                    "tenant": {
+                        "source": {
+                            "kind": "project_environment",
+                            "field": "TENANT_ID",
+                        }
+                    }
+                },
+            }
+        ],
+    }
+
+    assert collect_tool_project_environment_keys(config) == {
+        "MCP_URL",
+        "TENANT_ID",
+    }
