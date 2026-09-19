@@ -154,7 +154,11 @@ def test_tool_composer() -> TransactionalHandler:
         settings=SETTINGS,
         executor=get_http_tool_executor(),
     )
-    use_case = RuntimeTestToolUseCase(runtime_registry=registry)
+    project_environment = build_project_environment_service()
+    use_case = RuntimeTestToolUseCase(
+        runtime_registry=registry,
+        project_environment_resolver=project_environment.resolve_values,
+    )
     controller = TestToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
