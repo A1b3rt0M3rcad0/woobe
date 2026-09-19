@@ -107,14 +107,22 @@ def resolve_tool_templates(
             project_environment=environment,
         )
     if isinstance(value, dict):
-        return {
-            key: resolve_tool_templates(
-                item,
+        resolved: dict[str, Any] = {}
+        for key, item in value.items():
+            candidate = item
+            if key == "body" and isinstance(item, str):
+                try:
+                    parsed = json.loads(item)
+                except (TypeError, ValueError):
+                    parsed = None
+                if isinstance(parsed, (dict, list)):
+                    candidate = parsed
+            resolved[key] = resolve_tool_templates(
+                candidate,
                 external_context=external,
                 project_environment=environment,
             )
-            for key, item in value.items()
-        }
+        return resolved
     if isinstance(value, list):
         return [
             resolve_tool_templates(
