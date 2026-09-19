@@ -283,8 +283,11 @@ class ToolUsageImpactOutput(BaseModel):
 
 class TestToolInput(BaseModel):
     type: ToolType | None = None
+    project_id: UUID | None = None
+    environment: Literal["draft", "staging", "production"] = "draft"
     config: dict[str, Any]
     input_data: dict[str, Any] | None = None
+    external_context: dict[str, Any] | None = None
     timeout_ms: int = Field(default=30000, ge=1)
 
 
