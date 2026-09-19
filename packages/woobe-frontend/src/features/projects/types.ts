@@ -59,6 +59,7 @@ export interface ProjectEnvironmentKey {
   key: string
   kind: ProjectEnvironmentKind
   values: Record<ProjectEnvironment, ProjectEnvironmentValueState>
+  used_by_tools?: ProjectEnvironmentToolReference[]
   created_at?: string
   updated_at?: string
 }
@@ -75,8 +76,3 @@ export interface ProjectEnvironmentToolReference {
   name: string
 }
 
-export interface ProjectEnvironmentKeyUsage {
-  key: string
-  in_use: boolean
-  tools: ProjectEnvironmentToolReference[]
-}
