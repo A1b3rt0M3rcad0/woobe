@@ -10,11 +10,13 @@ from modules.agent.application.interfaces.tool_runtime import MCP_AGENT_SESSION_
 from modules.agent.application.tool_context_bindings import (
     ToolContextBindingError,
     apply_context_bindings,
+    collect_project_environment_binding_keys,
 )
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
 from modules.agent.application.tool_templates import (
     ToolTemplateResolutionError,
+    collect_project_environment_keys,
     resolve_tool_templates,
 )
 from modules.agent.domain.enums import ToolStatus
@@ -27,6 +29,7 @@ from modules.agent.infra.execution.tool_invocation_metrics import (
 )
 from modules.agent.infra.execution.tool_runtime_registry import build_tool_runtime_registry
 from shared.infra.config import Settings
+from shared.project_environment import materialize_project_environment_values
 
 InternalToolHandler = Callable[[dict], Awaitable[dict]]
 
@@ -92,12 +95,28 @@ class AgentToolRuntimeGateway:
         runtime_input = dict(input_data or {})
         if context and context.session_id:
             runtime_input.setdefault(MCP_AGENT_SESSION_INPUT_KEY, str(context.session_id))
+
+        config = getattr(tool, "config", None) or {}
+        project_environment: dict[str, str] = {}
+        if context is not None and context.prepared_project_environment:
+            environment_keys = collect_project_environment_keys(config)
+            environment_keys.update(collect_project_environment_binding_keys(config))
+            prepared = {
+                key: context.prepared_project_environment[key]
+                for key in environment_keys
+                if key in context.prepared_project_environment
+            }
+            project_environment = materialize_project_environment_values(
+                prepared,
+                encryption_key=self._settings.encryption_key,
+            )
+
         try:
             runtime_input = apply_context_bindings(
-                getattr(tool, "config", None) or {},
+                config,
                 runtime_input,
                 context.external_context_snapshot if context is not None else None,
-                context.prepared_project_environment if context is not None else None,
+                project_environment,
             )
         except ToolContextBindingError as exc:
             return {
@@ -113,17 +132,13 @@ class AgentToolRuntimeGateway:
         runtime_tool = deepcopy(tool)
         try:
             runtime_tool.config = resolve_tool_templates(
-                getattr(tool, "config", None) or {},
+                config,
                 external_context=(
                     context.external_context_snapshot
                     if context is not None
                     else None
                 ),
-                project_environment=(
-                    context.prepared_project_environment
-                    if context is not None
-                    else None
-                ),
+                project_environment=project_environment,
             )
         except ToolTemplateResolutionError as exc:
             return {
