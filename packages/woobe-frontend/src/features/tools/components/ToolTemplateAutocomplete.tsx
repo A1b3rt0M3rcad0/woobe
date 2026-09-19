@@ -5,7 +5,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import type { ComponentProps, KeyboardEvent } from 'react'
+import type { ComponentProps, KeyboardEvent, ReactNode } from 'react'
 
 import { Input } from '@/components/ui/Input'
 import { Textarea } from '@/components/ui/Textarea'
@@ -45,7 +45,7 @@ export function ToolTemplateAutocompleteProvider({
 }: {
   projectId?: string
   agentId?: string | null
-  children: React.ReactNode
+  children: ReactNode
 }) {
   const environmentQuery = useProjectEnvironmentKeys(projectId)
   const agentQuery = useAgent(agentId || undefined)
@@ -255,7 +255,7 @@ export function ToolTemplateInput({
         onClick={(event) => autocomplete.refresh(value, event.currentTarget.selectionStart)}
         onKeyUp={(event) => {
           if (!['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(event.key)) {
-            autocomplete.refresh(value, event.currentTarget.selectionStart)
+            autocomplete.refresh(event.currentTarget.value, event.currentTarget.selectionStart)
           }
         }}
         onKeyDown={(event) => autocomplete.keyDown(event, setCursor)}
