@@ -62,6 +62,15 @@ def test_project_environment_binding_fails_when_value_is_unavailable() -> None:
         apply_context_bindings(config, {}, {}, {})
 
 
+def test_project_environment_binding_rejects_invalid_key_name() -> None:
+    config = {"bindings": {"api_key": project_environment_binding("API-KEY")}}
+    with pytest.raises(
+        ToolContextBindingError,
+        match="valid Project Environment key",
+    ):
+        apply_context_bindings(config, {}, {}, {})
+
+
 def test_collect_project_environment_binding_keys_includes_root_and_children() -> None:
     config = {
         "protocol": "http",
