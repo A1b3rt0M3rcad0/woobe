@@ -36,6 +36,8 @@ export function ToolsCreateDialog({ open, projectId, agentId = null, formKey = '
     >
       <ApiFirstToolForm
         key={open ? `${formKey}-open` : `${formKey}-closed`}
+        projectId={projectId}
+        agentId={agentId}
         submitLabel="Create"
         loading={createTool.isPending}
         onSubmit={handleSubmit}
