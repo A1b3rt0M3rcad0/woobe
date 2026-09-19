@@ -18,6 +18,7 @@ from modules.agent.infra.execution.explicit_runtime_persistence import (
     TransactionalAskAgentUseCase,
 )
 from shared.infra.in_memory_execution_state import InMemoryExecutionStateStore
+from shared.project_environment import PreparedProjectEnvironmentValue
 
 
 class _Outbox:
@@ -111,7 +112,10 @@ async def test_decrypted_tool_secret_exists_only_in_execution_memory(monkeypatch
         config={
             "url": "https://example.test/private",
             "method": "GET",
-            "headers": {"Authorization": "Bearer {{secret:API_TOKEN}}"},
+            "headers": {
+                "Authorization": "Bearer {{secret:API_TOKEN}}",
+                "X-Project-Token": "{{project_env.PROJECT_TOKEN}}",
+            },
         },
         input_schema={"type": "object", "properties": {}},
     )
@@ -141,11 +145,23 @@ async def test_decrypted_tool_secret_exists_only_in_execution_memory(monkeypatch
         assert name == "API_TOKEN"
         return SimpleNamespace(encrypted_value="encrypted-tool-secret")
 
+    async def read_project_environment_values(*, project_id, environment, keys):
+        assert project_id == project_id
+        assert environment == "draft"
+        assert keys == {"PROJECT_TOKEN"}
+        return {
+            "PROJECT_TOKEN": PreparedProjectEnvironmentValue(
+                kind="secret",
+                stored_value="encrypted-project-env-secret",
+            )
+        }
+
     repositories = SimpleNamespace(
         environment=SimpleNamespace(assert_enabled=_noop),
         provider_credentials=SimpleNamespace(get_by_id=_none),
         tools=SimpleNamespace(get_by_id=get_tool, list_by_agent=_empty),
         tool_secrets=SimpleNamespace(get_by_name=get_secret),
+        project_environment=SimpleNamespace(read_values=read_project_environment_values),
         knowledge_versions=SimpleNamespace(get_by_id=_none),
         vector_snapshots=SimpleNamespace(get_by_id=_none, list_snapshot_documents=_empty),
         provider_models=SimpleNamespace(get_by_id=_none),
@@ -180,6 +196,13 @@ async def test_decrypted_tool_secret_exists_only_in_execution_memory(monkeypatch
 
     assert transactions.write_calls == 1
     assert context.prepared_tool_secrets == {"API_TOKEN": plaintext}
+    assert context.prepared_project_environment == {
+        "PROJECT_TOKEN": PreparedProjectEnvironmentValue(
+            kind="secret",
+            stored_value="encrypted-project-env-secret",
+        )
+    }
+    assert plaintext not in _json(context.prepared_project_environment)
     assert context.run_id is not None
 
     run = runs.items[context.run_id]
@@ -195,7 +218,9 @@ async def test_decrypted_tool_secret_exists_only_in_execution_memory(monkeypatch
     )
     assert plaintext not in persisted_surfaces
     assert "encrypted-tool-secret" not in persisted_surfaces
+    assert "encrypted-project-env-secret" not in persisted_surfaces
     assert "{{secret:API_TOKEN}}" in _json(run.execution_snapshot)
+    assert "{{project_env.PROJECT_TOKEN}}" in _json(run.execution_snapshot)
 
 
 async def _noop(*_args, **_kwargs):
