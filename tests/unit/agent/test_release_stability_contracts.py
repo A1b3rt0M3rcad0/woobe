@@ -35,7 +35,9 @@ from modules.agent.infra.execution.session_continuity_runtime_resolver import (
 from modules.agent.infra.execution.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
+from shared.infra.crypto import encrypt_secret
 from shared.infra.errors import ConflictError
+from shared.project_environment import PreparedProjectEnvironmentValue
 
 
 class MemoryReleaseRepository:
@@ -493,8 +495,14 @@ async def test_tool_gateway_resolves_runtime_templates_without_mutating_snapshot
     context.tool_snapshots = {str(tool.id): snapshot}
     context.external_context_snapshot = {"customer_id": "cus_123"}
     context.prepared_project_environment = {
-        "API_URL": "https://staging.example.test",
-        "API_KEY": "staging-secret",
+        "API_URL": PreparedProjectEnvironmentValue(
+            kind="value",
+            stored_value="https://staging.example.test",
+        ),
+        "API_KEY": PreparedProjectEnvironmentValue(
+            kind="secret",
+            stored_value=encrypt_secret("staging-secret", "test-encryption-key"),
+        ),
     }
     token = current_execution.set(context)
 
