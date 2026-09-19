@@ -32,6 +32,7 @@ from modules.core.entrypoint import (
 )
 from modules.core.entrypoint import ProjectAccessService, build_project_access_service
 from shared.infra.errors import AuthenticationError, ValidationError
+from shared.project_environment import build_project_environment_service
 from woobe_api.http.shared.adapters import request_adapter, response_adapter
 
 router = APIRouter(prefix="/core", tags=["core"])
@@ -199,6 +200,65 @@ async def update_project(request: FastAPIRequest):
     handler = update_project_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
+
+
+@router.get("/projects/{project_id}/environment-keys")
+async def list_project_environment_keys(
+    request: FastAPIRequest,
+    project_id: UUID,
+):
+    await _project_access_service(request).require_project_access(
+        user_id=_principal_user_id(request),
+        project_id=project_id,
+    )
+    data = await build_project_environment_service().list_keys(project_id=project_id)
+    return {"success": True, "message": "ok", "data": data}
+
+
+@router.put("/projects/{project_id}/environment-keys/{key}")
+async def upsert_project_environment_key(
+    request: FastAPIRequest,
+    project_id: UUID,
+    key: str,
+):
+    await _project_access_service(request).require_project_access(
+        user_id=_principal_user_id(request),
+        project_id=project_id,
+    )
+    payload = await request.json()
+    if not isinstance(payload, dict):
+        raise ValidationError("Project Environment payload must be an object")
+    values = payload.get("values") or {}
+    if not isinstance(values, dict):
+        raise ValidationError("Project Environment values must be an object")
+    clear_environments = payload.get("clear_environments") or []
+    if not isinstance(clear_environments, list):
+        raise ValidationError("clear_environments must be an array")
+    data = await build_project_environment_service().upsert_key(
+        project_id=project_id,
+        key=key,
+        kind=str(payload.get("kind") or "value"),
+        values=values,
+        clear_environments=[str(item) for item in clear_environments],
+    )
+    return {"success": True, "message": "ok", "data": data}
+
+
+@router.delete("/projects/{project_id}/environment-keys/{key}")
+async def delete_project_environment_key(
+    request: FastAPIRequest,
+    project_id: UUID,
+    key: str,
+):
+    await _project_access_service(request).require_project_access(
+        user_id=_principal_user_id(request),
+        project_id=project_id,
+    )
+    await build_project_environment_service().delete_key(
+        project_id=project_id,
+        key=key,
+    )
+    return {"success": True, "message": "deleted", "data": None}
 
 
 @router.post("/projects/{project_id}/api-keys")
