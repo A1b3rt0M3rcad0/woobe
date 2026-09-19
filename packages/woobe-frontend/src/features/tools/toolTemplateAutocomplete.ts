@@ -112,8 +112,15 @@ export function buildToolTemplateSuggestions(
   if (!context) return []
 
   if (!context.namespace) {
+    const query = context.query.trim().toLowerCase()
     return NAMESPACES
-      .filter((item) => matches(context.query, item.namespace, item.label, item.search))
+      .filter((item) => {
+        if (query.length < 3) {
+          return item.namespace.startsWith(query)
+            || item.label.toLowerCase().startsWith(query)
+        }
+        return matches(query, item.namespace, item.label, item.search)
+      })
       .sort((left, right) => {
         const query = context.query.toLowerCase()
         const leftPrefix = left.namespace.startsWith(query) ? 0 : 1
