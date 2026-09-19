@@ -10,10 +10,7 @@ from modules.agent.application.tool_templates import (
     resolve_tool_templates,
 )
 
-ProjectEnvironmentResolver = Callable[
-    [UUID, str, set[str]],
-    Awaitable[Mapping[str, str]],
-]
+ProjectEnvironmentResolver = Callable[..., Awaitable[Mapping[str, str]]]
 
 
 async def materialize_mcp_connection_config(
@@ -43,7 +40,11 @@ async def materialize_mcp_connection_config(
     if resolver is None:
         return connection
 
-    values = await resolver(project_id, environment, keys)
+    values = await resolver(
+        project_id=project_id,
+        environment=environment,
+        keys=keys,
+    )
     return resolve_tool_templates(
         connection,
         external_context={},
