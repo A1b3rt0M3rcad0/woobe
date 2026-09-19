@@ -12,6 +12,8 @@ from modules.agent.application.interfaces.execution_context import (
 from modules.agent.domain.enums import ToolStatus
 from modules.agent.infra.execution import agent_tool_runtime_gateway as gateway_module
 from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
+from shared.infra.crypto import encrypt_secret
+from shared.project_environment import PreparedProjectEnvironmentValue
 
 
 def _binding(field: str) -> dict:
@@ -119,12 +121,18 @@ async def test_gateway_overwrites_model_argument_with_project_environment(
     context = new_execution_context()
     context.prepared_tools = {str(tool_id): tool}
     context.external_context_snapshot = {}
-    context.prepared_project_environment = {"API_KEY": "runtime-secret"}
+    context.prepared_project_environment = {
+        "API_KEY": PreparedProjectEnvironmentValue(
+            kind="secret",
+            stored_value=encrypt_secret("runtime-secret", "test-encryption-key"),
+        ),
+        "UNUSED": object(),
+    }
     token = current_execution.set(context)
     try:
         gateway = AgentToolRuntimeGateway(
             None,
-            SimpleNamespace(),
+            SimpleNamespace(encryption_key="test-encryption-key"),
             executor=SimpleNamespace(),
         )
         result = await gateway.execute_tool(
