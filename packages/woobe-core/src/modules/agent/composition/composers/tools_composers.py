@@ -1,5 +1,3 @@
-from uuid import UUID
-
 from modules.agent.application import mcp_oauth
 from modules.agent.application import mcp_oauth_flow_safety as mcp_oauth_flows
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase
@@ -10,7 +8,7 @@ from modules.agent.application.mcp_permissions import (
 from modules.agent.application.mcp_tool_bootstrap import McpToolBootstrapper
 from modules.agent.application.mcp_tool_refresh import RefreshMcpProviderToolsUseCase
 from modules.agent.application.project_environment_references import (
-    project_environment_tool_usage as read_project_environment_tool_usage,
+    ProjectEnvironmentToolUsageUseCase,
 )
 from modules.agent.application.runtime_tool_use_cases import (
     RuntimeExecuteToolUseCase,
@@ -27,7 +25,11 @@ from modules.agent.application.use_cases.tools_use_cases import (
     UpdateToolStatusUseCase,
     UpdateToolUseCase,
 )
-from modules.agent.composition.resources import DATABASE_ENGINE, SETTINGS
+from modules.agent.composition.resources import (
+    DATABASE_ENGINE,
+    PROJECT_ENVIRONMENT,
+    SETTINGS,
+)
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
 from modules.agent.infra.adapters.secret_cipher import SecretCipherAdapter
 from modules.agent.infra.adapters.secret_resolver import ToolSecretResolverAdapter
@@ -69,6 +71,9 @@ from modules.agent.presentation.controllers.mcp_permission_controllers import (
     BulkUpdateMcpPermissionsController,
     UpdateMcpPermissionsController,
 )
+from modules.agent.presentation.controllers.project_environment_tool_usage_controller import (
+    ProjectEnvironmentToolUsageController,
+)
 from modules.agent.presentation.controllers.refresh_mcp_tools_controller import (
     RefreshMcpToolsController,
 )
@@ -78,35 +83,29 @@ from modules.agent.presentation.controllers.update_tool_status_controller import
     UpdateToolStatusController,
 )
 from shared.infra.transactional_handler import TransactionalHandler
-from shared.project_environment import build_project_environment_service
 
 
-async def project_environment_tool_usage(
-    project_id: UUID,
-) -> dict[str, list[dict[str, str]]]:
+def project_environment_tool_usage_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE).mark_read_only()
-    async with uow:
-        repo = SQLAlchemyAgentToolRepository(uow)
-        return await read_project_environment_tool_usage(
-            repo,
-            project_id=project_id,
-        )
+    repo = SQLAlchemyAgentToolRepository(uow)
+    use_case = ProjectEnvironmentToolUsageUseCase(repo)
+    controller = ProjectEnvironmentToolUsageController(use_case)
+    return TransactionalHandler(uow, controller.handle)
 
 
 def create_tool_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     tool_repo = SQLAlchemyAgentToolRepository(uow)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    project_environment = build_project_environment_service()
-    mcp_bootstrapper = McpToolBootstrapper(
+        mcp_bootstrapper = McpToolBootstrapper(
         get_http_tool_executor(),
-        project_environment_resolver=project_environment.resolve_values,
+        project_environment_resolver=PROJECT_ENVIRONMENT.resolve_values,
     )
     use_case = CreateToolUseCase(
         tool_repo,
         outbox,
         mcp_bootstrapper=mcp_bootstrapper,
-        project_environment_key_validator=project_environment.require_keys,
+        project_environment_key_validator=PROJECT_ENVIRONMENT.require_keys,
     )
     controller = CreateToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
@@ -116,11 +115,10 @@ def update_tool_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     tool_repo = SQLAlchemyAgentToolRepository(uow)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    project_environment = build_project_environment_service()
-    use_case = UpdateToolUseCase(
+        use_case = UpdateToolUseCase(
         tool_repo,
         outbox,
-        project_environment_key_validator=project_environment.require_keys,
+        project_environment_key_validator=PROJECT_ENVIRONMENT.require_keys,
     )
     controller = UpdateToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
@@ -177,10 +175,9 @@ def test_tool_composer() -> TransactionalHandler:
         settings=SETTINGS,
         executor=get_http_tool_executor(),
     )
-    project_environment = build_project_environment_service()
-    use_case = RuntimeTestToolUseCase(
+        use_case = RuntimeTestToolUseCase(
         runtime_registry=registry,
-        project_environment_resolver=project_environment.resolve_values,
+        project_environment_resolver=PROJECT_ENVIRONMENT.resolve_values,
     )
     controller = TestToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
@@ -204,13 +201,12 @@ def refresh_mcp_tools_composer() -> TransactionalHandler:
         executor=runtime_executor,
         cipher=cipher,
     )
-    project_environment = build_project_environment_service()
-    use_case = RefreshMcpProviderToolsUseCase(
+        use_case = RefreshMcpProviderToolsUseCase(
         tool_repo=tool_repo,
         executor=runtime_executor,
         secret_resolver=resolver,
         auth_header_provider=auth_header_provider,
-        project_environment_resolver=project_environment.resolve_values,
+        project_environment_resolver=PROJECT_ENVIRONMENT.resolve_values,
     )
     controller = RefreshMcpToolsController(use_case)
     return TransactionalHandler(uow, controller.handle)
