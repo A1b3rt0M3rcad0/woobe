@@ -317,6 +317,25 @@ class ProjectEnvironmentService:
                 return item
         raise NotFoundError("Project Environment key not found after update")
 
+    async def resolve_values(
+        self,
+        *,
+        project_id: UUID,
+        environment: str,
+        keys: set[str],
+    ) -> dict[str, str]:
+        async with self._session_factory() as session:
+            prepared = await read_project_environment_values(
+                session,
+                project_id=project_id,
+                environment=environment,
+                keys=keys,
+            )
+        return materialize_project_environment_values(
+            prepared,
+            encryption_key=self._encryption_key,
+        )
+
     async def delete_key(self, *, project_id: UUID, key: str) -> None:
         normalized_key = normalize_project_environment_key(key)
         async with self._session_factory() as session, session.begin():
