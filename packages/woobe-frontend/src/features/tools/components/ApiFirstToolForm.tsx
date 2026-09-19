@@ -785,7 +785,7 @@ export function ApiFirstToolForm({
                             <p className="mt-0.5 truncate font-mono text-[11px] text-muted">{route.path}</p>
                             {Object.keys(route.bindings || {}).length ? (
                               <p className="mt-1 font-mono text-[9px] text-primary-light">
-                                {Object.keys(route.bindings || {}).length} context binding{Object.keys(route.bindings || {}).length === 1 ? '' : 's'}
+                                {Object.keys(route.bindings || {}).length} runtime binding{Object.keys(route.bindings || {}).length === 1 ? '' : 's'}
                               </p>
                             ) : null}
                           </button>
@@ -894,7 +894,7 @@ export function ApiFirstToolForm({
                 <div>
                   <p className="text-xs font-medium text-white">Inputs</p>
                   <p className="mt-0.5 text-[11px] text-muted">
-                    Choose whether each value is provided by the Agent or resolved from External Context at runtime.
+                    Choose whether each value is provided by the Agent or resolved from External Context or Project Environment at runtime.
                   </p>
                 </div>
                 <ToolInputBindingsEditor
