@@ -15,6 +15,16 @@ AGENT_ROUTES = (
 )
 AGENT_HTTP_ASSEMBLY = AGENT_ROUTES.parent / "__init__.py"
 MAIN_PY = PROJECT_ROOT / "packages" / "woobe-api" / "src" / "main.py"
+CORE_ROUTES = (
+    PROJECT_ROOT
+    / "packages"
+    / "woobe-api"
+    / "src"
+    / "woobe_api"
+    / "http"
+    / "core"
+    / "routes.py"
+)
 
 
 class TestToolsRouteRegistration:
@@ -55,6 +65,32 @@ class TestToolsRouteRegistration:
         )[0]
         assert "build_project_access_service().require_project_access" in test_route
         assert 'payload.get("project_id")' in test_route
+
+
+    def test_project_environment_list_exposes_tool_dependencies(self):
+        source = CORE_ROUTES.read_text(encoding="utf-8")
+        list_route = source.split(
+            '@router.get("/projects/{project_id}/environment-keys")',
+            1,
+        )[1].split(
+            '@router.put("/projects/{project_id}/environment-keys/{key}")',
+            1,
+        )[0]
+        assert "_project_environment_tool_usage(request)" in list_route
+        assert 'item["used_by_tools"]' in list_route
+
+    def test_project_environment_delete_blocks_referenced_keys(self):
+        source = CORE_ROUTES.read_text(encoding="utf-8")
+        delete_route = source.split(
+            '@router.delete("/projects/{project_id}/environment-keys/{key}")',
+            1,
+        )[1].split(
+            '@router.post("/projects/{project_id}/api-keys")',
+            1,
+        )[0]
+        assert "_project_environment_tool_usage(request)" in delete_route
+        assert "raise ConflictError" in delete_route
+        assert "Edit or delete those Tools before removing this key." in delete_route
 
     def test_no_network_imports_in_schemas(self):
         schemas_path = (
