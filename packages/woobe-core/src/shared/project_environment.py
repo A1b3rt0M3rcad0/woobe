@@ -47,10 +47,11 @@ async def read_project_environment_values(
     environment: str,
     keys: set[str] | list[str] | tuple[str, ...],
 ) -> dict[str, PreparedProjectEnvironmentValue]:
-    """Read only the keys required by one Tool execution.
+    """Read only Project Environment keys referenced by the accepted Tool set.
 
-    Secret values remain encrypted here. Materialization happens after the runtime
-    Acceptance transaction so decrypted values never enter durable snapshots.
+    Secret values remain encrypted through Acceptance. The runtime keeps this
+    prepared material process-local and decrypts only the subset referenced by the
+    Tool being invoked, immediately before the HTTP/MCP adapter boundary.
     """
 
     normalized_environment = normalize_runtime_environment(environment)
