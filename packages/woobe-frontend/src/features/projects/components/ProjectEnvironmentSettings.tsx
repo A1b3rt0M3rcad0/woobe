@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 
 import {
   useDeleteProjectEnvironmentKey,
+  useProjectEnvironmentKeyUsage,
   useProjectEnvironmentKeys,
   useUpsertProjectEnvironmentKey,
 } from '@/features/projects/hooks'
@@ -40,6 +41,9 @@ interface EnvironmentKeyRowProps {
 function EnvironmentKeyRow({ projectId, item }: EnvironmentKeyRowProps) {
   const upsert = useUpsertProjectEnvironmentKey()
   const remove = useDeleteProjectEnvironmentKey()
+  const usage = useProjectEnvironmentKeyUsage(projectId, item.key)
+  const referencedTools = usage.data?.tools || []
+  const inUse = referencedTools.length > 0
   const [kind, setKind] = useState<ProjectEnvironmentKind>(item.kind)
   const [values, setValues] = useState<Record<ProjectEnvironment, string>>({
     draft: item.kind === 'value' ? item.values.draft.value || '' : '',
@@ -88,6 +92,12 @@ function EnvironmentKeyRow({ projectId, item }: EnvironmentKeyRowProps) {
   }
 
   const deleteKey = async () => {
+    if (inUse) {
+      toast.error(
+        `${item.key} is used by ${referencedTools.length} Tool${referencedTools.length === 1 ? '' : 's'}. Edit or delete those Tools first.`,
+      )
+      return
+    }
     try {
       await remove.mutateAsync({ projectId, key: item.key })
       toast.success(`${item.key} deleted`)
@@ -126,11 +136,23 @@ function EnvironmentKeyRow({ projectId, item }: EnvironmentKeyRowProps) {
           variant="ghost"
           onClick={() => void deleteKey()}
           loading={remove.isPending}
+          disabled={usage.isPending || inUse}
+          title={inUse ? 'Edit or delete dependent Tools before removing this key' : undefined}
           aria-label={`Delete ${item.key}`}
         >
           <Trash2 className="h-icon w-icon text-error" />
         </Button>
       </div>
+
+      {inUse ? (
+        <Alert>
+          <AlertTitle>Used by Tool{referencedTools.length === 1 ? '' : 's'}</AlertTitle>
+          <AlertDescription>
+            {referencedTools.map((tool) => tool.name).join(', ')}. Edit these Tools to use another
+            Project Environment key, or delete the Tools, before removing <span className="font-mono">{item.key}</span>.
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       <div className="grid gap-ui-sm lg:grid-cols-3">
         {ENVIRONMENTS.map((environment) => {
