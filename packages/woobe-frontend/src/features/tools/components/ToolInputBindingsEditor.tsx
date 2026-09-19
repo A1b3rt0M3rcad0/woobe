@@ -18,6 +18,7 @@ interface ToolInputBindingsEditorProps {
 const SOURCE_OPTIONS = [
   { value: 'agent', label: 'Agent' },
   { value: 'context', label: 'External Context' },
+  { value: 'project_environment', label: 'Project Environment' },
 ]
 
 function schemaType(value: unknown): string {
@@ -44,7 +45,12 @@ export function normalizeToolInputBindings(bindings?: ToolInputBindings): ToolIn
     Object.entries(bindings || {})
       .map(([target, binding]) => [
         target.trim(),
-        { source: { kind: 'context' as const, field: String(binding?.source?.field || '').trim() } },
+        {
+          source: {
+            kind: binding?.source?.kind === 'project_environment' ? 'project_environment' as const : 'context' as const,
+            field: String(binding?.source?.field || '').trim(),
+          },
+        },
       ] as const)
       .filter(([target, binding]) => Boolean(target) && Boolean(binding.source.field)),
   )
@@ -76,12 +82,12 @@ export function ToolInputBindingsEditor({
   const inputs = toolInputDescriptors(schema)
 
   const setSource = (name: string, source: string) => {
-    if (source === 'context') {
+    if (source === 'context' || source === 'project_environment') {
       onChange({
         ...bindings,
         [name]: {
           source: {
-            kind: 'context',
+            kind: source,
             field: bindings[name]?.source?.field || name,
           },
         },
@@ -93,12 +99,14 @@ export function ToolInputBindingsEditor({
     onChange(next)
   }
 
-  const setContextField = (name: string, field: string) => {
+  const setBindingField = (name: string, field: string) => {
+    const binding = bindings[name]
+    if (!binding) return
     onChange({
       ...bindings,
       [name]: {
         source: {
-          kind: 'context',
+          kind: binding.source.kind,
           field,
         },
       },
@@ -119,7 +127,7 @@ export function ToolInputBindingsEditor({
       <div className="divide-y divide-border/70">
         {inputs.map((input) => {
           const binding = bindings[input.name]
-          const contextBound = Boolean(binding)
+          const runtimeBound = Boolean(binding)
           return (
             <div
               key={input.name}
@@ -131,21 +139,21 @@ export function ToolInputBindingsEditor({
               </div>
               <span className="truncate font-mono text-[10px] capitalize text-muted">{input.type}</span>
               <Select
-                value={contextBound ? 'context' : 'agent'}
+                value={binding?.source.kind || 'agent'}
                 options={SOURCE_OPTIONS}
                 disabled={disabled}
                 onChange={(event) => setSource(input.name, event.target.value)}
                 aria-label={`${input.name} input source`}
                 className="text-xs"
               />
-              {contextBound ? (
+              {runtimeBound && binding ? (
                 <Input
                   value={binding.source.field}
                   disabled={disabled}
                   spellCheck={false}
-                  onChange={(event) => setContextField(input.name, event.target.value)}
-                  placeholder="External Context field"
-                  aria-label={`${input.name} External Context field`}
+                  onChange={(event) => setBindingField(input.name, event.target.value)}
+                  placeholder={binding.source.kind === 'project_environment' ? 'Project Environment key' : 'External Context field'}
+                  aria-label={`${input.name} ${binding.source.kind === 'project_environment' ? 'Project Environment key' : 'External Context field'}`}
                   className="font-mono text-xs"
                 />
               ) : (
@@ -158,7 +166,7 @@ export function ToolInputBindingsEditor({
 
       <div className="border-t border-border/70 px-3 py-2">
         <p className="text-[10px] leading-4 text-muted">
-          External Context bindings are resolved from the immutable Run snapshot and removed from the model-visible Tool input schema. Run/Session lifetime remains defined by the consuming Agent contract.
+          Runtime bindings are removed from the model-visible Tool schema. External Context comes from the immutable Run snapshot; Project Environment comes from the selected draft/staging/production execution environment and is never exposed to the model.
         </p>
       </div>
     </div>
