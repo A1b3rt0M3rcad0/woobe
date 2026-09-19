@@ -19,26 +19,33 @@ def collect_tool_project_environment_keys(
     return keys
 
 
+async def project_environment_tool_usage(
+    repo: ToolRepository,
+    *,
+    project_id: UUID,
+) -> dict[str, list[dict[str, str]]]:
+    usage: dict[str, list[dict[str, str]]] = {}
+    for tool in await repo.list_by_project(project_id):
+        reference = {
+            "id": str(tool.id),
+            "name": tool.name,
+        }
+        for key in collect_tool_project_environment_keys(tool.config):
+            usage.setdefault(key, []).append(reference)
+    return usage
+
+
 async def list_project_environment_tool_references(
     repo: ToolRepository,
     *,
     project_id: UUID,
     key: str,
 ) -> list[dict[str, str]]:
-    references: list[dict[str, str]] = []
-    for tool in await repo.list_by_project(project_id):
-        if key not in collect_tool_project_environment_keys(tool.config):
-            continue
-        references.append(
-            {
-                "id": str(tool.id),
-                "name": tool.name,
-            }
-        )
-    return references
+    return (await project_environment_tool_usage(repo, project_id=project_id)).get(key, [])
 
 
 __all__ = [
     "collect_tool_project_environment_keys",
     "list_project_environment_tool_references",
+    "project_environment_tool_usage",
 ]
