@@ -19,7 +19,7 @@ describe('ToolInputBindingsEditor', () => {
     required: ['customer_id'],
   }
 
-  it('renders model and External Context sources in one compact input contract', () => {
+  it('renders Agent, External Context and Project Environment sources in one compact input contract', () => {
     const html = renderToStaticMarkup(
       <ToolInputBindingsEditor
         schema={schema}
@@ -35,6 +35,7 @@ describe('ToolInputBindingsEditor', () => {
     expect(html).toContain('customer_id')
     expect(html).toContain('limit')
     expect(html).toContain('External Context')
+    expect(html).toContain('Project Environment')
     expect(html).toContain('Model-provided')
     expect(html).toContain('customer_id External Context field')
   })
@@ -58,8 +59,10 @@ describe('ToolInputBindingsEditor', () => {
   it('normalizes fields for persistence and detects incomplete bindings', () => {
     expect(normalizeToolInputBindings({
       customer_id: { source: { kind: 'context', field: ' customer_id ' } },
+      limit: { source: { kind: 'project_environment', field: ' API_LIMIT ' } },
     })).toEqual({
       customer_id: { source: { kind: 'context', field: 'customer_id' } },
+      limit: { source: { kind: 'project_environment', field: 'API_LIMIT' } },
     })
 
     expect(invalidToolInputBindingTargets({
