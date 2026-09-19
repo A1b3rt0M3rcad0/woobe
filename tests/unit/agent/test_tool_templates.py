@@ -85,3 +85,20 @@ def test_unknown_template_namespace_remains_literal() -> None:
         external_context={},
         project_environment={},
     ) == value
+
+
+def test_resolve_tool_templates_parses_json_body_before_resolving_structured_context() -> None:
+    config = {
+        "body": '{"customer":"{{external_context.customer}}","token":"{{project_env.API_KEY}}"}'
+    }
+
+    resolved = resolve_tool_templates(
+        config,
+        external_context={"customer": {"id": "cus_123"}},
+        project_environment={"API_KEY": "secret"},
+    )
+
+    assert resolved["body"] == {
+        "customer": {"id": "cus_123"},
+        "token": "secret",
+    }
