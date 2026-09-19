@@ -2,7 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Request as FastAPIRequest
 
-from modules.agent.entrypoint import project_environment_tool_references
+from modules.agent.entrypoint import project_environment_tool_usage
 
 from modules.core.entrypoint import (
     create_api_key_composer,
@@ -214,6 +214,9 @@ async def list_project_environment_keys(
         project_id=project_id,
     )
     data = await build_project_environment_service().list_keys(project_id=project_id)
+    usage = await project_environment_tool_usage(project_id)
+    for item in data:
+        item["used_by_tools"] = usage.get(str(item["key"]), [])
     return {"success": True, "message": "ok", "data": data}
 
 
@@ -246,28 +249,6 @@ async def upsert_project_environment_key(
     return {"success": True, "message": "ok", "data": data}
 
 
-@router.get("/projects/{project_id}/environment-keys/{key}/usage")
-async def get_project_environment_key_usage(
-    request: FastAPIRequest,
-    project_id: UUID,
-    key: str,
-):
-    await _project_access_service(request).require_project_access(
-        user_id=_principal_user_id(request),
-        project_id=project_id,
-    )
-    references = await project_environment_tool_references(project_id, key)
-    return {
-        "success": True,
-        "message": "ok",
-        "data": {
-            "key": key,
-            "in_use": bool(references),
-            "tools": references,
-        },
-    }
-
-
 @router.delete("/projects/{project_id}/environment-keys/{key}")
 async def delete_project_environment_key(
     request: FastAPIRequest,
@@ -278,7 +259,7 @@ async def delete_project_environment_key(
         user_id=_principal_user_id(request),
         project_id=project_id,
     )
-    references = await project_environment_tool_references(project_id, key)
+    references = (await project_environment_tool_usage(project_id)).get(key, [])
     if references:
         names = ", ".join(item["name"] for item in references)
         raise ConflictError(
