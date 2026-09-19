@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable, Mapping
+from copy import deepcopy
 from typing import Any
 from uuid import UUID
 
@@ -12,6 +13,10 @@ from modules.agent.application.tool_context_bindings import (
 )
 from modules.agent.application.tool_converter import agent_tools_to_openai_definitions_and_mapping
 from modules.agent.application.tool_release_snapshots import tool_from_release_snapshot
+from modules.agent.application.tool_templates import (
+    ToolTemplateResolutionError,
+    resolve_tool_templates,
+)
 from modules.agent.domain.enums import ToolStatus
 from modules.agent.domain.errors import ToolNotFoundError
 from modules.agent.infra.adapters.http_tool_runtime import get_http_tool_executor
@@ -104,12 +109,38 @@ class AgentToolRuntimeGateway:
                 "error": str(exc),
             }
 
+        runtime_tool = deepcopy(tool)
+        try:
+            runtime_tool.config = resolve_tool_templates(
+                getattr(tool, "config", None) or {},
+                external_context=(
+                    context.external_context_snapshot
+                    if context is not None
+                    else None
+                ),
+                project_environment=(
+                    context.prepared_project_environment
+                    if context is not None
+                    else None
+                ),
+            )
+        except ToolTemplateResolutionError as exc:
+            return {
+                "success": False,
+                "output": {
+                    "error_code": "TOOL_TEMPLATE_RESOLUTION_ERROR",
+                    "message": str(exc),
+                },
+                "duration_ms": None,
+                "error": str(exc),
+            }
+
         registry = build_tool_runtime_registry(
             settings=self._settings,
             executor=self._executor,
             secret_resolver=self._secret_resolver,
         )
-        result = await registry.execute(tool, runtime_input)
+        result = await registry.execute(runtime_tool, runtime_input)
         # Provider timing is operational metadata. Capture it out-of-band so the
         # logical Tool result consumed by Agents/Networks remains stable.
         record_tool_provider_latency(result.duration_ms)
