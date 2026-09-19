@@ -73,13 +73,18 @@ from modules.agent.presentation.controllers.update_tool_status_controller import
     UpdateToolStatusController,
 )
 from shared.infra.transactional_handler import TransactionalHandler
+from shared.project_environment import build_project_environment_service
 
 
 def create_tool_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     tool_repo = SQLAlchemyAgentToolRepository(uow)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    mcp_bootstrapper = McpToolBootstrapper(get_http_tool_executor())
+    project_environment = build_project_environment_service()
+    mcp_bootstrapper = McpToolBootstrapper(
+        get_http_tool_executor(),
+        project_environment_resolver=project_environment.resolve_values,
+    )
     use_case = CreateToolUseCase(
         tool_repo,
         outbox,
@@ -172,11 +177,13 @@ def refresh_mcp_tools_composer() -> TransactionalHandler:
         executor=runtime_executor,
         cipher=cipher,
     )
+    project_environment = build_project_environment_service()
     use_case = RefreshMcpProviderToolsUseCase(
         tool_repo=tool_repo,
         executor=runtime_executor,
         secret_resolver=resolver,
         auth_header_provider=auth_header_provider,
+        project_environment_resolver=project_environment.resolve_values,
     )
     controller = RefreshMcpToolsController(use_case)
     return TransactionalHandler(uow, controller.handle)
