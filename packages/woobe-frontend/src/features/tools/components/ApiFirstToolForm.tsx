@@ -615,7 +615,7 @@ export function ApiFirstToolForm({
     const nextErrors: Record<string, string> = {}
     if (protocol === 'mcp') {
       if (!mcpUrl.trim()) nextErrors.mcpUrl = 'MCP Server URL is required.'
-      else if (!containsRuntimeTemplate(mcpUrl)) {
+      else {
         try {
           const parsed = new URL(mcpUrl.trim())
           if (!['http:', 'https:'].includes(parsed.protocol)) nextErrors.mcpUrl = 'Use an HTTP or HTTPS URL.'
@@ -815,7 +815,7 @@ export function ApiFirstToolForm({
               <>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted">MCP Server URL *</label>
-                  <ToolTemplateInput autoFocus value={mcpUrl} onValueChange={updateMcpUrl} placeholder="https://mcp.example.com/mcp or {{project_env.MCP_URL}}" className="font-mono text-xs" />
+                  <Input autoFocus value={mcpUrl} onChange={(event) => updateMcpUrl(event.target.value)} placeholder="https://mcp.example.com/mcp" className="font-mono text-xs" />
                   <p className="mt-1 text-[11px] text-muted">Public tools are loaded automatically after creation.</p>
                   <FieldError message={errors.mcpUrl} />
                 </div>
