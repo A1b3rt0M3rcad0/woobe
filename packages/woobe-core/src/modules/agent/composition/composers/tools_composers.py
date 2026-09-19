@@ -89,6 +89,7 @@ def create_tool_composer() -> TransactionalHandler:
         tool_repo,
         outbox,
         mcp_bootstrapper=mcp_bootstrapper,
+        project_environment_key_validator=project_environment.require_keys,
     )
     controller = CreateToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
@@ -98,7 +99,12 @@ def update_tool_composer() -> TransactionalHandler:
     uow = AgentUnitOfWork(DATABASE_ENGINE)
     tool_repo = SQLAlchemyAgentToolRepository(uow)
     outbox = SQLAlchemyAgentOutboxEventWriter(uow)
-    use_case = UpdateToolUseCase(tool_repo, outbox)
+    project_environment = build_project_environment_service()
+    use_case = UpdateToolUseCase(
+        tool_repo,
+        outbox,
+        project_environment_key_validator=project_environment.require_keys,
+    )
     controller = UpdateToolController(use_case)
     return TransactionalHandler(uow, controller.handle)
 
