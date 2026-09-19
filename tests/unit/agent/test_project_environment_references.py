@@ -7,7 +7,6 @@ import pytest
 
 from modules.agent.application.project_environment_references import (
     collect_tool_project_environment_keys,
-    list_project_environment_tool_references,
     project_environment_tool_usage,
 )
 
@@ -73,13 +72,12 @@ async def test_list_project_environment_tool_references_returns_only_dependents(
 
     repo.list_by_project = list_by_project
 
-    references = await list_project_environment_tool_references(
+    usage = await project_environment_tool_usage(
         repo,
         project_id=project_id,
-        key="API_URL",
     )
 
-    assert references == [
+    assert usage["API_URL"] == [
         {
             "id": str(matching.id),
             "name": "Billing API",
