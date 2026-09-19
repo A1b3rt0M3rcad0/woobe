@@ -33,7 +33,6 @@ from modules.agent.infra.execution.transaction_bounded_rag import (
 )
 from shared.contracts.errors import ConflictError, ValidationError
 from shared.infra.crypto import decrypt_secret
-from shared.project_environment import materialize_project_environment_values
 from shared.runtime.event_schema import EVENT_JOURNAL_STORAGE_VERSION
 from shared.runtime_environment import normalize_runtime_environment
 
@@ -466,14 +465,10 @@ class AgentRunRecoveryRuntime(FrozenSnapshotStructuredOutputRuntime):
                     name: decrypt_secret(ciphertext, self._encryption_key)
                     for name, ciphertext in encrypted_tool_secrets.items()
                 }
-                project_environment = materialize_project_environment_values(
-                    prepared_project_environment,
-                    encryption_key=self._encryption_key,
-                )
                 context.prepared_fallback = fallback_data
                 context.prepared_tools = {str(tool.id): tool for tool in tools}
                 context.prepared_tool_secrets = tool_secrets
-                context.prepared_project_environment = project_environment
+                context.prepared_project_environment = prepared_project_environment
                 context.prepared_rag = rag_binding
                 context.tool_metadata = {
                     "source": "accepted_run_snapshot",
