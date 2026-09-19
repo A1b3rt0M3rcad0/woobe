@@ -91,6 +91,7 @@ from modules.agent.composition.public_api import (
     list_vector_snapshots_composer,
     new_execution_context,
     poll_mcp_oauth_device_composer,
+    project_environment_tool_usage,
     preview_vector_snapshot_composer,
     promote_release_composer,
     provider_model_usage_composer,
