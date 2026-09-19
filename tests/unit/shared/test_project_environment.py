@@ -6,6 +6,7 @@ from shared.infra.crypto import encrypt_secret
 from shared.infra.errors import ValidationError
 from shared.project_environment import (
     PreparedProjectEnvironmentValue,
+    ProjectEnvironmentService,
     materialize_project_environment_values,
     normalize_project_environment_key,
     normalize_project_environment_kind,
@@ -59,3 +60,53 @@ def test_project_environment_kind_is_explicit() -> None:
 
     with pytest.raises(ValidationError):
         normalize_project_environment_kind("credential")
+
+
+
+class _ProjectEnvironmentResult:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def all(self):
+        return self._rows
+
+
+class _ProjectEnvironmentSession:
+    def __init__(self, rows):
+        self._rows = rows
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return None
+
+    async def execute(self, *_args, **_kwargs):
+        return _ProjectEnvironmentResult(self._rows)
+
+
+@pytest.mark.asyncio
+async def test_require_project_environment_keys_accepts_existing_keys() -> None:
+    service = ProjectEnvironmentService(
+        lambda: _ProjectEnvironmentSession([("API_URL",), ("API_KEY",)]),  # type: ignore[arg-type]
+        encryption_key="test-key",
+    )
+
+    await service.require_keys(
+        project_id=__import__("uuid").uuid4(),
+        keys={"API_URL", "API_KEY"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_require_project_environment_keys_rejects_missing_keys() -> None:
+    service = ProjectEnvironmentService(
+        lambda: _ProjectEnvironmentSession([("API_URL",)]),  # type: ignore[arg-type]
+        encryption_key="test-key",
+    )
+
+    with pytest.raises(ValidationError, match="API_KEY"):
+        await service.require_keys(
+            project_id=__import__("uuid").uuid4(),
+            keys={"API_URL", "API_KEY"},
+        )
