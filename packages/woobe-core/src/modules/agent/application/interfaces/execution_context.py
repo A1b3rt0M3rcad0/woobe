@@ -90,6 +90,7 @@ class RequestExecutionContext:
     prepared_fallback: dict[str, Any] | None = None
     prepared_tools: dict[str, Any] | None = None
     prepared_tool_secrets: dict[str, str] | None = None
+    prepared_project_environment: dict[str, str] | None = None
     prepared_rag: dict[str, Any] | None = None
 
 
