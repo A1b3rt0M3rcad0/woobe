@@ -11,6 +11,7 @@ from modules.agent.application.mcp_tool_bootstrap import McpToolBootstrapper
 from modules.agent.application.mcp_tool_refresh import RefreshMcpProviderToolsUseCase
 from modules.agent.application.project_environment_references import (
     list_project_environment_tool_references,
+    project_environment_tool_usage as read_project_environment_tool_usage,
 )
 from modules.agent.application.runtime_tool_use_cases import (
     RuntimeExecuteToolUseCase,
@@ -79,6 +80,18 @@ from modules.agent.presentation.controllers.update_tool_status_controller import
 )
 from shared.infra.transactional_handler import TransactionalHandler
 from shared.project_environment import build_project_environment_service
+
+
+async def project_environment_tool_usage(
+    project_id: UUID,
+) -> dict[str, list[dict[str, str]]]:
+    uow = AgentUnitOfWork(DATABASE_ENGINE).mark_read_only()
+    async with uow:
+        repo = SQLAlchemyAgentToolRepository(uow)
+        return await read_project_environment_tool_usage(
+            repo,
+            project_id=project_id,
+        )
 
 
 async def project_environment_tool_references(
