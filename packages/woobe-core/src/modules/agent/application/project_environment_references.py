@@ -8,6 +8,17 @@ from modules.agent.domain.tool_project_environment import (
 )
 
 
+class ProjectEnvironmentToolUsageUseCase:
+    def __init__(self, repo: ToolRepository) -> None:
+        self._repo = repo
+
+    async def execute(self, project_id: UUID) -> dict[str, list[dict[str, str]]]:
+        return await project_environment_tool_usage(
+            self._repo,
+            project_id=project_id,
+        )
+
+
 async def project_environment_tool_usage(
     repo: ToolRepository,
     *,
@@ -25,6 +36,7 @@ async def project_environment_tool_usage(
 
 
 __all__ = [
+    "ProjectEnvironmentToolUsageUseCase",
     "collect_tool_project_environment_keys",
     "project_environment_tool_usage",
 ]
