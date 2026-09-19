@@ -85,12 +85,13 @@ class RequestExecutionContext:
     context_selection_metadata: dict[str, Any] | None = None
     context_rag_sources: list[dict[str, Any]] | None = None
 
-    # Ephemeral preparation material. Decrypted secrets may live here only in
-    # process memory and must never be serialized to Redis or durable snapshots.
+    # Ephemeral preparation material. Project Environment secrets remain encrypted
+    # here and are materialized only at the Tool invocation boundary. Nothing in
+    # this section may be serialized to Redis or durable snapshots.
     prepared_fallback: dict[str, Any] | None = None
     prepared_tools: dict[str, Any] | None = None
     prepared_tool_secrets: dict[str, str] | None = None
-    prepared_project_environment: dict[str, str] | None = None
+    prepared_project_environment: dict[str, Any] | None = None
     prepared_rag: dict[str, Any] | None = None
 
 
