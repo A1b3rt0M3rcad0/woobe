@@ -68,3 +68,15 @@ export interface UpsertProjectEnvironmentKeyRequest {
   values: Partial<Record<ProjectEnvironment, string | null>>
   clear_environments?: ProjectEnvironment[]
 }
+
+
+export interface ProjectEnvironmentToolReference {
+  id: string
+  name: string
+}
+
+export interface ProjectEnvironmentKeyUsage {
+  key: string
+  in_use: boolean
+  tools: ProjectEnvironmentToolReference[]
+}
