@@ -8,10 +8,12 @@ from typing import Any
 from uuid import UUID
 
 from modules.agent.application.interfaces.context_policy import canonicalize_context_runtime_config
+from modules.agent.application.tool_templates import collect_project_environment_keys
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ToolStatus
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
 from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
 from shared.contracts.errors import ValidationError
+from shared.project_environment import PreparedProjectEnvironmentValue
 
 _SECRET_PATTERN = re.compile(r"\{\{secret:([^}]+)\}\}")
 
@@ -137,6 +139,36 @@ async def prepare_tool_state(
             raise ValidationError(f"Configured Tool secret was not found: {name}") from exc
         encrypted_by_name[name] = secret.encrypted_value
     return tools, encrypted_by_name
+
+
+async def prepare_project_environment_state(
+    repositories: AgentRuntimeRepositories,
+    *,
+    project_id: UUID,
+    environment: str,
+    tools: list[Any],
+) -> dict[str, PreparedProjectEnvironmentValue]:
+    """Read only Project Environment keys referenced by the accepted Tool set.
+
+    Missing values are intentionally not rejected here. A Tool may never be invoked
+    during the Run; resolution fails explicitly only if that Tool actually requires
+    an unavailable key.
+    """
+
+    keys: set[str] = set()
+    for tool in tools:
+        keys.update(collect_project_environment_keys(tool.config or {}))
+    if not keys:
+        return {}
+
+    reader = repositories.project_environment
+    if reader is None:
+        raise ValidationError("Project Environment runtime reader is unavailable")
+    return await reader.read_values(
+        project_id=project_id,
+        environment=environment,
+        keys=keys,
+    )
 
 
 async def prepare_rag_binding(
