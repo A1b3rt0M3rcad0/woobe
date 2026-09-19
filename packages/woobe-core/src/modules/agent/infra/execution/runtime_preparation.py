@@ -8,10 +8,9 @@ from typing import Any
 from uuid import UUID
 
 from modules.agent.application.interfaces.context_policy import canonicalize_context_runtime_config
-from modules.agent.application.tool_context_bindings import (
-    collect_project_environment_binding_keys,
+from modules.agent.domain.tool_project_environment import (
+    collect_tool_project_environment_keys,
 )
-from modules.agent.application.tool_templates import collect_project_environment_keys
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ToolStatus
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
 from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
@@ -160,9 +159,7 @@ async def prepare_project_environment_state(
 
     keys: set[str] = set()
     for tool in tools:
-        config = tool.config or {}
-        keys.update(collect_project_environment_keys(config))
-        keys.update(collect_project_environment_binding_keys(config))
+        keys.update(collect_tool_project_environment_keys(tool.config or {}))
     if not keys:
         return {}
 
