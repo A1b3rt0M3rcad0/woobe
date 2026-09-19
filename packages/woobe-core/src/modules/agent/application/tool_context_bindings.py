@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from copy import deepcopy
 import re
+from copy import deepcopy
 from typing import Any, Mapping
 
 from modules.agent.application.interfaces.http_tool_contract import (
