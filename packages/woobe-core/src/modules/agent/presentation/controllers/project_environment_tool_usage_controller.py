@@ -1,8 +1,6 @@
 from uuid import UUID
 
-from modules.agent.application.project_environment_references import (
-    ProjectEnvironmentToolUsageUseCase,
-)
+from modules.agent.application.interfaces.use_case import UseCase
 from shared.presentation.contracts import (
     OperationOutcome,
     OperationRequest,
@@ -12,7 +10,7 @@ from shared.presentation.interface.controller import Controller
 
 
 class ProjectEnvironmentToolUsageController(Controller):
-    def __init__(self, use_case: ProjectEnvironmentToolUsageUseCase) -> None:
+    def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
 
     async def handle(self, request: OperationRequest) -> OperationResult:
