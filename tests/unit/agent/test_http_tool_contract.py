@@ -6,6 +6,7 @@ import pytest
 
 from modules.agent.application.http_tool_contract import (
     HttpToolContractError,
+    compile_http_tool_group_contract,
     compile_http_tool_contract,
 )
 from modules.agent.infra.adapters.http_tool_renderer import render_http_tool_request
@@ -91,3 +92,29 @@ def test_compiler_rejects_single_brace_placeholders() -> None:
         compile_http_tool_contract(config)
 
     assert exc_info.value.code == "HTTP_TOOL_TEMPLATE_INVALID"
+
+
+def test_group_contract_accepts_runtime_template_base_url() -> None:
+    contract = compile_http_tool_group_contract(
+        {
+            "protocol": "http",
+            "mode": "group",
+            "base_url": "{{project_env.API_URL}}",
+            "headers": [],
+            "routes": [
+                {
+                    "id": "route-1",
+                    "name": "Create customer",
+                    "description": "Create one customer.",
+                    "method": "POST",
+                    "path": "/customers",
+                    "headers": [],
+                    "risk_level": "low",
+                    "status": "active",
+                    "default_permission": "allow",
+                }
+            ],
+        }
+    )
+
+    assert contract.config["base_url"] == "{{project_env.API_URL}}"
