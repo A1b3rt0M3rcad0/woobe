@@ -237,8 +237,7 @@ async def test_standalone_required_external_context_is_rejected_before_execution
                 "name": {
                     "schema": {"type": "string"},
                     "required": True,
-                    "scope": "run",
-                    "model": {"expose": True},
+                            "model": {"expose": True},
                     "description": "Preferred name of the current user",
                 }
             }
@@ -294,8 +293,7 @@ async def test_standalone_external_context_is_frozen_and_exposed_for_the_run() -
                 "name": {
                     "schema": {"type": "string"},
                     "required": True,
-                    "scope": "run",
-                    "model": {"expose": True},
+                            "model": {"expose": True},
                     "description": "Preferred name of the current user",
                 }
             }
