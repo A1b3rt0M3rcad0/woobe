@@ -7,7 +7,6 @@ from typing import Any, Mapping
 from modules.agent.domain.release_versioning import ReleaseChangeKind
 
 
-_ALLOWED_SCOPES = {"run", "session"}
 _MISSING = object()
 
 
@@ -18,7 +17,6 @@ class ExternalContextContractError(ValueError):
 @dataclass(frozen=True, slots=True)
 class ExternalContextResolution:
     snapshot: dict[str, Any]
-    session_values: dict[str, Any]
 
 
 def _raw_contract_fields(value: Any) -> dict[str, Any]:
@@ -57,7 +55,6 @@ def normalize_external_context_contract(value: Any) -> dict[str, Any]:
         unknown_field_keys = set(raw_field) - {
             "schema",
             "required",
-            "scope",
             "default",
             "model",
             "description",
@@ -73,12 +70,6 @@ def normalize_external_context_contract(value: Any) -> dict[str, Any]:
         if not isinstance(required, bool):
             raise ExternalContextContractError(
                 f"External Context field '{name}'.required must be boolean"
-            )
-
-        scope = raw_field.get("scope", "run")
-        if scope not in _ALLOWED_SCOPES:
-            raise ExternalContextContractError(
-                f"External Context field '{name}'.scope must be 'run' or 'session'"
             )
 
         model = raw_field.get("model", {})
@@ -97,7 +88,6 @@ def normalize_external_context_contract(value: Any) -> dict[str, Any]:
         field: dict[str, Any] = {
             "schema": schema,
             "required": required,
-            "scope": scope,
             "model": {"expose": expose},
         }
         if "default" in raw_field:
@@ -118,7 +108,6 @@ def resolve_external_context(
     contract: Any,
     request_values: Any,
     *,
-    session_values: Mapping[str, Any] | None = None,
     enforce_required: bool = True,
 ) -> ExternalContextResolution:
     """Validate request values and freeze one immutable execution snapshot."""
@@ -135,20 +124,12 @@ def resolve_external_context(
             f"External Context contains undeclared fields: {names}"
         )
 
-    persisted = dict(session_values or {})
     snapshot: dict[str, Any] = {}
-    next_session_values = {
-        key: deepcopy(value)
-        for key, value in persisted.items()
-        if key in fields and fields[key]["scope"] == "session"
-    }
 
     for name, field in fields.items():
         value: Any = _MISSING
         if name in raw_values:
             value = raw_values[name]
-        elif field["scope"] == "session" and name in persisted:
-            value = persisted[name]
         elif "default" in field:
             value = deepcopy(field["default"])
 
@@ -161,10 +142,7 @@ def resolve_external_context(
 
         _validate_schema_value(value, field["schema"], name)
         snapshot[name] = deepcopy(value)
-        if field["scope"] == "session":
-            next_session_values[name] = deepcopy(value)
-
-    return ExternalContextResolution(snapshot=snapshot, session_values=next_session_values)
+    return ExternalContextResolution(snapshot=snapshot)
 
 
 def project_external_context(contract: Any, snapshot: Mapping[str, Any]) -> dict[str, Any]:
@@ -206,8 +184,6 @@ def classify_external_context_change(previous: Any, candidate: Any) -> ReleaseCh
             feature = True
             continue
 
-        if old_field["scope"] != new_field["scope"]:
-            return ReleaseChangeKind.COMPATIBILITY
         if not old_field["required"] and new_field["required"]:
             return ReleaseChangeKind.COMPATIBILITY
         if _schema_breaks_input_compatibility(old_field["schema"], new_field["schema"]):
@@ -234,11 +210,10 @@ def compose_external_context_contracts(
             if existing is None:
                 existing = {
                     "schema": deepcopy(field["schema"]),
-                    "scope": field["scope"],
                     "consumers": {},
                 }
                 effective_fields[name] = existing
-            elif existing["schema"] != field["schema"] or existing["scope"] != field["scope"]:
+            elif existing["schema"] != field["schema"]:
                 raise ExternalContextContractError(
                     f"External Context field '{name}' conflicts between Network Agents"
                 )
