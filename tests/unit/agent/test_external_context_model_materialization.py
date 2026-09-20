@@ -51,14 +51,12 @@ def _contract() -> dict:
         "age": {
             "schema": {"type": "integer"},
             "required": True,
-            "scope": "session",
             "model": {"expose": False},
             "description": "Age supplied by the host application.",
         },
         "name": {
             "schema": {"type": "string"},
             "required": True,
-            "scope": "session",
             "model": {"expose": True},
             "description": "Name the Agent should use when addressing the user.",
         },
@@ -209,7 +207,6 @@ def test_network_projection_resolver_and_context_manager_materialize_exposed_fie
         resolver._resolve_external_context(
             agent=agent,
             input_dto=request,
-            session_data={},
         )
 
         assert runtime_context.external_context_snapshot == {
@@ -355,14 +352,12 @@ def test_structured_external_context_reaches_model_without_losing_json_types() -
                 "additionalProperties": False,
             },
             "required": True,
-            "scope": "session",
             "model": {"expose": True},
             "description": "Authenticated user profile.",
         },
         "secret": {
             "schema": {"type": "string"},
             "required": True,
-            "scope": "session",
             "model": {"expose": False},
         },
     }
@@ -425,7 +420,6 @@ def test_external_context_remains_structurally_valid_under_context_budget_pressu
         "profile": {
             "schema": {"type": "string"},
             "required": True,
-            "scope": "run",
             "model": {"expose": True},
             "description": "Large runtime profile.",
         }
@@ -479,8 +473,7 @@ async def test_network_frozen_snapshot_external_context_reaches_actual_model_and
                 "legacy_name": {
                     "schema": {"type": "string"},
                     "required": False,
-                    "scope": "run",
-                    "model": {"expose": False},
+                            "model": {"expose": False},
                 }
             },
             "runtime_config": {},
@@ -530,7 +523,6 @@ async def test_network_frozen_snapshot_external_context_reaches_actual_model_and
         resolver._resolve_external_context(
             agent=live_agent,
             input_dto=request,
-            session_data={},
         )
 
         execution = await run_instrumented_execution(
