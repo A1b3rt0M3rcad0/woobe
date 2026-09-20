@@ -106,19 +106,14 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         *,
         agent: Agent,
         input_dto: AskInput,
-        session_data: dict[str, Any] | None,
     ):
         settings = dict(agent.settings or {})
         raw_contract = settings.get("external_context_contract")
-        data = session_data or {}
-        persisted = data.get("external_context_session_values")
-        persisted_values = persisted if isinstance(persisted, dict) else {}
         try:
             contract = normalize_external_context_contract(raw_contract)
             resolved = resolve_external_context(
                 contract,
                 input_dto.external_context,
-                session_values=persisted_values,
             )
             exposed = model_external_context(contract, resolved.snapshot)
         except ExternalContextContractError as exc:
@@ -137,7 +132,6 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             self._resolve_external_context(
                 agent=agent,
                 input_dto=input_dto,
-                session_data=None,
             )
             return None
 
@@ -195,15 +189,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         resolved_context = self._resolve_external_context(
             agent=agent,
             input_dto=input_dto,
-            session_data=next_data,
         )
-        if resolved_context.session_values:
-            next_data["external_context_session_values"] = deepcopy(
-                resolved_context.session_values
-            )
-        else:
-            next_data.pop("external_context_session_values", None)
-
         if next_data != data:
             session.data = next_data
             await session_repo.update(session)
