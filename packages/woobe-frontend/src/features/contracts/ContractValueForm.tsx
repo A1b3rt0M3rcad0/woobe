@@ -54,7 +54,7 @@ export function ContractValueForm({ contract, values, disabled = false, density 
             <div className="min-w-0">
               <p className="truncate font-mono text-system-control text-accent-foreground">{name}</p>
               <p className="font-mono text-system-label text-muted-foreground">
-                {type}{field.scope ? ` · ${field.scope}` : ''}{required ? ' · required' : ''}
+                {type}{required ? ' · required' : ''}
               </p>
               {field.description ? (
                 <p className="mt-ui-hairline font-sans text-product-caption leading-4 text-muted-foreground">
