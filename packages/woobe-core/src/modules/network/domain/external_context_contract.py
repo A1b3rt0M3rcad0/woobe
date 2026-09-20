@@ -17,7 +17,6 @@ from modules.agent.domain.release_versioning import ReleaseChangeKind
 @dataclass(frozen=True, slots=True)
 class EffectiveExternalContextResolution:
     snapshot: dict[str, Any]
-    session_values: dict[str, Any]
 
 
 def _effective_fields(value: Any) -> dict[str, Any]:
@@ -35,11 +34,6 @@ def _effective_fields(value: Any) -> dict[str, Any]:
             raise ExternalContextContractError(
                 f"Effective External Context field '{name}' must be an object"
             )
-        scope = field.get("scope", "run")
-        if scope not in {"run", "session"}:
-            raise ExternalContextContractError(
-                f"Effective External Context field '{name}'.scope must be 'run' or 'session'"
-            )
         consumers = field.get("consumers")
         if not isinstance(consumers, dict) or not consumers:
             raise ExternalContextContractError(
@@ -51,14 +45,11 @@ def _effective_fields(value: Any) -> dict[str, Any]:
 def resolve_effective_external_context(
     effective_contract: Any,
     request_values: Any,
-    *,
-    session_values: Mapping[str, Any] | None = None,
 ) -> EffectiveExternalContextResolution:
-    """Validate and freeze a Network External Context snapshot.
+    """Validate and freeze one Network Run External Context snapshot.
 
     Network acceptance validates only the effective request boundary. Per-Agent required/default
-    semantics remain consumer-specific and are enforced when an Agent is invoked. Session-scoped
-    values are reused across Runs in the same Network Session; run-scoped values are never reused.
+    semantics remain consumer-specific and are enforced when an Agent is invoked.
     """
 
     fields = _effective_fields(effective_contract)
@@ -67,30 +58,8 @@ def resolve_effective_external_context(
         fields,
         raw_values,
     )
-    persisted = dict(session_values or {})
-
-    snapshot: dict[str, Any] = {}
-    next_session_values: dict[str, Any] = {}
-    for name, field in fields.items():
-        scope = field.get("scope", "run")
-        if name in validated_request:
-            value = deepcopy(validated_request[name])
-            snapshot[name] = value
-            if scope == "session":
-                next_session_values[name] = deepcopy(value)
-            continue
-        if scope == "session" and name in persisted:
-            value = persisted[name]
-            validate_effective_external_context_values(
-                {name: field},
-                {name: value},
-            )
-            snapshot[name] = deepcopy(value)
-            next_session_values[name] = deepcopy(value)
-
     return EffectiveExternalContextResolution(
-        snapshot=snapshot,
-        session_values=next_session_values,
+        snapshot=deepcopy(validated_request),
     )
 
 
@@ -113,7 +82,6 @@ def consumer_external_context_contract(
         reconstructed: dict[str, Any] = {
             "schema": deepcopy(field.get("schema") or {}),
             "required": bool(consumer_spec.get("required", False)),
-            "scope": field.get("scope", "run"),
             "model": {"expose": bool(model.get("expose", False))},
         }
         if "default" in consumer_spec:
@@ -157,7 +125,6 @@ def _single_field_contract(
     value: dict[str, Any] = {
         "schema": deepcopy(field.get("schema") or {}),
         "required": bool(consumer.get("required", False)),
-        "scope": field.get("scope", "run"),
         "model": {"expose": bool(model.get("expose", False))},
     }
     if "default" in consumer:
@@ -200,7 +167,6 @@ def classify_effective_external_context_change(
             name: {
                 "schema": deepcopy(old_field.get("schema") or {}),
                 "required": False,
-                "scope": old_field.get("scope", "run"),
                 "model": {"expose": False},
             }
         }
@@ -208,7 +174,6 @@ def classify_effective_external_context_change(
             name: {
                 "schema": deepcopy(new_field.get("schema") or {}),
                 "required": False,
-                "scope": new_field.get("scope", "run"),
                 "model": {"expose": False},
             }
         }
