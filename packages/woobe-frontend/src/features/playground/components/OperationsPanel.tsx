@@ -34,9 +34,6 @@ interface OperationsPanelProps {
   tracesError?: boolean
   tracesErrorMessage?: string
   onTracesRetry?: () => void
-  sessionContextContract?: unknown
-  sessionContextValues?: Record<string, unknown>
-  onSessionContextValuesChange?: (values: Record<string, unknown>) => void
 }
 
 type RunDetailView = 'run' | 'evidence'
@@ -62,9 +59,6 @@ export function OperationsPanel(props: OperationsPanelProps) {
     tracesError,
     tracesErrorMessage,
     onTracesRetry,
-    sessionContextContract,
-    sessionContextValues,
-    onSessionContextValuesChange,
   } = props
   const [runDetailView, setRunDetailView] = useState<RunDetailView>('run')
   const streamState = useAgentStreamStopState()
@@ -137,9 +131,6 @@ export function OperationsPanel(props: OperationsPanelProps) {
           isError={sessionsError}
           errorMessage={sessionsErrorMessage}
           onRetry={onSessionsRetry}
-          sessionContextContract={sessionContextContract}
-          sessionContextValues={sessionContextValues}
-          onSessionContextValuesChange={onSessionContextValuesChange}
         />
       </ScrollArea>
     </div>
