@@ -3,51 +3,47 @@ import { describe, expect, it } from 'vitest'
 import {
   externalContractFromRows,
   externalContractRows,
-  contractForScope,
   filterContractValues,
   outputSchemaFromRows,
 } from './contractFields'
 
 describe('contract field builders', () => {
-  it('compiles External Context fields directly at the contract root', () => {
+  it('compiles External Context fields directly at the contract root without scope metadata', () => {
     expect(externalContractFromRows([
-      { name: 'customer_id', type: 'string', required: true, scope: 'session', expose: false },
-      { name: 'current_page', type: 'string', required: false, scope: 'run', expose: true },
+      { name: 'customer_id', type: 'string', required: true, expose: false },
+      { name: 'current_page', type: 'string', required: false, expose: true },
     ])).toEqual({
       customer_id: {
         schema: { type: 'string' },
         required: true,
-        scope: 'session',
         model: { expose: false },
       },
       current_page: {
         schema: { type: 'string' },
         required: false,
-        scope: 'run',
         model: { expose: true },
       },
     })
   })
 
-  it('reads the old fields wrapper without keeping it in the visual model', () => {
+  it('reads the old fields wrapper without keeping wrapper metadata in the visual model', () => {
     expect(externalContractRows({
       fields: {
         customer_id: {
           schema: { type: 'string' },
           required: true,
-          scope: 'session',
           model: { expose: false },
         },
       },
     })).toEqual([
-      { name: 'customer_id', type: 'string', required: true, scope: 'session', expose: false },
+      { name: 'customer_id', type: 'string', required: true, expose: false },
     ])
   })
 
   it('compiles Output rows into a strict object schema', () => {
     expect(outputSchemaFromRows([
-      { name: 'answer', type: 'string', required: true, scope: 'run', expose: true },
-      { name: 'confidence', type: 'number', required: false, scope: 'run', expose: true },
+      { name: 'answer', type: 'string', required: true, expose: true },
+      { name: 'confidence', type: 'number', required: false, expose: true },
     ])).toEqual({
       type: 'object',
       properties: {
@@ -59,29 +55,9 @@ describe('contract field builders', () => {
     })
   })
 
-  it('projects External Context by Run and Session scope', () => {
-    const contract = {
-      current_page: {
-        schema: { type: 'string' },
-        required: true,
-        scope: 'run',
-        model: { expose: true },
-      },
-      customer_id: {
-        schema: { type: 'string' },
-        required: true,
-        scope: 'session',
-        model: { expose: false },
-      },
-    }
-
-    expect(Object.keys(contractForScope(contract, 'run'))).toEqual(['current_page'])
-    expect(Object.keys(contractForScope(contract, 'session'))).toEqual(['customer_id'])
-  })
-
-  it('drops persisted values that are no longer declared by the selected environment contract', () => {
+  it('drops persisted UI values that are no longer declared by the selected environment contract', () => {
     const contract = externalContractFromRows([
-      { name: 'customer_id', type: 'string', required: true, scope: 'session', expose: false },
+      { name: 'customer_id', type: 'string', required: true, expose: false },
     ])
     expect(filterContractValues(contract, {
       customer_id: 'cus-123',
@@ -94,7 +70,6 @@ describe('contract field builders', () => {
       name: {
         schema: { type: 'string' },
         required: true,
-        scope: 'run',
         model: { expose: true },
         description: 'Preferred name of the current user',
       },
@@ -113,7 +88,6 @@ describe('contract field builders', () => {
         name: 'name',
         type: 'string',
         required: true,
-        scope: 'run',
         expose: true,
         description: 'Preferred name of the current user ',
       },
@@ -128,7 +102,6 @@ describe('contract field builders', () => {
         name: 'name',
         type: 'string',
         required: true,
-        scope: 'run',
         expose: true,
         description: '   ',
       },
