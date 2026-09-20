@@ -68,13 +68,11 @@ const contract = {
   name: {
     schema: { type: 'string' },
     required: true,
-    scope: 'session',
     model: { expose: true },
   },
   age: {
     schema: { type: 'integer' },
     required: true,
-    scope: 'session',
     model: { expose: false },
   },
 }
