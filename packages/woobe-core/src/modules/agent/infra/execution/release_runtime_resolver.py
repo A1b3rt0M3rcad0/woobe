@@ -186,7 +186,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                 if resolved_release_version:
                     next_data["release_version"] = resolved_release_version
 
-        resolved_context = self._resolve_external_context(
+        self._resolve_external_context(
             agent=agent,
             input_dto=input_dto,
         )
