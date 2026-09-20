@@ -87,13 +87,11 @@ async def test_network_runtime_executes_real_agent_against_fake_custom_provider_
         "name": {
             "schema": {"type": "string"},
             "required": True,
-            "scope": "run",
             "model": {"expose": True},
         },
         "customer_id": {
             "schema": {"type": "string"},
             "required": True,
-            "scope": "run",
             "model": {"expose": False},
         }
     }
