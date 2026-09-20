@@ -134,11 +134,10 @@ export function externalContextContractError(state: AgentEditorState): string | 
     if (!name.trim()) return 'External Context field names cannot be blank.'
     if (!rawField || typeof rawField !== 'object' || Array.isArray(rawField)) return `External Context field '${name}' must be an object.`
     const field = rawField as Record<string, unknown>
-    const supported = new Set(['schema', 'required', 'scope', 'default', 'model', 'description'])
+    const supported = new Set(['schema', 'required', 'default', 'model', 'description'])
     const unknown = Object.keys(field).filter((key) => !supported.has(key))
     if (unknown.length > 0) return `External Context field '${name}' contains unsupported properties: ${unknown.join(', ')}.`
     if (field.required !== undefined && typeof field.required !== 'boolean') return `External Context field '${name}'.required must be boolean.`
-    if (field.scope !== undefined && field.scope !== 'run' && field.scope !== 'session') return `External Context field '${name}'.scope must be 'run' or 'session'.`
     if (field.schema !== undefined && (!field.schema || typeof field.schema !== 'object' || Array.isArray(field.schema))) return `External Context field '${name}'.schema must be an object.`
     if (field.model !== undefined) {
       if (!field.model || typeof field.model !== 'object' || Array.isArray(field.model)) return `External Context field '${name}'.model must be an object.`
