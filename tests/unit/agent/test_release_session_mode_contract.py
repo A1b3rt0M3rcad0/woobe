@@ -72,7 +72,6 @@ def test_release_list_payload_preserves_external_context_contract() -> None:
         "name": {
             "schema": {"type": "string"},
             "required": True,
-            "scope": "run",
             "model": {"expose": True},
             "description": "Preferred name of the current user",
         }
