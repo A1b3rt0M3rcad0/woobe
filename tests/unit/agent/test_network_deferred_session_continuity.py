@@ -153,15 +153,15 @@ async def test_deferred_network_resolves_external_context_before_hot_state(
     agent.settings["external_context_contract"] = {
         "name": {
             "schema": {"type": "string"}, "required": True,
-            "scope": "session", "model": {"expose": True},
+            "model": {"expose": True},
         },
         "age": {
             "schema": {"type": "integer"}, "required": True,
-            "scope": "run", "model": {"expose": False},
+            "model": {"expose": False},
         },
         "language": {
             "schema": {"type": "string"}, "default": "pt-BR",
-            "scope": "run", "model": {"expose": True},
+            "model": {"expose": True},
         },
     }
     monkeypatch.setattr(runtime, "_load_agent", AsyncMock(return_value=agent))
