@@ -239,7 +239,6 @@ def test_network_frozen_snapshot_replaces_live_external_context_contract() -> No
         "legacy_name": {
             "schema": {"type": "string"},
             "required": False,
-            "scope": "run",
             "model": {"expose": False},
         }
     }
@@ -247,14 +246,12 @@ def test_network_frozen_snapshot_replaces_live_external_context_contract() -> No
         "name": {
             "schema": {"type": "string"},
             "required": True,
-            "scope": "run",
             "model": {"expose": True},
             "description": "Name supplied by the Network host application.",
         },
         "age": {
             "schema": {"type": "integer"},
             "required": True,
-            "scope": "session",
             "model": {"expose": False},
         },
     }
@@ -290,7 +287,6 @@ def test_network_frozen_snapshot_can_restore_external_context_contract_when_live
         "name": {
             "schema": {"type": "string"},
             "required": True,
-            "scope": "run",
             "model": {"expose": True},
         }
     }
@@ -328,8 +324,7 @@ def test_frozen_snapshot_explicit_null_clears_live_external_context_contract() -
                 "legacy_name": {
                     "schema": {"type": "string"},
                     "required": False,
-                    "scope": "run",
-                    "model": {"expose": False},
+                            "model": {"expose": False},
                 }
             },
             "runtime_config": {},
