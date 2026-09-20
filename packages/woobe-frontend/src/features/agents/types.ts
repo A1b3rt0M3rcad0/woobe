@@ -20,12 +20,9 @@ export interface RuntimeEnvironmentState {
 
 export type RuntimeEnvironmentStates = Record<RuntimeEnvironment, RuntimeEnvironmentState>
 
-export type ExternalContextScope = 'run' | 'session'
-
 export interface ExternalContextFieldContract {
   schema?: Record<string, unknown>
   required?: boolean
-  scope?: ExternalContextScope
   default?: unknown
   model?: { expose?: boolean }
   description?: string
