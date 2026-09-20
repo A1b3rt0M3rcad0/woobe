@@ -40,7 +40,7 @@ export function AgentExternalContextSettings() {
             />
           ) : (
             <p className="font-sans text-product-small text-muted-foreground">
-              This Agent does not declare an External Context contract. Enable it to add fields that can be supplied at Run or Session scope.
+              This Agent does not declare an External Context contract. Enable it to add fields that applications may supply to each Run.
             </p>
           )}
 
@@ -52,7 +52,7 @@ export function AgentExternalContextSettings() {
 
           {enabled ? (
             <p className="font-sans text-product-caption text-muted-foreground">
-              The request boundary is strict. Field type, scope, requirement and model visibility are compiled into the Release contract automatically.
+              The request boundary is strict. Field type, requirement and model visibility are compiled into the Release contract automatically.
             </p>
           ) : null}
         </div>
