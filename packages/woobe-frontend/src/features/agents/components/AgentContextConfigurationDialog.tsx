@@ -17,6 +17,8 @@ import {
 } from '@woobe/ui'
 
 import { useProviderModels } from '@/features/provider-models/hooks'
+import { useCredentials } from '@/features/provider-credentials/hooks'
+import { ModelSettingsModal } from '@/features/provider-models/components/ModelSettingsModal'
 import type { ProviderModel } from '@/features/provider-models/types'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import {
@@ -82,11 +84,13 @@ function CapacityCard({
   model,
   capacity,
   isFallback = false,
+  onConfigure,
 }: {
   title: string
   model: ProviderModel | null
   capacity: ContextCapacity | null
   isFallback?: boolean
+  onConfigure: () => void
 }) {
   if (!model || !capacity) {
     return (
@@ -153,6 +157,16 @@ function CapacityCard({
           />
         ) : null}
       </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="mt-ui-md"
+        aria-label={`Configure capacity for ${title.toLowerCase()}`}
+        onClick={onConfigure}
+      >
+        Configure capacity
+      </Button>
     </div>
   )
 }
@@ -169,7 +183,9 @@ export function AgentContextConfigurationDialog({
   managerName: string
 }) {
   const { state, setField } = useAgentEditor()
-  const { data: providerModels = [] } = useProviderModels(projectId)
+  const { data: providerModels = [], refetch: refetchModels } = useProviderModels(projectId)
+  const [capacityModel, setCapacityModel] = useState<ProviderModel | null>(null)
+  const { data: credentials } = useCredentials(open && capacityModel ? projectId : undefined)
   const savedBudget = useMemo(() => readContextBudget(state.runtimeConfig), [state.runtimeConfig])
   const [budgetMode, setBudgetMode] = useState<BudgetMode>('auto')
   const [preset, setPreset] = useState<BudgetPreset>('auto')
@@ -179,7 +195,10 @@ export function AgentContextConfigurationDialog({
   const [maxOutputTokens, setMaxOutputTokens] = useState(2048)
 
   useEffect(() => {
-    if (!open) return
+    if (!open) {
+      setCapacityModel(null)
+      return
+    }
     const fixed = savedBudget.maxInputUnits != null
     setBudgetMode(fixed ? 'fixed' : 'auto')
     setPreset(fixed ? 'custom' : 'auto')
@@ -255,7 +274,9 @@ export function AgentContextConfigurationDialog({
     onClose()
   }
 
-  const capacityUnknown = primaryModel != null && primaryCapabilities.contextWindow == null
+  const modelsWithoutCapacity = [primaryModel, fallbackModel].filter(
+    (model): model is ProviderModel => model != null && providerModelCapabilities(model).contextWindow == null,
+  )
   const fallbackSmaller = fallbackCapacity?.effectiveInputBudget != null
     && primaryCapacity?.effectiveInputBudget != null
     && fallbackCapacity.effectiveInputBudget < primaryCapacity.effectiveInputBudget
@@ -317,6 +338,7 @@ export function AgentContextConfigurationDialog({
                       />
                     </div>
                     <Input
+                      aria-label="Context budget units"
                       type="number"
                       min="256"
                       max="4000000"
@@ -410,14 +432,19 @@ export function AgentContextConfigurationDialog({
 
           <SectionBlock title="Capacity Preview" description="Effective invocation budgets after model-specific limits are applied.">
             <div className="grid gap-ui-md lg:grid-cols-2">
-              <CapacityCard title="Primary model" model={primaryModel} capacity={primaryCapacity} />
-              <CapacityCard title="Fallback model" model={fallbackModel} capacity={fallbackCapacity} isFallback />
+              <CapacityCard title="Primary model" model={primaryModel} capacity={primaryCapacity} onConfigure={() => setCapacityModel(primaryModel)} />
+              <CapacityCard title="Fallback model" model={fallbackModel} capacity={fallbackCapacity} isFallback onConfigure={() => setCapacityModel(fallbackModel)} />
             </div>
 
-            {capacityUnknown ? (
+            {modelsWithoutCapacity.length > 0 ? (
               <Alert variant="warning" className="mt-ui-md">
                 <AlertTriangle className="h-icon w-icon" />
-                <AlertDescription>Primary model context capacity is not configured. Absolute budgets can still be enforced, but Auto and percentage presets cannot guarantee provider-window compatibility.</AlertDescription>
+                <AlertDescription>
+                  Context Window is missing for {modelsWithoutCapacity.map((model) => model.name).join(', ')}.
+                  {' '}{budgetMode === 'auto'
+                    ? 'Auto has no effective input budget for these models. Configure their capacity or choose a Custom input budget. Token usage is still counted.'
+                    : 'The fixed input budget is enforced, but compatibility with these model windows cannot be checked.'}
+                </AlertDescription>
               </Alert>
             ) : null}
             {fallbackSmaller ? (
@@ -434,6 +461,18 @@ export function AgentContextConfigurationDialog({
         <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
         <Button type="button" onClick={apply} disabled={!canApply}>Apply</Button>
       </div>
+      {open && capacityModel ? (
+        <ModelSettingsModal
+          open
+          onClose={() => setCapacityModel(null)}
+          projectId={projectId}
+          credentials={credentials}
+          selectedModel={capacityModel}
+          initialSection="capabilities"
+          layer="nestedModal"
+          onSaved={async () => { await refetchModels() }}
+        />
+      ) : null}
     </Dialog>
   )
 }

@@ -9,6 +9,7 @@ from modules.agent.application.context_assembly import (
     ContextBudgetExceeded,
     assemble_context,
     enrich_snapshot_with_reported_usage,
+    snapshot_to_dict,
 )
 from modules.agent.application.context_policy import (
     ContextPolicyV1,
@@ -135,6 +136,49 @@ def test_provider_model_capacity_resolves_from_preserved_provider_payload():
     )
 
     assert snapshot["context_window"] == 65536
+
+
+@pytest.mark.parametrize(
+    ("metadata", "configured_budget", "expected_budget"),
+    [
+        ({"context_window": 65536}, None, 60440),
+        ({"catalog": {"context_window": 65536}}, None, 60440),
+        ({"context_window": 0, "catalog": {"context_window": 65536}}, None, 60440),
+        ({"provider_model_raw": {"top_provider": {"context_length": "65536"}}}, None, 60440),
+        ({"context_window": 32000}, 64000, 26904),
+        ({"max_output_tokens": 4096}, None, None),
+        ({"max_output_tokens": 4096}, 16000, 16000),
+    ],
+)
+def test_provider_capacity_reaches_persisted_context_budget(
+    metadata, configured_budget, expected_budget
+):
+    pricing = provider_model_pricing_snapshot(
+        provider_model_id=uuid4(),
+        provider_credential_id=uuid4(),
+        provider="custom",
+        model="custom-model",
+        metadata=metadata,
+    )
+    result = _assemble(
+        [SystemMessage(content="system"), HumanMessage(content="hello")],
+        policy=ContextPolicyV1.model_validate({
+            "budget": {"max_input_units": configured_budget, "runtime_reserve_units": 1000},
+        }),
+        runtime_context=_runtime_context(
+            model_capacity_units=pricing["context_window"],
+            reserved_output_units=4096,
+        ),
+    )
+    persisted = snapshot_to_dict(enrich_snapshot_with_reported_usage(result.snapshot, 802))
+
+    assert persisted["model_capacity_units"] == pricing["context_window"]
+    assert persisted["usable_input_budget"] == expected_budget
+    assert persisted["reported_input_units"] == 802
+    if expected_budget is None:
+        assert persisted["utilization"] is None
+    else:
+        assert persisted["utilization"] == pytest.approx(802 / expected_budget)
 
 
 def test_context_assembly_keeps_mandatory_input_and_only_recent_session_messages():
