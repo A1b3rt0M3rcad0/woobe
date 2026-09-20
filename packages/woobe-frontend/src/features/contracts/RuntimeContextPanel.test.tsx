@@ -3,8 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 
 import { RuntimeContextPanel } from './RuntimeContextPanel'
 
-describe('RuntimeContextPanel External Context scopes', () => {
-  it('keeps Run and Session fields visible in the same runtime form', () => {
+describe('RuntimeContextPanel External Context', () => {
+  it('renders all declared Run input fields in the runtime form', () => {
     const html = renderToStaticMarkup(
       <RuntimeContextPanel
         environment="draft"
@@ -12,13 +12,11 @@ describe('RuntimeContextPanel External Context scopes', () => {
           current_page: {
             schema: { type: 'string' },
             required: false,
-            scope: 'run',
             model: { expose: true },
           },
           customer_id: {
             schema: { type: 'string' },
             required: true,
-            scope: 'session',
             model: { expose: false },
           },
         }}
@@ -33,7 +31,5 @@ describe('RuntimeContextPanel External Context scopes', () => {
     expect(html).toContain('External Context')
     expect(html).toContain('current_page')
     expect(html).toContain('customer_id')
-    expect(html).toContain('run')
-    expect(html).toContain('session')
   })
 })
