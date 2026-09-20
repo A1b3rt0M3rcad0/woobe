@@ -131,7 +131,6 @@ export interface NetworkSessionResource {
   title: string
   status: 'active' | 'closed'
   last_message_at?: string | null
-  external_context_session_values?: Record<string, unknown> | null
   message_count: number
   trace_count: number
   created_at: string
