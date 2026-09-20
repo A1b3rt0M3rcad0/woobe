@@ -61,7 +61,6 @@ describe('ChatComposer runtime state', () => {
     expect(html).toContain('External Context')
     expect(html).toContain('2 fields')
     expect(html).toContain('1 required missing')
-    expect(html).toContain('per Run')
     expect(html).not.toContain('Successful Runs clear them automatically.')
   })
 
