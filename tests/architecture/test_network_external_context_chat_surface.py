@@ -34,7 +34,7 @@ def test_network_external_context_uses_the_same_chat_composer_surface_as_standal
     assert "onExternalContextValuesChange={onExternalContextValuesChange}" in canvas
 
     assert "External Context" in composer
-    assert "run + session" in composer
+    assert "per Run" in composer
 
 
 def test_network_chat_sends_working_external_context_instead_of_environment_state_directly() -> None:
@@ -46,20 +46,19 @@ def test_network_chat_sends_working_external_context_instead_of_environment_stat
     assert "externalContextDirtyRef.current = true" in network
 
 
-def test_network_session_switching_preserves_run_values_and_hydrates_session_values() -> None:
+def test_network_session_switching_does_not_hydrate_external_context_from_session() -> None:
     network = _source(NETWORK_CHAT)
 
-    assert "contractForScope(effectiveExternalContextContract, 'run')" in network
-    assert "contractForScope(effectiveExternalContextContract, 'session')" in network
-    assert "activeSession?.externalContextSessionValues ?? {}" in network
-    assert "...filterContractValues(runContextContract, currentValues)" in network
-    assert "...sessionValues" in network
+    assert "contractForScope" not in network
+    assert "externalContextSessionValues" not in network
+    assert "external_context_session_values" not in network
+    assert "activeSession?.externalContextSessionValues" not in network
+    assert "externalContextOwnerRef.current = environment" in network
 
 
-def test_first_network_session_binding_does_not_clear_values_entered_before_the_run() -> None:
+def test_network_external_context_presets_are_environment_owned() -> None:
     network = _source(NETWORK_CHAT)
 
-    assert "automaticSessionBinding" in network
-    assert "previousOwner === `${environment}:none`" in network
-    assert "return contextDirty ? currentValues : baselineValues" in network
-    assert "previousOwner !== owner && !automaticSessionBinding" in network
+    assert "storedEnvironmentContext" in network
+    assert "filterContractValues(" in network
+    assert "previousEnvironment !== environment" in network
