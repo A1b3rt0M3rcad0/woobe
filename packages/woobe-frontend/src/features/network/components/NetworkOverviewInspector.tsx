@@ -117,10 +117,9 @@ export function NetworkOverviewInspector({
                 const consumers = field.consumers && typeof field.consumers === 'object' && !Array.isArray(field.consumers) ? field.consumers as Record<string, unknown> : {}
                 const consumerNames = Object.keys(consumers).map((nodeId) => definition.nodes.find((node) => node.id === nodeId)?.label ?? nodeId)
                 return (
-                  <div key={fieldName} className="grid grid-cols-[minmax(0,1fr)_80px_80px_minmax(0,1.4fr)] items-center gap-ui-sm py-ui-xs font-mono text-system-label">
+                  <div key={fieldName} className="grid grid-cols-[minmax(0,1fr)_80px_minmax(0,1.4fr)] items-center gap-ui-sm py-ui-xs font-mono text-system-label">
                     <span className="truncate text-accent-foreground">{fieldName}</span>
                     <span className="capitalize text-muted-foreground">{String(schema.type ?? 'any')}</span>
-                    <span className="capitalize text-muted-foreground">{String(field.scope ?? 'run')}</span>
                     <span className="truncate text-right text-muted-foreground" title={consumerNames.join(', ')}>{consumerNames.join(', ') || '—'}</span>
                   </div>
                 )
