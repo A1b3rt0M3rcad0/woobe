@@ -75,7 +75,6 @@ def _field(*, expose: bool) -> dict:
     return {
         "schema": {"type": "string"},
         "required": True,
-        "scope": "session",
         "model": {"expose": expose},
     }
 
