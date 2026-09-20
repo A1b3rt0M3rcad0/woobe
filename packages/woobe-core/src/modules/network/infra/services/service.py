@@ -258,21 +258,10 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                 resolved_external_context = resolve_effective_external_context(
                     effective_external_context_contract,
                     external_context,
-                    session_values=(
-                        getattr(
-                            network_session,
-                            "external_context_session_values",
-                            None,
-                        )
-                        or {}
-                    ),
                 )
             except ExternalContextContractError as exc:
                 raise ValidationError(str(exc)) from exc
 
-            network_session.external_context_session_values = (
-                resolved_external_context.session_values or None
-            )
             execution = NetworkExecutionModel(
                 network_id=network_id,
                 network_version_id=accepted_version_id,
