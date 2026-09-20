@@ -35,7 +35,7 @@ describe('ChatComposer runtime state', () => {
     expect(html).not.toContain('aria-label="Stopping generation"')
   })
 
-  it('surfaces Run and Session External Context together beside the message composer', () => {
+  it('surfaces per-Run External Context beside the message composer', () => {
     const html = renderToStaticMarkup(
       <ChatComposer
         isSending={false}
@@ -45,13 +45,11 @@ describe('ChatComposer runtime state', () => {
           current_page: {
             schema: { type: 'string' },
             required: true,
-            scope: 'run',
             model: { expose: true },
           },
           customer_id: {
             schema: { type: 'string' },
             required: true,
-            scope: 'session',
             model: { expose: false },
           },
         }}
@@ -63,6 +61,7 @@ describe('ChatComposer runtime state', () => {
     expect(html).toContain('External Context')
     expect(html).toContain('2 fields')
     expect(html).toContain('1 required missing')
+    expect(html).toContain('per Run')
     expect(html).not.toContain('Successful Runs clear them automatically.')
   })
 
