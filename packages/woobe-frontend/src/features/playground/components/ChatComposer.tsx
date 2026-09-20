@@ -119,13 +119,13 @@ export function ChatComposer({
                 {missingRequiredExternalContextFields} required missing
               </span>
             ) : (
-              <span className="ml-auto font-mono text-system-meta text-muted-foreground">run + session</span>
+              <span className="ml-auto font-mono text-system-meta text-muted-foreground">per Run</span>
             )}
           </button>
           {externalContextOpen ? (
             <div className="border-t border-border/70 px-ui-sm pb-ui-sm">
               <p className="py-ui-xs font-sans text-product-caption text-muted-foreground">
-                Fields stay available while testing. Run-scoped values are sent on each execution; Session-scoped values are persisted by the Runtime when a Session is available.
+                Fields stay available while testing. External Context values are sent explicitly with each Run.
               </p>
               <ContractValueForm
                 contract={externalContextContract}
