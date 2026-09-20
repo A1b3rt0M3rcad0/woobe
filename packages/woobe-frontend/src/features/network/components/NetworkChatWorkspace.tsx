@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { ChatCanvas, type ChatCanvasEntry } from '@/features/playground/components/ChatCanvas'
-import { contractForScope, filterContractValues } from '@/features/contracts/contractFields'
+import { filterContractValues } from '@/features/contracts/contractFields'
 import type { ChatMessage as PlaygroundChatMessage } from '@/features/playground/types'
 import { cancelNetworkExecution } from '@/features/network/api'
 import { useNetworkExternalContextContract, useNetworkRuntimeEnvironments } from '@/features/network/hooks'
@@ -143,14 +143,6 @@ export function NetworkChatWorkspace({
   const externalContextContractQuery = useNetworkExternalContextContract(networkId, projectId, environment)
   const runtimeEnabled = runtimeStatesQuery.data?.[environment]?.enabled ?? true
   const effectiveExternalContextContract = externalContextContractQuery.data ?? EMPTY_EXTERNAL_CONTEXT_CONTRACT
-  const runContextContract = useMemo(
-    () => contractForScope(effectiveExternalContextContract, 'run'),
-    [effectiveExternalContextContract],
-  )
-  const sessionContextContract = useMemo(
-    () => contractForScope(effectiveExternalContextContract, 'session'),
-    [effectiveExternalContextContract],
-  )
   const storedEnvironmentContext = runtimeStatesQuery.data?.[environment]?.external_context_values
   const [externalContextValues, setExternalContextValues] = useState<Record<string, unknown>>({})
   const externalContextOwnerRef = useRef<string | null>(null)
@@ -183,46 +175,26 @@ export function NetworkChatWorkspace({
   const turns = useMemo(() => reconcileNetworkTurns(historyTurns, localTurns), [historyTurns, localTurns])
 
   useLayoutEffect(() => {
-    const persistedSessionValues = activeSession?.externalContextSessionValues ?? {}
     const environmentValues = filterContractValues(
       effectiveExternalContextContract,
       storedEnvironmentContext,
     )
-    const sessionValues = {
-      ...filterContractValues(sessionContextContract, environmentValues),
-      ...filterContractValues(sessionContextContract, persistedSessionValues),
-    }
-    const baselineValues = {
-      ...environmentValues,
-      ...sessionValues,
-    }
-    const owner = `${environment}:${activeSession?.id ?? 'none'}`
-    const previousOwner = externalContextOwnerRef.current
-    const previousEnvironment = previousOwner?.split(':', 1)[0] ?? null
-    const automaticSessionBinding = previousOwner === `${environment}:none` && Boolean(activeSession?.id)
+    const previousEnvironment = externalContextOwnerRef.current
     const contextDirty = externalContextDirtyRef.current
 
     setExternalContextValues((current) => {
       const currentValues = filterContractValues(effectiveExternalContextContract, current)
-      if (previousOwner === null || previousEnvironment !== environment) return baselineValues
-      if (previousOwner !== owner && !automaticSessionBinding) {
-        return {
-          ...filterContractValues(runContextContract, currentValues),
-          ...sessionValues,
-        }
+      if (previousEnvironment === null || previousEnvironment !== environment) {
+        return environmentValues
       }
-      return contextDirty ? currentValues : baselineValues
+      return contextDirty ? currentValues : environmentValues
     })
 
-    if (previousOwner !== owner && !automaticSessionBinding) externalContextDirtyRef.current = false
-    externalContextOwnerRef.current = owner
+    if (previousEnvironment !== environment) externalContextDirtyRef.current = false
+    externalContextOwnerRef.current = environment
   }, [
-    activeSession?.externalContextSessionValues,
-    activeSession?.id,
     effectiveExternalContextContract,
     environment,
-    runContextContract,
-    sessionContextContract,
     storedEnvironmentContext,
   ])
 
