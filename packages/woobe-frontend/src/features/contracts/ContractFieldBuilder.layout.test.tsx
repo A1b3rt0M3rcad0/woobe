@@ -12,7 +12,6 @@ describe('ContractFieldBuilder responsive layout', () => {
           name: 'answer',
           type: 'string',
           required: true,
-          scope: 'run',
           expose: true,
         }]}
         onChange={vi.fn()}
@@ -31,7 +30,6 @@ describe('ContractFieldBuilder responsive layout', () => {
           name: 'customer_id',
           type: 'string',
           required: true,
-          scope: 'session',
           expose: false,
           description: 'Customer identity for the current conversation',
         }]}
@@ -39,10 +37,9 @@ describe('ContractFieldBuilder responsive layout', () => {
       />,
     )
 
-    expect(markup).toContain('grid-cols-[minmax(88px,1fr)_78px_78px_42px_46px_28px_28px]')
+    expect(markup).toContain('grid-cols-[minmax(88px,1fr)_78px_42px_46px_28px_28px]')
     expect(markup).toContain('Name')
     expect(markup).toContain('Type')
-    expect(markup).toContain('Scope')
     expect(markup).toContain('Req.')
     expect(markup).toContain('Model')
     expect(markup).toContain('aria-label="Edit customer_id description"')
@@ -56,7 +53,6 @@ describe('ContractFieldBuilder responsive layout', () => {
       name: `field_${index + 1}`,
       type: 'string' as const,
       required: index % 2 === 0,
-      scope: index % 2 === 0 ? 'run' as const : 'session' as const,
       expose: true,
       description: `Description ${index + 1}`,
     }))
