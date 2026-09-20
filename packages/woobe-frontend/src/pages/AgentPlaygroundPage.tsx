@@ -14,7 +14,7 @@ import { PlaygroundHeader } from '@/features/playground/components/PlaygroundHea
 import { OperationsRail, type LeftPanelTab } from '@/features/playground/components/OperationsRail'
 import { OperationsPanel } from '@/features/playground/components/OperationsPanel'
 import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
-import { contractForScope, filterContractValues } from '@/features/contracts/contractFields'
+import { filterContractValues } from '@/features/contracts/contractFields'
 import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import { ApiModal } from '@/features/playground/components/ApiModal'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
@@ -153,14 +153,6 @@ function PlaygroundContent() {
   const activeExternalContextContract = environment === 'draft'
     ? state.externalContextContract
     : currentEnvironmentRelease?.external_context_contract ?? null
-  const runContextContract = useMemo(
-    () => contractForScope(activeExternalContextContract, 'run'),
-    [activeExternalContextContract],
-  )
-  const sessionContextContract = useMemo(
-    () => contractForScope(activeExternalContextContract, 'session'),
-    [activeExternalContextContract],
-  )
   const storedEnvironmentContext = runtimeStatesQuery.data?.[environment]?.external_context_values
 
   const {
@@ -231,52 +223,27 @@ function PlaygroundContent() {
   const isStateless = agentSessionMode === 'stateless'
   const sessionIdForRun = isStateless ? null : sessionIdState
   const selectedSessionId = sessionIdState
-  const selectedSession = useMemo(
-    () => sessions.find((session) => session.id === selectedSessionId) ?? null,
-    [selectedSessionId, sessions],
-  )
-
   useEffect(() => {
-    const persisted = selectedSession?.data?.external_context_session_values
-    const persistedSessionValues = persisted && typeof persisted === 'object' && !Array.isArray(persisted)
-      ? persisted as Record<string, unknown>
-      : {}
-    const environmentValues = filterContractValues(activeExternalContextContract, storedEnvironmentContext)
-    const sessionValues = {
-      ...filterContractValues(sessionContextContract, environmentValues),
-      ...filterContractValues(sessionContextContract, persistedSessionValues),
-    }
-    const baselineValues = {
-      ...environmentValues,
-      ...sessionValues,
-    }
-    const owner = `${environment}:${selectedSessionId ?? 'none'}`
-    const previousOwner = externalContextOwnerRef.current
-    const previousEnvironment = previousOwner?.split(':', 1)[0] ?? null
-    const automaticSessionBinding = previousOwner === `${environment}:none` && Boolean(selectedSessionId)
+    const environmentValues = filterContractValues(
+      activeExternalContextContract,
+      storedEnvironmentContext,
+    )
+    const previousEnvironment = externalContextOwnerRef.current
     const contextDirty = externalContextDirtyRef.current
 
     setExternalContextValues((current) => {
       const currentValues = filterContractValues(activeExternalContextContract, current)
-      if (previousOwner === null || previousEnvironment !== environment) return baselineValues
-      if (previousOwner !== owner && !automaticSessionBinding) {
-        return {
-          ...filterContractValues(runContextContract, currentValues),
-          ...sessionValues,
-        }
+      if (previousEnvironment === null || previousEnvironment !== environment) {
+        return environmentValues
       }
-      return contextDirty ? currentValues : baselineValues
+      return contextDirty ? currentValues : environmentValues
     })
 
-    if (previousOwner !== owner && !automaticSessionBinding) externalContextDirtyRef.current = false
-    externalContextOwnerRef.current = owner
+    if (previousEnvironment !== environment) externalContextDirtyRef.current = false
+    externalContextOwnerRef.current = environment
   }, [
     activeExternalContextContract,
     environment,
-    runContextContract,
-    selectedSession,
-    selectedSessionId,
-    sessionContextContract,
     storedEnvironmentContext,
   ])
 
@@ -285,18 +252,7 @@ function PlaygroundContent() {
     setExternalContextValues(filterContractValues(activeExternalContextContract, values))
   }, [activeExternalContextContract])
 
-  const handleSessionContextValuesChange = useCallback((values: Record<string, unknown>) => {
-    externalContextDirtyRef.current = true
-    setExternalContextValues((current) => ({
-      ...filterContractValues(runContextContract, current),
-      ...filterContractValues(sessionContextContract, values),
-    }))
-  }, [runContextContract, sessionContextContract])
 
-  const sessionContextValues = useMemo(
-    () => filterContractValues(sessionContextContract, externalContextValues),
-    [externalContextValues, sessionContextContract],
-  )
 
   const {
     data: backendTraces = [],
@@ -842,9 +798,6 @@ function PlaygroundContent() {
               tracesError={tracesError}
               tracesErrorMessage={tracesQueryError instanceof Error ? tracesQueryError.message : undefined}
               onTracesRetry={refetchTraces}
-              sessionContextContract={sessionContextContract}
-              sessionContextValues={sessionContextValues}
-              onSessionContextValuesChange={handleSessionContextValuesChange}
             />
           )}
           <div className="flex-1 min-w-0 flex flex-col">
