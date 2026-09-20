@@ -11,7 +11,6 @@ def _field(*, field_type: str, expose: bool) -> dict:
     return {
         "schema": {"type": field_type},
         "required": True,
-        "scope": "session",
         "model": {"expose": expose},
     }
 
