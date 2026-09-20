@@ -17,7 +17,6 @@ const session: NetworkSession = {
   status: 'active',
   createdAt: '2026-09-08T10:00:00Z',
   lastMessageAt: '2026-09-08T10:05:00Z',
-  externalContextSessionValues: {},
   messageCount: 6,
   traceCount: 3,
   agentContexts: [],
