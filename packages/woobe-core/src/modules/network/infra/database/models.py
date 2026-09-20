@@ -167,9 +167,6 @@ class NetworkSessionModel(BaseModel):
     tenant_id: Mapped[str | None] = mapped_column(String(128))
     user_id: Mapped[str | None] = mapped_column(String(128))
     external_session_id: Mapped[str | None] = mapped_column(String(255))
-    external_context_session_values: Mapped[dict[str, Any] | None] = mapped_column(
-        JSONB, nullable=True
-    )
     status: Mapped[str] = mapped_column(String(32), default="active")
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
