@@ -17,14 +17,12 @@ from modules.network.domain.external_context_contract import (
 def agent_contract(
     *,
     required: bool = False,
-    scope: str = "run",
     expose: bool = False,
     default: str | None = None,
 ):
     field = {
         "schema": {"type": "string"},
         "required": required,
-        "scope": scope,
         "model": {"expose": expose},
     }
     if default is not None:
@@ -32,34 +30,18 @@ def agent_contract(
     return {"customer_id": field}
 
 
-def test_effective_resolution_reuses_only_session_values() -> None:
+def test_effective_resolution_is_run_local() -> None:
     effective = compose_external_context_contracts(
-        {"support": agent_contract(scope="session")}
+        {"support": agent_contract(required=False)}
     )
     first = resolve_effective_external_context(
         effective,
         {"customer_id": "cus-1"},
     )
+    second = resolve_effective_external_context(effective, {})
+
     assert first.snapshot == {"customer_id": "cus-1"}
-    assert first.session_values == {"customer_id": "cus-1"}
-
-    second = resolve_effective_external_context(
-        effective,
-        {},
-        session_values=first.session_values,
-    )
-    assert second.snapshot == {"customer_id": "cus-1"}
-
-    run_effective = compose_external_context_contracts(
-        {"support": agent_contract(scope="run")}
-    )
-    run_second = resolve_effective_external_context(
-        run_effective,
-        {},
-        session_values={"customer_id": "must-not-leak"},
-    )
-    assert run_second.snapshot == {}
-    assert run_second.session_values == {}
+    assert second.snapshot == {}
 
 
 def test_effective_resolution_rejects_undeclared_values() -> None:
@@ -73,7 +55,6 @@ def test_projection_is_consumer_scoped_and_applies_default() -> None:
         "customer_id": {
             "schema": {"type": "string"},
             "required": True,
-            "scope": "run",
             "default": "anonymous",
             "model": {"expose": False},
         }
@@ -82,7 +63,6 @@ def test_projection_is_consumer_scoped_and_applies_default() -> None:
         "order_id": {
             "schema": {"type": "string"},
             "required": False,
-            "scope": "run",
             "model": {"expose": False},
         }
     }
