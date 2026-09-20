@@ -14,12 +14,16 @@ from modules.agent.domain.external_context_contract import (
 from modules.agent.domain.release_versioning import ReleaseChangeKind
 
 
-def contract(*, required: bool = False, scope: str = "run", expose: bool = False):
+def contract(
+    *,
+    required: bool = False,
+    expose: bool = False,
+    field_type: str = "string",
+):
     return {
         "customer_id": {
-            "schema": {"type": "string"},
+            "schema": {"type": field_type},
             "required": required,
-            "scope": scope,
             "model": {"expose": expose},
         }
     }
@@ -36,30 +40,22 @@ def test_legacy_fields_wrapper_is_read_compatible_but_normalizes_flat() -> None:
     assert normalized == contract()
 
 
+@pytest.mark.parametrize("scope", ["run", "session"])
+def test_scope_property_is_rejected(scope: str) -> None:
+    raw = contract()
+    raw["customer_id"]["scope"] = scope
+    with pytest.raises(ExternalContextContractError, match="unknown properties: scope"):
+        normalize_external_context_contract(raw)
+
+
 def test_unknown_request_fields_are_rejected() -> None:
     with pytest.raises(ExternalContextContractError, match="undeclared fields"):
         resolve_external_context(contract(), {"unknown": "value"})
 
 
-def test_required_field_is_enforced() -> None:
+def test_required_field_is_enforced_on_every_resolution() -> None:
     with pytest.raises(ExternalContextContractError, match="customer_id"):
         resolve_external_context(contract(required=True), {})
-
-
-def test_session_scope_reuses_and_updates_session_value() -> None:
-    first = resolve_external_context(
-        contract(required=True, scope="session"),
-        {"customer_id": "cus-1"},
-    )
-    assert first.snapshot == {"customer_id": "cus-1"}
-    assert first.session_values == {"customer_id": "cus-1"}
-
-    second = resolve_external_context(
-        contract(required=True, scope="session"),
-        {},
-        session_values=first.session_values,
-    )
-    assert second.snapshot == {"customer_id": "cus-1"}
 
 
 def test_type_validation_happens_before_execution() -> None:
@@ -117,16 +113,6 @@ def test_required_to_optional_is_non_breaking_feature() -> None:
     )
 
 
-def test_scope_change_breaks_compatibility() -> None:
-    assert (
-        classify_external_context_change(
-            contract(scope="session"),
-            contract(scope="run"),
-        )
-        == ReleaseChangeKind.COMPATIBILITY
-    )
-
-
 def test_enum_widening_is_feature_and_narrowing_breaks() -> None:
     previous = {
         "locale": {
@@ -159,14 +145,15 @@ def test_network_contract_composes_consumers_without_global_required() -> None:
     assert field["consumers"]["support"]["required"] is True
     assert field["consumers"]["orders"]["required"] is False
     assert "required" not in field
+    assert "scope" not in field
 
 
-def test_network_contract_rejects_semantic_conflicts() -> None:
+def test_network_contract_rejects_schema_conflicts() -> None:
     with pytest.raises(ExternalContextContractError, match="conflicts"):
         compose_external_context_contracts(
             {
-                "support": contract(scope="session"),
-                "orders": contract(scope="run"),
+                "support": contract(field_type="string"),
+                "orders": contract(field_type="integer"),
             }
         )
 
