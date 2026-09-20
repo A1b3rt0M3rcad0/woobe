@@ -16,7 +16,6 @@ def _contract() -> dict:
         "customer_id": {
             "schema": {"type": "string"},
             "required": True,
-            "scope": "run",
             "model": {"expose": False},
         }
     }
@@ -84,7 +83,6 @@ def test_release_environment_keeps_frozen_external_context_when_draft_changes(st
         "name": {
             "schema": {"type": "string"},
             "required": True,
-            "scope": "session",
             "model": {"expose": True},
             "description": "Frozen release description.",
         }
@@ -111,7 +109,6 @@ def test_release_environment_keeps_frozen_external_context_when_draft_changes(st
                 "name": {
                     "schema": {"type": "integer"},
                     "required": False,
-                    "scope": "run",
                     "model": {"expose": False},
                     "description": "Mutated draft contract.",
                 }
@@ -123,7 +120,7 @@ def test_release_environment_keeps_frozen_external_context_when_draft_changes(st
     apply_agent_execution_snapshot(target, snapshot)
 
     assert target.settings["external_context_contract"] == released_contract
-    assert target.settings["external_context_contract"]["name"]["scope"] == "session"
+    assert "scope" not in target.settings["external_context_contract"]["name"]
     assert target.settings["external_context_contract"]["name"]["model"]["expose"] is True
     assert (
         target.settings["external_context_contract"]["name"]["description"]
@@ -144,7 +141,6 @@ def test_release_external_context_snapshot_does_not_share_nested_references() ->
                 },
             },
             "required": False,
-            "scope": "session",
             "default": {"roles": ["viewer"]},
             "model": {"expose": True},
         }
