@@ -23,7 +23,6 @@ def _field(
     field = {
         "schema": {"type": "string"},
         "required": required,
-        "scope": "session",
         "model": {"expose": expose},
     }
     if default is not None:
@@ -147,7 +146,7 @@ def test_network_consumer_reconstruction_preserves_consumer_specific_description
     )
 
 
-def test_session_value_update_is_reused_by_next_network_run() -> None:
+def test_next_network_run_does_not_reuse_previous_external_context() -> None:
     effective = compose_external_context_contracts(
         {
             "root": {
@@ -159,15 +158,11 @@ def test_session_value_update_is_reused_by_next_network_run() -> None:
     first = resolve_effective_external_context(
         effective,
         {"name": "Alberto"},
-        session_values={"name": "Old Name"},
     )
     second = resolve_effective_external_context(
         effective,
         {},
-        session_values=first.session_values,
     )
 
     assert first.snapshot == {"name": "Alberto"}
-    assert first.session_values == {"name": "Alberto"}
-    assert second.snapshot == {"name": "Alberto"}
-    assert second.session_values == {"name": "Alberto"}
+    assert second.snapshot == {}
