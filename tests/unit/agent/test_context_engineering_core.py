@@ -538,8 +538,7 @@ def test_exposed_external_context_is_materialized_as_runtime_context() -> None:
             "name": {
                 "schema": {"type": "string"},
                 "required": True,
-                "scope": "run",
-                "model": {"expose": True},
+                    "model": {"expose": True},
                 "description": "Preferred name of the current user",
             }
         },
