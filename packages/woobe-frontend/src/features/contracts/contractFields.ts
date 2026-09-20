@@ -6,7 +6,6 @@ export interface ContractFieldRow {
   name: string
   type: ContractFieldType
   required: boolean
-  scope: 'run' | 'session'
   expose: boolean
   description?: string
 }
@@ -43,7 +42,6 @@ export function externalContractRows(value: unknown): ContractFieldRow[] {
     name,
     type: schemaType(field.schema),
     required: Boolean(field.required),
-    scope: field.scope === 'session' ? 'session' : 'run',
     expose: Boolean(field.model?.expose),
     ...(typeof field.description === 'string' ? { description: field.description } : {}),
   }))
@@ -58,7 +56,6 @@ export function externalContractFromRows(rows: ContractFieldRow[]): ExternalCont
         {
           schema: { type: row.type },
           required: row.required,
-          scope: row.scope,
           model: { expose: row.expose },
           ...(row.description?.trim() ? { description: row.description } : {}),
         },
@@ -75,7 +72,6 @@ export function outputSchemaRows(value: unknown): ContractFieldRow[] {
       name,
       type: schemaType(schema),
       required: required.has(name),
-      scope: 'run',
       expose: true,
     }))
   }
@@ -88,7 +84,6 @@ export function outputSchemaRows(value: unknown): ContractFieldRow[] {
       name,
       type: normalized as ContractFieldType,
       required: true,
-      scope: 'run' as const,
       expose: true,
     }]
   })
@@ -108,18 +103,6 @@ export function outputSchemaFromRows(rows: ContractFieldRow[]): Record<string, u
 
 export function contractFields(value: unknown): Record<string, ExternalContextFieldContract> {
   return normalizedExternalFields(value)
-}
-
-export function contractForScope(
-  value: unknown,
-  scope: 'run' | 'session',
-): ExternalContextContract {
-  return Object.fromEntries(
-    Object.entries(normalizedExternalFields(value)).filter(([, field]) => {
-      const fieldScope = field.scope === 'session' ? 'session' : 'run'
-      return fieldScope === scope
-    }),
-  )
 }
 
 export function coerceContractValue(type: ContractFieldType, raw: string | boolean): unknown {
