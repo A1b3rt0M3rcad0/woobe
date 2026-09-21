@@ -35,6 +35,16 @@ API_FIRST_TOOL_FORM = (
     / "components"
     / "ApiFirstToolForm.tsx"
 )
+TOOL_CALLS_COLLAPSIBLE = (
+    PROJECT_ROOT
+    / "packages"
+    / "woobe-frontend"
+    / "src"
+    / "features"
+    / "playground"
+    / "components"
+    / "ToolCallsCollapsible.tsx"
+)
 
 
 class TestToolsRouteRegistration:
@@ -109,6 +119,17 @@ class TestToolsRouteRegistration:
         assert "<ToolInputBindingsEditor" not in source
         assert "{{external_context.*}}" in source
         assert "{{project_env.*}}" in source
+
+    def test_route_editor_distinguishes_apply_from_persist(self):
+        source = API_FIRST_TOOL_FORM.read_text(encoding="utf-8")
+        assert "? 'Apply route'" in source
+        assert "? 'Save route'" not in source
+        assert "Save changes to persist the Tool." in source
+
+    def test_tool_call_input_is_labeled_as_model_arguments(self):
+        source = TOOL_CALLS_COLLAPSIBLE.read_text(encoding="utf-8")
+        assert 'title="Model arguments"' in source
+        assert 'title="Input"' not in source
 
     def test_no_network_imports_in_schemas(self):
         schemas_path = (
