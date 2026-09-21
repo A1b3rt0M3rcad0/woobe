@@ -26,6 +26,7 @@ from modules.agent.domain.enums import RiskLevel, ToolStatus, ToolType
 from modules.agent.infra.adapters.tool_runtime import HttpToolRuntime
 from modules.agent.infra.execution import agent_tool_runtime_gateway as gateway_module
 from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
+from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.infra.execution.runtime_preparation import prepare_tool_state
 from shared.project_environment import PreparedProjectEnvironmentValue
 
@@ -249,6 +250,114 @@ async def test_release_acceptance_keeps_stale_snapshot_immutable_when_live_tool_
     assert repo.read_ids == []
     definitions, _mapping = agent_tools_to_openai_definitions_and_mapping(tools)
     assert set(definitions[0]["function"]["parameters"]["properties"]) == {"b"}
+
+
+@pytest.mark.asyncio
+async def test_existing_playground_session_rebuilds_tool_definition_from_live_acceptance_state() -> None:
+    project_id = uuid4()
+    tool_id = uuid4()
+    stale = _tool(config=_stale_config(), tool_id=tool_id, project_id=project_id)
+    live = _tool(config=_runtime_only_config(), tool_id=tool_id, project_id=project_id)
+    snapshot = tool_to_release_snapshot(stale)
+    agent = _agent(project_id=project_id, tool_id=tool_id, snapshot=snapshot)
+    repo = _ToolRepo(live)
+    repositories = SimpleNamespace(tools=repo, tool_secrets=SimpleNamespace())
+
+    accepted_tools, _secrets = await prepare_tool_state(
+        repositories,
+        agent=agent,
+        tool_from_snapshot=tool_from_release_snapshot,
+        tool_with_permissions=tool_with_permission_overrides,
+        prefer_live_tools=True,
+    )
+
+    context = new_execution_context()
+    context.execution_context = "playground"
+    context.session_id = uuid4()
+    context.prepared_tools = {str(tool.id): tool for tool in accepted_tools}
+
+    async def _read_runtime_tools(tool_ids):
+        return [context.prepared_tools[str(tool_id)] for tool_id in tool_ids]
+
+    resolver = ReleaseRuntimeResolver.__new__(ReleaseRuntimeResolver)
+    resolver.configure_runtime_tool_reader(_read_runtime_tools)
+    prepared = (
+        agent,
+        SimpleNamespace(id=context.session_id),
+        uuid4(),
+        "api-key",
+        None,
+        {},
+        False,
+        [],
+        {},
+        False,
+        [],
+        [],
+        [],
+    )
+
+    token = current_execution.set(context)
+    try:
+        resolved = await resolver._apply_runtime_tool_selection(prepared)
+    finally:
+        current_execution.reset(token)
+
+    assert context.tool_metadata["source"] == "draft_live"
+    assert resolved[7][0]["function"]["parameters"] == {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": False,
+    }
+    frozen = context.tool_snapshots[str(tool_id)]
+    assert "project_env.MOCKED_NUMBER" in frozen["config"]["routes"][0]["path"]
+    assert "b" not in str(frozen["config"]["routes"][0]["input_schema"])
+
+
+@pytest.mark.asyncio
+async def test_network_playground_context_keeps_release_tool_snapshot() -> None:
+    project_id = uuid4()
+    tool_id = uuid4()
+    stale = _tool(config=_stale_config(), tool_id=tool_id, project_id=project_id)
+    live = _tool(config=_runtime_only_config(), tool_id=tool_id, project_id=project_id)
+    snapshot = tool_to_release_snapshot(stale)
+    agent = _agent(project_id=project_id, tool_id=tool_id, snapshot=snapshot)
+
+    context = new_execution_context()
+    context.execution_context = "playground"
+    context.network_execution_id = uuid4()
+    context.prepared_tools = {str(tool_id): live}
+
+    async def _must_not_read_live(_tool_ids):
+        raise AssertionError("Network execution must keep the frozen Tool snapshot")
+
+    resolver = ReleaseRuntimeResolver.__new__(ReleaseRuntimeResolver)
+    resolver.configure_runtime_tool_reader(_must_not_read_live)
+    prepared = (
+        agent,
+        None,
+        uuid4(),
+        "api-key",
+        None,
+        {},
+        False,
+        [],
+        {},
+        False,
+        [],
+        [],
+        [],
+    )
+
+    token = current_execution.set(context)
+    try:
+        resolved = await resolver._apply_runtime_tool_selection(prepared)
+    finally:
+        current_execution.reset(token)
+
+    assert context.tool_metadata["source"] == "release_snapshot"
+    assert set(resolved[7][0]["function"]["parameters"]["properties"]) == {"b"}
 
 
 @pytest.mark.asyncio
