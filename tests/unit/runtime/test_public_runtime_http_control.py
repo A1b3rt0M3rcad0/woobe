@@ -116,6 +116,21 @@ async def test_contract_validation_route_dispatches_runtime_target(
 
 
 @pytest.mark.asyncio
+async def test_contract_validation_requires_both_public_contracts() -> None:
+    transport = ASGITransport(app=_app())
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/v1/contracts/validate",
+            headers={"x-runtime-target": "agent"},
+            json={
+                "external_context": None,
+            },
+        )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize("target_type", ["agent", "network"])
 async def test_public_cancel_route_dispatches_over_real_asgi_boundary(
     monkeypatch,
