@@ -139,9 +139,10 @@ jobs:
           path: .test-artifacts/THIRD_PARTY_INVENTORY.md
           if-no-files-found: error
           retention-days: 1
-      - name: Reclaim Docker build cache before vulnerability scans
+      - name: Reclaim Docker space before vulnerability scans
         run: |
           docker builder prune --all --force || true
+          docker image prune --force || true
           rm -rf .cache/trivy
 
       - name: Scan API image
