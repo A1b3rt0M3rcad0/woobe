@@ -317,6 +317,7 @@ class ExplicitRuntimePersistenceMixin:
                 agent=agent,
                 tool_from_snapshot=tool_from_release_snapshot,
                 tool_with_permissions=tool_with_permission_overrides,
+                prefer_live_tools=self._prefer_live_tools(input_dto),
             )
             prepared_project_environment = await prepare_project_environment_state(
                 repositories,
