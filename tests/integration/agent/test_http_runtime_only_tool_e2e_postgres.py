@@ -394,7 +394,8 @@ async def test_existing_draft_session_uses_edited_live_tool_and_runtime_only_val
         "required": [],
         "additionalProperties": False,
     }
-    assert "b" not in str(provider_factory.model.bound_tools)
+    assert "b" not in parameters["properties"]
+    assert "b" not in parameters["required"]
 
     assert http_executor.calls == [
         {
