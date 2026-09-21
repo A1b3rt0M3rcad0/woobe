@@ -45,6 +45,56 @@ def _app() -> FastAPI:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target_type", ["agent", "network"])
+async def test_output_context_validation_route_dispatches_runtime_target(
+    monkeypatch,
+    target_type: str,
+) -> None:
+    calls = []
+
+    async def validate(_request, principal, payload):
+        calls.append((principal.target_type, payload.output_context))
+        return {
+            "success": True,
+            "data": {
+                "valid": True,
+                "target_type": principal.target_type,
+            },
+        }
+
+    monkeypatch.setattr(
+        public_runtime_routes,
+        "validate_sdk_output_context",
+        validate,
+    )
+
+    transport = ASGITransport(app=_app())
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/v1/output-context/validate",
+            headers={"x-runtime-target": target_type},
+            json={
+                "output_context": {
+                    "message": "string",
+                    "confidence": "float",
+                }
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["valid"] is True
+    assert calls == [
+        (
+            target_type,
+            {
+                "message": "string",
+                "confidence": "float",
+            },
+        )
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target_type", ["agent", "network"])
 async def test_public_cancel_route_dispatches_over_real_asgi_boundary(
     monkeypatch,
     target_type: str,
