@@ -15,11 +15,11 @@ import {
 import {
   invalidToolInputBindingTargets,
   toolInputBindingsForSchema,
-  ToolInputBindingsEditor,
 } from '@/features/tools/components/ToolInputBindingsEditor'
 import {
   effectiveHttpHeaders,
   inspectHttpRouteContract,
+  inspectHttpRouteDependencies,
   inspectHttpToolContract,
   isHttpToolGroup,
 } from '@/features/tools/httpToolContract'
@@ -456,6 +456,19 @@ export function ApiFirstToolForm({
     })
   }, [groupConfigPreview, routeEditor])
 
+  const routeDependencies = useMemo(() => {
+    if (!routeEditor || !routeContract) return []
+    return inspectHttpRouteDependencies(
+      groupConfigPreview,
+      {
+        ...routeEditor.draft,
+        headers: normalizeHeaders(routeEditor.draft.headers),
+        body: routeEditor.draft.body || undefined,
+      },
+      routeContract.inputSchema,
+    )
+  }, [groupConfigPreview, routeContract, routeEditor])
+
   const updateBaseUrl = (value: string) => {
     setBaseUrl(value)
     if (!nameTouched) setName(groupName(value))
@@ -521,7 +534,7 @@ export function ApiFirstToolForm({
     }
     const invalidBindings = invalidToolInputBindingTargets(route.bindings)
     if (invalidBindings.length) {
-      nextErrors.bindings = `Configure the External Context field for: ${invalidBindings.join(', ')}.`
+      nextErrors.bindings = `Legacy runtime binding is incomplete for: ${invalidBindings.join(', ')}. Replace the placeholder with {{external_context.*}} or {{project_env.*}}.`
     }
     const preview = inspectHttpRouteContract(groupConfigPreview, {
       ...route,
@@ -889,22 +902,57 @@ export function ApiFirstToolForm({
               </div>
             ) : null}
 
-            {routeContract?.parameterNames.length ? (
+            {routeDependencies.length ? (
               <div className="space-y-2">
                 <div>
-                  <p className="text-xs font-medium text-white">Inputs</p>
+                  <p className="text-xs font-medium text-white">Runtime inputs</p>
                   <p className="mt-0.5 text-[11px] text-muted">
-                    Choose whether each value is provided by the Agent or resolved from External Context or Project Environment at runtime.
+                    Derived from the request template. Edit the URL, headers or body to change these dependencies.
                   </p>
                 </div>
-                <ToolInputBindingsEditor
-                  schema={routeContract.inputSchema}
-                  bindings={routeEditor.draft.bindings}
-                  onChange={(bindings) => {
-                    updateRouteDraft({ bindings })
-                    setRouteErrors((current) => ({ ...current, bindings: '' }))
-                  }}
-                />
+                <div className="overflow-hidden rounded-lg border border-border/70 bg-background/25">
+                  <div className="grid grid-cols-[minmax(120px,1fr)_150px_minmax(150px,1.2fr)_minmax(150px,1fr)] gap-2 border-b border-border/70 px-3 py-2 font-mono text-[9px] uppercase tracking-wide text-muted">
+                    <span>Value</span>
+                    <span>Source</span>
+                    <span>Used in</span>
+                    <span>Resolution</span>
+                  </div>
+                  <div className="divide-y divide-border/70">
+                    {routeDependencies.map((dependency) => {
+                      const sourceLabel = dependency.source === 'agent'
+                        ? 'Agent Input'
+                        : dependency.source === 'external_context'
+                          ? 'External Context'
+                          : 'Project Environment'
+                      const resolution = dependency.source === 'agent'
+                        ? `Model-provided${dependency.type ? ` · ${dependency.type}` : ''}${dependency.required ? ' · required' : ''}`
+                        : dependency.source === 'external_context'
+                          ? 'Run snapshot · runtime-resolved'
+                          : 'Selected environment · runtime-resolved'
+                      return (
+                        <div
+                          key={`${dependency.source}:${dependency.field}`}
+                          className="grid min-h-[48px] grid-cols-[minmax(120px,1fr)_150px_minmax(150px,1.2fr)_minmax(150px,1fr)] items-center gap-2 px-3 py-2"
+                        >
+                          <span className="truncate font-mono text-[11px] font-medium text-white">{dependency.field}</span>
+                          <span className="text-[10px] text-muted">{sourceLabel}</span>
+                          <span className="truncate text-[10px] text-muted" title={dependency.usages.join(', ')}>
+                            {dependency.usages.join(', ')}
+                          </span>
+                          <span className="text-[10px] text-muted">
+                            {resolution}
+                            {dependency.legacyBinding ? ' · legacy binding' : ''}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="border-t border-border/70 px-3 py-2">
+                    <p className="text-[10px] leading-4 text-muted">
+                      {{'{{name}}'}} is model-provided. {{'{{external_context.name}}'}} comes from the Run snapshot. {{'{{project_env.KEY}}'}} comes from the selected execution environment.
+                    </p>
+                  </div>
+                </div>
                 <FieldError message={routeErrors.bindings} />
               </div>
             ) : null}
