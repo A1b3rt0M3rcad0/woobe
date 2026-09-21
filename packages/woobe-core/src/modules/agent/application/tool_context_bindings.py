@@ -246,7 +246,22 @@ def _preserve_child_bindings(
         key = _binding_child_key(raw, kind=kind)
         previous = existing_by_key.get(key or "")
         if previous is not None and "bindings" in previous:
-            raw["bindings"] = deepcopy(previous.get("bindings"))
+            preserved = deepcopy(previous.get("bindings"))
+            if kind == "route" and isinstance(preserved, dict):
+                input_schema = raw.get("input_schema")
+                properties = (
+                    input_schema.get("properties")
+                    if isinstance(input_schema, Mapping)
+                    else None
+                )
+                if isinstance(properties, Mapping):
+                    preserved = {
+                        target: binding
+                        for target, binding in preserved.items()
+                        if target in properties
+                    }
+            if preserved:
+                raw["bindings"] = preserved
 
 
 def merge_context_bindings_for_update(
