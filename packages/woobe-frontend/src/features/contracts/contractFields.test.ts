@@ -109,4 +109,26 @@ describe('contract field builders', () => {
 
     expect(contract.name.description).toBeUndefined()
   })
+
+  it('reads legacy scope without exposing or writing it back', () => {
+    const rows = externalContractRows({
+      age: {
+        schema: { type: 'integer' },
+        required: true,
+        scope: 'session',
+        model: { expose: true },
+      },
+    })
+
+    expect(rows).toEqual([
+      { name: 'age', type: 'integer', required: true, expose: true },
+    ])
+    expect(externalContractFromRows(rows)).toEqual({
+      age: {
+        schema: { type: 'integer' },
+        required: true,
+        model: { expose: true },
+      },
+    })
+  })
 })
