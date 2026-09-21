@@ -703,7 +703,7 @@ export function ApiFirstToolForm({
       : !mcpUrl.trim() || !name.trim()
 
   const primaryLabel = step === 'route'
-    ? 'Save route'
+    ? 'Apply route'
     : initialTool
       ? 'Save changes'
       : protocol === 'mcp'
