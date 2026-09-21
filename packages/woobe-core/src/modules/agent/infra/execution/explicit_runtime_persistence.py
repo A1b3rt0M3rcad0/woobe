@@ -34,6 +34,7 @@ from modules.agent.infra.execution.runtime_preparation import (
     prepare_project_environment_state,
     prepare_rag_binding,
     prepare_tool_state,
+    prefer_live_tools_for_run,
 )
 from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
 from shared.contracts.execution_state import ExecutionStateStore
@@ -317,7 +318,7 @@ class ExplicitRuntimePersistenceMixin:
                 agent=agent,
                 tool_from_snapshot=tool_from_release_snapshot,
                 tool_with_permissions=tool_with_permission_overrides,
-                prefer_live_tools=self._prefer_live_tools(input_dto),
+                prefer_live_tools=prefer_live_tools_for_run(input_dto),
             )
             prepared_project_environment = await prepare_project_environment_state(
                 repositories,
