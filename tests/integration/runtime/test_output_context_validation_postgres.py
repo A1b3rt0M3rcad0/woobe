@@ -4,7 +4,9 @@ from uuid import uuid4
 
 import pytest
 
-from modules.agent.composition.runtime_contract_reader import AgentRuntimeContractReader
+from modules.agent.composition.composers.runtime_contract_reader_composer import (
+    build_agent_runtime_contract_reader,
+)
 from modules.agent.infra.database.models import AgentModel, AgentReleaseModel
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.infra.config import Settings
@@ -78,8 +80,8 @@ async def test_agent_runtime_contract_reader_returns_output_and_external_context
                 )
             )
 
-        snapshot = await AgentRuntimeContractReader(
-            lambda: AgentUnitOfWork(engine).mark_read_only()
+        snapshot = await build_agent_runtime_contract_reader(
+            uow=AgentUnitOfWork(engine).mark_read_only()
         ).read(
             agent_id=agent_id,
             project_id=project_id,
