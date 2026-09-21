@@ -5,7 +5,7 @@ from fastapi import APIRouter, HTTPException, Request as FastAPIRequest
 from runtime_composition import RUNTIME_HTTP
 from shared.infra.errors import AuthorizationError
 from shared.security.principal import ProjectApiPrincipal
-from woobe_api.http.shared.output_context_validation import (
+from woobe_api.http.shared.runtime_contract_validation import (
     RuntimeContractsValidationRequest,
 )
 
