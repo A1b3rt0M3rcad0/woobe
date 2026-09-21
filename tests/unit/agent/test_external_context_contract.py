@@ -41,11 +41,31 @@ def test_legacy_fields_wrapper_is_read_compatible_but_normalizes_flat() -> None:
 
 
 @pytest.mark.parametrize("scope", ["run", "session"])
-def test_scope_property_is_rejected(scope: str) -> None:
+def test_legacy_scope_is_read_compatible_but_normalizes_away(scope: str) -> None:
     raw = contract()
     raw["customer_id"]["scope"] = scope
-    with pytest.raises(ExternalContextContractError, match="unknown properties: scope"):
+
+    normalized = normalize_external_context_contract(raw)
+
+    assert normalized == contract()
+    assert "scope" not in normalized["customer_id"]
+
+
+def test_invalid_legacy_scope_is_rejected() -> None:
+    raw = contract()
+    raw["customer_id"]["scope"] = "project"
+    with pytest.raises(ExternalContextContractError, match="scope must be 'run' or 'session'"):
         normalize_external_context_contract(raw)
+
+
+def test_legacy_scope_does_not_change_release_compatibility() -> None:
+    previous = contract()
+    previous["customer_id"]["scope"] = "session"
+
+    assert (
+        classify_external_context_change(previous, contract())
+        == ReleaseChangeKind.CHANGE
+    )
 
 
 def test_unknown_request_fields_are_rejected() -> None:
