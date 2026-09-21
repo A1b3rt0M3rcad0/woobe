@@ -38,7 +38,7 @@ def _parse_json(value: Any) -> Any:
         try:
             return json.loads(value)
         except (TypeError, ValueError):
-            return None
+            return value
     return value
 
 
