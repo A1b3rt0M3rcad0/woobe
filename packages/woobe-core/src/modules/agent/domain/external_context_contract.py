@@ -66,8 +66,7 @@ def normalize_external_context_contract(value: Any) -> dict[str, Any]:
                 f"External Context field '{name}' contains unknown properties: {names}"
             )
 
-        legacy_scope = raw_field.get("scope")
-        if legacy_scope is not None and legacy_scope not in {"run", "session"}:
+        if "scope" in raw_field and raw_field["scope"] not in {"run", "session"}:
             raise ExternalContextContractError(
                 f"External Context field '{name}'.scope must be 'run' or 'session'"
             )
