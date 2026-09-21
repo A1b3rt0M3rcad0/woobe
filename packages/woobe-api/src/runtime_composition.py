@@ -65,7 +65,7 @@ class RuntimeHttpComposition:
         self,
         principal: ProjectApiPrincipal,
         *,
-        agent_output,
+        output_contract,
         external_context,
     ):
         target_id = principal.target_id or principal.agent_id
@@ -95,7 +95,7 @@ class RuntimeHttpComposition:
 
         output_result = compare_contract_schema(
             snapshot.output_contract,
-            agent_output,
+            output_contract,
         )
         external_context_result = compare_contract_schema(
             snapshot.external_context,
@@ -113,7 +113,7 @@ class RuntimeHttpComposition:
                 "environment": environment,
                 "release_id": snapshot.release_id,
                 "release_version": snapshot.release_version,
-                "agent_output": output_result,
+                "output_contract": output_result,
                 "external_context": external_context_result,
             },
         }
