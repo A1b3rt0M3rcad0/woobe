@@ -83,6 +83,34 @@ class TestCreateAskJobWithOutbox:
         assert isinstance(event, AgentExecutionRequestedV1)
 
     @pytest.mark.asyncio
+    async def test_create_job_persists_external_context_for_worker_roundtrip(self):
+        repo = MagicMock()
+        job_id = uuid4()
+        captured = {}
+
+        async def _create(job):
+            captured["job"] = job
+            job.id = job_id
+            return job
+
+        repo.create = AsyncMock(side_effect=_create)
+        use_case = CreateAskJobUseCase(repo=repo, outbox=None)
+
+        await use_case.execute(
+            CreateAskJobInput(
+                project_id=uuid4(),
+                agent_id=uuid4(),
+                message="test message",
+                execution_context="playground",
+                external_context={"age": 18},
+            )
+        )
+
+        assert captured["job"].params["external_context"] == {"age": 18}
+        assert captured["job"].params["execution_context"] == "playground"
+
+
+    @pytest.mark.asyncio
     async def test_create_job_works_without_outbox(self):
         repo = MagicMock()
         job_id = uuid4()
