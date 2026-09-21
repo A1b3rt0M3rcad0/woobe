@@ -4,6 +4,7 @@ from typing import Any
 
 from modules.agent.application.interfaces.http_tool_contract import (
     allowed_http_group_routes,
+    compile_http_group_route_contract,
     compile_http_tool_contract,
     is_http_tool_group,
 )
@@ -139,14 +140,10 @@ def _http_provider_tool_definitions(
             _safe_name(f"{parent_name}_{operation_id}"),
             used_names,
         )
-        parameters = route.get("input_schema") or {
-            "type": "object",
-            "properties": {},
-            "required": [],
-            "additionalProperties": False,
-        }
-        if not isinstance(parameters, dict):
-            parameters = {"type": "object", "properties": {}, "required": []}
+        parameters = compile_http_group_route_contract(
+            config,
+            route_id,
+        ).input_schema
         parameters = strip_bound_parameters(
             parameters,
             config,
