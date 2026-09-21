@@ -7,6 +7,10 @@ from uuid import UUID
 
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.tool_runtime import MCP_AGENT_SESSION_INPUT_KEY
+from modules.agent.application.interfaces.tool_types import (
+    MCP_PROTOCOL,
+    normalize_tool_protocol,
+)
 from modules.agent.application.tool_context_bindings import (
     ToolContextBindingError,
     apply_context_bindings,
@@ -93,7 +97,11 @@ class AgentToolRuntimeGateway:
                 raise ToolNotFoundError(tool_id)
 
         runtime_input = dict(input_data or {})
-        if context and context.session_id:
+        if (
+            context
+            and context.session_id
+            and normalize_tool_protocol(getattr(tool, "type", None)) == MCP_PROTOCOL
+        ):
             runtime_input.setdefault(MCP_AGENT_SESSION_INPUT_KEY, str(context.session_id))
 
         config = getattr(tool, "config", None) or {}
