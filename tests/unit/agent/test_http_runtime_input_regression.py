@@ -6,6 +6,8 @@ from uuid import uuid4
 
 import pytest
 
+from shared.infra.crypto import encrypt_secret
+
 from modules.agent.application.dtos.tools_dtos import UpdateToolInput
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
@@ -128,6 +130,52 @@ def _runtime_only_config() -> dict:
                     "type": "object",
                     "properties": {"b": {"type": "string"}},
                     "required": ["b"],
+                    "additionalProperties": False,
+                },
+                "bindings": {},
+                "risk_level": "low",
+                "status": "active",
+                "default_permission": "allow",
+            }
+        ],
+    }
+
+
+def _mixed_runtime_config() -> dict:
+    return {
+        "protocol": "http",
+        "mode": "group",
+        "schema_version": 2,
+        "base_url": "{{project_env.API_URL}}",
+        "headers": [],
+        "routes": [
+            {
+                "id": "route-orders",
+                "operation_id": "list_orders",
+                "name": "List orders",
+                "description": "Lists orders for the runtime customer.",
+                "method": "POST",
+                "path": (
+                    "/customers/{{external_context.customer_id}}"
+                    "?tenant={{project_env.TENANT_ID}}"
+                ),
+                "headers": [
+                    {
+                        "key": "Authorization",
+                        "value": "Bearer {{project_env.API_KEY}}",
+                    }
+                ],
+                "body": (
+                    '{"query":"{{query}}",'
+                    '"customer":"{{external_context.customer_id}}"}'
+                ),
+                "input_schema": {
+                    "type": "object",
+                    "properties": {
+                        "query": {"type": "string"},
+                        "removed": {"type": "string"},
+                    },
+                    "required": ["query", "removed"],
                     "additionalProperties": False,
                 },
                 "bindings": {},
@@ -547,6 +595,93 @@ async def test_same_session_run_uses_runtime_only_values_and_model_supplies_noth
             "timeout_ms": 30000,
         }
     ]
+
+
+@pytest.mark.asyncio
+async def test_mixed_runtime_namespaces_leave_only_real_agent_input_and_resolve_request(
+    monkeypatch,
+) -> None:
+    project_id = uuid4()
+    tool_id = uuid4()
+    live = _tool(config=_mixed_runtime_config(), tool_id=tool_id, project_id=project_id)
+
+    definitions, _mapping = agent_tools_to_openai_definitions_and_mapping([live])
+    parameters = definitions[0]["function"]["parameters"]
+    assert parameters == {
+        "type": "object",
+        "properties": {"query": {"type": "string"}},
+        "required": ["query"],
+        "additionalProperties": False,
+    }
+    assert "customer_id" not in str(parameters)
+    assert "API_URL" not in str(parameters)
+    assert "API_KEY" not in str(parameters)
+    assert "TENANT_ID" not in str(parameters)
+    assert "removed" not in str(parameters)
+
+    executor = _HttpExecutor()
+    runtime = HttpToolRuntime(executor)
+
+    class _Registry:
+        async def execute(self, runtime_tool, input_data):
+            return await runtime.execute(runtime_tool, input_data)
+
+    monkeypatch.setattr(
+        gateway_module,
+        "build_tool_runtime_registry",
+        lambda **_kwargs: _Registry(),
+    )
+    monkeypatch.setattr(
+        gateway_module,
+        "record_tool_provider_latency",
+        lambda _duration_ms: None,
+    )
+
+    context = new_execution_context()
+    context.execution_context = "playground"
+    context.prepared_tools = {str(tool_id): live}
+    context.tool_snapshots = {str(tool_id): tool_to_release_snapshot(live)}
+    context.external_context_snapshot = {"customer_id": "cus-1"}
+    context.prepared_project_environment = {
+        "API_URL": PreparedProjectEnvironmentValue(
+            kind="value",
+            stored_value="https://api.example.com",
+        ),
+        "TENANT_ID": PreparedProjectEnvironmentValue(
+            kind="value",
+            stored_value="tenant-7",
+        ),
+        "API_KEY": PreparedProjectEnvironmentValue(
+            kind="secret",
+            stored_value=encrypt_secret("runtime-secret", "test-key"),
+        ),
+    }
+
+    token = current_execution.set(context)
+    try:
+        gateway = AgentToolRuntimeGateway(
+            None,
+            SimpleNamespace(encryption_key="test-key"),
+            executor=executor,
+        )
+        result = await gateway.execute_tool(
+            tool_id,
+            {
+                MCP_REMOTE_TOOL_INPUT_KEY: "route-orders",
+                "query": "recent",
+            },
+        )
+    finally:
+        current_execution.reset(token)
+
+    assert result["success"] is True
+    assert len(executor.calls) == 1
+    call = executor.calls[0]
+    assert call["method"] == "POST"
+    assert call["url"] == "https://api.example.com/customers/cus-1?tenant=tenant-7"
+    assert call["headers"]["Authorization"] == "Bearer runtime-secret"
+    assert '"query":"recent"' in str(call["body"]).replace(" ", "")
+    assert '"customer":"cus-1"' in str(call["body"]).replace(" ", "")
 
 
 @pytest.mark.asyncio
