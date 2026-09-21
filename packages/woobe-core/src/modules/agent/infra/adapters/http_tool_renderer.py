@@ -16,10 +16,21 @@ def _resolve_inputs(
     contract: CompiledHttpToolContract,
     input_data: dict[str, Any] | None,
 ) -> dict[str, Any]:
+    provided = input_data or {}
+    properties = contract.input_schema.get("properties")
+    if contract.input_schema.get("additionalProperties") is False:
+        allowed = set(properties) if isinstance(properties, dict) else set()
+        unexpected = sorted(str(name) for name in provided if name not in allowed)
+        if unexpected:
+            raise HttpToolContractError(
+                "HTTP_TOOL_PARAMETER_UNEXPECTED",
+                "Unexpected HTTP Tool parameters: " + ", ".join(unexpected),
+            )
+
     defaults = contract.config.get("variables")
     inputs = {
         **(defaults if isinstance(defaults, dict) else {}),
-        **(input_data or {}),
+        **provided,
     }
     required = contract.input_schema.get("required")
     missing = [
