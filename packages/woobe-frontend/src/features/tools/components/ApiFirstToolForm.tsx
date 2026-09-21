@@ -861,6 +861,7 @@ export function ApiFirstToolForm({
               <div>
                 <h3 className="text-base font-semibold text-white">{routeEditor.isNew ? 'Add route' : 'Edit route'}</h3>
                 <p className="mt-1 text-sm text-muted">Define the request. Woobe creates and preserves the technical identifier automatically.</p>
+                {initialTool ? <p className="mt-1 text-[11px] text-muted">Apply the route here, then use Save changes to persist the Tool.</p> : null}
               </div>
             </div>
 
