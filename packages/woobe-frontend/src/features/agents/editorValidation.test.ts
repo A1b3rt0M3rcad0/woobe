@@ -161,7 +161,7 @@ describe('Agent editor output validation', () => {
         scope: 'run',
         model: { expose: true },
       },
-    } as Agent['external_context_contract']
+    } as unknown as typeof state.externalContextContract
 
     const result = validateAgentEditorState(state)
 
@@ -191,7 +191,7 @@ describe('Agent editor output validation', () => {
         scope: 'project',
         model: { expose: false },
       },
-    } as Agent['external_context_contract']
+    } as unknown as typeof state.externalContextContract
 
     const result = validateAgentEditorState(state)
 
