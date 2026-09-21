@@ -57,7 +57,7 @@ async def validate_runtime_contracts(
     principal = _runtime_principal(request)
     return await RUNTIME_HTTP.validate_contracts(
         principal,
-        agent_output=payload.agent_output,
+        output_contract=payload.output_contract,
         external_context=payload.external_context,
     )
 
