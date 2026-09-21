@@ -1,56 +1,21 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
-from fastapi import FastAPI
-from starlette.requests import Request
 
+from modules.agent.composition.runtime_contract_reader import AgentRuntimeContractReader
 from modules.agent.infra.database.models import AgentModel, AgentReleaseModel
-from modules.network.infra.database.models import NetworkModel
-from modules.network.infra.database.schema_extensions import NetworkVersionModel
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
-from shared.security.principal import ProjectApiPrincipal
-from woobe_api.http.shared.output_context_validation import (
-    OutputContextValidationRequest,
-    validate_output_context,
+from shared.runtime_contract_compatibility import (
+    compare_contract_schema,
+    effective_external_context_contract_schema,
 )
 
 
-def _request(engine) -> Request:
-    app = FastAPI()
-    app.state.async_engine = engine
-    return Request(
-        {
-            "type": "http",
-            "method": "POST",
-            "path": "/v1/output-context/validate",
-            "headers": [],
-            "app": app,
-        }
-    )
-
-
-def _principal(*, project_id, target_type: str, target_id):
-    return ProjectApiPrincipal(
-        api_key_id=uuid4(),
-        project_id=project_id,
-        key_prefix="rai_live_contract_test",
-        scopes=frozenset({"runtime:execute"}),
-        kind="runtime",
-        agent_id=target_id if target_type == "agent" else None,
-        target_type=target_type,
-        target_id=target_id,
-        environment="production",
-        interfaces=frozenset({"stream"}),
-        authenticated_at=datetime.now(UTC),
-    )
-
-
 @pytest.mark.asyncio
-async def test_agent_output_context_validation_uses_published_release_schema() -> None:
+async def test_agent_runtime_contract_reader_returns_output_and_external_context() -> None:
     settings = Settings.model_validate({})
     engine = create_engine(settings)
     session_factory = create_session_factory(engine)
@@ -96,38 +61,57 @@ async def test_agent_output_context_validation_uses_published_release_schema() -
                         "message": "string",
                         "confidence": "float",
                     },
+                    external_context_contract={
+                        "age": {
+                            "schema": {"type": "integer"},
+                            "required": True,
+                            "model": {"expose": False},
+                        },
+                        "title": {
+                            "schema": {"type": "string"},
+                            "required": False,
+                            "model": {"expose": True},
+                        },
+                    },
                     session_mode="stateful",
                 )
             )
 
-        result = await validate_output_context(
-            _request(engine),
-            _principal(
-                project_id=project_id,
-                target_type="agent",
-                target_id=agent_id,
-            ),
-            OutputContextValidationRequest(
-                output_context={
-                    "title": "SdkOutput",
-                    "type": "object",
-                    "properties": {
-                        "message": {"title": "Message", "type": "string"},
-                        "confidence": {"title": "Confidence", "type": "number"},
-                    },
-                    "required": ["message", "confidence"],
-                }
-            ),
+        snapshot = await AgentRuntimeContractReader(engine).read(
+            agent_id=agent_id,
+            project_id=project_id,
+            environment="production",
         )
 
-        assert result["data"]["valid"] is True
-        assert result["data"]["release_id"] == str(release_id)
-        assert result["data"]["release_version"] == "v1.0.0"
-        assert result["data"]["issues"] == []
-        assert (
-            result["data"]["expected_hash"]
-            == result["data"]["received_hash"]
+        output_result = compare_contract_schema(
+            snapshot.output_contract,
+            {
+                "title": "SdkOutput",
+                "type": "object",
+                "properties": {
+                    "message": {"title": "Message", "type": "string"},
+                    "confidence": {"title": "Confidence", "type": "number"},
+                },
+                "required": ["message", "confidence"],
+            },
         )
+        external_result = compare_contract_schema(
+            snapshot.external_context,
+            {
+                "type": "object",
+                "properties": {
+                    "age": {"type": "integer"},
+                    "title": {"type": "string"},
+                },
+                "required": ["age"],
+                "additionalProperties": False,
+            },
+        )
+
+        assert snapshot.release_id == str(release_id)
+        assert snapshot.release_version == "v1.0.0"
+        assert output_result["valid"] is True
+        assert external_result["valid"] is True
     finally:
         async with session_factory() as session, session.begin():
             release = await session.get(AgentReleaseModel, release_id)
@@ -139,95 +123,39 @@ async def test_agent_output_context_validation_uses_published_release_schema() -
         await engine.dispose()
 
 
-@pytest.mark.asyncio
-async def test_network_output_context_validation_detects_sdk_schema_mismatch() -> None:
-    settings = Settings.model_validate({})
-    engine = create_engine(settings)
-    session_factory = create_session_factory(engine)
-    project_id = uuid4()
-    network_id = uuid4()
-    version_id = uuid4()
-
-    try:
-        async with session_factory() as session, session.begin():
-            network = NetworkModel(
-                id=network_id,
-                project_id=project_id,
-                name=f"SDK contract Network {network_id}",
-                description="",
-                draft_definition={},
-                draft_revision=0,
-                staging_version_id=None,
-                production_version_id=None,
-            )
-            session.add(network)
-            await session.flush()
-
-            version = NetworkVersionModel(
-                id=version_id,
-                network_id=network_id,
-                project_id=project_id,
-                kind="release",
-                version="v2.0.0",
-                definition={},
-                resolved_bindings={},
-                composition_hash="a" * 64,
-                created_by=None,
-            )
-            version.public_output_contract = {
-                "enabled": True,
-                "type": "json",
-                "strict": True,
-                "schema": {
-                    "message": "string",
+def test_network_effective_external_context_keeps_all_fields_optional_at_boundary() -> None:
+    expected = effective_external_context_contract_schema(
+        {
+            "age": {
+                "schema": {"type": "integer"},
+                "consumers": {
+                    "agent-a": {"required": True, "model": {"expose": False}},
                 },
-            }
-            session.add(version)
-            await session.flush()
-            network.production_version_id = version_id
+            },
+            "title": {
+                "schema": {"type": "string"},
+                "consumers": {
+                    "agent-b": {"required": True, "model": {"expose": True}},
+                },
+            },
+        }
+    )
 
-        result = await validate_output_context(
-            _request(engine),
-            _principal(
-                project_id=project_id,
-                target_type="network",
-                target_id=network_id,
-            ),
-            OutputContextValidationRequest(
-                output_context={
-                    "type": "object",
-                    "properties": {
-                        "message": {"type": "integer"},
-                    },
-                    "required": ["message"],
-                }
-            ),
-        )
+    result = compare_contract_schema(
+        expected,
+        {
+            "type": "object",
+            "properties": {
+                "age": {"type": "integer"},
+            },
+            "required": [],
+            "additionalProperties": False,
+        },
+    )
 
-        assert result["data"]["valid"] is False
-        assert result["data"]["release_id"] == str(version_id)
-        assert result["data"]["release_version"] == "v2.0.0"
-        assert result["data"]["issues"] == [
-            {
-                "code": "OUTPUT_CONTEXT_MISMATCH",
-                "message": (
-                    "SDK output_context does not match the published "
-                    "Woobe Output Contract"
-                ),
-            }
-        ]
-        assert (
-            result["data"]["expected_hash"]
-            != result["data"]["received_hash"]
-        )
-    finally:
-        async with session_factory() as session, session.begin():
-            network = await session.get(NetworkModel, network_id)
-            if network is not None:
-                network.production_version_id = None
-            version = await session.get(NetworkVersionModel, version_id)
-            if version is not None:
-                await session.delete(version)
-            if network is not None:
-                await session.delete(network)
-        await engine.dispose()
+    assert result["valid"] is False
+    assert {
+        issue["code"]
+        for issue in result["issues"]
+    } == {"FIELD_MISSING"}
+    assert result["issues"][0]["field"] == "title"
