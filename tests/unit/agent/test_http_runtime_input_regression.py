@@ -361,7 +361,9 @@ async def test_existing_playground_session_rebuilds_tool_definition_from_live_ac
     }
     frozen = context.tool_snapshots[str(tool_id)]
     assert "project_env.MOCKED_NUMBER" in frozen["config"]["routes"][0]["path"]
-    assert "b" not in str(frozen["config"]["routes"][0]["input_schema"])
+    frozen_schema = frozen["config"]["routes"][0]["input_schema"]
+    assert "b" not in frozen_schema["properties"]
+    assert "b" not in frozen_schema["required"]
 
 
 @pytest.mark.asyncio
@@ -529,7 +531,8 @@ def test_provider_bind_tools_receives_no_removed_agent_argument() -> None:
         "required": [],
         "additionalProperties": False,
     }
-    assert "b" not in str(factory.model.bound_tools)
+    assert "b" not in parameters["properties"]
+    assert "b" not in parameters["required"]
 
 
 @pytest.mark.asyncio
