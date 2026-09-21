@@ -400,6 +400,86 @@ class TestUpdateToolUseCase:
 
 
     @pytest.mark.asyncio
+    async def test_update_http_group_removes_stale_agent_input_from_persisted_route(self):
+        repo = FakeToolRepository()
+        outbox = FakeOutbox()
+        project_id = uuid.uuid4()
+        creator = CreateToolUseCase(repo, outbox)
+        created = await creator.execute(
+            CreateToolInput(
+                project_id=project_id,
+                name="math",
+                type=ToolType.HTTP,
+                config={
+                    "protocol": "http",
+                    "mode": "group",
+                    "schema_version": 2,
+                    "base_url": "https://api.mathjs.org",
+                    "routes": [
+                        {
+                            "id": "route-sum",
+                            "operation_id": "sum_2_numbers",
+                            "name": "Sum 2 numbers",
+                            "description": "Sum two numbers",
+                            "method": "GET",
+                            "path": "/v4/?expr={{external_context.age}}%2B{{b}}",
+                            "bindings": {
+                                "b": {
+                                    "source": {
+                                        "kind": "context",
+                                        "field": "age",
+                                    }
+                                }
+                            },
+                            "default_permission": "allow",
+                        }
+                    ],
+                },
+            )
+        )
+
+        updater = UpdateToolUseCase(repo, outbox)
+        result = await updater.execute(
+            created.id,
+            UpdateToolInput(
+                type=ToolType.HTTP,
+                config={
+                    "protocol": "http",
+                    "mode": "group",
+                    "schema_version": 2,
+                    "base_url": "https://api.mathjs.org",
+                    "routes": [
+                        {
+                            "id": "route-sum",
+                            "operation_id": "sum_2_numbers",
+                            "name": "Sum 2 numbers",
+                            "description": "Sum runtime values",
+                            "method": "GET",
+                            "path": (
+                                "/v4/?expr={{external_context.age}}"
+                                "%2B{{project_env.MOCKED_NUMBER}}"
+                            ),
+                            "default_permission": "allow",
+                        }
+                    ],
+                },
+            ),
+        )
+
+        persisted = await repo.get_by_id(created.id)
+        route = persisted.config["routes"][0]
+        assert route["input_schema"] == {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        }
+        assert "bindings" not in route
+        assert "b" not in str(route)
+        assert result.config == persisted.config
+
+
+    @pytest.mark.asyncio
     async def test_update_tool_validates_project_environment_references(self):
         repo = FakeToolRepository()
         outbox = FakeOutbox()
