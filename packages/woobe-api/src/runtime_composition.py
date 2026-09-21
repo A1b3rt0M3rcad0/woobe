@@ -11,7 +11,7 @@ from modules.agent.entrypoint import (
 )
 from modules.network.entrypoint import build_network_service
 from shared.infra.errors import ValidationError
-from shared.runtime_contract_compatibility import compare_contract_schema
+from shared.contracts.runtime_contracts import compare_contract_schema
 from shared.security.principal import ProjectApiPrincipal
 from woobe_api.http.agent.controllers.public_runtime_stream_controller import (
     PublicRuntimeStreamController,
