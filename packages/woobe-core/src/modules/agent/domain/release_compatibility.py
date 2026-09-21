@@ -263,8 +263,8 @@ def _parse_json_if_needed(value: Any) -> Any:
     if isinstance(value, str):
         try:
             return json.loads(value)
-        except Exception:
-            return None
+        except (TypeError, ValueError):
+            return value
     return value
 
 
