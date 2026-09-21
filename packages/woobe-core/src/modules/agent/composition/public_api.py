@@ -1,7 +1,10 @@
 """Explicit transport-neutral public surface for Agent hosts."""
 
 from modules.agent.composition.composers.skill_catalog_composer import skill_catalog_composer
-from modules.agent.composition.composers.runtime_contract_reader_composer import build_agent_runtime_contract_reader
+from modules.agent.composition.composers.runtime_contract_reader_composer import (
+    ReadRuntimeContractsInput,
+    build_agent_runtime_contract_reader,
+)
 
 from modules.agent.application.context_assembler_registry import list_context_assemblers
 from modules.agent.application.execution_strategy_config import list_execution_strategies
@@ -257,6 +260,7 @@ __all__ = [
     'AskInput',
     'attach_collection_composer',
     'build_agent_run_reattach_operations',
+    'build_agent_runtime_contract_reader',
     'build_agent_stream_components',
     'build_agent_stream_service',
     'build_http_tool_executor',
@@ -339,6 +343,7 @@ __all__ = [
     'provider_model_usage_composer',
     'public_run_composer',
     'PublicRunRequest',
+    'ReadRuntimeContractsInput',
     'refresh_mcp_tools_composer',
     'rerun_agent_run_composer',
     'revoke_credential_composer',
