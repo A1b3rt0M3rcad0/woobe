@@ -50,9 +50,11 @@ async def active_session_run(session_id: UUID, request: FastAPIRequest):
 
 
 @router.post("/contracts/validate")
-async def validate_runtime_contracts(request: FastAPIRequest):
+async def validate_runtime_contracts(
+    request: FastAPIRequest,
+    payload: RuntimeContractsValidationRequest,
+):
     principal = _runtime_principal(request)
-    payload = RuntimeContractsValidationRequest(**(await request.json()))
     return await RUNTIME_HTTP.validate_contracts(
         principal,
         agent_output=payload.agent_output,
