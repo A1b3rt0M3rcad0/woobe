@@ -233,19 +233,20 @@ function PlaygroundContent() {
       activeExternalContextContract,
       rememberedContext ?? storedEnvironmentContext,
     )
-    const previousEnvironment = externalContextOwnerRef.current
+    const ownerKey = `${projectId ?? ''}:${agentId ?? ''}:${environment}`
+    const previousOwner = externalContextOwnerRef.current
     const contextDirty = externalContextDirtyRef.current
 
     setExternalContextValues((current) => {
       const currentValues = filterContractValues(activeExternalContextContract, current)
-      if (previousEnvironment === null || previousEnvironment !== environment) {
+      if (previousOwner === null || previousOwner !== ownerKey) {
         return environmentValues
       }
       return contextDirty ? currentValues : environmentValues
     })
 
-    if (previousEnvironment !== environment) externalContextDirtyRef.current = false
-    externalContextOwnerRef.current = environment
+    if (previousOwner !== ownerKey) externalContextDirtyRef.current = false
+    externalContextOwnerRef.current = ownerKey
   }, [
     activeExternalContextContract,
     agentId,
