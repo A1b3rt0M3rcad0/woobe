@@ -22,6 +22,7 @@ interface ChatComposerProps {
   externalContextContract?: unknown
   externalContextValues?: Record<string, unknown>
   onExternalContextValuesChange?: (values: Record<string, unknown>) => void
+  onClearExternalContextValues?: () => void
 }
 
 export function ChatComposer({
@@ -41,6 +42,7 @@ export function ChatComposer({
   externalContextContract,
   externalContextValues = {},
   onExternalContextValuesChange,
+  onClearExternalContextValues,
 }: ChatComposerProps) {
   const [internalInput, setInternalInput] = useState('')
   const [externalContextOpen, setExternalContextOpen] = useState(false)
@@ -50,6 +52,7 @@ export function ChatComposer({
   const compact = density === 'compact'
   const externalContextFields = useMemo(() => contractFields(externalContextContract), [externalContextContract])
   const externalContextFieldEntries = Object.entries(externalContextFields)
+  const hasExternalContextValues = Object.keys(externalContextValues).length > 0
   const missingRequiredExternalContextFields = externalContextFieldEntries.filter(([name, field]) => {
     const consumers = field && typeof field === 'object' && 'consumers' in field && field.consumers && typeof field.consumers === 'object' && !Array.isArray(field.consumers)
       ? field.consumers as Record<string, { required?: boolean }>
@@ -100,28 +103,40 @@ export function ChatComposer({
     <div className={compact ? 'min-w-0 border-t border-border bg-surface/[0.78] p-ui-sm' : 'min-w-0 border-t border-border bg-surface/[0.78] p-ui-md'}>
       {externalContextFieldEntries.length > 0 ? (
         <div className="mb-ui-xs overflow-hidden rounded-control border border-border/80 bg-background/30">
-          <button
-            type="button"
-            onClick={() => setExternalContextOpen((current) => !current)}
-            className="flex min-h-control w-full items-center gap-ui-xs px-ui-sm text-left transition-colors hover:bg-control/35"
-            aria-expanded={externalContextOpen}
-          >
-            {externalContextOpen
-              ? <ChevronDown className="h-icon-sm w-icon-sm text-muted-foreground" />
-              : <ChevronRight className="h-icon-sm w-icon-sm text-muted-foreground" />}
-            <Braces className="h-icon-sm w-icon-sm text-primary-light" />
-            <span className="font-mono text-system-control font-medium text-slate-100">External Context</span>
-            <span className="font-sans text-product-caption text-muted-foreground">
-              {externalContextFieldEntries.length} field{externalContextFieldEntries.length === 1 ? '' : 's'}
-            </span>
-            {missingRequiredExternalContextFields > 0 ? (
-              <span className="ml-auto rounded-technical border border-amber-400/25 bg-amber-400/[0.06] px-ui-xs font-mono text-system-meta text-amber-300">
-                {missingRequiredExternalContextFields} required missing
+          <div className="flex min-h-control items-stretch">
+            <button
+              type="button"
+              onClick={() => setExternalContextOpen((current) => !current)}
+              className="flex min-w-0 flex-1 items-center gap-ui-xs px-ui-sm text-left transition-colors hover:bg-control/35"
+              aria-expanded={externalContextOpen}
+            >
+              {externalContextOpen
+                ? <ChevronDown className="h-icon-sm w-icon-sm text-muted-foreground" />
+                : <ChevronRight className="h-icon-sm w-icon-sm text-muted-foreground" />}
+              <Braces className="h-icon-sm w-icon-sm text-primary-light" />
+              <span className="font-mono text-system-control font-medium text-slate-100">External Context</span>
+              <span className="font-sans text-product-caption text-muted-foreground">
+                {externalContextFieldEntries.length} field{externalContextFieldEntries.length === 1 ? '' : 's'}
               </span>
-            ) : (
-              <span className="ml-auto font-mono text-system-meta text-muted-foreground">per Run</span>
-            )}
-          </button>
+              {missingRequiredExternalContextFields > 0 ? (
+                <span className="ml-auto rounded-technical border border-amber-400/25 bg-amber-400/[0.06] px-ui-xs font-mono text-system-meta text-amber-300">
+                  {missingRequiredExternalContextFields} required missing
+                </span>
+              ) : (
+                <span className="ml-auto font-mono text-system-meta text-muted-foreground">per Run</span>
+              )}
+            </button>
+            {hasExternalContextValues && onClearExternalContextValues ? (
+              <button
+                type="button"
+                onClick={onClearExternalContextValues}
+                disabled={blocked}
+                className="border-l border-border/70 px-ui-sm font-mono text-system-meta text-muted-foreground transition-colors hover:bg-control/35 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                Clear
+              </button>
+            ) : null}
+          </div>
           {externalContextOpen ? (
             <div className="border-t border-border/70 px-ui-sm pb-ui-sm">
               <p className="py-ui-xs font-sans text-product-caption text-muted-foreground">
