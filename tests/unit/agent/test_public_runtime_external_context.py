@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from uuid import uuid4
+
 import pytest
 from pydantic import ValidationError
 
@@ -32,8 +34,8 @@ def test_public_run_request_keeps_strict_unknown_field_rejection() -> None:
 
 
 def test_public_run_external_context_maps_to_agent_ask_input() -> None:
-    project_id = __import__("uuid").uuid4()
-    agent_id = __import__("uuid").uuid4()
+    project_id = uuid4()
+    agent_id = uuid4()
     payload = PublicRunRequest(
         message="Consulte meus pedidos",
         external_context={"customer_id": "customer-123"},
