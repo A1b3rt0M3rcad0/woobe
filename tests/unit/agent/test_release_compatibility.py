@@ -206,3 +206,29 @@ def test_sdk_output_context_detects_required_field_type_mismatch():
     }
 
     assert output_schemas_equivalent(server_contract, sdk_output_context) is False
+
+
+def test_schema_annotation_names_are_preserved_when_they_are_actual_fields():
+    schema = normalize_output_schema(
+        {
+            "type": "object",
+            "title": "Response metadata",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "title": "Actual title field",
+                },
+                "description": {"type": "string"},
+            },
+            "required": ["title", "description"],
+        }
+    )
+
+    assert schema == {
+        "type": "object",
+        "properties": {
+            "description": {"type": "string"},
+            "title": {"type": "string"},
+        },
+        "required": ["description", "title"],
+    }
