@@ -57,7 +57,7 @@ def public_runtime_interface(method: str, path: str) -> str | None:
         return "http"
     if normalized_method == "POST" and path == "/v1/run/stream":
         return "stream"
-    if normalized_method == "POST" and path == "/v1/output-context/validate":
+    if normalized_method == "POST" and path == "/v1/contracts/validate":
         return "contract"
     if (
         normalized_method == "GET"
@@ -86,7 +86,7 @@ def is_runtime_path(path: str) -> bool:
         or path.startswith("/agent/runtime/")
         or path == "/v1/run"
         or path == "/v1/run/stream"
-        or path == "/v1/output-context/validate"
+        or path == "/v1/contracts/validate"
         or path == "/v1/jobs"
         or path.startswith("/v1/jobs/")
         or (
