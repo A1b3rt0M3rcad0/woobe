@@ -11,6 +11,7 @@ import {
 
 import { LoadingState } from '@/components/common/LoadingState'
 import { useTools } from '@/features/tools/hooks'
+import { getToolRuntimeCompatibility } from '@/features/tools/toolRuntimeDependencies'
 import type { Tool } from '@/features/tools/types'
 
 function riskVariant(risk?: string | null) {
@@ -36,10 +37,20 @@ interface ImportToolsModalProps {
   onClose: () => void
   projectId: string
   importedToolIds: Set<string>
+  externalContextFields: ReadonlySet<string>
+  projectEnvironmentKeys: ReadonlySet<string> | null
   onImport: (tool: Tool) => void
 }
 
-export function ImportToolsModal({ open, onClose, projectId, importedToolIds, onImport }: ImportToolsModalProps) {
+export function ImportToolsModal({
+  open,
+  onClose,
+  projectId,
+  importedToolIds,
+  externalContextFields,
+  projectEnvironmentKeys,
+  onImport,
+}: ImportToolsModalProps) {
   const { data: allTools = [], isLoading } = useTools(projectId)
   const availableTools = allTools.filter(tool => tool.status === 'active' && !importedToolIds.has(tool.id))
   const handleImport = (tool: Tool) => {
@@ -61,7 +72,7 @@ export function ImportToolsModal({ open, onClose, projectId, importedToolIds, on
             density="compact"
             eyebrow="Agent capability"
             title="Available Tools"
-            description={`${availableTools.length} active Tool${availableTools.length === 1 ? '' : 's'} can be added to this Agent Draft.`}
+            description={`${availableTools.length} active Tool${availableTools.length === 1 ? '' : 's'} available. Incompatible Tools remain visible but cannot be imported.`}
             className="border-0 bg-transparent p-0"
           />
         </div>
@@ -78,21 +89,47 @@ export function ImportToolsModal({ open, onClose, projectId, importedToolIds, on
           ) : (
             <ScrollArea className="h-full max-h-popover pr-ui-xs">
               <div className="grid gap-ui-xs">
-                {availableTools.map((tool) => (
-                  <TechnicalListItem
-                    key={tool.id}
-                    label={tool.name}
-                    description={tool.description || 'No description'}
-                    leading={(
-                      <span className="flex h-control-sm w-control-sm items-center justify-center rounded-control border border-border bg-control/35 text-primary-light">
-                        <Wrench className="h-icon w-icon" />
-                      </span>
-                    )}
-                    meta={<><span>{tool.type}</span><RiskIndicator risk={tool.risk_level} /></>}
-                    trailing={<Badge variant="outline" size="compact">Import</Badge>}
-                    onClick={() => handleImport(tool)}
-                  />
-                ))}
+                {availableTools.map((tool) => {
+                  const compatibility = getToolRuntimeCompatibility(
+                    tool,
+                    externalContextFields,
+                    projectEnvironmentKeys,
+                  )
+                  const blockers = [
+                    compatibility.missingExternalContext.length > 0
+                      ? `Missing External Context: ${compatibility.missingExternalContext.join(', ')}`
+                      : null,
+                    compatibility.missingProjectEnvironment.length > 0
+                      ? `Missing Project Environment: ${compatibility.missingProjectEnvironment.join(', ')}`
+                      : null,
+                    compatibility.projectEnvironmentUnavailable
+                      ? 'Project Environment keys are unavailable'
+                      : null,
+                  ].filter((item): item is string => Boolean(item))
+                  const description = compatibility.compatible
+                    ? tool.description || 'No description'
+                    : [tool.description || 'No description', ...blockers].join(' · ')
+
+                  return (
+                    <TechnicalListItem
+                      key={tool.id}
+                      label={tool.name}
+                      description={description}
+                      leading={(
+                        <span className="flex h-control-sm w-control-sm items-center justify-center rounded-control border border-border bg-control/35 text-primary-light">
+                          <Wrench className="h-icon w-icon" />
+                        </span>
+                      )}
+                      meta={<><span>{tool.type}</span><RiskIndicator risk={tool.risk_level} /></>}
+                      trailing={(
+                        <Badge variant={compatibility.compatible ? 'outline' : 'destructive'} size="compact">
+                          {compatibility.compatible ? 'Import' : 'Blocked'}
+                        </Badge>
+                      )}
+                      onClick={compatibility.compatible ? () => handleImport(tool) : undefined}
+                    />
+                  )
+                })}
               </div>
             </ScrollArea>
           )}
