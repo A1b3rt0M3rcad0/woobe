@@ -4,6 +4,7 @@ from uuid import uuid4
 
 import pytest
 
+from modules.agent.application.use_cases.read_runtime_contracts import ReadRuntimeContractsInput
 from modules.agent.composition.composers.runtime_contract_reader_composer import (
     build_agent_runtime_contract_reader,
 )
@@ -82,10 +83,12 @@ async def test_agent_runtime_contract_reader_returns_output_and_external_context
 
         snapshot = await build_agent_runtime_contract_reader(
             uow=AgentUnitOfWork(engine).mark_read_only()
-        ).read(
-            agent_id=agent_id,
-            project_id=project_id,
-            environment="production",
+        )(
+            ReadRuntimeContractsInput(
+                agent_id=agent_id,
+                project_id=project_id,
+                environment="production",
+            )
         )
 
         output_result = compare_contract_schema(
