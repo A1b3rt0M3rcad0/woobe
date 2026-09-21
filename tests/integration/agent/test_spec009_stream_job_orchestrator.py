@@ -126,6 +126,32 @@ class TestWorkerRegistration:
         assert hasattr(worker, "run")
         assert callable(worker.run)
 
+    def test_ask_job_worker_forwards_external_context_into_runtime_input(self):
+        import ast
+        import inspect
+
+        from woobe_workers.consumers.agent.ask_job_worker import AskJobWorker
+
+        tree = ast.parse(inspect.getsource(AskJobWorker._process_job))
+        ask_input_calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "AskInput"
+        ]
+
+        assert len(ask_input_calls) == 1
+        keywords = {item.arg: item.value for item in ask_input_calls[0].keywords}
+        assert "external_context" in keywords
+        value = keywords["external_context"]
+        assert isinstance(value, ast.Call)
+        assert isinstance(value.func, ast.Attribute)
+        assert value.func.attr == "get"
+        assert isinstance(value.args[0], ast.Constant)
+        assert value.args[0].value == "external_context"
+
+
     def test_ask_job_worker_resolves_context_assembler_through_public_boundary(self):
         import ast
         import inspect
