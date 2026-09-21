@@ -318,6 +318,57 @@ async def test_existing_playground_session_rebuilds_tool_definition_from_live_ac
 
 
 @pytest.mark.asyncio
+async def test_draft_rerun_keeps_historical_tool_snapshot_instead_of_live_tool() -> None:
+    project_id = uuid4()
+    tool_id = uuid4()
+    stale = _tool(config=_stale_config(), tool_id=tool_id, project_id=project_id)
+    live = _tool(config=_runtime_only_config(), tool_id=tool_id, project_id=project_id)
+    snapshot = tool_to_release_snapshot(stale)
+    agent = _agent(project_id=project_id, tool_id=tool_id, snapshot=snapshot)
+
+    context = new_execution_context()
+    context.execution_context = "playground"
+    context.prepared_tools = {str(tool_id): live}
+
+    async def _must_not_read_live(_tool_ids):
+        raise AssertionError("Draft rerun must reproduce the historical Tool snapshot")
+
+    resolver = ReleaseRuntimeResolver.__new__(ReleaseRuntimeResolver)
+    resolver.configure_runtime_tool_reader(_must_not_read_live)
+    prepared = (
+        agent,
+        None,
+        uuid4(),
+        "api-key",
+        None,
+        {},
+        False,
+        [],
+        {},
+        False,
+        [],
+        [],
+        [],
+    )
+    input_dto = SimpleNamespace(
+        execution_context="playground",
+        metadata={"source": "rerun", "rerun_of_run_id": str(uuid4())},
+    )
+
+    token = current_execution.set(context)
+    try:
+        resolved = await resolver._apply_runtime_tool_selection(
+            prepared,
+            input_dto=input_dto,
+        )
+    finally:
+        current_execution.reset(token)
+
+    assert context.tool_metadata["source"] == "release_snapshot"
+    assert set(resolved[7][0]["function"]["parameters"]["properties"]) == {"b"}
+
+
+@pytest.mark.asyncio
 async def test_network_playground_context_keeps_release_tool_snapshot() -> None:
     project_id = uuid4()
     tool_id = uuid4()
