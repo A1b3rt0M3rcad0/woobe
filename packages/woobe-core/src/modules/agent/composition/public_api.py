@@ -1,6 +1,7 @@
 """Explicit transport-neutral public surface for Agent hosts."""
 
 from modules.agent.composition.composers.skill_catalog_composer import skill_catalog_composer
+from modules.agent.composition.runtime_contract_reader import build_agent_runtime_contract_reader
 
 from modules.agent.application.context_assembler_registry import list_context_assemblers
 from modules.agent.application.execution_strategy_config import list_execution_strategies
