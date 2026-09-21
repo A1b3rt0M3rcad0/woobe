@@ -143,28 +143,59 @@ def _canonicalize_output_schema_node(value: Any, *, key: str | None = None) -> A
     return value
 
 
-def normalize_output_schema(value: Any) -> dict[str, Any] | None:
-    """Normalize compact or JSON Schema output contracts for public boundaries."""
+def _normalize_public_output_value(value: Any) -> dict[str, Any]:
     value = _parse_json_if_needed(value)
+    if isinstance(value, str):
+        return {"type": _SIMPLE_TYPES.get(value.strip().lower(), "string")}
+    if isinstance(value, bool):
+        return {"type": "boolean"}
+    if isinstance(value, int):
+        return {"type": "integer"}
+    if isinstance(value, float):
+        return {"type": "number"}
+    if value is None:
+        return {"type": "null"}
+    if isinstance(value, list):
+        if len(value) == 1:
+            return {
+                "type": "array",
+                "items": _normalize_public_output_value(value[0]),
+            }
+        return {"type": "array"}
     if not isinstance(value, dict):
-        return None
+        return {}
+
     if (
         isinstance(value.get("schema"), dict)
         and "properties" not in value
         and _looks_like_schema_wrapper(value)
     ):
-        return normalize_output_schema(value["schema"])
+        return _normalize_public_output_value(value["schema"])
     if isinstance(value.get("json_schema"), dict) and isinstance(
         value["json_schema"].get("schema"),
         dict,
     ):
-        return normalize_output_schema(value["json_schema"]["schema"])
+        return _normalize_public_output_value(value["json_schema"]["schema"])
     if _looks_like_json_schema(value):
-        return _canonicalize_output_schema_node(_normalize_json_schema(value))
+        return _normalize_json_schema(value)
 
-    normalized = _simple_contract_to_object_schema(value)
-    normalized["required"] = [str(name) for name in value.keys()]
-    return _canonicalize_output_schema_node(normalized)
+    properties = {
+        str(name): _normalize_public_output_value(child)
+        for name, child in value.items()
+    }
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": list(properties.keys()),
+    }
+
+
+def normalize_output_schema(value: Any) -> dict[str, Any] | None:
+    """Normalize compact or JSON Schema output contracts for public boundaries."""
+    value = _parse_json_if_needed(value)
+    if not isinstance(value, dict):
+        return None
+    return _canonicalize_output_schema_node(_normalize_public_output_value(value))
 
 
 def effective_output_schema(release: Any) -> dict[str, Any] | None:
