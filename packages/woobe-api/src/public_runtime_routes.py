@@ -6,8 +6,7 @@ from runtime_composition import RUNTIME_HTTP
 from shared.infra.errors import AuthorizationError
 from shared.security.principal import ProjectApiPrincipal
 from woobe_api.http.shared.output_context_validation import (
-    OutputContextValidationRequest,
-    validate_output_context as validate_sdk_output_context,
+    RuntimeContractsValidationRequest,
 )
 
 router = APIRouter(prefix="/v1", tags=["public-runtime"])
@@ -50,11 +49,15 @@ async def active_session_run(session_id: UUID, request: FastAPIRequest):
     return await RUNTIME_HTTP.active(principal.target_type, session_id, request)
 
 
-@router.post("/output-context/validate")
-async def validate_output_context(request: FastAPIRequest):
+@router.post("/contracts/validate")
+async def validate_runtime_contracts(request: FastAPIRequest):
     principal = _runtime_principal(request)
-    payload = OutputContextValidationRequest(**(await request.json()))
-    return await validate_sdk_output_context(request, principal, payload)
+    payload = RuntimeContractsValidationRequest(**(await request.json()))
+    return await RUNTIME_HTTP.validate_contracts(
+        principal,
+        output_contract=payload.output_contract,
+        external_context=payload.external_context,
+    )
 
 
 @router.post("/jobs", status_code=501)
