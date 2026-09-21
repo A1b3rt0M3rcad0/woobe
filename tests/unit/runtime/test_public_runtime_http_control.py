@@ -51,16 +51,16 @@ async def test_contract_validation_route_dispatches_runtime_target(
 ) -> None:
     calls = []
 
-    async def validate(principal, *, output_contract, external_context):
+    async def validate(principal, *, agent_output, external_context):
         calls.append(
-            (principal.target_type, output_contract, external_context)
+            (principal.target_type, agent_output, external_context)
         )
         return {
             "success": True,
             "data": {
                 "valid": True,
                 "target_type": principal.target_type,
-                "output_contract": {"valid": True, "issues": []},
+                "agent_output": {"valid": True, "issues": []},
                 "external_context": {"valid": True, "issues": []},
             },
         }
@@ -77,7 +77,7 @@ async def test_contract_validation_route_dispatches_runtime_target(
             "/v1/contracts/validate",
             headers={"x-runtime-target": target_type},
             json={
-                "output_contract": {
+                "agent_output": {
                     "message": "string",
                     "confidence": "float",
                 },
