@@ -11,6 +11,7 @@ from modules.agent.application.interfaces.execution_context import (
     current_execution,
     new_execution_context,
 )
+from modules.agent.application.interfaces.execution_strategy import ExecutionStrategyRequest
 from modules.agent.application.interfaces.ports import ExecutionResult, ToolExecutionPort
 from modules.agent.application.interfaces.tool_runtime import MCP_REMOTE_TOOL_INPUT_KEY
 from modules.agent.application.tool_converter import (
@@ -25,6 +26,7 @@ from modules.agent.domain.entities import Agent, Tool
 from modules.agent.domain.enums import RiskLevel, ToolStatus, ToolType
 from modules.agent.infra.adapters.tool_runtime import HttpToolRuntime
 from modules.agent.infra.execution import agent_tool_runtime_gateway as gateway_module
+from modules.agent.infra.execution.capabilities.preparation import prepare_execution
 from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.infra.execution.runtime_preparation import prepare_tool_state
@@ -358,6 +360,63 @@ async def test_network_playground_context_keeps_release_tool_snapshot() -> None:
 
     assert context.tool_metadata["source"] == "release_snapshot"
     assert set(resolved[7][0]["function"]["parameters"]["properties"]) == {"b"}
+
+
+def test_provider_bind_tools_receives_no_removed_agent_argument() -> None:
+    project_id = uuid4()
+    live = _tool(config=_runtime_only_config(), project_id=project_id)
+    definitions, mapping = agent_tools_to_openai_definitions_and_mapping([live])
+
+    class _RecordingModel:
+        def __init__(self) -> None:
+            self.bound_tools = None
+
+        def bind_tools(self, tools, *, tool_choice):
+            assert tool_choice == "auto"
+            self.bound_tools = deepcopy(tools)
+            return self
+
+    class _Factory:
+        def __init__(self) -> None:
+            self.model = _RecordingModel()
+
+        def create_chat_model(self, **_kwargs):
+            return self.model
+
+    factory = _Factory()
+    request = ExecutionStrategyRequest(
+        llm_factory=factory,
+        execute_single_tool=lambda *_args: None,  # type: ignore[arg-type]
+        clean_json_answer=lambda value: value,
+        agent=SimpleNamespace(
+            provider="openai",
+            model="test-model",
+            temperature=0.2,
+            max_output_tokens=256,
+            settings={},
+        ),
+        api_key="test",
+        base_url=None,
+        response_format={},
+        json_enabled=False,
+        has_tools=True,
+        agent_tools=definitions,
+        tool_name_to_id=mapping,
+        messages=[],
+        context_assembler=None,
+    )
+
+    prepare_execution(request)
+
+    assert factory.model.bound_tools is not None
+    parameters = factory.model.bound_tools[0]["function"]["parameters"]
+    assert parameters == {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": False,
+    }
+    assert "b" not in str(factory.model.bound_tools)
 
 
 @pytest.mark.asyncio
