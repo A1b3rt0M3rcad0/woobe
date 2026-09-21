@@ -11,7 +11,7 @@ from modules.agent.infra.database.models import AgentModel, AgentReleaseModel
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
-from shared.runtime_contract_compatibility import (
+from shared.contracts.runtime_contracts import (
     compare_contract_schema,
     effective_external_context_contract_schema,
 )
