@@ -55,13 +55,38 @@ describe('ChatComposer runtime state', () => {
         }}
         externalContextValues={{ customer_id: 'cus-1' }}
         onExternalContextValuesChange={vi.fn()}
+        onClearExternalContextValues={vi.fn()}
       />,
     )
 
     expect(html).toContain('External Context')
     expect(html).toContain('2 fields')
     expect(html).toContain('1 required missing')
+    expect(html).toContain('Clear')
     expect(html).not.toContain('Successful Runs clear them automatically.')
+  })
+
+  it('does not show Clear before any External Context value is remembered', () => {
+    const html = renderToStaticMarkup(
+      <ChatComposer
+        isSending={false}
+        onSend={vi.fn()}
+        onStop={vi.fn()}
+        externalContextContract={{
+          age: {
+            schema: { type: 'integer' },
+            required: true,
+            model: { expose: false },
+          },
+        }}
+        externalContextValues={{}}
+        onExternalContextValuesChange={vi.fn()}
+        onClearExternalContextValues={vi.fn()}
+      />,
+    )
+
+    expect(html).toContain('1 required missing')
+    expect(html).not.toContain('>Clear<')
   })
 
   it('keeps runtime blocking more authoritative than transient run state text', () => {
