@@ -408,6 +408,22 @@ async def test_permission_override_is_part_of_runtime_tool_provenance():
 
 
 @pytest.mark.asyncio
+async def test_standalone_playground_still_validates_malformed_release_snapshots():
+    project_id = uuid4()
+    agent = _agent(
+        project_id=project_id,
+        tools_config={"snapshots": [{"name": "missing-id"}]},
+    )
+
+    with pytest.raises(ValidationError, match="snapshot id is missing"):
+        await _apply(
+            _resolver(AsyncMock(return_value=[])),
+            _prepared(agent),
+            execution_context="playground",
+        )
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "snapshots, message",
     [
