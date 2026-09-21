@@ -45,38 +45,51 @@ def _app() -> FastAPI:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target_type", ["agent", "network"])
-async def test_output_context_validation_route_dispatches_runtime_target(
+async def test_contract_validation_route_dispatches_runtime_target(
     monkeypatch,
     target_type: str,
 ) -> None:
     calls = []
 
-    async def validate(_request, principal, payload):
-        calls.append((principal.target_type, payload.output_context))
+    async def validate(principal, *, output_contract, external_context):
+        calls.append(
+            (principal.target_type, output_contract, external_context)
+        )
         return {
             "success": True,
             "data": {
                 "valid": True,
                 "target_type": principal.target_type,
+                "output_contract": {"valid": True, "issues": []},
+                "external_context": {"valid": True, "issues": []},
             },
         }
 
     monkeypatch.setattr(
-        public_runtime_routes,
-        "validate_sdk_output_context",
+        public_runtime_routes.RUNTIME_HTTP,
+        "validate_contracts",
         validate,
     )
 
     transport = ASGITransport(app=_app())
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
-            "/v1/output-context/validate",
+            "/v1/contracts/validate",
             headers={"x-runtime-target": target_type},
             json={
-                "output_context": {
+                "output_contract": {
                     "message": "string",
                     "confidence": "float",
-                }
+                },
+                "external_context": {
+                    "type": "object",
+                    "properties": {
+                        "age": {"type": "integer"},
+                        "title": {"type": "string"},
+                    },
+                    "required": ["age", "title"],
+                    "additionalProperties": False,
+                },
             },
         )
 
@@ -88,6 +101,15 @@ async def test_output_context_validation_route_dispatches_runtime_target(
             {
                 "message": "string",
                 "confidence": "float",
+            },
+            {
+                "type": "object",
+                "properties": {
+                    "age": {"type": "integer"},
+                    "title": {"type": "string"},
+                },
+                "required": ["age", "title"],
+                "additionalProperties": False,
             },
         )
     ]
