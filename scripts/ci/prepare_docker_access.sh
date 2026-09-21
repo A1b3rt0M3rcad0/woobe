@@ -49,6 +49,16 @@ finish_prepare() {
   trap - EXIT INT TERM
 }
 
+reclaim_docker_ci_space() {
+  # The self-hosted runners share one Docker host. Once this job owns the
+  # global lock, it is safe to reclaim only disposable build cache and
+  # dangling images left by previous CI runs. Tagged images, running
+  # containers, named volumes, and persistent data are not removed.
+  docker builder prune --all --force >/dev/null 2>&1 || true
+  docker image prune --force >/dev/null 2>&1 || true
+  rm -rf "$workspace/.cache/trivy" 2>/dev/null || true
+}
+
 trap cleanup_incomplete_prepare EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
@@ -104,6 +114,7 @@ echo "Acquired shared Docker validation lock on runner ${RUNNER_NAME:-unknown}."
 
 if docker info >/dev/null 2>&1; then
   echo "Docker daemon is directly accessible on runner ${RUNNER_NAME:-unknown}."
+  reclaim_docker_ci_space
   finish_prepare
   exit 0
 fi
@@ -168,4 +179,5 @@ if [[ -n "${GITHUB_ENV:-}" ]]; then
 fi
 
 echo "Docker access recovered through user-owned proxy socket $proxy_socket."
+reclaim_docker_ci_space
 finish_prepare
