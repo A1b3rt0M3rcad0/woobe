@@ -25,6 +25,16 @@ CORE_ROUTES = (
     / "core"
     / "routes.py"
 )
+API_FIRST_TOOL_FORM = (
+    PROJECT_ROOT
+    / "packages"
+    / "woobe-frontend"
+    / "src"
+    / "features"
+    / "tools"
+    / "components"
+    / "ApiFirstToolForm.tsx"
+)
 
 
 class TestToolsRouteRegistration:
@@ -91,6 +101,14 @@ class TestToolsRouteRegistration:
         assert "_project_environment_tool_usage(request)" in delete_route
         assert "raise ConflictError" in delete_route
         assert "Edit or delete those Tools before removing this key." in delete_route
+
+    def test_http_route_inputs_are_derived_read_only_dependencies(self):
+        source = API_FIRST_TOOL_FORM.read_text(encoding="utf-8")
+        assert "inspectHttpRouteDependencies" in source
+        assert "Runtime inputs" in source
+        assert "<ToolInputBindingsEditor" not in source
+        assert "{{external_context.*}}" in source
+        assert "{{project_env.*}}" in source
 
     def test_no_network_imports_in_schemas(self):
         schemas_path = (
