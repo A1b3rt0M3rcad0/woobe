@@ -8,6 +8,7 @@ from modules.agent.application.skill_bindings import freeze_skill_bindings
 from modules.agent.application.interfaces.release_activation_repository import (
     AgentReleaseActivationRepository,
 )
+from modules.agent.application.interfaces.project_environment import ProjectEnvironmentKeyReader
 from modules.agent.application.interfaces.repositories import (
     AgentReleaseRepository,
     ToolRepository,
@@ -60,7 +61,7 @@ class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
         knowledge_validator: ReleaseKnowledgeValidator,
         tool_repo: ToolRepository,
         skill_repo: SkillRepository | None = None,
-        project_environment_reader=None,
+        project_environment_reader: ProjectEnvironmentKeyReader | None = None,
     ) -> None:
         super().__init__(release_repo)
         self._knowledge_validator = knowledge_validator
