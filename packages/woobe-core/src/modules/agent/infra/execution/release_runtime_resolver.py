@@ -291,7 +291,9 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         prefer_live_tools = (
             runtime_context is not None
             and runtime_context.execution_context == "playground"
+            and runtime_context.network_id is None
             and runtime_context.network_execution_id is None
+            and runtime_context.network_invocation_id is None
         )
 
         snapshot_tools: dict[UUID, Any] = {}
