@@ -1,3 +1,4 @@
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -11,6 +12,7 @@ class PublicRunRequest(BaseModel):
     tenant_id: str | None = None
     user_id: str | None = None
     metadata: dict | None = None
+    external_context: dict[str, Any] | None = None
 
 
 class PublicCreateJobRequest(PublicRunRequest):
