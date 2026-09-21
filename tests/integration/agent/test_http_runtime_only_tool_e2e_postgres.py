@@ -8,6 +8,10 @@ from langchain_core.messages import AIMessage, ToolMessage
 
 from modules.agent.application.context_managers.standard import StandardContextAssembler
 from modules.agent.application.dtos.runtime_dtos import AskInput
+from modules.agent.application.execution_snapshot import (
+    AgentExecutionSnapshotResolver,
+    apply_agent_execution_snapshot,
+)
 from modules.agent.application.interfaces.ports import ExecutionResult
 from modules.agent.application.tool_release_snapshots import tool_to_release_snapshot
 from modules.agent.domain.entities import Tool
@@ -23,6 +27,9 @@ from modules.agent.infra.database.runtime_transaction_runner import (
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
+from modules.agent.infra.execution.canonical_execution_snapshot_runtime_resolver import (
+    configure_execution_snapshot_runtime,
+)
 from modules.agent.infra.execution.frozen_snapshot_runtime import (
     FrozenSnapshotStructuredOutputRuntime,
 )
@@ -338,6 +345,10 @@ async def test_existing_draft_session_uses_edited_live_tool_and_runtime_only_val
             )
         )
 
+    configure_execution_snapshot_runtime(
+        AgentExecutionSnapshotResolver,
+        apply_agent_execution_snapshot,
+    )
     transactions = AgentRuntimeTransactionRunner(lambda: AgentUnitOfWork(engine))
     provider_factory = _RecordingProviderFactory()
     http_executor = _RecordingHttpExecutor()
