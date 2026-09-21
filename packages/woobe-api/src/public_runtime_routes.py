@@ -55,7 +55,7 @@ async def validate_runtime_contracts(request: FastAPIRequest):
     payload = RuntimeContractsValidationRequest(**(await request.json()))
     return await RUNTIME_HTTP.validate_contracts(
         principal,
-        output_contract=payload.output_contract,
+        agent_output=payload.agent_output,
         external_context=payload.external_context,
     )
 
