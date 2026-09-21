@@ -58,11 +58,18 @@ def normalize_external_context_contract(value: Any) -> dict[str, Any]:
             "default",
             "model",
             "description",
+            "scope",
         }
         if unknown_field_keys:
             names = ", ".join(sorted(str(key) for key in unknown_field_keys))
             raise ExternalContextContractError(
                 f"External Context field '{name}' contains unknown properties: {names}"
+            )
+
+        legacy_scope = raw_field.get("scope")
+        if legacy_scope is not None and legacy_scope not in {"run", "session"}:
+            raise ExternalContextContractError(
+                f"External Context field '{name}'.scope must be 'run' or 'session'"
             )
 
         schema = _normalize_schema(raw_field.get("schema", {}), field_name=name)
