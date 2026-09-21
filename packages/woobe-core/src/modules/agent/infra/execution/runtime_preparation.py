@@ -79,6 +79,7 @@ async def prepare_tool_state(
     agent: Any,
     tool_from_snapshot: ToolFromSnapshot,
     tool_with_permissions: ToolWithPermissions,
+    prefer_live_tools: bool = False,
 ) -> tuple[list[Any], dict[str, str]]:
     """Resolve the exact Tool set and encrypted secrets inside Acceptance."""
 
@@ -112,7 +113,7 @@ async def prepare_tool_state(
     if selected_ids:
         for tool_id in selected_ids:
             snapshot = snapshot_index.get(str(tool_id))
-            if snapshot is not None:
+            if snapshot is not None and not prefer_live_tools:
                 tool = tool_from_snapshot(snapshot)
             else:
                 tool = await repositories.tools.get_by_id(tool_id)
