@@ -101,18 +101,48 @@ def classify_release_change(
 
 def normalize_output_schema(value: Any) -> dict[str, Any] | None:
     """Normalize compact or JSON Schema output contracts for public boundaries."""
-    return _normalize_schema(value)
+    value = _parse_json_if_needed(value)
+    if not isinstance(value, dict):
+        return None
+    if (
+        isinstance(value.get("schema"), dict)
+        and "properties" not in value
+        and _looks_like_schema_wrapper(value)
+    ):
+        return normalize_output_schema(value["schema"])
+    if isinstance(value.get("json_schema"), dict) and isinstance(
+        value["json_schema"].get("schema"),
+        dict,
+    ):
+        return normalize_output_schema(value["json_schema"]["schema"])
+    if _looks_like_json_schema(value):
+        return _normalize_json_schema(value)
+
+    normalized = _simple_contract_to_object_schema(value)
+    normalized["required"] = [str(name) for name in value.keys()]
+    return normalized
 
 
 def effective_output_schema(release: Any) -> dict[str, Any] | None:
     """Return the effective structured-output schema frozen in a Release."""
-    return _effective_output_schema(release, _normalize_response_format(release))
+    response_format = _normalize_response_format(release)
+    for candidate in (
+        getattr(release, "output_schema", None),
+        response_format.get("schema"),
+        (response_format.get("json_schema") or {}).get("schema")
+        if isinstance(response_format.get("json_schema"), dict)
+        else None,
+    ):
+        normalized = normalize_output_schema(candidate)
+        if normalized is not None:
+            return normalized
+    return None
 
 
 def output_schemas_equivalent(left: Any, right: Any) -> bool:
     """Compare output contracts by structural semantics rather than annotations."""
-    left_schema = _normalize_schema(left)
-    right_schema = _normalize_schema(right)
+    left_schema = normalize_output_schema(left)
+    right_schema = normalize_output_schema(right)
     if left_schema is None or right_schema is None:
         return left_schema is right_schema
     return not _schema_node_breaks(left_schema, right_schema) and not _schema_node_breaks(
