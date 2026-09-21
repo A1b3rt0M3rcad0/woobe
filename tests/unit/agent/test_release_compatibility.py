@@ -141,7 +141,7 @@ def test_public_output_schema_normalization_preserves_compact_required_fields():
             "message": {"type": "string"},
             "confidence": {"type": "number"},
         },
-        "required": ["message", "confidence"],
+        "required": ["confidence", "message"],
     }
 
 
@@ -150,7 +150,7 @@ def test_sdk_json_schema_matches_equivalent_compact_output_contract():
         "message": "string",
         "confidence": "float",
     }
-    sdk_output_context = {
+    sdk_output_contract = {
         "title": "SupportOutput",
         "type": "object",
         "properties": {
@@ -160,7 +160,7 @@ def test_sdk_json_schema_matches_equivalent_compact_output_contract():
         "required": ["message", "confidence"],
     }
 
-    assert output_schemas_equivalent(server_contract, sdk_output_context) is True
+    assert output_schemas_equivalent(server_contract, sdk_output_contract) is True
 
 
 def test_sdk_nested_json_schema_matches_nested_compact_output_contract():
@@ -170,7 +170,7 @@ def test_sdk_nested_json_schema_matches_nested_compact_output_contract():
             "flags": ["boolean"],
         },
     }
-    sdk_output_context = {
+    sdk_output_contract = {
         "type": "object",
         "properties": {
             "data": {
@@ -188,15 +188,15 @@ def test_sdk_nested_json_schema_matches_nested_compact_output_contract():
         "required": ["data"],
     }
 
-    assert output_schemas_equivalent(server_contract, sdk_output_context) is True
+    assert output_schemas_equivalent(server_contract, sdk_output_contract) is True
 
 
-def test_sdk_output_context_detects_required_field_type_mismatch():
+def test_sdk_output_contract_detects_required_field_type_mismatch():
     server_contract = {
         "message": "string",
         "confidence": "float",
     }
-    sdk_output_context = {
+    sdk_output_contract = {
         "type": "object",
         "properties": {
             "message": {"type": "string"},
@@ -205,7 +205,7 @@ def test_sdk_output_context_detects_required_field_type_mismatch():
         "required": ["message", "confidence"],
     }
 
-    assert output_schemas_equivalent(server_contract, sdk_output_context) is False
+    assert output_schemas_equivalent(server_contract, sdk_output_contract) is False
 
 
 def test_schema_annotation_names_are_preserved_when_they_are_actual_fields():
