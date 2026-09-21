@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict
 class RuntimeContractsValidationRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    output_contract: dict[str, Any] | None
+    agent_output: dict[str, Any] | None
     external_context: dict[str, Any] | None
 
 
