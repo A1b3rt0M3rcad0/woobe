@@ -111,6 +111,7 @@ _OUTPUT_SCHEMA_ANNOTATIONS = {
 
 def _canonicalize_output_schema_node(value: Any, *, key: str | None = None) -> Any:
     if isinstance(value, dict):
+        name_map = key in {"properties", "definitions", "$defs", "patternProperties"}
         return {
             str(child_key): _canonicalize_output_schema_node(
                 child_value,
@@ -120,7 +121,7 @@ def _canonicalize_output_schema_node(value: Any, *, key: str | None = None) -> A
                 value.items(),
                 key=lambda item: str(item[0]),
             )
-            if str(child_key) not in _OUTPUT_SCHEMA_ANNOTATIONS
+            if name_map or str(child_key) not in _OUTPUT_SCHEMA_ANNOTATIONS
         }
     if isinstance(value, list):
         items = [
