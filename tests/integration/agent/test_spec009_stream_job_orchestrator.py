@@ -157,10 +157,11 @@ class TestWorkerRegistration:
     def test_ask_job_worker_forwards_external_context_into_runtime_input(self):
         import ast
         import inspect
+        import textwrap
 
         from woobe_workers.consumers.agent.ask_job_worker import AskJobWorker
 
-        tree = ast.parse(inspect.getsource(AskJobWorker._process_job))
+        tree = ast.parse(textwrap.dedent(inspect.getsource(AskJobWorker._process_job)))
         ask_input_calls = [
             node
             for node in ast.walk(tree)
