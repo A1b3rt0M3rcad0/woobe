@@ -142,7 +142,7 @@ async def _cleanup(session_factory, *, project_id, api_key_id) -> None:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target_type", ["agent", "network"])
-async def test_output_context_validation_uses_runtime_key_without_execution_lease(
+async def test_runtime_contract_validation_uses_runtime_key_without_execution_lease(
     monkeypatch,
     target_type: str,
 ) -> None:
@@ -159,34 +159,38 @@ async def test_output_context_validation_uses_runtime_key_without_execution_leas
             interfaces=["stream"],
         )
 
-        async def validate(_request, principal, payload):
-            calls.append((principal, payload.output_context))
+        async def validate(principal, *, output_contract, external_context):
+            calls.append((principal, output_contract, external_context))
             return {"success": True, "data": {"valid": True}}
 
         monkeypatch.setattr(
-            public_runtime_routes,
-            "validate_sdk_output_context",
+            public_runtime_routes.RUNTIME_HTTP,
+            "validate_contracts",
             validate,
         )
 
         transport = ASGITransport(app=_secured_app(session_factory, settings))
         async with AsyncClient(transport=transport, base_url="http://test") as client:
             response = await client.post(
-                "/v1/output-context/validate",
+                "/v1/contracts/validate",
                 headers={"Authorization": f"Bearer {issued.value}"},
-                json={"output_context": {"message": "string"}},
+                json={
+                    "output_contract": {"message": "string"},
+                    "external_context": None,
+                },
             )
 
         assert response.status_code == 200
         assert response.json()["data"]["valid"] is True
         assert len(calls) == 1
-        principal, output_context = calls[0]
+        principal, output_contract, external_context = calls[0]
         assert principal.api_key_id == api_key_id
         assert principal.project_id == project_id
         assert principal.target_type == target_type
         assert principal.target_id == target_id
         assert principal.environment == "production"
-        assert output_context == {"message": "string"}
+        assert output_contract == {"message": "string"}
+        assert external_context is None
         await _assert_no_execution_lease(session_factory, api_key_id)
     finally:
         if project_id is not None and api_key_id is not None:
