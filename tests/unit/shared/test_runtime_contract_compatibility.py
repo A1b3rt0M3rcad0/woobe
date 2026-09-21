@@ -1,4 +1,4 @@
-from shared.runtime_contract_compatibility import (
+from shared.contracts.runtime_contracts import (
     compare_contract_schema,
     external_context_contract_schema,
     normalize_contract_schema,
