@@ -49,6 +49,7 @@ interface ChatCanvasProps {
   externalContextContract?: unknown
   externalContextValues?: Record<string, unknown>
   onExternalContextValuesChange?: (values: Record<string, unknown>) => void
+  onClearExternalContextValues?: () => void
 }
 
 const defaultSuggestions = [
@@ -136,6 +137,7 @@ export function ChatCanvas({
   externalContextContract,
   externalContextValues,
   onExternalContextValuesChange,
+  onClearExternalContextValues,
 }: ChatCanvasProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const messagesContentRef = useRef<HTMLDivElement>(null)
@@ -320,6 +322,7 @@ export function ChatCanvas({
         externalContextContract={externalContextContract}
         externalContextValues={externalContextValues}
         onExternalContextValuesChange={onExternalContextValuesChange}
+        onClearExternalContextValues={onClearExternalContextValues}
       />
     </section>
   )
