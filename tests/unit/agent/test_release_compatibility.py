@@ -163,6 +163,34 @@ def test_sdk_json_schema_matches_equivalent_compact_output_contract():
     assert output_schemas_equivalent(server_contract, sdk_output_context) is True
 
 
+def test_sdk_nested_json_schema_matches_nested_compact_output_contract():
+    server_contract = {
+        "data": {
+            "message": "string",
+            "flags": ["boolean"],
+        },
+    }
+    sdk_output_context = {
+        "type": "object",
+        "properties": {
+            "data": {
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string"},
+                    "flags": {
+                        "type": "array",
+                        "items": {"type": "boolean"},
+                    },
+                },
+                "required": ["message", "flags"],
+            },
+        },
+        "required": ["data"],
+    }
+
+    assert output_schemas_equivalent(server_contract, sdk_output_context) is True
+
+
 def test_sdk_output_context_detects_required_field_type_mismatch():
     server_contract = {
         "message": "string",
