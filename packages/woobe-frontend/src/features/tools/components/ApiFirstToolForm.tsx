@@ -949,7 +949,7 @@ export function ApiFirstToolForm({
                   </div>
                   <div className="border-t border-border/70 px-3 py-2">
                     <p className="text-[10px] leading-4 text-muted">
-                      {{'{{name}}'}} is model-provided. {{'{{external_context.name}}'}} comes from the Run snapshot. {{'{{project_env.KEY}}'}} comes from the selected execution environment.
+                      {'{{name}}'} is model-provided. {'{{external_context.name}}'} comes from the Run snapshot. {'{{project_env.KEY}}'} comes from the selected execution environment.
                     </p>
                   </div>
                 </div>
