@@ -107,10 +107,17 @@ def compile_http_tool_contract(
             "HTTP Tool input_schema must be an object schema.",
         )
     schema["type"] = "object"
-    properties = schema.get("properties") if isinstance(schema.get("properties"), dict) else {}
-    properties = deepcopy(properties)
-    for name in names:
-        properties.setdefault(name, {"type": "string", "description": f"Parameter {name}"})
+    declared_properties = (
+        schema.get("properties")
+        if isinstance(schema.get("properties"), dict)
+        else {}
+    )
+    properties = {
+        name: deepcopy(declared_properties[name])
+        if name in declared_properties
+        else {"type": "string", "description": f"Parameter {name}"}
+        for name in names
+    }
     schema["properties"] = properties
     raw_required = schema.get("required")
     required = [name for name in raw_required if isinstance(name, str) and name in properties] if isinstance(raw_required, list) else []
