@@ -285,6 +285,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         raw_tool_ids = tools_config.get("tool_ids")
         raw_permissions = tools_config.get("permissions")
         permission_map = raw_permissions if isinstance(raw_permissions, dict) else {}
+        snapshot_index = self._snapshot_index(raw_snapshots)
         selected_ids = self._selected_tool_ids(raw_tool_ids, raw_snapshots)
 
         runtime_context = current_execution.get()
@@ -298,7 +299,6 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
 
         snapshot_tools: dict[UUID, Any] = {}
         if not prefer_live_tools:
-            snapshot_index = self._snapshot_index(raw_snapshots)
             for tool_id in selected_ids:
                 raw_snapshot = snapshot_index.get(str(tool_id))
                 if raw_snapshot is None:
