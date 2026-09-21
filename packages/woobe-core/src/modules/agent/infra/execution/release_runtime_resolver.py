@@ -265,6 +265,22 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             ordered_ids.append(tool_id)
         return ordered_ids
 
+    @staticmethod
+    def _prefer_live_tools(input_dto: Any | None = None) -> bool:
+        context = current_execution.get()
+        execution_context = (
+            getattr(input_dto, "execution_context", None)
+            if input_dto is not None
+            else getattr(context, "execution_context", None)
+        )
+        return bool(
+            context is not None
+            and str(execution_context or "").lower() == "playground"
+            and context.network_id is None
+            and context.network_execution_id is None
+            and context.network_invocation_id is None
+        )
+
     async def _prepare(self, input_dto: Any) -> Any:
         prepared = await super()._prepare(input_dto)
         if not isinstance(prepared, tuple) or len(prepared) < 13:
@@ -289,13 +305,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         selected_ids = self._selected_tool_ids(raw_tool_ids, raw_snapshots)
 
         runtime_context = current_execution.get()
-        prefer_live_tools = (
-            runtime_context is not None
-            and runtime_context.execution_context == "playground"
-            and runtime_context.network_id is None
-            and runtime_context.network_execution_id is None
-            and runtime_context.network_invocation_id is None
-        )
+        prefer_live_tools = self._prefer_live_tools()
 
         snapshot_tools: dict[UUID, Any] = {}
         if not prefer_live_tools:
