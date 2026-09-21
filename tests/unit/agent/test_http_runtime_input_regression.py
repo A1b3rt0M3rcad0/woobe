@@ -6,8 +6,6 @@ from uuid import uuid4
 
 import pytest
 
-from shared.infra.crypto import encrypt_secret
-
 from modules.agent.application.dtos.tools_dtos import UpdateToolInput
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
@@ -32,6 +30,7 @@ from modules.agent.infra.execution.capabilities.preparation import prepare_execu
 from modules.agent.infra.execution.agent_tool_runtime_gateway import AgentToolRuntimeGateway
 from modules.agent.infra.execution.release_runtime_resolver import ReleaseRuntimeResolver
 from modules.agent.infra.execution.runtime_preparation import prepare_tool_state
+from shared.infra.crypto import encrypt_secret
 from shared.project_environment import PreparedProjectEnvironmentValue
 
 
