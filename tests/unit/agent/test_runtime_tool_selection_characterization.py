@@ -301,7 +301,11 @@ async def test_release_snapshot_is_exposed_without_live_repository_reader():
         },
     )
 
-    result, context = await _apply(_resolver(), _prepared(agent))
+    result, context = await _apply(
+        _resolver(),
+        _prepared(agent),
+        execution_context="production",
+    )
 
     assert result[9] is True
     assert result[8] == {tool.name: str(tool.id)}
@@ -320,7 +324,11 @@ async def test_snapshot_only_configuration_derives_selected_tool_ids():
         tools_config={"snapshots": [snapshot]},
     )
 
-    result, context = await _apply(_resolver(), _prepared(agent))
+    result, context = await _apply(
+        _resolver(),
+        _prepared(agent),
+        execution_context="production",
+    )
 
     assert result[9] is True
     assert context.tool_metadata["tool_ids"] == [str(tool.id)]
@@ -341,7 +349,11 @@ async def test_release_snapshot_must_belong_to_agent_project():
     )
 
     with pytest.raises(ValidationError, match="snapshot does not belong to this Project"):
-        await _apply(_resolver(), _prepared(agent))
+        await _apply(
+            _resolver(),
+            _prepared(agent),
+            execution_context="production",
+        )
 
 
 @pytest.mark.asyncio
@@ -358,7 +370,11 @@ async def test_release_snapshot_must_be_active():
     )
 
     with pytest.raises(ValidationError, match="snapshot is not active"):
-        await _apply(_resolver(), _prepared(agent))
+        await _apply(
+            _resolver(),
+            _prepared(agent),
+            execution_context="production",
+        )
 
 
 @pytest.mark.asyncio
@@ -376,7 +392,11 @@ async def test_hybrid_runtime_preserves_snapshot_and_live_tool_in_one_contract()
     )
     reader = AsyncMock(return_value=[live])
 
-    result, context = await _apply(_resolver(reader), _prepared(agent))
+    result, context = await _apply(
+        _resolver(reader),
+        _prepared(agent),
+        execution_context="production",
+    )
 
     reader.assert_awaited_once_with([live.id])
     assert result[9] is True
