@@ -6,7 +6,7 @@ from uuid import UUID
 from modules.agent.application.interfaces.repositories import AgentReleaseRepository
 from modules.agent.domain.release_compatibility import effective_output_schema
 from shared.contracts.errors import NotFoundError, ValidationError
-from shared.runtime_contract_compatibility import (
+from shared.contracts.runtime_contracts import (
     RuntimeContractSnapshot,
     external_context_contract_schema,
 )
