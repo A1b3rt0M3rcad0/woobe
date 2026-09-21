@@ -475,7 +475,9 @@ class TestUpdateToolUseCase:
             "additionalProperties": False,
         }
         assert "bindings" not in route
-        assert "b" not in str(route)
+        assert "b" not in route["input_schema"]["properties"]
+        assert "b" not in route["input_schema"]["required"]
+        assert "{{b}}" not in route["path"]
         assert result.config == persisted.config
 
 
