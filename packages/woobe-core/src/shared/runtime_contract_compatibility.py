@@ -159,12 +159,13 @@ def _contract_value_to_schema(value: Any) -> dict[str, Any]:
 
 def _canonicalize(value: Any, *, key: str | None = None) -> Any:
     if isinstance(value, Mapping):
+        name_map = key in {"properties", "definitions", "$defs", "patternProperties"}
         return {
             str(child_key): _canonicalize(child_value, key=str(child_key))
             for child_key, child_value in sorted(
                 value.items(), key=lambda item: str(item[0])
             )
-            if str(child_key) not in _SCHEMA_ANNOTATIONS
+            if name_map or str(child_key) not in _SCHEMA_ANNOTATIONS
         }
     if isinstance(value, list):
         items = [_canonicalize(item) for item in value]
