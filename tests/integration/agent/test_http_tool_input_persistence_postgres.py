@@ -113,7 +113,9 @@ async def test_updated_http_route_does_not_resurrect_removed_agent_input_after_c
                 "required": [],
                 "additionalProperties": False,
             }
-            assert "b" not in str(route)
+            assert "b" not in route["input_schema"]["properties"]
+            assert "b" not in route["input_schema"]["required"]
+            assert "{{b}}" not in route["path"]
             assert route["path"].endswith(
                 "{{external_context.age}}%2B{{project_env.MOCKED_NUMBER}}"
             )
