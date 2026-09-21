@@ -25,6 +25,7 @@ from modules.agent.domain.external_context_contract import (
     resolve_external_context,
 )
 from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
+from modules.agent.infra.execution.runtime_preparation import prefer_live_tools_for_run
 from shared.contracts.errors import ConflictError, ValidationError
 from shared.contracts.llm_cost import provider_model_pricing_snapshot
 from shared.runtime_environment import normalize_runtime_environment
@@ -267,37 +268,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
 
     @staticmethod
     def _prefer_live_tools(input_dto: Any | None = None) -> bool:
-        context = current_execution.get()
-        execution_context = (
-            getattr(input_dto, "execution_context", None)
-            if input_dto is not None
-            else getattr(context, "execution_context", None)
-        )
-        metadata = (
-            getattr(input_dto, "metadata", None)
-            if input_dto is not None
-            else None
-        )
-        metadata = metadata if isinstance(metadata, dict) else {}
-        source = metadata.get("source")
-        is_rerun = (
-            source == "rerun"
-            or metadata.get("rerun_of_run_id") is not None
-        )
-        is_network_runtime = source == "network_runtime"
-        try:
-            environment = normalize_runtime_environment(execution_context)
-        except ValidationError:
-            return False
-        return bool(
-            context is not None
-            and environment == "draft"
-            and not is_rerun
-            and not is_network_runtime
-            and context.network_id is None
-            and context.network_execution_id is None
-            and context.network_invocation_id is None
-        )
+        return prefer_live_tools_for_run(input_dto)
 
     async def _prepare(self, input_dto: Any) -> Any:
         prepared = await super()._prepare(input_dto)
