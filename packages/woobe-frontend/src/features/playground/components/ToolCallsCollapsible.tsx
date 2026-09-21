@@ -76,7 +76,7 @@ function OperationGroup({ toolCalls, variant = 'playground', label, kind }: Tool
 
                 {(toolCall.input != null || toolCall.output != null || (toolCall.error && !isSuccess && !isRunning)) ? (
                   <div className={cn('mt-ui-sm space-y-ui-sm', compact && 'space-y-ui-xs')}>
-                    {toolCall.input != null ? <JsonCodeBlock title="Input" value={toolCall.input as Record<string, unknown>} maxHeight={compact ? woobeLayout.codeSnippetCompact : woobeLayout.codeSnippetDefault} /> : null}
+                    {toolCall.input != null ? <JsonCodeBlock title="Model arguments" value={toolCall.input as Record<string, unknown>} maxHeight={compact ? woobeLayout.codeSnippetCompact : woobeLayout.codeSnippetDefault} /> : null}
                     {toolCall.output != null ? <JsonCodeBlock title="Output" value={toolCall.output as Record<string, unknown>} maxHeight={compact ? woobeLayout.codeSnippetCompact : woobeLayout.codeSnippetDefault} /> : null}
                     {toolCall.error && !isSuccess && !isRunning ? <div className="rounded-container border border-red-500/20 bg-background/25 px-ui-sm py-ui-sm font-mono text-system-meta text-red-300">{toolCall.error_code ? `${toolCall.error_code}: ` : ''}{toolCall.error}</div> : null}
                   </div>
