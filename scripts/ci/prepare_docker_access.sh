@@ -15,6 +15,44 @@ lock_log="$runner_temp/woobe-docker-lock-${run_id}-${attempt}-${job_name}.log"
 
 rm -f "$lock_acquired_file" "$lock_release_file" "$lock_pid_file" "$lock_log"
 
+prepare_complete=false
+
+cleanup_incomplete_prepare() {
+  if [[ "$prepare_complete" == "true" ]]; then
+    return
+  fi
+
+  # If this step is cancelled while still waiting for the flock, the detached
+  # holder would otherwise survive the runner shell and could acquire the lock
+  # later with no job left to release it.
+  : > "$lock_release_file" 2>/dev/null || true
+
+  if [[ -f "$lock_pid_file" ]]; then
+    lock_pid="$(cat "$lock_pid_file" 2>/dev/null || true)"
+    if [[ -n "$lock_pid" ]]; then
+      kill "$lock_pid" 2>/dev/null || true
+      for _ in $(seq 1 20); do
+        if ! kill -0 "$lock_pid" 2>/dev/null; then
+          break
+        fi
+        sleep 0.1
+      done
+      kill -9 "$lock_pid" 2>/dev/null || true
+    fi
+  fi
+
+  rm -f "$lock_acquired_file" "$lock_release_file" "$lock_pid_file"
+}
+
+finish_prepare() {
+  prepare_complete=true
+  trap - EXIT INT TERM
+}
+
+trap cleanup_incomplete_prepare EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
 # All self-hosted runners currently share the same physical Docker host. Serialize
 # Docker-heavy validation on the host itself instead of using GitHub concurrency
 # groups, which keep only one pending job and can cancel unrelated required checks.
@@ -66,6 +104,7 @@ echo "Acquired shared Docker validation lock on runner ${RUNNER_NAME:-unknown}."
 
 if docker info >/dev/null 2>&1; then
   echo "Docker daemon is directly accessible on runner ${RUNNER_NAME:-unknown}."
+  finish_prepare
   exit 0
 fi
 
@@ -129,3 +168,4 @@ if [[ -n "${GITHUB_ENV:-}" ]]; then
 fi
 
 echo "Docker access recovered through user-owned proxy socket $proxy_socket."
+finish_prepare
