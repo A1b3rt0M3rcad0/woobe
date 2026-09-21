@@ -14,7 +14,10 @@ from modules.agent.application.http_tool_contract import (
 from modules.agent.application.mcp_permissions import normalize_permission
 from modules.agent.application.tool_types import is_http_tool_type
 from modules.agent.domain.entities import Tool
-from modules.agent.domain.external_context_contract import normalize_external_context_contract
+from modules.agent.domain.external_context_contract import (
+    ExternalContextContractError,
+    normalize_external_context_contract,
+)
 from modules.agent.domain.tool_project_environment import collect_tool_runtime_dependencies
 from modules.agent.domain.enums import RiskLevel, ToolStatus, ToolType
 from modules.agent.domain.errors import ToolNotFoundError
@@ -223,9 +226,12 @@ async def build_release_tool_runtime(
 
     permission_map = raw_permissions if isinstance(raw_permissions, dict) else {}
     previous_snapshot_map = _snapshot_index(previous_snapshots)
-    agent_external_context_fields = set(
-        normalize_external_context_contract(external_context_contract)
-    )
+    try:
+        agent_external_context_fields = set(
+            normalize_external_context_contract(external_context_contract)
+        )
+    except ExternalContextContractError as exc:
+        raise ValidationError(str(exc)) from exc
     snapshots: list[dict[str, Any]] = []
     effective_permissions: dict[str, dict[str, dict[str, Any]]] = {}
     for tool_id in ordered_ids:
