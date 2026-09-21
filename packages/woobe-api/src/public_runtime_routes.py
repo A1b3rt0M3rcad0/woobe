@@ -5,6 +5,10 @@ from fastapi import APIRouter, HTTPException, Request as FastAPIRequest
 from runtime_composition import RUNTIME_HTTP
 from shared.infra.errors import AuthorizationError
 from shared.security.principal import ProjectApiPrincipal
+from woobe_api.http.shared.output_context_validation import (
+    OutputContextValidationRequest,
+    validate_output_context as validate_sdk_output_context,
+)
 
 router = APIRouter(prefix="/v1", tags=["public-runtime"])
 
@@ -44,6 +48,13 @@ async def cancel_run(run_id: UUID, request: FastAPIRequest):
 async def active_session_run(session_id: UUID, request: FastAPIRequest):
     principal = _runtime_principal(request)
     return await RUNTIME_HTTP.active(principal.target_type, session_id, request)
+
+
+@router.post("/output-context/validate")
+async def validate_output_context(request: FastAPIRequest):
+    principal = _runtime_principal(request)
+    payload = OutputContextValidationRequest(**(await request.json()))
+    return await validate_sdk_output_context(request, principal, payload)
 
 
 @router.post("/jobs", status_code=501)
