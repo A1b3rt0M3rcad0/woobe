@@ -235,6 +235,87 @@ def test_update_merge_preserves_omitted_root_and_child_bindings() -> None:
     assert cleared["routes"][0]["bindings"] == {}
 
 
+def test_update_merge_drops_legacy_route_binding_when_parameter_was_removed() -> None:
+    existing = {
+        "protocol": "http",
+        "mode": "group",
+        "base_url": "https://example.com",
+        "routes": [
+            {
+                "id": "sum",
+                "operation_id": "sum",
+                "name": "Sum",
+                "bindings": {"b": binding("age")},
+            }
+        ],
+    }
+    candidate = {
+        "protocol": "http",
+        "mode": "group",
+        "base_url": "https://example.com",
+        "routes": [
+            {
+                "id": "sum",
+                "operation_id": "sum",
+                "name": "Sum",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {},
+                    "required": [],
+                    "additionalProperties": False,
+                },
+            }
+        ],
+    }
+
+    merged = merge_context_bindings_for_update(existing, candidate)
+
+    assert "bindings" not in merged["routes"][0]
+
+
+def test_update_merge_keeps_only_bindings_for_still_declared_route_parameters() -> None:
+    existing = {
+        "protocol": "http",
+        "mode": "group",
+        "base_url": "https://example.com",
+        "routes": [
+            {
+                "id": "search",
+                "operation_id": "search",
+                "name": "Search",
+                "bindings": {
+                    "customer_id": binding("customer_id"),
+                    "removed": binding("removed"),
+                },
+            }
+        ],
+    }
+    candidate = {
+        "protocol": "http",
+        "mode": "group",
+        "base_url": "https://example.com",
+        "routes": [
+            {
+                "id": "search",
+                "operation_id": "search",
+                "name": "Search",
+                "input_schema": {
+                    "type": "object",
+                    "properties": {"customer_id": {"type": "string"}},
+                    "required": ["customer_id"],
+                    "additionalProperties": False,
+                },
+            }
+        ],
+    }
+
+    merged = merge_context_bindings_for_update(existing, candidate)
+
+    assert merged["routes"][0]["bindings"] == {
+        "customer_id": binding("customer_id")
+    }
+
+
 def test_update_merge_preserves_omitted_mcp_discovered_tool_binding() -> None:
     existing = {
         "protocol": "mcp",
