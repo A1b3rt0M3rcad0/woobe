@@ -31,7 +31,7 @@ from shared.infra.errors import (
     ConflictError,
     NotFoundError,
 )
-from shared.runtime_contract_compatibility import (
+from shared.contracts.runtime_contracts import (
     RuntimeContractSnapshot,
     effective_external_context_contract_schema,
     normalize_contract_schema,
