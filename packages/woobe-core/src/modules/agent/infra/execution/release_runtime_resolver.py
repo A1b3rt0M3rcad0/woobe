@@ -285,22 +285,32 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         raw_tool_ids = tools_config.get("tool_ids")
         raw_permissions = tools_config.get("permissions")
         permission_map = raw_permissions if isinstance(raw_permissions, dict) else {}
-        snapshot_index = self._snapshot_index(raw_snapshots)
         selected_ids = self._selected_tool_ids(raw_tool_ids, raw_snapshots)
 
-        snapshot_tools: dict[UUID, Any] = {}
-        for tool_id in selected_ids:
-            raw_snapshot = snapshot_index.get(str(tool_id))
-            if raw_snapshot is None:
-                continue
-            tool = tool_from_release_snapshot(raw_snapshot)
-            if tool.project_id != agent.project_id:
-                raise ValidationError("Release tool snapshot does not belong to this Project")
-            if _value(tool.status) != ToolStatus.ACTIVE.value:
-                raise ValidationError(f"Release tool snapshot is not active: {tool.name}")
-            snapshot_tools[tool_id] = tool
+        runtime_context = current_execution.get()
+        prefer_live_tools = (
+            runtime_context is not None
+            and runtime_context.execution_context == "playground"
+            and runtime_context.network_execution_id is None
+        )
 
-        live_ids = [tool_id for tool_id in selected_ids if tool_id not in snapshot_tools]
+        snapshot_tools: dict[UUID, Any] = {}
+        if not prefer_live_tools:
+            snapshot_index = self._snapshot_index(raw_snapshots)
+            for tool_id in selected_ids:
+                raw_snapshot = snapshot_index.get(str(tool_id))
+                if raw_snapshot is None:
+                    continue
+                tool = tool_from_release_snapshot(raw_snapshot)
+                if tool.project_id != agent.project_id:
+                    raise ValidationError("Release tool snapshot does not belong to this Project")
+                if _value(tool.status) != ToolStatus.ACTIVE.value:
+                    raise ValidationError(f"Release tool snapshot is not active: {tool.name}")
+                snapshot_tools[tool_id] = tool
+
+        live_ids = selected_ids if prefer_live_tools else [
+            tool_id for tool_id in selected_ids if tool_id not in snapshot_tools
+        ]
         live_tools: dict[UUID, Any] = {}
         if live_ids:
             if self._runtime_tool_reader is None:
@@ -342,7 +352,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             source = "draft_live"
 
         definitions, name_to_id = agent_tools_to_openai_definitions_and_mapping(tools)
-        context = current_execution.get()
+        context = runtime_context or current_execution.get()
         if context is not None:
             context.tool_snapshots = snapshot_map or None
             context.tool_metadata = {
