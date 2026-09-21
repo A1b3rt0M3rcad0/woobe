@@ -99,6 +99,50 @@ def classify_release_change(
     return ReleaseChangeKind.CHANGE
 
 
+_OUTPUT_SCHEMA_ANNOTATIONS = {
+    "$id",
+    "$schema",
+    "default",
+    "description",
+    "examples",
+    "title",
+}
+
+
+def _canonicalize_output_schema_node(value: Any, *, key: str | None = None) -> Any:
+    if isinstance(value, dict):
+        return {
+            str(child_key): _canonicalize_output_schema_node(
+                child_value,
+                key=str(child_key),
+            )
+            for child_key, child_value in sorted(
+                value.items(),
+                key=lambda item: str(item[0]),
+            )
+            if str(child_key) not in _OUTPUT_SCHEMA_ANNOTATIONS
+        }
+    if isinstance(value, list):
+        items = [
+            _canonicalize_output_schema_node(item)
+            for item in value
+        ]
+        if key in {"required", "type"}:
+            return sorted(items, key=str)
+        if key in {"enum", "oneOf", "anyOf", "allOf"}:
+            return sorted(
+                items,
+                key=lambda item: json.dumps(
+                    item,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    default=str,
+                ),
+            )
+        return items
+    return value
+
+
 def normalize_output_schema(value: Any) -> dict[str, Any] | None:
     """Normalize compact or JSON Schema output contracts for public boundaries."""
     value = _parse_json_if_needed(value)
@@ -116,11 +160,11 @@ def normalize_output_schema(value: Any) -> dict[str, Any] | None:
     ):
         return normalize_output_schema(value["json_schema"]["schema"])
     if _looks_like_json_schema(value):
-        return _normalize_json_schema(value)
+        return _canonicalize_output_schema_node(_normalize_json_schema(value))
 
     normalized = _simple_contract_to_object_schema(value)
     normalized["required"] = [str(name) for name in value.keys()]
-    return normalized
+    return _canonicalize_output_schema_node(normalized)
 
 
 def effective_output_schema(release: Any) -> dict[str, Any] | None:
@@ -143,12 +187,7 @@ def output_schemas_equivalent(left: Any, right: Any) -> bool:
     """Compare output contracts by structural semantics rather than annotations."""
     left_schema = normalize_output_schema(left)
     right_schema = normalize_output_schema(right)
-    if left_schema is None or right_schema is None:
-        return left_schema is right_schema
-    return not _schema_node_breaks(left_schema, right_schema) and not _schema_node_breaks(
-        right_schema,
-        left_schema,
-    )
+    return left_schema == right_schema
 
 
 def _simple_contract_change_kind(
