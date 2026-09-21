@@ -16,8 +16,8 @@ from shared.runtime_contract_compatibility import (
 
 
 class AgentRuntimeContractReader:
-    def __init__(self) -> None:
-        self._session_factory = create_session_factory(DATABASE_ENGINE)
+    def __init__(self, engine=None) -> None:
+        self._session_factory = create_session_factory(engine or DATABASE_ENGINE)
 
     async def read(
         self,
