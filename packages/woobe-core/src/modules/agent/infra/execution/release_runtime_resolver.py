@@ -273,9 +273,24 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             if input_dto is not None
             else getattr(context, "execution_context", None)
         )
+        metadata = (
+            getattr(input_dto, "metadata", None)
+            if input_dto is not None
+            else None
+        )
+        metadata = metadata if isinstance(metadata, dict) else {}
+        is_rerun = (
+            metadata.get("source") == "rerun"
+            or metadata.get("rerun_of_run_id") is not None
+        )
+        try:
+            environment = normalize_runtime_environment(execution_context)
+        except ValidationError:
+            return False
         return bool(
             context is not None
-            and str(execution_context or "").lower() == "playground"
+            and environment == "draft"
+            and not is_rerun
             and context.network_id is None
             and context.network_execution_id is None
             and context.network_invocation_id is None
@@ -285,9 +300,17 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         prepared = await super()._prepare(input_dto)
         if not isinstance(prepared, tuple) or len(prepared) < 13:
             return prepared
-        return await self._apply_runtime_tool_selection(prepared)
+        return await self._apply_runtime_tool_selection(
+            prepared,
+            input_dto=input_dto,
+        )
 
-    async def _apply_runtime_tool_selection(self, prepared: tuple[Any, ...]) -> tuple[Any, ...]:
+    async def _apply_runtime_tool_selection(
+        self,
+        prepared: tuple[Any, ...],
+        *,
+        input_dto: Any | None = None,
+    ) -> tuple[Any, ...]:
         agent = prepared[0]
         settings = dict(getattr(agent, "settings", None) or {})
         runtime_config = settings.get("runtime_config")
@@ -305,7 +328,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         selected_ids = self._selected_tool_ids(raw_tool_ids, raw_snapshots)
 
         runtime_context = current_execution.get()
-        prefer_live_tools = self._prefer_live_tools()
+        prefer_live_tools = self._prefer_live_tools(input_dto)
 
         snapshot_tools: dict[UUID, Any] = {}
         if not prefer_live_tools:
