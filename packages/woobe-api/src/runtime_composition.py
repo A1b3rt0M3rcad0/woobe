@@ -5,6 +5,7 @@ from uuid import UUID
 from fastapi import Request as FastAPIRequest
 
 from modules.agent.entrypoint import (
+    ReadRuntimeContractsInput,
     build_agent_runtime_contract_reader,
     build_public_stream_components,
     public_run_composer,
@@ -78,10 +79,12 @@ class RuntimeHttpComposition:
             raise ValidationError("Runtime Key binding is incomplete")
 
         if principal.target_type == "agent":
-            snapshot = await build_agent_runtime_contract_reader().read(
-                agent_id=target_id,
-                project_id=principal.project_id,
-                environment=environment,
+            snapshot = await build_agent_runtime_contract_reader()(
+                ReadRuntimeContractsInput(
+                    agent_id=target_id,
+                    project_id=principal.project_id,
+                    environment=environment,
+                )
             )
         else:
             snapshot = await build_network_service().runtime_contract_snapshot(
