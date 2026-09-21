@@ -87,6 +87,7 @@ class AskJobWorker:
             tenant_id=params.get("tenant_id"),
             user_id=params.get("user_id"),
             metadata=params.get("metadata"),
+            external_context=params.get("external_context"),
             execution_context=params.get("execution_context", "production"),
         )
 
