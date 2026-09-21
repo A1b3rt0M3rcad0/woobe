@@ -368,6 +368,21 @@ async def test_draft_rerun_keeps_historical_tool_snapshot_instead_of_live_tool()
     assert set(resolved[7][0]["function"]["parameters"]["properties"]) == {"b"}
 
 
+def test_network_runtime_metadata_disables_draft_live_tools_before_network_ids_exist() -> None:
+    context = new_execution_context()
+    context.execution_context = "playground"
+    input_dto = SimpleNamespace(
+        execution_context="playground",
+        metadata={"source": "network_runtime"},
+    )
+
+    token = current_execution.set(context)
+    try:
+        assert ReleaseRuntimeResolver._prefer_live_tools(input_dto) is False
+    finally:
+        current_execution.reset(token)
+
+
 @pytest.mark.asyncio
 async def test_network_playground_context_keeps_release_tool_snapshot() -> None:
     project_id = uuid4()
