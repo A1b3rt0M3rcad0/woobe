@@ -19,9 +19,11 @@ import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import { ApiModal } from '@/features/playground/components/ApiModal'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
 import {
+  getStoredPlaygroundExternalContext,
   getStoredPlaygroundRunId,
   getStoredPlaygroundSessionId,
   setPlaygroundSessionId,
+  setStoredPlaygroundExternalContext,
   setStoredPlaygroundRunId,
   setStoredPlaygroundSessionId,
 } from '@/features/playground/lib/playground-session-store'
@@ -224,9 +226,12 @@ function PlaygroundContent() {
   const sessionIdForRun = isStateless ? null : sessionIdState
   const selectedSessionId = sessionIdState
   useEffect(() => {
+    const rememberedContext = projectId && agentId
+      ? getStoredPlaygroundExternalContext(projectId, agentId, environment)
+      : null
     const environmentValues = filterContractValues(
       activeExternalContextContract,
-      storedEnvironmentContext,
+      rememberedContext ?? storedEnvironmentContext,
     )
     const previousEnvironment = externalContextOwnerRef.current
     const contextDirty = externalContextDirtyRef.current
@@ -243,14 +248,28 @@ function PlaygroundContent() {
     externalContextOwnerRef.current = environment
   }, [
     activeExternalContextContract,
+    agentId,
     environment,
+    projectId,
     storedEnvironmentContext,
   ])
 
   const handleExternalContextValuesChange = useCallback((values: Record<string, unknown>) => {
+    const filtered = filterContractValues(activeExternalContextContract, values)
     externalContextDirtyRef.current = true
-    setExternalContextValues(filterContractValues(activeExternalContextContract, values))
-  }, [activeExternalContextContract])
+    setExternalContextValues(filtered)
+    if (projectId && agentId) {
+      setStoredPlaygroundExternalContext(projectId, agentId, environment, filtered)
+    }
+  }, [activeExternalContextContract, agentId, environment, projectId])
+
+  const handleClearExternalContextValues = useCallback(() => {
+    externalContextDirtyRef.current = true
+    setExternalContextValues({})
+    if (projectId && agentId) {
+      setStoredPlaygroundExternalContext(projectId, agentId, environment, {})
+    }
+  }, [agentId, environment, projectId])
 
 
 
@@ -813,6 +832,7 @@ function PlaygroundContent() {
               externalContextContract={activeExternalContextContract}
               externalContextValues={externalContextValues}
               onExternalContextValuesChange={handleExternalContextValuesChange}
+              onClearExternalContextValues={handleClearExternalContextValues}
             />
           </div>
           {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={releasesLoading} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
