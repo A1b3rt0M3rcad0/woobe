@@ -99,6 +99,28 @@ def classify_release_change(
     return ReleaseChangeKind.CHANGE
 
 
+def normalize_output_schema(value: Any) -> dict[str, Any] | None:
+    """Normalize compact or JSON Schema output contracts for public boundaries."""
+    return _normalize_schema(value)
+
+
+def effective_output_schema(release: Any) -> dict[str, Any] | None:
+    """Return the effective structured-output schema frozen in a Release."""
+    return _effective_output_schema(release, _normalize_response_format(release))
+
+
+def output_schemas_equivalent(left: Any, right: Any) -> bool:
+    """Compare output contracts by structural semantics rather than annotations."""
+    left_schema = _normalize_schema(left)
+    right_schema = _normalize_schema(right)
+    if left_schema is None or right_schema is None:
+        return left_schema is right_schema
+    return not _schema_node_breaks(left_schema, right_schema) and not _schema_node_breaks(
+        right_schema,
+        left_schema,
+    )
+
+
 def _simple_contract_change_kind(
     previous: Any,
     candidate: Any,
