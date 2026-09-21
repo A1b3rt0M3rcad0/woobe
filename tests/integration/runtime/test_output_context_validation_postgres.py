@@ -6,6 +6,7 @@ import pytest
 
 from modules.agent.composition.runtime_contract_reader import AgentRuntimeContractReader
 from modules.agent.infra.database.models import AgentModel, AgentReleaseModel
+from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 from shared.runtime_contract_compatibility import (
@@ -77,7 +78,9 @@ async def test_agent_runtime_contract_reader_returns_output_and_external_context
                 )
             )
 
-        snapshot = await AgentRuntimeContractReader(engine).read(
+        snapshot = await AgentRuntimeContractReader(
+            lambda: AgentUnitOfWork(engine).mark_read_only()
+        ).read(
             agent_id=agent_id,
             project_id=project_id,
             environment="production",
