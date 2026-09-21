@@ -279,10 +279,12 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             else None
         )
         metadata = metadata if isinstance(metadata, dict) else {}
+        source = metadata.get("source")
         is_rerun = (
-            metadata.get("source") == "rerun"
+            source == "rerun"
             or metadata.get("rerun_of_run_id") is not None
         )
+        is_network_runtime = source == "network_runtime"
         try:
             environment = normalize_runtime_environment(execution_context)
         except ValidationError:
@@ -291,6 +293,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             context is not None
             and environment == "draft"
             and not is_rerun
+            and not is_network_runtime
             and context.network_id is None
             and context.network_execution_id is None
             and context.network_invocation_id is None
