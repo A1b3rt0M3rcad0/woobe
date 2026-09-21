@@ -796,11 +796,6 @@ export function ApiFirstToolForm({
                           <button type="button" onClick={() => editRoute(route)} className="min-w-0 flex-1 text-left">
                             <p className="truncate text-sm font-medium text-white">{route.name}</p>
                             <p className="mt-0.5 truncate font-mono text-[11px] text-muted">{route.path}</p>
-                            {Object.keys(route.bindings || {}).length ? (
-                              <p className="mt-1 font-mono text-[9px] text-primary-light">
-                                {Object.keys(route.bindings || {}).length} runtime binding{Object.keys(route.bindings || {}).length === 1 ? '' : 's'}
-                              </p>
-                            ) : null}
                           </button>
                           <Button type="button" size="sm" variant="ghost" className="text-red-300" onClick={() => removeRoute(route.id)} aria-label={`Remove ${route.name}`}>
                             <Trash2 className="h-3.5 w-3.5" />
