@@ -10,7 +10,7 @@ from modules.agent.application.use_cases.read_runtime_contracts import (
 from modules.agent.composition.factories.agent_uow_factory import build_agent_read_uow
 from modules.agent.infra.database.repositories import SQLAlchemyAgentReleaseRepository
 from shared.infra.transactional_handler import TransactionalHandler
-from shared.runtime_contract_compatibility import RuntimeContractSnapshot
+from shared.contracts.runtime_contracts import RuntimeContractSnapshot
 
 
 class AgentRuntimeContractReader:
