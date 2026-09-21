@@ -33,6 +33,47 @@ def test_compiler_recovers_parameters_from_body_when_saved_schema_is_empty() -> 
     assert contract.contract_hash
 
 
+def test_compiler_drops_stale_declared_parameters_not_used_by_template() -> None:
+    contract = compile_http_tool_contract(
+        {
+            "protocol": "http",
+            "method": "GET",
+            "url": "https://api.example.com/search?q={{b}}&age={{external_context.age}}",
+            "headers": [],
+        },
+        {
+            "type": "object",
+            "properties": {
+                "a": {"type": "integer"},
+                "b": {"type": "integer"},
+            },
+            "required": ["a", "b"],
+        },
+    )
+
+    assert contract.parameter_names == ("b",)
+    assert contract.input_schema["properties"] == {"b": {"type": "integer"}}
+    assert contract.input_schema["required"] == ["b"]
+
+
+def test_runtime_templates_never_become_model_inputs() -> None:
+    contract = compile_http_tool_contract(
+        {
+            "protocol": "http",
+            "method": "GET",
+            "url": (
+                "https://api.example.com/{{external_context.customer_id}}"
+                "?token={{project_env.API_KEY}}&query={{query}}"
+            ),
+            "headers": [],
+        }
+    )
+
+    assert contract.parameter_names == ("query",)
+    assert set(contract.input_schema["properties"]) == {"query"}
+    assert contract.input_schema["required"] == ["query"]
+
+
 def test_renderer_builds_valid_json_body_with_real_arguments() -> None:
     contract = compile_http_tool_contract(mathjs_config())
 
