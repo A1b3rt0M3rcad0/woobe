@@ -80,6 +80,7 @@ class RuntimeStrategyModel:
         "_runtime_state",
         "_base_messages",
         "_initial_phase",
+        "_communication_model",
         "_final_model",
         "_final_model_factory",
         "_final_json_instruction",
@@ -92,6 +93,7 @@ class RuntimeStrategyModel:
         runtime_state: StrategyRuntimeState,
         base_messages: list[Any],
         initial_phase: str,
+        communication_model: Any | None,
         final_model: Any | None,
         final_model_factory: Any | None,
         final_json_instruction: str | None,
@@ -100,6 +102,7 @@ class RuntimeStrategyModel:
         self._runtime_state = runtime_state
         self._base_messages = list(base_messages)
         self._initial_phase = initial_phase
+        self._communication_model = communication_model
         self._final_model = final_model
         self._final_model_factory = final_model_factory
         self._final_json_instruction = final_json_instruction
@@ -147,6 +150,25 @@ class RuntimeStrategyModel:
             phase=phase or self._initial_phase,
             directive=directive,
             output_mode=output_mode,
+        )
+
+    async def communicate(
+        self,
+        *,
+        phase: StrategyPhase,
+        directive: str | None = None,
+    ) -> StrategyModelResult:
+        capability = (
+            self._capability.for_model(self._communication_model)
+            if self._communication_model is not None
+            else self._capability
+        )
+        return await self._invoke(
+            capability=capability,
+            messages=self._runtime_state.messages,
+            phase=phase,
+            directive=directive,
+            output_mode=StrategyOutputMode.INTERMEDIATE,
         )
 
     async def finalize(
