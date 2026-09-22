@@ -106,6 +106,7 @@ export const DEFAULT_CHAT_SURFACE_APPEARANCE: ChatSurfaceAppearance = {
   },
   response: {
     render_mode: 'rich',
+    show_intermediate_messages: false,
   },
 }
 
