@@ -65,6 +65,20 @@ class StrategyModel(Protocol):
         """
         ...
 
+    async def communicate(
+        self,
+        *,
+        phase: StrategyPhase,
+        directive: str | None = None,
+    ) -> StrategyModelResult:
+        """Publish one user-facing intermediate Assistant message.
+
+        Communication is explicitly non-terminal and must not expose internal
+        reasoning. Runtime implementations should use an unbound model when Tools
+        are available so this operation cannot accidentally select a capability.
+        """
+        ...
+
     async def finalize(
         self,
         *,
