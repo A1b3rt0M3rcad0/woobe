@@ -138,6 +138,64 @@ class RuntimeContextPriorities:
             _set_priority(self._policy, source, priority)
 
 
+class RuntimeContextCapacity:
+    """Read-only capacity facts derived from invocation runtime state and effective policy."""
+
+    __slots__ = ("_policy", "_runtime_context")
+
+    def __init__(self, policy: ContextPolicyV1, runtime_context) -> None:
+        self._policy = policy
+        self._runtime_context = runtime_context
+
+    @property
+    def model_capacity_units(self) -> int | None:
+        value = getattr(self._runtime_context, "model_capacity_units", None)
+        return value if isinstance(value, int) and value > 0 else None
+
+    @property
+    def reserved_output_units(self) -> int | None:
+        value = getattr(self._runtime_context, "reserved_output_units", None)
+        return value if isinstance(value, int) and value >= 0 else None
+
+    @property
+    def runtime_reserve_units(self) -> int:
+        return self._policy.budget.runtime_reserve_units
+
+    @property
+    def configured_input_budget_units(self) -> int | None:
+        return self._policy.budget.max_input_units
+
+    @property
+    def model_usable_input_units(self) -> int | None:
+        capacity = self.model_capacity_units
+        if capacity is None:
+            return None
+        return max(
+            0,
+            capacity
+            - (self.reserved_output_units or 0)
+            - self.runtime_reserve_units,
+        )
+
+    @property
+    def usable_input_budget_units(self) -> int | None:
+        model_usable = self.model_usable_input_units
+        configured = self.configured_input_budget_units
+        if model_usable is not None and configured is not None:
+            return min(model_usable, configured)
+        return model_usable if model_usable is not None else configured
+
+    @property
+    def budget_clamped(self) -> bool:
+        model_usable = self.model_usable_input_units
+        configured = self.configured_input_budget_units
+        return (
+            model_usable is not None
+            and configured is not None
+            and configured > model_usable
+        )
+
+
 class RuntimeContextBudget:
     __slots__ = ("_policy",)
 
@@ -194,6 +252,7 @@ class RuntimeContextManagerContext:
     __slots__ = (
         "_configured_policy",
         "candidates",
+        "capacity",
         "priorities",
         "budget",
         "pressure",
@@ -207,6 +266,10 @@ class RuntimeContextManagerContext:
         self._configured_policy = request.policy.model_copy(deep=True)
         self._effective_policy = request.policy.model_copy(deep=True)
         self.candidates = RuntimeContextCandidates(self._effective_policy)
+        self.capacity = RuntimeContextCapacity(
+            self._effective_policy,
+            request.runtime_context,
+        )
         self.priorities = RuntimeContextPriorities(self._effective_policy)
         self.budget = RuntimeContextBudget(self._effective_policy)
         self.pressure = RuntimeContextPressure(self._effective_policy)
