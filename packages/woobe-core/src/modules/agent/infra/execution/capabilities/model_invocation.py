@@ -37,15 +37,19 @@ class ModelInvocationCapability:
         messages: list,
         phase: str,
         call_index: int,
+        public_output: bool | None = None,
     ) -> tuple[Any, dict[str, Any]]:
         invoke = self.invoke_fn or invoke_llm
-        return await invoke(
-            model=self.model,
-            messages=messages,
-            phase=phase,
-            call_index=call_index,
-            provider=self.provider,
-            model_name=self.model_name,
-            pricing_snapshot=self.pricing_snapshot,
-            context_assembler=self.context_assembler,
-        )
+        kwargs = {
+            "model": self.model,
+            "messages": messages,
+            "phase": phase,
+            "call_index": call_index,
+            "provider": self.provider,
+            "model_name": self.model_name,
+            "pricing_snapshot": self.pricing_snapshot,
+            "context_assembler": self.context_assembler,
+        }
+        if public_output is not None:
+            kwargs["public_output"] = public_output
+        return await invoke(**kwargs)

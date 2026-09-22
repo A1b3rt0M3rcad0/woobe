@@ -186,3 +186,55 @@ async def test_runtime_stream_allows_exactly_one_terminal_event() -> None:
     terminal = channel.queue.get_nowait()
     assert terminal.event_type == "done"
     assert channel.queue.empty()
+
+
+@pytest.mark.asyncio
+async def test_strategy_specific_phase_can_explicitly_own_public_output() -> None:
+    channel = RuntimeStreamChannel()
+    token = current_runtime_stream.set(channel)
+    try:
+        result = await invoke_model_with_optional_streaming(
+            model=StreamingModel(),
+            messages=[],
+            phase="conclusion",
+            provider="openai",
+            model_name="gpt-test",
+            public_output=True,
+        )
+    finally:
+        current_runtime_stream.reset(token)
+
+    activity = channel.queue.get_nowait()
+    first = channel.queue.get_nowait()
+    second = channel.queue.get_nowait()
+    assert activity.event_type == "agent_activity"
+    assert activity.payload["status"] == "generating_answer"
+    assert activity.payload["phase"] == "conclusion"
+    assert activity.payload["message"] == "Generating conclusion..."
+    assert [first.event_type, second.event_type] == ["token", "token"]
+    assert result.content == "hello world"
+
+
+@pytest.mark.asyncio
+async def test_strategy_specific_internal_phase_exposes_phase_activity_without_output() -> None:
+    channel = RuntimeStreamChannel()
+    token = current_runtime_stream.set(channel)
+    try:
+        result = await invoke_model_with_optional_streaming(
+            model=StreamingModel(),
+            messages=[],
+            phase="hypothesis_formulation",
+            provider="openai",
+            model_name="gpt-test",
+            public_output=False,
+        )
+    finally:
+        current_runtime_stream.reset(token)
+
+    activity = channel.queue.get_nowait()
+    assert activity.event_type == "agent_activity"
+    assert activity.payload["status"] == "thinking"
+    assert activity.payload["phase"] == "hypothesis_formulation"
+    assert activity.payload["message"] == "Hypothesis formulation..."
+    assert result.content == "hello world"
+    assert channel.queue.empty()

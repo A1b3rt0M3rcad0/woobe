@@ -230,6 +230,7 @@ async def invoke_llm(
     model_name: str,
     pricing_snapshot: dict[str, Any] | None = None,
     context_assembler: ContextAssembler | None = None,
+    public_output: bool | None = None,
 ) -> tuple[Any, dict[str, Any]]:
     call_uuid = uuid6.uuid7()
     call_id = str(call_uuid)
@@ -320,6 +321,7 @@ async def invoke_llm(
             phase=phase,
             provider=provider,
             model_name=model_name,
+            public_output=public_output,
         )
     except asyncio.CancelledError:
         ended_at = utc_iso()

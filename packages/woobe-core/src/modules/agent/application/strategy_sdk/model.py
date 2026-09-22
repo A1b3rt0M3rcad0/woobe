@@ -47,6 +47,7 @@ class StrategyModel(Protocol):
         *,
         phase: StrategyPhase | None = None,
         directive: str | None = None,
+        public_output: bool | None = None,
     ) -> StrategyModelResult:
         """Invoke the model for one Strategy phase.
 
@@ -63,6 +64,7 @@ class StrategyModel(Protocol):
         reason: str,
         phase: StrategyPhase,
         directive: str | None = None,
+        public_output: bool | None = None,
     ) -> StrategyModelResult:
         """Produce a terminal model response for one Strategy phase.
 

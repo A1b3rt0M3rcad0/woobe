@@ -27,11 +27,6 @@ import type {
 } from './types'
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
-const FINAL_PHASES = new Set([
-  'response_generation',
-  'capability_response_generation',
-  'final_response_generation',
-])
 const PROVIDER_CONTROL_TOKENS = ['<｜end▁of▁sentence｜>', '<|endoftext|>', '<|eot_id|>']
 const TERMINAL_STREAM_EVENTS = new Set(['done', 'error', 'cancelled'])
 const MAX_VISUAL_FRAMES_PER_PAINT = 6
@@ -133,17 +128,10 @@ function streamTextOf(item: Record<string, unknown>): StreamTokenInfo {
   }
 }
 
-function isFinalPhase(phase: string): boolean {
-  return FINAL_PHASES.has(phase) || phase.startsWith('tool_followup_')
-}
-
 function isFinalStreamText(item: StreamTokenInfo): boolean {
-  return (
-    item.visibility === 'assistant' &&
-    item.channel === 'final' &&
-    typeof item.phase === 'string' &&
-    isFinalPhase(item.phase)
-  )
+  // Output visibility is a runtime contract. Presentation must not duplicate
+  // Strategy-specific phase knowledge.
+  return item.visibility === 'assistant' && item.channel === 'final'
 }
 
 function activityMessage(status: string, toolName?: string | null): string {
@@ -163,7 +151,7 @@ function activityOf(item: Record<string, unknown>): AgentActivityInfo {
   return {
     status,
     phase: stringOrNull(item.phase),
-    message: activityMessage(status, toolName),
+    message: stringOrNull(item.message) ?? activityMessage(status, toolName),
     tool_name: toolName,
     provider: stringOrNull(item.provider),
     model: stringOrNull(item.model),

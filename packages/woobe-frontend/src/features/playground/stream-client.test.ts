@@ -18,6 +18,7 @@ function callbacks() {
     onError: vi.fn(),
     onCancelled: vi.fn(),
     onTokenRetract: vi.fn(),
+    onAgentActivity: vi.fn(),
     onProtocolError: vi.fn(),
   }
 }
@@ -195,6 +196,71 @@ describe('Agent runtime terminal response', () => {
       answer: 'provider answer',
       provider: 'openai',
       model: 'gpt-test',
+    }))
+  })
+})
+
+
+describe('Strategy-neutral runtime presentation', () => {
+  it('accepts public assistant output from a Strategy-specific phase', async () => {
+    const body = [
+      `event: token\ndata: ${JSON.stringify(runtimeTestEnvelope('token', {
+        type: 'token',
+        run_id: 'run-1',
+        content: 'evidence-backed answer',
+        visibility: 'assistant',
+        channel: 'final',
+        phase: 'conclusion',
+      }, 'AGENT'))}\n\n`,
+      `event: done\ndata: ${JSON.stringify(runtimeTestEnvelope('done', {
+        type: 'done',
+        run_id: 'run-1',
+        answer: 'evidence-backed answer',
+      }, 'AGENT'))}\n\n`,
+    ].join('')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(streamResponse(body)))
+    const handlers = callbacks()
+
+    await askStreamV1({
+      project_id: 'project-1',
+      agent_id: 'agent-1',
+      message: 'investigate',
+    }, handlers)
+
+    expect(handlers.onToken).toHaveBeenCalledWith(expect.objectContaining({
+      content: 'evidence-backed answer',
+      phase: 'conclusion',
+    }))
+  })
+
+  it('preserves backend activity message for Strategy-specific phases', async () => {
+    const body = [
+      `event: agent_activity\ndata: ${JSON.stringify(runtimeTestEnvelope('agent_activity', {
+        type: 'agent_activity',
+        run_id: 'run-1',
+        status: 'thinking',
+        phase: 'critical_review',
+        message: 'Critical review...',
+      }, 'AGENT'))}\n\n`,
+      `event: done\ndata: ${JSON.stringify(runtimeTestEnvelope('done', {
+        type: 'done',
+        run_id: 'run-1',
+        answer: 'done',
+      }, 'AGENT'))}\n\n`,
+    ].join('')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(streamResponse(body)))
+    const handlers = callbacks()
+
+    await askStreamV1({
+      project_id: 'project-1',
+      agent_id: 'agent-1',
+      message: 'investigate',
+    }, handlers)
+
+    expect(handlers.onAgentActivity).toHaveBeenCalledWith(expect.objectContaining({
+      status: 'thinking',
+      phase: 'critical_review',
+      message: 'Critical review...',
     }))
   })
 })

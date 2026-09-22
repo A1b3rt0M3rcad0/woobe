@@ -33,13 +33,31 @@ class _Model:
         self.invocations: list[dict[str, object]] = []
         self.finalizations: list[dict[str, object]] = []
 
-    async def invoke(self, *, phase=None, directive=None):
-        self.invocations.append({"phase": phase, "directive": directive})
+    async def invoke(self, *, phase=None, directive=None, public_output=None):
+        self.invocations.append(
+            {
+                "phase": phase,
+                "directive": directive,
+                "public_output": public_output,
+            }
+        )
         return self.responses.pop(0)
 
-    async def finalize(self, *, reason, phase, directive=None):
+    async def finalize(
+        self,
+        *,
+        reason,
+        phase,
+        directive=None,
+        public_output=None,
+    ):
         self.finalizations.append(
-            {"reason": reason, "phase": phase, "directive": directive}
+            {
+                "reason": reason,
+                "phase": phase,
+                "directive": directive,
+                "public_output": public_output,
+            }
         )
         return _result("limited conclusion")
 
@@ -114,6 +132,15 @@ async def test_scientific_method_uses_directives_and_reopens_investigation() -> 
     assert "Attempt to falsify" in directives[3]
     assert "experiment round 2" in directives[4]
     assert "Produce the conclusion" in directives[-1]
+    assert [item["public_output"] for item in model.invocations] == [
+        False,
+        False,
+        False,
+        False,
+        False,
+        False,
+        True,
+    ]
 
 
 @pytest.mark.asyncio
@@ -150,3 +177,4 @@ async def test_scientific_method_stops_before_exceeding_experiment_limit() -> No
     finalization = model.finalizations[0]
     assert finalization["phase"] == ScientificMethodPhase.CONCLUSION
     assert "Do not request additional Tools" in str(finalization["directive"])
+    assert finalization["public_output"] is True

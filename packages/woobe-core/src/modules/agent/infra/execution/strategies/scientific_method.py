@@ -182,6 +182,7 @@ class ScientificMethodExecutionStrategy(
                     reason=state.stop_reason.value,
                     phase=ScientificMethodPhase.CONCLUSION,
                     directive=_LIMITED_CONCLUSION_DIRECTIVE,
+                    public_output=True,
                 )
                 return Completed(result)
 
@@ -189,6 +190,9 @@ class ScientificMethodExecutionStrategy(
                 result = await ctx.model.invoke(
                     phase=state.phase,
                     directive=self._directive(state),
+                    public_output=(
+                        state.phase == ScientificMethodPhase.CONCLUSION.value
+                    ),
                 )
             except InstrumentedExecutionError:
                 state.stop_reason = (

@@ -439,19 +439,37 @@ def _is_capability_selection_phase(phase: str) -> bool:
     return phase == "capability_response_generation" or phase.startswith("tool_followup_")
 
 
-def _can_emit_phase_as_final(phase: str) -> bool:
+def _can_emit_phase_as_final(
+    phase: str,
+    *,
+    public_output: bool | None = None,
+) -> bool:
+    if public_output is not None:
+        return public_output
     return _is_final_response_phase(phase) or _is_capability_selection_phase(phase)
 
 
-def _can_stream_phase_live(phase: str) -> bool:
-    # Capability-aware invocations are streamed optimistically so direct responses
-    # preserve provider TTFT instead of waiting for the entire invocation. If the
-    # provider later selects another Tool/Delegation, the already-published candidate
-    # text is retracted atomically through the runtime stream protocol.
-    return _can_emit_phase_as_final(phase)
+def _can_stream_phase_live(
+    phase: str,
+    *,
+    public_output: bool | None = None,
+) -> bool:
+    # Existing Strategies keep the legacy phase policy. New Strategies explicitly
+    # declare whether an invocation owns public output, so the runtime does not need
+    # to know Strategy-specific phase names.
+    return _can_emit_phase_as_final(phase, public_output=public_output)
 
 
-def _activity_for_phase(phase: str) -> tuple[str, str]:
+def _phase_activity_label(phase: str) -> str:
+    normalized = " ".join(part for part in phase.split("_") if part).strip()
+    return normalized.capitalize() if normalized else "Working"
+
+
+def _activity_for_phase(
+    phase: str,
+    *,
+    public_output: bool | None = None,
+) -> tuple[str, str]:
     if phase == "capability_response_generation":
         return "generating_answer", "Generating response..."
     if phase.startswith("tool_followup_"):
@@ -460,7 +478,11 @@ def _activity_for_phase(phase: str) -> tuple[str, str]:
         return "generating_answer", "Generating response..."
     if phase == "json_repair":
         return "formatting_response", "Formatting structured response..."
-    return "thinking", "Working..."
+
+    label = _phase_activity_label(phase)
+    if public_output is True:
+        return "generating_answer", f"Generating {label.lower()}..."
+    return "thinking", f"{label}..."
 
 
 async def _emit_visible_token(
@@ -522,6 +544,7 @@ async def invoke_model_with_optional_streaming(
     phase: str,
     provider: str,
     model_name: str,
+    public_output: bool | None = None,
 ) -> Any:
     channel = current_runtime_stream.get()
     if channel is None:
@@ -537,7 +560,10 @@ async def invoke_model_with_optional_streaming(
             )
             raise
 
-    activity_status, activity_message = _activity_for_phase(phase)
+    activity_status, activity_message = _activity_for_phase(
+        phase,
+        public_output=public_output,
+    )
     await channel.emit(
         "agent_activity",
         status=activity_status,
@@ -560,7 +586,7 @@ async def invoke_model_with_optional_streaming(
                 visible_content = control_filter.push(part.content)
                 if not visible_content:
                     continue
-                if _can_stream_phase_live(phase):
+                if _can_stream_phase_live(phase, public_output=public_output):
                     streamed_visible_tokens.append(visible_content)
                     await _emit_visible_token(
                         channel,
@@ -596,7 +622,7 @@ async def invoke_model_with_optional_streaming(
 
     trailing_content = control_filter.flush()
     if trailing_content:
-        if _can_stream_phase_live(phase):
+        if _can_stream_phase_live(phase, public_output=public_output):
             streamed_visible_tokens.append(trailing_content)
             await _emit_visible_token(
                 channel,
@@ -627,7 +653,7 @@ async def invoke_model_with_optional_streaming(
         )
     elif (
         pending_visible_tokens
-        and _can_emit_phase_as_final(phase)
+        and _can_emit_phase_as_final(phase, public_output=public_output)
         and not _result_has_tool_calls(accumulated)
     ):
         for content in pending_visible_tokens:
