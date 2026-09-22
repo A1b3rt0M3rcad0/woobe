@@ -19,6 +19,7 @@ from modules.agent.application.dtos.runtime_dtos import ToolCallInfo, UsageInfo
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
     ContextAssemblyRequest,
+    ContextSummaryModelResult,
 )
 from modules.agent.application.interfaces.execution import (
     InstrumentedExecution,
@@ -167,10 +168,143 @@ def _record_live_tool_call(
     )
 
 
-def _assemble_invocation_context(
+async def _invoke_context_summary_model(
+    *,
+    model: Any,
+    messages: list[Any],
+    provider: str,
+    model_name: str,
+    pricing_snapshot: dict[str, Any] | None,
+    parent_call_index: int,
+    parent_invocation_id,
+    phase: str,
+) -> ContextSummaryModelResult:
+    call_uuid = uuid6.uuid7()
+    call_id = str(call_uuid)
+    started_at = utc_iso()
+    started = time.monotonic()
+    cost_context = _cost_context(pricing_snapshot)
+    await emit_agent_activity(
+        "thinking",
+        phase=phase,
+        message="Compressing context...",
+    )
+    running_call = {
+        "call_id": call_id,
+        "call_index": parent_call_index,
+        "parent_call_index": parent_call_index,
+        "parent_model_invocation_id": str(parent_invocation_id),
+        "purpose": "context_summary",
+        "phase": phase,
+        "status": "running",
+        "error": None,
+        "started_at": started_at,
+        "ended_at": None,
+        "occurred_at": started_at,
+        "latency_ms": 0,
+        "input_tokens": None,
+        "output_tokens": None,
+        "total_tokens": None,
+        "cost_usd": None,
+        "cost_status": "unknown_tokens",
+        "cost_reason": "Context Summary invocation is still in progress",
+        "usage_complete": False,
+        "provider": provider,
+        "model": model_name,
+        "context_snapshot": None,
+        **cost_context,
+    }
+    _record_live_llm_call(running_call)
+    try:
+        result = await model.ainvoke(messages)
+    except asyncio.CancelledError:
+        ended_at = utc_iso()
+        _record_live_llm_call(
+            {
+                **running_call,
+                "status": "cancelled",
+                "ended_at": ended_at,
+                "occurred_at": ended_at,
+                "latency_ms": round((time.monotonic() - started) * 1000),
+                "cost_reason": "Context Summary invocation was cancelled",
+            }
+        )
+        raise
+    except Exception as exc:
+        ended_at = utc_iso()
+        failure_context = _provider_failure_context(
+            exc,
+            phase=phase,
+            call_index=parent_call_index,
+            provider=provider,
+            model_name=model_name,
+        )
+        _record_live_llm_call(
+            {
+                **running_call,
+                "status": "error",
+                "error": str(exc),
+                "ended_at": ended_at,
+                "occurred_at": ended_at,
+                "latency_ms": round((time.monotonic() - started) * 1000),
+                "cost_reason": "Context Summary model call failed",
+                **failure_context,
+            }
+        )
+        raise
+
+    ended_at = utc_iso()
+    usage = normalize_llm_usage(result)
+    complete = all(
+        usage.get(field) is not None
+        for field in ("input_tokens", "output_tokens", "total_tokens")
+    )
+    cost = calculate_llm_cost(
+        input_tokens=usage.get("input_tokens"),
+        output_tokens=usage.get("output_tokens"),
+        pricing_snapshot=pricing_snapshot,
+    )
+    _record_live_llm_call(
+        {
+            **running_call,
+            "status": "success",
+            "ended_at": ended_at,
+            "occurred_at": ended_at,
+            "latency_ms": round((time.monotonic() - started) * 1000),
+            "input_tokens": usage.get("input_tokens"),
+            "output_tokens": usage.get("output_tokens"),
+            "total_tokens": usage.get("total_tokens"),
+            "cost_usd": cost["cost_usd"],
+            "cost_status": cost["cost_status"],
+            "cost_reason": cost["cost_reason"],
+            "usage_complete": complete,
+        }
+    )
+
+    content = getattr(result, "content", "")
+    if isinstance(content, list):
+        content = "\n".join(
+            str(item.get("text") or item.get("content") or "")
+            if isinstance(item, dict)
+            else str(item)
+            for item in content
+        )
+    if not isinstance(content, str):
+        content = str(content)
+    return ContextSummaryModelResult(
+        content=content,
+        model_invocation_id=call_uuid,
+        provider=provider,
+        model=model_name,
+    )
+
+
+async def _assemble_invocation_context(
     *,
     invocation_id,
+    model: Any,
     messages: list,
+    call_index: int,
     provider: str,
     model_name: str,
     phase: str,
@@ -201,7 +335,22 @@ def _assemble_invocation_context(
     if phase in {"final_response_generation", "json_repair"}:
         context.active_tool_definitions = []
     try:
-        assembled = context_assembler.assemble(
+        async def summary_invoke(
+            summary_messages: list[Any],
+            summary_phase: str,
+        ) -> ContextSummaryModelResult:
+            return await _invoke_context_summary_model(
+                model=model,
+                messages=summary_messages,
+                provider=provider,
+                model_name=model_name,
+                pricing_snapshot=pricing_snapshot,
+                parent_call_index=call_index,
+                parent_invocation_id=invocation_id,
+                phase=summary_phase,
+            )
+
+        assembled = await context_assembler.assemble(
             ContextAssemblyRequest(
                 messages=messages,
                 model_invocation_id=invocation_id,
@@ -212,6 +361,7 @@ def _assemble_invocation_context(
                 runtime_context=context,
                 policy=policy,
                 phase=phase,
+                summary_invoke=summary_invoke,
             )
         )
         return assembled.messages, assembled.snapshot
@@ -238,9 +388,11 @@ async def invoke_llm(
     started = time.monotonic()
     cost_context = _cost_context(pricing_snapshot)
     try:
-        invocation_messages, context_snapshot = _assemble_invocation_context(
+        invocation_messages, context_snapshot = await _assemble_invocation_context(
             invocation_id=call_uuid,
+            model=model,
             messages=messages,
+            call_index=call_index,
             provider=provider,
             model_name=model_name,
             phase=phase,
