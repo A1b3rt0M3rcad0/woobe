@@ -62,7 +62,7 @@ ctx.inventory.units(ContextSourceType.KNOWLEDGE)
 ctx.inventory.contains(ContextSourceType.TOOL)
 ~~~
 
-Managers do not receive raw messages. Inventory uses the same source-classification logic as the assembler, includes contract-exposed External Context and active Tool definitions, and is calculated before optional Manager-enabled materializers such as active Skills are inserted.
+Managers do not receive raw messages. Inventory uses the same source-classification logic as the assembler, includes contract-exposed External Context and active Tool definitions, and also includes aggregate active Skill contribution count/units before the Manager decides whether to materialize those Skills.
 
 ## `ctx.invocation`
 
