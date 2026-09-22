@@ -266,6 +266,46 @@ def test_capacity_primitive_tracks_effective_invocation_budget() -> None:
     assert built.capacity.budget_clamped is False
 
 
+
+def test_inventory_primitive_exposes_aggregate_sources_without_raw_messages() -> None:
+    request = ContextAssemblyRequest(
+        messages=[
+            SystemMessage(content="System"),
+            HumanMessage(content="old user"),
+            AIMessage(content="old answer"),
+            SystemMessage(content="<context>knowledge</context>"),
+            HumanMessage(content="current user"),
+        ],
+        model_invocation_id=uuid4(),
+        agent_run_id=uuid4(),
+        project_id=uuid4(),
+        provider="test",
+        model="test",
+        runtime_context=SimpleNamespace(
+            skill_context=None,
+            model_capacity_units=100_000,
+            reserved_output_units=1_000,
+            active_tool_definitions=[
+                {"type": "function", "function": {"name": "lookup"}}
+            ],
+            external_context_contract=None,
+            model_external_context=None,
+            parent_invocation_id=None,
+        ),
+        policy=ContextPolicyV1(),
+    )
+
+    built = build_context_manager_context(request)
+
+    assert built.inventory.count(ContextSourceType.SYSTEM) == 2
+    assert built.inventory.count(ContextSourceType.SESSION) == 2
+    assert built.inventory.count(ContextSourceType.KNOWLEDGE) == 1
+    assert built.inventory.count(ContextSourceType.USER_INPUT) == 1
+    assert built.inventory.contains(ContextSourceType.TOOL) is False
+    assert built.inventory.total_count == 6
+    assert built.inventory.total_units > 0
+    assert ContextSourceType.SESSION in built.inventory.sources
+
 def test_manager_runner_rejects_non_sdk_outcomes() -> None:
     request = ContextAssemblyRequest(
         messages=[SystemMessage(content="System"), HumanMessage(content="current user")],
