@@ -143,6 +143,72 @@ async def test_observer_rebuilds_partial_agent_output_from_journal_without_hot_r
 
 
 @pytest.mark.asyncio
+async def test_network_observer_replays_completed_intermediate_message_from_journal() -> None:
+    run_id = uuid4()
+    message_id = str(uuid4())
+    journal = InMemoryRunEventJournal()
+    await journal.write_batch(
+        [
+            _event(
+                run_id=run_id,
+                run_kind="network",
+                sequence=1,
+                event_type="run.attempt.started",
+            ),
+            _event(
+                run_id=run_id,
+                run_kind="network",
+                sequence=2,
+                event_type="assistant.message.completed",
+                payload={
+                    "message_id": message_id,
+                    "content": "I found a likely cause and will verify it.",
+                    "phase": "verification",
+                    "output_mode": "intermediate",
+                    "provider": "custom",
+                    "model": "test-model",
+                    "partial": False,
+                    "completed_at": "2026-09-10T18:00:02+00:00",
+                },
+            ),
+        ]
+    )
+    observer = RuntimeObserver(
+        InMemoryExecutionStateStore(),
+        journal=journal,
+        local_poll_seconds=0.01,
+    )
+
+    async def relational_fallback():
+        return {"status": "running", "output": "", "result": None}
+
+    state, cursor = await observer.current_state(
+        RunReference.network(run_id),
+        durable_fallback=relational_fallback,
+    )
+
+    assert cursor is None
+    assert state["status"] == "running"
+    assert state["output"] == ""
+    assert state["realtime_available"] is False
+    assert state["durable_source"] == "mongodb_journal"
+    assert state["journal_durable_sequence"] == 2
+    assert state["messages"] == [
+        {
+            "message_id": message_id,
+            "content": "I found a likely cause and will verify it.",
+            "phase": "verification",
+            "output_mode": "intermediate",
+            "provider": "custom",
+            "model": "test-model",
+            "partial": False,
+            "completed_at": "2026-09-10T18:00:02+00:00",
+            "status": "completed",
+        }
+    ]
+
+
+@pytest.mark.asyncio
 async def test_journal_observer_does_not_expose_internal_event_payloads() -> None:
     run_id = uuid4()
     journal = InMemoryRunEventJournal()
