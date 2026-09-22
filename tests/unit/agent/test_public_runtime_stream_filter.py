@@ -84,6 +84,36 @@ def test_public_agent_stream_accepts_final_response_tokens() -> None:
     ) is True
 
 
+def test_public_agent_stream_accepts_strategy_final_tokens_by_output_mode() -> None:
+    assert _is_public_stream_chunk(
+        _event(
+            "token",
+            {
+                "visibility": "assistant",
+                "channel": "final",
+                "phase": "conclusion",
+                "output_mode": "final",
+                "content": "scientific conclusion streamed progressively",
+            },
+        )
+    ) is True
+
+
+def test_public_agent_stream_rejects_explicit_internal_token_even_on_legacy_public_phase() -> None:
+    assert _is_public_stream_chunk(
+        _event(
+            "token",
+            {
+                "visibility": "assistant",
+                "channel": "final",
+                "phase": "response_generation",
+                "output_mode": "internal",
+                "content": "must remain internal",
+            },
+        )
+    ) is False
+
+
 def test_public_agent_stream_preserves_non_token_events() -> None:
     assert _is_public_stream_chunk(
         _event("done", {"answer": "public answer"})
