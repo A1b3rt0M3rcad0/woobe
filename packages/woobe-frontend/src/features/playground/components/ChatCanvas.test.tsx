@@ -63,6 +63,39 @@ describe('ChatCanvas terminal placeholder reconciliation', () => {
   })
 })
 
+describe('ChatCanvas intermediate Assistant messages', () => {
+  it('renders intermediate messages as normal Assistant messages', () => {
+    const html = renderToStaticMarkup(
+      <ChatCanvas
+        messages={[
+          { role: 'user', content: 'Pesquise isso' },
+          {
+            role: 'assistant',
+            content: 'Vou procurar.',
+            message_id: 'message-intermediate',
+            output_mode: 'intermediate',
+          },
+          {
+            role: 'assistant',
+            content: 'Encontrei a resposta.',
+            message_id: 'message-final',
+            output_mode: 'final',
+          },
+        ]}
+        isSending={false}
+        onSend={vi.fn()}
+        onStop={vi.fn()}
+        agentName="Agent Under Test"
+      />,
+    )
+
+    expect(html).toContain('Vou procurar.')
+    expect(html).toContain('Encontrei a resposta.')
+    expect(html.match(/rounded-container px-ui-md py-ui-sm text-product-reading/g)?.length).toBe(2)
+    expect(html).not.toContain('aria-label="Streaming"')
+  })
+})
+
 describe('ChatCanvas shared Agent and Network surface', () => {
   it('uses the standalone layout for a Network empty state while preserving the Network icon', () => {
     const html = renderToStaticMarkup(
