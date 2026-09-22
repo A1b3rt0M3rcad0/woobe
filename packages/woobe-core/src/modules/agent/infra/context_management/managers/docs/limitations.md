@@ -1,47 +1,51 @@
 # Current limitations
 
-This document is intentionally explicit about what the Context Manager abstraction does and does not support today.
+The programmable Context Manager architecture now supports async algorithms, typed state, semantic summary and durable Context checkpoints. The remaining boundaries should stay explicit.
 
-## Semantic summary: not implemented
+## Summary model selection
 
-No built-in Runtime primitive performs model-based summarization. See [Summary and compaction](./summary-and-compaction.md).
+Semantic summary currently uses the model instance of the Model Invocation being prepared. There is no separate `summary_model` selection policy yet.
 
-## Artifact strategy: schema ahead of runtime
+A dedicated cheaper summary model can be introduced later as a Runtime capability without changing concrete Manager access to providers.
 
-`ArtifactContextPolicy.strategy` exposes `reference_first` and `materialize`, but `context_assembly.py` does not currently execute different artifact materialization paths based on that field.
+## Run-local summary state
 
-The Standard Manager therefore programs only the artifact unit cap. Do not advertise artifact strategy as a working programmable primitive until Runtime has concrete semantics for both strategies.
+Adaptive checkpoints survive later Model Invocations and process recovery inside the same Run, but they are not automatically inherited by a new Run in the same Session.
 
-## Retention: v1 is references-only
+Cross-Run long-horizon summaries need a Session Context Store, Memory integration or another explicit persisted source contract.
 
-`ContextRetentionPolicy` currently validates only `references_only`. The value is persisted into Context Snapshot metadata.
+## Artifact strategy
 
-`REDACTED` and `FULL` exist in the domain enum but are not supported `ContextPolicyV1` behaviors.
+`ArtifactContextPolicy.strategy` still exposes `reference_first` and `materialize`, but shared assembly does not yet execute distinct artifact-materialization paths. The artifact unit cap is effective; the strategy switch is still schema ahead of runtime.
 
-## Pressure thresholds are diagnostic
+## Retention
 
-`ctx.pressure.thresholds(...)` controls LOW/MODERATE/HIGH/CRITICAL classification. It does not automatically switch algorithms or summarize context.
+`ContextRetentionPolicy` v1 supports only `references_only` for Context Snapshot materialized-content retention.
+
+## Pressure semantics
+
+`ctx.pressure.thresholds(...)` changes Context health classification. It does not itself perform trimming or summary.
+
+Adaptive separately uses `ContextSummaryPolicy.trigger_at` for pressure-triggered summary decisions.
 
 ## Retrieval remains upstream
 
-Knowledge, Memory and Checkpoint policy currently controls participation/caps after contributions exist. Context Manager does not own the retrieval algorithm that produced them.
+Knowledge, Memory and Checkpoint retrieval algorithms are not owned by Context Manager today. Managers see aggregate candidate inventory and govern participation/caps after those candidates are available.
 
-Semantic search, memory ranking or checkpoint lookup should become explicit source-production capabilities rather than hidden behavior inside candidate selection.
+## Skills split ownership
 
-## Skills policy has split ownership
+Skills catalog/search/activation can happen earlier in the Run. `ctx.inventory` exposes aggregate active Skill units and `ctx.sources.skills()` controls invocation materialization, but a Context Manager does not own the whole Skills lifecycle.
 
-`SkillContextPolicy` configures Skills catalog/search/activation budgets before and during execution. `ctx.sources.skills()` only opts active Skill contributions into invocation materialization.
+## Raw context access
 
-A Context Manager cannot safely reconfigure every Skills field at assembly time because some Skills decisions happen earlier in the Run.
+Concrete Managers intentionally do not receive raw message bodies. `ctx.inventory` exposes aggregate counts/units and `ctx.summary` provides a controlled semantic transformation.
 
-## Synchronous assembly boundary
+If another algorithm needs semantic inspection without summarization, add a purpose-built Runtime primitive instead of leaking provider messages.
 
-`ContextAssembler.assemble()` is synchronous. Future primitives requiring I/O must introduce an explicit async Runtime boundary instead of blocking inside a Manager.
+## Outer compatibility bridge
 
-## Inventory is aggregate, not raw context access
+The official `ContextAssembler` contract is asynchronous. Execution instrumentation temporarily accepts a synchronous outer assembler result through an awaitable compatibility bridge so existing custom/test replacements do not fail immediately. Built-in Context Managers are async and should not rely on that bridge.
 
-`ctx.inventory` intentionally exposes counts and estimated units by source, not message bodies.
+## Safe summary source set
 
-It is computed from the same base candidate classification used by assembly, including contract-exposed External Context and active Tool definitions. Optional Manager-enabled sources such as active Skill materialization occur after the Manager decision and therefore are represented separately through runtime-specific facts such as `ctx.has_active_skills`.
-
-If a future algorithm genuinely needs semantic inspection of candidate content, that should become a purpose-built Runtime primitive rather than exposing raw LangChain messages to concrete Managers.
+TOOL is not semantically summarized because removing Tool messages independently can break assistant Tool-call pairing. Current input and SYSTEM are mandatory. DELEGATION, RUNTIME and SKILL also remain outside semantic-summary replacement until their semantics are explicitly defined.
