@@ -193,6 +193,16 @@ describe('MarkdownMessage', () => {
     expect(html).not.toContain('data-math-display')
   })
 
+  it('does not render a special cursor while streaming', () => {
+    const html = renderToStaticMarkup(
+      <MarkdownMessage content="Resposta em progresso" isStreaming />,
+    )
+
+    expect(html).toContain('Resposta em progresso')
+    expect(html).not.toContain('aria-label="Streaming"')
+    expect(html).not.toContain('bg-primary/80')
+  })
+
   it('escapes raw html instead of injecting it', () => {
     const html = renderToStaticMarkup(<MarkdownMessage content={'<script>alert(1)</script>'} />)
 
