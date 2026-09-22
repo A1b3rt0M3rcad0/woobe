@@ -360,6 +360,120 @@ async def test_event_journal_tool_checkpoint_is_resumable() -> None:
 
 
 @pytest.mark.asyncio
+async def test_context_checkpoint_is_merged_into_safe_execution_checkpoint() -> None:
+    run = _run(storage_version=EVENT_JOURNAL_STORAGE_VERSION)
+    state = RunJournalState(
+        run_id=run.id,
+        run_kind="agent",
+        storage_version=EVENT_JOURNAL_STORAGE_VERSION,
+        durable_sequence=5,
+    )
+    events = [
+        _event(run.id, 1, "tool.call.started", {"operation_id": "tool-1"}),
+        _event(
+            run.id,
+            2,
+            "tool.call.completed",
+            {"operation_id": "tool-1", "external_outcome": "known"},
+        ),
+        _event(run.id, 3, "execution.checkpoint", {"attempt": 1}),
+        _event(
+            run.id,
+            4,
+            "context.checkpoint",
+            {
+                "manager_name": "adaptive",
+                "boundary": "context_summary_boundary",
+                "state": {
+                    "summaries": {"SESSION": {"summary_ref": "summary-1"}},
+                    "summary_generation": 1,
+                },
+            },
+        ),
+        _event(run.id, 5, "model.invocation.started", {"operation_id": "model-2"}),
+    ]
+    checkpoint = RunCheckpoint(
+        run_id=run.id,
+        through_sequence=3,
+        attempt=1,
+        state={
+            "phase": "agent_tool_boundary",
+            "resume_policy": "continue_execution_strategy",
+            "execution_strategy": "standard",
+            "strategy_cursor": {"state": {"phase": "tool_followup_1"}},
+        },
+        updated_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+    decision = AgentRunRecoveryWorker._classify_journal_prefix(
+        state,
+        events,
+        checkpoint,
+    )
+
+    assert decision.action == "resumable"
+    assert decision.checkpoint is not None
+    assert decision.checkpoint.through_sequence == 3
+    assert decision.checkpoint.state["context_manager_state"] == {
+        "manager_name": "adaptive",
+        "boundary": "context_summary_boundary",
+        "state": {
+            "summaries": {"SESSION": {"summary_ref": "summary-1"}},
+            "summary_generation": 1,
+        },
+    }
+
+
+@pytest.mark.asyncio
+async def test_execution_checkpoint_keeps_newer_embedded_context_state() -> None:
+    run = _run(storage_version=EVENT_JOURNAL_STORAGE_VERSION)
+    state = RunJournalState(
+        run_id=run.id,
+        run_kind="agent",
+        storage_version=EVENT_JOURNAL_STORAGE_VERSION,
+        durable_sequence=4,
+    )
+    events = [
+        _event(
+            run.id,
+            2,
+            "context.checkpoint",
+            {
+                "manager_name": "adaptive",
+                "boundary": "context_summary_boundary",
+                "state": {"summary_generation": 1},
+            },
+        ),
+        _event(run.id, 4, "execution.checkpoint", {"attempt": 1}),
+    ]
+    checkpoint = RunCheckpoint(
+        run_id=run.id,
+        through_sequence=4,
+        attempt=1,
+        state={
+            "context_manager_state": {
+                "manager_name": "adaptive",
+                "boundary": "context_summary_boundary",
+                "state": {"summary_generation": 2},
+            }
+        },
+        updated_at=datetime.now(timezone.utc).isoformat(),
+    )
+
+    decision = AgentRunRecoveryWorker._classify_journal_prefix(
+        state,
+        events,
+        checkpoint,
+    )
+
+    assert decision.action == "resumable"
+    assert decision.checkpoint is not None
+    assert decision.checkpoint.state["context_manager_state"]["state"] == {
+        "summary_generation": 2
+    }
+
+
+@pytest.mark.asyncio
 async def test_recovery_does_not_touch_run_with_hot_runtime_state(monkeypatch) -> None:
     run = _run()
     _install_fake_uows(monkeypatch, [_ScalarResult(values=[run.id])])
