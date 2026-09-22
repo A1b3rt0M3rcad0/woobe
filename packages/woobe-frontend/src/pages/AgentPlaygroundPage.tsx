@@ -518,7 +518,11 @@ function PlaygroundContent() {
           },
           onAssistantMessageCompleted: (info) => {
             rawEventsRef.current.push({ type: 'assistant_message_completed', timestamp: new Date().toISOString(), payload: info })
-            upsertIntermediateAssistantMessage(info, false)
+            setMessages((prev) => applyCompletedAssistantMessage(
+              prev,
+              info,
+              currentRunIdRef.current,
+            ))
           },
           onToken: (token) => {
             rawEventsRef.current.push({ type: 'token', timestamp: new Date().toISOString(), payload: token })
