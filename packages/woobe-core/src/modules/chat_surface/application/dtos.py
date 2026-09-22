@@ -114,6 +114,7 @@ DEFAULT_CHAT_SURFACE_APPEARANCE: dict[str, Any] = {
     },
     "response": {
         "render_mode": "rich",
+        "show_intermediate_messages": False,
     },
 }
 
@@ -536,12 +537,21 @@ def normalize_appearance_config(value: dict[str, Any] | None) -> dict[str, Any]:
 
     if "response" in raw:
         section = _mapping(raw["response"], path="appearance_config.response")
-        _reject_unknown(section, {"render_mode"}, path="appearance_config.response")
+        _reject_unknown(
+            section,
+            {"render_mode", "show_intermediate_messages"},
+            path="appearance_config.response",
+        )
         if "render_mode" in section:
             normalized["response"]["render_mode"] = _choice(
                 section["render_mode"],
                 path="appearance_config.response.render_mode",
                 choices={"plain", "rich"},
+            )
+        if "show_intermediate_messages" in section:
+            normalized["response"]["show_intermediate_messages"] = _boolean(
+                section["show_intermediate_messages"],
+                path="appearance_config.response.show_intermediate_messages",
             )
 
     normalized["schema_version"] = 2
