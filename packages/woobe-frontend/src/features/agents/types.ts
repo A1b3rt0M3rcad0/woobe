@@ -34,9 +34,6 @@ export type ExternalContextContract = Record<string, ExternalContextFieldContrac
 export interface ContextAssemblerDescriptor {
   supports_skills?: boolean
   name: string
-  version: string
-  strategy_name: string
-  strategy_version: string
   display_name: string
   description: string
   behavior: string
@@ -45,7 +42,6 @@ export interface ContextAssemblerDescriptor {
   limitations: string[]
   configuration: string
   is_default: boolean
-  is_system_default_alias: boolean
 }
 
 /** Backend-owned presentation contract for one selectable Execution Strategy. */
