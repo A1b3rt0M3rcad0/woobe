@@ -129,12 +129,6 @@ class SQLProjectRunsReader:
                 SELECT run.*
                 FROM agent.agent_runs AS run
                 WHERE run.project_id = :project_id
-                  AND (
-                    CAST(:network_id AS uuid) IS NULL
-                    OR run.network_execution_id IN (
-                        SELECT id FROM selected_network_executions
-                    )
-                  )
             ),
             direct_runs AS (
                 SELECT *
@@ -142,14 +136,20 @@ class SQLProjectRunsReader:
                 WHERE network_execution_id IS NULL
                   AND CAST(:network_id AS uuid) IS NULL
             ),
+            selected_network_invocations AS (
+                SELECT invocation.*
+                FROM network.network_invocations AS invocation
+                JOIN selected_network_executions AS execution
+                  ON execution.id = invocation.network_execution_id
+            ),
             network_child_counts AS (
                 SELECT
                     execution.id AS network_execution_id,
-                    COUNT(run.id) AS agent_run_count,
+                    COUNT(invocation.id) AS agent_run_count,
                     execution.status
                 FROM selected_network_executions AS execution
-                LEFT JOIN selected_agent_runs AS run
-                  ON run.network_execution_id = execution.id
+                LEFT JOIN selected_network_invocations AS invocation
+                  ON invocation.network_execution_id = execution.id
                 GROUP BY execution.id, execution.status
             ),
             top_level AS (
@@ -170,12 +170,14 @@ class SQLProjectRunsReader:
                 FROM selected_network_executions
             )
             SELECT
-                (SELECT COUNT(*) FROM selected_agent_runs) AS agent_runs,
+                (
+                    (SELECT COUNT(*) FROM direct_runs)
+                    + (SELECT COUNT(*) FROM selected_network_invocations)
+                ) AS agent_runs,
                 (SELECT COUNT(*) FROM direct_runs) AS direct_agent_runs,
                 (
                     SELECT COUNT(*)
-                    FROM selected_agent_runs
-                    WHERE network_execution_id IS NOT NULL
+                    FROM selected_network_invocations
                 ) AS network_agent_runs,
                 (
                     SELECT COUNT(*)
@@ -312,10 +314,10 @@ class SQLProjectRunsReader:
                     ELSE NULL
                 END AS duration_ms
             FROM network.network_executions AS execution
-            JOIN network.networks AS network
+            LEFT JOIN network.networks AS network
               ON network.id = execution.network_id
              AND network.project_id = execution.project_id
-            JOIN network.network_sessions AS network_session
+            LEFT JOIN network.network_sessions AS network_session
               ON network_session.id = execution.network_session_id
             LEFT JOIN network.network_versions AS version
               ON version.id = execution.network_version_id
@@ -333,7 +335,7 @@ class SQLProjectRunsReader:
             {
                 "id": str(row["id"]),
                 "network_id": str(row["network_id"]),
-                "network_name": str(row["network_name"]),
+                "network_name": str(row["network_name"] or "Network"),
                 "network_version_id": (
                     str(row["network_version_id"])
                     if row["network_version_id"]
@@ -341,7 +343,7 @@ class SQLProjectRunsReader:
                 ),
                 "network_version": row["network_version"],
                 "network_session_id": str(row["network_session_id"]),
-                "environment": str(row["environment"]),
+                "environment": str(row["environment"] or "unknown"),
                 "status": str(row["status"]),
                 "input_message": str(row["input_message"]),
                 "output_message": row["output_message"],
@@ -372,34 +374,51 @@ class SQLProjectRunsReader:
         statement = text(
             """
             SELECT
-                run.id,
-                run.trace_id,
-                run.project_id,
-                run.agent_id,
+                COALESCE(run.id, invocation.id) AS id,
+                COALESCE(run.trace_id, invocation.trace_id, invocation.id) AS trace_id,
+                execution.project_id AS project_id,
+                invocation.agent_id AS agent_id,
                 agent.name AS agent_name,
-                run.session_id,
-                run.network_execution_id,
-                run.network_invocation_id,
-                run.parent_run_id,
-                run.environment,
-                run.origin,
-                run.status,
-                run.input_message,
+                COALESCE(run.session_id, invocation.agent_session_id) AS session_id,
+                invocation.network_execution_id AS network_execution_id,
+                invocation.id AS network_invocation_id,
+                COALESCE(run.parent_run_id, invocation.parent_invocation_id) AS parent_run_id,
+                COALESCE(run.environment, network_session.environment, 'draft') AS environment,
+                COALESCE(run.origin, 'network_runtime') AS origin,
+                COALESCE(run.status, invocation.status) AS status,
+                COALESCE(run.input_message, invocation.input_message) AS input_message,
                 run.usage,
-                run.result,
+                CASE
+                    WHEN run.id IS NOT NULL THEN run.result
+                    ELSE jsonb_build_object(
+                        'answer', invocation.output_message,
+                        'network_projection', true
+                    )
+                END AS result,
                 run.failure_code,
-                run.failure_detail,
-                run.started_at,
+                COALESCE(run.failure_detail, invocation.error) AS failure_detail,
+                COALESCE(run.started_at, invocation.created_at) AS started_at,
                 run.completed_at,
-                run.created_at
-            FROM agent.agent_runs AS run
-            JOIN agent.agents AS agent
-              ON agent.id = run.agent_id
-             AND agent.project_id = run.project_id
-            WHERE run.network_execution_id IN :network_execution_ids
+                COALESCE(run.created_at, invocation.created_at) AS created_at
+            FROM network.network_invocations AS invocation
+            JOIN network.network_executions AS execution
+              ON execution.id = invocation.network_execution_id
+            LEFT JOIN network.network_sessions AS network_session
+              ON network_session.id = execution.network_session_id
+            LEFT JOIN agent.agent_runs AS run
+              ON run.project_id = execution.project_id
+             AND run.network_execution_id = invocation.network_execution_id
+             AND (
+                run.network_invocation_id = invocation.id
+                OR run.id = invocation.id
+             )
+            LEFT JOIN agent.agents AS agent
+              ON agent.id = invocation.agent_id
+             AND agent.project_id = execution.project_id
+            WHERE invocation.network_execution_id IN :network_execution_ids
             ORDER BY
-                COALESCE(run.started_at, run.created_at) ASC,
-                run.id ASC
+                COALESCE(run.started_at, invocation.created_at) ASC,
+                invocation.id ASC
             """
         ).bindparams(bindparam("network_execution_ids", expanding=True))
         rows = (
