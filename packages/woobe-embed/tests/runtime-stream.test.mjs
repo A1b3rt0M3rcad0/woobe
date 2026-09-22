@@ -9,7 +9,7 @@ import ts from "typescript";
 async function loadRuntimeModule() {
   const directory = await mkdtemp(join(tmpdir(), "woobe-runtime-client-"));
   const sourceRoot = new URL("../../woobe-runtime-client/src/", import.meta.url);
-  for (const moduleName of ["types", "protocol", "sse", "observer", "operations", "index"]) {
+  for (const moduleName of ["types", "assistant-messages", "protocol", "sse", "observer", "operations", "index"]) {
     const source = await readFile(new URL(`${moduleName}.ts`, sourceRoot), "utf8");
     let output = ts.transpileModule(source, {
       compilerOptions: {
@@ -183,6 +183,105 @@ test("unsupported declared protocol version is rejected explicitly", () => {
     ),
     (error) => error?.name === "RuntimeStreamProtocolError",
   );
+});
+
+test("assistant message events expose one typed intermediate message", () => {
+  const frame = runtime.parseRuntimeFrame(semanticFrame({
+    type: "assistant_message_completed",
+    sequence: 30,
+    payload: {
+      message_id: "message-progress",
+      content: "Vou procurar.",
+      phase: "capability_response_generation",
+      output_mode: "intermediate",
+      provider: "custom",
+      model: "deepseek-v4-flash",
+      partial: false,
+      status: "completed",
+      completed_at: occurredAt,
+    },
+  }));
+  assert.ok(frame);
+
+  assert.deepEqual(runtime.runtimeAssistantMessage(frame), {
+    message_id: "message-progress",
+    content: "Vou procurar.",
+    phase: "capability_response_generation",
+    output_mode: "intermediate",
+    provider: "custom",
+    model: "deepseek-v4-flash",
+    partial: false,
+    status: "completed",
+    completed_at: occurredAt,
+  });
+  assert.deepEqual(runtime.runtimeAssistantMessages(frame), [
+    runtime.runtimeAssistantMessage(frame),
+  ]);
+});
+
+test("run.state exposes typed durable intermediate message snapshots", () => {
+  const frame = runtime.parseRuntimeFrame(semanticFrame({
+    type: "run.state",
+    sequence: 31,
+    payload: {
+      status: "running",
+      output: "partial final candidate",
+      messages: [
+        {
+          message_id: "message-1",
+          content: "Vou procurar.",
+          phase: "search",
+          output_mode: "intermediate",
+          partial: false,
+          status: "completed",
+        },
+        {
+          message_id: "message-2",
+          content: "Achei um ponto. Vou validar.",
+          phase: "verification",
+          output_mode: "intermediate",
+          partial: false,
+          status: "completed",
+        },
+        {
+          message_id: "",
+          content: "invalid",
+          output_mode: "intermediate",
+        },
+      ],
+    },
+  }));
+  assert.ok(frame);
+
+  assert.deepEqual(runtime.runtimeStateAssistantMessages(frame), [
+    {
+      message_id: "message-1",
+      content: "Vou procurar.",
+      phase: "search",
+      output_mode: "intermediate",
+      provider: null,
+      model: null,
+      partial: false,
+      status: "completed",
+      completed_at: null,
+    },
+    {
+      message_id: "message-2",
+      content: "Achei um ponto. Vou validar.",
+      phase: "verification",
+      output_mode: "intermediate",
+      provider: null,
+      model: null,
+      partial: false,
+      status: "completed",
+      completed_at: null,
+    },
+  ]);
+  assert.deepEqual(
+    runtime.runtimeAssistantMessages(frame),
+    runtime.runtimeStateAssistantMessages(frame),
+  );
+  assert.equal(runtime.runtimeAssistantMessage(frame), null);
 });
 
 test("terminal state and terminal events are classified explicitly", () => {
