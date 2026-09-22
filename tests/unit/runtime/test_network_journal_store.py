@@ -206,6 +206,60 @@ async def test_network_store_journals_partial_root_output_before_terminal() -> N
 
 
 @pytest.mark.anyio
+async def test_network_store_journals_completed_intermediate_message_only() -> None:
+    execution_id = uuid4()
+    execution_model = _execution_model(execution_id)
+    buffer = FakeBuffer()
+    store = JournaledRedisNetworkExecutionStore(
+        InMemoryExecutionStateStore(),
+        session_factory=FakeSessionFactory(execution_model),
+        buffer=buffer,
+        barrier=FakeBarrier(),
+    )
+    execution = _snapshot(execution_id)
+    message_id = str(uuid4())
+
+    await store.initialize(execution, ttl_seconds=3600)
+    await store.emit(
+        execution_id,
+        "assistant_message_delta",
+        {
+            "message_id": message_id,
+            "content": "Checking",
+            "phase": "verification",
+            "output_mode": "intermediate",
+            "depth": 0,
+        },
+    )
+    await store.emit(
+        execution_id,
+        "assistant_message_completed",
+        {
+            "message_id": message_id,
+            "content": "Checking the evidence now.",
+            "phase": "verification",
+            "output_mode": "intermediate",
+            "provider": "custom",
+            "model": "test-model",
+            "partial": False,
+            "completed_at": "2026-09-22T04:00:00+00:00",
+            "depth": 0,
+        },
+    )
+
+    assistant_events = [
+        item for item in buffer.events if item["event_type"] == "assistant.message.completed"
+    ]
+    assert len(assistant_events) == 1
+    assert assistant_events[0]["payload"]["message_id"] == message_id
+    assert assistant_events[0]["payload"]["content"] == "Checking the evidence now."
+    assert assistant_events[0]["payload"]["output_mode"] == "intermediate"
+    assert not any(
+        item["event_type"] == "assistant.message.delta" for item in buffer.events
+    )
+
+
+@pytest.mark.anyio
 async def test_network_store_keeps_legacy_runs_out_of_journal() -> None:
     execution_id = uuid4()
     execution_model = type(
