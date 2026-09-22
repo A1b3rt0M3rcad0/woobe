@@ -3,6 +3,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Literal
 
+from modules.agent.application.context_assembly import (
+    analyze_context_candidates,
+    estimate_input_units,
+)
 from modules.agent.application.context_manager_sdk import ContextManagerOutcome
 from modules.agent.application.interfaces.context_assembler import ContextAssemblyRequest
 from modules.agent.application.interfaces.context_policy import (
@@ -138,6 +142,63 @@ class RuntimeContextPriorities:
             _set_priority(self._policy, source, priority)
 
 
+class RuntimeContextInventory:
+    """Aggregate candidate facts without exposing raw provider messages."""
+
+    __slots__ = ("_summary",)
+
+    def __init__(self, request: ContextAssemblyRequest) -> None:
+        analysis = analyze_context_candidates(
+            request.messages,
+            request.runtime_context,
+        )
+        self._summary = {
+            source: dict(values)
+            for source, values in analysis.source_summary.items()
+        }
+
+        tool_definitions = getattr(
+            request.runtime_context,
+            "active_tool_definitions",
+            None,
+        )
+        if isinstance(tool_definitions, list) and tool_definitions:
+            units = estimate_input_units(tool_definitions)
+            item = self._summary.setdefault(
+                ContextSourceType.SYSTEM.value,
+                {"count": 0, "units": 0},
+            )
+            item["count"] += 1
+            item["units"] += units
+
+    @property
+    def total_count(self) -> int:
+        return sum(item["count"] for item in self._summary.values())
+
+    @property
+    def total_units(self) -> int:
+        return sum(item["units"] for item in self._summary.values())
+
+    @property
+    def sources(self) -> tuple[ContextSourceType, ...]:
+        return tuple(
+            source
+            for source in ContextSourceType
+            if self.contains(source)
+        )
+
+    def count(self, source: ContextSourceType) -> int:
+        item = self._summary.get(source.value)
+        return int(item["count"]) if item is not None else 0
+
+    def units(self, source: ContextSourceType) -> int:
+        item = self._summary.get(source.value)
+        return int(item["units"]) if item is not None else 0
+
+    def contains(self, source: ContextSourceType) -> bool:
+        return self.count(source) > 0
+
+
 class RuntimeContextCapacity:
     """Read-only capacity facts derived from invocation runtime state and effective policy."""
 
@@ -253,6 +314,7 @@ class RuntimeContextManagerContext:
         "_configured_policy",
         "candidates",
         "capacity",
+        "inventory",
         "priorities",
         "budget",
         "pressure",
@@ -270,6 +332,7 @@ class RuntimeContextManagerContext:
             self._effective_policy,
             request.runtime_context,
         )
+        self.inventory = RuntimeContextInventory(request)
         self.priorities = RuntimeContextPriorities(self._effective_policy)
         self.budget = RuntimeContextBudget(self._effective_policy)
         self.pressure = RuntimeContextPressure(self._effective_policy)
