@@ -1,4 +1,4 @@
-from modules.agent.application.use_cases.trace_event_builder import build_operation_events
+from modules.agent.infra.execution.trace_event_builder import build_operation_events
 
 
 def test_rag_timeline_item_becomes_versioned_retrieval_event():
