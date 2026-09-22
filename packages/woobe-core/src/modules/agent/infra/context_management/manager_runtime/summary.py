@@ -198,12 +198,40 @@ class RuntimeContextSummary:
         return summary
 
     def apply(self, summary: ContextSummaryResult) -> None:
-        selection, messages = self._select(
-            summary.source,
-            preserve_recent_messages=summary.preserve_recent_messages,
+        analysis = analyze_context_candidates(
+            self._request.messages,
+            self._request.runtime_context,
         )
-        if selection.source_hash != summary.source_hash:
-            raise ValueError("Stored Context Summary no longer matches current source context")
+        original_ids = {id(message) for message in self._request.messages}
+        by_ref = {
+            _source_ref(message, index): message
+            for index, (message, source) in enumerate(
+                zip(analysis.messages, analysis.sources, strict=True)
+            )
+            if source == summary.source and id(message) in original_ids
+        }
+        try:
+            messages = tuple(by_ref[source_ref] for source_ref in summary.source_refs)
+        except KeyError as exc:
+            raise ValueError(
+                "Stored Context Summary source messages are no longer available"
+            ) from exc
+
+        refs = tuple(summary.source_refs)
+        texts = tuple(_content_text(message) for message in messages)
+        payload = json.dumps(
+            {
+                "source": summary.source.value,
+                "refs": refs,
+                "texts": texts,
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        source_hash = hashlib.sha256(payload.encode("utf-8")).hexdigest()
+        if source_hash != summary.source_hash:
+            raise ValueError("Stored Context Summary source content changed")
         self._stage(summary, messages)
 
     def _stage(
