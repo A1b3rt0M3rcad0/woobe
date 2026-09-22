@@ -174,6 +174,20 @@ A Directive does not mutate or replace Agent Behavior, objective, Skills, Sessio
 
 Use Directives for execution behavior such as planning, reflection, verification or synthesis. Do not use them as a transport for dynamic business payloads, Tool results, customer data or large context. Those values belong to the normal context pipeline.
 
+### Declare public output ownership
+
+For new multi-phase Strategies, do not rely on a phase-name convention to decide which invocation may stream the assistant answer.
+
+```python
+result = await ctx.model.invoke(
+    phase=PlannerPhase.SYNTHESIS,
+    directive="Produce the final answer from the validated plan.",
+    public_output=True,
+)
+```
+
+Internal planning or reasoning invocations should use `public_output=False`. Existing Strategies can omit the argument and keep the historical runtime behavior. The frontend consumes the runtime's `visibility`, `channel`, `phase`, and activity `message`; it does not maintain a list of Strategy-specific final phases.
+
 ### Execute Tools
 
 ```python
@@ -338,6 +352,7 @@ Use `scientific_method.py` when the algorithm itself owns a sequence of cognitiv
 - a small serializable State machine;
 - a real `ExecutionPolicy`;
 - different Directives for different Model invocations;
+- explicit public-output ownership for terminal versus internal phases;
 - Tool calls as algorithmic experiments;
 - checkpointing after durable side effects;
 - resume into the next semantic phase without replaying the Tool;

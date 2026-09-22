@@ -131,7 +131,12 @@ function streamTextOf(item: Record<string, unknown>): StreamTokenInfo {
 function isFinalStreamText(item: StreamTokenInfo): boolean {
   // Output visibility is a runtime contract. Presentation must not duplicate
   // Strategy-specific phase knowledge.
-  return item.visibility === 'assistant' && item.channel === 'final'
+  return (
+    item.visibility === 'assistant' &&
+    item.channel === 'final' &&
+    typeof item.phase === 'string' &&
+    item.phase.length > 0
+  )
 }
 
 function activityMessage(status: string, toolName?: string | null): string {
