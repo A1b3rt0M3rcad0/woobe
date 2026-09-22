@@ -171,6 +171,7 @@ async def test_scientific_method_concludes_from_collected_evidence_after_provide
                 [{"id": "experiment-1", "name": "search", "args": {"q": "a"}}],
             ),
             _result("evidence one"),
+            _result("hypothesis"),
         ]
     )
     ctx = _Context(model)
