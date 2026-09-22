@@ -29,15 +29,18 @@ class ContextManagerRunner(ContextAssembler):
     def __init__(self, manager: ContextManager) -> None:
         self._manager = manager
 
-    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
-        ctx = build_context_manager_context(request)
-        outcome = self._manager.assemble(ctx)
+    async def assemble(
+        self,
+        request: ContextAssemblyRequest,
+    ) -> ContextAssemblyOutput:
+        ctx = build_context_manager_context(self._manager, request)
+        outcome = await self._manager.assemble(ctx)
         if not isinstance(outcome, ContextManagerOutcome):
             raise TypeError(
                 "Context Manager must return ContextManagerOutcome via ctx.complete()"
             )
 
-        messages = list(request.messages)
+        messages = ctx.materialize_messages(list(request.messages))
         policy = outcome.policy.model_copy(deep=True)
         active_skill_versions: tuple[str, ...] = ()
 
