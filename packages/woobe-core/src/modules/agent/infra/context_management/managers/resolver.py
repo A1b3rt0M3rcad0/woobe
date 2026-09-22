@@ -11,6 +11,7 @@ from modules.agent.application.interfaces.context_assembler import (
 )
 from modules.agent.application.interfaces.context_manager import ContextManager
 from modules.agent.infra.context_management.manager_runtime import ContextManagerRunner
+from modules.agent.infra.context_management.managers.adaptive import AdaptiveContextManager
 from modules.agent.infra.context_management.managers.standard import StandardContextManager
 
 
@@ -19,6 +20,7 @@ _BUILTIN_CONTEXT_MANAGER_FACTORIES: dict[
     Callable[[], ContextManager],
 ] = {
     StandardContextManager.name: StandardContextManager,
+    AdaptiveContextManager.name: AdaptiveContextManager,
 }
 
 
@@ -59,13 +61,16 @@ class ResolvedContextAssembler:
         self._resolver = resolver
         self._default_name = normalize_context_manager_name(default_name)
 
-    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
+    async def assemble(
+        self,
+        request: ContextAssemblyRequest,
+    ) -> ContextAssemblyOutput:
         selected = getattr(
             request.runtime_context,
             "context_assembler_name",
             None,
         )
-        return self._resolver.resolve(
+        return await self._resolver.resolve(
             selected or self._default_name
         ).assemble(request)
 
