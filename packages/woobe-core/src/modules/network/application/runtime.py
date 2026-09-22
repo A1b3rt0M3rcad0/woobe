@@ -128,6 +128,7 @@ class AgentInvocationResult:
     sources: list[dict[str, Any]] | None = None
     parsed_output: dict[str, Any] | None = None
     output_parse_error: str | None = None
+    execution_events: list[dict[str, Any]] | None = None
     streamed_output: bool = False
 
 
