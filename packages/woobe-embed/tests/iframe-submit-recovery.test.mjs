@@ -53,7 +53,13 @@ async function loadIframeHarness(fetchImpl) {
   const source = stripImports(raw);
   const prelude = `
 const normalizeAppearance = (value) => value;
-const DEFAULT_APPEARANCE = { welcome_message: "" };
+const DEFAULT_APPEARANCE = {
+  welcome_message: "",
+  response: {
+    render_mode: "rich",
+    show_intermediate_messages: false,
+  },
+};
 const PROTOCOL_VERSION = 1;
 const randomUuid = () => "idempotency-test";
 const isHostMessage = () => false;
@@ -134,6 +140,18 @@ globalThis.__woobeIframeTest = {
   setExternalContext(value) {
     externalContext = value;
   },
+  setShowIntermediateMessages(value) {
+    appearance = {
+      ...appearance,
+      response: {
+        ...appearance.response,
+        show_intermediate_messages: Boolean(value),
+      },
+    };
+  },
+  createObserver: createRuntimeObserver,
+  applyFrame: applyRuntimeFrame,
+  loadHistory,
 };
 `;
   const output = ts.transpileModule(`${prelude}\n${source}\n${hooks}`, {
@@ -146,6 +164,7 @@ globalThis.__woobeIframeTest = {
 
   const errors = [];
   const messages = [];
+  const activities = [];
   const element = (role, content, pending = false) => ({
     role,
     content,
@@ -186,8 +205,19 @@ globalThis.__woobeIframeTest = {
       item.content = content;
       item.dataset.content = content;
     },
-    updateAssistantActivity() {
-      return "";
+    updateAssistantActivity(item, activity) {
+      if (!item.pending) return "";
+      item.activity = { ...activity };
+      activities.push({ ...activity });
+      return activity.message ?? activity.status ?? "";
+    },
+    resetAssistantPending(item, activity = { status: "preparing" }) {
+      item.pending = true;
+      item.content = "";
+      item.dataset.content = "";
+      item.activity = { ...activity };
+      activities.push({ ...activity });
+      return activity.message ?? activity.status ?? "";
     },
     updateSkillActivity() {},
     finishAssistantStreaming(item) {
@@ -244,8 +274,13 @@ globalThis.__woobeIframeTest = {
   return {
     sendMessage: context.__woobeIframeTest.sendMessage,
     setExternalContext: context.__woobeIframeTest.setExternalContext,
+    setShowIntermediateMessages: context.__woobeIframeTest.setShowIntermediateMessages,
+    createObserver: context.__woobeIframeTest.createObserver,
+    applyFrame: context.__woobeIframeTest.applyFrame,
+    loadHistory: context.__woobeIframeTest.loadHistory,
     errors,
     messages,
+    activities,
   };
 }
 
@@ -450,6 +485,193 @@ test("legacy 409 without Run identity performs at most one active-run fallback l
   assert.deepEqual(harness.errors, []);
 });
 
+test("running run.state with empty output keeps the terminal placeholder pending", async () => {
+  const harness = await loadIframeHarness(async () => {
+    throw new Error("network is not used by this state-machine test");
+  });
+  const observer = harness.createObserver();
+  const assistant = harness.messages.at(-1);
+
+  harness.applyFrame({
+    kind: "semantic",
+    eventType: "run.state",
+    payload: { status: "running", output: "" },
+    sequence: null,
+  }, observer);
+  harness.applyFrame({
+    kind: "semantic",
+    eventType: "agent_activity",
+    payload: {
+      status: "calling_tool",
+      message: "Calling tool: search...",
+      tool_name: "search",
+    },
+    sequence: null,
+  }, observer);
+
+  assert.equal(assistant.pending, true);
+  assert.equal(assistant.content, "");
+  assert.equal(assistant.activity.status, "calling_tool");
+  assert.equal(assistant.activity.message, "Calling tool: search...");
+});
+
+test("retracting a streamed candidate to zero restores pending activity", async () => {
+  const harness = await loadIframeHarness(async () => {
+    throw new Error("network is not used by this state-machine test");
+  });
+  harness.setShowIntermediateMessages(true);
+  const observer = harness.createObserver();
+  const assistant = harness.messages.at(-1);
+
+  harness.applyFrame({
+    kind: "semantic",
+    eventType: "agent_activity",
+    payload: {
+      status: "generating_answer",
+      message: "Generating response...",
+    },
+    sequence: null,
+  }, observer);
+  harness.applyFrame({
+    kind: "semantic",
+    eventType: "token",
+    payload: {
+      content: "Vou procurar.",
+      output_mode: "final",
+      phase: "capability_response_generation",
+    },
+    sequence: null,
+  }, observer);
+
+  assert.equal(assistant.pending, false);
+  assert.equal(assistant.content, "Vou procurar.");
+
+  harness.applyFrame({
+    kind: "semantic",
+    eventType: "token_retract",
+    payload: {
+      content_length: "Vou procurar.".length,
+      reason: "tool_call_selected",
+    },
+    sequence: null,
+  }, observer);
+
+  assert.equal(assistant.pending, true);
+  assert.equal(assistant.content, "");
+  assert.equal(assistant.activity.status, "generating_answer");
+
+  harness.applyFrame({
+    kind: "semantic",
+    eventType: "agent_activity",
+    payload: {
+      status: "processing_tool_result",
+      message: "Processing tool result...",
+      tool_name: "search",
+    },
+    sequence: null,
+  }, observer);
+
+  assert.equal(assistant.pending, true);
+  assert.equal(assistant.activity.status, "processing_tool_result");
+});
+
+test("final-only mode hides provisional and intermediate Assistant text until terminal", async () => {
+  const harness = await loadIframeHarness(async () => {
+    throw new Error("network is not used by this state-machine test");
+  });
+  const observer = harness.createObserver();
+  const assistant = harness.messages.at(-1);
+
+  harness.applyFrame({
+    kind: "semantic",
+    eventType: "token",
+    payload: {
+      content: "Vou procurar.",
+      output_mode: "final",
+      phase: "capability_response_generation",
+    },
+    sequence: null,
+  }, observer);
+  harness.applyFrame({
+    kind: "semantic",
+    eventType: "assistant_message_completed",
+    payload: {
+      message_id: "message-progress",
+      content: "Vou procurar.",
+      output_mode: "intermediate",
+      phase: "capability_response_generation",
+    },
+    sequence: null,
+  }, observer);
+
+  assert.equal(harness.messages.length, 1);
+  assert.equal(assistant.pending, true);
+  assert.equal(assistant.content, "");
+
+  harness.applyFrame({
+    kind: "semantic",
+    eventType: "token_retract",
+    payload: {
+      content_length: "Vou procurar.".length,
+      reason: "tool_call_selected",
+    },
+    sequence: null,
+  }, observer);
+  harness.applyFrame({
+    kind: "semantic",
+    eventType: "done",
+    payload: {
+      answer: "Resultado final.",
+      message_id: "message-final",
+    },
+    sequence: null,
+  }, observer);
+
+  assert.equal(harness.messages.length, 1);
+  assert.equal(assistant.pending, false);
+  assert.equal(assistant.content, "Resultado final.");
+});
+
+test("history hides or shows persisted intermediate messages according to appearance", async () => {
+  const history = {
+    data: {
+      items: [
+        { id: "user-1", role: "user", content: "Pesquise", data: {} },
+        {
+          id: "message-progress",
+          role: "assistant",
+          content: "Vou procurar.",
+          data: { output_mode: "intermediate" },
+        },
+        {
+          id: "message-final",
+          role: "assistant",
+          content: "Resultado final.",
+          data: { output_mode: "final" },
+        },
+      ],
+    },
+  };
+  const harness = await loadIframeHarness(async (url) => {
+    const pathname = new URL(String(url)).pathname;
+    if (pathname.endsWith("/messages")) return Response.json(history);
+    throw new Error(`Unexpected request: ${pathname}`);
+  });
+
+  await harness.loadHistory();
+  assert.deepEqual(
+    harness.messages.map((item) => item.content),
+    ["Pesquise", "Resultado final."],
+  );
+
+  harness.setShowIntermediateMessages(true);
+  await harness.loadHistory();
+  assert.deepEqual(
+    harness.messages.map((item) => item.content),
+    ["Pesquise", "Vou procurar.", "Resultado final."],
+  );
+});
+
 test("pre-Tool public text becomes a durable intermediate bubble instead of disappearing", async () => {
   const stream = [
     ["token", { content: "Vou procurar.", message_id: "message-final", output_mode: "final" }],
@@ -494,6 +716,7 @@ test("pre-Tool public text becomes a durable intermediate bubble instead of disa
     throw new Error(`Unexpected request: ${pathname}`);
   });
 
+  harness.setShowIntermediateMessages(true);
   await harness.sendMessage("procure");
 
   assert.deepEqual(
@@ -583,6 +806,7 @@ test("reattach run.state restores intermediate messages before the terminal outp
     throw new Error(`Unexpected request: ${pathname}`);
   });
 
+  harness.setShowIntermediateMessages(true);
   await harness.sendMessage("continue");
 
   assert.deepEqual(
