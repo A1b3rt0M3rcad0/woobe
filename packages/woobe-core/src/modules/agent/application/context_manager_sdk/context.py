@@ -1,74 +1,12 @@
 from __future__ import annotations
 
-from typing import Literal, Protocol
+from typing import Protocol
 
-from modules.agent.application.context_manager_sdk.contracts import ContextManagerOutcome
+from modules.agent.application.context_manager_sdk.budget import ContextBudget
+from modules.agent.application.context_manager_sdk.candidates import ContextCandidates
+from modules.agent.application.context_manager_sdk.outcome import ContextManagerOutcome
+from modules.agent.application.context_manager_sdk.sources import ContextSources
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
-from modules.agent.domain.context import ContextPriority, ContextSourceType
-
-
-class ContextCandidates(Protocol):
-    """Strategy-facing operations over candidate context."""
-
-    def allow(self, sources: list[ContextSourceType]) -> None: ...
-
-    def recent_session(
-        self,
-        *,
-        max_messages: int,
-        max_units: int | None,
-    ) -> None: ...
-
-    def cap(
-        self,
-        source: ContextSourceType,
-        max_units: int | None,
-    ) -> None: ...
-
-    def require(
-        self,
-        source: ContextSourceType,
-        *,
-        priority: ContextPriority = ContextPriority.MANDATORY,
-    ) -> None: ...
-
-    def deduplicate(
-        self,
-        *,
-        strategy: Literal["none", "content_hash"],
-        sources: list[ContextSourceType],
-    ) -> None: ...
-
-    def order(
-        self,
-        *,
-        strategy: Literal["preserve_input", "source_priority"],
-    ) -> None: ...
-
-
-class ContextBudget(Protocol):
-    """Budget and pressure controls applied by the shared Context Runtime."""
-
-    def configure(
-        self,
-        *,
-        max_input_units: int | None,
-        runtime_reserve_units: int,
-    ) -> None: ...
-
-    def pressure(
-        self,
-        *,
-        moderate_at: float,
-        high_at: float,
-        critical_at: float,
-    ) -> None: ...
-
-
-class ContextSources(Protocol):
-    """Optional materialization sources a Manager may enable."""
-
-    def skills(self) -> None: ...
 
 
 class ContextManagerContext(Protocol):

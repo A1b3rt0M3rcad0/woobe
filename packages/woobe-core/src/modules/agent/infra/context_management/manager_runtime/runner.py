@@ -6,14 +6,15 @@ from modules.agent.application.context_assembly import (
     ContextAssemblyResult,
     assemble_context,
 )
+from modules.agent.application.context_manager_sdk import ContextManagerOutcome
 from modules.agent.application.interfaces.context_assembler import (
     ContextAssembler,
     ContextAssemblyOutput,
     ContextAssemblyRequest,
 )
 from modules.agent.application.interfaces.context_manager import ContextManager
-from modules.agent.infra.context_management.manager_runtime.context import (
-    RuntimeContextManagerContext,
+from modules.agent.infra.context_management.manager_runtime.builder import (
+    build_context_manager_context,
 )
 from modules.agent.infra.context_management.manager_runtime.skills import (
     materialize_active_skills,
@@ -29,8 +30,12 @@ class ContextManagerRunner(ContextAssembler):
         self._manager = manager
 
     def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput:
-        ctx = RuntimeContextManagerContext(request)
+        ctx = build_context_manager_context(request)
         outcome = self._manager.assemble(ctx)
+        if not isinstance(outcome, ContextManagerOutcome):
+            raise TypeError(
+                "Context Manager must return ContextManagerOutcome via ctx.complete()"
+            )
 
         messages = list(request.messages)
         policy = outcome.policy.model_copy(deep=True)

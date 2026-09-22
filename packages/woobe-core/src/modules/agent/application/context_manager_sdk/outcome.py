@@ -7,7 +7,7 @@ from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 
 @dataclass(frozen=True, slots=True)
 class ContextManagerOutcome:
-    """Algorithm decisions produced by one concrete Context Manager."""
+    """Algorithm decisions returned by one concrete Context Manager."""
 
     policy: ContextPolicyV1
     materialize_skills: bool = False
