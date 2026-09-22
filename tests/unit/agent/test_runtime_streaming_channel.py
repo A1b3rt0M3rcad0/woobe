@@ -229,6 +229,70 @@ async def test_visible_pre_tool_text_is_promoted_to_intermediate_message() -> No
 
 
 @pytest.mark.asyncio
+async def test_multiple_promotions_keep_distinct_messages_and_one_terminal_id() -> None:
+    recorder = FakeRecorder()
+    context = new_execution_context()
+    context.run_event_recorder = recorder
+    context_token = current_execution.set(context)
+    channel = RuntimeStreamChannel()
+    stream_token = current_runtime_stream.set(channel)
+    try:
+        await invoke_model_with_optional_streaming(
+            model=ToolSelectingStreamingModel(),
+            messages=[],
+            phase="capability_response_generation",
+            provider="openai",
+            model_name="gpt-test",
+        )
+        await invoke_model_with_optional_streaming(
+            model=ToolSelectingStreamingModel(),
+            messages=[],
+            phase="tool_followup_1",
+            provider="openai",
+            model_name="gpt-test",
+        )
+        await invoke_model_with_optional_streaming(
+            model=StreamingModel(),
+            messages=[],
+            phase="tool_followup_2",
+            provider="openai",
+            model_name="gpt-test",
+        )
+    finally:
+        current_runtime_stream.reset(stream_token)
+        current_execution.reset(context_token)
+
+    assert context.output_message_id is not None
+    assert context.intermediate_messages is not None
+    assert len(context.intermediate_messages) == 2
+    intermediate_ids = {
+        item["message_id"] for item in context.intermediate_messages
+    }
+    assert len(intermediate_ids) == 2
+    assert str(context.output_message_id) not in intermediate_ids
+
+    events = []
+    while not channel.queue.empty():
+        events.append(channel.queue.get_nowait())
+    completed = [
+        event for event in events
+        if event.event_type == "assistant_message_completed"
+    ]
+    final_tokens = [
+        event for event in events
+        if event.event_type == "token"
+        and event.payload.get("phase") == "tool_followup_2"
+    ]
+    assert len(completed) == 2
+    assert {event.payload["message_id"] for event in completed} == intermediate_ids
+    assert final_tokens
+    assert {
+        event.payload["message_id"] for event in final_tokens
+    } == {str(context.output_message_id)}
+    assert channel.public_output == "hello world"
+
+
+@pytest.mark.asyncio
 async def test_tool_followup_is_emitted_as_final_without_provider_control_token() -> None:
     channel = RuntimeStreamChannel()
     token = current_runtime_stream.set(channel)
