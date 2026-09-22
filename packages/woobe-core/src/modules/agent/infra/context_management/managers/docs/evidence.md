@@ -1,119 +1,84 @@
 # Context evidence and observability
 
-Programmable Context Managers must remain explainable. The shared Runtime records a `ContextSnapshot` for every instrumented Model Invocation.
+Programmability must not make context behavior opaque. Runtime records materialization evidence for every instrumented Model Invocation and records semantic-summary model calls separately.
 
 ## ContextSnapshot
 
-A Snapshot captures the effective materialization decision, including:
+A `ContextSnapshot` captures the effective materialization decision:
 
 ~~~text
-project_id
-agent_run_id
-model_invocation_id
+project/Run/Model Invocation identity
 policy schema/hash
-model capacity
-reserved output
-runtime reserve
+model capacity and reserves
 usable input budget
 estimated/reported input units
-utilization
-pressure status
+utilization and pressure status
 measurement status
 materialized hash
-retention mode
-reproduction level
-contributions
+retention/reproduction metadata
+ContextContribution list
 manifest
 ~~~
 
-The Manager does not construct this object directly.
+Concrete Managers never construct Snapshots directly.
 
 ## ContextContribution
 
-Each materialized contribution records evidence such as:
+Each contribution records source, refs, modality, priority, units, selection method, transformations, integrity and metadata.
+
+## Semantic-summary contribution
+
+A semantic summary retains its original source type and includes transformation provenance:
 
 ~~~text
-source_type
-source_ref
-parent_ref
-modality
-priority
-raw_units
-materialized_units
-selection_method
-relevance_score
-transformations
-trust
-sensitivity
-integrity_hash
-metadata
+source_type = SESSION | CHECKPOINT | MEMORY | KNOWLEDGE | ARTIFACT
+selection_method = semantic_summary
+transformations = [semantic_summary]
+raw_units = units of represented raw sources
+materialized_units = summary units
+summary_source_refs
+summary_source_hash
+summary_model_invocation_id
+summary_provider
+summary_model
 ~~~
 
-This lets observability answer not only "how many tokens were used?" but "what kind of context was selected, transformed or excluded, and why?"
+This means source-share and compaction metrics can continue to attribute the summary to the source knowledge it represents.
 
-## Manifest metrics
+## Summary model call
 
-Current Runtime metrics include:
+The provider call that creates or refreshes a summary appears in execution `llm_calls`/timeline with:
 
 ~~~text
-raw_candidate_count
-raw_candidate_units
-selected_count
-selected_raw_units
-selected_units
-selection_ratio
-compaction_ratio
-compaction_saving_units
-truncation_count
-truncation_rate
-configured_input_budget_units
-model_usable_input_units
-effective_input_budget_units
-budget_clamped
-pre_budget_units
-budget_reduction_units
-context_preservation_ratio
-headroom_units
-headroom_ratio
-context_fit_status
+purpose = context_summary
+phase = context_summary
+parent_call_index
+parent_model_invocation_id
+provider/model
+latency
+input/output/total tokens
+cost
+status
 ~~~
 
-## Exclusion evidence
+It is an internal model call and is not streamed as assistant output.
 
-Excluded candidates are summarized by source and reason.
+## Context checkpoints
 
-Current reasons include:
+`await ctx.checkpoint(...)` emits durable `context.checkpoint` evidence. The payload contains Manager identity, boundary and serialized typed state.
 
-~~~text
-source_not_allowed
-session_window
-deduplicated
-source_cap
-source_cap_unrepresentable
-global_budget
-global_budget_unrepresentable
-~~~
+Normal `execution.checkpoint` state also embeds the current Context Manager state so recovery continuations preserve algorithm state.
 
-A new Runtime primitive that removes or transforms context should add evidence rather than silently changing the prompt.
+## Selection/exclusion metrics
 
-## Transformation evidence
+Shared deterministic assembly still records candidate counts/units, selected counts/units, selection ratio, compaction savings, truncation, configured/effective budget, budget clamp, headroom and fit status.
 
-Current transformations include deterministic truncation and upstream Tool compaction.
+Exclusion reasons remain explicit, including source-not-allowed, Session window, deduplication, source cap and global budget.
 
-A future semantic-summary primitive must add explicit transformation/provenance fields such as `semantic_summary` and source lineage.
+## Estimated versus reported measurement
 
-## Measurement semantics
+Woobe estimates input units before provider execution. Provider-reported input usage may later enrich the Snapshot. Opaque/multimodal context remains `PARTIAL` instead of pretending all modalities are exactly token-comparable.
 
-Text and structured data use Woobe's conservative input-unit estimator before provider usage is known.
+## Invariant
 
-For opaque/multimodal payloads, Runtime does not pretend every modality is exactly token-comparable. Snapshot measurement status becomes `PARTIAL` where appropriate.
-
-Provider-reported usage may later enrich the Snapshot and replace estimated pressure/utilization with reported values.
-
-## Why this matters for custom Managers
-
-A custom Manager may choose a radically different selection algorithm while still producing comparable operational evidence.
-
-The invariant is:
-
-> algorithm diversity must not destroy runtime observability.
+> Different Context Manager algorithms may select and transform different material, but they must preserve a shared evidence contract.
