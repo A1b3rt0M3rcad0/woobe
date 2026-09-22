@@ -15,6 +15,7 @@ ContextManagerContext
 ├── candidates      eligibility, Session window, caps, dedup, ordering
 ├── capacity        invocation/model budget facts
 ├── inventory       aggregate candidates by source
+├── invocation      phase/provider/model/delegation/tool facts
 ├── priorities      source priority decisions
 ├── budget          configured input budget and runtime reserve
 ├── pressure        evidence/classification thresholds
@@ -50,7 +51,7 @@ Context Manager    -> ContextManagerContext -> Context Manager Runtime
 
 ## What a Manager owns
 
-A Manager can also inspect invocation facts through `ctx.capacity` and aggregate source availability through `ctx.inventory`, without seeing provider message objects.
+A Manager can inspect invocation capacity through `ctx.capacity`, aggregate source availability through `ctx.inventory`, and algorithm-relevant invocation metadata through `ctx.invocation`, without receiving the outer request or provider message objects.
 
 Typical Manager decisions include:
 
