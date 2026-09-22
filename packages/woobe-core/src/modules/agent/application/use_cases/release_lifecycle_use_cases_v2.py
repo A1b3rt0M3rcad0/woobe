@@ -8,6 +8,9 @@ from modules.agent.application.context_assembler_registry import (
     canonicalize_context_assembler_runtime_config,
 )
 from modules.agent.application.context_policy import canonicalize_context_runtime_config
+from modules.agent.application.execution_runtime_config import (
+    canonicalize_execution_runtime_config,
+)
 from modules.agent.application.execution_strategy_config import (
     execution_strategy_from_runtime_config,
 )
@@ -48,6 +51,7 @@ def _canonical_runtime_config(value) -> dict:
     strategy = execution_strategy_from_runtime_config(runtime_config)
     if "execution_strategy" in runtime_config:
         runtime_config["execution_strategy"] = strategy
+    runtime_config = canonicalize_execution_runtime_config(runtime_config)
     runtime_config = canonicalize_context_runtime_config(runtime_config)
     raw_rag = runtime_config.get("rag")
     runtime_config["rag"] = RAGRuntimeConfig.model_validate(
