@@ -125,6 +125,15 @@ async def test_scientific_method_resumes_after_experiment_without_replaying_tool
         }
 
     class CrashAfterCheckpointRecorder:
+        async def emit(self, event_type, payload=None, *, durable=False):
+            captured.setdefault("events", []).append(
+                {
+                    "event_type": event_type,
+                    "payload": dict(payload or {}),
+                    "durable": durable,
+                }
+            )
+
         async def checkpoint(self, state, *, durable=True):
             captured["state"] = state
             captured["durable"] = durable
@@ -140,6 +149,22 @@ async def test_scientific_method_resumes_after_experiment_without_replaying_tool
         current_execution.reset(first_token)
 
     assert captured["durable"] is True
+    assert captured["events"] == [
+        {
+            "event_type": "assistant.message.completed",
+            "payload": {
+                "message_id": captured["events"][0]["payload"]["message_id"],
+                "content": "Evidence collected. I will analyze it next.",
+                "phase": "experiment_update_1",
+                "output_mode": "intermediate",
+                "provider": "openai",
+                "model": "test-model",
+                "partial": False,
+                "completed_at": captured["events"][0]["payload"]["completed_at"],
+            },
+            "durable": True,
+        }
+    ]
     assert captured["state"]["resume_policy"] == "continue_execution_strategy"
     assert captured["state"]["execution_strategy"] == "scientific_method"
     assert captured["state"]["strategy_cursor"]["state"] == {
