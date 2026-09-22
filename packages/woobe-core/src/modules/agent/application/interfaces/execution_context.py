@@ -28,6 +28,7 @@ class RequestExecutionContext:
     session_id: UUID | None = None
     input_message_id: UUID | None = None
     output_message_id: UUID | None = None
+    intermediate_messages_enabled: bool = False
     intermediate_messages: list[dict[str, Any]] | None = None
     trace_id: UUID | None = None
     prepare_started_at: str | None = None
