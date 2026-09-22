@@ -88,6 +88,7 @@ async def test_strategy_survives_draft_staging_production_and_drives_runtime() -
     agent_id = uuid4()
     runtime_config = {
         "execution_strategy": "standard",
+        "execution": {"intermediate_messages": True},
         "other_runtime_setting": {"enabled": True},
     }
     expected_snapshot_runtime = _canonical_runtime_config(runtime_config)
@@ -118,12 +119,15 @@ async def test_strategy_survives_draft_staging_production_and_drives_runtime() -
     assert staging.runtime_config == expected_snapshot_runtime
     assert production.runtime_config == expected_snapshot_runtime
     assert staging.runtime_config["execution_strategy"] == "standard"
+    assert staging.runtime_config["execution"] == {"intermediate_messages": True}
     assert staging.runtime_config["other_runtime_setting"] == {"enabled": True}
 
     draft.runtime_config["execution_strategy"] = "react"
+    draft.runtime_config["execution"]["intermediate_messages"] = False
     stored_production = await repo.get_by_id(production.id)
     assert stored_production is not None
     assert stored_production.runtime_config["execution_strategy"] == "standard"
+    assert stored_production.runtime_config["execution"]["intermediate_messages"] is True
 
     # Simulate mutable Agent state diverging after the immutable Production snapshot.
     # Runtime resolution must use the Release snapshot, not current draft state.
