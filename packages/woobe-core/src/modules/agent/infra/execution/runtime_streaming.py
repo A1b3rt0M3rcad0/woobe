@@ -8,6 +8,8 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import UUID, uuid4
 
+import uuid6
+
 from shared.observability.metrics import runtime_metrics
 
 from shared.runtime.contracts import RUNTIME_STREAM_PROTOCOL_VERSION
@@ -503,10 +505,10 @@ def _output_message_id(mode: str) -> UUID | None:
     if mode == "final":
         if context is not None:
             if context.output_message_id is None:
-                context.output_message_id = uuid4()
+                context.output_message_id = uuid6.uuid7()
             return context.output_message_id
-        return uuid4()
-    return uuid4()
+        return uuid6.uuid7()
+    return uuid6.uuid7()
 
 
 async def _record_intermediate_message(
