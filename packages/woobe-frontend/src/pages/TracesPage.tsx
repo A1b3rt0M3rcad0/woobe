@@ -622,91 +622,186 @@ export default function TracesPage() {
   const [query, setQuery] = useState('')
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
   const [expandedNetworkIds, setExpandedNetworkIds] = useState<Set<string>>(new Set())
-  const { data: traces, isLoading, isError, error, refetch } = useTraces(projectId, networkFilter === 'all' ? undefined : networkFilter)
+  const {
+    data: ledger,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useProjectRuns(
+    projectId,
+    networkFilter === 'all' ? undefined : networkFilter,
+  )
 
-  const networkNames = useMemo(() => new Map((networksQuery.data ?? []).map((network) => [network.id, network.name])), [networksQuery.data])
-  const agentNames = useMemo(() => new Map((agentsQuery.data ?? []).map((agent) => [agent.id, agent.name])), [agentsQuery.data])
-  const items = traces ?? []
+  const networkNames = useMemo(
+    () => new Map((networksQuery.data ?? []).map((network) => [network.id, network.name])),
+    [networksQuery.data],
+  )
+  const agentNames = useMemo(
+    () => new Map((agentsQuery.data ?? []).map((agent) => [agent.id, agent.name])),
+    [agentsQuery.data],
+  )
 
-  const networkGroups = useMemo(() => {
-    const grouped = new Map<string, Trace[]>()
-    items.forEach((trace) => {
-      if (!trace.network_execution_id) return
-      const current = grouped.get(trace.network_execution_id) ?? []
-      current.push(trace)
-      grouped.set(trace.network_execution_id, current)
-    })
-    return [...grouped.entries()].map(([id, correlated]) => {
-      const sorted = correlated.slice().sort((left, right) => timestamp(traceStartedAt(left)) - timestamp(traceStartedAt(right)))
-      const rootTrace = sorted[0]
-      const duration = networkDuration(sorted)
-      const networkId = rootTrace.network_id ?? null
+  const directAgentRuns = useMemo(
+    () => (ledger?.direct_agent_runs ?? []).map((run) => agentRunToTrace(run)),
+    [ledger?.direct_agent_runs],
+  )
+
+  const networkGroups = useMemo(
+    () => (ledger?.network_runs ?? []).map((run) => {
+      const traces = run.agent_runs.map((agentRun) => agentRunToTrace(agentRun, run))
       return {
-        id,
-        networkId,
-        networkName: networkId ? networkNames.get(networkId) ?? `Network ${compactId(networkId)}` : 'Network Run',
-        traces: sorted,
-        rootTrace,
-        status: aggregateNetworkStatus(sorted),
-        ...duration,
-        costUsd: knownCostSum(sorted),
-        environment: environmentLabel(rootTrace),
-        versionLabel: versionLabel(rootTrace),
-        inputPreview: inputPreview(rootTrace),
+        id: run.id,
+        networkId: run.network_id,
+        networkName: run.network_name,
+        traces,
+        status: normalizedStatus(run.status),
+        startedAt: run.started_at ?? run.created_at,
+        endedAt: run.completed_at,
+        durationMs: run.duration_ms,
+        costUsd: knownCostSum(traces),
+        environment: run.environment,
+        versionLabel: run.network_version
+          ? `Network ${run.network_version}`
+          : run.draft_revision == null
+            ? null
+            : `Draft r${run.draft_revision}`,
+        inputPreview: run.input_message,
       } satisfies NetworkRunGroup
-    })
-  }, [items, networkNames])
+    }),
+    [ledger?.network_runs],
+  )
 
-  const networkGroupsById = useMemo(() => new Map(networkGroups.map((group) => [group.id, group])), [networkGroups])
-  const tracesById = useMemo(() => new Map(items.map((trace) => [trace.id, trace])), [items])
-  const directAgentRuns = useMemo(() => items.filter((trace) => !trace.network_execution_id), [items])
+  const items = useMemo(
+    () => [
+      ...directAgentRuns,
+      ...networkGroups.flatMap((group) => group.traces),
+    ],
+    [directAgentRuns, networkGroups],
+  )
+  const networkGroupsById = useMemo(
+    () => new Map(networkGroups.map((group) => [group.id, group])),
+    [networkGroups],
+  )
+  const tracesById = useMemo(
+    () => new Map(items.map((trace) => [trace.id, trace])),
+    [items],
+  )
 
   const baseEntries = useMemo<RunEntry[]>(() => {
-    const networkEntries = networkGroups.map((group) => ({ key: `network:${group.id}`, kind: 'network' as const, group, sortAt: timestamp(group.startedAt) }))
+    const networkEntries = networkGroups.map((group) => ({
+      key: `network:${group.id}`,
+      kind: 'network' as const,
+      group,
+      sortAt: timestamp(group.startedAt),
+    }))
     const agentSource = runType === 'agent' ? items : directAgentRuns
-    const agentEntries = agentSource.map((trace) => ({ key: `agent:${trace.id}`, kind: 'agent' as const, trace, sortAt: timestamp(traceStartedAt(trace)) }))
-    if (runType === 'network') return networkEntries.sort((left, right) => right.sortAt - left.sortAt)
-    if (runType === 'agent') return agentEntries.sort((left, right) => right.sortAt - left.sortAt)
-    return [...networkEntries, ...agentEntries].sort((left, right) => right.sortAt - left.sortAt)
+    const agentEntries = agentSource.map((trace) => ({
+      key: `agent:${trace.id}`,
+      kind: 'agent' as const,
+      trace,
+      sortAt: timestamp(traceStartedAt(trace)),
+    }))
+    if (runType === 'network') {
+      return networkEntries.sort((left, right) => right.sortAt - left.sortAt)
+    }
+    if (runType === 'agent') {
+      return agentEntries.sort((left, right) => right.sortAt - left.sortAt)
+    }
+    return [...networkEntries, ...agentEntries].sort(
+      (left, right) => right.sortAt - left.sortAt,
+    )
   }, [directAgentRuns, items, networkGroups, runType])
 
   const normalizedQuery = query.trim().toLowerCase()
   const visibleEntries = useMemo(() => baseEntries.filter((entry) => {
-    const status = entry.kind === 'network' ? entry.group.status : normalizedStatus(entry.trace.status)
+    const status = entry.kind === 'network'
+      ? entry.group.status
+      : normalizedStatus(entry.trace.status)
     if (!statusMatches(status, statusFilter)) return false
     if (!normalizedQuery) return true
     if (entry.kind === 'network') {
-      return [entry.group.id, entry.group.networkName, entry.group.environment, entry.group.versionLabel, entry.group.inputPreview]
-        .filter(Boolean).join(' ').toLowerCase().includes(normalizedQuery)
-        || entry.group.traces.some((trace) => traceSearchText(trace, trace.agent_id ? agentNames.get(trace.agent_id) : null, entry.group.networkName).includes(normalizedQuery))
+      return [
+        entry.group.id,
+        entry.group.networkName,
+        entry.group.environment,
+        entry.group.versionLabel,
+        entry.group.inputPreview,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedQuery)
+        || entry.group.traces.some((trace) => traceSearchText(
+          trace,
+          trace.agent_id ? agentNames.get(trace.agent_id) : null,
+          entry.group.networkName,
+        ).includes(normalizedQuery))
     }
-    return traceSearchText(entry.trace, entry.trace.agent_id ? agentNames.get(entry.trace.agent_id) : null, entry.trace.network_id ? networkNames.get(entry.trace.network_id) : null).includes(normalizedQuery)
+    return traceSearchText(
+      entry.trace,
+      entry.trace.agent_id ? agentNames.get(entry.trace.agent_id) : null,
+      entry.trace.network_id ? networkNames.get(entry.trace.network_id) : null,
+    ).includes(normalizedQuery)
   }), [agentNames, baseEntries, networkNames, normalizedQuery, statusFilter])
 
   const statusCounts = useMemo(() => ({
     all: baseEntries.length,
-    running: baseEntries.filter((entry) => statusMatches(entry.kind === 'network' ? entry.group.status : normalizedStatus(entry.trace.status), 'running')).length,
-    completed: baseEntries.filter((entry) => statusMatches(entry.kind === 'network' ? entry.group.status : normalizedStatus(entry.trace.status), 'completed')).length,
-    failed: baseEntries.filter((entry) => statusMatches(entry.kind === 'network' ? entry.group.status : normalizedStatus(entry.trace.status), 'failed')).length,
-    cancelled: baseEntries.filter((entry) => statusMatches(entry.kind === 'network' ? entry.group.status : normalizedStatus(entry.trace.status), 'cancelled')).length,
+    running: baseEntries.filter((entry) => statusMatches(
+      entry.kind === 'network'
+        ? entry.group.status
+        : normalizedStatus(entry.trace.status),
+      'running',
+    )).length,
+    completed: baseEntries.filter((entry) => statusMatches(
+      entry.kind === 'network'
+        ? entry.group.status
+        : normalizedStatus(entry.trace.status),
+      'completed',
+    )).length,
+    failed: baseEntries.filter((entry) => statusMatches(
+      entry.kind === 'network'
+        ? entry.group.status
+        : normalizedStatus(entry.trace.status),
+      'failed',
+    )).length,
+    cancelled: baseEntries.filter((entry) => statusMatches(
+      entry.kind === 'network'
+        ? entry.group.status
+        : normalizedStatus(entry.trace.status),
+      'cancelled',
+    )).length,
   }), [baseEntries])
 
-  const topLevelRuns = useMemo(() => [
-    ...networkGroups.map((group) => ({ status: group.status, duration: group.durationMs })),
-    ...directAgentRuns.map((trace) => ({ status: normalizedStatus(trace.status), duration: trace.total_latency_ms ?? null })),
-  ], [directAgentRuns, networkGroups])
-  const activeRuns = topLevelRuns.filter((run) => run.status === 'running' || run.status === 'pending').length
-  const failedRuns = topLevelRuns.filter((run) => run.status === 'failed').length
-  const failureRate = topLevelRuns.length ? (failedRuns / topLevelRuns.length) * 100 : 0
-  const p95Latency = percentile(topLevelRuns.map((run) => run.duration).filter((value): value is number => typeof value === 'number'), 0.95)
-  const averageAgentRuns = networkGroups.length ? networkGroups.reduce((total, group) => total + group.traces.length, 0) / networkGroups.length : 0
+  const summary = ledger?.summary
+  const activeRuns = summary?.active_top_level_runs ?? 0
+  const failedRuns = summary?.failed_top_level_runs ?? 0
+  const failureRate = summary?.failure_rate_percent ?? 0
+  const p95Latency = summary?.p95_top_level_latency_ms ?? null
+  const averageAgentRuns = summary?.avg_agent_runs_per_network_run ?? null
+  const topLevelRunCount = summary?.top_level_runs
+    ?? (networkGroups.length + directAgentRuns.length)
 
-  const selectedNetworkId = selectedKey?.startsWith('network:') ? selectedKey.slice('network:'.length) : null
-  const selectedAgentId = selectedKey?.startsWith('agent:') ? selectedKey.slice('agent:'.length) : null
-  const selectedNetwork = selectedNetworkId ? networkGroupsById.get(selectedNetworkId) ?? null : null
-  const selectedAgent = selectedAgentId ? tracesById.get(selectedAgentId) ?? null : null
-  const { data: selectedAgentDetail, isLoading: detailLoading } = useTraceDetail(selectedAgent?.id)
-  const hasFilters = runType !== 'all' || statusFilter !== 'all' || networkFilter !== 'all' || query.trim().length > 0
+  const selectedNetworkId = selectedKey?.startsWith('network:')
+    ? selectedKey.slice('network:'.length)
+    : null
+  const selectedAgentId = selectedKey?.startsWith('agent:')
+    ? selectedKey.slice('agent:'.length)
+    : null
+  const selectedNetwork = selectedNetworkId
+    ? networkGroupsById.get(selectedNetworkId) ?? null
+    : null
+  const selectedAgent = selectedAgentId
+    ? tracesById.get(selectedAgentId) ?? null
+    : null
+  const {
+    data: selectedAgentDetail,
+    isLoading: detailLoading,
+  } = useOptionalTraceDetail(selectedAgent?.id)
+  const hasFilters = runType !== 'all'
+    || statusFilter !== 'all'
+    || networkFilter !== 'all'
+    || query.trim().length > 0
 
   if (!projectId) return <ErrorState message="Project not found" />
 
