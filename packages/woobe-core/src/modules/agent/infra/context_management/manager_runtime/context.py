@@ -192,7 +192,7 @@ class RuntimeContextManagerContext:
     """Concrete implementation of the stable ContextManagerContext API."""
 
     __slots__ = (
-        "policy",
+        "_configured_policy",
         "candidates",
         "priorities",
         "budget",
@@ -204,13 +204,17 @@ class RuntimeContextManagerContext:
 
     def __init__(self, request: ContextAssemblyRequest) -> None:
         self._request = request
-        self.policy = request.policy.model_copy(deep=True)
+        self._configured_policy = request.policy.model_copy(deep=True)
         self._effective_policy = request.policy.model_copy(deep=True)
         self.candidates = RuntimeContextCandidates(self._effective_policy)
         self.priorities = RuntimeContextPriorities(self._effective_policy)
         self.budget = RuntimeContextBudget(self._effective_policy)
         self.pressure = RuntimeContextPressure(self._effective_policy)
         self.sources = RuntimeContextSources()
+
+    @property
+    def policy(self) -> ContextPolicyV1:
+        return self._configured_policy
 
     @property
     def has_active_skills(self) -> bool:
