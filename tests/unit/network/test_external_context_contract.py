@@ -11,6 +11,7 @@ from modules.network.domain.external_context_contract import (
     classify_effective_external_context_change,
     project_effective_external_context,
     resolve_effective_external_context,
+    resolve_scoped_effective_external_context,
 )
 
 
@@ -19,10 +20,12 @@ def agent_contract(
     required: bool = False,
     expose: bool = False,
     default: str | None = None,
+    scope: str = "run",
 ):
     field = {
         "schema": {"type": "string"},
         "required": required,
+        "scope": scope,
         "model": {"expose": expose},
     }
     if default is not None:
@@ -122,6 +125,77 @@ def test_existing_consumer_optional_to_required_breaks_compatibility() -> None:
     candidate = compose_external_context_contracts(
         {"support": agent_contract(required=True)}
     )
+    assert (
+        classify_effective_external_context_change(previous, candidate)
+        is ReleaseChangeKind.COMPATIBILITY
+    )
+
+
+def test_effective_session_scope_is_initialized_once_and_merged_with_run_scope() -> None:
+    effective = compose_external_context_contracts(
+        {
+            "support": {
+                "customer_id": {
+                    "schema": {"type": "string"},
+                    "required": True,
+                    "scope": "session",
+                    "model": {"expose": False},
+                },
+                "current_page": {
+                    "schema": {"type": "string"},
+                    "required": False,
+                    "scope": "run",
+                    "model": {"expose": False},
+                },
+            }
+        }
+    )
+
+    first = resolve_scoped_effective_external_context(
+        effective,
+        {"customer_id": "cus-1", "current_page": "/checkout"},
+        session_snapshot=None,
+    )
+    second = resolve_scoped_effective_external_context(
+        effective,
+        {"current_page": "/orders"},
+        session_snapshot=first.session_snapshot,
+    )
+
+    assert first.session_snapshot == {"customer_id": "cus-1"}
+    assert first.run_snapshot == {"current_page": "/checkout"}
+    assert second.snapshot == {
+        "customer_id": "cus-1",
+        "current_page": "/orders",
+    }
+
+
+def test_effective_session_scope_rejects_repeated_input() -> None:
+    effective = compose_external_context_contracts(
+        {"support": agent_contract(required=True, scope="session")}
+    )
+    first = resolve_scoped_effective_external_context(
+        effective,
+        {"customer_id": "cus-1"},
+        session_snapshot=None,
+    )
+
+    with pytest.raises(ExternalContextContractError, match="cannot be supplied again"):
+        resolve_scoped_effective_external_context(
+            effective,
+            {"customer_id": "cus-1"},
+            session_snapshot=first.session_snapshot,
+        )
+
+
+def test_effective_scope_change_is_compatibility_break() -> None:
+    previous = compose_external_context_contracts(
+        {"support": agent_contract(scope="run")}
+    )
+    candidate = compose_external_context_contracts(
+        {"support": agent_contract(scope="session")}
+    )
+
     assert (
         classify_effective_external_context_change(previous, candidate)
         is ReleaseChangeKind.COMPATIBILITY
