@@ -12,7 +12,7 @@ _SCHEMA_KEYS = {
     "additionalProperties", "allOf", "anyOf", "const", "definitions", "description",
     "enum", "format", "items", "maxItems", "maxLength", "maximum", "minItems",
     "minLength", "minimum", "oneOf", "pattern", "properties", "required", "schema",
-    "title", "type",
+    "title", "type", "x-woobe-scope",
 }
 _SIMPLE_TYPES = {
     "str": "string", "string": "string", "text": "string",
@@ -175,7 +175,9 @@ def external_context_contract_schema(value: Any) -> dict[str, Any] | None:
         if not isinstance(raw_field, Mapping):
             continue
         name = str(raw_name)
-        properties[name] = _contract_value_to_schema(raw_field.get("schema", {}))
+        property_schema = _contract_value_to_schema(raw_field.get("schema", {}))
+        property_schema["x-woobe-scope"] = raw_field.get("scope", "run")
+        properties[name] = property_schema
         if raw_field.get("required") is True:
             required.append(name)
 
@@ -201,9 +203,9 @@ def effective_external_context_contract_schema(value: Any) -> dict[str, Any] | N
     for raw_name, raw_field in fields.items():
         if not isinstance(raw_field, Mapping):
             continue
-        properties[str(raw_name)] = _contract_value_to_schema(
-            raw_field.get("schema", {})
-        )
+        property_schema = _contract_value_to_schema(raw_field.get("schema", {}))
+        property_schema["x-woobe-scope"] = raw_field.get("scope", "run")
+        properties[str(raw_name)] = property_schema
 
     return normalize_contract_schema(
         {
