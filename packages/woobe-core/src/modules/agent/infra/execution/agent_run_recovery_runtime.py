@@ -579,6 +579,10 @@ class AgentRunRecoveryExecutor:
         context.storage_version = EVENT_JOURNAL_STORAGE_VERSION
         context.run_attempt = request.attempt
         context.resume_state = deepcopy(request.checkpoint) if request.checkpoint is not None else None
+        if isinstance(request.checkpoint, dict):
+            raw_context_manager_state = request.checkpoint.get("context_manager_state")
+            if isinstance(raw_context_manager_state, dict):
+                context.context_manager_state = deepcopy(raw_context_manager_state)
 
         input_dto = AskInput(
             project_id=request.project_id,
