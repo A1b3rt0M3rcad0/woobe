@@ -370,6 +370,8 @@ class AgentRunEventProjector(RunEventProjectorPort):
                 "output_parse_error": event.payload.get("output_parse_error"),
                 "cancelled": False,
                 "partial": False,
+                "phase": event.payload.get("phase"),
+                "output_mode": "final",
             },
         )
         created = await repositories.messages.create(message)

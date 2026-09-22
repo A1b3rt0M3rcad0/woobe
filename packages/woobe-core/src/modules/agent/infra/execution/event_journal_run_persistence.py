@@ -202,6 +202,11 @@ class EventJournalAgentRunPersistence:
             call.model_dump() if hasattr(call, "model_dump") else call
             for call in execution.tool_calls
         ]
+        final_phase = (
+            execution.llm_calls[-1].get("phase")
+            if execution.llm_calls
+            else None
+        )
         payload = {
             "run_id": str(context.run_id),
             "trace_id": str(kw["trace_id"]),
@@ -209,6 +214,8 @@ class EventJournalAgentRunPersistence:
             "agent_id": str(agent.id),
             "session_id": str(session.id),
             "message_id": str(message_id),
+            "phase": final_phase,
+            "output_mode": "final",
             "answer": kw["answer"],
             "usage": canonical_usage.model_dump(),
             "input_tokens": canonical_usage.input_tokens,
@@ -261,6 +268,7 @@ class EventJournalAgentRunPersistence:
             "output_parse_error": payload["output_parse_error"],
             "cancelled": False,
             "partial": False,
+            "phase": final_phase,
             "output_mode": "final",
         }
 
