@@ -100,16 +100,43 @@ Assistant output has three semantic modes:
 
 ```text
 INTERNAL      → execution-private
-INTERMEDIATE  → public durable Assistant Message; Run continues
+INTERMEDIATE  → eligible public durable Assistant Message; Run continues
 FINAL         → public terminal Assistant Message
 ```
+
+Whether `INTERMEDIATE` is actually published and persisted is an Agent Execution
+policy frozen in `runtime_config`:
+
+```json
+{
+  "execution": {
+    "intermediate_messages": true
+  }
+}
+```
+
+The historical/default value is `false`. When disabled:
+
+- a Strategy request for `INTERMEDIATE` remains execution-internal;
+- no `assistant_message_delta` / `assistant_message_completed` event is emitted;
+- no intermediate Assistant Message is persisted;
+- capability-selection text is buffered until the invocation has decided whether
+  to answer or call a Tool;
+- Tool-selected candidate text is discarded internally rather than being published
+  and retracted.
+
+When enabled, the normal `INTERMEDIATE` contract applies to every Strategy using the
+Strategy SDK. This policy belongs to Agent execution and therefore governs every
+communication bridge consistently: Playground, Network root projection, Public Runtime
+API, ChatSurface, and SDK consumers.
 
 A capability-selection invocation may optimistically stream `FINAL` tokens before the
 provider has finished deciding whether to answer or call a Tool. If that same invocation
 ultimately returns `tool_calls` after public text was already shown, the runtime must not
 make the visible text disappear from the conversation.
 
-The runtime therefore performs this ordered transition:
+When intermediate delivery is enabled, the runtime therefore performs this ordered
+transition:
 
 ```text
 FINAL candidate tokens shown
