@@ -1,129 +1,149 @@
 # Summary and compaction
 
-Semantic summary is a real missing capability in the current Context Manager Runtime. It must not be confused with the existing `compaction_*` metrics.
+Woobe now supports semantic summary as a first-class asynchronous Context Runtime capability. It is distinct from deterministic context reduction.
 
-## What compaction means today
+## Deterministic compaction
 
-Woobe currently reduces materialized context through:
+Existing context reduction still includes:
 
-1. candidate exclusion;
+1. source exclusion;
 2. recent Session selection;
 3. content-hash deduplication;
 4. per-source caps;
 5. text truncation;
 6. structured External Context compaction;
-7. upstream Tool-output compaction whose transformation metadata is preserved.
+7. upstream Tool-output compaction.
 
-`compaction_saving_units` measures raw-versus-materialized savings for selected contributions. It does **not** mean that an LLM summary was generated.
+`compaction_saving_units` can reflect these deterministic transformations. It must not be interpreted as proof of an LLM-generated summary.
 
-## What semantic summary would add
+## Semantic summary
 
-A summary capability would need to support at least:
-
-~~~text
-semantic compression of old Session turns
-rolling or pressure-triggered summaries
-source lineage
-summary refresh/staleness rules
-summary model selection
-cost and usage accounting
-failure/fallback behavior
-durability and recovery semantics
-summary-specific transformation evidence
-~~~
-
-None of those mechanics exist in the current Runtime.
-
-## Why there is no `ctx.summary()` primitive yet
-
-The outer `ContextAssembler.assemble()` boundary is synchronous. Semantic summary normally requires asynchronous model I/O.
-
-Hiding a provider call inside a synchronous Manager primitive would introduce:
-
-- blocking I/O inside the execution loop;
-- uninstrumented model calls;
-- missing cost/usage accounting;
-- unclear retry/fallback semantics;
-- recursive context-assembly risk;
-- no durable boundary around summary generation;
-- ambiguous recovery behavior.
-
-That would violate the same runtime/algorithm separation already enforced for Execution Strategies.
-
-## Correct future architecture
-
-The preferred extension is a deterministic planning step followed by an async runtime transformation step:
-
-~~~text
-Manager algorithm
-      │
-      │ returns ContextPlan / transformation intents
-      ▼
-Context Manager Runtime
-      │
-      ├── executes reusable async transformations
-      │     └── semantic summary capability
-      │
-      ├── records usage/cost/provenance
-      └── materializes final context
-~~~
-
-The Manager itself can remain deterministic while Runtime owns asynchronous execution mechanics.
-
-## Proposed Summary Policy
-
-When the runtime capability exists, Summary Policy should answer deterministic questions such as:
-
-~~~text
-strategy
-eligible source types
-trigger condition
-target summary units
-recent tail preserved verbatim
-refresh threshold
-failure mode
-summary model selection policy
-retention/persistence policy
-~~~
-
-A plausible future shape is:
+A Manager may now call:
 
 ~~~python
-class ContextSummaryPolicy(BaseModel):
-    strategy: Literal["disabled", "pressure_triggered", "rolling"] = "disabled"
-    sources: list[ContextSourceType] = [ContextSourceType.SESSION]
-    trigger_at: float = 0.75
-    target_units: int = 2_000
-    preserve_recent_messages: int = 8
-    refresh_after_messages: int = 12
-    failure_mode: Literal["fallback_to_selection", "fail"] = "fallback_to_selection"
+summary = await ctx.summary.create(
+    ContextSourceType.SESSION,
+    target_units=2_000,
+    preserve_recent_messages=8,
+)
 ~~~
 
-This is a design target, not an implemented schema/runtime contract in the current branch.
+Runtime selects the eligible source material, invokes the model through an internal instrumented capability, creates typed lineage and stages the transformation for final materialization.
 
-## Provenance requirements
+Concrete Managers never receive the raw messages selected for summarization.
 
-A future semantic summary contribution should preserve:
+## Safe source set
+
+Semantic summary currently supports:
 
 ~~~text
-source refs of summarized contributions
-raw source units
-summary units
-summary model/provider identity
-summary model call id
-transformation = semantic_summary
-summary policy hash
-generation timestamp
-integrity hash
+SESSION
+CHECKPOINT
+MEMORY
+KNOWLEDGE
+ARTIFACT
 ~~~
 
-A summary must appear as an explicit transformation in Context evidence, never as unexplained replacement text.
+The Runtime rejects unsupported source types even if a custom Manager attempts to call the primitive.
+
+## Summary result
+
+`ContextSummaryResult` contains:
+
+~~~text
+summary_ref
+source
+source_refs
+source_hash
+content
+raw_units
+materialized_units
+preserve_recent_messages
+model_invocation_id
+provider
+model
+~~~
+
+The source hash covers the raw referenced source material. Stored summaries can only be reused when those references still exist and the content hash matches.
+
+## Applying cached summary
+
+`ctx.summary.apply(summary)` replaces exactly the historical source refs represented by that summary. Newly appended Session history is not accidentally swallowed.
+
+This allows a checkpointed summary to be reused across later Model Invocations in the same Run.
+
+## Incremental refresh
+
+`await ctx.summary.refresh(summary, ...)` does not re-send the whole raw history.
+
+~~~text
+previous summary
+      +
+new eligible historical messages
+      │
+      ▼
+summary model
+      │
+      ▼
+refreshed summary
+~~~
+
+The refreshed result updates `source_refs` and `source_hash` to represent the full summarized set, while the model input contains the previous compressed summary plus only newly eligible history.
+
+## Adaptive strategies
+
+`AdaptiveContextManager` supports:
+
+- `pressure_triggered`: create/refresh when candidate units relative to usable input budget reach `trigger_at`;
+- `rolling`: create when enough eligible history exists, then refresh after `refresh_after_messages` additional candidates;
+- `disabled`: never call the summary model.
+
+`failure_mode=fallback_to_selection` preserves deterministic selection if summary generation fails. `failure_mode=fail` propagates the failure.
+
+## Model invocation and observability
+
+Summary currently uses the model object of the Model Invocation being prepared. The summary call bypasses Context assembly to prevent recursive summarization.
+
+It is recorded in the same execution observability stream with:
+
+~~~text
+purpose = context_summary
+phase = context_summary
+unique call_id/model_invocation_id
+parent invocation/call reference
+input/output/total tokens
+cost/status/latency
+provider/model
+~~~
+
+Summary text is internal context work and is not streamed as the assistant's answer.
+
+## Checkpointing
+
+Adaptive stores a newly generated/refreshed summary in `ctx.state`, increments `summary_generation`, then awaits `ctx.checkpoint(ContextCheckpointBoundary.SUMMARY)`.
+
+This makes summary reuse durable without treating the summary boundary as an Execution Tool checkpoint.
+
+## Transformation evidence
+
+When materialized, the summary keeps its original source type and records:
+
+~~~text
+selection_method = semantic_summary
+transformations = [semantic_summary]
+summary_source_refs
+summary_source_hash
+summary_model_invocation_id
+summary_provider
+summary_model
+raw_units
+materialized_units
+~~~
+
+Summary is therefore inspectable as a transformation rather than unexplained replacement text.
 
 ## Summary versus Memory
 
-Summary and Memory are distinct:
+Summary compresses already-selected historical context. Memory is a reusable knowledge source with its own retrieval/persistence semantics.
 
-- Summary compresses selected context for an invocation or conversation window.
-- Memory is a reusable persisted knowledge source that may outlive that window.
-
-A rolling Session summary may later be persisted through a checkpoint or memory subsystem, but that persistence decision should be explicit.
+A future product may persist a rolling summary into Session/Checkpoint/Memory storage, but that is an explicit persistence decision, not an implicit consequence of semantic summary.
