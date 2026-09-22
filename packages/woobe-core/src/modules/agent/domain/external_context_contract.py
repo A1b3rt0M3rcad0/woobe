@@ -103,9 +103,10 @@ def normalize_external_context_contract(value: Any) -> dict[str, Any]:
         field: dict[str, Any] = {
             "schema": schema,
             "required": required,
-            "scope": scope,
             "model": {"expose": expose},
         }
+        if "scope" in raw_field:
+            field["scope"] = scope
         if "default" in raw_field:
             _validate_schema_value(raw_field["default"], schema, f"{name}.default")
             field["default"] = deepcopy(raw_field["default"])
@@ -170,12 +171,12 @@ def split_external_context_contract(
     session_fields = {
         name: deepcopy(field)
         for name, field in fields.items()
-        if field["scope"] == "session"
+        if field.get("scope", "run") == "session"
     }
     run_fields = {
         name: deepcopy(field)
         for name, field in fields.items()
-        if field["scope"] == "run"
+        if field.get("scope", "run") == "run"
     }
     return session_fields, run_fields
 
@@ -311,7 +312,7 @@ def classify_external_context_change(previous: Any, candidate: Any) -> ReleaseCh
             feature = True
             continue
 
-        if old_field["scope"] != new_field["scope"]:
+        if old_field.get("scope", "run") != new_field.get("scope", "run"):
             return ReleaseChangeKind.COMPATIBILITY
         if not old_field["required"] and new_field["required"]:
             return ReleaseChangeKind.COMPATIBILITY
@@ -339,13 +340,13 @@ def compose_external_context_contracts(
             if existing is None:
                 existing = {
                     "schema": deepcopy(field["schema"]),
-                    "scope": field["scope"],
+                    "scope": field.get("scope", "run"),
                     "consumers": {},
                 }
                 effective_fields[name] = existing
             elif (
                 existing["schema"] != field["schema"]
-                or existing.get("scope", "run") != field["scope"]
+                or existing.get("scope", "run") != field.get("scope", "run")
             ):
                 raise ExternalContextContractError(
                     f"External Context field '{name}' conflicts between Network Agents"
