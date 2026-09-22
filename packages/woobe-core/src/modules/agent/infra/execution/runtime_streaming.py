@@ -618,6 +618,41 @@ async def _emit_visible_token(
     )
 
 
+async def _promote_streamed_final_to_intermediate(
+    channel: RuntimeStreamChannel,
+    *,
+    streamed_visible_tokens: list[str],
+    phase: str,
+    provider: str,
+    model_name: str,
+) -> UUID | None:
+    """Preserve already-visible Assistant text when the Run continues via a Tool.
+
+    Final-stream tokens are optimistic while a capability-selection invocation is
+    still open. If the same invocation ultimately selects a Tool, the text has
+    already been presented to the user and must become a first-class intermediate
+    Assistant Message instead of disappearing from the conversation.
+    """
+
+    if not streamed_visible_tokens:
+        return None
+
+    content = "".join(streamed_visible_tokens)
+    # Keep durable journal ordering intuitive: candidate final output first, then
+    # the promoted semantic Message, then the retraction of the final candidate.
+    await channel.flush_durable_output()
+    intermediate_message_id = uuid6.uuid7()
+    await _complete_intermediate_message(
+        channel,
+        message_id=intermediate_message_id,
+        content=content,
+        phase=phase,
+        provider=provider,
+        model_name=model_name,
+    )
+    return intermediate_message_id
+
+
 async def _retract_streamed_tokens(
     channel: RuntimeStreamChannel,
     *,
@@ -813,6 +848,13 @@ async def invoke_model_with_optional_streaming(
             model_name=model_name,
         )
     elif mode == "final" and _result_has_tool_calls(accumulated) and streamed_visible_tokens:
+        await _promote_streamed_final_to_intermediate(
+            channel,
+            streamed_visible_tokens=streamed_visible_tokens,
+            phase=phase,
+            provider=provider,
+            model_name=model_name,
+        )
         await _retract_streamed_tokens(
             channel,
             streamed_visible_tokens=streamed_visible_tokens,
