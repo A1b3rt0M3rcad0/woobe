@@ -62,6 +62,17 @@ class ContextAssemblyResult:
     snapshot: ContextSnapshot
 
 
+@dataclass(frozen=True, slots=True)
+class ContextCandidateAnalysis:
+    """Pre-selection candidate analysis shared by Manager SDK and materialization."""
+
+    messages: list[Any]
+    sources: list[ContextSourceType]
+    raw_units_by_index: list[int]
+    source_summary: dict[str, dict[str, int]]
+    delegated: bool
+
+
 _PRIORITY_RANK = {
     ContextPriority.MANDATORY: 0,
     ContextPriority.HIGH: 1,
@@ -591,6 +602,64 @@ def _contribution(
     )
 
 
+def analyze_context_candidates(
+    messages: list[Any],
+    runtime_context: Any,
+) -> ContextCandidateAnalysis:
+    """Classify pre-selection candidates without exposing raw messages to Managers."""
+
+    working = list(messages)
+    external_context_message = _external_context_message(runtime_context, working)
+    if external_context_message is not None:
+        insertion = 0
+        while (
+            insertion < len(working)
+            and type(working[insertion]).__name__ == "SystemMessage"
+        ):
+            insertion += 1
+        working.insert(insertion, external_context_message)
+
+    delegated = (
+        bool(getattr(runtime_context, "parent_invocation_id", None))
+        if runtime_context
+        else False
+    )
+    latest_user_index = None
+    for index in range(len(working) - 1, -1, -1):
+        if type(working[index]).__name__ == "HumanMessage":
+            latest_user_index = index
+            break
+
+    sources = [
+        _classify_message(
+            message,
+            index=index,
+            latest_user_index=latest_user_index,
+            delegated=delegated,
+        )
+        for index, message in enumerate(working)
+    ]
+    raw_units_by_index = [
+        estimate_input_units(_message_text(message)) for message in working
+    ]
+    source_summary: dict[str, dict[str, int]] = {}
+    for index, source in enumerate(sources):
+        item = source_summary.setdefault(
+            source.value,
+            {"count": 0, "units": 0},
+        )
+        item["count"] += 1
+        item["units"] += raw_units_by_index[index]
+
+    return ContextCandidateAnalysis(
+        messages=working,
+        sources=sources,
+        raw_units_by_index=raw_units_by_index,
+        source_summary=source_summary,
+        delegated=delegated,
+    )
+
+
 def _session_keep_indices(
     messages: list[Any],
     sources: list[ContextSourceType],
@@ -666,48 +735,15 @@ def assemble_context(
     runtime_context: Any,
     policy: ContextPolicyV1,
 ) -> ContextAssemblyResult:
-    working = list(messages)
-    external_context_message = _external_context_message(runtime_context, working)
-    if external_context_message is not None:
-        insertion = 0
-        while (
-            insertion < len(working)
-            and type(working[insertion]).__name__ == "SystemMessage"
-        ):
-            insertion += 1
-        working.insert(insertion, external_context_message)
-
-    delegated = (
-        bool(getattr(runtime_context, "parent_invocation_id", None))
-        if runtime_context
-        else False
-    )
-    latest_user_index = None
-    for index in range(len(working) - 1, -1, -1):
-        if type(working[index]).__name__ == "HumanMessage":
-            latest_user_index = index
-            break
-
-    sources = [
-        _classify_message(
-            message,
-            index=index,
-            latest_user_index=latest_user_index,
-            delegated=delegated,
-        )
-        for index, message in enumerate(working)
-    ]
-    raw_units_by_index = [
-        estimate_input_units(_message_text(message)) for message in working
-    ]
-    candidate_source_summary: dict[str, dict[str, int]] = {}
-    for index, source in enumerate(sources):
-        item = candidate_source_summary.setdefault(
-            source.value,
-            {"count": 0, "units": 0},
-        )
-        item["count"] += 1
-        item["units"] += raw_units_by_index[index]
+    analysis = analyze_context_candidates(messages, runtime_context)
+    working = list(analysis.messages)
+    sources = list(analysis.sources)
+    raw_units_by_index = list(analysis.raw_units_by_index)
+    candidate_source_summary = {
+        source: dict(values)
+        for source, values in analysis.source_summary.items()
+    }
+    delegated = analysis.delegated
 
     allowed = set(policy.allowed_sources)
     current_source = (
