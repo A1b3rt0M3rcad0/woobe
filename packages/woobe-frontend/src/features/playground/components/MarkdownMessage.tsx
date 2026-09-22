@@ -282,7 +282,7 @@ function alignmentClass(alignment: 'left' | 'center' | 'right'): string {
   return 'text-left'
 }
 
-export function MarkdownMessage({ content, isStreaming, className }: MarkdownMessageProps) {
+export function MarkdownMessage({ content, className }: MarkdownMessageProps) {
   const blocks: ReactNode[] = []
   const lines = content.replace(/\r\n/g, '\n').split('\n')
   let paragraph: string[] = []
@@ -517,9 +517,6 @@ export function MarkdownMessage({ content, isStreaming, className }: MarkdownMes
   return (
     <div className={cn('space-y-ui-sm break-words', className)}>
       {blocks.length > 0 ? blocks : <p>{content}</p>}
-      {isStreaming && (
-        <span className="inline-flex h-icon-sm w-1.5 translate-y-0.5 animate-pulse rounded-technical bg-primary/80" aria-label="Streaming" />
-      )}
     </div>
   )
 }
