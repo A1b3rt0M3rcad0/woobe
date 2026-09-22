@@ -225,7 +225,7 @@ async def test_catalog_versions_are_project_scoped_and_keep_name(version):
     repo.create_version.assert_not_called()
 
 
-def test_progressive_loading_deduplication_provenance_and_run_isolation(version):
+async def test_progressive_loading_deduplication_provenance_and_run_isolation(version):
     runtime = SkillRuntime([version.snapshot()], SkillContextPolicy(), set())
     assert version.package["instructions"] not in str(runtime.contributions())
     assert not runtime.execute(
@@ -246,7 +246,7 @@ def test_progressive_loading_deduplication_provenance_and_run_isolation(version)
         {"skill_version_id": str(version.id), "path": "references/checklist.md"},
         tool_call_id="read",
     )["success"]
-    assembled = build_context_assembler("standard").assemble(
+    assembled = await build_context_assembler("standard").assemble(
         request(runtime)
     )
     assert (
@@ -285,7 +285,7 @@ def test_activation_enforces_tools_and_installed_versions(version):
     assert len(runtime.contributions()) == 1
 
 
-def test_budget_declines_new_content_without_truncating_active_instructions(version):
+async def test_budget_declines_new_content_without_truncating_active_instructions(version):
     snapshot = deepcopy(version.snapshot())
     snapshot["package"]["instructions"] += " Full procedure." * 40
     runtime = SkillRuntime([snapshot], SkillContextPolicy(max_units=8000), set())
@@ -305,7 +305,7 @@ def test_budget_declines_new_content_without_truncating_active_instructions(vers
         {"skill_version_id": str(version.id), "path": "references/checklist.md"},
         tool_call_id="r",
     )["success"]
-    assembled = build_context_assembler("standard").assemble(
+    assembled = await build_context_assembler("standard").assemble(
         request(
             runtime,
             ContextPolicyV1(
@@ -329,10 +329,10 @@ def test_budget_declines_new_content_without_truncating_active_instructions(vers
         messages=[SystemMessage(content="x" * 2000), HumanMessage(content="Input")],
     )
     with pytest.raises(ContextBudgetExceeded):
-        build_context_assembler("standard").assemble(oversized)
+        await build_context_assembler("standard").assemble(oversized)
 
 
-def test_standard_context_is_stable_without_active_skills(version):
+async def test_standard_context_is_stable_without_active_skills(version):
     policy = ContextPolicyV1()
     assert "skills" not in policy.model_dump(mode="json")
     context_request = request(
@@ -349,7 +349,7 @@ def test_standard_context_is_stable_without_active_skills(version):
         runtime_context=context_request.runtime_context,
         policy=context_request.policy,
     )
-    updated = build_context_assembler("standard").assemble(context_request)
+    updated = await build_context_assembler("standard").assemble(context_request)
     assert original.messages == updated.messages
     assert {
         key: value
