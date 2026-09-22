@@ -2,6 +2,17 @@ export type ToolProtocol = 'http' | 'mcp' | 'http_mcp' | 'api' | 'webhook' | str
 export type ToolChildPermissionMode = 'allow' | 'deny' | 'review'
 export type McpToolPermissionMode = ToolChildPermissionMode
 
+export interface ToolContextBindingSource {
+  kind: 'context' | 'project_environment'
+  field: string
+}
+
+export interface ToolInputBinding {
+  source: ToolContextBindingSource
+}
+
+export type ToolInputBindings = Record<string, ToolInputBinding>
+
 export interface HttpHeader {
   key: string
   value?: string
@@ -31,6 +42,7 @@ export interface HttpRouteConfig {
   headers?: HttpHeader[]
   body?: string | Record<string, unknown> | unknown[]
   variables?: Record<string, string>
+  bindings?: ToolInputBindings
   input_schema?: Record<string, unknown>
   output_schema?: Record<string, unknown>
   risk_level?: string
@@ -53,6 +65,7 @@ export interface HttpToolConfig {
   headers: HttpHeader[]
   body?: string | Record<string, unknown> | unknown[]
   variables?: Record<string, string>
+  bindings?: ToolInputBindings
   auth?: HttpAuth
   timeout_ms?: number
 }
@@ -131,6 +144,7 @@ export interface DiscoveredMcpTool {
   title?: string | null
   description?: string | null
   input_schema?: Record<string, unknown> | null
+  bindings?: ToolInputBindings
   permission?: McpToolPermission
 }
 
@@ -144,6 +158,7 @@ export interface McpToolConfig {
   input_schema_source?: 'discovered' | 'manual'
   discovered_input_schema?: Record<string, unknown>
   discovered_tools?: DiscoveredMcpTool[]
+  bindings?: ToolInputBindings
   discovery_cache_ttl_seconds?: number
   timeout_ms?: number
   oauth?: Record<string, unknown>
@@ -189,8 +204,11 @@ export interface CreateToolRequest {
 
 export interface TestToolRequest {
   type?: ToolProtocol
+  project_id?: string
+  environment?: 'draft' | 'staging' | 'production'
   config: ToolConfig
   input_data?: Record<string, unknown>
+  external_context?: Record<string, unknown>
   timeout_ms?: number
 }
 

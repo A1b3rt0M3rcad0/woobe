@@ -119,6 +119,7 @@ class AskInput(BaseModel):
     tenant_id: str | None = None
     user_id: str | None = None
     metadata: dict | None = None
+    external_context: dict | None = None
     execution_context: str = "production"
     loaded_release_id: UUID | None = None
     snapshot_override: dict | None = None
@@ -184,6 +185,7 @@ class CreateAskJobInput(BaseModel):
     tenant_id: str | None = None
     user_id: str | None = None
     metadata: dict | None = None
+    external_context: dict | None = None
     execution_context: str = "production"
 
 

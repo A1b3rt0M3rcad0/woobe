@@ -77,6 +77,7 @@ async def test_public_run_maps_runtime_key_binding_to_internal_request() -> None
         "tenant_id": None,
         "user_id": None,
         "metadata": {"source": "public_runtime"},
+        "external_context": None,
         "project_id": principal.project_id,
         "agent_id": principal.agent_id,
         "execution_context": "staging",

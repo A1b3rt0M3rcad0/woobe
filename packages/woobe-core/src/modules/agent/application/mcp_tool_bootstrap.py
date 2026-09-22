@@ -5,6 +5,10 @@ from uuid import UUID
 
 from pydantic import BaseModel
 
+from modules.agent.application.mcp_connection_templates import (
+    ProjectEnvironmentResolver,
+    materialize_mcp_connection_config,
+)
 from modules.agent.application.mcp_discovery import (
     DiscoverMcpToolsUseCase,
     McpDiscoverInput,
@@ -154,17 +158,59 @@ async def _validated_status(
 
 
 class McpToolBootstrapper:
-    def __init__(self, executor: ToolExecutionPort, *, default_timeout_ms: int = DEFAULT_CREATE_DISCOVERY_TIMEOUT_MS) -> None:
+    def __init__(
+        self,
+        executor: ToolExecutionPort,
+        *,
+        default_timeout_ms: int = DEFAULT_CREATE_DISCOVERY_TIMEOUT_MS,
+        project_environment_resolver: ProjectEnvironmentResolver | None = None,
+    ) -> None:
         self._executor = executor
         self._default_timeout_ms = default_timeout_ms
+        self._project_environment_resolver = project_environment_resolver
 
     async def bootstrap(self, tool: Tool, *, timeout_ms: int | None = None) -> McpToolBootstrapResult | None:
         if not is_mcp_tool_type(tool.type):
             return None
 
         config = dict(tool.config or {})
-        server_url = _server_url_from_config(config)
         existing_tools = normalize_discovered_tools(config.get("discovered_tools"))
+
+        try:
+            connection_config = await materialize_mcp_connection_config(
+                config,
+                project_id=tool.project_id,
+                resolver=self._project_environment_resolver,
+                environment="draft",
+            )
+        except Exception as exc:
+            status = "discovery_failed"
+            config["mcp_status"] = status
+            config["mcp_discovery"] = {
+                "status": status,
+                "phase": "project_environment",
+                "http_status": None,
+                "initialized": False,
+                "error": str(exc),
+                "server_url": _server_url_from_config(config),
+                "checked_at": utc_now().isoformat(),
+            }
+            config["mcp_readiness"] = _readiness(
+                state="discovery_failed",
+                label="Discovery failed",
+                message="Project Environment could not be resolved for MCP discovery.",
+                action="configure_credentials",
+                discovered_tools=existing_tools,
+            )
+            tool.config = config
+            return McpToolBootstrapResult(
+                tool_id=tool.id,
+                status=status,
+                error=str(exc),
+                phase="project_environment",
+            )
+
+        server_url = _server_url_from_config(connection_config)
 
         if not server_url:
             status = "invalid_config"
@@ -186,7 +232,7 @@ class McpToolBootstrapper:
             output = await DiscoverMcpToolsUseCase(self._executor).execute(
                 McpDiscoverInput(
                     server_url=server_url,
-                    headers=_headers_from_raw(_raw_headers_from_config(config)),
+                    headers=_headers_from_raw(_raw_headers_from_config(connection_config)),
                     timeout_ms=effective_timeout,
                 )
             )

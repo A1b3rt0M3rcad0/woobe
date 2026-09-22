@@ -89,6 +89,9 @@ class NetworkRerunService:
                 draft_revision=source.draft_revision,
                 definition_snapshot=deepcopy(source.definition_snapshot),
                 resolved_bindings_snapshot=deepcopy(source.resolved_bindings_snapshot),
+                external_context_snapshot=deepcopy(
+                    getattr(source, "external_context_snapshot", None)
+                ),
                 status="queued",
                 storage_version=self._run_storage_version,
                 idempotency_key=idempotency_key,

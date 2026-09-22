@@ -27,6 +27,7 @@ export interface NetworkStreamInput {
   executionId?: string
   lastEventId?: number
   expectedDraftRevision?: number
+  externalContext?: Record<string, unknown>
 }
 
 type PreparedNetworkStreamInput = Omit<NetworkStreamInput, 'idempotencyKey'> & {
@@ -428,6 +429,7 @@ async function requestInitialStream(
       message: input.message,
       idempotency_key: input.idempotencyKey,
       expected_draft_revision: input.expectedDraftRevision,
+      external_context: input.externalContext,
     }),
   })
   if (response.status === 401 && !retriedAuth) {

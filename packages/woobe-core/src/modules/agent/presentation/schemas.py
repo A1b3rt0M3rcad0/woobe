@@ -275,6 +275,7 @@ class ReleaseResponse(BaseModel):
     system_prompt: str | None = None
     response_format: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None
+    external_context_contract: dict[str, Any] | None = None
     provider: str | None = None
     model: str | None = None
     provider_credential_id: UUID | None = None
@@ -307,6 +308,7 @@ class ListReleasesResponse(BaseModel):
     behavior_spec: dict[str, Any] | None = None
     system_prompt: str | None = None
     output_schema: dict[str, Any] | None = None
+    external_context_contract: dict[str, Any] | None = None
     risk_score: int | None = None
     release_notes: str | None = None
     created_at: datetime | None = None

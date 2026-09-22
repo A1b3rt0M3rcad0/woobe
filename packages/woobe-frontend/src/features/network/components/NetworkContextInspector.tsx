@@ -9,7 +9,7 @@ import type { NetworkDefinition } from '../types'
 import type { NetworkDefinitionChange, NetworkEditorIssue, NetworkEditorSelection } from '../editor/types'
 import { NetworkGraphInspector } from './NetworkGraphInspector'
 import { NetworkWorkspaceBootstrap } from './NetworkWorkspaceBootstrap'
-import type { NetworkBinding } from './networkWorkspaceTypes'
+import type { Environment, NetworkBinding } from './networkWorkspaceTypes'
 import type { NetworkCenterMode, NetworkInspectionScope, NetworkInspectorContext } from './networkWorkspaceReducer'
 
 interface NetworkContextInspectorProps {
@@ -19,6 +19,7 @@ interface NetworkContextInspectorProps {
   inspectionLabel?: string | null
   inspectionKind?: 'run' | 'version' | null
   definition: NetworkDefinition
+  environment?: Environment
   agents: Agent[]
   bindings: Record<string, NetworkBinding>
   issues: NetworkEditorIssue[]
@@ -41,6 +42,7 @@ export function NetworkContextInspector({
   inspectionLabel,
   inspectionKind,
   definition,
+  environment = 'draft',
   agents,
   bindings,
   issues,
@@ -74,12 +76,7 @@ export function NetworkContextInspector({
   }
 
   return (
-    <aside className={cn(
-      'absolute inset-y-0 right-0 z-40 flex min-h-0 shrink-0 flex-col border-l border-border bg-surface/95 shadow-2xl shadow-black/30 xl:relative xl:z-auto xl:bg-surface/80 xl:shadow-none',
-      centerMode === 'chat'
-        ? 'w-[min(94vw,400px)] xl:w-[400px]'
-        : 'w-[min(94vw,520px)] xl:w-[520px]',
-    )}>
+    <aside className="absolute inset-y-0 right-0 z-40 flex min-h-0 w-[min(94vw,32.5rem)] max-w-[94vw] shrink-0 flex-col border-l border-border bg-surface/95 shadow-2xl shadow-black/30 xl:relative xl:z-auto xl:w-inspector-workspace xl:max-w-inspector-workspace xl:bg-surface/80 xl:shadow-none">
       {inspecting ? (
         <div className="flex shrink-0 items-center gap-2 border-b border-border bg-background/35 px-3 py-2 text-[9px] text-muted">
           <Lock className="h-3 w-3 shrink-0 text-primary-light" />
@@ -122,6 +119,7 @@ export function NetworkContextInspector({
           <NetworkGraphInspector
             embedded
             definition={definition}
+            environment={environment}
             agents={agents}
             bindings={bindings}
             issues={issues}

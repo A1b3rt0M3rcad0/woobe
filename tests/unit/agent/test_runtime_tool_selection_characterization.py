@@ -67,8 +67,9 @@ def _resolver(reader=None):
     return resolver
 
 
-async def _apply(resolver, prepared):
+async def _apply(resolver, prepared, *, execution_context=None):
     context = new_execution_context()
+    context.execution_context = execution_context
     token = current_execution.set(context)
     try:
         result = await resolver._apply_runtime_tool_selection(prepared)
@@ -201,6 +202,93 @@ async def test_live_tool_selection_requires_runtime_reader():
 
 
 @pytest.mark.asyncio
+async def test_standalone_playground_uses_live_tool_instead_of_stale_draft_snapshot():
+    project_id = uuid4()
+    stale = _tool(project_id=project_id)
+    stale.config = {
+        "url": "https://example.test/search?q={{b}}",
+        "method": "GET",
+    }
+    stale.input_schema = {
+        "type": "object",
+        "properties": {"b": {"type": "string"}},
+        "required": ["b"],
+        "additionalProperties": False,
+    }
+    snapshot = tool_to_release_snapshot(stale)
+
+    live = _tool(project_id=project_id)
+    live.id = stale.id
+    live.config = {
+        "url": "https://example.test/search?q=fixed",
+        "method": "GET",
+    }
+    live.input_schema = stale.input_schema
+
+    agent = _agent(
+        project_id=project_id,
+        tools_config={
+            "tool_ids": [str(stale.id)],
+            "snapshots": [snapshot],
+        },
+    )
+    reader = AsyncMock(return_value=[live])
+
+    result, context = await _apply(
+        _resolver(reader),
+        _prepared(agent),
+        execution_context="playground",
+    )
+
+    reader.assert_awaited_once_with([live.id])
+    assert context.tool_metadata["source"] == "draft_live"
+    assert result[7][0]["function"]["parameters"]["properties"] == {}
+    assert context.tool_snapshots[str(live.id)]["config"]["url"].endswith("q=fixed")
+
+
+@pytest.mark.asyncio
+async def test_non_playground_runtime_keeps_release_tool_snapshot_immutable():
+    project_id = uuid4()
+    snapshotted = _tool(project_id=project_id)
+    snapshotted.config = {
+        "url": "https://example.test/search?q={{b}}",
+        "method": "GET",
+    }
+    snapshotted.input_schema = {
+        "type": "object",
+        "properties": {"b": {"type": "string"}},
+        "required": ["b"],
+        "additionalProperties": False,
+    }
+    snapshot = tool_to_release_snapshot(snapshotted)
+
+    live = _tool(project_id=project_id)
+    live.id = snapshotted.id
+    live.config = {
+        "url": "https://example.test/search?q=fixed",
+        "method": "GET",
+    }
+    reader = AsyncMock(return_value=[live])
+    agent = _agent(
+        project_id=project_id,
+        tools_config={
+            "tool_ids": [str(snapshotted.id)],
+            "snapshots": [snapshot],
+        },
+    )
+
+    result, context = await _apply(
+        _resolver(reader),
+        _prepared(agent),
+        execution_context="production",
+    )
+
+    reader.assert_not_awaited()
+    assert context.tool_metadata["source"] == "release_snapshot"
+    assert set(result[7][0]["function"]["parameters"]["properties"]) == {"b"}
+
+
+@pytest.mark.asyncio
 async def test_release_snapshot_is_exposed_without_live_repository_reader():
     project_id = uuid4()
     tool = _tool(project_id=project_id)
@@ -213,7 +301,11 @@ async def test_release_snapshot_is_exposed_without_live_repository_reader():
         },
     )
 
-    result, context = await _apply(_resolver(), _prepared(agent))
+    result, context = await _apply(
+        _resolver(),
+        _prepared(agent),
+        execution_context="production",
+    )
 
     assert result[9] is True
     assert result[8] == {tool.name: str(tool.id)}
@@ -232,7 +324,11 @@ async def test_snapshot_only_configuration_derives_selected_tool_ids():
         tools_config={"snapshots": [snapshot]},
     )
 
-    result, context = await _apply(_resolver(), _prepared(agent))
+    result, context = await _apply(
+        _resolver(),
+        _prepared(agent),
+        execution_context="production",
+    )
 
     assert result[9] is True
     assert context.tool_metadata["tool_ids"] == [str(tool.id)]
@@ -253,7 +349,11 @@ async def test_release_snapshot_must_belong_to_agent_project():
     )
 
     with pytest.raises(ValidationError, match="snapshot does not belong to this Project"):
-        await _apply(_resolver(), _prepared(agent))
+        await _apply(
+            _resolver(),
+            _prepared(agent),
+            execution_context="production",
+        )
 
 
 @pytest.mark.asyncio
@@ -270,7 +370,11 @@ async def test_release_snapshot_must_be_active():
     )
 
     with pytest.raises(ValidationError, match="snapshot is not active"):
-        await _apply(_resolver(), _prepared(agent))
+        await _apply(
+            _resolver(),
+            _prepared(agent),
+            execution_context="production",
+        )
 
 
 @pytest.mark.asyncio
@@ -288,7 +392,11 @@ async def test_hybrid_runtime_preserves_snapshot_and_live_tool_in_one_contract()
     )
     reader = AsyncMock(return_value=[live])
 
-    result, context = await _apply(_resolver(reader), _prepared(agent))
+    result, context = await _apply(
+        _resolver(reader),
+        _prepared(agent),
+        execution_context="production",
+    )
 
     reader.assert_awaited_once_with([live.id])
     assert result[9] is True
@@ -317,6 +425,22 @@ async def test_permission_override_is_part_of_runtime_tool_provenance():
 
     assert context.tool_metadata["permission_overrides"] == permissions
     assert str(tool.id) in context.tool_snapshots
+
+
+@pytest.mark.asyncio
+async def test_standalone_playground_still_validates_malformed_release_snapshots():
+    project_id = uuid4()
+    agent = _agent(
+        project_id=project_id,
+        tools_config={"snapshots": [{"name": "missing-id"}]},
+    )
+
+    with pytest.raises(ValidationError, match="snapshot id is missing"):
+        await _apply(
+            _resolver(AsyncMock(return_value=[])),
+            _prepared(agent),
+            execution_context="playground",
+        )
 
 
 @pytest.mark.asyncio

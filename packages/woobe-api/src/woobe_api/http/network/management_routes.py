@@ -82,6 +82,22 @@ async def list_managed_network_versions(
     return {"success": True, "data": [_version_payload(item) for item in versions]}
 
 
+@router.get("/{network_id}/management/external-context-contract")
+async def get_network_external_context_contract(
+    network_id: UUID,
+    project_id: UUID,
+    environment: str,
+    request: Request,
+):
+    _authorize_project(request, project_id)
+    contract = await build_network_service().effective_external_context_contract(
+        network_id=network_id,
+        project_id=project_id,
+        environment=environment,
+    )
+    return {"success": True, "data": contract}
+
+
 @router.get("/{network_id}/management/activations")
 async def list_network_production_activations(
     network_id: UUID,

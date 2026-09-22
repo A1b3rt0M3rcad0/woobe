@@ -11,8 +11,18 @@ from modules.agent.application.http_tool_contract import (
     compile_http_tool_contract,
     is_http_tool_group,
 )
+from modules.agent.application.tool_context_bindings import validate_context_bindings
 from modules.agent.application.tool_types import is_mcp_tool_type
 from modules.agent.domain.enums import RiskLevel, SecretType, ToolStatus, ToolType
+
+
+class ToolBindingSource(BaseModel):
+    kind: Literal["context", "project_environment"] = "context"
+    field: str = Field(..., min_length=1)
+
+
+class ToolInputBinding(BaseModel):
+    source: ToolBindingSource
 
 
 class HttpHeaderConfig(BaseModel):
@@ -37,6 +47,7 @@ class HttpRouteConfig(BaseModel):
     headers: list[HttpHeaderConfig] = Field(default_factory=list)
     body: str | dict[str, Any] | list[Any] | None = None
     variables: dict[str, Any] = Field(default_factory=dict)
+    bindings: dict[str, ToolInputBinding] = Field(default_factory=dict)
     input_schema: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None
     risk_level: Literal["low", "medium", "high", "critical"] = "low"
@@ -59,6 +70,7 @@ class HttpToolConfig(BaseModel):
     headers: list[HttpHeaderConfig] = Field(default_factory=list)
     body: str | dict[str, Any] | list[Any] | None = None
     variables: dict[str, Any] = Field(default_factory=dict)
+    bindings: dict[str, ToolInputBinding] = Field(default_factory=dict)
     auth: HttpAuthConfig | None = None
     timeout_ms: int | None = Field(default=None, ge=1)
 
@@ -89,6 +101,7 @@ class McpDiscoveredToolConfig(BaseModel):
     title: str | None = None
     description: str | None = None
     input_schema: dict[str, Any] | None = None
+    bindings: dict[str, ToolInputBinding] = Field(default_factory=dict)
     permission: dict[str, Any] | None = None
 
 
@@ -102,6 +115,7 @@ class McpToolConfig(BaseModel):
     input_schema_source: Literal["discovered", "manual"] = "manual"
     discovered_input_schema: dict[str, Any] | None = None
     discovered_tools: list[McpDiscoveredToolConfig] = Field(default_factory=list)
+    bindings: dict[str, ToolInputBinding] = Field(default_factory=dict)
     discovery_cache_ttl_seconds: int | None = Field(default=None, ge=0)
     timeout_ms: int | None = Field(default=None, ge=1)
 
@@ -114,12 +128,43 @@ class McpToolConfig(BaseModel):
         return self
 
 
+def _restore_binding_omissions(
+    raw_config: dict[str, Any],
+    normalized: dict[str, Any],
+) -> dict[str, Any]:
+    """Keep omitted bindings distinguishable from an explicit empty binding map.
+
+    Pydantic defaults missing binding maps to ``{}``. Updates need to retain the
+    distinction so the application layer can preserve old bindings on omission while
+    still allowing callers to clear them explicitly with ``bindings: {}``.
+    """
+
+    if "bindings" not in raw_config:
+        normalized.pop("bindings", None)
+
+    raw_routes = raw_config.get("routes")
+    normalized_routes = normalized.get("routes")
+    if isinstance(raw_routes, list) and isinstance(normalized_routes, list):
+        for raw_route, normalized_route in zip(raw_routes, normalized_routes, strict=False):
+            if (
+                isinstance(raw_route, dict)
+                and isinstance(normalized_route, dict)
+                and "bindings" not in raw_route
+            ):
+                normalized_route.pop("bindings", None)
+    return normalized
+
+
 def _compile_http_config(
     raw_config: dict[str, Any],
     declared_schema: dict[str, Any] | None,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     parsed = HttpToolConfig.model_validate(raw_config)
-    normalized = parsed.model_dump(exclude_none=True)
+    normalized = _restore_binding_omissions(
+        raw_config,
+        parsed.model_dump(exclude_none=True),
+    )
+    validate_context_bindings(normalized)
     if is_http_tool_group(normalized):
         compiled_group = compile_http_tool_group_contract(normalized)
         return compiled_group.config, {
@@ -150,6 +195,7 @@ class CreateToolInput(BaseModel):
             return self
         if is_mcp_tool_type(self.type):
             McpToolConfig.model_validate(self.config)
+            validate_context_bindings(self.config)
         else:
             self.config, self.input_schema = _compile_http_config(self.config, self.input_schema)
         return self
@@ -208,6 +254,7 @@ class UpdateToolInput(BaseModel):
         protocol = self.type or self.config.get("protocol")
         if is_mcp_tool_type(protocol):
             McpToolConfig.model_validate(self.config)
+            validate_context_bindings(self.config)
         else:
             self.config, self.input_schema = _compile_http_config(self.config, self.input_schema)
         return self
@@ -236,8 +283,11 @@ class ToolUsageImpactOutput(BaseModel):
 
 class TestToolInput(BaseModel):
     type: ToolType | None = None
+    project_id: UUID | None = None
+    environment: Literal["draft", "staging", "production"] = "draft"
     config: dict[str, Any]
     input_data: dict[str, Any] | None = None
+    external_context: dict[str, Any] | None = None
     timeout_ms: int = Field(default=30000, ge=1)
 
 

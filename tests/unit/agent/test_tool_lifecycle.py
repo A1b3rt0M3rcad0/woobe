@@ -234,6 +234,7 @@ async def test_runtime_resolves_saved_snapshot_and_new_live_tool_together():
     prepared[9] = False
 
     context = new_execution_context()
+    context.execution_context = "production"
     token = current_execution.set(context)
     try:
         updated = await resolver._apply_runtime_tool_selection(tuple(prepared))

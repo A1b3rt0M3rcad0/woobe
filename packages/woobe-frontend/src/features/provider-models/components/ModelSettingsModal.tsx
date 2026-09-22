@@ -33,7 +33,7 @@ import {
 
 import { StatusBadge } from '@/components/common/StatusBadge'
 import { Button } from '@/components/ui/Button'
-import { Dialog } from '@/components/ui/Dialog'
+import { Dialog, type DialogLayer } from '@/components/ui/Dialog'
 import { Input } from '@/components/ui/Input'
 import { Select } from '@/components/ui/Select'
 import { ProviderCredentialCreateForm } from '@/features/provider-credentials/components/ProviderCredentialCreateForm'
@@ -44,6 +44,7 @@ import {
   useUpdateProviderModel,
 } from '@/features/provider-models/hooks'
 import type { AvailableProviderModel, ProviderModel } from '@/features/provider-models/types'
+import { providerModelCapabilities } from '@/features/provider-models/capabilities'
 import { get } from '@/lib/api/client'
 
 const SEARCH_THRESHOLD = 6
@@ -83,6 +84,8 @@ interface ModelSettingsModalProps {
   credentials: ProviderCredential[]
   selectedModel: ProviderModel | null
   onSaved: () => void | Promise<void>
+  initialSection?: ModelSection
+  layer?: DialogLayer
 }
 
 const providerLabels: Record<string, string> = {
@@ -149,10 +152,7 @@ function capabilitiesOf(model?: ProviderModel | null) {
   const metadata = metadataOf(model)
   const catalog = recordOf(metadata.catalog)
   const capabilities = recordOf(metadata.capabilities)
-  const contextWindow = positiveIntegerOrNull(metadata.context_window ?? catalog.context_window)
-  const maxOutputTokens = positiveIntegerOrNull(
-    metadata.max_output_tokens ?? capabilities.max_output_tokens ?? catalog.max_output_tokens,
-  )
+  const { contextWindow, maxOutputTokens } = providerModelCapabilities(model)
   return {
     contextWindow,
     maxOutputTokens,
@@ -438,6 +438,8 @@ export function ModelSettingsModal({
   credentials,
   selectedModel,
   onSaved,
+  initialSection = 'overview',
+  layer,
 }: ModelSettingsModalProps) {
   const createModel = useCreateProviderModel()
   const updateModel = useUpdateProviderModel()
@@ -497,7 +499,7 @@ export function ModelSettingsModal({
     if (selectedModel) {
       const pricing = pricingOf(selectedModel)
       const capabilities = capabilitiesOf(selectedModel)
-      setActiveSection('overview')
+      setActiveSection(initialSection)
       setStep('model')
       setCredentialId(selectedModel.provider_credential_id)
       setManualMode(true)
@@ -530,7 +532,7 @@ export function ModelSettingsModal({
     setSupportsTools('unknown')
     setSupportsJson('unknown')
     setSupportsStreaming('unknown')
-  }, [open, selectedModel])
+  }, [open, selectedModel, initialSection])
 
   useEffect(() => {
     if (!credential || selectedModel) return
@@ -863,12 +865,12 @@ export function ModelSettingsModal({
         <div className="grid gap-ui-md sm:grid-cols-2">
           <Field>
             <FieldLabel>Context Window</FieldLabel>
-            <Input value={contextWindow} onChange={(event) => setContextWindow(event.target.value)} inputMode="numeric" placeholder="e.g. 128000" />
-            <FieldDescription>Maximum total context capacity reported or configured for this model.</FieldDescription>
+            <Input aria-label="Context Window" value={contextWindow} onChange={(event) => setContextWindow(event.target.value)} inputMode="numeric" placeholder="e.g. 128000" />
+            <FieldDescription>Maximum total context capacity reported or configured for this model. Required for Auto Context Budget when the provider does not report it. Applies to every Agent using this Model.</FieldDescription>
           </Field>
           <Field>
             <FieldLabel>Maximum output</FieldLabel>
-            <Input value={maxOutputTokens} onChange={(event) => setMaxOutputTokens(event.target.value)} inputMode="numeric" placeholder="Optional" />
+            <Input aria-label="Maximum output" value={maxOutputTokens} onChange={(event) => setMaxOutputTokens(event.target.value)} inputMode="numeric" placeholder="Optional" />
             <FieldDescription>Provider/model output ceiling. This is not treated as Context Window.</FieldDescription>
           </Field>
         </div>
@@ -962,6 +964,7 @@ export function ModelSettingsModal({
         onClose={busy ? () => undefined : onClose}
         title={selectedModel ? 'Model settings' : 'New model'}
         variant="workspace"
+        layer={layer}
       >
         <div className="flex h-full min-h-0 min-w-0 flex-col">
           <DialogContextBar>

@@ -3,8 +3,8 @@ import { useSearchParams } from 'react-router-dom'
 import { Bot, FileJson, Puzzle, ServerCog } from 'lucide-react'
 import { SegmentedControl } from '@woobe/ui'
 
-export type AgentEditorSection = 'details' | 'behavior' | 'runtime' | 'model' | 'output' | 'knowledge' | 'tools' | 'skills'
-export type AgentEditorGroupId = 'agent' | 'execution' | 'capabilities' | 'output'
+export type AgentEditorSection = 'details' | 'behavior' | 'runtime' | 'model' | 'output' | 'external-context' | 'knowledge' | 'tools' | 'skills'
+export type AgentEditorGroupId = 'agent' | 'execution' | 'capabilities' | 'contracts'
 
 interface AgentEditorGroup {
   id: AgentEditorGroupId
@@ -43,15 +43,19 @@ export const agentEditorGroups: ReadonlyArray<AgentEditorGroup> = [
     ],
   },
   {
-    id: 'output',
-    label: 'Output',
+    id: 'contracts',
+    label: 'Contracts',
     icon: FileJson,
-    sections: [{ id: 'output', label: 'Contract' }],
+    sections: [
+      { id: 'output', label: 'Output' },
+      { id: 'external-context', label: 'External Context' },
+    ],
   },
 ]
 
 function resolveSection(value: string | null): AgentEditorSection {
   if (value === 'agent' || value === 'overview') return 'details'
+  if (value === 'contracts') return 'output'
   for (const group of agentEditorGroups) {
     const section = group.sections.find(item => item.id === value)
     if (section) return section.id

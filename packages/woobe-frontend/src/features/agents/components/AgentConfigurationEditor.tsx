@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { AgentSkillsSection } from '@/features/skills/AgentSkillsSection'
 import { cn } from '@/lib/utils'
-import { outputContractError, validateAgentEditorState } from '../editorValidation'
+import { externalContextContractError, outputContractError, validateAgentEditorState } from '../editorValidation'
 import { useCreateRelease } from '../hooks'
 import type { Agent } from '../types'
 import { AgentEditorNavigation, useAgentEditorSection } from './AgentEditorNavigation'
@@ -17,6 +17,7 @@ import { AgentModelSettings } from './AgentModelSettings'
 import { AgentKnowledgeSettings } from './AgentKnowledgeSettings'
 import { AgentToolsSettings } from './AgentToolsSettings'
 import { AgentOutputSettings } from './AgentOutputSettings'
+import { AgentExternalContextSettings } from './AgentExternalContextSettings'
 
 interface AgentConfigurationEditorProps {
   agent: Agent
@@ -31,7 +32,7 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
   const [saveFailed, setSaveFailed] = useState(false)
   const { state, loadedReleaseVersion, setLoadedRelease, isDirty, updateBaseline, resetToBaseline } = useAgentEditor()
   const createRelease = useCreateRelease(agent.id)
-  const hasValidationIssue = Boolean(outputContractError(state))
+  const hasValidationIssue = Boolean(outputContractError(state) || externalContextContractError(state))
 
   const saveDraft = useCallback(async () => {
     if (createRelease.isPending) return false
@@ -67,7 +68,7 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
 
   const status = createRelease.isPending ? 'Saving…'
     : saveFailed ? 'Save failed'
-      : hasValidationIssue ? 'Fix Output contract'
+      : hasValidationIssue ? 'Fix Contracts'
         : isDirty ? 'Unsaved changes'
           : loadedReleaseVersion ? 'Ready to save as Draft' : 'Saved'
 
@@ -87,6 +88,7 @@ export function AgentConfigurationEditor({ agent, projectId, agentId, onDirtyCha
         {section === 'behavior' ? <AgentBehaviorSettings /> : null}
         {section === 'runtime' ? <AgentRuntimeSettings projectId={projectId} /> : null}
         {section === 'output' ? <AgentOutputSettings /> : null}
+        {section === 'external-context' ? <AgentExternalContextSettings /> : null}
         {section === 'model' ? <AgentModelSettings projectId={projectId} /> : null}
         {section === 'knowledge' ? <AgentKnowledgeSettings projectId={projectId} agentId={agentId} /> : null}
         {section === 'skills' ? <div className="p-ui-md"><AgentSkillsSection projectId={projectId} /></div> : null}

@@ -6,6 +6,7 @@ on:
     types: [opened, reopened, synchronize, ready_for_review]
     paths:
       - "packages/woobe-frontend/**"
+      - "packages/woobe-embed/**"
       - "packages/woobe-runtime-client/**"
       - ".github/workflows/frontend.yml"
   workflow_dispatch:
@@ -45,3 +46,15 @@ jobs:
 
       - name: Build frontend production bundle
         run: npm run build
+
+      - name: Install Chat Embed dependencies
+        working-directory: packages/woobe-embed
+        run: npm ci
+
+      - name: Run Chat Embed tests
+        working-directory: packages/woobe-embed
+        run: npm test
+
+      - name: Typecheck Chat Embed
+        working-directory: packages/woobe-embed
+        run: npm run typecheck

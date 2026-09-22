@@ -87,6 +87,7 @@ let hostOrigin = "";
 let apiBaseUrl = "";
 let sessionToken = "";
 let sessionId = "";
+let externalContext: Record<string, unknown> = {};
 let appearance = DEFAULT_APPEARANCE;
 let submitting = false;
 let stopping = false;
@@ -560,7 +561,10 @@ async function sendMessage(message: string) {
           "Content-Type": "application/json",
           "Idempotency-Key": randomUuid(),
         },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({
+          message,
+          external_context: externalContext,
+        }),
       });
     } catch (error) {
       if (error instanceof SessionExpiredError) throw error;
@@ -602,6 +606,7 @@ window.addEventListener("message", async (event) => {
     apiBaseUrl = new URL(event.data.payload.apiBaseUrl).origin;
     sessionToken = event.data.payload.token;
     sessionId = decodeSessionId(sessionToken);
+    externalContext = { ...(event.data.payload.externalContext ?? {}) };
     await bootstrap();
   } else if (event.data.type === "token.update") {
     const nextSessionId = decodeSessionId(event.data.payload.token);
@@ -615,6 +620,9 @@ window.addEventListener("message", async (event) => {
     sessionId = nextSessionId;
     ensureUi().clearSessionExpired();
     await bootstrap();
+  } else if (event.data.type === "context.update") {
+    if (parentOrigin === null) return;
+    externalContext = { ...event.data.payload.externalContext };
   } else if (event.data.type === "run.cancel") {
     await requestCancel();
   } else if (event.data.type === "open") {

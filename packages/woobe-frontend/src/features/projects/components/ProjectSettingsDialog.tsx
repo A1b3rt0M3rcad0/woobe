@@ -29,6 +29,7 @@ import {
 } from '@woobe/ui'
 import { toast } from 'sonner'
 
+import { ProjectEnvironmentSettings } from '@/features/projects/components/ProjectEnvironmentSettings'
 import { useProject, useUpdateProject } from '@/features/projects/hooks'
 import { createProjectSchema, type CreateProjectFormData } from '@/features/projects/schemas'
 import { useWorkspace } from '@/features/workspace/WorkspaceProvider'
@@ -173,6 +174,8 @@ export function ProjectSettingsDialog({ open, onClose, workspaceId, projectId }:
                     </Field>
                   </div>
                 </SectionBlock>
+
+                <ProjectEnvironmentSettings projectId={projectId} />
 
                 <SectionBlock
                   title="Technical metadata"

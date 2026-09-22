@@ -13,6 +13,7 @@ from sqlalchemy import (
     LargeBinary,
     SmallInteger,
     String,
+    Text,
     UniqueConstraint,
     func,
     text,
@@ -88,6 +89,60 @@ class ProjectModel(BaseModel):
     slug: Mapped[str] = mapped_column(String(128))
     status: Mapped[str] = mapped_column(String(32), default="active")
     data: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+class ProjectEnvironmentKeyModel(BaseModel):
+    __tablename__ = "project_environment_keys"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "key",
+            name="uq_core_project_environment_keys_project_key",
+        ),
+        CheckConstraint(
+            "kind IN ('value', 'secret')",
+            name="ck_core_project_environment_keys_kind",
+        ),
+        Index(
+            "ix_core_project_environment_keys_project",
+            "project_id",
+            "key",
+        ),
+        {"schema": "core"},
+    )
+
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("core.projects.id", ondelete="CASCADE")
+    )
+    key: Mapped[str] = mapped_column(String(128))
+    kind: Mapped[str] = mapped_column(String(16), default="value")
+
+
+class ProjectEnvironmentValueModel(BaseModel):
+    __tablename__ = "project_environment_values"
+    __table_args__ = (
+        UniqueConstraint(
+            "key_id",
+            "environment",
+            name="uq_core_project_environment_values_key_environment",
+        ),
+        CheckConstraint(
+            "environment IN ('draft', 'staging', 'production')",
+            name="ck_core_project_environment_values_environment",
+        ),
+        Index(
+            "ix_core_project_environment_values_key_environment",
+            "key_id",
+            "environment",
+        ),
+        {"schema": "core"},
+    )
+
+    key_id: Mapped[UUID] = mapped_column(
+        ForeignKey("core.project_environment_keys.id", ondelete="CASCADE")
+    )
+    environment: Mapped[str] = mapped_column(String(16))
+    stored_value: Mapped[str] = mapped_column(Text)
 
 
 class ProjectMemberModel(BaseModel):

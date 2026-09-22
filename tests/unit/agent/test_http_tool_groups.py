@@ -223,6 +223,66 @@ def test_shared_headers_cannot_use_remove_mode() -> None:
     assert exc.value.code == "HTTP_TOOL_HEADER_REMOVE_INVALID"
 
 
+def test_converter_recompiles_stale_route_schema_from_current_template() -> None:
+    config = group_config()
+    route = config["routes"][0]
+    route["method"] = "GET"
+    route["path"] = (
+        "/v4/?expr={{external_context.age}}"
+        "%2B{{project_env.MOCKED_NUMBER}}"
+    )
+    route.pop("body", None)
+    route.pop("variables", None)
+    route["input_schema"] = {
+        "type": "object",
+        "properties": {"b": {"type": "string"}},
+        "required": ["b"],
+        "additionalProperties": False,
+    }
+    tool = FakeTool(config=config)
+
+    definitions, _mapping = agent_tools_to_openai_definitions_and_mapping([tool])
+
+    parameters = definitions[0]["function"]["parameters"]
+    assert parameters == {
+        "type": "object",
+        "properties": {},
+        "required": [],
+        "additionalProperties": False,
+    }
+
+
+@pytest.mark.asyncio
+async def test_runtime_rejects_stale_or_provider_invented_http_arguments() -> None:
+    config = group_config()
+    route = config["routes"][0]
+    route["method"] = "GET"
+    route["path"] = "/fixed"
+    route.pop("body", None)
+    route.pop("variables", None)
+    route["input_schema"] = {
+        "type": "object",
+        "properties": {"b": {"type": "string"}},
+        "required": ["b"],
+        "additionalProperties": False,
+    }
+    executor = FakeExecutor()
+    runtime = HttpToolRuntime(executor)
+
+    result = await runtime.execute(
+        FakeTool(config=config),
+        {
+            MCP_REMOTE_TOOL_INPUT_KEY: "route-search",
+            "b": "42",
+        },
+    )
+
+    assert result.success is False
+    assert result.output["error_code"] == "HTTP_TOOL_PARAMETER_UNEXPECTED"
+    assert "b" in result.output["message"]
+    assert executor.calls == []
+
+
 def test_converter_exposes_only_allowed_routes() -> None:
     compiled = compile_http_tool_group_contract(group_config())
     tool = FakeTool(config=compiled.config)

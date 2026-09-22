@@ -11,6 +11,7 @@ from modules.agent.infra.execution.session_continuity_runtime_resolver import (
 )
 from modules.agent.domain.entities import Agent, AgentRelease
 from modules.agent.domain.enums import ReleaseStatus
+from shared.contracts.errors import ValidationError as RuntimeValidationError
 from shared.infra.errors import ConflictError
 
 
@@ -220,3 +221,111 @@ async def test_new_production_session_records_run_release_as_opening_provenance(
     assert session.opened_release_id == release_id
     assert session.data == {"source": "playground"}
     session_repo.update.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_standalone_required_external_context_is_rejected_before_execution() -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    agent = Agent(
+        id=agent_id,
+        project_id=project_id,
+        model="model",
+        session_mode="stateless",
+        settings={
+            "external_context_contract": {
+                "name": {
+                    "schema": {"type": "string"},
+                    "required": True,
+                            "model": {"expose": True},
+                    "description": "Preferred name of the current user",
+                }
+            }
+        },
+    )
+    created = SimpleNamespace(
+        id=uuid4(),
+        project_id=project_id,
+        agent_id=agent_id,
+        runtime_environment="draft",
+        opened_release_id=None,
+        data=None,
+    )
+    session_repo = SimpleNamespace(
+        create=AsyncMock(return_value=created),
+        update=AsyncMock(),
+    )
+    input_dto = AskInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        message="sabe meu nome?",
+        execution_context="draft",
+    )
+    context = new_execution_context()
+    token = current_execution.set(context)
+    try:
+        with pytest.raises(
+            RuntimeValidationError,
+            match="Required External Context field is missing: name",
+        ):
+            await SessionContinuityReleaseRuntimeResolver.__new__(
+                SessionContinuityReleaseRuntimeResolver
+            )._resolve_session(session_repo, input_dto, agent)
+    finally:
+        current_execution.reset(token)
+
+    assert context.external_context_snapshot is None
+    assert context.model_external_context is None
+    session_repo.update.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_standalone_external_context_is_frozen_and_exposed_for_the_run() -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    agent = Agent(
+        id=agent_id,
+        project_id=project_id,
+        model="model",
+        session_mode="stateless",
+        settings={
+            "external_context_contract": {
+                "name": {
+                    "schema": {"type": "string"},
+                    "required": True,
+                            "model": {"expose": True},
+                    "description": "Preferred name of the current user",
+                }
+            }
+        },
+    )
+    created = SimpleNamespace(
+        id=uuid4(),
+        project_id=project_id,
+        agent_id=agent_id,
+        runtime_environment="draft",
+        opened_release_id=None,
+        data=None,
+    )
+    session_repo = SimpleNamespace(
+        create=AsyncMock(return_value=created),
+        update=AsyncMock(),
+    )
+    input_dto = AskInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        message="sabe meu nome?",
+        execution_context="draft",
+        external_context={"name": "Alberto"},
+    )
+    context = new_execution_context()
+    token = current_execution.set(context)
+    try:
+        await SessionContinuityReleaseRuntimeResolver.__new__(
+            SessionContinuityReleaseRuntimeResolver
+        )._resolve_session(session_repo, input_dto, agent)
+    finally:
+        current_execution.reset(token)
+
+    assert context.external_context_snapshot == {"name": "Alberto"}
+    assert context.model_external_context == {"name": "Alberto"}

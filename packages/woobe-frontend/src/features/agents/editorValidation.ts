@@ -3,8 +3,11 @@ import { canonicalSnapshot, type AgentEditorState } from '@/features/playground/
 type ResponseFormatState = AgentEditorState['responseFormat']
 
 export type AgentEditorValidationIssue = {
-  section: 'output'
-  code: 'output_contract_required' | 'output_contract_invalid'
+  section: 'output' | 'external-context'
+  code:
+    | 'output_contract_required'
+    | 'output_contract_invalid'
+    | 'external_context_contract_invalid'
   message: string
 }
 
@@ -12,10 +15,14 @@ export type AgentEditorValidationResult =
   | { valid: true; issue: null; snapshot: Record<string, unknown> }
   | { valid: false; issue: AgentEditorValidationIssue; snapshot: null }
 
-function invalid(code: AgentEditorValidationIssue['code'], message: string): AgentEditorValidationResult {
+function invalid(
+  section: AgentEditorValidationIssue['section'],
+  code: AgentEditorValidationIssue['code'],
+  message: string,
+): AgentEditorValidationResult {
   return {
     valid: false,
-    issue: { section: 'output', code, message },
+    issue: { section, code, message },
     snapshot: null,
   }
 }
@@ -93,15 +100,95 @@ export function outputContractError(state: AgentEditorState): string | null {
   return null
 }
 
-export function validateAgentEditorState(state: AgentEditorState): AgentEditorValidationResult {
-  const responseFormat = responseFormatState(state)
-  if (!responseFormat.enabled || responseFormat.type !== 'json') {
-    return { valid: true, issue: null, snapshot: textOutputSnapshot(state) }
+function readExternalContextContract(state: AgentEditorState): Record<string, unknown> | null {
+  const raw = state.externalContextContract
+  if (raw == null) return null
+  if (typeof raw === 'string') {
+    if (!raw.trim()) return null
+    try {
+      const parsed = JSON.parse(raw)
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return null
+      const object = parsed as Record<string, unknown>
+      const legacyFields = object.fields
+      return legacyFields && typeof legacyFields === 'object' && !Array.isArray(legacyFields)
+        ? legacyFields as Record<string, unknown>
+        : object
+    } catch {
+      return null
+    }
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null
+  const object = raw as unknown as Record<string, unknown>
+  const legacyFields = object.fields
+  return legacyFields && typeof legacyFields === 'object' && !Array.isArray(legacyFields)
+    ? legacyFields as Record<string, unknown>
+    : object
+}
+
+function parseExternalContextContract(state: AgentEditorState): Record<string, unknown> | null {
+  const contract = readExternalContextContract(state)
+  if (!contract) return null
+
+  return Object.fromEntries(
+    Object.entries(contract).map(([name, rawField]) => {
+      if (!rawField || typeof rawField !== 'object' || Array.isArray(rawField)) {
+        return [name, rawField]
+      }
+      const { scope: _legacyScope, ...field } = rawField as Record<string, unknown>
+      return [name, field]
+    }),
+  )
+}
+
+export function externalContextContractError(state: AgentEditorState): string | null {
+  if (state.externalContextContract == null || state.externalContextContract === '') return null
+  const contract = readExternalContextContract(state)
+  if (!contract) return 'External Context contract is invalid.'
+
+  for (const [name, rawField] of Object.entries(contract)) {
+    if (!name.trim()) return 'External Context field names cannot be blank.'
+    if (!rawField || typeof rawField !== 'object' || Array.isArray(rawField)) return `External Context field '${name}' must be an object.`
+    const field = rawField as Record<string, unknown>
+    const supported = new Set(['schema', 'required', 'default', 'model', 'description', 'scope'])
+    const unknown = Object.keys(field).filter((key) => !supported.has(key))
+    if (unknown.length > 0) return `External Context field '${name}' contains unsupported properties: ${unknown.join(', ')}.`
+    if (field.scope !== undefined && field.scope !== 'run' && field.scope !== 'session') return `External Context field '${name}'.scope must be 'run' or 'session'.`
+    if (field.required !== undefined && typeof field.required !== 'boolean') return `External Context field '${name}'.required must be boolean.`
+    if (field.schema !== undefined && (!field.schema || typeof field.schema !== 'object' || Array.isArray(field.schema))) return `External Context field '${name}'.schema must be an object.`
+    if (field.model !== undefined) {
+      if (!field.model || typeof field.model !== 'object' || Array.isArray(field.model)) return `External Context field '${name}'.model must be an object.`
+      const model = field.model as Record<string, unknown>
+      if (Object.keys(model).some((key) => key !== 'expose')) return `External Context field '${name}'.model only supports 'expose'.`
+      if (model.expose !== undefined && typeof model.expose !== 'boolean') return `External Context field '${name}'.model.expose must be boolean.`
+    }
   }
 
-  const error = outputContractError(state)
+  return null
+}
+
+export function validateAgentEditorState(state: AgentEditorState): AgentEditorValidationResult {
+  const externalContextError = externalContextContractError(state)
+  if (externalContextError) {
+    return invalid('external-context', 'external_context_contract_invalid', externalContextError)
+  }
+
+  const externalContextContract = parseExternalContextContract(state)
+  const normalizedExternalState: AgentEditorState = {
+    ...state,
+    // Runtime validation above proves the parsed object satisfies the stricter
+    // ExternalContextContract shape before it enters the canonical snapshot.
+    externalContextContract: externalContextContract as unknown as AgentEditorState['externalContextContract'],
+  }
+
+  const responseFormat = responseFormatState(normalizedExternalState)
+  if (!responseFormat.enabled || responseFormat.type !== 'json') {
+    return { valid: true, issue: null, snapshot: textOutputSnapshot(normalizedExternalState) }
+  }
+
+  const error = outputContractError(normalizedExternalState)
   if (error) {
     return invalid(
+      'output',
       responseFormat.schema == null || (typeof responseFormat.schema === 'string' && !responseFormat.schema.trim())
         ? 'output_contract_required'
         : 'output_contract_invalid',
@@ -113,7 +200,7 @@ export function validateAgentEditorState(state: AgentEditorState): AgentEditorVa
     ? JSON.parse(responseFormat.schema)
     : responseFormat.schema
   const normalizedState: AgentEditorState = {
-    ...state,
+    ...normalizedExternalState,
     responseFormat: { ...responseFormat, strict: true, schema },
     outputSchema: schema,
   }

@@ -27,6 +27,9 @@ def install_network_service_extensions() -> None:
         ExplicitBindingNetworkService,
         install_explicit_binding_service,
     )
+    from modules.network.infra.services.external_context_contracts import (
+        install_network_external_context_release_support,
+    )
     from modules.network.infra.services.release_atomic import (
         install_atomic_network_promotion,
     )
@@ -63,6 +66,7 @@ def install_network_service_extensions() -> None:
     install_equivalent_binding_result_fix()
     install_structured_output_persistence()
     install_runtime_session_mode_guards()
+    install_network_external_context_release_support()
     _installed = True
 
 

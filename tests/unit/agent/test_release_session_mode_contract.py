@@ -64,3 +64,19 @@ def test_stateless_to_stateful_is_compatibility_change() -> None:
     candidate = clone_release(previous, session_mode="stateful")
 
     assert classify_release_change(previous, candidate) == ReleaseChangeKind.COMPATIBILITY
+
+
+def test_release_list_payload_preserves_external_context_contract() -> None:
+    release = make_release(session_mode="stateless")
+    release.external_context_contract = {
+        "name": {
+            "schema": {"type": "string"},
+            "required": True,
+            "model": {"expose": True},
+            "description": "Preferred name of the current user",
+        }
+    }
+
+    payload = _release_list_payload(release)
+
+    assert payload["external_context_contract"] == release.external_context_contract

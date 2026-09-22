@@ -222,7 +222,10 @@ class InstrumentedPrimaryExecutionMixin:
             prepared = await prepare_operation(input_dto)
             runtime_tool_selector = getattr(self, "_apply_runtime_tool_selection", None)
             if callable(runtime_tool_selector):
-                prepared = await runtime_tool_selector(prepared)
+                prepared = await runtime_tool_selector(
+                    prepared,
+                    input_dto=input_dto,
+                )
         except Exception:
             if context:
                 context.prepare_ended_at = utc_now()

@@ -12,11 +12,17 @@ from modules.network.application.runtime import (
     NetworkExecutionSnapshot,
     NetworkVersionSnapshot,
 )
+from modules.network.domain.external_context_composition import (
+    compose_effective_external_context_contracts,
+)
 from modules.network.infra.database.models import (
     NetworkAgentContextModel,
     NetworkExecutionModel,
     NetworkVersionModel,
 )
+
+
+_NETWORK_EXTERNAL_CONTEXT_OVERRIDE_KEY = "__network_external_context__"
 
 
 @dataclass(frozen=True, slots=True)
@@ -33,7 +39,11 @@ class NetworkRuntimeLoader:
         self._session_factory = session_factory
 
     @staticmethod
-    def _execution_snapshot(model: NetworkExecutionModel) -> NetworkExecutionSnapshot:
+    def _execution_snapshot(
+        model: NetworkExecutionModel,
+        *,
+        resolved_bindings_snapshot: dict | None = None,
+    ) -> NetworkExecutionSnapshot:
         return NetworkExecutionSnapshot(
             id=model.id,
             network_id=model.network_id,
@@ -43,19 +53,96 @@ class NetworkRuntimeLoader:
             input_message=model.input_message,
             draft_revision=model.draft_revision,
             definition_snapshot=deepcopy(model.definition_snapshot),
-            resolved_bindings_snapshot=deepcopy(model.resolved_bindings_snapshot),
+            resolved_bindings_snapshot=deepcopy(
+                resolved_bindings_snapshot
+                if resolved_bindings_snapshot is not None
+                else model.resolved_bindings_snapshot
+            ),
             status=str(model.status),
         )
 
     @staticmethod
-    def _version_snapshot(model: NetworkVersionModel) -> NetworkVersionSnapshot:
+    def _version_snapshot(
+        model: NetworkVersionModel,
+        *,
+        resolved_bindings: dict | None = None,
+    ) -> NetworkVersionSnapshot:
         return NetworkVersionSnapshot(
             id=model.id,
             kind=str(model.kind),
             definition=deepcopy(model.definition or {}),
-            resolved_bindings=deepcopy(model.resolved_bindings or {}),
+            resolved_bindings=deepcopy(
+                resolved_bindings
+                if resolved_bindings is not None
+                else model.resolved_bindings or {}
+            ),
             version=str(model.version) if model.version is not None else None,
         )
+
+    @staticmethod
+    def _consumer_values(
+        effective_contract: dict,
+        consumer: str,
+        snapshot: dict,
+    ) -> dict:
+        fields = effective_contract.get("fields") if set(effective_contract).issubset({"fields", "additionalProperties"}) and isinstance(effective_contract.get("fields"), dict) else effective_contract
+        return {
+            name: deepcopy(snapshot[name])
+            for name, field in fields.items()
+            if (
+                isinstance(field, dict)
+                and isinstance(field.get("consumers"), dict)
+                and str(consumer) in field["consumers"]
+                and name in snapshot
+            )
+        }
+
+    @classmethod
+    def _bind_external_context(
+        cls,
+        bindings: dict,
+        effective_contract: dict,
+        snapshot: dict,
+    ) -> dict:
+        bound = deepcopy(bindings or {})
+        for consumer, raw_binding in bound.items():
+            if not isinstance(raw_binding, dict):
+                continue
+            override = raw_binding.get("snapshot_override")
+            runtime_override = deepcopy(override) if isinstance(override, dict) else {}
+            runtime_override[_NETWORK_EXTERNAL_CONTEXT_OVERRIDE_KEY] = cls._consumer_values(
+                effective_contract,
+                str(consumer),
+                snapshot,
+            )
+            raw_binding["snapshot_override"] = runtime_override
+        return bound
+
+    @staticmethod
+    def _effective_contract(
+        *,
+        version: NetworkVersionModel | None,
+        bindings: dict,
+    ) -> dict:
+        persisted = (
+            getattr(version, "effective_external_context_contract", None)
+            if version is not None
+            else None
+        )
+        if isinstance(persisted, dict):
+            return deepcopy(persisted)
+
+        # Draft bindings already contain the immutable Agent snapshot accepted for this
+        # Network Run. Runtime must never reach back into the Agent catalog here.
+        contracts: dict[str, object] = {}
+        for consumer, binding in (bindings or {}).items():
+            if not isinstance(binding, dict):
+                continue
+            override = binding.get("snapshot_override")
+            if not isinstance(override, dict):
+                continue
+            contracts[str(consumer)] = override.get("external_context_contract")
+        return compose_effective_external_context_contracts(contracts)
 
     async def load(self, execution_id: UUID) -> LoadedNetworkExecution | None:
         async with self._session_factory() as session:
@@ -67,6 +154,25 @@ class NetworkRuntimeLoader:
                 if execution.network_version_id
                 else None
             )
+
+            source_bindings = (
+                version.resolved_bindings or {}
+                if version is not None
+                else execution.resolved_bindings_snapshot or {}
+            )
+            effective_contract = self._effective_contract(
+                version=version,
+                bindings=source_bindings,
+            )
+            external_context_snapshot = deepcopy(
+                getattr(execution, "external_context_snapshot", None) or {}
+            )
+            runtime_bindings = self._bind_external_context(
+                source_bindings,
+                effective_contract,
+                external_context_snapshot,
+            )
+
             result = await session.execute(
                 select(NetworkAgentContextModel).where(
                     NetworkAgentContextModel.network_session_id
@@ -80,8 +186,17 @@ class NetworkRuntimeLoader:
                 for item in result.scalars()
             }
             return LoadedNetworkExecution(
-                execution=self._execution_snapshot(execution),
-                version=self._version_snapshot(version) if version is not None else None,
+                execution=self._execution_snapshot(
+                    execution,
+                    resolved_bindings_snapshot=(
+                        runtime_bindings if version is None else None
+                    ),
+                ),
+                version=(
+                    self._version_snapshot(version, resolved_bindings=runtime_bindings)
+                    if version is not None
+                    else None
+                ),
                 agent_contexts=contexts,
             )
 

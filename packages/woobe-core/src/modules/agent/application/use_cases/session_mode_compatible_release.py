@@ -37,6 +37,9 @@ def _draft_defaults_from_agent(agent: Any) -> dict[str, Any]:
         "system_prompt": agent.system_prompt,
         "response_format": response_format,
         "output_schema": output_schema,
+        "external_context_contract": deepcopy(
+            settings.get("external_context_contract")
+        ),
         "provider": _enum_value(agent.provider),
         "model": agent.model,
         "provider_credential_id": agent.provider_credential_id,
@@ -111,6 +114,11 @@ def _sync_agent_projection(agent: Any, draft: Any) -> None:
         settings.pop("response_format", None)
     else:
         settings["response_format"] = deepcopy(draft.response_format)
+    external_context_contract = getattr(draft, "external_context_contract", None)
+    if external_context_contract is None:
+        settings.pop("external_context_contract", None)
+    else:
+        settings["external_context_contract"] = deepcopy(external_context_contract)
     if draft.base_url is None:
         settings.pop("base_url", None)
     else:

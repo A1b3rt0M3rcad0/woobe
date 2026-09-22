@@ -18,6 +18,7 @@ import { StatusBadge } from '@/components/common/StatusBadge'
 import { useCredentials } from '@/features/provider-credentials/hooks'
 import type { ProviderCredential } from '@/features/provider-credentials/types'
 import { ModelSettingsModal } from '@/features/provider-models/components/ModelSettingsModal'
+import { providerModelCapabilities } from '@/features/provider-models/capabilities'
 import { useProviderModels } from '@/features/provider-models/hooks'
 import type { ProviderModel } from '@/features/provider-models/types'
 
@@ -37,12 +38,6 @@ function metadataOf(item?: { metadata?: Record<string, unknown> | null } | null)
   return (item?.metadata || {}) as Record<string, unknown>
 }
 
-function recordOf(value: unknown): Record<string, unknown> {
-  return value && typeof value === 'object' && !Array.isArray(value)
-    ? value as Record<string, unknown>
-    : {}
-}
-
 function isEmbeddingModel(model: ProviderModel) {
   const metadata = metadataOf(model)
   const capability = String(metadata.capability || metadata.type || '').trim().toLowerCase()
@@ -57,19 +52,6 @@ function numberOrNull(value: unknown): number | null {
     return Number.isFinite(parsed) ? parsed : null
   }
   return null
-}
-
-function positiveIntegerOrNull(value: unknown): number | null {
-  const parsed = numberOrNull(value)
-  return parsed != null && Number.isInteger(parsed) && parsed > 0 ? parsed : null
-}
-
-function capabilitiesOf(model?: ProviderModel | null) {
-  const metadata = metadataOf(model)
-  const catalog = recordOf(metadata.catalog)
-  return {
-    contextWindow: positiveIntegerOrNull(metadata.context_window ?? catalog.context_window),
-  }
 }
 
 function pricingOf(model?: ProviderModel | null) {
@@ -106,7 +88,7 @@ function ModelCard({
   onClick: () => void
 }) {
   const pricing = pricingOf(model)
-  const capabilities = capabilitiesOf(model)
+  const capabilities = providerModelCapabilities(model)
   return (
     <ResourceCard
       onClick={onClick}

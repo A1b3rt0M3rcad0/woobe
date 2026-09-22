@@ -15,6 +15,36 @@ AGENT_ROUTES = (
 )
 AGENT_HTTP_ASSEMBLY = AGENT_ROUTES.parent / "__init__.py"
 MAIN_PY = PROJECT_ROOT / "packages" / "woobe-api" / "src" / "main.py"
+CORE_ROUTES = (
+    PROJECT_ROOT
+    / "packages"
+    / "woobe-api"
+    / "src"
+    / "woobe_api"
+    / "http"
+    / "core"
+    / "routes.py"
+)
+API_FIRST_TOOL_FORM = (
+    PROJECT_ROOT
+    / "packages"
+    / "woobe-frontend"
+    / "src"
+    / "features"
+    / "tools"
+    / "components"
+    / "ApiFirstToolForm.tsx"
+)
+TOOL_CALLS_COLLAPSIBLE = (
+    PROJECT_ROOT
+    / "packages"
+    / "woobe-frontend"
+    / "src"
+    / "features"
+    / "playground"
+    / "components"
+    / "ToolCallsCollapsible.tsx"
+)
 
 
 class TestToolsRouteRegistration:
@@ -46,6 +76,60 @@ class TestToolsRouteRegistration:
     def test_tools_routes_no_encrypted_value_in_response(self):
         source = AGENT_ROUTES.read_text(encoding="utf-8")
         assert "encrypted_value" not in source
+
+    def test_project_environment_tool_test_requires_project_access(self):
+        source = AGENT_ROUTES.read_text(encoding="utf-8")
+        test_route = source.split('@tools_router.post("/tools/test")', 1)[1].split(
+            '@tools_router.post("/tools/execute")',
+            1,
+        )[0]
+        assert "build_project_access_service().require_project_access" in test_route
+        assert 'payload.get("project_id")' in test_route
+
+
+    def test_project_environment_list_exposes_tool_dependencies(self):
+        source = CORE_ROUTES.read_text(encoding="utf-8")
+        list_route = source.split(
+            '@router.get("/projects/{project_id}/environment-keys")',
+            1,
+        )[1].split(
+            '@router.put("/projects/{project_id}/environment-keys/{key}")',
+            1,
+        )[0]
+        assert "_project_environment_tool_usage(request)" in list_route
+        assert 'item["used_by_tools"]' in list_route
+
+    def test_project_environment_delete_blocks_referenced_keys(self):
+        source = CORE_ROUTES.read_text(encoding="utf-8")
+        delete_route = source.split(
+            '@router.delete("/projects/{project_id}/environment-keys/{key}")',
+            1,
+        )[1].split(
+            '@router.post("/projects/{project_id}/api-keys")',
+            1,
+        )[0]
+        assert "_project_environment_tool_usage(request)" in delete_route
+        assert "raise ConflictError" in delete_route
+        assert "Edit or delete those Tools before removing this key." in delete_route
+
+    def test_http_route_inputs_are_derived_read_only_dependencies(self):
+        source = API_FIRST_TOOL_FORM.read_text(encoding="utf-8")
+        assert "inspectHttpRouteDependencies" in source
+        assert "Runtime inputs" in source
+        assert "<ToolInputBindingsEditor" not in source
+        assert "{{external_context.*}}" in source
+        assert "{{project_env.*}}" in source
+
+    def test_route_editor_distinguishes_apply_from_persist(self):
+        source = API_FIRST_TOOL_FORM.read_text(encoding="utf-8")
+        assert "? 'Apply route'" in source
+        assert "? 'Save route'" not in source
+        assert "Save changes to persist the Tool." in source
+
+    def test_tool_call_input_is_labeled_as_model_arguments(self):
+        source = TOOL_CALLS_COLLAPSIBLE.read_text(encoding="utf-8")
+        assert 'title="Model arguments"' in source
+        assert 'title="Input"' not in source
 
     def test_no_network_imports_in_schemas(self):
         schemas_path = (

@@ -81,6 +81,11 @@ class NetworkRuntimeEnvironmentStateModel(BaseModel):
         default=True,
         server_default=text("true"),
     )
+    external_context_values: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+    )
     updated_by: Mapped[UUID | None] = mapped_column(nullable=True)
 
 
@@ -103,6 +108,9 @@ class NetworkVersionModel(BaseModel):
     definition: Mapped[dict[str, Any]] = mapped_column(JSONB)
     resolved_bindings: Mapped[dict[str, Any]] = mapped_column(JSONB)
     composition_hash: Mapped[str] = mapped_column(String(64))
+    effective_external_context_contract: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
     created_by: Mapped[UUID | None]
     rollback_of_version_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("network.network_versions.id")
@@ -255,6 +263,9 @@ class NetworkExecutionModel(BaseModel):
         JSONB, nullable=True
     )
     resolved_bindings_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    external_context_snapshot: Mapped[dict[str, Any] | None] = mapped_column(
         JSONB, nullable=True
     )
     output_message: Mapped[str | None] = mapped_column(Text)

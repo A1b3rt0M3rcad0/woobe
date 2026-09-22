@@ -31,8 +31,10 @@ from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
 from modules.agent.infra.execution.runtime_preparation import prepare_skill_state
 from modules.agent.infra.execution.runtime_preparation import (
     build_execution_snapshot,
+    prepare_project_environment_state,
     prepare_rag_binding,
     prepare_tool_state,
+    prefer_live_tools_for_run,
 )
 from modules.agent.infra.execution.runtime_streaming import current_runtime_stream
 from shared.contracts.execution_state import ExecutionStateStore
@@ -316,6 +318,13 @@ class ExplicitRuntimePersistenceMixin:
                 agent=agent,
                 tool_from_snapshot=tool_from_release_snapshot,
                 tool_with_permissions=tool_with_permission_overrides,
+                prefer_live_tools=prefer_live_tools_for_run(input_dto),
+            )
+            prepared_project_environment = await prepare_project_environment_state(
+                repositories,
+                project_id=input_dto.project_id,
+                environment=environment,
+                tools=tools,
             )
             await prepare_skill_state(repositories, agent=agent)
             rag_binding = await prepare_rag_binding(repositories, agent=agent)
@@ -427,6 +436,7 @@ class ExplicitRuntimePersistenceMixin:
                 primary_credential,
                 fallback_credential,
                 encrypted_tool_secrets,
+                prepared_project_environment,
                 rag_binding,
                 response_format,
                 json_enabled,
@@ -445,6 +455,7 @@ class ExplicitRuntimePersistenceMixin:
             primary_credential,
             fallback_credential,
             encrypted_tool_secrets,
+            prepared_project_environment,
             rag_binding,
             response_format,
             json_enabled,
@@ -508,6 +519,7 @@ class ExplicitRuntimePersistenceMixin:
                 context.prepared_fallback = fallback_data
                 context.prepared_tools = {str(tool.id): tool for tool in tools}
                 context.prepared_tool_secrets = tool_secrets
+                context.prepared_project_environment = prepared_project_environment
                 context.prepared_rag = rag_binding
 
             if self._execution_state_store is not None:

@@ -57,6 +57,48 @@ describe('Context Budget configuration', () => {
     })
   })
 
+  it.each(['', 0, -1, false, 'invalid', 1.5])('skips invalid capability %s before a valid catalog value', (invalid) => {
+    expect(providerModelCapabilities(providerModel({
+      context_window: invalid,
+      max_output_tokens: invalid,
+      catalog: { context_window: 65536, max_output_tokens: 4096 },
+    }))).toEqual({ contextWindow: 65536, maxOutputTokens: 4096 })
+  })
+
+  it.each([
+    { context_length: '65536', max_output_tokens: '4096' },
+    { max_context_tokens: 65536, capabilities: { max_output_tokens: 4096 } },
+    { max_input_tokens: 65536, catalog: { max_output_tokens: 4096 } },
+    { provider_model_raw: { context_length: 65536, max_completion_tokens: 4096 } },
+    { provider_model_raw: { top_provider: { context_length: '65536', max_completion_tokens: '4096' } } },
+  ])('reads explicit legacy and provider limits: %j', (metadata) => {
+    expect(providerModelCapabilities(providerModel(metadata))).toEqual({
+      contextWindow: 65536,
+      maxOutputTokens: 4096,
+    })
+  })
+
+  it('keeps manual limits authoritative over discovered limits', () => {
+    expect(providerModelCapabilities(providerModel({
+      context_window: 32000,
+      max_output_tokens: 2048,
+      catalog: { context_window: 65536, max_output_tokens: 4096 },
+    }))).toEqual({ contextWindow: 32000, maxOutputTokens: 2048 })
+  })
+
+  it('keeps Auto unknown when only an output limit is available and allows a fixed budget', () => {
+    const capabilities = providerModelCapabilities(providerModel({ max_output_tokens: 4096 }))
+    expect(capabilities.contextWindow).toBeNull()
+    const config = {
+      contextWindow: capabilities.contextWindow,
+      modelMaxOutputTokens: capabilities.maxOutputTokens,
+      configuredOutputTokens: 8192,
+      runtimeReserveUnits: 1000,
+    }
+    expect(calculateContextCapacity({ ...config, configuredInputBudget: null }).effectiveInputBudget).toBeNull()
+    expect(calculateContextCapacity({ ...config, configuredInputBudget: 16000 }).effectiveInputBudget).toBe(16000)
+  })
+
   it('clamps output and fixed Context Budget to the invoked model capability', () => {
     const capacity = calculateContextCapacity({
       contextWindow: 32000,

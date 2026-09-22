@@ -9,8 +9,17 @@ import { Select } from '@/components/ui/Select'
 import { Textarea } from '@/components/ui/Textarea'
 import { HttpRequestBodyEditor } from '@/features/tools/components/HttpRequestBodyEditor'
 import {
+  ToolTemplateAutocompleteProvider,
+  ToolTemplateInput,
+} from '@/features/tools/components/ToolTemplateAutocomplete'
+import {
+  invalidToolInputBindingTargets,
+  toolInputBindingsForSchema,
+} from '@/features/tools/components/ToolInputBindingsEditor'
+import {
   effectiveHttpHeaders,
   inspectHttpRouteContract,
+  inspectHttpRouteDependencies,
   inspectHttpToolContract,
   isHttpToolGroup,
 } from '@/features/tools/httpToolContract'
@@ -52,6 +61,8 @@ interface ApiFirstToolFormProps {
   cancelLabel?: string
   loading?: boolean
   initialTool?: Tool | null
+  projectId?: string
+  agentId?: string | null
   onSubmit: (value: ApiFirstToolFormSubmitValue) => Promise<void>
   onCancel: () => void
 }
@@ -71,6 +82,12 @@ const RISKS = [
   { value: 'high', label: 'High' },
   { value: 'critical', label: 'Critical' },
 ]
+
+const RUNTIME_TEMPLATE_PATTERN = /\{\{\s*(?:external_context|project_env)\.[A-Za-z_][A-Za-z0-9_]*\s*\}\}/
+
+function containsRuntimeTemplate(value: string): boolean {
+  return RUNTIME_TEMPLATE_PATTERN.test(value)
+}
 
 const ROUTE_STATUSES = [
   { value: 'active', label: 'Active' },
@@ -260,10 +277,10 @@ function HeaderRows({
               Not sent by this route · Restore as override
             </button>
           ) : (
-            <Input
+            <ToolTemplateInput
               value={header.value}
-              onChange={(event) => updateHeader(header.id, { value: event.target.value, mode: 'set' })}
-              placeholder="Value or {{secret:name}}"
+              onValueChange={(value) => updateHeader(header.id, { value, mode: 'set' })}
+              placeholder="Value, {{external_context.*}} or {{project_env.*}}"
               className="font-mono text-xs"
             />
           )}
@@ -390,6 +407,8 @@ export function ApiFirstToolForm({
   cancelLabel = 'Cancel',
   loading = false,
   initialTool = null,
+  projectId,
+  agentId,
   onSubmit,
   onCancel,
 }: ApiFirstToolFormProps) {
@@ -436,6 +455,19 @@ export function ApiFirstToolForm({
       body: routeEditor.draft.body || undefined,
     })
   }, [groupConfigPreview, routeEditor])
+
+  const routeDependencies = useMemo(() => {
+    if (!routeEditor || !routeContract) return []
+    return inspectHttpRouteDependencies(
+      groupConfigPreview,
+      {
+        ...routeEditor.draft,
+        headers: normalizeHeaders(routeEditor.draft.headers),
+        body: routeEditor.draft.body || undefined,
+      },
+      routeContract.inputSchema,
+    )
+  }, [groupConfigPreview, routeContract, routeEditor])
 
   const updateBaseUrl = (value: string) => {
     setBaseUrl(value)
@@ -500,6 +532,10 @@ export function ApiFirstToolForm({
     if (!['GET', 'HEAD'].includes(route.method) && route.body.trim()) {
       try { JSON.parse(route.body) } catch { nextErrors.body = 'Request body must be valid JSON.' }
     }
+    const invalidBindings = invalidToolInputBindingTargets(route.bindings)
+    if (invalidBindings.length) {
+      nextErrors.bindings = `Legacy runtime binding is incomplete for: ${invalidBindings.join(', ')}. Replace the placeholder with {{external_context.*}} or {{project_env.*}}.`
+    }
     const preview = inspectHttpRouteContract(groupConfigPreview, {
       ...route,
       headers: normalizeHeaders(route.headers),
@@ -550,6 +586,7 @@ export function ApiFirstToolForm({
       headers: routeHeaders,
       body: canHaveBody && route.body.trim() ? route.body.trim() : undefined,
       variables: route.variables || {},
+      bindings: toolInputBindingsForSchema(preview.inputSchema, route.bindings),
       input_schema: preview.inputSchema,
       output_schema: route.output_schema,
       risk_level: route.risk_level || 'low',
@@ -600,7 +637,11 @@ export function ApiFirstToolForm({
       if (!name.trim()) nextErrors.name = 'Display name is required.'
     } else {
       if (!baseUrl.trim()) nextErrors.baseUrl = 'Base URL is required.'
-      else {
+      else if (containsRuntimeTemplate(baseUrl)) {
+        if (baseUrl.includes('?') || baseUrl.includes('#')) {
+          nextErrors.baseUrl = 'Base URL cannot contain query parameters or fragments.'
+        }
+      } else {
         try {
           const parsed = new URL(baseUrl.trim())
           if (!['http:', 'https:'].includes(parsed.protocol)) nextErrors.baseUrl = 'Use an HTTP or HTTPS URL.'
@@ -662,7 +703,7 @@ export function ApiFirstToolForm({
       : !mcpUrl.trim() || !name.trim()
 
   const primaryLabel = step === 'route'
-    ? 'Save route'
+    ? 'Apply route'
     : initialTool
       ? 'Save changes'
       : protocol === 'mcp'
@@ -670,7 +711,11 @@ export function ApiFirstToolForm({
         : submitLabel === 'Create' ? 'Create API' : submitLabel
 
   return (
-    <form onSubmit={submit} className="min-h-full">
+    <ToolTemplateAutocompleteProvider
+      projectId={projectId || initialTool?.project_id}
+      agentId={agentId ?? initialTool?.agent_id}
+    >
+      <form onSubmit={submit} className="min-h-full">
       <div className="space-y-5 p-6">
         {step === 'type' ? (
           <div className="space-y-4">
@@ -711,7 +756,7 @@ export function ApiFirstToolForm({
               <>
                 <div>
                   <label className="mb-1 block text-xs font-medium text-muted">Base URL *</label>
-                  <Input autoFocus value={baseUrl} onChange={(event) => updateBaseUrl(event.target.value)} placeholder="https://api.example.com/v1" className="font-mono text-xs" />
+                  <ToolTemplateInput autoFocus value={baseUrl} onValueChange={updateBaseUrl} placeholder="https://api.example.com/v1 or {{project_env.API_URL}}" className="font-mono text-xs" />
                   <p className="mt-1 text-[11px] text-muted">All routes remain under this domain and base path.</p>
                   <FieldError message={errors.baseUrl} />
                 </div>
@@ -816,6 +861,7 @@ export function ApiFirstToolForm({
               <div>
                 <h3 className="text-base font-semibold text-white">{routeEditor.isNew ? 'Add route' : 'Edit route'}</h3>
                 <p className="mt-1 text-sm text-muted">Define the request. Woobe creates and preserves the technical identifier automatically.</p>
+                {initialTool ? <p className="mt-1 text-[11px] text-muted">Apply the route here, then use Save changes to persist the Tool.</p> : null}
               </div>
             </div>
 
@@ -826,7 +872,7 @@ export function ApiFirstToolForm({
               </div>
               <div>
                 <label className="mb-1 block text-xs font-medium text-muted">Relative path *</label>
-                <Input autoFocus value={routeEditor.draft.path} onChange={(event) => { updateRouteDraft({ path: event.target.value }); setRouteErrors((current) => ({ ...current, path: '' })) }} placeholder="/employees/{{employee_id}}" className="font-mono text-xs" />
+                <ToolTemplateInput autoFocus value={routeEditor.draft.path} onValueChange={(value) => { updateRouteDraft({ path: value }); setRouteErrors((current) => ({ ...current, path: '' })) }} placeholder="/employees/{{employee_id}}" className="font-mono text-xs" />
                 <FieldError message={routeErrors.path} />
               </div>
             </div>
@@ -852,10 +898,58 @@ export function ApiFirstToolForm({
               </div>
             ) : null}
 
-            {routeContract?.parameterNames.length ? (
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
-                <span>Agent inputs</span>
-                {routeContract.parameterNames.map((parameter) => <span key={parameter} className="rounded-md border border-border bg-background px-2 py-1 font-mono text-[10px] text-white">{parameter}</span>)}
+            {routeDependencies.length ? (
+              <div className="space-y-2">
+                <div>
+                  <p className="text-xs font-medium text-white">Runtime inputs</p>
+                  <p className="mt-0.5 text-[11px] text-muted">
+                    Derived from the request template. Edit the URL, headers or body to change these dependencies.
+                  </p>
+                </div>
+                <div className="overflow-hidden rounded-lg border border-border/70 bg-background/25">
+                  <div className="grid grid-cols-[minmax(120px,1fr)_150px_minmax(150px,1.2fr)_minmax(150px,1fr)] gap-2 border-b border-border/70 px-3 py-2 font-mono text-[9px] uppercase tracking-wide text-muted">
+                    <span>Value</span>
+                    <span>Source</span>
+                    <span>Used in</span>
+                    <span>Resolution</span>
+                  </div>
+                  <div className="divide-y divide-border/70">
+                    {routeDependencies.map((dependency) => {
+                      const sourceLabel = dependency.source === 'agent'
+                        ? 'Agent Input'
+                        : dependency.source === 'external_context'
+                          ? 'External Context'
+                          : 'Project Environment'
+                      const resolution = dependency.source === 'agent'
+                        ? `Model-provided${dependency.type ? ` · ${dependency.type}` : ''}${dependency.required ? ' · required' : ''}`
+                        : dependency.source === 'external_context'
+                          ? 'Run snapshot · runtime-resolved'
+                          : 'Selected environment · runtime-resolved'
+                      return (
+                        <div
+                          key={`${dependency.source}:${dependency.field}`}
+                          className="grid min-h-[48px] grid-cols-[minmax(120px,1fr)_150px_minmax(150px,1.2fr)_minmax(150px,1fr)] items-center gap-2 px-3 py-2"
+                        >
+                          <span className="truncate font-mono text-[11px] font-medium text-white">{dependency.field}</span>
+                          <span className="text-[10px] text-muted">{sourceLabel}</span>
+                          <span className="truncate text-[10px] text-muted" title={dependency.usages.join(', ')}>
+                            {dependency.usages.join(', ')}
+                          </span>
+                          <span className="text-[10px] text-muted">
+                            {resolution}
+                            {dependency.legacyBinding ? ' · legacy binding' : ''}
+                          </span>
+                        </div>
+                      )
+                    })}
+                  </div>
+                  <div className="border-t border-border/70 px-3 py-2">
+                    <p className="text-[10px] leading-4 text-muted">
+                      {'{{name}}'} is model-provided. {'{{external_context.name}}'} comes from the Run snapshot. {'{{project_env.KEY}}'} comes from the selected execution environment.
+                    </p>
+                  </div>
+                </div>
+                <FieldError message={routeErrors.bindings} />
               </div>
             ) : null}
 
@@ -898,6 +992,7 @@ export function ApiFirstToolForm({
         <Button type="button" variant="outline" onClick={cancelCurrentStep}>{step === 'route' ? 'Cancel' : cancelLabel}</Button>
         {step !== 'type' ? <Button type="submit" loading={loading} disabled={primaryDisabled}>{primaryLabel}</Button> : null}
       </div>
-    </form>
+      </form>
+    </ToolTemplateAutocompleteProvider>
   )
 }

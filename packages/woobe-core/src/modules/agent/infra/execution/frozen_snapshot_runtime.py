@@ -317,6 +317,14 @@ class FrozenSnapshotStructuredOutputRuntime(TransactionBoundedStructuredOutputRu
                 settings.pop("response_format", None)
             else:
                 settings["response_format"] = response_format
+        if "external_context_contract" in snapshot:
+            external_context_contract = deepcopy(
+                snapshot.get("external_context_contract")
+            )
+            if external_context_contract is None:
+                settings.pop("external_context_contract", None)
+            else:
+                settings["external_context_contract"] = external_context_contract
         if "runtime_config" in snapshot:
             settings["runtime_config"] = deepcopy(snapshot.get("runtime_config") or {})
         if "knowledge_version_id" in snapshot:

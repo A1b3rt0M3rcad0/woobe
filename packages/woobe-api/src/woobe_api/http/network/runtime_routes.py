@@ -368,6 +368,7 @@ async def run_network_stream(
         project_id=payload.project_id,
         network_session_id=payload.network_session_id,
         message=payload.message,
+        external_context=payload.external_context,
         idempotency_key=payload.idempotency_key,
         expected_draft_revision=payload.expected_draft_revision,
     )
