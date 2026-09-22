@@ -19,6 +19,14 @@ class ExternalContextResolution:
     snapshot: dict[str, Any]
 
 
+@dataclass(frozen=True, slots=True)
+class ScopedExternalContextResolution:
+    session_snapshot: dict[str, Any]
+    run_snapshot: dict[str, Any]
+    snapshot: dict[str, Any]
+    session_changed: bool
+
+
 def _raw_contract_fields(value: Any) -> dict[str, Any]:
     """Return the field map while accepting the pre-builder PR shape for transition reads."""
 
@@ -66,7 +74,8 @@ def normalize_external_context_contract(value: Any) -> dict[str, Any]:
                 f"External Context field '{name}' contains unknown properties: {names}"
             )
 
-        if "scope" in raw_field and raw_field["scope"] not in {"run", "session"}:
+        scope = raw_field.get("scope", "run")
+        if scope not in {"run", "session"}:
             raise ExternalContextContractError(
                 f"External Context field '{name}'.scope must be 'run' or 'session'"
             )
@@ -94,6 +103,7 @@ def normalize_external_context_contract(value: Any) -> dict[str, Any]:
         field: dict[str, Any] = {
             "schema": schema,
             "required": required,
+            "scope": scope,
             "model": {"expose": expose},
         }
         if "default" in raw_field:
@@ -151,6 +161,117 @@ def resolve_external_context(
     return ExternalContextResolution(snapshot=snapshot)
 
 
+def split_external_context_contract(
+    contract: Any,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Split one canonical contract by lifecycle scope."""
+
+    fields = normalize_external_context_contract(contract)
+    session_fields = {
+        name: deepcopy(field)
+        for name, field in fields.items()
+        if field["scope"] == "session"
+    }
+    run_fields = {
+        name: deepcopy(field)
+        for name, field in fields.items()
+        if field["scope"] == "run"
+    }
+    return session_fields, run_fields
+
+
+def resolve_scoped_external_context(
+    contract: Any,
+    request_values: Any,
+    *,
+    session_snapshot: Mapping[str, Any] | None,
+    allow_session_replay: bool = False,
+) -> ScopedExternalContextResolution:
+    """Resolve immutable Session values plus ephemeral Run values."""
+
+    fields = normalize_external_context_contract(contract)
+    values = {} if request_values is None else request_values
+    if not isinstance(values, dict):
+        raise ExternalContextContractError("External Context values must be an object")
+
+    unknown = set(values) - set(fields)
+    if unknown:
+        names = ", ".join(sorted(str(key) for key in unknown))
+        raise ExternalContextContractError(
+            f"External Context contains undeclared fields: {names}"
+        )
+
+    session_fields, run_fields = split_external_context_contract(fields)
+    session_values = {
+        name: deepcopy(values[name])
+        for name in session_fields
+        if name in values
+    }
+    run_values = {
+        name: deepcopy(values[name])
+        for name in run_fields
+        if name in values
+    }
+
+    session_changed = False
+    if session_fields:
+        if session_snapshot is None:
+            resolved_session = resolve_external_context(
+                session_fields,
+                session_values,
+                enforce_required=True,
+            ).snapshot
+            session_changed = True
+        else:
+            persisted = deepcopy(dict(session_snapshot))
+            checked = resolve_external_context(
+                session_fields,
+                persisted,
+                enforce_required=True,
+            ).snapshot
+            if checked != persisted:
+                raise ExternalContextContractError(
+                    "Session External Context no longer satisfies the active contract; "
+                    "open a new Session"
+                )
+
+            if session_values:
+                if not allow_session_replay:
+                    names = ", ".join(sorted(session_values))
+                    raise ExternalContextContractError(
+                        "Session-scoped External Context is immutable and cannot be "
+                        f"supplied again: {names}"
+                    )
+                mismatched = [
+                    name
+                    for name, value in session_values.items()
+                    if name not in persisted or persisted[name] != value
+                ]
+                if mismatched:
+                    names = ", ".join(sorted(mismatched))
+                    raise ExternalContextContractError(
+                        "Session-scoped External Context is immutable and cannot be "
+                        f"overwritten: {names}"
+                    )
+            resolved_session = persisted
+    else:
+        resolved_session = {}
+
+    resolved_run = resolve_external_context(
+        run_fields,
+        run_values,
+        enforce_required=True,
+    ).snapshot
+    effective = deepcopy(resolved_session)
+    effective.update(deepcopy(resolved_run))
+    return ScopedExternalContextResolution(
+        session_snapshot=deepcopy(resolved_session),
+        run_snapshot=deepcopy(resolved_run),
+        snapshot=effective,
+        session_changed=session_changed,
+    )
+
+
 def project_external_context(contract: Any, snapshot: Mapping[str, Any]) -> dict[str, Any]:
     """Project a shared snapshot to the fields declared by one Agent."""
 
@@ -190,6 +311,8 @@ def classify_external_context_change(previous: Any, candidate: Any) -> ReleaseCh
             feature = True
             continue
 
+        if old_field["scope"] != new_field["scope"]:
+            return ReleaseChangeKind.COMPATIBILITY
         if not old_field["required"] and new_field["required"]:
             return ReleaseChangeKind.COMPATIBILITY
         if _schema_breaks_input_compatibility(old_field["schema"], new_field["schema"]):
@@ -216,10 +339,14 @@ def compose_external_context_contracts(
             if existing is None:
                 existing = {
                     "schema": deepcopy(field["schema"]),
+                    "scope": field["scope"],
                     "consumers": {},
                 }
                 effective_fields[name] = existing
-            elif existing["schema"] != field["schema"]:
+            elif (
+                existing["schema"] != field["schema"]
+                or existing.get("scope", "run") != field["scope"]
+            ):
                 raise ExternalContextContractError(
                     f"External Context field '{name}' conflicts between Network Agents"
                 )
