@@ -61,14 +61,64 @@ const RUNTIME_STREAM_MAX_ATTEMPTS = 4;
 class RuntimeStreamGapError extends Error {}
 const acceptRuntimeFrameSequence = () => true;
 const parseRuntimeFrame = (frame) => {
-  if (!frame.includes("event: done")) return null;
+  const eventLine = frame.split(/\\r?\\n/).find((line) => line.startsWith("event:"));
   const dataLine = frame.split(/\\r?\\n/).find((line) => line.startsWith("data:"));
-  const data = dataLine ? JSON.parse(dataLine.slice(5).trim()) : {};
-  return { eventType: "done", data, payload: data, sequence: null };
+  if (!dataLine) return null;
+  const data = JSON.parse(dataLine.slice(5).trim());
+  const eventType = eventLine?.slice(6).trim() || data.type;
+  const payload = data.payload && typeof data.payload === "object" ? data.payload : data;
+  return {
+    kind: "semantic",
+    eventType,
+    data,
+    payload,
+    sequence: typeof data.sequence === "number" ? data.sequence : null,
+  };
 };
-const runtimeTerminalStatus = (parsed) => parsed?.eventType === "done" ? "completed" : null;
+const runtimeAssistantMessage = (parsed) => {
+  if (!["assistant_message_delta", "assistant_message_completed"].includes(parsed?.eventType)) return null;
+  const value = parsed.payload;
+  if (
+    !value
+    || typeof value.message_id !== "string"
+    || !value.message_id
+    || typeof value.content !== "string"
+    || value.output_mode !== "intermediate"
+  ) return null;
+  return {
+    message_id: value.message_id,
+    content: value.content,
+    output_mode: "intermediate",
+    phase: typeof value.phase === "string" ? value.phase : null,
+    provider: typeof value.provider === "string" ? value.provider : null,
+    model: typeof value.model === "string" ? value.model : null,
+    partial: typeof value.partial === "boolean" ? value.partial : null,
+    status: typeof value.status === "string" ? value.status : null,
+    completed_at: typeof value.completed_at === "string" ? value.completed_at : null,
+  };
+};
+const runtimeStateAssistantMessages = (parsed) => {
+  if (parsed?.eventType !== "run.state" || !Array.isArray(parsed.payload?.messages)) return [];
+  return parsed.payload.messages
+    .map((message) => runtimeAssistantMessage({
+      eventType: "assistant_message_completed",
+      payload: message,
+    }))
+    .filter(Boolean);
+};
+const runtimeTerminalStatus = (parsed) => {
+  if (parsed?.eventType === "done" || parsed?.eventType === "execution_completed") return "completed";
+  if (parsed?.eventType === "cancelled" || parsed?.eventType === "execution_cancelled") return "cancelled";
+  if (parsed?.eventType === "error" || parsed?.eventType === "execution_failed") return "failed";
+  if (parsed?.eventType === "run.state") {
+    return ["completed", "failed", "cancelled", "timed_out", "uncertain"].includes(parsed.payload?.status)
+      ? parsed.payload.status
+      : null;
+  }
+  return null;
+};
 const createChatUi = () => globalThis.__ui;
-`;
+`
   const hooks = `
 globalThis.__woobeIframeTest = {
   sendMessage,
@@ -96,26 +146,57 @@ globalThis.__woobeIframeTest = {
 
   const errors = [];
   const messages = [];
+  const element = (role, content, pending = false) => ({
+    role,
+    content,
+    pending,
+    dataset: { content },
+  });
   const ui = {
     setAppearance() {},
     setStopping() {},
     showSessionExpired() {},
     clearSessionExpired() {},
-    clearMessages() {},
+    clearMessages() {
+      messages.splice(0, messages.length);
+    },
     appendMessage(role, content) {
-      messages.push({ role, content });
-      return {};
+      const item = element(role, content);
+      messages.push(item);
+      return item;
+    },
+    insertMessageBefore(role, content, before) {
+      const item = element(role, content);
+      const index = messages.indexOf(before);
+      if (index >= 0) messages.splice(index, 0, item);
+      else messages.push(item);
+      return item;
     },
     appendPendingAssistant() {
-      return {};
+      const item = element("assistant", "", true);
+      messages.push(item);
+      return item;
     },
-    beginAssistantStreaming() {},
-    updateAssistantStreaming() {},
+    beginAssistantStreaming(item) {
+      item.pending = false;
+      item.content = "";
+      item.dataset.content = "";
+    },
+    updateAssistantStreaming(item, content) {
+      item.content = content;
+      item.dataset.content = content;
+    },
     updateAssistantActivity() {
       return "";
     },
-    finishAssistantStreaming() {},
-    removeMessage() {},
+    updateSkillActivity() {},
+    finishAssistantStreaming(item) {
+      item.pending = false;
+    },
+    removeMessage(item) {
+      const index = messages.indexOf(item);
+      if (index >= 0) messages.splice(index, 1);
+    },
     appendStatus() {},
     appendError(message) {
       errors.push(String(message));
@@ -365,6 +446,157 @@ test("legacy 409 without Run identity performs at most one active-run fallback l
   assert.equal(
     calls.filter((call) => call.path.endsWith("/active-run/stream")).length,
     1,
+  );
+  assert.deepEqual(harness.errors, []);
+});
+
+test("pre-Tool public text becomes a durable intermediate bubble instead of disappearing", async () => {
+  const stream = [
+    ["token", { content: "Vou procurar.", message_id: "message-final", output_mode: "final" }],
+    ["assistant_message_completed", {
+      message_id: "message-progress-1",
+      content: "Vou procurar.",
+      phase: "capability_response_generation",
+      output_mode: "intermediate",
+      partial: false,
+    }],
+    ["token_retract", {
+      message_id: "message-final",
+      content_length: "Vou procurar.".length,
+      reason: "tool_call_selected",
+    }],
+    ["assistant_message_completed", {
+      message_id: "message-progress-2",
+      content: "Não encontrei. Vou tentar outra possibilidade.",
+      phase: "tool_followup_1",
+      output_mode: "intermediate",
+      partial: false,
+    }],
+    ["token", { content: "Resultado final.", message_id: "message-final", output_mode: "final" }],
+    ["done", { answer: "Resultado final.", message_id: "message-final" }],
+  ].map(([type, payload], index) =>
+    `event: ${type}\ndata: ${JSON.stringify({
+      protocol_version: 2,
+      type,
+      sequence: index + 1,
+      payload,
+    })}\n\n`
+  ).join("");
+
+  const harness = await loadIframeHarness(async (url) => {
+    const pathname = new URL(String(url)).pathname;
+    if (pathname.endsWith("/messages:stream")) {
+      return new Response(stream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    }
+    throw new Error(`Unexpected request: ${pathname}`);
+  });
+
+  await harness.sendMessage("procure");
+
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(harness.messages.map(({ role, content, dataset }) => ({
+      role,
+      content,
+      messageId: dataset.messageId ?? null,
+      outputMode: dataset.outputMode ?? null,
+    })))),
+    [
+      { role: "user", content: "procure", messageId: null, outputMode: null },
+      {
+        role: "assistant",
+        content: "Vou procurar.",
+        messageId: "message-progress-1",
+        outputMode: "intermediate",
+      },
+      {
+        role: "assistant",
+        content: "Não encontrei. Vou tentar outra possibilidade.",
+        messageId: "message-progress-2",
+        outputMode: "intermediate",
+      },
+      { role: "assistant", content: "Resultado final.", messageId: null, outputMode: null },
+    ],
+  );
+  assert.deepEqual(harness.errors, []);
+});
+
+test("reattach run.state restores intermediate messages before the terminal output", async () => {
+  const stateStream = [
+    ["run.state", {
+      status: "running",
+      output: "Resposta parcial",
+      messages: [
+        {
+          message_id: "message-progress-1",
+          content: "Vou procurar.",
+          phase: "search",
+          output_mode: "intermediate",
+          partial: false,
+          status: "completed",
+        },
+        {
+          message_id: "message-progress-2",
+          content: "Achei algo. Vou validar.",
+          phase: "verification",
+          output_mode: "intermediate",
+          partial: false,
+          status: "completed",
+        },
+      ],
+    }],
+    ["done", { answer: "Resposta final.", message_id: "message-final" }],
+  ].map(([type, payload], index) =>
+    `event: ${type}\ndata: ${JSON.stringify({
+      protocol_version: 2,
+      type,
+      sequence: index + 1,
+      payload,
+    })}\n\n`
+  ).join("");
+
+  const harness = await loadIframeHarness(async (url) => {
+    const pathname = new URL(String(url)).pathname;
+    if (pathname.endsWith("/messages:stream")) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "ChatSurface Session already has an active Run",
+          data: {
+            code: "active_run_conflict",
+            run_id: "run-1",
+            status: "running",
+            target_type: "agent",
+          },
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (pathname.endsWith("/active-run/stream")) {
+      return new Response(stateStream, {
+        status: 200,
+        headers: { "Content-Type": "text/event-stream" },
+      });
+    }
+    throw new Error(`Unexpected request: ${pathname}`);
+  });
+
+  await harness.sendMessage("continue");
+
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(harness.messages.map(({ role, content, dataset }) => ({
+      role,
+      content,
+      messageId: dataset.messageId ?? null,
+    })))),
+    [
+      { role: "user", content: "continue", messageId: null },
+      { role: "assistant", content: "Vou procurar.", messageId: "message-progress-1" },
+      { role: "assistant", content: "Achei algo. Vou validar.", messageId: "message-progress-2" },
+      { role: "assistant", content: "Resposta final.", messageId: null },
+    ],
   );
   assert.deepEqual(harness.errors, []);
 });
