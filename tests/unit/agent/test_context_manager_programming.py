@@ -306,6 +306,38 @@ def test_inventory_primitive_exposes_aggregate_sources_without_raw_messages() ->
     assert built.inventory.total_units > 0
     assert ContextSourceType.SESSION in built.inventory.sources
 
+
+def test_invocation_primitive_exposes_algorithm_relevant_metadata() -> None:
+    request = ContextAssemblyRequest(
+        messages=[SystemMessage(content="System"), HumanMessage(content="delegated input")],
+        model_invocation_id=uuid4(),
+        agent_run_id=uuid4(),
+        project_id=uuid4(),
+        provider="openai",
+        model="gpt-test",
+        runtime_context=SimpleNamespace(
+            skill_context=None,
+            active_tool_definitions=[
+                {"type": "function", "function": {"name": "lookup"}}
+            ],
+            parent_invocation_id=uuid4(),
+            model_capacity_units=100_000,
+            reserved_output_units=1_000,
+            external_context_contract=None,
+            model_external_context=None,
+        ),
+        policy=ContextPolicyV1(),
+        phase="tool_followup_1",
+    )
+
+    built = build_context_manager_context(request)
+
+    assert built.invocation.phase == "tool_followup_1"
+    assert built.invocation.provider == "openai"
+    assert built.invocation.model == "gpt-test"
+    assert built.invocation.delegated is True
+    assert built.invocation.has_active_tools is True
+
 def test_manager_runner_rejects_non_sdk_outcomes() -> None:
     request = ContextAssemblyRequest(
         messages=[SystemMessage(content="System"), HumanMessage(content="current user")],
