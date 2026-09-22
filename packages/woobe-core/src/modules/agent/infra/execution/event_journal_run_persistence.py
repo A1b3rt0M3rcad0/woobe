@@ -138,24 +138,33 @@ async def _materialize_intermediate_messages(
         content = item.get("content")
         if not isinstance(content, str) or not content:
             continue
-        await _materialize_assistant_session_message(
-            owner,
-            message_id=message_id,
-            session=session,
-            agent=agent,
-            answer=content,
-            usage=None,
-            data={
-                "run_id": str(context.run_id),
-                "trace_id": str(context.trace_id) if context.trace_id else None,
-                "phase": item.get("phase"),
-                "output_mode": "intermediate",
-                "provider": item.get("provider"),
-                "model": item.get("model"),
-                "partial": bool(item.get("partial")),
-            },
-            created_at=_datetime_value(item.get("completed_at")),
-        )
+        try:
+            await _materialize_assistant_session_message(
+                owner,
+                message_id=message_id,
+                session=session,
+                agent=agent,
+                answer=content,
+                usage=None,
+                data={
+                    "run_id": str(context.run_id),
+                    "trace_id": str(context.trace_id) if context.trace_id else None,
+                    "phase": item.get("phase"),
+                    "output_mode": "intermediate",
+                    "provider": item.get("provider"),
+                    "model": item.get("model"),
+                    "partial": bool(item.get("partial")),
+                },
+                created_at=_datetime_value(item.get("completed_at")),
+            )
+        except Exception as exc:
+            logger.warning(
+                "Durable Agent Run %s completed but synchronous intermediate "
+                "Assistant message %s projection failed; async projector will retry: %s",
+                context.run_id,
+                message_id,
+                exc,
+            )
 
 
 class EventJournalAgentRunPersistence:
@@ -276,13 +285,13 @@ class EventJournalAgentRunPersistence:
         # next user turn can start immediately after this method returns. Persist
         # completed intermediate Assistant messages first, then the terminal answer,
         # while Mongo remains the durable recovery authority.
+        await _materialize_intermediate_messages(
+            owner,
+            context=context,
+            session=session,
+            agent=agent,
+        )
         try:
-            await _materialize_intermediate_messages(
-                owner,
-                context=context,
-                session=session,
-                agent=agent,
-            )
             await _materialize_assistant_session_message(
                 owner,
                 message_id=message_id,
@@ -293,11 +302,11 @@ class EventJournalAgentRunPersistence:
                 data=assistant_message_data,
             )
         except Exception as exc:
-            # The terminal event is already durable. A projection failure must
-            # not rewrite the completed Run as failed; the async projector will
-            # retry the same deterministic message id.
+            # The terminal event is already durable. A final read-model projection
+            # failure must not rewrite the completed Run as failed; the async
+            # projector retries the same deterministic message id.
             logger.warning(
-                "Durable Agent Run %s completed but synchronous Assistant Session "
+                "Durable Agent Run %s completed but synchronous final Assistant "
                 "message projection failed; async projector will retry: %s",
                 context.run_id,
                 exc,
