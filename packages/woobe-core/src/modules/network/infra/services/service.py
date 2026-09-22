@@ -15,7 +15,7 @@ from modules.network.infra.services.session_mode_binding_service import (
     NetworkApplicationService as SessionModeNetworkApplicationService,
 )
 from modules.network.domain.enums import NetworkEnvironment
-from modules.network.domain.external_context_contract import resolve_effective_external_context
+from modules.network.domain.external_context_contract import resolve_scoped_effective_external_context
 from modules.network.domain.graph import composition_hash
 from modules.network.infra.database.models import (
     NetworkExecutionEventModel,
@@ -255,12 +255,22 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                 )
 
             try:
-                resolved_external_context = resolve_effective_external_context(
+                resolved_external_context = resolve_scoped_effective_external_context(
                     effective_external_context_contract,
                     external_context,
+                    session_snapshot=getattr(
+                        network_session,
+                        "external_context_snapshot",
+                        None,
+                    ),
                 )
             except ExternalContextContractError as exc:
                 raise ValidationError(str(exc)) from exc
+
+            if resolved_external_context.session_changed:
+                network_session.external_context_snapshot = deepcopy(
+                    resolved_external_context.session_snapshot
+                )
 
             execution = NetworkExecutionModel(
                 network_id=network_id,
@@ -271,7 +281,7 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                 draft_revision=draft_revision,
                 definition_snapshot=definition_snapshot,
                 resolved_bindings_snapshot=bindings_snapshot,
-                external_context_snapshot=(resolved_external_context.snapshot or None),
+                external_context_snapshot=(resolved_external_context.run_snapshot or None),
                 status="queued",
                 storage_version=self._run_storage_version,
                 idempotency_key=idempotency_key,
