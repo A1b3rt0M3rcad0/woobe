@@ -16,6 +16,7 @@ from modules.core.entrypoint import (
 from modules.core.entrypoint import get_project_composer
 from modules.core.entrypoint import (
     get_project_overview_composer,
+    get_project_runs_composer,
 )
 from modules.core.entrypoint import (
     list_api_keys_composer,
@@ -197,6 +198,13 @@ async def revoke_project_access(
 @router.get("/projects/{project_id}/overview")
 async def get_project_overview(request: FastAPIRequest):
     handler = get_project_overview_composer()
+    response = await request_adapter(request, handler)
+    return response_adapter(response)
+
+
+@router.get("/projects/{project_id}/runs")
+async def get_project_runs(request: FastAPIRequest):
+    handler = get_project_runs_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)
 
