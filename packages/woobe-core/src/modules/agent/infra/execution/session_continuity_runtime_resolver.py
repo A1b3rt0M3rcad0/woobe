@@ -77,7 +77,21 @@ class SessionContinuityReleaseRuntimeResolver(CanonicalExecutionSnapshotRuntimeR
             return await super()._resolve_session(session_repo, input_dto, agent)
 
         requested_session_id = input_dto.session_id
-        session = await AskAgentUseCase._resolve_session(self, session_repo, input_dto, agent)
+        session = None
+        if requested_session_id is not None:
+            lock_reader = getattr(session_repo, "get_by_id_for_update", None)
+            if callable(lock_reader):
+                try:
+                    session = await lock_reader(requested_session_id)
+                except Exception:
+                    session = None
+        if session is None:
+            session = await AskAgentUseCase._resolve_session(
+                self,
+                session_repo,
+                input_dto,
+                agent,
+            )
         environment = normalize_runtime_environment(input_dto.execution_context)
         existing = requested_session_id is not None
         if existing:
