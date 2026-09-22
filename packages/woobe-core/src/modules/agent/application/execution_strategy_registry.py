@@ -156,11 +156,42 @@ _STANDARD_DESCRIPTOR = ExecutionStrategyDescriptor(
 )
 
 
+_SCIENTIFIC_METHOD_DESCRIPTOR = ExecutionStrategyDescriptor(
+    name="scientific_method",
+    display_name="Scientific Method",
+    description=(
+        "Hypothesis-driven execution that investigates a problem through evidence, "
+        "experiments, falsification, and an explicit critical review."
+    ),
+    behavior=(
+        "Moves through observation, hypothesis formulation, evidence analysis, critical "
+        "review, and conclusion phases. Each Model invocation receives a phase-specific "
+        "Directive, while Tools act as experiments that collect durable evidence."
+    ),
+    recommended_for=(
+        "Diagnostic, debugging, research, investigation, and validation tasks.",
+        "Agents that should test competing explanations before committing to a conclusion.",
+    ),
+    capabilities=(
+        "Phase-specific Model behavior through invocation-local Directives.",
+        "Hypothesis-driven Tool selection and iterative evidence collection.",
+        "Explicit falsification and critical-review pass before final conclusion.",
+        "Durable experiment-boundary recovery without replaying completed Tool side effects.",
+    ),
+    limitations=(
+        "Uses more Model invocations than Standard because observation, hypothesis, review, and conclusion are explicit phases.",
+        "Tool-backed experiments are bounded by a deterministic experiment-round limit.",
+    ),
+    is_default=False,
+)
+
+
 def build_execution_strategy_registry() -> ExecutionStrategyRegistry:
     """Build the deterministic Execution Strategy catalog supported by this process."""
 
     registry = ExecutionStrategyRegistry()
     registry.register(_STANDARD_DESCRIPTOR)
+    registry.register(_SCIENTIFIC_METHOD_DESCRIPTOR)
 
     default = registry.current_default()
     if default.name != DEFAULT_EXECUTION_STRATEGY:
