@@ -133,8 +133,8 @@ class RuntimeContextManagerContext:
 
     def __init__(self, request: ContextAssemblyRequest) -> None:
         self._request = request
-        self.policy = request.policy
         self._effective_policy = request.policy.model_copy(deep=True)
+        self.policy = self._effective_policy
         self.candidates = RuntimeContextCandidates(self._effective_policy)
         self.budget = RuntimeContextBudget(self._effective_policy)
         self.sources = RuntimeContextSources()
