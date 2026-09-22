@@ -286,6 +286,55 @@ class AgentRunRecoveryWorker:
         value = event.payload.get("operation_id") or event.payload.get("tool_call_id")
         return str(value) if value not in {None, ""} else None
 
+    @staticmethod
+    def _merge_context_manager_checkpoint(
+        checkpoint: RunCheckpoint | None,
+        events: list[DurableRunEvent],
+    ) -> RunCheckpoint | None:
+        """Merge the latest durable Context state into a safe execution continuation.
+
+        A context.checkpoint is durable algorithm state, but it is not itself an
+        execution continuation boundary. Recovery therefore keeps the latest
+        execution.checkpoint as the causal continuation and only overlays newer
+        Context Manager state when available.
+        """
+        if checkpoint is None:
+            return None
+
+        context_events = [
+            event
+            for event in events
+            if event.event_type == "context.checkpoint"
+            and isinstance(event.payload, dict)
+            and isinstance(event.payload.get("state"), dict)
+            and isinstance(event.payload.get("manager_name"), str)
+            and bool(str(event.payload.get("manager_name") or "").strip())
+        ]
+        if not context_events:
+            return checkpoint
+
+        latest = max(context_events, key=lambda event: event.sequence)
+        checkpoint_state = deepcopy(checkpoint.state)
+        embedded = checkpoint_state.get("context_manager_state")
+
+        if (
+            latest.sequence > checkpoint.through_sequence
+            or not isinstance(embedded, dict)
+        ):
+            checkpoint_state["context_manager_state"] = {
+                "manager_name": str(latest.payload["manager_name"]),
+                "boundary": str(latest.payload.get("boundary") or ""),
+                "state": deepcopy(latest.payload["state"]),
+            }
+
+        return RunCheckpoint(
+            run_id=checkpoint.run_id,
+            through_sequence=checkpoint.through_sequence,
+            attempt=checkpoint.attempt,
+            state=checkpoint_state,
+            updated_at=checkpoint.updated_at,
+        )
+
     @classmethod
     def _classify_journal_prefix(
         cls,
@@ -355,7 +404,7 @@ class AgentRunRecoveryWorker:
 
         return _JournalRecoveryDecision(
             action="resumable",
-            checkpoint=checkpoint,
+            checkpoint=cls._merge_context_manager_checkpoint(checkpoint, events),
             attempt=attempt,
         )
 
