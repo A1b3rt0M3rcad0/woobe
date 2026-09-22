@@ -298,9 +298,6 @@ class AgentRunRecoveryWorker:
         execution.checkpoint as the causal continuation and only overlays newer
         Context Manager state when available.
         """
-        if checkpoint is None:
-            return None
-
         context_events = [
             event
             for event in events
@@ -314,6 +311,30 @@ class AgentRunRecoveryWorker:
             return checkpoint
 
         latest = max(context_events, key=lambda event: event.sequence)
+        context_manager_state = {
+            "manager_name": str(latest.payload["manager_name"]),
+            "boundary": str(latest.payload.get("boundary") or ""),
+            "state": deepcopy(latest.payload["state"]),
+        }
+
+        # With no execution continuation, recovery may still restart a side-effect-
+        # free prefix from the beginning while reusing expensive Context state. A
+        # synthetic through_sequence=0 holder must never count as a causal Tool
+        # checkpoint; tool safety classification above still uses the real
+        # execution checkpoint sequence.
+        if checkpoint is None:
+            return RunCheckpoint(
+                run_id=latest.run_id,
+                through_sequence=0,
+                attempt=int(
+                    latest.metadata.get("attempt")
+                    or latest.payload.get("attempt")
+                    or 1
+                ),
+                state={"context_manager_state": context_manager_state},
+                updated_at=latest.occurred_at,
+            )
+
         checkpoint_state = deepcopy(checkpoint.state)
         embedded = checkpoint_state.get("context_manager_state")
 
@@ -321,11 +342,7 @@ class AgentRunRecoveryWorker:
             latest.sequence > checkpoint.through_sequence
             or not isinstance(embedded, dict)
         ):
-            checkpoint_state["context_manager_state"] = {
-                "manager_name": str(latest.payload["manager_name"]),
-                "boundary": str(latest.payload.get("boundary") or ""),
-                "state": deepcopy(latest.payload["state"]),
-            }
+            checkpoint_state["context_manager_state"] = context_manager_state
 
         return RunCheckpoint(
             run_id=checkpoint.run_id,
