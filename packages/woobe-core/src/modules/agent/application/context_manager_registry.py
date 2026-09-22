@@ -172,6 +172,41 @@ _STANDARD_DESCRIPTOR = ContextAssemblerDescriptor(
 )
 
 
+_ADAPTIVE_DESCRIPTOR = ContextAssemblerDescriptor(
+    name="adaptive",
+    display_name="Adaptive Context Manager",
+    description=(
+        "Capacity-aware context management with optional semantic summarization "
+        "and durable run-local Context Manager checkpoints."
+    ),
+    behavior=(
+        "Adapts source budgets to the effective Model Invocation capacity, can "
+        "reuse or refresh semantic summaries under rolling or pressure-triggered "
+        "summary policy, and checkpoints summary state without exposing provider "
+        "or persistence mechanics to the concrete Manager."
+    ),
+    recommended_for=(
+        "Long or context-heavy Sessions where deterministic truncation alone loses too much history.",
+        "Agents that may move between primary and smaller fallback model context windows.",
+    ),
+    capabilities=(
+        "Inspects invocation capacity, source inventory, invocation phase, and active Skill footprint.",
+        "Adapts Session, Knowledge, Tool, Artifact, Checkpoint, Memory, and Delegation caps to the usable input budget.",
+        "Supports pressure-triggered or rolling semantic summaries through Context Runtime.",
+        "Reuses cached summaries until the configured refresh threshold is reached.",
+        "Emits durable Context checkpoints when a new summary transformation is created.",
+        "Preserves the same Context Snapshot and contribution evidence contract as Standard.",
+    ),
+    limitations=(
+        "Semantic Summary is disabled unless Context Policy summary.strategy enables it.",
+        "Context checkpoints are Run-local; cross-Run Session summary persistence requires a dedicated Session Context Store.",
+        "Summary currently supports SESSION, CHECKPOINT, MEMORY, KNOWLEDGE, and ARTIFACT sources.",
+    ),
+    configuration="Context Policy + Summary Policy",
+    supports_skills=True,
+)
+
+
 def _configured_default_name(value: str) -> str:
     return normalize_context_manager_name(value.split(":", 1)[0])
 
@@ -187,6 +222,12 @@ def build_context_assembler_registry(
         replace(
             _STANDARD_DESCRIPTOR,
             is_default=_STANDARD_DESCRIPTOR.name == default_name,
+        )
+    )
+    registry.register(
+        replace(
+            _ADAPTIVE_DESCRIPTOR,
+            is_default=_ADAPTIVE_DESCRIPTOR.name == default_name,
         )
     )
     default = registry.current_default()
