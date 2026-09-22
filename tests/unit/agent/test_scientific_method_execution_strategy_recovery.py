@@ -35,6 +35,7 @@ class _SequenceModel:
                     }
                 ],
             ),
+            AIMessage(content="Evidence collected. I will analyze it next."),
             AIMessage(content="The experiment supports the primary hypothesis."),
             AIMessage(content="Critical review found no material contradiction."),
             AIMessage(content="Conclusion supported by the collected evidence."),
@@ -147,8 +148,8 @@ async def test_scientific_method_resumes_after_experiment_without_replaying_tool
         "after_evidence_phase": "critical_review",
         "stop_reason": None,
     }
-    assert captured["state"]["strategy_cursor"]["next_call_index"] == 3
-    assert model.invocation_count == 2
+    assert captured["state"]["strategy_cursor"]["next_call_index"] == 4
+    assert model.invocation_count == 3
     assert tool_calls == 1
 
     second_context = new_execution_context()
@@ -159,12 +160,17 @@ async def test_scientific_method_resumes_after_experiment_without_replaying_tool
     finally:
         current_execution.reset(second_token)
 
-    assert model.invocation_count == 5
+    assert model.invocation_count == 6
     assert tool_calls == 1
     assert execution.result.content == "Conclusion supported by the collected evidence."
     assert len(execution.tool_calls) == 1
-    assert len(execution.llm_calls) == 5
+    assert len(execution.llm_calls) == 6
     assert second_context.resume_state is None
-    assert _directive_phase(model.invocations[2]) == "evidence_analysis_1"
-    assert any(isinstance(message, AIMessage) for message in model.invocations[2])
-    assert any(isinstance(message, ToolMessage) for message in model.invocations[2])
+    assert _directive_phase(model.invocations[3]) == "evidence_analysis_1"
+    assert any(isinstance(message, AIMessage) for message in model.invocations[3])
+    assert any(isinstance(message, ToolMessage) for message in model.invocations[3])
+    assert any(
+        isinstance(message, AIMessage)
+        and message.content == "Evidence collected. I will analyze it next."
+        for message in model.invocations[3]
+    )
