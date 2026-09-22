@@ -57,4 +57,12 @@ class ContextSummary(Protocol):
         preserve_recent_messages: int = 0,
     ) -> ContextSummaryResult: ...
 
+    async def refresh(
+        self,
+        summary: ContextSummaryResult,
+        *,
+        target_units: int,
+        preserve_recent_messages: int | None = None,
+    ) -> ContextSummaryResult: ...
+
     def apply(self, summary: ContextSummaryResult) -> None: ...
