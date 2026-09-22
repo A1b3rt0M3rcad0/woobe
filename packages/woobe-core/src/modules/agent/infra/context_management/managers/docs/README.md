@@ -11,11 +11,13 @@ Use [`../standard.py`](../standard.py) as the canonical concrete implementation 
 3. [Context Policy](./policy.md)
 4. [SDK primitives](./primitives.md)
 5. [Source and transformation model](./source-model.md)
-6. [Summary and compaction](./summary-and-compaction.md)
-7. [Resolver and product catalog](./resolver-and-catalog.md)
-8. [Testing and validation](./testing.md)
-9. [Architecture rules](./architecture-rules.md)
-10. [Current limitations](./limitations.md)
+6. [State and lifecycle](./state-and-lifecycle.md)
+7. [Context evidence and observability](./evidence.md)
+8. [Summary and compaction](./summary-and-compaction.md)
+9. [Resolver and product catalog](./resolver-and-catalog.md)
+10. [Testing and validation](./testing.md)
+11. [Architecture rules](./architecture-rules.md)
+12. [Current limitations](./limitations.md)
 
 ## Recommended reading order
 
@@ -27,6 +29,8 @@ policy.md
 primitives.md
       ↓
 source-model.md
+      ↓
+state-and-lifecycle.md / evidence.md
       ↓
 creating-a-manager.md
       ↓
