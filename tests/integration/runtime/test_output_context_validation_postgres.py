@@ -108,8 +108,8 @@ async def test_agent_runtime_contract_reader_returns_output_and_external_context
             {
                 "type": "object",
                 "properties": {
-                    "age": {"type": "integer"},
-                    "title": {"type": "string"},
+                    "age": {"type": "integer", "x-woobe-scope": "run"},
+                    "title": {"type": "string", "x-woobe-scope": "run"},
                 },
                 "required": ["age"],
                 "additionalProperties": False,
@@ -154,7 +154,7 @@ def test_network_effective_external_context_keeps_all_fields_optional_at_boundar
         {
             "type": "object",
             "properties": {
-                "age": {"type": "integer"},
+                "age": {"type": "integer", "x-woobe-scope": "run"},
             },
             "required": [],
             "additionalProperties": False,
