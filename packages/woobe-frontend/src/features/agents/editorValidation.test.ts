@@ -146,7 +146,7 @@ describe('Agent editor output validation', () => {
     }
   })
 
-  it('accepts legacy External Context scope but strips it from the saved snapshot', () => {
+  it('preserves External Context lifecycle scope in the saved snapshot', () => {
     const state = editorState()
     state.externalContextContract = {
       age: {
@@ -171,18 +171,20 @@ describe('Agent editor output validation', () => {
         age: {
           schema: { type: 'integer' },
           required: true,
+          scope: 'session',
           model: { expose: true },
         },
         name: {
           schema: { type: 'string' },
           required: true,
+          scope: 'run',
           model: { expose: true },
         },
       })
     }
   })
 
-  it('rejects unknown legacy External Context scope values', () => {
+  it('rejects unknown External Context scope values', () => {
     const state = editorState()
     state.externalContextContract = {
       customer_id: {
