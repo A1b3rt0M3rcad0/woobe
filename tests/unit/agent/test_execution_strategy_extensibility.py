@@ -5,6 +5,10 @@ from types import SimpleNamespace
 import pytest
 from langchain_core.messages import AIMessageChunk
 
+from modules.agent.application.interfaces.execution_context import (
+    current_execution,
+    new_execution_context,
+)
 from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyRequest,
@@ -280,12 +284,16 @@ async def test_strategy_can_emit_intermediate_message_execute_tool_and_then_fini
         messages=[],
         context_assembler=None,
     )
+    context = new_execution_context()
+    context.intermediate_messages_enabled = True
+    context_token = current_execution.set(context)
     channel = RuntimeStreamChannel()
     token = current_runtime_stream.set(channel)
     try:
         execution = await execute_strategy(_IntermediateThenToolStrategy(), request)
     finally:
         current_runtime_stream.reset(token)
+        current_execution.reset(context_token)
 
     events = []
     while not channel.queue.empty():
