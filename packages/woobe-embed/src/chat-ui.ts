@@ -20,6 +20,12 @@ export interface ChatUi {
   setAppearance(appearance: SurfaceAppearance): void;
   clearMessages(): void;
   appendMessage(role: MessageRole, content: string, forceScroll?: boolean): HTMLElement;
+  insertMessageBefore(
+    role: MessageRole,
+    content: string,
+    before: HTMLElement,
+    forceScroll?: boolean,
+  ): HTMLElement;
   appendPendingAssistant(): HTMLElement;
   updateSkillActivity(element: HTMLElement, activity: SkillActivity): void;
   updateAssistantActivity(element: HTMLElement, activity: PublicAgentActivity): string;
@@ -378,6 +384,13 @@ export function createChatUi(
     appendMessage(role, content, forceScroll = false) {
       const item = messageElement(role, content, appearance);
       messages.appendChild(item);
+      scrollToLatest(forceScroll);
+      return item;
+    },
+    insertMessageBefore(role, content, before, forceScroll = false) {
+      const item = messageElement(role, content, appearance);
+      if (before.parentElement === messages) messages.insertBefore(item, before);
+      else messages.appendChild(item);
       scrollToLatest(forceScroll);
       return item;
     },
