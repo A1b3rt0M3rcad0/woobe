@@ -7,6 +7,9 @@ from modules.agent.application.interfaces.execution_strategy import (
     ExecutionStrategy,
     ExecutionStrategyResolver,
 )
+from modules.agent.infra.execution.strategies.scientific_method import (
+    ScientificMethodExecutionStrategy,
+)
 from modules.agent.infra.execution.strategies.standard import StandardExecutionStrategy
 from modules.agent.infra.execution.strategy_runtime.runner import StrategyExecutionRunner
 
@@ -16,6 +19,7 @@ _BUILTIN_EXECUTION_STRATEGY_FACTORIES: dict[
     Callable[[], ExecutionStrategy],
 ] = {
     StandardExecutionStrategy.name: StandardExecutionStrategy,
+    ScientificMethodExecutionStrategy.name: ScientificMethodExecutionStrategy,
 }
 
 
