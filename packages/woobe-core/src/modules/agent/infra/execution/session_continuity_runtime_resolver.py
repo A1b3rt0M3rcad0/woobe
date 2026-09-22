@@ -5,6 +5,7 @@ from typing import Any
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.entities import Agent
+from modules.agent.domain.errors import SessionNotFoundError
 from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
 from modules.agent.infra.execution.canonical_execution_snapshot_runtime_resolver import (
     CanonicalExecutionSnapshotRuntimeResolver,
@@ -83,7 +84,7 @@ class SessionContinuityReleaseRuntimeResolver(CanonicalExecutionSnapshotRuntimeR
             if callable(lock_reader):
                 try:
                     session = await lock_reader(requested_session_id)
-                except Exception:
+                except SessionNotFoundError:
                     session = None
         if session is None:
             session = await AskAgentUseCase._resolve_session(
