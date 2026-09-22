@@ -145,6 +145,12 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
                 sources=[],
                 parsed_output=None,
                 output_parse_error=None,
+                execution_events=[
+                    {
+                        "event_type": "llm.call.completed",
+                        "occurred_at": "2026-09-21T12:00:01+00:00",
+                    }
+                ],
             )
 
     monkeypatch.setattr(
@@ -191,6 +197,12 @@ async def test_network_invoker_uses_public_transaction_bounded_agent_runtime(
     assert result.trace_id == trace_id
     assert result.provider == "custom"
     assert result.model == "deepseek-v4-flash"
+    assert result.execution_events == [
+        {
+            "event_type": "llm.call.completed",
+            "occurred_at": "2026-09-21T12:00:01+00:00",
+        }
+    ]
     assert result.streamed_output is True
     assert delegated == [{"task": "answer the delegated task"}]
     assert executed_agent_tools == [(prepared_agent_tool, {"query": "customer"})]

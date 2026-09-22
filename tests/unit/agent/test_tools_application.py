@@ -1,6 +1,7 @@
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from unittest.mock import AsyncMock
 from uuid import UUID
 
 import pytest
@@ -44,6 +45,7 @@ from modules.agent.domain.entities import Secret, Tool
 from modules.agent.domain.enums import RiskLevel, SecretType, ToolStatus, ToolType
 from modules.agent.domain.errors import ToolNotFoundError
 from modules.agent.application.interfaces.repositories import SecretRepository, ToolRepository
+from shared.infra.errors import ValidationError
 
 
 # ── Fakes ────────────────────────────────────────────────────────
@@ -259,6 +261,79 @@ class TestCreateToolUseCase:
         assert outbox.events[0].payload["tool_id"] == str(result.id)
 
     @pytest.mark.asyncio
+    async def test_create_tool_validates_project_environment_references(self):
+        repo = FakeToolRepository()
+        outbox = FakeOutbox()
+        validator = AsyncMock()
+        uc = CreateToolUseCase(
+            repo,
+            outbox,
+            project_environment_key_validator=validator,
+        )
+        project_id = uuid.uuid4()
+
+        await uc.execute(
+            CreateToolInput(
+                project_id=project_id,
+                name="env-tool",
+                type=ToolType.API,
+                config={
+                    "url": "{{project_env.API_URL}}/customers",
+                    "method": "GET",
+                    "bindings": {
+                        "api_key": {
+                            "source": {
+                                "kind": "project_environment",
+                                "field": "API_KEY",
+                            }
+                        }
+                    },
+                },
+                input_schema={
+                    "type": "object",
+                    "properties": {"api_key": {"type": "string"}},
+                },
+            )
+        )
+
+        validator.assert_awaited_once_with(
+            project_id=project_id,
+            keys={"API_URL", "API_KEY"},
+        )
+
+    @pytest.mark.asyncio
+    async def test_create_tool_rejects_missing_project_environment_reference(self):
+        repo = FakeToolRepository()
+        outbox = FakeOutbox()
+        validator = AsyncMock(
+            side_effect=ValidationError(
+                "Project Environment key(s) do not exist in this Project: MISSING_KEY"
+            )
+        )
+        uc = CreateToolUseCase(
+            repo,
+            outbox,
+            project_environment_key_validator=validator,
+        )
+
+        with pytest.raises(ValidationError, match="MISSING_KEY"):
+            await uc.execute(
+                CreateToolInput(
+                    project_id=uuid.uuid4(),
+                    name="invalid-env-tool",
+                    type=ToolType.API,
+                    config={
+                        "url": "{{project_env.MISSING_KEY}}",
+                        "method": "GET",
+                    },
+                )
+            )
+
+        assert repo._store == {}
+        assert outbox.events == []
+
+
+    @pytest.mark.asyncio
     async def test_create_tool_with_agent(self):
         repo = FakeToolRepository()
         outbox = FakeOutbox()
@@ -322,6 +397,125 @@ class TestUpdateToolUseCase:
 
         assert len(outbox.events) == 2
         assert outbox.events[1].event_type == "agent.tool.updated.v1"
+
+
+    @pytest.mark.asyncio
+    async def test_update_http_group_removes_stale_agent_input_from_persisted_route(self):
+        repo = FakeToolRepository()
+        outbox = FakeOutbox()
+        project_id = uuid.uuid4()
+        creator = CreateToolUseCase(repo, outbox)
+        created = await creator.execute(
+            CreateToolInput(
+                project_id=project_id,
+                name="math",
+                type=ToolType.HTTP,
+                config={
+                    "protocol": "http",
+                    "mode": "group",
+                    "schema_version": 2,
+                    "base_url": "https://api.mathjs.org",
+                    "routes": [
+                        {
+                            "id": "route-sum",
+                            "operation_id": "sum_2_numbers",
+                            "name": "Sum 2 numbers",
+                            "description": "Sum two numbers",
+                            "method": "GET",
+                            "path": "/v4/?expr={{external_context.age}}%2B{{b}}",
+                            "bindings": {
+                                "b": {
+                                    "source": {
+                                        "kind": "context",
+                                        "field": "age",
+                                    }
+                                }
+                            },
+                            "default_permission": "allow",
+                        }
+                    ],
+                },
+            )
+        )
+
+        updater = UpdateToolUseCase(repo, outbox)
+        result = await updater.execute(
+            created.id,
+            UpdateToolInput(
+                type=ToolType.HTTP,
+                config={
+                    "protocol": "http",
+                    "mode": "group",
+                    "schema_version": 2,
+                    "base_url": "https://api.mathjs.org",
+                    "routes": [
+                        {
+                            "id": "route-sum",
+                            "operation_id": "sum_2_numbers",
+                            "name": "Sum 2 numbers",
+                            "description": "Sum runtime values",
+                            "method": "GET",
+                            "path": (
+                                "/v4/?expr={{external_context.age}}"
+                                "%2B{{project_env.MOCKED_NUMBER}}"
+                            ),
+                            "default_permission": "allow",
+                        }
+                    ],
+                },
+            ),
+        )
+
+        persisted = await repo.get_by_id(created.id)
+        route = persisted.config["routes"][0]
+        assert route["input_schema"] == {
+            "type": "object",
+            "properties": {},
+            "required": [],
+            "additionalProperties": False,
+        }
+        assert "bindings" not in route
+        assert "b" not in route["input_schema"]["properties"]
+        assert "b" not in route["input_schema"]["required"]
+        assert "{{b}}" not in route["path"]
+        assert result.config == persisted.config
+
+
+    @pytest.mark.asyncio
+    async def test_update_tool_validates_project_environment_references(self):
+        repo = FakeToolRepository()
+        outbox = FakeOutbox()
+        creator = CreateToolUseCase(repo, outbox)
+        created = await creator.execute(
+            CreateToolInput(
+                project_id=uuid.uuid4(),
+                name="original",
+                type=ToolType.API,
+                config={"url": "https://example.com", "method": "GET"},
+            )
+        )
+        validator = AsyncMock()
+        updater = UpdateToolUseCase(
+            repo,
+            outbox,
+            project_environment_key_validator=validator,
+        )
+
+        await updater.execute(
+            created.id,
+            UpdateToolInput(
+                type=ToolType.API,
+                config={
+                    "url": "{{project_env.API_URL}}",
+                    "method": "GET",
+                },
+            ),
+        )
+
+        validator.assert_awaited_once_with(
+            project_id=created.project_id,
+            keys={"API_URL"},
+        )
 
 
 class TestUpdateToolStatusUseCase:

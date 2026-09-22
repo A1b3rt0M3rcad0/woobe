@@ -47,5 +47,6 @@ class RunNetworkRequest(BaseModel):
     project_id: UUID
     network_session_id: UUID
     message: str = Field(min_length=1, max_length=32768)
+    external_context: dict[str, Any] | None = None
     idempotency_key: str | None = Field(default=None, min_length=1, max_length=255)
     expected_draft_revision: int | None = Field(default=None, ge=0)

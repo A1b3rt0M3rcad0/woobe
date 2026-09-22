@@ -158,6 +158,7 @@ class AgentRelease:
     system_prompt: str | None = None
     response_format: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None
+    external_context_contract: dict[str, Any] | None = None
     provider: str | None = None
     model: str | None = None
     provider_credential_id: UUID | None = None

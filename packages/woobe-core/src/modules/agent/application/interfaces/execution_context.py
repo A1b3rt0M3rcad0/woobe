@@ -57,6 +57,12 @@ class RequestExecutionContext:
         Callable[[dict], Awaitable[dict]],
     ] | None = None
 
+    # External Context is resolved at Acceptance and frozen for the Run. Only
+    # explicitly exposed fields are copied into model_external_context.
+    external_context_contract: dict[str, Any] | None = None
+    external_context_snapshot: dict[str, Any] | None = None
+    model_external_context: dict[str, Any] | None = None
+
     # Durable Run journal state. The recorder is runtime-only and is never serialized.
     storage_version: str = "legacy_v1"
     run_attempt: int = 1
@@ -70,17 +76,22 @@ class RequestExecutionContext:
     # raw secrets and full materialized prompts must never be stored here.
     context_policy: dict[str, Any] | None = None
     context_assembler_name: str | None = None
+    context_assembler_version: str | None = None
+    context_assembler_strategy_name: str | None = None
+    context_assembler_strategy_version: str | None = None
     model_capacity_units: int | None = None
     reserved_output_units: int | None = None
     active_tool_definitions: list[dict[str, Any]] | None = None
     context_selection_metadata: dict[str, Any] | None = None
     context_rag_sources: list[dict[str, Any]] | None = None
 
-    # Ephemeral preparation material. Decrypted secrets may live here only in
-    # process memory and must never be serialized to Redis or durable snapshots.
+    # Ephemeral preparation material. Project Environment secrets remain encrypted
+    # here and are materialized only at the Tool invocation boundary. Nothing in
+    # this section may be serialized to Redis or durable snapshots.
     prepared_fallback: dict[str, Any] | None = None
     prepared_tools: dict[str, Any] | None = None
     prepared_tool_secrets: dict[str, str] | None = None
+    prepared_project_environment: dict[str, Any] | None = None
     prepared_rag: dict[str, Any] | None = None
 
 

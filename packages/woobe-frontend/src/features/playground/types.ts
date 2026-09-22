@@ -59,6 +59,7 @@ export interface AskRequest {
   tenant_id?: string
   user_id?: string
   metadata?: Record<string, unknown>
+  external_context?: Record<string, unknown>
   execution_context?: AgentExecutionContext
   loaded_release_id?: string | null
   snapshot_override?: Record<string, unknown> | null

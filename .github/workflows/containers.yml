@@ -139,6 +139,12 @@ jobs:
           path: .test-artifacts/THIRD_PARTY_INVENTORY.md
           if-no-files-found: error
           retention-days: 1
+      - name: Reclaim Docker space before vulnerability scans
+        run: |
+          docker builder prune --all --force || true
+          docker image prune --force || true
+          rm -rf .cache/trivy
+
       - name: Scan API image
         uses: aquasecurity/trivy-action@v0.36.0
         with:

@@ -6,10 +6,16 @@ from uuid import UUID
 
 from sqlalchemy import select
 
+from modules.agent.domain.external_context_contract import (
+    ExternalContextContractError,
+    compose_external_context_contracts,
+)
+from modules.agent.infra.database.models import AgentReleaseModel
 from modules.network.infra.services.session_mode_binding_service import (
     NetworkApplicationService as SessionModeNetworkApplicationService,
 )
 from modules.network.domain.enums import NetworkEnvironment
+from modules.network.domain.external_context_contract import resolve_effective_external_context
 from modules.network.domain.graph import composition_hash
 from modules.network.infra.database.models import (
     NetworkExecutionEventModel,
@@ -54,6 +60,86 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
         self._runtime_control = runtime_control
         self._run_storage_version = run_storage_version
 
+    async def _effective_external_context_contract(
+        self,
+        session: Any,
+        *,
+        definition: Any,
+        bindings: dict[str, Any],
+        version: NetworkVersionModel | None,
+    ) -> dict[str, Any]:
+        persisted = (
+            getattr(version, "effective_external_context_contract", None)
+            if version is not None
+            else None
+        )
+        if isinstance(persisted, dict):
+            return persisted
+
+        contracts: dict[str, Any] = {}
+        for node in definition.nodes:
+            binding = bindings.get(str(node.id)) or {}
+            snapshot_override = binding.get("snapshot_override")
+            if isinstance(snapshot_override, dict):
+                contracts[str(node.id)] = snapshot_override.get(
+                    "external_context_contract"
+                )
+                continue
+            release_id = binding.get("release_id")
+            if not release_id:
+                continue
+            release = await session.get(AgentReleaseModel, UUID(str(release_id)))
+            if release is not None:
+                contracts[str(node.id)] = getattr(
+                    release,
+                    "external_context_contract",
+                    None,
+                )
+        try:
+            return compose_external_context_contracts(contracts)
+        except ExternalContextContractError as exc:
+            raise ValidationError(str(exc)) from exc
+
+    async def effective_external_context_contract(
+        self,
+        *,
+        network_id: UUID,
+        project_id: UUID,
+        environment: str,
+    ) -> dict[str, Any]:
+        try:
+            normalized_environment = NetworkEnvironment(environment)
+        except ValueError as exc:
+            raise ValidationError(f"Unsupported Network environment: {environment}") from exc
+
+        async with self._session_factory() as session:
+            network = await session.get(NetworkModel, network_id)
+            if network is None or network.project_id != project_id:
+                raise NotFoundError("Network not found")
+
+            if normalized_environment is NetworkEnvironment.DRAFT:
+                definition = self._definition(network.draft_definition)
+                bindings = await self._resolve_draft_bindings(session, definition, project_id)
+                return await self._effective_external_context_contract(
+                    session,
+                    definition=definition,
+                    bindings=bindings,
+                    version=None,
+                )
+
+            version_id = (
+                network.staging_version_id
+                if normalized_environment is NetworkEnvironment.STAGING
+                else network.production_version_id
+            )
+            if version_id is None:
+                return {}
+            version = await session.get(NetworkVersionModel, version_id)
+            if version is None or version.network_id != network_id or version.project_id != project_id:
+                raise NotFoundError("Network version not found")
+            persisted = getattr(version, "effective_external_context_contract", None)
+            return dict(persisted or {})
+
     async def submit_execution(
         self,
         *,
@@ -63,6 +149,7 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
         message: str,
         idempotency_key: str | None,
         expected_draft_revision: int | None = None,
+        external_context: dict[str, Any] | None = None,
     ) -> NetworkExecutionModel:
         if not message.strip():
             raise ValidationError("Network message cannot be blank")
@@ -109,6 +196,7 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
             bindings_snapshot: dict[str, Any] | None = None
             accepted_version_id: UUID | None = network_session.network_version_id
             accepted_version: str | None = None
+            version: NetworkVersionModel | None = None
 
             if network_session.environment == NetworkEnvironment.DRAFT.value:
                 network = await session.get(NetworkModel, network_id, with_for_update=True)
@@ -133,6 +221,14 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                     definition,
                     bindings_snapshot,
                 )
+                effective_external_context_contract = (
+                    await self._effective_external_context_contract(
+                        session,
+                        definition=definition,
+                        bindings=bindings_snapshot,
+                        version=None,
+                    )
+                )
             else:
                 if accepted_version_id is None:
                     raise ConflictError("Pinned Network version was not found")
@@ -149,6 +245,22 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                 definition = self._definition(version.definition)
                 accepted_version = version.version
                 accepted_composition_hash = version.composition_hash
+                effective_external_context_contract = (
+                    await self._effective_external_context_contract(
+                        session,
+                        definition=definition,
+                        bindings=version.resolved_bindings or {},
+                        version=version,
+                    )
+                )
+
+            try:
+                resolved_external_context = resolve_effective_external_context(
+                    effective_external_context_contract,
+                    external_context,
+                )
+            except ExternalContextContractError as exc:
+                raise ValidationError(str(exc)) from exc
 
             execution = NetworkExecutionModel(
                 network_id=network_id,
@@ -159,6 +271,7 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                 draft_revision=draft_revision,
                 definition_snapshot=definition_snapshot,
                 resolved_bindings_snapshot=bindings_snapshot,
+                external_context_snapshot=(resolved_external_context.snapshot or None),
                 status="queued",
                 storage_version=self._run_storage_version,
                 idempotency_key=idempotency_key,

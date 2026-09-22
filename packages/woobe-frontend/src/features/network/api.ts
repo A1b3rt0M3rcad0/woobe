@@ -53,6 +53,18 @@ export function updateNetworkRuntimeEnvironment(
   )
 }
 
+export function updateNetworkRuntimeEnvironmentContext(
+  networkId: string,
+  projectId: string,
+  environment: RuntimeEnvironment,
+  externalContextValues: Record<string, unknown>,
+): Promise<RuntimeEnvironmentState & { environment: RuntimeEnvironment }> {
+  return patch<RuntimeEnvironmentState & { environment: RuntimeEnvironment }>(
+    `/network/${networkId}/runtime-environments/${environment}`,
+    { project_id: projectId, external_context_values: externalContextValues },
+  )
+}
+
 export function updateNetworkMetadata(
   projectId: string,
   networkId: string,
@@ -96,6 +108,16 @@ export function promoteNetwork(
     expected_revision: input.expected_revision ?? undefined,
     expected_network_version_id: input.expected_network_version_id ?? undefined,
     approved_action_ids: input.approved_action_ids ?? [],
+  })
+}
+
+export function getNetworkExternalContextContract(
+  networkId: string,
+  projectId: string,
+  environment: NetworkEnvironment,
+): Promise<Record<string, unknown>> {
+  return get<Record<string, unknown>>(`/network/${networkId}/management/external-context-contract`, {
+    params: { project_id: projectId, environment },
   })
 }
 

@@ -103,6 +103,7 @@ export const woobeLayout = {
   playgroundTraceListMaxHeight: '14.875rem',
   operationsPanel: '23.25rem',
   inspector: '23.75rem',
+  inspectorWorkspace: 'clamp(23.75rem, 32vw, 32.5rem)',
   inspectorExpanded: '38.75rem',
   conversationRailCompact: '1.5rem',
   conversationRail: '3rem',

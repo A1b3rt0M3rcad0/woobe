@@ -242,6 +242,11 @@ class NetworkRuntimeFinalizer:
                     if isinstance(item.get("sources"), list)
                     else []
                 )
+                execution_events = (
+                    item.get("execution_events")
+                    if isinstance(item.get("execution_events"), list)
+                    else []
+                )
                 result_payload = {
                     "answer": item.get("output_message"),
                     "provider": item.get("provider"),
@@ -253,6 +258,8 @@ class NetworkRuntimeFinalizer:
                     "sources": sources,
                     "parsed_output": item.get("parsed_output"),
                     "output_parse_error": item.get("output_parse_error"),
+                    "execution_events": execution_events,
+                    "timeline_complete": status == "completed" and bool(execution_events),
                     "fallback_used": bool((diagnostics or {}).get("fallback_used")),
                     "cost_status": (diagnostics or {}).get("cost_status"),
                     "cost_usd": (usage or {}).get("cost_usd"),
@@ -394,6 +401,8 @@ class NetworkRuntimeFinalizer:
                         "sources": sources,
                         "parsed_output": item.get("parsed_output"),
                         "output_parse_error": item.get("output_parse_error"),
+                        "execution_events": execution_events,
+                        "timeline_complete": status == "completed" and bool(execution_events),
                         "output": item.get("output_message"),
                         "cancelled": status == "cancelled",
                         "partial": status == "cancelled" and bool(item.get("output_message")),

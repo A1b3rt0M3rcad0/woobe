@@ -14,6 +14,11 @@ from modules.agent.application.http_tool_contract import (
 from modules.agent.application.mcp_permissions import normalize_permission
 from modules.agent.application.tool_types import is_http_tool_type
 from modules.agent.domain.entities import Tool
+from modules.agent.domain.external_context_contract import (
+    ExternalContextContractError,
+    normalize_external_context_contract,
+)
+from modules.agent.domain.tool_project_environment import collect_tool_runtime_dependencies
 from modules.agent.domain.enums import RiskLevel, ToolStatus, ToolType
 from modules.agent.domain.errors import ToolNotFoundError
 from shared.contracts.errors import ValidationError
@@ -205,6 +210,8 @@ async def build_release_tool_runtime(
     raw_tool_ids: list[object] | None,
     raw_permissions: Any = None,
     previous_snapshots: Any = None,
+    external_context_contract: Any = None,
+    project_environment_reader: Any = None,
 ) -> dict[str, Any]:
     ordered_ids: list[UUID] = []
     seen: set[UUID] = set()
@@ -219,6 +226,12 @@ async def build_release_tool_runtime(
 
     permission_map = raw_permissions if isinstance(raw_permissions, dict) else {}
     previous_snapshot_map = _snapshot_index(previous_snapshots)
+    try:
+        agent_external_context_fields = set(
+            normalize_external_context_contract(external_context_contract)
+        )
+    except ExternalContextContractError as exc:
+        raise ValidationError(str(exc)) from exc
     snapshots: list[dict[str, Any]] = []
     effective_permissions: dict[str, dict[str, dict[str, Any]]] = {}
     for tool_id in ordered_ids:
@@ -241,6 +254,32 @@ async def build_release_tool_runtime(
                 raise ValidationError("Draft contains a mismatched tool snapshot")
             if source_tool.project_id != project_id:
                 raise ValidationError("Draft tool snapshot does not belong to this Project")
+        dependencies = collect_tool_runtime_dependencies(source_tool.config or {})
+        missing_external_context = sorted(
+            set(dependencies.external_context_fields) - agent_external_context_fields
+        )
+        if missing_external_context:
+            raise ValidationError(
+                f"Tool '{source_tool.name}' is incompatible with this Agent. "
+                "Missing External Context field(s): "
+                + ", ".join(missing_external_context)
+            )
+
+        if dependencies.project_environment_keys:
+            if project_environment_reader is None:
+                raise ValidationError(
+                    f"Tool '{source_tool.name}' requires Project Environment validation"
+                )
+            try:
+                await project_environment_reader.require_keys(
+                    project_id=project_id,
+                    keys=set(dependencies.project_environment_keys),
+                )
+            except ValidationError as exc:
+                raise ValidationError(
+                    f"Tool '{source_tool.name}' is incompatible with this Agent. {exc}"
+                ) from exc
+
         effective_tool = tool_with_permission_overrides(source_tool, permission_map.get(str(tool_id)))
         snapshots.append(tool_to_release_snapshot(effective_tool))
         effective_permissions[str(tool_id)] = _tool_child_permissions(effective_tool)

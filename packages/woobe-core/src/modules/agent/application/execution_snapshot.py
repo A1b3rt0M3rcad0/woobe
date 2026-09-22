@@ -110,6 +110,11 @@ def build_agent_execution_snapshot(source: Any) -> dict[str, Any]:
         if hasattr(source, "response_format")
         else deepcopy(settings.get("response_format"))
     )
+    external_context_contract = (
+        deepcopy(getattr(source, "external_context_contract", None))
+        if hasattr(source, "external_context_contract")
+        else deepcopy(settings.get("external_context_contract"))
+    )
     base_url = (
         getattr(source, "base_url", None)
         if hasattr(source, "base_url")
@@ -127,6 +132,7 @@ def build_agent_execution_snapshot(source: Any) -> dict[str, Any]:
         "behavior_spec": deepcopy(getattr(source, "behavior_spec", None)),
         "system_prompt": getattr(source, "system_prompt", None) or "",
         "response_format": response_format,
+        "external_context_contract": external_context_contract,
         "provider": str(provider),
         "model": str(model),
         "provider_credential_id": _uuid_text(
@@ -186,7 +192,12 @@ def apply_agent_execution_snapshot(agent: Any, snapshot: dict[str, Any]) -> Any:
     agent.session_mode = SessionMode(str(session_mode))
 
     settings = dict(getattr(agent, "settings", None) or {})
-    for key in ("response_format", "base_url", "knowledge_version_id"):
+    for key in (
+        "response_format",
+        "external_context_contract",
+        "base_url",
+        "knowledge_version_id",
+    ):
         value = snapshot.get(key)
         if value is None:
             settings.pop(key, None)

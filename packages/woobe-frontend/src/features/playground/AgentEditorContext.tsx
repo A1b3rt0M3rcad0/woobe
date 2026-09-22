@@ -1,6 +1,6 @@
 import { behaviorFromSpec, behaviorToSpec, type AgentBehavior } from '@/features/agents/behavior'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { Agent, AgentRelease } from '@/features/agents/types'
+import type { Agent, AgentRelease, ExternalContextContract } from '@/features/agents/types'
 import { getRelease } from '@/features/agents/api'
 import { useReleases } from '@/features/agents/hooks'
 import { useCredentials } from '@/features/provider-credentials/hooks'
@@ -26,6 +26,7 @@ export type AgentEditorState = {
   sessionMode: AgentSessionMode
   responseFormat: ResponseFormat
   outputSchema: unknown | null
+  externalContextContract: ExternalContextContract | string | null
   provider: string
   model: string
   providerModelId: string | null
@@ -144,16 +145,6 @@ function mergeToolPermissions(base: AgentToolPermissions, overrides: AgentToolPe
   return merged
 }
 
-function normalizeContextManagerSelection(value: unknown): Record<string, unknown> | null {
-  const raw = recordValue(value)
-  if (!Object.keys(raw).length) return null
-  const legacyStrategyName = typeof raw.strategy_name === 'string' ? raw.strategy_name.trim() : ''
-  const selected = legacyStrategyName || (typeof raw.name === 'string' ? raw.name.trim() : '')
-  if (!selected) return null
-  const normalized = selected === 'stdcm' || selected === 'default' ? 'standard' : selected
-  return { name: normalized }
-}
-
 function splitRuntimeConfig(value: unknown): { runtimeConfig: Record<string, unknown>; toolIds: string[]; toolPermissions: AgentToolPermissions; hasToolsConfig: boolean } {
   const runtimeConfig = recordValue(value)
   const tools = recordValue(runtimeConfig.tools)
@@ -164,14 +155,8 @@ function splitRuntimeConfig(value: unknown): { runtimeConfig: Record<string, unk
   const snapshotPermissions = toolPermissionsFromSnapshots(tools.snapshots)
   const explicitPermissions = normalizeToolPermissions(tools.permissions)
   const toolPermissions = mergeToolPermissions(snapshotPermissions, explicitPermissions)
-  const contextAssembler = normalizeContextManagerSelection(runtimeConfig.context_assembler)
-  const { tools: _tools, context_assembler: _contextAssembler, ...rest } = runtimeConfig
-  return {
-    runtimeConfig: contextAssembler ? { ...rest, context_assembler: contextAssembler } : rest,
-    toolIds,
-    toolPermissions,
-    hasToolsConfig,
-  }
+  const { tools: _tools, ...rest } = runtimeConfig
+  return { runtimeConfig: rest, toolIds, toolPermissions, hasToolsConfig }
 }
 
 function runtimeConfigSnapshot(state: AgentEditorState): Record<string, unknown> {
@@ -187,6 +172,15 @@ function runtimeConfigSnapshot(state: AgentEditorState): Record<string, unknown>
       permissions,
     },
   }
+}
+
+function externalContextContractValue(value: unknown): ExternalContextContract | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+  const raw = recordValue(value)
+  const legacyValue = raw.fields
+  const legacy = recordValue(legacyValue)
+  const isLegacy = Object.prototype.hasOwnProperty.call(raw, 'fields') && legacyValue !== null && typeof legacyValue === 'object' && !Array.isArray(legacyValue)
+  return (isLegacy ? legacy : raw) as ExternalContextContract
 }
 
 export function agentToEditorState(agent: Agent, collectionIds?: string[], knowledgeVersionId?: string | null, toolIds?: string[]): AgentEditorState {
@@ -207,6 +201,7 @@ export function agentToEditorState(agent: Agent, collectionIds?: string[], knowl
       repair_attempts: (responseFormat.repair_attempts as number) ?? undefined,
     },
     outputSchema: responseFormat.schema ?? null,
+    externalContextContract: externalContextContractValue(settings.external_context_contract),
     provider: agent.provider || '',
     model: agent.model || '',
     providerModelId: agent.provider_model_id || null,
@@ -263,6 +258,7 @@ export function releaseToEditorState(release: AgentRelease, current: AgentEditor
       repair_attempts: rf.repair_attempts as number | undefined,
     },
     outputSchema: release.output_schema ?? current.outputSchema,
+    externalContextContract: externalContextContractValue(release.external_context_contract),
   }
 }
 
@@ -270,6 +266,10 @@ export function canonicalSnapshot(state: AgentEditorState): Record<string, unkno
   let schema = state.responseFormat.schema
   if (typeof schema === 'string') {
     try { schema = JSON.parse(schema) } catch { /* Preserve invalid raw editor text until a validation boundary. */ }
+  }
+  let externalContextContract: unknown = state.externalContextContract
+  if (typeof externalContextContract === 'string') {
+    try { externalContextContract = JSON.parse(externalContextContract) } catch { /* Preserve invalid raw editor text until validation. */ }
   }
   return {
     name: state.name,
@@ -284,6 +284,7 @@ export function canonicalSnapshot(state: AgentEditorState): Record<string, unkno
       repair_attempts: state.responseFormat.repair_attempts,
     },
     output_schema: schema,
+    external_context_contract: externalContextContract,
     provider_model_id: state.providerModelId,
     provider: state.provider,
     model: state.model,

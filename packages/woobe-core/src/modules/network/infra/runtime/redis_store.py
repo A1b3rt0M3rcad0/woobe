@@ -373,6 +373,7 @@ class RedisNetworkExecutionStore:
                 "sources": result.sources or [],
                 "parsed_output": result.parsed_output,
                 "output_parse_error": result.output_parse_error,
+                "execution_events": list(result.execution_events or []),
                 "started_at": (
                     getattr(result, "started_at", None)
                     or invocation.get("started_at")

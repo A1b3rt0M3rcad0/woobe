@@ -100,6 +100,11 @@ class SessionContinuityReleaseRuntimeResolver(CanonicalExecutionSnapshotRuntimeR
         if isinstance(source, str) and source:
             next_data["source"] = source
 
+        self._resolve_external_context(
+            agent=agent,
+            input_dto=input_dto,
+        )
+
         changed = next_data != (getattr(session, "data", None) or {})
         if not existing:
             changed = True

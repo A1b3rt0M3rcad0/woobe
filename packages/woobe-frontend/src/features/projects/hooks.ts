@@ -9,8 +9,17 @@ import {
   getProjectMembers,
   grantProjectSubjectAccess,
   revokeProjectSubjectAccess,
+  getProjectEnvironmentKeys,
+  upsertProjectEnvironmentKey,
+  deleteProjectEnvironmentKey,
 } from './api'
-import type { Project, ProjectAccessSubject, CreateProjectRequest, UpdateProjectRequest } from './types'
+import type {
+  Project,
+  ProjectAccessSubject,
+  CreateProjectRequest,
+  UpdateProjectRequest,
+  UpsertProjectEnvironmentKeyRequest,
+} from './types'
 
 export function upsertProject(current: Project[] | undefined, project: Project): Project[] {
   const projects = current ?? []
@@ -121,6 +130,46 @@ export function useRevokeProjectAccess() {
       void queryClient.invalidateQueries({ queryKey: ['project-access'] })
       void queryClient.invalidateQueries({ queryKey: ['workspace-members'] })
       void queryClient.invalidateQueries({ queryKey: ['workspace-invites'] })
+    },
+  })
+}
+
+
+
+export function useProjectEnvironmentKeys(projectId: string | undefined) {
+  return useQuery({
+    queryKey: ['project-environment-keys', projectId],
+    queryFn: () => getProjectEnvironmentKeys(projectId!),
+    enabled: Boolean(projectId),
+  })
+}
+
+export function useUpsertProjectEnvironmentKey() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({
+      projectId,
+      key,
+      data,
+    }: {
+      projectId: string
+      key: string
+      data: UpsertProjectEnvironmentKeyRequest
+    }) => upsertProjectEnvironmentKey(projectId, key, data),
+    onSuccess: (_, { projectId }) => {
+      void queryClient.invalidateQueries({ queryKey: ['project-environment-keys', projectId] })
+    },
+  })
+}
+
+export function useDeleteProjectEnvironmentKey() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ projectId, key }: { projectId: string; key: string }) => (
+      deleteProjectEnvironmentKey(projectId, key)
+    ),
+    onSuccess: (_, { projectId }) => {
+      void queryClient.invalidateQueries({ queryKey: ['project-environment-keys', projectId] })
     },
   })
 }

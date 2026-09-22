@@ -20,10 +20,13 @@ interface FrameEvent {
   payload?: unknown;
 }
 
+export type WoobeExternalContext = Record<string, unknown>;
+
 export interface WoobeChatOptions {
   container: string | HTMLElement;
   surfaceId: string;
   sessionToken: string;
+  externalContext?: WoobeExternalContext;
   mode?: "inline" | "floating";
   iframeBaseUrl?: string;
   apiBaseUrl?: string;
@@ -32,6 +35,7 @@ export interface WoobeChatOptions {
 
 export interface WoobeChatInstance {
   updateToken(token: string): void;
+  setExternalContext(context: WoobeExternalContext): void;
   open(): void;
   close(): void;
   destroy(): void;
@@ -74,6 +78,13 @@ function randomUuid(): string {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+function snapshotExternalContext(
+  value: WoobeExternalContext | undefined,
+): WoobeExternalContext {
+  if (!value) return {};
+  return JSON.parse(JSON.stringify(value)) as WoobeExternalContext;
+}
+
 function mount(options: WoobeChatOptions): WoobeChatInstance {
   const container = resolveContainer(options.container);
   const frameUrl = resolveFrameUrl(options.iframeBaseUrl);
@@ -93,12 +104,13 @@ function mount(options: WoobeChatOptions): WoobeChatInstance {
       ? "position:fixed;right:24px;bottom:24px;width:min(420px,calc(100vw - 32px));height:min(680px,calc(100vh - 48px));border:1px solid #1e293b;border-radius:6px;box-shadow:0 10px 30px rgba(0,0,0,.18);background:#020817;z-index:2147483000"
       : "width:100%;height:100%;min-height:480px;border:0";
   let token = options.sessionToken;
+  let externalContext = snapshotExternalContext(options.externalContext);
   let opened = true;
   let destroyed = false;
 
   const send = (
-    type: "init" | "token.update" | "open" | "close",
-    payload?: Record<string, string>,
+    type: "init" | "token.update" | "context.update" | "open" | "close",
+    payload?: Record<string, unknown>,
   ) => {
     if (destroyed || !iframe.contentWindow) return;
     iframe.contentWindow.postMessage(
@@ -130,6 +142,7 @@ function mount(options: WoobeChatOptions): WoobeChatInstance {
         token,
         hostOrigin,
         apiBaseUrl: options.apiBaseUrl ?? "https://api.woobe.ai",
+        externalContext,
       });
     }
     options.onEvent?.(frameEvent);
@@ -142,6 +155,10 @@ function mount(options: WoobeChatOptions): WoobeChatInstance {
     updateToken(nextToken: string) {
       token = nextToken;
       send("token.update", { token });
+    },
+    setExternalContext(nextContext: WoobeExternalContext) {
+      externalContext = snapshotExternalContext(nextContext);
+      send("context.update", { externalContext });
     },
     open() {
       if (destroyed || opened) return;

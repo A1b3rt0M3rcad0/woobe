@@ -1,12 +1,13 @@
 import { isSkillOperation, operationLabel } from '@/features/skills/operations'
-import { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { ChatCanvas, type ChatCanvasEntry } from '@/features/playground/components/ChatCanvas'
+import { filterContractValues } from '@/features/contracts/contractFields'
 import type { ChatMessage as PlaygroundChatMessage } from '@/features/playground/types'
 import { cancelNetworkExecution } from '@/features/network/api'
-import { useNetworkRuntimeEnvironments } from '@/features/network/hooks'
+import { useNetworkExternalContextContract, useNetworkRuntimeEnvironments } from '@/features/network/hooks'
 import { useNetworkIdentity } from '@/features/network/NetworkIdentityContext'
 import { getActiveNetworkExecution } from '@/features/network/runtime-reattach-api'
 import { streamNetworkExecution } from '@/features/network/stream'
@@ -68,6 +69,8 @@ const LIVE_EXECUTION_EVENT_TYPES = new Set([
   'execution_failed',
   'execution_cancelled',
 ])
+
+const EMPTY_EXTERNAL_CONTEXT_CONTRACT: Record<string, never> = {}
 
 const networkSuggestions = [
   'Test a request that should be answered by the entry Agent.',
@@ -137,7 +140,13 @@ export function NetworkChatWorkspace({
   const queryClient = useQueryClient()
   const exactNetworkName = useNetworkIdentity() ?? networkName
   const runtimeStatesQuery = useNetworkRuntimeEnvironments(networkId, projectId)
+  const externalContextContractQuery = useNetworkExternalContextContract(networkId, projectId, environment)
   const runtimeEnabled = runtimeStatesQuery.data?.[environment]?.enabled ?? true
+  const effectiveExternalContextContract = externalContextContractQuery.data ?? EMPTY_EXTERNAL_CONTEXT_CONTRACT
+  const storedEnvironmentContext = runtimeStatesQuery.data?.[environment]?.external_context_values
+  const [externalContextValues, setExternalContextValues] = useState<Record<string, unknown>>({})
+  const externalContextOwnerRef = useRef<string | null>(null)
+  const externalContextDirtyRef = useRef(false)
   const [text, setText] = useState('')
   const [localTurns, setLocalTurns] = useState<NetworkTurn[]>([])
   const [creatingSession, setCreatingSession] = useState(false)
@@ -164,6 +173,35 @@ export function NetworkChatWorkspace({
 
   const changed = Boolean(activeSession && environment !== 'draft' && activeSession.networkVersion !== currentVersionId)
   const turns = useMemo(() => reconcileNetworkTurns(historyTurns, localTurns), [historyTurns, localTurns])
+
+  useLayoutEffect(() => {
+    const environmentValues = filterContractValues(
+      effectiveExternalContextContract,
+      storedEnvironmentContext,
+    )
+    const previousEnvironment = externalContextOwnerRef.current
+    const contextDirty = externalContextDirtyRef.current
+
+    setExternalContextValues((current) => {
+      const currentValues = filterContractValues(effectiveExternalContextContract, current)
+      if (previousEnvironment === null || previousEnvironment !== environment) {
+        return environmentValues
+      }
+      return contextDirty ? currentValues : environmentValues
+    })
+
+    if (previousEnvironment !== environment) externalContextDirtyRef.current = false
+    externalContextOwnerRef.current = environment
+  }, [
+    effectiveExternalContextContract,
+    environment,
+    storedEnvironmentContext,
+  ])
+
+  const handleExternalContextValuesChange = useCallback((values: Record<string, unknown>) => {
+    externalContextDirtyRef.current = true
+    setExternalContextValues(filterContractValues(effectiveExternalContextContract, values))
+  }, [effectiveExternalContextContract])
 
   useLayoutEffect(() => {
     onSelectSessionRef.current = onSelectSession
@@ -473,7 +511,7 @@ export function NetworkChatWorkspace({
       const executionBindings = environment === 'draft'
         ? Object.fromEntries(Object.entries(bindings).map(([nodeId, binding]) => [nodeId, { ...binding, version: `r${expectedDraftRevision}`, dirty: false }])) as Record<AgentNodeId, NetworkBinding>
         : bindings
-      await streamNetworkExecution({ networkId, projectId, networkSessionId: session.id, message, expectedDraftRevision }, {
+      await streamNetworkExecution({ networkId, projectId, networkSessionId: session.id, message, expectedDraftRevision, externalContext: externalContextValues }, {
         onExecutionId: (id) => {
           executionId = id
           executionIdRef.current = id
@@ -639,25 +677,30 @@ export function NetworkChatWorkspace({
     : undefined
 
   return (
-    <ChatCanvas
-      entries={chatEntries}
-      isSending={running}
-      isStopping={stopping}
-      isPreparing={creatingSession}
-      isSessionLoading={historyLoading}
-      onSend={(content) => { void send(content) }}
-      onStop={stop}
-      assistantIcon="network"
-      runtimeBlocked={Boolean(runtimeBlockReason)}
-      runtimeBlockReason={runtimeBlockReason}
-      emptyTitle="Test your Network"
-      emptyDescription="Every message starts at the entry Agent and executes the current Network composition."
-      suggestions={networkSuggestions}
-      composerValue={text}
-      onComposerValueChange={setText}
-      composerStatusText={composerStatusText}
-      preparingText="Preparing Network Session..."
-      enableFirstRunSuccess={false}
-    />
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <ChatCanvas
+        entries={chatEntries}
+        isSending={running}
+        isStopping={stopping}
+        isPreparing={creatingSession}
+        isSessionLoading={historyLoading}
+        onSend={(content) => { void send(content) }}
+        onStop={stop}
+        assistantIcon="network"
+        runtimeBlocked={Boolean(runtimeBlockReason)}
+        runtimeBlockReason={runtimeBlockReason}
+        emptyTitle="Test your Network"
+        emptyDescription="Every message starts at the entry Agent and executes the current Network composition."
+        suggestions={networkSuggestions}
+        composerValue={text}
+        onComposerValueChange={setText}
+        composerStatusText={composerStatusText}
+        preparingText="Preparing Network Session..."
+        enableFirstRunSuccess={false}
+        externalContextContract={effectiveExternalContextContract}
+        externalContextValues={externalContextValues}
+        onExternalContextValuesChange={handleExternalContextValuesChange}
+      />
+    </div>
   )
 }

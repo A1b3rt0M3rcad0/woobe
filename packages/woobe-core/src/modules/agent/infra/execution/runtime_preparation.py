@@ -8,10 +8,16 @@ from typing import Any
 from uuid import UUID
 
 from modules.agent.application.interfaces.context_policy import canonicalize_context_runtime_config
+from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.domain.tool_project_environment import (
+    collect_tool_project_environment_keys,
+)
 from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, ToolStatus
 from modules.agent.domain.vector_snapshot_entities import VECTOR_SNAPSHOT_READY
 from modules.agent.infra.database.runtime_repositories import AgentRuntimeRepositories
 from shared.contracts.errors import ValidationError
+from shared.project_environment import PreparedProjectEnvironmentValue
+from shared.runtime_environment import normalize_runtime_environment
 
 _SECRET_PATTERN = re.compile(r"\{\{secret:([^}]+)\}\}")
 
@@ -69,12 +75,49 @@ def _runtime_tools_config(agent: Any) -> dict[str, Any]:
     return tools if isinstance(tools, dict) else {}
 
 
+def prefer_live_tools_for_run(input_dto: Any | None = None) -> bool:
+    """Return whether a new standalone Draft Run must resolve current Tool state."""
+    context = current_execution.get()
+    if context is None:
+        return False
+
+    execution_context = (
+        getattr(input_dto, "execution_context", None)
+        if input_dto is not None
+        else getattr(context, "execution_context", None)
+    )
+    metadata = (
+        getattr(input_dto, "metadata", None)
+        if input_dto is not None
+        else None
+    )
+    metadata = metadata if isinstance(metadata, dict) else {}
+    source = metadata.get("source")
+    is_rerun = source == "rerun" or metadata.get("rerun_of_run_id") is not None
+    is_network_runtime = source == "network_runtime"
+
+    try:
+        environment = normalize_runtime_environment(execution_context)
+    except ValidationError:
+        return False
+
+    return bool(
+        environment == "draft"
+        and not is_rerun
+        and not is_network_runtime
+        and context.network_id is None
+        and context.network_execution_id is None
+        and context.network_invocation_id is None
+    )
+
+
 async def prepare_tool_state(
     repositories: AgentRuntimeRepositories,
     *,
     agent: Any,
     tool_from_snapshot: ToolFromSnapshot,
     tool_with_permissions: ToolWithPermissions,
+    prefer_live_tools: bool = False,
 ) -> tuple[list[Any], dict[str, str]]:
     """Resolve the exact Tool set and encrypted secrets inside Acceptance."""
 
@@ -108,7 +151,7 @@ async def prepare_tool_state(
     if selected_ids:
         for tool_id in selected_ids:
             snapshot = snapshot_index.get(str(tool_id))
-            if snapshot is not None:
+            if snapshot is not None and not prefer_live_tools:
                 tool = tool_from_snapshot(snapshot)
             else:
                 tool = await repositories.tools.get_by_id(tool_id)
@@ -137,6 +180,36 @@ async def prepare_tool_state(
             raise ValidationError(f"Configured Tool secret was not found: {name}") from exc
         encrypted_by_name[name] = secret.encrypted_value
     return tools, encrypted_by_name
+
+
+async def prepare_project_environment_state(
+    repositories: AgentRuntimeRepositories,
+    *,
+    project_id: UUID,
+    environment: str,
+    tools: list[Any],
+) -> dict[str, PreparedProjectEnvironmentValue]:
+    """Read only Project Environment keys referenced by the accepted Tool set.
+
+    Missing values are intentionally not rejected here. A Tool may never be invoked
+    during the Run; resolution fails explicitly only if that Tool actually requires
+    an unavailable key.
+    """
+
+    keys: set[str] = set()
+    for tool in tools:
+        keys.update(collect_tool_project_environment_keys(tool.config or {}))
+    if not keys:
+        return {}
+
+    reader = repositories.project_environment
+    if reader is None:
+        raise ValidationError("Project Environment runtime reader is unavailable")
+    return await reader.read_values(
+        project_id=project_id,
+        environment=environment,
+        keys=keys,
+    )
 
 
 async def prepare_rag_binding(

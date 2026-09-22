@@ -147,7 +147,10 @@ class SqlSecurityAuthenticator:
                     or key_environment is None
                 ):
                     raise AuthorizationError("Runtime Key binding is incomplete")
-                if runtime_interface not in interfaces:
+                if (
+                    runtime_interface != "contract"
+                    and runtime_interface not in interfaces
+                ):
                     raise AuthorizationError(
                         "Runtime Key is not allowed to use this interface"
                     )

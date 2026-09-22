@@ -6,6 +6,7 @@ import pytest
 
 from modules.agent.application.http_tool_contract import (
     HttpToolContractError,
+    compile_http_tool_group_contract,
     compile_http_tool_contract,
 )
 from modules.agent.infra.adapters.http_tool_renderer import render_http_tool_request
@@ -30,6 +31,47 @@ def test_compiler_recovers_parameters_from_body_when_saved_schema_is_empty() -> 
     assert set(contract.input_schema["properties"]) == {"a", "b"}
     assert contract.input_schema["required"] == ["a", "b"]
     assert contract.contract_hash
+
+
+def test_compiler_drops_stale_declared_parameters_not_used_by_template() -> None:
+    contract = compile_http_tool_contract(
+        {
+            "protocol": "http",
+            "method": "GET",
+            "url": "https://api.example.com/search?q={{b}}&age={{external_context.age}}",
+            "headers": [],
+        },
+        {
+            "type": "object",
+            "properties": {
+                "a": {"type": "integer"},
+                "b": {"type": "integer"},
+            },
+            "required": ["a", "b"],
+        },
+    )
+
+    assert contract.parameter_names == ("b",)
+    assert contract.input_schema["properties"] == {"b": {"type": "integer"}}
+    assert contract.input_schema["required"] == ["b"]
+
+
+def test_runtime_templates_never_become_model_inputs() -> None:
+    contract = compile_http_tool_contract(
+        {
+            "protocol": "http",
+            "method": "GET",
+            "url": (
+                "https://api.example.com/{{external_context.customer_id}}"
+                "?token={{project_env.API_KEY}}&query={{query}}"
+            ),
+            "headers": [],
+        }
+    )
+
+    assert contract.parameter_names == ("query",)
+    assert set(contract.input_schema["properties"]) == {"query"}
+    assert contract.input_schema["required"] == ["query"]
 
 
 def test_renderer_builds_valid_json_body_with_real_arguments() -> None:
@@ -91,3 +133,29 @@ def test_compiler_rejects_single_brace_placeholders() -> None:
         compile_http_tool_contract(config)
 
     assert exc_info.value.code == "HTTP_TOOL_TEMPLATE_INVALID"
+
+
+def test_group_contract_accepts_runtime_template_base_url() -> None:
+    contract = compile_http_tool_group_contract(
+        {
+            "protocol": "http",
+            "mode": "group",
+            "base_url": "{{project_env.API_URL}}",
+            "headers": [],
+            "routes": [
+                {
+                    "id": "route-1",
+                    "name": "Create customer",
+                    "description": "Create one customer.",
+                    "method": "POST",
+                    "path": "/customers",
+                    "headers": [],
+                    "risk_level": "low",
+                    "status": "active",
+                    "default_permission": "allow",
+                }
+            ],
+        }
+    )
+
+    assert contract.config["base_url"] == "{{project_env.API_URL}}"

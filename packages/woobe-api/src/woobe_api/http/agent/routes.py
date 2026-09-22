@@ -2,6 +2,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, File, Form, Request as FastAPIRequest, UploadFile
 from modules.agent.entrypoint import create_provider_credential_composer
+from modules.core.entrypoint import build_project_access_service
 from modules.agent.entrypoint import list_provider_credentials_composer
 from modules.agent.entrypoint import update_provider_credential_composer
 from modules.agent.entrypoint import create_provider_model_composer
@@ -65,6 +66,7 @@ from modules.agent.entrypoint import (
     update_tool_status_composer,
 )
 from woobe_api.http.shared.adapters import request_adapter, response_adapter
+from shared.infra.errors import AuthenticationError
 from woobe_api.http.agent.controllers.ask_agent_stream_controller import (
     AskAgentStreamController,
 )
@@ -487,6 +489,24 @@ async def tools_delete_tool(request: FastAPIRequest):
 
 @tools_router.post("/tools/test")
 async def tools_test_tool(request: FastAPIRequest):
+    payload = await request.json()
+    project_id = payload.get("project_id") if isinstance(payload, dict) else None
+    if project_id is not None:
+        try:
+            project_uuid = UUID(str(project_id))
+        except ValueError:
+            # DTO validation below owns the client-facing invalid UUID response.
+            project_uuid = None
+        if project_uuid is not None:
+            principal = getattr(request.state, "principal", None)
+            user_id = getattr(principal, "user_id", None)
+            if user_id is None:
+                raise AuthenticationError("Authentication required")
+            await build_project_access_service().require_project_access(
+                user_id=UUID(str(user_id)),
+                project_id=project_uuid,
+            )
+
     handler = test_tool_composer()
     response = await request_adapter(request, handler)
     return response_adapter(response)

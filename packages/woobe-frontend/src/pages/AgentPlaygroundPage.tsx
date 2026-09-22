@@ -14,13 +14,16 @@ import { PlaygroundHeader } from '@/features/playground/components/PlaygroundHea
 import { OperationsRail, type LeftPanelTab } from '@/features/playground/components/OperationsRail'
 import { OperationsPanel } from '@/features/playground/components/OperationsPanel'
 import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
+import { filterContractValues } from '@/features/contracts/contractFields'
 import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import { ApiModal } from '@/features/playground/components/ApiModal'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
 import {
+  getStoredPlaygroundExternalContext,
   getStoredPlaygroundRunId,
   getStoredPlaygroundSessionId,
   setPlaygroundSessionId,
+  setStoredPlaygroundExternalContext,
   setStoredPlaygroundRunId,
   setStoredPlaygroundSessionId,
 } from '@/features/playground/lib/playground-session-store'
@@ -149,6 +152,10 @@ function PlaygroundContent() {
   const stagingRelease = useMemo(() => releases.find((release) => release.status === 'staging') ?? null, [releases])
   const productionRelease = useMemo(() => releases.find((release) => release.status === 'production') ?? null, [releases])
   const currentEnvironmentRelease = environment === 'staging' ? stagingRelease : environment === 'production' ? productionRelease : null
+  const activeExternalContextContract = environment === 'draft'
+    ? state.externalContextContract
+    : currentEnvironmentRelease?.external_context_contract ?? null
+  const storedEnvironmentContext = runtimeStatesQuery.data?.[environment]?.external_context_values
 
   const {
     data: sessionPages,
@@ -198,6 +205,9 @@ function PlaygroundContent() {
   const [rightPanelTab, setRightPanelTab] = useState('editor')
   const [selectedTraceId, setSelectedTraceId] = useState<string | null>(null)
   const [showApiModal, setShowApiModal] = useState(false)
+  const [externalContextValues, setExternalContextValues] = useState<Record<string, unknown>>({})
+  const externalContextOwnerRef = useRef<string | null>(null)
+  const externalContextDirtyRef = useRef(false)
   const accumulatedRef = useRef('')
   const metadataRef = useRef<Partial<AskResponse>>({})
   const syncedSessionRef = useRef<string | null>(null)
@@ -215,6 +225,54 @@ function PlaygroundContent() {
   const isStateless = agentSessionMode === 'stateless'
   const sessionIdForRun = isStateless ? null : sessionIdState
   const selectedSessionId = sessionIdState
+  useEffect(() => {
+    const rememberedContext = projectId && agentId
+      ? getStoredPlaygroundExternalContext(projectId, agentId, environment)
+      : null
+    const environmentValues = filterContractValues(
+      activeExternalContextContract,
+      rememberedContext ?? storedEnvironmentContext,
+    )
+    const ownerKey = `${projectId ?? ''}:${agentId ?? ''}:${environment}`
+    const previousOwner = externalContextOwnerRef.current
+    const contextDirty = externalContextDirtyRef.current
+
+    setExternalContextValues((current) => {
+      const currentValues = filterContractValues(activeExternalContextContract, current)
+      if (previousOwner === null || previousOwner !== ownerKey) {
+        return environmentValues
+      }
+      return contextDirty ? currentValues : environmentValues
+    })
+
+    if (previousOwner !== ownerKey) externalContextDirtyRef.current = false
+    externalContextOwnerRef.current = ownerKey
+  }, [
+    activeExternalContextContract,
+    agentId,
+    environment,
+    projectId,
+    storedEnvironmentContext,
+  ])
+
+  const handleExternalContextValuesChange = useCallback((values: Record<string, unknown>) => {
+    const filtered = filterContractValues(activeExternalContextContract, values)
+    externalContextDirtyRef.current = true
+    setExternalContextValues(filtered)
+    if (projectId && agentId) {
+      setStoredPlaygroundExternalContext(projectId, agentId, environment, filtered)
+    }
+  }, [activeExternalContextContract, agentId, environment, projectId])
+
+  const handleClearExternalContextValues = useCallback(() => {
+    externalContextDirtyRef.current = true
+    setExternalContextValues({})
+    if (projectId && agentId) {
+      setStoredPlaygroundExternalContext(projectId, agentId, environment, {})
+    }
+  }, [agentId, environment, projectId])
+
+
 
   const {
     data: backendTraces = [],
@@ -527,7 +585,7 @@ function PlaygroundContent() {
     if (environment === 'draft') {
       const validation = validateAgentEditorState(state)
       if (!validation.valid) {
-        setEditorSection('output')
+        setEditorSection(validation.issue.section)
         setRightPanelTab('editor')
         setShowRightPanel(true)
         toast.error(validation.issue.message)
@@ -549,6 +607,7 @@ function PlaygroundContent() {
         message: content,
         session_id: sessionIdForRun,
         execution_context: environment === 'draft' ? 'playground' : environment,
+        external_context: externalContextValues,
         metadata: {
           source: 'playground',
           runtime_environment: environment,
@@ -608,6 +667,7 @@ function PlaygroundContent() {
           })
           setLastResponse(meta as AskResponse)
           rememberRunId(null)
+          if (!isStateless) void refetchSessions()
           if (!isStateless && meta.session_id) syncedSessionRef.current = meta.session_id
           if (meta.trace_id) setTimeout(() => setSelectedTraceId(meta.trace_id!), 100)
         },
@@ -760,7 +820,22 @@ function PlaygroundContent() {
               onTracesRetry={refetchTraces}
             />
           )}
-          <div className="flex-1 min-w-0 flex flex-col"><ChatCanvas messages={messages} isSending={isSending} isSessionLoading={isSessionLoading} onSend={handleSend} onStop={handleStop} agentName={agent.name} runtimeBlocked={!runtimeEnabled || !environmentReady} runtimeBlockReason={runtimeBlockReason} /></div>
+          <div className="flex-1 min-w-0 flex flex-col">
+            <ChatCanvas
+              messages={messages}
+              isSending={isSending}
+              isSessionLoading={isSessionLoading}
+              onSend={handleSend}
+              onStop={handleStop}
+              agentName={agent.name}
+              runtimeBlocked={!runtimeEnabled || !environmentReady}
+              runtimeBlockReason={runtimeBlockReason}
+              externalContextContract={activeExternalContextContract}
+              externalContextValues={externalContextValues}
+              onExternalContextValuesChange={handleExternalContextValuesChange}
+              onClearExternalContextValues={handleClearExternalContextValues}
+            />
+          </div>
           {showRightPanel && <AgentInspector agent={agent} projectId={projectId!} agentId={agentId!} activeTab={rightPanelTab} environment={environment} environmentRelease={environmentRelease} environmentReleaseLoading={releasesLoading} onTabChange={setRightPanelTab} onCollapse={() => setShowRightPanel(false)} />}
         </div>
       </div>

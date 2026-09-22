@@ -72,6 +72,12 @@ async def test_network_store_keeps_invocations_context_cancel_and_terminal_state
         },
         tool_calls=[{"tool_name": "lookup", "success": True}],
         sources=[{"chunk_id": str(uuid4())}],
+        execution_events=[
+            {
+                "event_type": "llm.call.completed",
+                "occurred_at": "2026-08-25T12:00:00.500000+00:00",
+            }
+        ],
     )
     object.__setattr__(
         invocation_result,
@@ -119,6 +125,12 @@ async def test_network_store_keeps_invocations_context_cancel_and_terminal_state
     assert persisted["diagnostics"]["schema_version"] == 5
     assert persisted["diagnostics"]["llm_work_latency_ms"] == 12
     assert persisted["llm_calls"][0]["call_id"] == "llm-1"
+    assert persisted["execution_events"] == [
+        {
+            "event_type": "llm.call.completed",
+            "occurred_at": "2026-08-25T12:00:00.500000+00:00",
+        }
+    ]
     assert persisted["started_at"] == "2026-08-25T12:00:00+00:00"
     assert persisted["completed_at"] == "2026-08-25T12:00:01+00:00"
 

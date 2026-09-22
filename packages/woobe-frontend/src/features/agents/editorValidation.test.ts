@@ -145,4 +145,59 @@ describe('Agent editor output validation', () => {
       expect(result.snapshot.output_schema).toBeNull()
     }
   })
+
+  it('accepts legacy External Context scope but strips it from the saved snapshot', () => {
+    const state = editorState()
+    state.externalContextContract = {
+      age: {
+        schema: { type: 'integer' },
+        required: true,
+        scope: 'session',
+        model: { expose: true },
+      },
+      name: {
+        schema: { type: 'string' },
+        required: true,
+        scope: 'run',
+        model: { expose: true },
+      },
+    } as unknown as typeof state.externalContextContract
+
+    const result = validateAgentEditorState(state)
+
+    expect(result.valid).toBe(true)
+    if (result.valid) {
+      expect(result.snapshot.external_context_contract).toEqual({
+        age: {
+          schema: { type: 'integer' },
+          required: true,
+          model: { expose: true },
+        },
+        name: {
+          schema: { type: 'string' },
+          required: true,
+          model: { expose: true },
+        },
+      })
+    }
+  })
+
+  it('rejects unknown legacy External Context scope values', () => {
+    const state = editorState()
+    state.externalContextContract = {
+      customer_id: {
+        schema: { type: 'string' },
+        required: true,
+        scope: 'project',
+        model: { expose: false },
+      },
+    } as unknown as typeof state.externalContextContract
+
+    const result = validateAgentEditorState(state)
+
+    expect(result.valid).toBe(false)
+    if (!result.valid) {
+      expect(result.issue.message).toContain("scope must be 'run' or 'session'")
+    }
+  })
 })

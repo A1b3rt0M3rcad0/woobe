@@ -26,7 +26,7 @@ vi.mock('@/features/agents/hooks', async original => ({ ...await original<typeof
   useCreateRelease: () => ({ mutateAsync: fixture.save, isPending: false }),
   useCreateAgent: () => ({ mutateAsync: fixture.create, isPending: false }),
   useKnowledgeVersions: () => ({ data: [] }),
-  useContextAssemblers: () => ({ data: [{ name: 'standard', display_name: 'Standard Context Manager', description: 'General-purpose context assembly.', behavior: '', recommended_for: [], capabilities: [], limitations: [], configuration: '', is_default: true, supports_skills: true }], isLoading: false, isPending: false, isError: false }),
+  useContextAssemblers: () => ({ data: [{ name: 'default', version: 'v1', strategy_name: 'stdcm', strategy_version: 'v1', display_name: 'Standard Context Manager', description: 'General-purpose context assembly.', behavior: '', recommended_for: [], capabilities: [], limitations: [], configuration: '', is_default: true, is_system_default_alias: true, supports_skills: true }], isLoading: false, isPending: false, isError: false }),
 }))
 vi.mock('@/features/provider-credentials/hooks', async original => ({ ...await original<typeof import('@/features/provider-credentials/hooks')>(), useCredentials: () => ({ data: fixture.credentials, refetch: vi.fn() }) }))
 vi.mock('@/features/provider-models/hooks', async original => ({ ...await original<typeof import('@/features/provider-models/hooks')>(),
@@ -123,7 +123,7 @@ describe('Behavior editor contracts', () => {
   it.each(['standalone', 'network'])('uses the same section navigation and Draft actions in %s', async surface => {
     await renderEditor(surface)
     const primary = container.querySelector('[aria-label="Agent configuration groups"]')!
-    expect([...primary.querySelectorAll('button')].map(item => item.textContent)).toEqual(['Agent', 'Execution', 'Capabilities', 'Output'])
+    expect([...primary.querySelectorAll('button')].map(item => item.textContent)).toEqual(['Agent', 'Execution', 'Capabilities', 'Contracts'])
     expect([...container.querySelectorAll('[aria-label="Agent configuration sections"] button')].map(item => item.textContent)).toEqual(['Overview', 'Behavior'])
     expect(container.querySelector('section[aria-label="Agent Identity"]')).toBeTruthy()
     expect(container.querySelector('section[aria-label="Behavior Summary"]')).toBeTruthy()
@@ -268,21 +268,23 @@ describe('Behavior editor contracts', () => {
     await click(button('Apply changes'))
     expect(editor.state.behavior.responsibilities).toEqual(['Pending item'])
   })
-  it.each(['standalone', 'network'])('blocks invalid Output from another section and recovers after Reset in %s', async surface => {
+  it.each(['standalone', 'network'])('builds Output fields visually without requiring JSON in %s', async surface => {
     await renderEditor(surface)
-    await click(button('Output'))
+    await click(button('Contracts'))
     await click(container.querySelector('input[type="checkbox"]')!)
-    await fill(input('Output contract'), '[]')
+    await click(button('Add field'))
+    await fill(input('Field 1 name'), 'answer')
     await click(button('Agent'))
     await click(button('Save'))
-    expect(fixture.save).not.toHaveBeenCalled()
-    expect(button('Output').getAttribute('aria-pressed')).toBe('true')
-    expect(container.querySelector('[role="alert"]')?.textContent).toContain('must be a JSON object')
-    await click(button('Reset Draft'))
-    await click(button('Agent'))
-    await fill(input('Name'), 'Valid Draft')
-    await click(button('Save'))
-    expect(fixture.save).toHaveBeenCalledWith(expect.objectContaining({ name: 'Valid Draft', output_schema: null, response_format: expect.objectContaining({ enabled: false }) }))
+    expect(fixture.save).toHaveBeenCalledWith(expect.objectContaining({
+      output_schema: {
+        type: 'object',
+        properties: { answer: { type: 'string' } },
+        required: [],
+        additionalProperties: false,
+      },
+      response_format: expect.objectContaining({ enabled: true, type: 'json' }),
+    }))
     expect(editor.isDirty).toBe(false)
   })
   it.each(['standalone', 'network'])('keeps newer edits dirty when a captured save finishes in %s', async surface => {

@@ -8,6 +8,10 @@ from typing import Any
 from uuid import UUID
 
 
+from modules.agent.application.mcp_connection_templates import (
+    ProjectEnvironmentResolver,
+    materialize_mcp_connection_config,
+)
 from modules.agent.application.mcp_discovery import DiscoverMcpToolsUseCase, McpDiscoverInput, McpDiscoverOutput
 from modules.agent.application.mcp_oauth_metadata_validation import (
     McpOAuthMetadataValidation,
@@ -196,18 +200,29 @@ async def _discover_and_persist_tool(
     executor: ToolExecutionPort,
     secret_resolver: ToolSecretResolverPort | None,
     auth_header_provider: Any | None,
+    project_environment_resolver: ProjectEnvironmentResolver | None,
     timeout_ms: int,
     now: datetime,
 ) -> RefreshMcpProviderToolsOutput:
     config = dict(tool.config or {})
     if not _is_mcp_server_provider(tool):
         raise ValueError("Tool is not an MCP server provider")
-    server = config.get("server") or {}
-    server_url = server.get("url") or config.get("url")
+    connection_config = await materialize_mcp_connection_config(
+        config,
+        project_id=tool.project_id,
+        resolver=project_environment_resolver,
+        environment="draft",
+    )
+    server = connection_config.get("server") or {}
+    server_url = server.get("url") or connection_config.get("url")
     if not server_url:
         raise ValueError("MCP server.url is required before discovery")
 
-    configured_headers = await _resolve_headers(raw_headers=_raw_headers_from_config(config), tool=tool, secret_resolver=secret_resolver)
+    configured_headers = await _resolve_headers(
+        raw_headers=_raw_headers_from_config(connection_config),
+        tool=tool,
+        secret_resolver=secret_resolver,
+    )
     oauth_headers = await _auth_headers_for(tool, auth_header_provider)
     output = await DiscoverMcpToolsUseCase(executor).execute(
         McpDiscoverInput(
@@ -276,11 +291,13 @@ class RefreshMcpProviderToolsUseCase:
         executor: ToolExecutionPort,
         secret_resolver: ToolSecretResolverPort | None = None,
         auth_header_provider: Any | None = None,
+        project_environment_resolver: ProjectEnvironmentResolver | None = None,
     ) -> None:
         self._tool_repo = tool_repo
         self._executor = executor
         self._secret_resolver = secret_resolver
         self._auth_header_provider = auth_header_provider
+        self._project_environment_resolver = project_environment_resolver
 
     async def execute(self, input_dto: RefreshMcpProviderToolsInput) -> RefreshMcpProviderToolsOutput:
         tool = await self._tool_repo.get_by_id(input_dto.tool_id)
@@ -292,6 +309,7 @@ class RefreshMcpProviderToolsUseCase:
             executor=self._executor,
             secret_resolver=self._secret_resolver,
             auth_header_provider=self._auth_header_provider,
+            project_environment_resolver=self._project_environment_resolver,
             timeout_ms=input_dto.timeout_ms,
             now=utc_now(),
         )
@@ -306,6 +324,7 @@ class RefreshMcpProviderToolsUseCase:
             executor=self._executor,
             secret_resolver=self._secret_resolver,
             auth_header_provider=self._auth_header_provider,
+            project_environment_resolver=self._project_environment_resolver,
             timeout_ms=tool.timeout_ms or 30000,
             now=now,
         )
@@ -319,12 +338,14 @@ async def refresh_stale_mcp_server_tools(
     executor: ToolExecutionPort,
     secret_resolver: ToolSecretResolverPort | None = None,
     auth_header_provider: Any | None = None,
+    project_environment_resolver: ProjectEnvironmentResolver | None = None,
 ) -> list[Tool]:
     refresher = RefreshMcpProviderToolsUseCase(
         tool_repo=tool_repo,
         executor=executor,
         secret_resolver=secret_resolver,
         auth_header_provider=auth_header_provider,
+        project_environment_resolver=project_environment_resolver,
     )
     refreshed: list[Tool] = []
     for tool in tools:

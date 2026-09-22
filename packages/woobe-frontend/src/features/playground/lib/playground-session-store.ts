@@ -12,6 +12,10 @@ function runStorageKey(projectId: string, agentId: string, environment: RuntimeE
   return `woobe:agent-active-run:${projectId}:${agentId}:${environment}`
 }
 
+function externalContextStorageKey(projectId: string, agentId: string, environment: RuntimeEnvironment) {
+  return `woobe:agent-external-context:${projectId}:${agentId}:${environment}`
+}
+
 export function setPlaygroundSessionId(sessionId: string | null) {
   currentSessionId = sessionId
   listeners.forEach((listener) => listener())
@@ -72,6 +76,39 @@ export function setStoredPlaygroundRunId(
     else window.localStorage.removeItem(key)
   } catch {
     // Reattach still works by Session lookup when local storage is unavailable.
+  }
+}
+
+export function getStoredPlaygroundExternalContext(
+  projectId: string,
+  agentId: string,
+  environment: RuntimeEnvironment,
+): Record<string, unknown> | null {
+  try {
+    const raw = window.localStorage.getItem(externalContextStorageKey(projectId, agentId, environment))
+    if (raw === null) return null
+    const parsed: unknown = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+      ? parsed as Record<string, unknown>
+      : null
+  } catch {
+    return null
+  }
+}
+
+export function setStoredPlaygroundExternalContext(
+  projectId: string,
+  agentId: string,
+  environment: RuntimeEnvironment,
+  values: Record<string, unknown>,
+) {
+  try {
+    window.localStorage.setItem(
+      externalContextStorageKey(projectId, agentId, environment),
+      JSON.stringify(values),
+    )
+  } catch {
+    // External Context persistence is only a Playground convenience. Run input remains explicit.
   }
 }
 

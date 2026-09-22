@@ -7,6 +7,7 @@ import {
   createNetwork,
   createNetworkSession,
   getNetwork,
+  getNetworkExternalContextContract,
   getNetworkProductionActivations,
   getNetworkRuntimeEnvironments,
   getNetworkSessionMessages,
@@ -18,6 +19,7 @@ import {
   saveNetworkDraft,
   updateNetworkMetadata,
   updateNetworkRuntimeEnvironment,
+  updateNetworkRuntimeEnvironmentContext,
 } from './api'
 import type {
   ActivateNetworkProductionInput,
@@ -88,6 +90,14 @@ export function useNetworkRuntimeEnvironments(networkId?: string, projectId?: st
   })
 }
 
+export function useNetworkExternalContextContract(networkId?: string, projectId?: string, environment?: NetworkEnvironment) {
+  return useQuery({
+    queryKey: ['network-external-context-contract', projectId, networkId, environment],
+    queryFn: () => getNetworkExternalContextContract(networkId!, projectId!, environment!),
+    enabled: Boolean(networkId && projectId && environment),
+  })
+}
+
 export function useUpdateNetworkRuntimeEnvironment(networkId?: string, projectId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
@@ -97,11 +107,30 @@ export function useUpdateNetworkRuntimeEnvironment(networkId?: string, projectId
         ...current,
         [updated.environment]: {
           enabled: updated.enabled,
+          external_context_values: updated.external_context_values,
           updated_by: updated.updated_by,
           updated_at: updated.updated_at,
         },
       } : current)
       queryClient.invalidateQueries({ queryKey: ['network-runtime-environments', projectId, networkId] })
+    },
+  })
+}
+
+export function useUpdateNetworkRuntimeEnvironmentContext(networkId?: string, projectId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ environment, values }: { environment: RuntimeEnvironment; values: Record<string, unknown> }) => updateNetworkRuntimeEnvironmentContext(networkId!, projectId!, environment, values),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<RuntimeEnvironmentStates>(['network-runtime-environments', projectId, networkId], (current) => current ? {
+        ...current,
+        [updated.environment]: {
+          enabled: updated.enabled,
+          external_context_values: updated.external_context_values,
+          updated_by: updated.updated_by,
+          updated_at: updated.updated_at,
+        },
+      } : current)
     },
   })
 }

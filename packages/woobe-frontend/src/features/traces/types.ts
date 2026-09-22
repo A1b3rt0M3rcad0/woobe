@@ -265,3 +265,68 @@ export interface AgentRunDetail {
   created_at?: string | null
   updated_at?: string | null
 }
+
+
+export interface ProjectRunLedgerSummary {
+  agent_runs: number
+  direct_agent_runs: number
+  network_agent_runs: number
+  network_runs: number
+  active_top_level_runs: number
+  failed_top_level_runs: number
+  top_level_runs: number
+  failure_rate_percent: number
+  p95_top_level_latency_ms: number | null
+  avg_agent_runs_per_network_run: number | null
+}
+
+export interface ProjectAgentRunRecord {
+  id: string
+  trace_id: string
+  project_id: string
+  agent_id: string
+  agent_name: string
+  session_id: string | null
+  network_execution_id: string | null
+  network_invocation_id: string | null
+  parent_run_id: string | null
+  environment: string
+  origin: string
+  status: string
+  input_message: string
+  usage: Record<string, unknown> | null
+  result: Record<string, unknown> | null
+  failure_code: string | null
+  failure_detail: string | null
+  started_at: string | null
+  completed_at: string | null
+  created_at: string | null
+}
+
+export interface ProjectNetworkRunRecord {
+  id: string
+  network_id: string
+  network_name: string
+  network_version_id: string | null
+  network_version: string | null
+  network_session_id: string
+  environment: string
+  status: string
+  input_message: string
+  output_message: string | null
+  root_trace_id: string | null
+  failure_code: string | null
+  failure_detail: string | null
+  draft_revision: number | null
+  started_at: string | null
+  completed_at: string | null
+  created_at: string | null
+  duration_ms: number | null
+  agent_runs: ProjectAgentRunRecord[]
+}
+
+export interface ProjectRunLedger {
+  summary: ProjectRunLedgerSummary
+  direct_agent_runs: ProjectAgentRunRecord[]
+  network_runs: ProjectNetworkRunRecord[]
+}

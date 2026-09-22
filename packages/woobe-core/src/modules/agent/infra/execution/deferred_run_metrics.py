@@ -13,6 +13,7 @@ class DeferredAgentMetrics:
     llm_calls: list[dict[str, Any]]
     started_at: str
     completed_at: str
+    total_latency_ms: int
 
 
 def build_deferred_agent_metrics(context, output) -> DeferredAgentMetrics:
@@ -33,4 +34,5 @@ def build_deferred_agent_metrics(context, output) -> DeferredAgentMetrics:
         llm_calls=metrics.llm_calls,
         started_at=metrics.started_at,
         completed_at=metrics.completed_at,
+        total_latency_ms=metrics.total_latency_ms,
     )

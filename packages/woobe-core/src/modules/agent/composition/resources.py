@@ -10,3 +10,4 @@ from shared.composition_resources import (
 
 
 FILE_STORAGE = create_file_storage(SETTINGS)
+

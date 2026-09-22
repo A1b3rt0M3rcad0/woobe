@@ -8,7 +8,7 @@ import type { NetworkDefinitionChange, NetworkEditorIssue, NetworkEditorSelectio
 import { NetworkEdgeInspector } from './NetworkEdgeInspector'
 import { NetworkNodeInspector } from './NetworkNodeInspector'
 import { NetworkOverviewInspector } from './NetworkOverviewInspector'
-import type { NetworkBinding } from './networkWorkspaceTypes'
+import type { Environment, NetworkBinding } from './networkWorkspaceTypes'
 
 export function NetworkGraphInspector({
   definition,
@@ -17,6 +17,7 @@ export function NetworkGraphInspector({
   issues,
   selection,
   readOnly,
+  environment = 'draft',
   name,
   description,
   embedded = false,
@@ -32,6 +33,7 @@ export function NetworkGraphInspector({
   issues: NetworkEditorIssue[]
   selection: NetworkEditorSelection
   readOnly: boolean
+  environment?: Environment
   name: string
   description: string
   embedded?: boolean
@@ -63,6 +65,7 @@ export function NetworkGraphInspector({
     <NetworkOverviewInspector
       definition={definition}
       readOnly={readOnly}
+      environment={environment}
       name={name}
       description={description}
       onMetadata={onMetadata}
