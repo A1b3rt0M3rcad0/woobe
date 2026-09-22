@@ -77,3 +77,27 @@ export function upsertIntermediateAssistantMessage(
     ...messages.slice(terminalIndex),
   ]
 }
+
+
+export function applyCompletedAssistantMessage(
+  messages: ChatMessage[],
+  info: AssistantMessageInfo,
+  runId: string | null,
+): ChatMessage[] {
+  if (info.output_mode === 'intermediate') {
+    return upsertIntermediateAssistantMessage(messages, info, runId, false)
+  }
+
+  return updateTerminalAssistantMessage(messages, (message) => ({
+    ...message,
+    content: info.content,
+    message_id: info.message_id,
+    run_id: message.run_id ?? runId,
+    phase: info.phase ?? message.phase ?? null,
+    output_mode: 'final',
+    partial: info.partial ?? message.partial ?? null,
+    model: info.model ?? message.model ?? null,
+    provider: info.provider ?? message.provider ?? null,
+    activity: null,
+  }))
+}
