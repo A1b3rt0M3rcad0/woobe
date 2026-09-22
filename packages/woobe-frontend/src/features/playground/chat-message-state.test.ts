@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import type { AssistantMessageInfo, ChatMessage } from '@/features/playground/types'
 import {
+  applyCompletedAssistantMessage,
   updateTerminalAssistantMessage,
   upsertIntermediateAssistantMessage,
 } from './chat-message-state'
@@ -97,6 +98,60 @@ describe('playground assistant message state', () => {
       content: '',
       output_mode: 'final',
       run_id: 'run-1',
+    })
+  })
+
+  it('promotes visible pre-tool text without losing the terminal placeholder', () => {
+    const base: ChatMessage[] = [
+      { role: 'user', content: 'research this' },
+      {
+        role: 'assistant',
+        content: 'Vou procurar.',
+        message_id: 'message-final',
+        run_id: 'run-1',
+        output_mode: 'final',
+      },
+    ]
+
+    const promoted = applyCompletedAssistantMessage(
+      base,
+      {
+        message_id: 'message-progress',
+        content: 'Vou procurar.',
+        phase: 'capability_response_generation',
+        output_mode: 'intermediate',
+      },
+      'run-1',
+    )
+    const retracted = updateTerminalAssistantMessage(promoted, (message) => ({
+      ...message,
+      content: '',
+      activity: { status: 'planning_tools', message: 'Checking Tools...' },
+    }))
+    const completed = applyCompletedAssistantMessage(
+      retracted,
+      {
+        message_id: 'message-final',
+        content: 'Encontrei o resultado.',
+        phase: 'tool_followup_1',
+        output_mode: 'final',
+      },
+      'run-1',
+    )
+
+    expect(completed).toHaveLength(3)
+    expect(completed[1]).toMatchObject({
+      message_id: 'message-progress',
+      content: 'Vou procurar.',
+      run_id: 'run-1',
+      output_mode: 'intermediate',
+    })
+    expect(completed[2]).toMatchObject({
+      message_id: 'message-final',
+      content: 'Encontrei o resultado.',
+      run_id: 'run-1',
+      output_mode: 'final',
+      activity: null,
     })
   })
 
