@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from langchain_core.messages import AIMessage, ToolMessage
 
-from modules.agent.application.context_managers.standard import StandardContextAssembler
+from modules.agent.infra.context_management.managers.resolver import build_context_assembler
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.execution_snapshot import (
     AgentExecutionSnapshotResolver,
@@ -363,7 +363,7 @@ async def test_existing_draft_session_uses_edited_live_tool_and_runtime_only_val
         encryption_key=settings.encryption_key,
         tool_executor_factory=tool_runtime.execute_tool,
     )
-    runtime.configure_context_assembler(StandardContextAssembler())
+    runtime.configure_context_assembler(build_context_assembler("standard"))
     runtime.configure_execution_strategy_resolver(build_execution_strategy_resolver())
     runtime.configure_runtime_tool_reader(tool_runtime.read_runtime_tools)
 
