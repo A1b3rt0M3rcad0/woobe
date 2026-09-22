@@ -22,6 +22,7 @@ def test_appearance_config_upgrades_legacy_values_to_schema_v2() -> None:
     assert appearance["welcome_message"] == "How can I help?"
     assert appearance["activity"]["mode"] == "dots"
     assert appearance["response"]["render_mode"] == "rich"
+    assert appearance["response"]["show_intermediate_messages"] is False
     assert appearance["messages"]["assistant"]["border_width"] == 1
 
 
@@ -57,7 +58,10 @@ def test_appearance_config_normalizes_granular_component_overrides() -> None:
                 "detail_level": "named",
                 "labels": {"calling_tool": "Consulting {tool}…"},
             },
-            "response": {"render_mode": "plain"},
+            "response": {
+                "render_mode": "plain",
+                "show_intermediate_messages": True,
+            },
         }
     )
 
@@ -83,6 +87,7 @@ def test_appearance_config_normalizes_granular_component_overrides() -> None:
     assert appearance["activity"]["detail_level"] == "named"
     assert appearance["activity"]["labels"]["calling_tool"] == "Consulting {tool}…"
     assert appearance["response"]["render_mode"] == "plain"
+    assert appearance["response"]["show_intermediate_messages"] is True
 
 
 def test_appearance_config_rejects_unknown_or_unsafe_values() -> None:
@@ -98,4 +103,8 @@ def test_appearance_config_rejects_unknown_or_unsafe_values() -> None:
         normalize_appearance_config({"messages": {"assistant": {"border_radius": 99}}})
     with pytest.raises(ValueError):
         normalize_appearance_config({"response": {"render_mode": "html"}})
+    with pytest.raises(ValueError):
+        normalize_appearance_config(
+            {"response": {"show_intermediate_messages": "yes"}}
+        )
 
