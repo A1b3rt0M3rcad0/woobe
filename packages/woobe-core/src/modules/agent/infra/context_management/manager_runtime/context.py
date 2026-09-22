@@ -1,11 +1,28 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Literal
 
 from modules.agent.application.context_manager_sdk import ContextManagerOutcome
 from modules.agent.application.interfaces.context_assembler import ContextAssemblyRequest
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
 from modules.agent.domain.context import ContextPriority, ContextSourceType
+
+
+_MANDATORY_SOURCE_PRIORITIES = {
+    ContextSourceType.SYSTEM,
+    ContextSourceType.USER_INPUT,
+}
+
+
+def _set_priority(
+    policy: ContextPolicyV1,
+    source: ContextSourceType,
+    priority: ContextPriority,
+) -> None:
+    if source in _MANDATORY_SOURCE_PRIORITIES and priority != ContextPriority.MANDATORY:
+        raise ValueError(f"{source.value} context priority must remain MANDATORY")
+    policy.source_priorities[source] = priority
 
 
 class RuntimeContextCandidates:
@@ -59,7 +76,7 @@ class RuntimeContextCandidates:
     ) -> None:
         if source not in self._policy.allowed_sources:
             self._policy.allowed_sources.append(source)
-        self._policy.source_priorities[source] = priority
+        _set_priority(self._policy, source, priority)
 
     def deduplicate(
         self,
@@ -78,6 +95,29 @@ class RuntimeContextCandidates:
         self._policy.ordering.strategy = strategy
 
 
+class RuntimeContextPriorities:
+    """Priority decisions consumed by ordering and global overflow reduction."""
+
+    __slots__ = ("_policy",)
+
+    def __init__(self, policy: ContextPolicyV1) -> None:
+        self._policy = policy
+
+    def set(
+        self,
+        source: ContextSourceType,
+        priority: ContextPriority,
+    ) -> None:
+        _set_priority(self._policy, source, priority)
+
+    def configure(
+        self,
+        priorities: Mapping[ContextSourceType, ContextPriority],
+    ) -> None:
+        for source, priority in priorities.items():
+            _set_priority(self._policy, source, priority)
+
+
 class RuntimeContextBudget:
     __slots__ = ("_policy",)
 
@@ -93,7 +133,16 @@ class RuntimeContextBudget:
         self._policy.budget.max_input_units = max_input_units
         self._policy.budget.runtime_reserve_units = runtime_reserve_units
 
-    def pressure(
+
+class RuntimeContextPressure:
+    """Configure pressure evidence thresholds without changing overflow mechanics."""
+
+    __slots__ = ("_policy",)
+
+    def __init__(self, policy: ContextPolicyV1) -> None:
+        self._policy = policy
+
+    def thresholds(
         self,
         *,
         moderate_at: float,
@@ -125,7 +174,9 @@ class RuntimeContextManagerContext:
     __slots__ = (
         "policy",
         "candidates",
+        "priorities",
         "budget",
+        "pressure",
         "sources",
         "_request",
         "_effective_policy",
@@ -133,10 +184,12 @@ class RuntimeContextManagerContext:
 
     def __init__(self, request: ContextAssemblyRequest) -> None:
         self._request = request
+        self.policy = request.policy.model_copy(deep=True)
         self._effective_policy = request.policy.model_copy(deep=True)
-        self.policy = self._effective_policy
         self.candidates = RuntimeContextCandidates(self._effective_policy)
+        self.priorities = RuntimeContextPriorities(self._effective_policy)
         self.budget = RuntimeContextBudget(self._effective_policy)
+        self.pressure = RuntimeContextPressure(self._effective_policy)
         self.sources = RuntimeContextSources()
 
     @property
@@ -145,6 +198,6 @@ class RuntimeContextManagerContext:
 
     def complete(self) -> ContextManagerOutcome:
         return ContextManagerOutcome(
-            policy=self._effective_policy,
+            policy=self._effective_policy.model_copy(deep=True),
             materialize_skills=self.sources.materialize_skills,
         )

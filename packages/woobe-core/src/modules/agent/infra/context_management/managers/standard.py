@@ -19,6 +19,8 @@ class StandardContextManager:
         policy = ctx.policy
 
         ctx.candidates.allow(policy.allowed_sources)
+        ctx.priorities.configure(policy.source_priorities)
+
         ctx.candidates.recent_session(
             max_messages=policy.session.max_messages,
             max_units=policy.session.max_units,
@@ -41,7 +43,7 @@ class StandardContextManager:
             max_input_units=policy.budget.max_input_units,
             runtime_reserve_units=policy.budget.runtime_reserve_units,
         )
-        ctx.budget.pressure(
+        ctx.pressure.thresholds(
             moderate_at=policy.pressure.moderate_at,
             high_at=policy.pressure.high_at,
             critical_at=policy.pressure.critical_at,
