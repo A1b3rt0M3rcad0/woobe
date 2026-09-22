@@ -142,6 +142,41 @@ class RuntimeContextPriorities:
             _set_priority(self._policy, source, priority)
 
 
+class RuntimeContextInvocation:
+    """Read-only invocation facts exposed without leaking the outer request."""
+
+    __slots__ = ("_request", "_delegated")
+
+    def __init__(self, request: ContextAssemblyRequest, *, delegated: bool) -> None:
+        self._request = request
+        self._delegated = delegated
+
+    @property
+    def phase(self) -> str | None:
+        return self._request.phase
+
+    @property
+    def provider(self) -> str:
+        return self._request.provider
+
+    @property
+    def model(self) -> str:
+        return self._request.model
+
+    @property
+    def delegated(self) -> bool:
+        return self._delegated
+
+    @property
+    def has_active_tools(self) -> bool:
+        definitions = getattr(
+            self._request.runtime_context,
+            "active_tool_definitions",
+            None,
+        )
+        return bool(definitions)
+
+
 class RuntimeContextInventory:
     """Aggregate candidate facts without exposing raw provider messages."""
 
@@ -315,6 +350,7 @@ class RuntimeContextManagerContext:
         "candidates",
         "capacity",
         "inventory",
+        "invocation",
         "priorities",
         "budget",
         "pressure",
@@ -333,6 +369,12 @@ class RuntimeContextManagerContext:
             request.runtime_context,
         )
         self.inventory = RuntimeContextInventory(request)
+        self.invocation = RuntimeContextInvocation(
+            request,
+            delegated=bool(
+                getattr(request.runtime_context, "parent_invocation_id", None)
+            ),
+        )
         self.priorities = RuntimeContextPriorities(self._effective_policy)
         self.budget = RuntimeContextBudget(self._effective_policy)
         self.pressure = RuntimeContextPressure(self._effective_policy)
