@@ -38,7 +38,16 @@ class RuntimeContextCheckpoint:
             "state": self._state_store.dump(state),
         }
 
-        # Run-local state is immediately visible to subsequent Model Invocations.
+        recorder = getattr(self._runtime_context, "run_event_recorder", None)
+        if recorder is not None:
+            await recorder.emit(
+                "context.checkpoint",
+                payload,
+                durable=True,
+            )
+
+        # Publish hot state only after durable persistence succeeds. When no durable
+        # recorder exists (unit/local contexts), the state remains Run-local only.
         try:
             setattr(
                 self._runtime_context,
@@ -47,12 +56,3 @@ class RuntimeContextCheckpoint:
             )
         except (AttributeError, TypeError):
             pass
-
-        recorder = getattr(self._runtime_context, "run_event_recorder", None)
-        if recorder is None:
-            return
-        await recorder.emit(
-            "context.checkpoint",
-            payload,
-            durable=True,
-        )
