@@ -43,18 +43,22 @@ def test_default_registry_exposes_single_canonical_standard_manager() -> None:
     registry = build_context_assembler_registry()
     descriptors = registry.list_descriptors()
 
-    assert [descriptor.name for descriptor in descriptors] == ["standard"]
+    assert [descriptor.name for descriptor in descriptors] == ["standard", "adaptive"]
     standard = descriptors[0]
+    adaptive = descriptors[1]
     assert standard.is_default is True
     assert standard.supports_skills is True
+    assert adaptive.is_default is False
+    assert adaptive.supports_skills is True
     assert registry.current_default() == standard
 
 
 def test_catalog_exposes_unversioned_backend_owned_metadata() -> None:
     descriptors = list_context_assemblers()
 
-    assert len(descriptors) == 1
-    standard = descriptors[0]
+    assert len(descriptors) == 2
+    standard = next(item for item in descriptors if item["name"] == "standard")
+    adaptive = next(item for item in descriptors if item["name"] == "adaptive")
     assert standard["name"] == "standard"
     assert standard["display_name"] == "Standard Context Manager"
     assert standard["supports_skills"] is True
@@ -63,6 +67,9 @@ def test_catalog_exposes_unversioned_backend_owned_metadata() -> None:
     assert "strategy_name" not in standard
     assert "strategy_version" not in standard
     assert "is_system_default_alias" not in standard
+    assert adaptive["display_name"] == "Adaptive Context Manager"
+    assert adaptive["supports_skills"] is True
+    assert adaptive["is_default"] is False
 
 
 def test_registry_is_metadata_only_and_rejects_duplicate_identity() -> None:
@@ -114,12 +121,19 @@ def test_descriptor_rejects_incomplete_product_metadata(
         ContextAssemblerDescriptor(**values)  # type: ignore[arg-type]
 
 
+def test_builder_can_select_adaptive_as_configured_default_manager() -> None:
+    registry = build_context_assembler_registry("adaptive")
+
+    assert registry.current_default().name == "adaptive"
+    assert registry.get("standard").is_default is False
+
+
 def test_builder_rejects_unregistered_configured_default_manager() -> None:
     with pytest.raises(
         InvalidDefaultContextManagerError,
         match="exactly one default",
     ):
-        build_context_assembler_registry("adaptive")
+        build_context_assembler_registry("missing")
 
 
 def test_new_snapshot_canonicalization_persists_only_stable_name() -> None:
