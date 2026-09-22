@@ -457,7 +457,16 @@ function RunHeader({ title, subtitle, status, icon, metrics }: { title: string; 
 }
 
 function AgentRunInspector({ trace, detail, agentName, networkName }: { trace: Trace; detail?: TraceDetail; agentName: string; networkName?: string | null }) {
-  const source = detail ?? trace
+  const source: Trace = detail
+    ? {
+        ...trace,
+        ...detail,
+        data: {
+          ...traceData(trace),
+          ...traceData(detail),
+        },
+      }
+    : trace
   const data = traceData(source)
   const diagnostics = asRecord(data.diagnostics)
   const timeline = parseTimeline(detail ?? trace)
