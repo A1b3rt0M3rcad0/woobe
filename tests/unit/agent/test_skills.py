@@ -10,6 +10,7 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from modules.agent.infra.context_management.managers.resolver import build_context_assembler
 from modules.agent.application.context_assembly import (
     ContextBudgetExceeded,
+    assemble_context,
     estimate_input_units,
 )
 from modules.agent.application.interfaces.context_assembler import ContextAssemblyRequest
