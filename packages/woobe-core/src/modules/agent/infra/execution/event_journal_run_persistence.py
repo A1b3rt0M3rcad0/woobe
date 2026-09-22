@@ -8,7 +8,7 @@ import uuid6
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
 from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.application.use_cases.trace_event_builder import build_execution_timeline_events
+from modules.agent.infra.execution.trace_event_builder import build_execution_timeline_events
 from modules.agent.domain.entities import Message
 from modules.agent.domain.enums import MessageRole
 from modules.agent.domain.errors import MessageNotFoundError
