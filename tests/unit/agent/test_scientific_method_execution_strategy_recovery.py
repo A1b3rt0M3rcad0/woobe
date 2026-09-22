@@ -140,6 +140,7 @@ async def test_scientific_method_resumes_after_experiment_without_replaying_tool
             raise _SimulatedCrash("process stopped after scientific experiment")
 
     first_context = new_execution_context()
+    first_context.intermediate_messages_enabled = True
     first_context.run_event_recorder = CrashAfterCheckpointRecorder()
     first_token = current_execution.set(first_context)
     try:
@@ -178,6 +179,7 @@ async def test_scientific_method_resumes_after_experiment_without_replaying_tool
     assert tool_calls == 1
 
     second_context = new_execution_context()
+    second_context.intermediate_messages_enabled = True
     second_context.resume_state = captured["state"]
     second_token = current_execution.set(second_context)
     try:
