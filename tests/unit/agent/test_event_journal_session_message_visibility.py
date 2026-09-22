@@ -253,9 +253,10 @@ async def test_event_journal_completion_persists_assistant_message_before_return
     assert completed_payload["message_id"] == str(output.message_id)
     assert completed_payload["timeline_complete"] is True
     assert output.execution_events == completed_payload["execution_events"]
-    event_types = {
+    ordered_event_types = [
         event["event_type"] for event in completed_payload["execution_events"]
-    }
+    ]
+    event_types = set(ordered_event_types)
     assert {
         "http.request.received",
         "agent.execution.started",
@@ -267,6 +268,12 @@ async def test_event_journal_completion_persists_assistant_message_before_return
         "agent.execution.completed",
         "http.response.prepared",
     } <= event_types
+    assert ordered_event_types.index("structured_output.parse.completed") < (
+        ordered_event_types.index("agent.execution.completed")
+    )
+    assert ordered_event_types.index("agent.execution.completed") < (
+        ordered_event_types.index("http.response.prepared")
+    )
     assert completed_events[0][2] is True
     assert [event.event_type for event in outbox.events] == [
         "agent.execution.message.created.v1"
