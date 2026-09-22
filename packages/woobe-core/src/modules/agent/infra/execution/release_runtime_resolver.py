@@ -206,6 +206,7 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
             agent=agent,
             input_dto=input_dto,
             session=session,
+            allow_session_replay=self._is_network_runtime(input_dto),
         )
         if next_data != data or external_context.session_changed:
             session.data = next_data
