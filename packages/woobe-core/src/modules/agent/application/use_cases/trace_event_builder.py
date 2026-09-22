@@ -5,6 +5,33 @@ from typing import Any
 from uuid import uuid4
 
 
+_EVENT_ORDER = {
+    "http.request.received": 10,
+    "agent.execution.started": 20,
+    "agent.prepare.started": 30,
+    "agent.prepare.completed": 40,
+    "llm.call.started": 50,
+    "tool.call.started": 50,
+    "rag.retrieval.completed": 55,
+    "llm.call.completed": 60,
+    "tool.call.completed": 60,
+    "structured_output.parse.completed": 70,
+    "message.persistence.started": 80,
+    "message.persistence.completed": 90,
+    "agent.execution.completed": 100,
+    "http.response.prepared": 110,
+}
+
+
+def _event_sort_key(event: dict[str, Any]) -> tuple[float, int, str]:
+    event_type = str(event.get("event_type") or "")
+    return (
+        _ts(event.get("occurred_at")),
+        _EVENT_ORDER.get(event_type, 65),
+        event_type,
+    )
+
+
 def _ts(value: str | None) -> float:
     if not value:
         return float("inf")
@@ -129,7 +156,7 @@ def build_operation_events(trace_id: str, timeline: list[dict[str, Any]]) -> lis
                 duration_ms=None,
                 attributes=attributes,
             ))
-    events.sort(key=lambda event: (_ts(event.get("occurred_at")), event.get("event_type", "")))
+    events.sort(key=_event_sort_key)
     return events
 
 
@@ -279,7 +306,7 @@ def build_execution_timeline_events(
 
 
 def sequence_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    events.sort(key=lambda event: (_ts(event.get("occurred_at")), event.get("event_type", "")))
+    events.sort(key=_event_sort_key)
     for index, event in enumerate(events, start=1):
         event["sequence"] = index
     return events
