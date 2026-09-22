@@ -321,6 +321,14 @@ async def test_network_bulk_finalizer_materializes_children_in_one_commit() -> N
                         "cost_usd": 0.01,
                     },
                     "llm_calls": [root_llm_call],
+                    "execution_events": [
+                        {
+                            "event_type": "llm.call.completed",
+                            "occurred_at": (
+                                root_started_at + timedelta(milliseconds=500)
+                            ).isoformat(),
+                        }
+                    ],
                     "tool_calls": [],
                     "sources": [],
                     "started_at": root_started_at.isoformat(),
@@ -355,6 +363,14 @@ async def test_network_bulk_finalizer_materializes_children_in_one_commit() -> N
                         "cost_usd": 0.002,
                     },
                     "llm_calls": [child_llm_call],
+                    "execution_events": [
+                        {
+                            "event_type": "llm.call.completed",
+                            "occurred_at": (
+                                child_started_at + timedelta(milliseconds=250)
+                            ).isoformat(),
+                        }
+                    ],
                     "tool_calls": [
                         {
                             "tool_name": "lookup",
@@ -481,6 +497,8 @@ async def test_network_bulk_finalizer_materializes_children_in_one_commit() -> N
     assert child_run.usage["total_tokens"] == 7
     assert child_run.result["diagnostics"]["schema_version"] == 5
     assert child_run.result["llm_calls"][0]["call_id"] == str(child_model_invocation_id)
+    assert child_run.result["timeline_complete"] is True
+    assert child_run.result["execution_events"][0]["event_type"] == "llm.call.completed"
     assert child_run.started_at == child_started_at
     assert child_run.completed_at == child_completed_at
 
@@ -524,6 +542,10 @@ async def test_network_bulk_finalizer_materializes_children_in_one_commit() -> N
     assert child_completed_event.payload["usage"]["total_tokens"] == 7
     assert child_completed_event.payload["diagnostics"]["schema_version"] == 5
     assert child_completed_event.payload["tool_calls"][0]["tool_name"] == "lookup"
+    assert child_completed_event.payload["timeline_complete"] is True
+    assert child_completed_event.payload["execution_events"][0]["event_type"] == (
+        "llm.call.completed"
+    )
 
     assert len(agent_sessions) == 2
     assert len(messages) == 4
