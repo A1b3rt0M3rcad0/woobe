@@ -200,3 +200,19 @@ def test_effective_scope_change_is_compatibility_break() -> None:
         classify_effective_external_context_change(previous, candidate)
         is ReleaseChangeKind.COMPATIBILITY
     )
+
+
+def test_effective_resolution_rejects_stale_session_snapshot_after_scope_change() -> None:
+    changed = compose_external_context_contracts(
+        {"support": agent_contract(scope="run")}
+    )
+
+    with pytest.raises(
+        ExternalContextContractError,
+        match="no longer satisfies the active contract",
+    ):
+        resolve_scoped_effective_external_context(
+            changed,
+            {},
+            session_snapshot={"customer_id": "cus-1"},
+        )
