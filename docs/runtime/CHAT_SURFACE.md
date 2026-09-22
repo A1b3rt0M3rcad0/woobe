@@ -151,7 +151,29 @@ ChatSurface execution attribution includes:
 - embed protocol version for Agent Runs;
 - Network version, Surface and origin in Network execution events and outbox metadata.
 
-History is read from Agent or Network message storage through the validated Session binding. The iframe emits `ready`, `history.loaded`, `message.sent`, `run.started`, `run.completed`, `session.expired` and `error`.
+History is read from Agent or Network message storage through the validated Session binding.
+
+Assistant communication during an active Run follows the Runtime delivery contract:
+
+```text
+INTERNAL      → never rendered
+INTERMEDIATE  → durable Assistant Message; Run continues
+FINAL         → terminal Assistant Message
+```
+
+The embed reconciles intermediate messages by `message_id`. Live
+`assistant_message_delta` / `assistant_message_completed` events create or update
+independent Assistant bubbles before the terminal placeholder. Reattach
+`run.state.messages` restores the same durable messages without inventing new events.
+A pre-Tool final candidate that is promoted by the Runtime therefore remains visible as
+an intermediate message when the terminal candidate is retracted.
+
+For Agent Sessions, intermediate messages are persisted in Agent message storage. For
+Network Sessions, only public Root-Agent intermediate messages are materialized as
+`NetworkMessage` history; delegated child-Agent messages remain internal.
+
+The iframe emits `ready`, `history.loaded`, `message.sent`, `run.started`,
+`run.completed`, `session.expired` and `error`.
 
 ## Deployment
 
