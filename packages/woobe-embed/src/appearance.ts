@@ -107,6 +107,7 @@ export interface SurfaceAppearance {
   activity: ActivityStyle;
   response: {
     render_mode: ResponseRenderMode;
+    show_intermediate_messages: boolean;
   };
 }
 
@@ -223,6 +224,7 @@ export const DEFAULT_APPEARANCE: SurfaceAppearance = {
   },
   response: {
     render_mode: "rich",
+    show_intermediate_messages: false,
   },
 };
 
@@ -358,6 +360,10 @@ export function normalizeAppearance(value: unknown): SurfaceAppearance {
     },
     response: {
       render_mode: choice(response.render_mode, ["plain", "rich"] as const, DEFAULT_APPEARANCE.response.render_mode),
+      show_intermediate_messages: booleanValue(
+        response.show_intermediate_messages,
+        DEFAULT_APPEARANCE.response.show_intermediate_messages,
+      ),
     },
   };
 }
