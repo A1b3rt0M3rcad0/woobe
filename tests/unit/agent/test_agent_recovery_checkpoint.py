@@ -58,6 +58,7 @@ def _checkpoint_state() -> dict:
         AIMessage(
             content="",
             tool_calls=[{"id": "call-1", "name": "lookup", "args": {"id": "123"}}],
+            additional_kwargs={"reasoning_content": "private reasoning"},
         ),
         ToolMessage(content='{"customer":"active"}', tool_call_id="call-1"),
     ]
@@ -92,6 +93,10 @@ def test_checkpoint_round_trip_keeps_only_capability_continuation() -> None:
     assert len(resume.execution.tool_calls) == 1
     assert len(resume.execution.llm_calls) == 1
     assert isinstance(resume.capability_messages[0], AIMessage)
+    assert (
+        resume.capability_messages[0].additional_kwargs["reasoning_content"]
+        == "private reasoning"
+    )
     assert isinstance(resume.capability_messages[1], ToolMessage)
 
 
