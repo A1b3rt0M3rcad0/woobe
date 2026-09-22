@@ -26,6 +26,7 @@ class ScientificMethodPhase(ExecutionPhase):
     OBSERVATION = "observation"
     HYPOTHESIS_FORMULATION = "hypothesis_formulation"
     EVIDENCE_ANALYSIS = "evidence_analysis"
+    EXPERIMENT_UPDATE = "experiment_update"
     CRITICAL_REVIEW = "critical_review"
     CONCLUSION = "conclusion"
 
@@ -224,6 +225,26 @@ class ScientificMethodExecutionStrategy(
                     ScientificMethodPhase.EVIDENCE_ANALYSIS,
                     state.experiment_round,
                 )
+
+                try:
+                    await ctx.model.communicate(
+                        phase=strategy_phase_with_iteration(
+                            ScientificMethodPhase.EXPERIMENT_UPDATE,
+                            state.experiment_round,
+                        ),
+                        directive=(
+                            "Briefly tell the user that evidence from the latest "
+                            "experiment was collected and that you will analyze it "
+                            "before concluding or testing another point. Mention a "
+                            "Tool failure only if it materially affects what can be "
+                            "verified. Do not expose hidden reasoning, hypotheses, "
+                            "chain-of-thought, or raw Tool payloads."
+                        ),
+                    )
+                except InstrumentedExecutionError:
+                    # User-facing progress communication is best-effort. A failed
+                    # update must not invalidate an already completed Tool side effect.
+                    pass
 
                 if tool_batch.requires_suspension:
                     if tool_batch.suspension_reason is None:
