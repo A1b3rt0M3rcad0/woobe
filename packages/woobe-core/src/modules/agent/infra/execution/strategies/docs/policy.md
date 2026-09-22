@@ -66,6 +66,24 @@ arbitrary orchestration
 
 Those belong either to the Strategy algorithm or the Strategy Runtime.
 
+## Output delivery is not Strategy Policy
+
+A Strategy may declare an invocation as `INTERNAL`, `INTERMEDIATE`, or `FINAL`.
+That declaration describes the semantic role of its output. Whether
+`INTERMEDIATE` messages are allowed to cross the Agent execution boundary is a
+Runtime setting, not an `ExecutionPolicy` rule:
+
+```text
+runtime_config.execution.intermediate_messages = false
+→ Strategy INTERMEDIATE remains internal
+
+runtime_config.execution.intermediate_messages = true
+→ Strategy INTERMEDIATE may be published and persisted
+```
+
+This keeps the same Strategy reusable across products and communication bridges without
+embedding ChatSurface/API presentation rules in the algorithm.
+
 ## When not to create Policy
 
 If the Strategy has no meaningful configurable limits or deterministic stop rules, omit the Policy class.
