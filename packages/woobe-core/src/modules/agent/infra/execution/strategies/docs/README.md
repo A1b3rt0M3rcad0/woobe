@@ -2,7 +2,7 @@
 
 This directory contains the implementation guide for Agent Execution Strategies.
 
-Use [`../standard.py`](../standard.py) as the canonical reference implementation while reading these documents.
+Use [`../standard.py`](../standard.py) as the minimal reference and [`../scientific_method.py`](../scientific_method.py) as the advanced multi-phase reference while reading these documents.
 
 ## Index
 
@@ -51,7 +51,7 @@ Use [`../standard.py`](../standard.py) as the canonical reference implementation
    - one-file convention;
    - rules enforced by the Quality Gate.
 
-9. [Suspension and current limitations](./suspension.md)
+9. [Scientific Method Strategy](./scientific-method.md)\n   - first built-in multi-phase Directive-driven Strategy;\n   - observation, hypotheses, experiments, evidence analysis, falsification, and conclusion;\n   - durable experiment recovery.\n\n10. [Suspension and current limitations](./suspension.md)
    - current `Suspended` contract;
    - why `WAITING -> RESUME` is not generally available yet.
 

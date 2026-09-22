@@ -6,7 +6,7 @@ From the outside, an Agent receives an input and eventually produces an output. 
 
 An Execution Strategy is the part of Woobe that defines that behavior.
 
-For example, the current `standard` Strategy is the general-purpose execution used by Woobe. Future Strategies may introduce different execution styles, such as planning, ReAct-style iteration or reflection, without changing the rest of the Agent runtime.
+Woobe currently ships two built-in examples of this boundary. `standard` is the general-purpose Model/Tool loop. `scientific_method` is a hypothesis-driven multi-phase algorithm that uses per-invocation Directives for observation, hypothesis formulation, evidence analysis, falsification, and conclusion without changing the shared Strategy Runtime.
 
 The convention is intentionally simple:
 
@@ -24,7 +24,7 @@ strategies/
 └── reflection.py
 ```
 
-`standard.py` is the current reference implementation.
+`standard.py` is the minimal reference implementation. `scientific_method.py` is the advanced reference showing how a Strategy can define a substantially different algorithm with multiple phases, durable experiment checkpoints, and phase-specific Directives while using the same Strategy SDK and Runtime.
 
 ## Creating a new Execution Strategy
 

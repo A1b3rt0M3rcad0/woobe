@@ -73,3 +73,20 @@ tool_followup_2
 ```
 
 Do not invent incompatible string-building conventions when the shared helper already expresses the same requirement.
+
+
+## Scientific Method phases
+
+The Scientific Method Strategy is the first built-in example where phases directly define a multi-step reasoning algorithm.
+
+Its stable phases are:
+
+- `observation` — frame the problem, separate observations from assumptions, and identify relevant unknowns;
+- `hypothesis_formulation` — construct falsifiable competing explanations and determine what evidence would distinguish them;
+- `evidence_analysis_N` — evaluate the evidence produced by experiment round N and decide whether another minimal test is necessary;
+- `critical_review` — actively attempt to falsify the provisional conclusion and search for contradictory evidence or alternative explanations;
+- `conclusion` — synthesize the supported result while separating evidence, inference, and unresolved uncertainty.
+
+`evidence_analysis_N` uses `strategy_phase_with_iteration()`, so traces and recovery expose the exact experiment cycle without creating a global cross-Strategy phase enum.
+
+The associated Directive is intentionally not part of State. The current phase plus algorithm State is enough to derive it deterministically.

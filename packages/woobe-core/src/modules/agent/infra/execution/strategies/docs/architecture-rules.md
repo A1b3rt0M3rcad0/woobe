@@ -9,6 +9,7 @@ The required convention is:
 ```text
 strategies/
 ├── standard.py
+├── scientific_method.py
 ├── planner.py
 ├── react.py
 └── reflection.py
@@ -142,3 +143,10 @@ tests/architecture/execution_strategy/test_strategy_import_quality_gate.py
 ```
 
 If a new Strategy cannot satisfy these rules, do not add a local exception first. Re-evaluate whether the implementation is placing algorithm behavior in the wrong layer or whether a genuinely shared platform primitive is missing.
+
+
+## Advanced Strategy example
+
+`scientific_method.py` is intentionally implemented without imports from `strategy_runtime`, provider frameworks, persistence, or `standard.py`. Its phase machine, experiment counter, stop policy, and Directive selection are algorithm concerns and therefore remain in the concrete Strategy.
+
+If a future Strategy needs planning, verification, debate, reflection, search, or another multi-step pattern, prefer the same approach: express the behavior with local phases, State, Policy, Directives, Tool decisions, and checkpoints before proposing a new shared runtime primitive.

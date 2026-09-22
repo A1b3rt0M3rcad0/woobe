@@ -12,11 +12,12 @@ packages/woobe-core/src/modules/agent/infra/execution/strategies/resolver.py
 
 The resolver maps a stable Strategy name to the concrete implementation that executes.
 
-Current Standard registration:
+Current built-in registration includes both the minimal Standard algorithm and the Directive-driven Scientific Method:
 
 ```python
 _BUILTIN_EXECUTION_STRATEGY_FACTORIES = {
     StandardExecutionStrategy.name: StandardExecutionStrategy,
+    ScientificMethodExecutionStrategy.name: ScientificMethodExecutionStrategy,
 }
 ```
 
@@ -116,3 +117,12 @@ Every selectable catalog Strategy must resolve at runtime, and every built-in ru
 The catalog/resolver tests enforce this parity.
 
 `standard` remains the historical fallback and current default unless changing that behavior is an explicit product decision.
+
+
+The product catalog follows the same split:
+
+- `standard` remains `is_default=True` and the historical fallback;
+- `scientific_method` is selectable with `is_default=False`;
+- both names must remain in exact resolver/catalog parity.
+
+The Scientific Method descriptor should communicate that it trades additional Model calls for explicit observation, hypothesis testing, evidence review, and falsification. Product metadata describes that behavior; it must not import the concrete Strategy class.

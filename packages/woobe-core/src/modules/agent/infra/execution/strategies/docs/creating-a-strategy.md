@@ -1,6 +1,6 @@
 # Creating a new Execution Strategy
 
-Use [`../standard.py`](../standard.py) as the canonical implementation reference.
+Use [`../standard.py`](../standard.py) as the minimal implementation reference and [`../scientific_method.py`](../scientific_method.py) when the new Strategy needs multiple semantic phases, invocation-local Directives, or recovery across repeated Tool-backed experiments.
 
 The normal workflow is deliberately small:
 
@@ -326,3 +326,21 @@ new:    tests/unit/agent/test_<name>_execution_strategy.py
 ```
 
 It should normally **not** require changes to `strategy_runtime/`.
+
+
+## Choosing the right reference
+
+Use `standard.py` when the new algorithm is primarily a Model/Tool loop with deterministic limits.
+
+Use `scientific_method.py` when the algorithm itself owns a sequence of cognitive phases. It demonstrates the intended pattern for:
+
+- Strategy-specific `ExecutionPhase` values;
+- a small serializable State machine;
+- a real `ExecutionPolicy`;
+- different Directives for different Model invocations;
+- Tool calls as algorithmic experiments;
+- checkpointing after durable side effects;
+- resume into the next semantic phase without replaying the Tool;
+- normal completion versus conservative `finalize()` after a stop condition.
+
+A Directive should be derived from the current phase and State. Do not persist the Directive itself. Persist only the algorithm information needed to reconstruct which Directive must be used after resume.

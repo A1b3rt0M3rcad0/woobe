@@ -15,7 +15,7 @@ tests/unit/agent/
 
 Test the decisions that make the Strategy different.
 
-For example, a Planner should test planning, step progression, replanning limits and final synthesis. A ReAct Strategy should test iteration and Tool/observation progression.
+For example, Scientific Method tests cover observation → hypothesis → experiment → evidence analysis → critical review → conclusion, phase-specific Directives, investigation reopening from critical review, and deterministic experiment limits. A Planner should test planning, step progression, replanning limits and final synthesis. A ReAct Strategy should test iteration and Tool/observation progression.
 
 Do not duplicate generic runtime tests unless the Strategy depends on a specific behavior that must be preserved.
 
@@ -107,3 +107,21 @@ uv run pytest -q \
 Add the concrete Strategy's own unit and recovery tests to the command.
 
 Do not claim CI, typecheck, build or test success unless it was actually executed.
+
+
+## Scientific Method reference tests
+
+The Scientific Method adds both focused algorithm tests and a runtime recovery test.
+
+The behavior test verifies that:
+
+- each semantic phase receives the expected Directive;
+- Tool requests become experiment rounds;
+- evidence analysis receives the completed round number;
+- critical review can request another experiment and reopen investigation;
+- the experiment limit stops before an extra Tool side effect is executed;
+- conservative finalization is used when investigation is stopped by policy.
+
+The recovery test crashes immediately after a durable experiment checkpoint. Resume must restore `evidence_analysis_1`, preserve the Tool evidence, avoid replaying the experiment, materialize the evidence-analysis Directive again, and continue through critical review and conclusion.
+
+This is the preferred test pattern for future Strategies with durable side effects.

@@ -50,7 +50,7 @@ checkpoint placement
 final outcome selection
 ```
 
-The current [`StandardExecutionStrategy`](../standard.py) is a Model/Tool loop. A future Planner or ReAct Strategy may use the same runtime primitives in a different order.
+The [`StandardExecutionStrategy`](../standard.py) is a compact Model/Tool loop. The [`ScientificMethodExecutionStrategy`](../scientific_method.py) proves the same primitives can support a materially different algorithm: observation → hypothesis formulation → Tool-backed experiments → evidence analysis → critical falsification → conclusion.
 
 ## Phase and Directive
 
@@ -159,3 +159,17 @@ If several Strategies need the same capability and the current Strategy SDK cann
 The rule is:
 
 > Do not expand the Strategy Runtime to make one Strategy more convenient when the behavior is actually algorithm-specific.
+
+
+## Two concrete Strategy shapes
+
+The built-ins now demonstrate two different levels of orchestration.
+
+- `standard` keeps the algorithm intentionally small. The Model decides when Tools are needed and the Strategy repeats the Model/Tool loop until completion or a safety limit.
+- `scientific_method` owns a semantic phase machine. The Strategy decides which cognitive operation is required next and expresses that operation with an invocation-local Directive.
+
+The important architectural result is that both execute through the same `StrategyContext`, Model facade, Tool facade, checkpoint mechanism, recovery path, instrumentation, and finalization pipeline. No Scientific-Method-specific code belongs in `strategy_runtime`.
+
+In the Scientific Method, Tool calls are treated as experiments. A Tool result becomes durable evidence in normal conversation progression. The concrete Strategy stores only algorithm state such as the current phase, completed experiment count, and where control should continue after evidence analysis.
+
+This is the intended extensibility model: new algorithms change orchestration, phases, policies, and Directives first. Shared runtime primitives should only change when several independent Strategies expose the same missing platform capability.
