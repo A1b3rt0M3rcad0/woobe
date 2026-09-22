@@ -9,6 +9,7 @@ import { useExecutionStrategies } from '@/features/agents/hooks'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { AgentContextAssemblerField } from './AgentContextAssemblerField'
 import { AgentExecutionStrategyField } from './AgentExecutionStrategyField'
+import { AgentIntermediateMessagesField } from './AgentIntermediateMessagesField'
 import { AgentSessionModeField } from './AgentSessionModeField'
 
 export function AgentRuntimeSettings({ projectId }: { projectId: string }) {
@@ -26,6 +27,7 @@ export function AgentRuntimeSettings({ projectId }: { projectId: string }) {
         <div className="space-y-ui-lg p-ui-md">
           <p className="font-sans text-product-caption text-muted-foreground">Configure how this Agent conducts execution, assembles context, and preserves Session continuity between Runs.</p>
           <div className="rounded-container border border-border bg-background/20 p-ui-md"><AgentExecutionStrategyField compact /></div>
+          <div className="rounded-container border border-border bg-background/20 p-ui-md"><AgentIntermediateMessagesField compact /></div>
           <div className="rounded-container border border-border bg-background/20 p-ui-md"><AgentContextAssemblerField projectId={projectId} compact /></div>
           <div className="rounded-container border border-border bg-background/20 p-ui-md"><AgentSessionModeField compact /></div>
         </div>
