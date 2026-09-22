@@ -262,8 +262,7 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
     )
     model = base_model.bind_tools(agent_tools, tool_choice="auto") if has_tools else base_model
 
-    network_execution = bool(context and context.network_execution_id)
-    final_model = base_model if has_tools and network_execution and not request.json_enabled else None
+    final_model = base_model if has_tools and not request.json_enabled else None
     final_model_factory: Callable[[], Any] | None = None
     if has_tools and request.json_enabled:
 
