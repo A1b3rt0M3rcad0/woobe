@@ -33,6 +33,7 @@ class _Model:
     def __init__(self, responses: list[StrategyModelResult]) -> None:
         self.responses = list(responses)
         self.invocations: list[dict[str, object]] = []
+        self.communications: list[dict[str, object]] = []
         self.finalizations: list[dict[str, object]] = []
 
     async def invoke(self, *, phase=None, directive=None, output_mode=None):
@@ -44,6 +45,15 @@ class _Model:
             }
         )
         return self.responses.pop(0)
+
+    async def communicate(self, *, phase, directive=None):
+        self.communications.append(
+            {
+                "phase": phase,
+                "directive": directive,
+            }
+        )
+        return _result("Evidence collected. I will analyze it next.")
 
     async def finalize(
         self,
@@ -116,6 +126,10 @@ async def test_scientific_method_uses_directives_and_reopens_investigation() -> 
     assert ctx.state.experiment_round == 2
     assert len(ctx.tools.calls) == 2
     assert len(ctx.checkpoints) == 2
+    assert [item["phase"] for item in model.communications] == [
+        "experiment_update_1",
+        "experiment_update_2",
+    ]
 
     phases = [item["phase"] for item in model.invocations]
     assert phases == [
@@ -170,6 +184,10 @@ async def test_scientific_method_does_not_skip_hypothesis_after_chained_evidence
     assert isinstance(outcome, Completed)
     assert outcome.result.content == "final conclusion"
     assert ctx.state.experiment_round == 2
+    assert [item["phase"] for item in model.communications] == [
+        "experiment_update_1",
+        "experiment_update_2",
+    ]
     assert [item["phase"] for item in model.invocations] == [
         ScientificMethodPhase.OBSERVATION.value,
         "evidence_analysis_1",
@@ -218,6 +236,9 @@ async def test_scientific_method_concludes_from_collected_evidence_after_provide
     assert isinstance(outcome, Completed)
     assert outcome.result.content == "limited conclusion"
     assert ctx.state.experiment_round == 1
+    assert [item["phase"] for item in model.communications] == [
+        "experiment_update_1"
+    ]
     assert (
         ctx.state.stop_reason
         == ScientificMethodStopReason.PROVIDER_REJECTED_FOLLOWUP
@@ -266,6 +287,9 @@ async def test_scientific_method_stops_before_exceeding_experiment_limit() -> No
     assert outcome.result.content == "limited conclusion"
     assert ctx.state.experiment_round == 1
     assert len(ctx.tools.calls) == 1
+    assert [item["phase"] for item in model.communications] == [
+        "experiment_update_1"
+    ]
     assert (
         ctx.state.stop_reason
         == ScientificMethodStopReason.EXPERIMENT_ROUND_LIMIT
