@@ -76,11 +76,16 @@ class FakeTransactions:
         return await operation(self.repositories, self.outbox)
 
 
-def completed_event(run: AgentRun, message_id) -> DurableRunEvent:
+def completed_event(
+    run: AgentRun,
+    message_id,
+    *,
+    sequence: int = 1,
+) -> DurableRunEvent:
     return DurableRunEvent(
         run_id=run.id,
         run_kind="agent",
-        sequence=1,
+        sequence=sequence,
         event_id=str(uuid4()),
         event_type="run.completed",
         occurred_at="2026-09-10T18:10:00+00:00",
@@ -280,6 +285,62 @@ async def test_agent_projector_rejects_projection_gaps() -> None:
     with pytest.raises(RuntimeError, match="projection gap"):
         await projector.project([event])
 
+
+
+@pytest.mark.anyio
+async def test_agent_projector_keeps_intermediate_and_final_messages_distinct() -> None:
+    run, session = _run_fixture()
+    messages = FakeMessages()
+    sessions = FakeSessions(session)
+    runs = FakeRuns(run)
+    outbox = FakeOutbox()
+    projector = AgentRunEventProjector(
+        FakeTransactions(
+            SimpleNamespace(runs=runs, messages=messages, sessions=sessions),
+            outbox,
+        )
+    )
+    intermediate_id = uuid4()
+    final_id = uuid4()
+    intermediate = DurableRunEvent(
+        run_id=run.id,
+        session_id=run.session_id,
+        run_kind="agent",
+        sequence=1,
+        event_id=str(uuid4()),
+        event_type="assistant.message.completed",
+        occurred_at="2026-09-10T18:09:00+00:00",
+        schema_version=1,
+        storage_version=EVENT_JOURNAL_STORAGE_VERSION,
+        metadata={"project_id": str(run.project_id), "agent_id": str(run.agent_id)},
+        payload={
+            "message_id": str(intermediate_id),
+            "content": "Vou procurar.",
+            "phase": "search_update",
+            "output_mode": "intermediate",
+            "provider": "custom",
+            "model": "test-model",
+            "partial": False,
+            "completed_at": "2026-09-10T18:09:00+00:00",
+        },
+    )
+
+    await projector.project([
+        intermediate,
+        completed_event(run, final_id, sequence=2),
+    ])
+
+    assert runs.run.status == AgentRunStatus.COMPLETED
+    assert runs.run.output_message_id == final_id
+    assert runs.run.journal_projected_sequence == 2
+    assert set(messages.items) == {intermediate_id, final_id}
+    assert messages.items[intermediate_id].content == "Vou procurar."
+    assert messages.items[intermediate_id].data["output_mode"] == "intermediate"
+    assert messages.items[intermediate_id].data["run_id"] == str(run.id)
+    assert messages.items[final_id].content == "projected answer"
+    assert messages.items[final_id].data["run_id"] == str(run.id)
+    assert messages.create_calls == 2
+    assert sessions.update_calls == 2
 
 
 @pytest.mark.anyio
