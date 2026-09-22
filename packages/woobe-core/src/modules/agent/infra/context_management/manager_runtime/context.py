@@ -5,7 +5,20 @@ from typing import Literal
 
 from modules.agent.application.context_manager_sdk import ContextManagerOutcome
 from modules.agent.application.interfaces.context_assembler import ContextAssemblyRequest
-from modules.agent.application.interfaces.context_policy import ContextPolicyV1
+from modules.agent.application.interfaces.context_policy import (
+    ArtifactContextPolicy,
+    CheckpointContextPolicy,
+    ContextBudgetPolicy,
+    ContextDeduplicationPolicy,
+    ContextOrderingPolicy,
+    ContextPolicyV1,
+    ContextPressurePolicy,
+    DelegationContextPolicy,
+    KnowledgeContextPolicy,
+    MemoryContextPolicy,
+    SessionContextPolicy,
+    ToolContextPolicy,
+)
 from modules.agent.domain.context import ContextPriority, ContextSourceType
 
 
@@ -42,9 +55,11 @@ class RuntimeContextCandidates:
         max_messages: int,
         max_units: int | None,
     ) -> None:
-        self._policy.session.strategy = "recent"
-        self._policy.session.max_messages = max_messages
-        self._policy.session.max_units = max_units
+        self._policy.session = SessionContextPolicy(
+            strategy="recent",
+            max_messages=max_messages,
+            max_units=max_units,
+        )
 
     def cap(
         self,
@@ -52,17 +67,20 @@ class RuntimeContextCandidates:
         max_units: int | None,
     ) -> None:
         if source == ContextSourceType.CHECKPOINT:
-            self._policy.checkpoints.max_units = max_units
+            self._policy.checkpoints = CheckpointContextPolicy(max_units=max_units)
         elif source == ContextSourceType.MEMORY:
-            self._policy.memory.max_units = max_units
+            self._policy.memory = MemoryContextPolicy(max_units=max_units)
         elif source == ContextSourceType.KNOWLEDGE:
-            self._policy.knowledge.max_units = max_units
+            self._policy.knowledge = KnowledgeContextPolicy(max_units=max_units)
         elif source == ContextSourceType.TOOL:
-            self._policy.tools.max_result_units = max_units
+            self._policy.tools = ToolContextPolicy(max_result_units=max_units)
         elif source == ContextSourceType.ARTIFACT:
-            self._policy.artifacts.max_units = max_units
+            self._policy.artifacts = ArtifactContextPolicy(
+                strategy=self._policy.artifacts.strategy,
+                max_units=max_units,
+            )
         elif source == ContextSourceType.DELEGATION:
-            self._policy.delegation.max_units = max_units
+            self._policy.delegation = DelegationContextPolicy(max_units=max_units)
         else:
             raise ValueError(
                 f"Context source {source.value} does not expose an independent source cap"
@@ -84,15 +102,17 @@ class RuntimeContextCandidates:
         strategy: Literal["none", "content_hash"],
         sources: list[ContextSourceType],
     ) -> None:
-        self._policy.deduplication.strategy = strategy
-        self._policy.deduplication.sources = list(dict.fromkeys(sources))
+        self._policy.deduplication = ContextDeduplicationPolicy(
+            strategy=strategy,
+            sources=list(dict.fromkeys(sources)),
+        )
 
     def order(
         self,
         *,
         strategy: Literal["preserve_input", "source_priority"],
     ) -> None:
-        self._policy.ordering.strategy = strategy
+        self._policy.ordering = ContextOrderingPolicy(strategy=strategy)
 
 
 class RuntimeContextPriorities:
@@ -130,8 +150,10 @@ class RuntimeContextBudget:
         max_input_units: int | None,
         runtime_reserve_units: int,
     ) -> None:
-        self._policy.budget.max_input_units = max_input_units
-        self._policy.budget.runtime_reserve_units = runtime_reserve_units
+        self._policy.budget = ContextBudgetPolicy(
+            max_input_units=max_input_units,
+            runtime_reserve_units=runtime_reserve_units,
+        )
 
 
 class RuntimeContextPressure:
@@ -149,13 +171,11 @@ class RuntimeContextPressure:
         high_at: float,
         critical_at: float,
     ) -> None:
-        if not 0 < moderate_at < high_at < critical_at <= 1:
-            raise ValueError(
-                "Context pressure thresholds must satisfy 0 < moderate < high < critical <= 1"
-            )
-        self._policy.pressure.moderate_at = moderate_at
-        self._policy.pressure.high_at = high_at
-        self._policy.pressure.critical_at = critical_at
+        self._policy.pressure = ContextPressurePolicy(
+            moderate_at=moderate_at,
+            high_at=high_at,
+            critical_at=critical_at,
+        )
 
 
 class RuntimeContextSources:
@@ -197,7 +217,10 @@ class RuntimeContextManagerContext:
         return bool(getattr(self._request.runtime_context, "skill_context", None))
 
     def complete(self) -> ContextManagerOutcome:
+        validated = ContextPolicyV1.model_validate(
+            self._effective_policy.model_dump(mode="json")
+        )
         return ContextManagerOutcome(
-            policy=self._effective_policy.model_copy(deep=True),
+            policy=validated,
             materialize_skills=self.sources.materialize_skills,
         )
