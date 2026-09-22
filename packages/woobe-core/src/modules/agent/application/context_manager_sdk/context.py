@@ -19,7 +19,9 @@ class ContextManagerContext(Protocol):
     expressed through SDK primitives and frozen by complete().
     """
 
-    policy: ContextPolicyV1
+    @property
+    def policy(self) -> ContextPolicyV1: ...
+
     candidates: ContextCandidates
     priorities: ContextPriorities
     budget: ContextBudget
