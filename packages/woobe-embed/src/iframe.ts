@@ -599,7 +599,6 @@ async function resumeActiveRun() {
   try {
     const response = await api(`/v1/chat/sessions/${sessionId}/active-run/stream`);
     await observeRuntimeRun(response, { resumed: true });
-    await loadHistory();
   } catch (error) {
     appendError(error);
   } finally {
