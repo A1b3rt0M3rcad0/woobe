@@ -13,6 +13,8 @@ Concrete Context Manager
 ContextManagerContext
 ├── policy          configured input, isolated from effective behavior
 ├── candidates      eligibility, Session window, caps, dedup, ordering
+├── capacity        invocation/model budget facts
+├── inventory       aggregate candidates by source
 ├── priorities      source priority decisions
 ├── budget          configured input budget and runtime reserve
 ├── pressure        evidence/classification thresholds
@@ -47,6 +49,8 @@ Context Manager    -> ContextManagerContext -> Context Manager Runtime
 ~~~
 
 ## What a Manager owns
+
+A Manager can also inspect invocation facts through `ctx.capacity` and aggregate source availability through `ctx.inventory`, without seeing provider message objects.
 
 Typical Manager decisions include:
 
