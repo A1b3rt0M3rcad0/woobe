@@ -263,3 +263,18 @@ def test_scoped_resolution_rejects_repeated_session_values() -> None:
             {"customer_id": "cus-1"},
             session_snapshot=first.session_snapshot,
         )
+
+
+def test_scoped_resolution_rejects_session_snapshot_after_scope_change() -> None:
+    previous_session_snapshot = {"customer_id": "cus-1"}
+    changed_contract = contract(required=False, scope="run")
+
+    with pytest.raises(
+        ExternalContextContractError,
+        match="no longer satisfies the active contract",
+    ):
+        resolve_scoped_external_context(
+            changed_contract,
+            {},
+            session_snapshot=previous_session_snapshot,
+        )
