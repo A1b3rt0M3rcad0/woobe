@@ -12,6 +12,7 @@ from modules.agent.application.context_assembler_registry import (
 from modules.agent.application.context_manager_sdk import (
     ContextManagerContext,
     ContextManagerOutcome,
+    ContextManagerState,
 )
 from modules.agent.application.interfaces.context_assembler import ContextAssemblyRequest
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
@@ -27,10 +28,11 @@ from modules.agent.infra.context_management.managers.resolver import (
 
 class _RecentOnlyManager:
     name = "recent-only"
+    state_type = ContextManagerState
 
-    def assemble(
+    async def assemble(
         self,
-        ctx: ContextManagerContext,
+        ctx: ContextManagerContext[ContextManagerState],
     ) -> ContextManagerOutcome:
         ctx.candidates.recent_session(
             max_messages=1,
@@ -48,7 +50,8 @@ def test_product_catalog_and_runtime_resolver_names_stay_in_parity() -> None:
     assert catalog_names == builtin_context_manager_names()
 
 
-def test_custom_manager_programs_context_without_touching_runtime_mechanics() -> None:
+@pytest.mark.asyncio
+async def test_custom_manager_programs_context_without_touching_runtime_mechanics() -> None:
     request = ContextAssemblyRequest(
         messages=[
             SystemMessage(content="System"),
@@ -79,7 +82,7 @@ def test_custom_manager_programs_context_without_touching_runtime_mechanics() ->
         policy=ContextPolicyV1(),
     )
 
-    output = ContextManagerRunner(_RecentOnlyManager()).assemble(request)
+    output = await ContextManagerRunner(_RecentOnlyManager()).assemble(request)
 
     contents = [message.content for message in output.messages]
     assert "old user" not in contents
@@ -90,8 +93,9 @@ def test_custom_manager_programs_context_without_touching_runtime_mechanics() ->
 
 class _InvalidManager:
     name = "invalid"
+    state_type = ContextManagerState
 
-    def assemble(self, ctx: ContextManagerContext):
+    async def assemble(self, ctx: ContextManagerContext[ContextManagerState]):
         return object()
 
 
@@ -123,7 +127,7 @@ def test_manager_context_uses_isolated_effective_policy() -> None:
         policy=ContextPolicyV1(),
     )
 
-    built = build_context_manager_context(request)
+    built = build_context_manager_context(_RecentOnlyManager(), request)
     built.candidates.recent_session(max_messages=1, max_units=128)
     outcome = built.complete()
 
@@ -147,7 +151,7 @@ def test_direct_policy_mutation_does_not_bypass_manager_primitives() -> None:
         policy=ContextPolicyV1(),
     )
 
-    built = build_context_manager_context(request)
+    built = build_context_manager_context(_RecentOnlyManager(), request)
     built.policy.session.max_messages = 1
     outcome = built.complete()
 
@@ -166,7 +170,7 @@ def test_priority_and_pressure_primitives_program_effective_policy() -> None:
         policy=ContextPolicyV1(),
     )
 
-    built = build_context_manager_context(request)
+    built = build_context_manager_context(_RecentOnlyManager(), request)
     built.priorities.set(ContextSourceType.KNOWLEDGE, ContextPriority.HIGH)
     built.pressure.thresholds(moderate_at=0.25, high_at=0.60, critical_at=0.85)
     outcome = built.complete()
@@ -189,7 +193,7 @@ def test_priority_primitive_preserves_mandatory_source_invariants() -> None:
         policy=ContextPolicyV1(),
     )
 
-    built = build_context_manager_context(request)
+    built = build_context_manager_context(_RecentOnlyManager(), request)
 
     with pytest.raises(ValueError, match="SYSTEM context priority must remain MANDATORY"):
         built.priorities.set(ContextSourceType.SYSTEM, ContextPriority.DYNAMIC)
@@ -207,7 +211,7 @@ def test_candidate_budget_and_pressure_primitives_validate_policy_constraints() 
         policy=ContextPolicyV1(),
     )
 
-    built = build_context_manager_context(request)
+    built = build_context_manager_context(_RecentOnlyManager(), request)
 
     with pytest.raises(ValueError):
         built.candidates.recent_session(max_messages=0, max_units=None)
@@ -249,7 +253,7 @@ def test_capacity_primitive_tracks_effective_invocation_budget() -> None:
         ),
     )
 
-    built = build_context_manager_context(request)
+    built = build_context_manager_context(_RecentOnlyManager(), request)
 
     assert built.capacity.model_capacity_units == 10_000
     assert built.capacity.reserved_output_units == 1_000
@@ -304,7 +308,7 @@ def test_inventory_primitive_exposes_aggregate_sources_without_raw_messages() ->
         policy=ContextPolicyV1(),
     )
 
-    built = build_context_manager_context(request)
+    built = build_context_manager_context(_RecentOnlyManager(), request)
 
     assert built.inventory.count(ContextSourceType.SYSTEM) == 2
     assert built.inventory.count(ContextSourceType.SESSION) == 2
@@ -340,7 +344,7 @@ def test_invocation_primitive_exposes_algorithm_relevant_metadata() -> None:
         phase="tool_followup_1",
     )
 
-    built = build_context_manager_context(request)
+    built = build_context_manager_context(_RecentOnlyManager(), request)
 
     assert built.invocation.phase == "tool_followup_1"
     assert built.invocation.provider == "openai"
@@ -348,7 +352,8 @@ def test_invocation_primitive_exposes_algorithm_relevant_metadata() -> None:
     assert built.invocation.delegated is True
     assert built.invocation.has_active_tools is True
 
-def test_manager_runner_rejects_non_sdk_outcomes() -> None:
+@pytest.mark.asyncio
+async def test_manager_runner_rejects_non_sdk_outcomes() -> None:
     request = ContextAssemblyRequest(
         messages=[SystemMessage(content="System"), HumanMessage(content="current user")],
         model_invocation_id=uuid4(),
@@ -377,7 +382,7 @@ def test_manager_runner_rejects_non_sdk_outcomes() -> None:
     )
 
     try:
-        ContextManagerRunner(_InvalidManager()).assemble(request)
+        await ContextManagerRunner(_InvalidManager()).assemble(request)
     except TypeError as exc:
         assert "ContextManagerOutcome" in str(exc)
     else:
