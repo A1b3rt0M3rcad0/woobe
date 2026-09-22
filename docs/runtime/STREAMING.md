@@ -94,6 +94,47 @@ For the Agent initial fast path, semantic identity and sequence are assigned bef
 
 The durable Run Event Journal is a different internal stream and keeps its own journal sequence. Journal events and public Runtime events do not have 1:1 cardinality, so their sequences must not be artificially unified.
 
+## Assistant message modes and pre-Tool promotion
+
+Assistant output has three semantic modes:
+
+```text
+INTERNAL      → execution-private
+INTERMEDIATE  → public durable Assistant Message; Run continues
+FINAL         → public terminal Assistant Message
+```
+
+A capability-selection invocation may optimistically stream `FINAL` tokens before the
+provider has finished deciding whether to answer or call a Tool. If that same invocation
+ultimately returns `tool_calls` after public text was already shown, the runtime must not
+make the visible text disappear from the conversation.
+
+The runtime therefore performs this ordered transition:
+
+```text
+FINAL candidate tokens shown
+        ↓
+Tool call selected
+        ↓
+flush candidate output to the durable journal
+        ↓
+assistant_message_completed with a new INTERMEDIATE message_id
+        ↓
+token_retract for the old FINAL candidate
+        ↓
+Tool execution continues
+        ↓
+later FINAL response keeps the Run output_message_id
+```
+
+The promoted intermediate message is durable Session history. Its `message_id` is
+different from the terminal `AgentRun.output_message_id`. Clients must reconcile by
+`message_id` and `output_mode`; they must not treat "the last Assistant bubble" as the
+terminal response.
+
+Explicit Strategy communication through `ctx.model.communicate(...)` uses the same
+`INTERMEDIATE` contract without requiring a Tool-selection round.
+
 ## Redis responsibilities
 
 Redis is hot operational state, not the durable source of truth. It stores:
