@@ -14,6 +14,10 @@ import { PlaygroundHeader } from '@/features/playground/components/PlaygroundHea
 import { OperationsRail, type LeftPanelTab } from '@/features/playground/components/OperationsRail'
 import { OperationsPanel } from '@/features/playground/components/OperationsPanel'
 import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
+import {
+  updateTerminalAssistantMessage as updateTerminalAssistantMessageState,
+  upsertIntermediateAssistantMessage as upsertIntermediateAssistantMessageState,
+} from '@/features/playground/chat-message-state'
 import { filterContractValues } from '@/features/contracts/contractFields'
 import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import { ApiModal } from '@/features/playground/components/ApiModal'
@@ -324,6 +328,7 @@ function PlaygroundContent() {
         phase: (m.data?.phase as string | undefined) ?? null,
         output_mode: m.data?.output_mode === 'intermediate' ? 'intermediate' : m.role === 'assistant' ? 'final' : null,
         partial: typeof m.data?.partial === 'boolean' ? m.data.partial : null,
+        created_at: m.created_at ?? null,
         usage: m.input_tokens != null ? { input_tokens: m.input_tokens, output_tokens: m.output_tokens ?? null, cost_usd: null } : null,
         tool_calls: (m.data?.tool_calls ?? null) as ChatMessage['tool_calls'],
         sources: (m.data?.sources ?? null) as ChatMessage['sources'],
@@ -427,57 +432,22 @@ function PlaygroundContent() {
     }
   }, [agentId, createRuntimeSession, creatingSession, disconnectStream, environment, environmentReady, isStateless, projectId, queryClient, releaseVersionById, runtimeEnabled, setCurrentSessionId])
 
-  const updateLastAssistantMessage = useCallback((updater: (message: ChatMessage) => ChatMessage) => {
-    setMessages((prev) => {
-      const updated = [...prev]
-      const last = updated[updated.length - 1]
-      if (last?.role === 'assistant') updated[updated.length - 1] = updater(last)
-      return updated
-    })
+  const updateTerminalAssistantMessage = useCallback((
+    updater: (message: ChatMessage) => ChatMessage,
+  ) => {
+    setMessages((prev) => updateTerminalAssistantMessageState(prev, updater))
   }, [])
 
   const upsertIntermediateAssistantMessage = useCallback((
     info: AssistantMessageInfo,
     append: boolean,
   ) => {
-    setMessages((prev) => {
-      const existingIndex = prev.findIndex((message) => (
-        message.role === 'assistant' && message.message_id === info.message_id
-      ))
-      if (existingIndex >= 0) {
-        const updated = [...prev]
-        const existing = updated[existingIndex]
-        updated[existingIndex] = {
-          ...existing,
-          content: append ? existing.content + info.content : info.content,
-          phase: info.phase ?? existing.phase ?? null,
-          output_mode: 'intermediate',
-          partial: info.partial ?? existing.partial ?? null,
-          model: info.model ?? existing.model ?? null,
-          provider: info.provider ?? existing.provider ?? null,
-          activity: null,
-        }
-        return updated
-      }
-
-      const message: ChatMessage = {
-        role: 'assistant',
-        content: info.content,
-        message_id: info.message_id,
-        run_id: currentRunIdRef.current,
-        phase: info.phase ?? null,
-        output_mode: 'intermediate',
-        partial: info.partial ?? null,
-        model: info.model ?? null,
-        provider: info.provider ?? null,
-        activity: null,
-      }
-      const last = prev[prev.length - 1]
-      if (last?.role === 'assistant' && last.output_mode !== 'intermediate') {
-        return [...prev.slice(0, -1), message, last]
-      }
-      return [...prev, message]
-    })
+    setMessages((prev) => upsertIntermediateAssistantMessageState(
+      prev,
+      info,
+      currentRunIdRef.current,
+      append,
+    ))
   }, [])
 
   const reconcileCancelledAssistant = useCallback((event: Record<string, unknown>) => {
@@ -527,13 +497,19 @@ function PlaygroundContent() {
         await reattach(runId, {
           onMeta: (meta) => {
             rawEventsRef.current.push({ type: 'meta', timestamp: new Date().toISOString(), payload: meta })
-            if (meta.run_id) rememberRunId(meta.run_id)
+            if (meta.run_id) {
+              rememberRunId(meta.run_id)
+              updateTerminalAssistantMessage((message) => ({
+                ...message,
+                run_id: meta.run_id,
+              }))
+            }
             if (!isStateless && meta.session_id) setCurrentSessionId(meta.session_id)
             if (meta.trace_id) metadataRef.current.trace_id = meta.trace_id
           },
           onAgentActivity: (activity) => {
             rawEventsRef.current.push({ type: 'agent_activity', timestamp: new Date().toISOString(), payload: activity })
-            updateLastAssistantMessage((last) => ({ ...last, activity }))
+            updateTerminalAssistantMessage((last) => ({ ...last, activity }))
           },
           onAssistantMessageDelta: (info) => {
             rawEventsRef.current.push({ type: 'assistant_message_delta', timestamp: new Date().toISOString(), payload: info })
@@ -547,7 +523,7 @@ function PlaygroundContent() {
             rawEventsRef.current.push({ type: 'token', timestamp: new Date().toISOString(), payload: token })
             if (token.visibility !== 'assistant' || token.channel !== 'final') return
             accumulatedRef.current += token.content
-            updateLastAssistantMessage((last) => ({
+            updateTerminalAssistantMessage((last) => ({
               ...last,
               content: accumulatedRef.current,
               message_id: token.message_id ?? last.message_id ?? null,
@@ -559,7 +535,7 @@ function PlaygroundContent() {
           onTokenRetract: (info) => {
             rawEventsRef.current.push({ type: 'token_retract', timestamp: new Date().toISOString(), payload: info })
             if (info.content_length > 0) accumulatedRef.current = accumulatedRef.current.slice(0, Math.max(0, accumulatedRef.current.length - info.content_length))
-            updateLastAssistantMessage((last) => ({ ...last, content: accumulatedRef.current }))
+            updateTerminalAssistantMessage((last) => ({ ...last, content: accumulatedRef.current }))
           },
           onInternalToken: (token) => rawEventsRef.current.push({ type: 'internal_token', timestamp: new Date().toISOString(), payload: token }),
           onSources: (sources) => {
@@ -568,14 +544,14 @@ function PlaygroundContent() {
           },
           onToolCallStarted: (info) => {
             const runningInfo: ToolCallInfo = { ...info, status: info.status ?? 'running' }
-            updateLastAssistantMessage((last) => ({ ...last, tool_calls: upsertToolCall(last.tool_calls, runningInfo) }))
+            updateTerminalAssistantMessage((last) => ({ ...last, tool_calls: upsertToolCall(last.tool_calls, runningInfo) }))
           },
           onToolCallCompleted: (info) => {
-            updateLastAssistantMessage((last) => ({ ...last, tool_calls: upsertToolCall(last.tool_calls, info) }))
+            updateTerminalAssistantMessage((last) => ({ ...last, tool_calls: upsertToolCall(last.tool_calls, info) }))
           },
           onDone: (response) => {
             const finalContent = response.answer || accumulatedRef.current || ''
-            updateLastAssistantMessage((last) => ({
+            updateTerminalAssistantMessage((last) => ({
               ...last,
               content: finalContent,
               message_id: response.message_id ?? last.message_id ?? null,
@@ -598,7 +574,7 @@ function PlaygroundContent() {
           onError: (error) => {
             rememberRunId(null)
             setRawEvents([...rawEventsRef.current])
-            updateLastAssistantMessage((last) => ({ ...last, activity: null, output_parse_error: error.message }))
+            updateTerminalAssistantMessage((last) => ({ ...last, activity: null, output_parse_error: error.message }))
             toast.error(error.message)
           },
           onCancelled: (event) => {
@@ -610,7 +586,7 @@ function PlaygroundContent() {
           },
           onFallback: (info) => {
             accumulatedRef.current = ''
-            updateLastAssistantMessage((last) => ({ ...last, content: '', activity: { status: 'working', message: `Trying ${info.fallback_provider}/${info.fallback_model}...` } }))
+            updateTerminalAssistantMessage((last) => ({ ...last, content: '', activity: { status: 'working', message: `Trying ${info.fallback_provider}/${info.fallback_model}...` } }))
           },
         })
       } catch (error) {
@@ -627,7 +603,7 @@ function PlaygroundContent() {
     })()
 
     return () => { disposed = true }
-  }, [agentId, environment, isFetching, isSending, isStateless, projectId, reattach, reconcileCancelledAssistant, rememberRunId, selectedSessionId, setCurrentSessionId, updateLastAssistantMessage, upsertIntermediateAssistantMessage])
+  }, [agentId, environment, isFetching, isSending, isStateless, projectId, reattach, reconcileCancelledAssistant, rememberRunId, selectedSessionId, setCurrentSessionId, updateTerminalAssistantMessage, upsertIntermediateAssistantMessage])
 
   const handleStop = useCallback(() => {
     cancelStream({
@@ -685,13 +661,19 @@ function PlaygroundContent() {
       await stream(requestPayload, {
         onMeta: (meta) => {
           rawEventsRef.current.push({ type: 'meta', timestamp: new Date().toISOString(), payload: meta })
-          if (meta.run_id) rememberRunId(meta.run_id)
+          if (meta.run_id) {
+            rememberRunId(meta.run_id)
+            updateTerminalAssistantMessage((message) => ({
+              ...message,
+              run_id: meta.run_id,
+            }))
+          }
           if (!isStateless && meta.session_id) setCurrentSessionId(meta.session_id)
           if (meta.trace_id) metadataRef.current.trace_id = meta.trace_id
         },
         onAgentActivity: (activity) => {
           rawEventsRef.current.push({ type: 'agent_activity', timestamp: new Date().toISOString(), payload: activity })
-          updateLastAssistantMessage((last) => ({ ...last, activity }))
+          updateTerminalAssistantMessage((last) => ({ ...last, activity }))
         },
         onAssistantMessageDelta: (info) => {
           rawEventsRef.current.push({ type: 'assistant_message_delta', timestamp: new Date().toISOString(), payload: info })
@@ -705,7 +687,7 @@ function PlaygroundContent() {
           rawEventsRef.current.push({ type: 'token', timestamp: new Date().toISOString(), payload: token })
           if (token.visibility !== 'assistant' || token.channel !== 'final') return
           accumulatedRef.current += token.content
-          updateLastAssistantMessage((last) => ({
+          updateTerminalAssistantMessage((last) => ({
             ...last,
             content: accumulatedRef.current,
             message_id: token.message_id ?? last.message_id ?? null,
@@ -717,7 +699,11 @@ function PlaygroundContent() {
         onTokenRetract: (info) => {
           rawEventsRef.current.push({ type: 'token_retract', timestamp: new Date().toISOString(), payload: info })
           if (info.content_length > 0) accumulatedRef.current = accumulatedRef.current.slice(0, Math.max(0, accumulatedRef.current.length - info.content_length))
-          updateLastAssistantMessage((last) => ({ ...last, activity: { status: 'planning_tools', message: 'Checking whether tools are needed...' } }))
+          updateTerminalAssistantMessage((last) => ({
+            ...last,
+            content: accumulatedRef.current,
+            activity: { status: 'planning_tools', message: 'Checking whether tools are needed...' },
+          }))
         },
         onInternalToken: (token) => rawEventsRef.current.push({ type: 'internal_token', timestamp: new Date().toISOString(), payload: token }),
         onSources: (sources) => {
@@ -727,11 +713,11 @@ function PlaygroundContent() {
         onToolCallStarted: (info) => {
           const runningInfo: ToolCallInfo = { ...info, status: info.status ?? 'running' }
           rawEventsRef.current.push({ type: 'tool_call_started', timestamp: new Date().toISOString(), payload: runningInfo })
-          updateLastAssistantMessage((last) => ({ ...last, activity: { status: 'calling_tool', message: `Calling tool: ${runningInfo.tool_name}...`, tool_name: runningInfo.tool_name }, tool_calls: upsertToolCall(last.tool_calls, runningInfo) }))
+          updateTerminalAssistantMessage((last) => ({ ...last, activity: { status: 'calling_tool', message: `Calling tool: ${runningInfo.tool_name}...`, tool_name: runningInfo.tool_name }, tool_calls: upsertToolCall(last.tool_calls, runningInfo) }))
         },
         onToolCallCompleted: (info) => {
           rawEventsRef.current.push({ type: 'tool_call_completed', timestamp: new Date().toISOString(), payload: info })
-          updateLastAssistantMessage((last) => ({ ...last, activity: { status: 'processing_tool_result', message: 'Processing tool result...', tool_name: info.tool_name }, tool_calls: upsertToolCall(last.tool_calls, info) }))
+          updateTerminalAssistantMessage((last) => ({ ...last, activity: { status: 'processing_tool_result', message: 'Processing tool result...', tool_name: info.tool_name }, tool_calls: upsertToolCall(last.tool_calls, info) }))
         },
         onDone: (response) => {
           for (const event of response.execution_events ?? []) rawEventsRef.current.push({ type: event.event_type, timestamp: event.occurred_at, payload: event })
@@ -757,7 +743,7 @@ function PlaygroundContent() {
           setRawEvents([...rawEventsRef.current])
           rememberRunId(null)
           toast.error(error.message)
-          updateLastAssistantMessage((last) => ({ ...last, activity: null, content: last.content || `Error: ${error.message}`, output_parse_error: error.message, trace_id: metadataRef.current.trace_id ?? null }))
+          updateTerminalAssistantMessage((last) => ({ ...last, activity: null, content: last.content || `Error: ${error.message}`, output_parse_error: error.message, trace_id: metadataRef.current.trace_id ?? null }))
         },
         onCancelled: (event) => {
           rawEventsRef.current.push({ type: 'cancelled', timestamp: new Date().toISOString(), payload: event })
@@ -770,7 +756,7 @@ function PlaygroundContent() {
         onFallback: (info) => {
           rawEventsRef.current.push({ type: 'fallback', timestamp: new Date().toISOString(), payload: info })
           accumulatedRef.current = ''
-          updateLastAssistantMessage((last) => ({ ...last, content: '', activity: { status: 'working', message: 'Trying fallback model...' } }))
+          updateTerminalAssistantMessage((last) => ({ ...last, content: '', activity: { status: 'working', message: 'Trying fallback model...' } }))
           toast.info(`Primary model (${info.primary_provider}/${info.primary_model}) failed. Retrying with ${info.fallback_provider}/${info.fallback_model}...`)
         },
       })
