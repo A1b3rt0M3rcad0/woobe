@@ -29,12 +29,14 @@ function recordValue(value: unknown): Record<string, unknown> {
 function normalizeManagerName(value: unknown): string {
   if (typeof value !== 'string' || !value.trim()) return DEFAULT_CONTEXT_MANAGER
   const normalized = value.trim().toLowerCase()
-  if (normalized === 'stdcm' || normalized === 'default') return DEFAULT_CONTEXT_MANAGER
+  if (['stdcm', 'default', 'stdcm:v1', 'stdcm:v2', 'default:v1'].includes(normalized)) return DEFAULT_CONTEXT_MANAGER
   return normalized
 }
 
 function currentSelection(runtimeConfig: Record<string, unknown>): string {
-  const raw = recordValue(runtimeConfig.context_assembler)
+  const selection = runtimeConfig.context_assembler
+  if (typeof selection === 'string') return normalizeManagerName(selection)
+  const raw = recordValue(selection)
   const legacyStrategyName = raw.strategy_name
   return normalizeManagerName(
     typeof legacyStrategyName === 'string' && legacyStrategyName.trim()
