@@ -347,6 +347,10 @@ class SessionRepository(ABC):
     @abstractmethod
     async def get_by_id(self, session_id: UUID) -> Session: ...
 
+    async def get_by_id_for_update(self, session_id: UUID) -> Session:
+        """Load a Session with write serialization when the adapter supports it."""
+        return await self.get_by_id(session_id)
+
     @abstractmethod
     async def get_by_external_id(
         self, project_id: UUID, agent_id: UUID, external_session_id: str
