@@ -80,8 +80,17 @@ class RuntimeContextSummary:
         *,
         preserve_recent_messages: int,
     ) -> tuple[ContextSummarySelection, tuple[Any, ...]]:
-        if source in {ContextSourceType.SYSTEM, ContextSourceType.USER_INPUT}:
-            raise ValueError("Semantic Summary cannot target mandatory context")
+        supported = {
+            ContextSourceType.SESSION,
+            ContextSourceType.CHECKPOINT,
+            ContextSourceType.MEMORY,
+            ContextSourceType.KNOWLEDGE,
+            ContextSourceType.ARTIFACT,
+        }
+        if source not in supported:
+            raise ValueError(
+                f"Semantic Summary does not safely support {source.value} context"
+            )
         if preserve_recent_messages < 0:
             raise ValueError("preserve_recent_messages must be non-negative")
 
