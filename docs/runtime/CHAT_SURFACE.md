@@ -138,6 +138,21 @@ X-Woobe-Host-Origin: https://app.example.com
 
 Visual changes are mutable and affect future iframe loads. They do not change the Session Release or runtime semantics.
 
+Intermediate Assistant bubbles have an additional presentation filter:
+
+```json
+{
+  "response": {
+    "show_intermediate_messages": false
+  }
+}
+```
+
+This setting does **not** create, publish, or persist intermediate messages. It only
+decides whether a ChatSurface renders intermediate messages already allowed by the
+Agent's immutable Execution configuration. The default is `false`, preserving the
+traditional final-only ChatSurface presentation.
+
 ## Runtime and observability
 
 Agent Runs receive the Session's immutable `loaded_release_id`. Network Runs use the Session's immutable `network_version_id`; they never read the current Production pointer after Session creation.
@@ -153,15 +168,23 @@ ChatSurface execution attribution includes:
 
 History is read from Agent or Network message storage through the validated Session binding.
 
-Assistant communication during an active Run follows the Runtime delivery contract:
+Assistant communication during an active Run follows two independent policies:
 
 ```text
-INTERNAL      → never rendered
-INTERMEDIATE  → durable Assistant Message; Run continues
-FINAL         → terminal Assistant Message
+Agent Release runtime_config.execution.intermediate_messages
+        ↓
+controls whether INTERMEDIATE exists publicly and durably
+
+ChatSurface appearance.response.show_intermediate_messages
+        ↓
+controls whether an existing INTERMEDIATE is rendered on this Surface
 ```
 
-The embed reconciles intermediate messages by `message_id`. Live
+The Agent execution setting is the source of truth. If it is disabled, no bridge receives
+an intermediate Assistant Message and the ChatSurface setting cannot override that
+decision.
+
+The embed reconciles enabled/visible intermediate messages by `message_id`. Live
 `assistant_message_delta` / `assistant_message_completed` events create or update
 independent Assistant bubbles before the terminal placeholder. Reattach
 `run.state.messages` restores the same durable messages without inventing new events.
