@@ -109,6 +109,7 @@ export interface ChatSurfaceAppearance {
   activity: ChatSurfaceActivityStyle
   response: {
     render_mode: ChatSurfaceResponseRenderMode
+    show_intermediate_messages: boolean
   }
 }
 
