@@ -91,6 +91,7 @@ async def _complete_turn(
     session,
     recorder,
     answer="Olá. Sou o agente de Faturamento e Contas.",
+    intermediate_messages=None,
 ):
     call_id = str(uuid4())
     execution = InstrumentedExecution(
@@ -132,6 +133,7 @@ async def _complete_turn(
     context.prepare_ended_at = "2026-09-21T12:00:00+00:00"
     context.prepare_latency_ms = 10
     context.run_id = uuid4()
+    context.intermediate_messages = list(intermediate_messages or [])
     context.execution_context = "draft"
     context.execution = execution
     context.run_event_recorder = recorder
@@ -278,6 +280,96 @@ async def test_event_journal_completion_persists_assistant_message_before_return
     assert [event.event_type for event in outbox.events] == [
         "agent.execution.message.created.v1"
     ]
+
+
+@pytest.mark.anyio
+async def test_completion_materializes_intermediate_messages_before_final_answer() -> None:
+    project_id, agent, session = _fixtures()
+    messages = _Messages()
+    sessions = _Sessions()
+    outbox = _Outbox()
+    owner = _owner(messages, sessions, outbox)
+    recorder = _Recorder()
+    intermediate_id = uuid4()
+
+    output = await _complete_turn(
+        owner=owner,
+        project_id=project_id,
+        agent=agent,
+        session=session,
+        recorder=recorder,
+        answer="Resposta final.",
+        intermediate_messages=[
+            {
+                "message_id": str(intermediate_id),
+                "content": "Vou verificar esse ponto.",
+                "phase": "capability_response_generation",
+                "output_mode": "intermediate",
+                "provider": "custom",
+                "model": "deepseek-v4-flash",
+                "partial": False,
+                "completed_at": "2026-09-21T12:00:00.010000+00:00",
+            }
+        ],
+    )
+
+    assert output.message_id is not None
+    assert output.message_id != intermediate_id
+    assert list(messages.items) == [intermediate_id, output.message_id]
+    intermediate = messages.items[intermediate_id]
+    final = messages.items[output.message_id]
+    assert intermediate.content == "Vou verificar esse ponto."
+    assert intermediate.data["output_mode"] == "intermediate"
+    assert intermediate.data["run_id"] == str(output.run_id)
+    assert final.content == "Resposta final."
+    assert final.data["output_mode"] == "final"
+    assert final.data["run_id"] == str(output.run_id)
+    assert owner._transactions.calls == 2
+
+
+@pytest.mark.anyio
+async def test_failed_intermediate_projection_does_not_block_final_message() -> None:
+    project_id, agent, session = _fixtures()
+    intermediate_id = uuid4()
+
+    class _MessagesFailingIntermediate(_Messages):
+        async def create(self, message):
+            if message.id == intermediate_id:
+                raise RuntimeError("intermediate projection unavailable")
+            return await super().create(message)
+
+    messages = _MessagesFailingIntermediate()
+    sessions = _Sessions()
+    outbox = _Outbox()
+    owner = _owner(messages, sessions, outbox)
+    recorder = _Recorder()
+
+    output = await _complete_turn(
+        owner=owner,
+        project_id=project_id,
+        agent=agent,
+        session=session,
+        recorder=recorder,
+        answer="Resposta final preservada.",
+        intermediate_messages=[
+            {
+                "message_id": str(intermediate_id),
+                "content": "Atualização intermediária.",
+                "phase": "progress_update",
+                "output_mode": "intermediate",
+                "provider": "custom",
+                "model": "deepseek-v4-flash",
+                "partial": False,
+                "completed_at": "2026-09-21T12:00:00.010000+00:00",
+            }
+        ],
+    )
+
+    assert intermediate_id not in messages.items
+    assert output.message_id in messages.items
+    assert messages.items[output.message_id].content == "Resposta final preservada."
+    assert messages.items[output.message_id].data["output_mode"] == "final"
+    assert owner._transactions.calls == 2
 
 
 @pytest.mark.anyio
