@@ -7,7 +7,11 @@ from modules.agent.application.context_assembly import (
     analyze_context_candidates,
     estimate_input_units,
 )
-from modules.agent.application.context_manager_sdk import ContextManagerOutcome
+from modules.agent.application.context_manager_sdk import (
+    ContextCheckpointBoundary,
+    ContextManagerOutcome,
+    ContextManagerState,
+)
 from modules.agent.application.interfaces.context_assembler import ContextAssemblyRequest
 from modules.agent.application.skill_runtime import skill_contribution_content
 from modules.agent.application.interfaces.context_policy import (
@@ -25,6 +29,10 @@ from modules.agent.application.interfaces.context_policy import (
     ToolContextPolicy,
 )
 from modules.agent.domain.context import ContextPriority, ContextSourceType
+from modules.agent.infra.context_management.manager_runtime.checkpoint import (
+    RuntimeContextCheckpoint,
+)
+from modules.agent.infra.context_management.manager_runtime.summary import RuntimeContextSummary
 
 
 _MANDATORY_SOURCE_PRIORITIES = {
@@ -376,6 +384,7 @@ class RuntimeContextManagerContext:
 
     __slots__ = (
         "_configured_policy",
+        "state",
         "candidates",
         "capacity",
         "inventory",
@@ -384,14 +393,24 @@ class RuntimeContextManagerContext:
         "budget",
         "pressure",
         "sources",
+        "summary",
+        "_checkpoint",
         "_request",
         "_effective_policy",
     )
 
-    def __init__(self, request: ContextAssemblyRequest) -> None:
+    def __init__(
+        self,
+        request: ContextAssemblyRequest,
+        *,
+        state: ContextManagerState,
+        summary: RuntimeContextSummary,
+        checkpoint: RuntimeContextCheckpoint,
+    ) -> None:
         self._request = request
         self._configured_policy = request.policy.model_copy(deep=True)
         self._effective_policy = request.policy.model_copy(deep=True)
+        self.state = state
         self.candidates = RuntimeContextCandidates(self._effective_policy)
         self.capacity = RuntimeContextCapacity(
             self._effective_policy,
@@ -408,6 +427,8 @@ class RuntimeContextManagerContext:
         self.budget = RuntimeContextBudget(self._effective_policy)
         self.pressure = RuntimeContextPressure(self._effective_policy)
         self.sources = RuntimeContextSources()
+        self.summary = summary
+        self._checkpoint = checkpoint
 
     @property
     def policy(self) -> ContextPolicyV1:
@@ -416,6 +437,15 @@ class RuntimeContextManagerContext:
     @property
     def has_active_skills(self) -> bool:
         return bool(getattr(self._request.runtime_context, "skill_context", None))
+
+    async def checkpoint(
+        self,
+        boundary: ContextCheckpointBoundary = ContextCheckpointBoundary.MANUAL,
+    ) -> None:
+        await self._checkpoint.save(self.state, boundary)
+
+    def materialize_messages(self, messages: list) -> list:
+        return self.summary.materialize(messages)
 
     def complete(self) -> ContextManagerOutcome:
         validated = ContextPolicyV1.model_validate(
