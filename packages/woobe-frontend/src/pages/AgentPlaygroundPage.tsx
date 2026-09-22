@@ -15,6 +15,7 @@ import { OperationsRail, type LeftPanelTab } from '@/features/playground/compone
 import { OperationsPanel } from '@/features/playground/components/OperationsPanel'
 import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
 import {
+  applyCompletedAssistantMessage,
   updateTerminalAssistantMessage as updateTerminalAssistantMessageState,
   upsertIntermediateAssistantMessage as upsertIntermediateAssistantMessageState,
 } from '@/features/playground/chat-message-state'
@@ -681,7 +682,11 @@ function PlaygroundContent() {
         },
         onAssistantMessageCompleted: (info) => {
           rawEventsRef.current.push({ type: 'assistant_message_completed', timestamp: new Date().toISOString(), payload: info })
-          upsertIntermediateAssistantMessage(info, false)
+          setMessages((prev) => applyCompletedAssistantMessage(
+            prev,
+            info,
+            currentRunIdRef.current,
+          ))
         },
         onToken: (token) => {
           rawEventsRef.current.push({ type: 'token', timestamp: new Date().toISOString(), payload: token })
