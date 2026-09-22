@@ -1,3 +1,4 @@
+export * from './assistant-messages'
 export * from './observer'
 export * from './protocol'
 export * from './sse'
