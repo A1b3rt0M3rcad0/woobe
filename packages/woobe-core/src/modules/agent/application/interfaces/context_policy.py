@@ -87,12 +87,17 @@ class ContextSummaryPolicy(BaseModel):
 
     @model_validator(mode="after")
     def validate_sources(self) -> "ContextSummaryPolicy":
-        forbidden = {
-            ContextSourceType.SYSTEM,
-            ContextSourceType.USER_INPUT,
+        supported = {
+            ContextSourceType.SESSION,
+            ContextSourceType.CHECKPOINT,
+            ContextSourceType.MEMORY,
+            ContextSourceType.KNOWLEDGE,
+            ContextSourceType.ARTIFACT,
         }
-        if any(source in forbidden for source in self.sources):
-            raise ValueError("Context Summary cannot target mandatory SYSTEM/USER_INPUT")
+        unsupported = [source for source in self.sources if source not in supported]
+        if unsupported:
+            names = ", ".join(source.value for source in unsupported)
+            raise ValueError(f"Context Summary does not safely support sources: {names}")
         self.sources = list(dict.fromkeys(self.sources))
         return self
 
