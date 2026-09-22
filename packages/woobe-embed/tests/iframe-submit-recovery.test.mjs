@@ -118,7 +118,7 @@ const runtimeTerminalStatus = (parsed) => {
   return null;
 };
 const createChatUi = () => globalThis.__ui;
-`
+`;
   const hooks = `
 globalThis.__woobeIframeTest = {
   sendMessage,
