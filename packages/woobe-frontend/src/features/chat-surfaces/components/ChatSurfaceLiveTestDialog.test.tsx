@@ -91,6 +91,7 @@ function release(id: string, externalContextContract: Record<string, unknown>): 
 let root: Root
 let container: HTMLDivElement
 let framePostMessage: ReturnType<typeof vi.fn>
+let frameContentWindow: Window
 
 async function flush() {
   await act(async () => {
@@ -151,9 +152,10 @@ beforeEach(() => {
     source: 'control_plane_test',
   })
   framePostMessage = vi.fn()
+  frameContentWindow = { postMessage: framePostMessage } as unknown as Window
   Object.defineProperty(HTMLIFrameElement.prototype, 'contentWindow', {
     configurable: true,
-    get: () => ({ postMessage: framePostMessage }),
+    get: () => frameContentWindow,
   })
   vi.stubGlobal('crypto', { randomUUID: () => 'instance-1' })
 })
@@ -162,6 +164,43 @@ afterEach(async () => {
   await act(async () => root.unmount())
   container.remove()
   vi.unstubAllGlobals()
+})
+
+describe('ChatSurface live test Runtime status', () => {
+  it('shows the latest public runtime activity while the Run is executing', async () => {
+    fixture.releases.set('release-current', release('release-current', {}))
+    await renderDialog()
+
+    await act(async () => {
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: expectedEmbedOrigin,
+        source: frameContentWindow,
+        data: {
+          protocolVersion: 1,
+          instanceId: 'instance-1',
+          surfaceId: 'surface-public',
+          type: 'run.started',
+        },
+      }))
+      window.dispatchEvent(new MessageEvent('message', {
+        origin: expectedEmbedOrigin,
+        source: frameContentWindow,
+        data: {
+          protocolVersion: 1,
+          instanceId: 'instance-1',
+          surfaceId: 'surface-public',
+          type: 'run.activity',
+          payload: {
+            status: 'calling_tool',
+            message: 'Calling tool: search...',
+          },
+        },
+      }))
+    })
+
+    expect(document.body.textContent).toContain('Agent responding')
+    expect(document.body.textContent).toContain('Calling tool: search...')
+  })
 })
 
 describe('ChatSurface live test External Context', () => {
