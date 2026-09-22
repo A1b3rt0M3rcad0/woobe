@@ -29,7 +29,7 @@ import {
 } from '@/features/playground/lib/playground-session-store'
 import { useQueryClient, type InfiniteData } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import type { AskRequest, AskResponse, ChatMessage, TraceItem, RawStreamEvent, ToolCallInfo, SessionListItem, SessionListPage } from '@/features/playground/types'
+import type { AssistantMessageInfo, AskRequest, AskResponse, ChatMessage, TraceItem, RawStreamEvent, ToolCallInfo, SessionListItem, SessionListPage } from '@/features/playground/types'
 
 function titleCaseEnvironment(environment: RuntimeEnvironment) {
   return environment.charAt(0).toUpperCase() + environment.slice(1)
@@ -319,6 +319,11 @@ function PlaygroundContent() {
       const mapped: ChatMessage[] = historyMessages.map((m) => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
+        message_id: m.id,
+        run_id: (m.data?.run_id as string | undefined) ?? null,
+        phase: (m.data?.phase as string | undefined) ?? null,
+        output_mode: m.data?.output_mode === 'intermediate' ? 'intermediate' : m.role === 'assistant' ? 'final' : null,
+        partial: typeof m.data?.partial === 'boolean' ? m.data.partial : null,
         usage: m.input_tokens != null ? { input_tokens: m.input_tokens, output_tokens: m.output_tokens ?? null, cost_usd: null } : null,
         tool_calls: (m.data?.tool_calls ?? null) as ChatMessage['tool_calls'],
         sources: (m.data?.sources ?? null) as ChatMessage['sources'],
@@ -431,6 +436,50 @@ function PlaygroundContent() {
     })
   }, [])
 
+  const upsertIntermediateAssistantMessage = useCallback((
+    info: AssistantMessageInfo,
+    append: boolean,
+  ) => {
+    setMessages((prev) => {
+      const existingIndex = prev.findIndex((message) => (
+        message.role === 'assistant' && message.message_id === info.message_id
+      ))
+      if (existingIndex >= 0) {
+        const updated = [...prev]
+        const existing = updated[existingIndex]
+        updated[existingIndex] = {
+          ...existing,
+          content: append ? existing.content + info.content : info.content,
+          phase: info.phase ?? existing.phase ?? null,
+          output_mode: 'intermediate',
+          partial: info.partial ?? existing.partial ?? null,
+          model: info.model ?? existing.model ?? null,
+          provider: info.provider ?? existing.provider ?? null,
+          activity: null,
+        }
+        return updated
+      }
+
+      const message: ChatMessage = {
+        role: 'assistant',
+        content: info.content,
+        message_id: info.message_id,
+        run_id: currentRunIdRef.current,
+        phase: info.phase ?? null,
+        output_mode: 'intermediate',
+        partial: info.partial ?? null,
+        model: info.model ?? null,
+        provider: info.provider ?? null,
+        activity: null,
+      }
+      const last = prev[prev.length - 1]
+      if (last?.role === 'assistant' && last.output_mode !== 'intermediate') {
+        return [...prev.slice(0, -1), message, last]
+      }
+      return [...prev, message]
+    })
+  }, [])
+
   const reconcileCancelledAssistant = useCallback((event: Record<string, unknown>) => {
     const output = typeof event.output === 'string' ? event.output : accumulatedRef.current
     setMessages((prev) => {
@@ -469,8 +518,8 @@ function PlaygroundContent() {
       rawEventsRef.current = []
       setMessages((current) => {
         const last = current[current.length - 1]
-        if (last?.role === 'assistant') return current
-        return [...current, { role: 'assistant', content: '', activity: { status: 'working', message: 'Reattaching to active Run...' } }]
+        if (last?.role === 'assistant' && last.output_mode !== 'intermediate') return current
+        return [...current, { role: 'assistant', content: '', output_mode: 'final', activity: { status: 'working', message: 'Reattaching to active Run...' } }]
       })
       setIsSending(true)
 
@@ -486,11 +535,26 @@ function PlaygroundContent() {
             rawEventsRef.current.push({ type: 'agent_activity', timestamp: new Date().toISOString(), payload: activity })
             updateLastAssistantMessage((last) => ({ ...last, activity }))
           },
+          onAssistantMessageDelta: (info) => {
+            rawEventsRef.current.push({ type: 'assistant_message_delta', timestamp: new Date().toISOString(), payload: info })
+            upsertIntermediateAssistantMessage(info, true)
+          },
+          onAssistantMessageCompleted: (info) => {
+            rawEventsRef.current.push({ type: 'assistant_message_completed', timestamp: new Date().toISOString(), payload: info })
+            upsertIntermediateAssistantMessage(info, false)
+          },
           onToken: (token) => {
             rawEventsRef.current.push({ type: 'token', timestamp: new Date().toISOString(), payload: token })
             if (token.visibility !== 'assistant' || token.channel !== 'final') return
             accumulatedRef.current += token.content
-            updateLastAssistantMessage((last) => ({ ...last, content: accumulatedRef.current, activity: null }))
+            updateLastAssistantMessage((last) => ({
+              ...last,
+              content: accumulatedRef.current,
+              message_id: token.message_id ?? last.message_id ?? null,
+              phase: token.phase ?? last.phase ?? null,
+              output_mode: 'final',
+              activity: null,
+            }))
           },
           onTokenRetract: (info) => {
             rawEventsRef.current.push({ type: 'token_retract', timestamp: new Date().toISOString(), payload: info })
@@ -514,6 +578,8 @@ function PlaygroundContent() {
             updateLastAssistantMessage((last) => ({
               ...last,
               content: finalContent,
+              message_id: response.message_id ?? last.message_id ?? null,
+              output_mode: 'final',
               activity: null,
               usage: response.usage ?? null,
               sources: (response.sources ?? metadataRef.current.sources) as ChatMessage['sources'],
@@ -561,7 +627,7 @@ function PlaygroundContent() {
     })()
 
     return () => { disposed = true }
-  }, [agentId, environment, isFetching, isSending, isStateless, projectId, reattach, reconcileCancelledAssistant, rememberRunId, selectedSessionId, setCurrentSessionId, updateLastAssistantMessage])
+  }, [agentId, environment, isFetching, isSending, isStateless, projectId, reattach, reconcileCancelledAssistant, rememberRunId, selectedSessionId, setCurrentSessionId, updateLastAssistantMessage, upsertIntermediateAssistantMessage])
 
   const handleStop = useCallback(() => {
     cancelStream({
@@ -597,7 +663,7 @@ function PlaygroundContent() {
     accumulatedRef.current = ''
     metadataRef.current = {}
     rawEventsRef.current = []
-    setMessages((prev) => [...prev, { role: 'user', content }, { role: 'assistant', content: '', activity: { status: 'working', message: 'Working...' } }])
+    setMessages((prev) => [...prev, { role: 'user', content }, { role: 'assistant', content: '', output_mode: 'final', activity: { status: 'working', message: 'Working...' } }])
     setIsSending(true)
 
     try {
@@ -627,11 +693,26 @@ function PlaygroundContent() {
           rawEventsRef.current.push({ type: 'agent_activity', timestamp: new Date().toISOString(), payload: activity })
           updateLastAssistantMessage((last) => ({ ...last, activity }))
         },
+        onAssistantMessageDelta: (info) => {
+          rawEventsRef.current.push({ type: 'assistant_message_delta', timestamp: new Date().toISOString(), payload: info })
+          upsertIntermediateAssistantMessage(info, true)
+        },
+        onAssistantMessageCompleted: (info) => {
+          rawEventsRef.current.push({ type: 'assistant_message_completed', timestamp: new Date().toISOString(), payload: info })
+          upsertIntermediateAssistantMessage(info, false)
+        },
         onToken: (token) => {
           rawEventsRef.current.push({ type: 'token', timestamp: new Date().toISOString(), payload: token })
           if (token.visibility !== 'assistant' || token.channel !== 'final') return
           accumulatedRef.current += token.content
-          updateLastAssistantMessage((last) => ({ ...last, content: accumulatedRef.current, activity: null }))
+          updateLastAssistantMessage((last) => ({
+            ...last,
+            content: accumulatedRef.current,
+            message_id: token.message_id ?? last.message_id ?? null,
+            phase: token.phase ?? last.phase ?? null,
+            output_mode: 'final',
+            activity: null,
+          }))
         },
         onTokenRetract: (info) => {
           rawEventsRef.current.push({ type: 'token_retract', timestamp: new Date().toISOString(), payload: info })
@@ -662,7 +743,7 @@ function PlaygroundContent() {
           setMessages((prev) => {
             const updated = [...prev]
             const last = updated[updated.length - 1]
-            if (last?.role === 'assistant') updated[updated.length - 1] = { ...last, content: finalContent, activity: null, usage: meta.usage ?? null, sources: (meta.sources ?? metadataRef.current.sources) as ChatMessage['sources'], tool_calls: (meta.tool_calls ?? last.tool_calls ?? null) as ChatMessage['tool_calls'], model: meta.model ?? null, provider: meta.provider ?? null, latency_ms: meta.latency_ms ?? null, trace_id: meta.trace_id ?? null, parsed_output: meta.parsed_output ?? null, output_parse_error: meta.output_parse_error ?? null }
+            if (last?.role === 'assistant') updated[updated.length - 1] = { ...last, content: finalContent, message_id: meta.message_id ?? last.message_id ?? null, output_mode: 'final', activity: null, usage: meta.usage ?? null, sources: (meta.sources ?? metadataRef.current.sources) as ChatMessage['sources'], tool_calls: (meta.tool_calls ?? last.tool_calls ?? null) as ChatMessage['tool_calls'], model: meta.model ?? null, provider: meta.provider ?? null, latency_ms: meta.latency_ms ?? null, trace_id: meta.trace_id ?? null, parsed_output: meta.parsed_output ?? null, output_parse_error: meta.output_parse_error ?? null }
             return updated
           })
           setLastResponse(meta as AskResponse)

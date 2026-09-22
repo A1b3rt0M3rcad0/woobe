@@ -15,6 +15,7 @@ import {
 import { SseFrameParser, parseSseJson, type SseFrame } from './sse'
 import type {
   AgentActivityInfo,
+  AssistantMessageInfo,
   AskRequest,
   AskResponse,
   ExecutionDiagnostics,
@@ -51,6 +52,8 @@ export interface StreamCallbacks {
   onToolCallStarted?: (info: ToolCallInfo) => void
   onToolCallCompleted?: (info: ToolCallInfo) => void
   onAgentActivity?: (info: AgentActivityInfo) => void
+  onAssistantMessageDelta?: (info: AssistantMessageInfo) => void
+  onAssistantMessageCompleted?: (info: AssistantMessageInfo) => void
   onInternalToken?: (token: StreamTokenInfo) => void
   onTokenRetract?: (info: TokenRetractInfo) => void
   onUsage?: (usage: UsageInfo) => void
@@ -119,12 +122,29 @@ function usageOf(value: unknown): UsageInfo | null {
 function streamTextOf(item: Record<string, unknown>): StreamTokenInfo {
   return {
     content: typeof item.content === 'string' ? sanitizeAssistantContent(item.content) : '',
+    message_id: stringOrNull(item.message_id),
+    output_mode: stringOrNull(item.output_mode),
     visibility: item.visibility === 'internal' || item.visibility === 'debug' ? item.visibility : 'assistant',
     channel: typeof item.channel === 'string' ? item.channel : 'final',
     phase: typeof item.phase === 'string' ? item.phase : null,
     provider: typeof item.provider === 'string' ? item.provider : null,
     model: typeof item.model === 'string' ? item.model : null,
     redacted: typeof item.redacted === 'boolean' ? item.redacted : null,
+  }
+}
+
+function assistantMessageOf(item: Record<string, unknown>): AssistantMessageInfo | null {
+  const messageId = stringOrNull(item.message_id)
+  if (!messageId) return null
+  return {
+    message_id: messageId,
+    content: typeof item.content === 'string' ? sanitizeAssistantContent(item.content) : '',
+    phase: stringOrNull(item.phase),
+    output_mode: 'intermediate',
+    provider: stringOrNull(item.provider),
+    model: stringOrNull(item.model),
+    partial: typeof item.partial === 'boolean' ? item.partial : null,
+    status: stringOrNull(item.status),
   }
 }
 
@@ -221,7 +241,13 @@ function frameType(frame: SseFrame): string {
 
 function isVisualStreamFrame(frame: SseFrame): boolean {
   const type = frameType(frame)
-  return type === 'token' || type === 'token_retract' || type === 'run.state'
+  return (
+    type === 'token'
+    || type === 'token_retract'
+    || type === 'assistant_message_delta'
+    || type === 'assistant_message_completed'
+    || type === 'run.state'
+  )
 }
 
 function streamAbortError(): DOMException {
@@ -299,6 +325,13 @@ function reconcileRunState(
     trace_id: stringOrNull(item.trace_id),
   })
   callbacks.onRunState?.(item)
+  if (Array.isArray(item.messages)) {
+    for (const raw of item.messages) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue
+      const message = assistantMessageOf(raw as Record<string, unknown>)
+      if (message) callbacks.onAssistantMessageCompleted?.(message)
+    }
+  }
 
   const output = typeof item.output === 'string' ? sanitizeAssistantContent(item.output) : ''
   const reconciliation = reconcileRuntimeOutput(state.output, output)
@@ -380,7 +413,13 @@ function dispatch(frame: SseFrame, callbacks: StreamCallbacks, state: RuntimeCli
     callbacks.onUnknownEvent?.(type, item)
     return false
   }
-  if (type === 'token') {
+  if (type === 'assistant_message_delta') {
+    const message = assistantMessageOf(item)
+    if (message) callbacks.onAssistantMessageDelta?.(message)
+  } else if (type === 'assistant_message_completed') {
+    const message = assistantMessageOf(item)
+    if (message) callbacks.onAssistantMessageCompleted?.(message)
+  } else if (type === 'token') {
     const text = streamTextOf(item)
     if (isFinalStreamText(text)) {
       state.output += text.content

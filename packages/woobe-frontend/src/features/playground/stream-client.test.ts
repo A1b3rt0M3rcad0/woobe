@@ -19,6 +19,8 @@ function callbacks() {
     onCancelled: vi.fn(),
     onTokenRetract: vi.fn(),
     onAgentActivity: vi.fn(),
+    onAssistantMessageDelta: vi.fn(),
+    onAssistantMessageCompleted: vi.fn(),
     onProtocolError: vi.fn(),
   }
 }
@@ -262,5 +264,108 @@ describe('Strategy-neutral runtime presentation', () => {
       phase: 'critical_review',
       message: 'Critical review...',
     }))
+  })
+})
+
+
+describe('Intermediate Assistant messages', () => {
+  it('dispatches intermediate deltas separately from final output tokens', async () => {
+    const body = [
+      `event: assistant_message_delta\ndata: ${JSON.stringify(runtimeTestEnvelope('assistant_message_delta', {
+        type: 'assistant_message_delta',
+        run_id: 'run-1',
+        message_id: 'msg-progress',
+        content: 'I found one cause. ',
+        phase: 'progress_update',
+        output_mode: 'intermediate',
+      }, 'AGENT'))}\n\n`,
+      `event: assistant_message_delta\ndata: ${JSON.stringify(runtimeTestEnvelope('assistant_message_delta', {
+        type: 'assistant_message_delta',
+        run_id: 'run-1',
+        message_id: 'msg-progress',
+        content: 'I will verify it.',
+        phase: 'progress_update',
+        output_mode: 'intermediate',
+      }, 'AGENT'))}\n\n`,
+      `event: assistant_message_completed\ndata: ${JSON.stringify(runtimeTestEnvelope('assistant_message_completed', {
+        type: 'assistant_message_completed',
+        run_id: 'run-1',
+        message_id: 'msg-progress',
+        content: 'I found one cause. I will verify it.',
+        phase: 'progress_update',
+        output_mode: 'intermediate',
+      }, 'AGENT'))}\n\n`,
+      `event: done\ndata: ${JSON.stringify(runtimeTestEnvelope('done', {
+        type: 'done',
+        run_id: 'run-1',
+        answer: 'Final answer',
+      }, 'AGENT'))}\n\n`,
+    ].join('')
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(streamResponse(body)))
+    const handlers = callbacks()
+
+    await askStreamV1({
+      project_id: 'project-1',
+      agent_id: 'agent-1',
+      message: 'investigate',
+    }, handlers)
+
+    expect(handlers.onAssistantMessageDelta).toHaveBeenCalledTimes(2)
+    expect(handlers.onAssistantMessageDelta).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        message_id: 'msg-progress',
+        content: 'I will verify it.',
+        phase: 'progress_update',
+        output_mode: 'intermediate',
+      }),
+    )
+    expect(handlers.onAssistantMessageCompleted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message_id: 'msg-progress',
+        content: 'I found one cause. I will verify it.',
+      }),
+    )
+    expect(handlers.onToken).not.toHaveBeenCalled()
+    expect(handlers.onDone).toHaveBeenCalledWith(
+      expect.objectContaining({ answer: 'Final answer' }),
+    )
+  })
+
+  it('restores completed intermediate messages from run.state', async () => {
+    const state = `event: run.state\ndata: ${JSON.stringify(runtimeTestEnvelope('run.state', {
+      type: 'run.state',
+      run_id: 'run-1',
+      sequence: null,
+      status: 'completed',
+      output: 'Final answer',
+      realtime_available: false,
+      messages: [{
+        message_id: 'msg-progress',
+        content: 'Progress already persisted.',
+        phase: 'progress_update',
+        output_mode: 'intermediate',
+        status: 'completed',
+      }],
+      result: { answer: 'Final answer' },
+    }, 'AGENT'))}\n\n`
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(streamResponse(state)))
+    const handlers = callbacks()
+
+    await askStreamV1({
+      project_id: 'project-1',
+      agent_id: 'agent-1',
+      message: 'investigate',
+    }, handlers)
+
+    expect(handlers.onAssistantMessageCompleted).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message_id: 'msg-progress',
+        content: 'Progress already persisted.',
+        phase: 'progress_update',
+      }),
+    )
+    expect(handlers.onDone).toHaveBeenCalledWith(
+      expect.objectContaining({ answer: 'Final answer' }),
+    )
   })
 })

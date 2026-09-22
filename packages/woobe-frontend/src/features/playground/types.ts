@@ -118,9 +118,23 @@ export interface FallbackEventInfo {
 
 export type StreamTokenVisibility = 'assistant' | 'internal' | 'debug'
 export type StreamTokenChannel = 'final' | 'reasoning' | 'tool_planning' | 'system' | string
+export type AssistantOutputMode = 'intermediate' | 'final'
+
+export interface AssistantMessageInfo {
+  message_id: string
+  content: string
+  phase?: string | null
+  output_mode: AssistantOutputMode
+  provider?: string | null
+  model?: string | null
+  partial?: boolean | null
+  status?: string | null
+}
 
 export interface StreamTokenInfo {
   content: string
+  message_id?: string | null
+  output_mode?: AssistantOutputMode | string | null
   visibility: StreamTokenVisibility
   channel: StreamTokenChannel
   phase?: string | null
@@ -225,6 +239,11 @@ export interface Message {
 export interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
+  message_id?: string | null
+  run_id?: string | null
+  phase?: string | null
+  output_mode?: AssistantOutputMode | null
+  partial?: boolean | null
   usage?: UsageInfo | null
   sources?: SourceInfo[] | null
   tool_calls?: ToolCallInfo[] | null
