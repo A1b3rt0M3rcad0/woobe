@@ -206,6 +206,105 @@ class RuntimeContextSummary:
         self._stage(summary, messages)
         return summary
 
+    async def refresh(
+        self,
+        summary: ContextSummaryResult,
+        *,
+        target_units: int,
+        preserve_recent_messages: int | None = None,
+    ) -> ContextSummaryResult:
+        if target_units < 128:
+            raise ValueError("Context Summary target_units must be at least 128")
+        preserve = (
+            summary.preserve_recent_messages
+            if preserve_recent_messages is None
+            else preserve_recent_messages
+        )
+        selection, messages = self._select(
+            summary.source,
+            preserve_recent_messages=preserve,
+        )
+        current = dict(zip(selection.source_refs, messages, strict=True))
+        try:
+            previous_messages = tuple(
+                current[source_ref] for source_ref in summary.source_refs
+            )
+        except KeyError as exc:
+            raise ValueError(
+                "Stored Context Summary source messages are no longer available"
+            ) from exc
+
+        previous_payload = json.dumps(
+            {
+                "source": summary.source.value,
+                "refs": tuple(summary.source_refs),
+                "texts": tuple(_content_text(message) for message in previous_messages),
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+        if hashlib.sha256(previous_payload.encode("utf-8")).hexdigest() != summary.source_hash:
+            raise ValueError("Stored Context Summary source content changed")
+
+        previous_refs = set(summary.source_refs)
+        new_messages = tuple(
+            message
+            for source_ref, message in zip(
+                selection.source_refs,
+                messages,
+                strict=True,
+            )
+            if source_ref not in previous_refs
+        )
+        if not new_messages:
+            self._stage(summary, previous_messages)
+            return summary
+
+        invoke = self._request.summary_invoke
+        if invoke is None:
+            raise RuntimeError("Semantic Summary model capability is unavailable")
+
+        transcript = "\n\n".join(
+            f"[{type(message).__name__}]\n{_content_text(message)}"
+            for message in new_messages
+        )
+        result = await invoke(
+            [
+                SystemMessage(content=_SUMMARY_SYSTEM_PROMPT),
+                HumanMessage(
+                    content=(
+                        f"Target approximately {target_units} input units.\n"
+                        "Update the previous historical summary using only the new "
+                        "historical context. Preserve still-relevant details from "
+                        "the previous summary.\n\n"
+                        f"Previous summary:\n{summary.content}\n\n"
+                        f"New {summary.source.value} context:\n{transcript}"
+                    )
+                ),
+            ],
+            "context_summary",
+        )
+        content = _trim_summary(result.content.strip(), target_units)
+        if not content:
+            raise RuntimeError("Semantic Summary model returned empty content")
+
+        refreshed = ContextSummaryResult(
+            summary_ref=str(uuid6.uuid7()),
+            source=summary.source,
+            source_refs=selection.source_refs,
+            source_hash=selection.source_hash,
+            content=content,
+            raw_units=selection.raw_units,
+            materialized_units=estimate_input_units(content),
+            preserve_recent_messages=preserve,
+            model_invocation_id=result.model_invocation_id,
+            provider=result.provider,
+            model=result.model,
+        )
+        self._stage(refreshed, messages)
+        return refreshed
+
     def apply(self, summary: ContextSummaryResult) -> None:
         analysis = analyze_context_candidates(
             self._request.messages,
