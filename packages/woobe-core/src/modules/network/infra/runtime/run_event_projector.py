@@ -2,12 +2,17 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Sequence
+from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
-from modules.network.infra.database.models import NetworkExecutionModel
+from modules.network.infra.database.models import (
+    NetworkExecutionModel,
+    NetworkMessageModel,
+    NetworkSessionModel,
+)
 from modules.network.infra.runtime.finalizer import NetworkRuntimeFinalizer
 from modules.network.infra.runtime.loader import NetworkRuntimeLoader
 from shared.contracts.run_event_journal import DurableRunEvent, RunEventJournalPort
@@ -92,6 +97,81 @@ class NetworkRunEventProjector(RunEventProjectorPort):
         except (TypeError, ValueError, AttributeError):
             return None
 
+    @staticmethod
+    def _datetime(value: Any, *, fallback: str) -> datetime:
+        raw = value if isinstance(value, str) and value.strip() else fallback
+        try:
+            parsed = datetime.fromisoformat(str(raw).replace("Z", "+00:00"))
+        except ValueError:
+            return datetime.now(timezone.utc)
+        return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+
+    async def _materialize_intermediate(
+        self,
+        run_id: UUID,
+        event: DurableRunEvent,
+    ) -> None:
+        payload = event.payload
+        if payload.get("output_mode") != "intermediate":
+            return
+
+        message_id = self._uuid(payload.get("message_id"))
+        content = payload.get("content")
+        if message_id is None or not isinstance(content, str):
+            raise RuntimeError(
+                f"Network Run {run_id} has invalid assistant.message.completed payload"
+            )
+
+        async with self._session_factory() as session, session.begin():
+            execution = await session.get(
+                NetworkExecutionModel,
+                run_id,
+                with_for_update=True,
+            )
+            if execution is None:
+                raise RuntimeError(f"Cannot project missing Network Run {run_id}")
+
+            existing = await session.get(NetworkMessageModel, message_id)
+            if existing is None:
+                session.add(
+                    NetworkMessageModel(
+                        id=message_id,
+                        network_session_id=execution.network_session_id,
+                        network_execution_id=execution.id,
+                        project_id=execution.project_id,
+                        role="assistant",
+                        content=content,
+                        data={
+                            "run_id": str(run_id),
+                            "phase": payload.get("phase"),
+                            "output_mode": "intermediate",
+                            "provider": payload.get("provider"),
+                            "model": payload.get("model"),
+                            "partial": bool(payload.get("partial")),
+                        },
+                        created_at=self._datetime(
+                            payload.get("completed_at"),
+                            fallback=event.occurred_at,
+                        ),
+                    )
+                )
+
+            network_session = await session.get(
+                NetworkSessionModel,
+                execution.network_session_id,
+                with_for_update=True,
+            )
+            if network_session is not None:
+                completed_at = self._datetime(
+                    payload.get("completed_at"),
+                    fallback=event.occurred_at,
+                )
+                if (
+                    network_session.last_message_at is None
+                    or network_session.last_message_at < completed_at
+                ):
+                    network_session.last_message_at = completed_at
+
     async def _materialize_terminal(
         self,
         run_id: UUID,
@@ -165,6 +245,10 @@ class NetworkRunEventProjector(RunEventProjectorPort):
                     f"received {event.sequence}"
                 )
             expected += 1
+
+        for event in pending:
+            if event.event_type == "assistant.message.completed":
+                await self._materialize_intermediate(run_id, event)
 
         terminal = next(
             (
