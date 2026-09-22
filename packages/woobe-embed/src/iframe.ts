@@ -52,6 +52,7 @@ interface RuntimeObserverState {
   assistant: HTMLElement;
   answer: string;
   streamingStarted: boolean;
+  activity: PublicAgentActivity | null;
   intermediateMessages: Map<string, IntermediateAssistantState>;
   sequence: RuntimeSequenceState;
   terminalStatus: RuntimeTerminalStatus | null;
@@ -218,10 +219,19 @@ async function loadHistory() {
   chatUi.clearMessages();
   renderedMessages.clear();
 
+  let visibleCount = 0;
   for (const item of items) {
     if (typeof item?.role === "string" && typeof item?.content === "string") {
       if (item.role === "user" || item.role === "assistant") {
+        const isIntermediate = (
+          item.role === "assistant"
+          && item.data?.output_mode === "intermediate"
+        );
+        if (isIntermediate && !appearance.response.show_intermediate_messages) {
+          continue;
+        }
         const message = chatUi.appendMessage(item.role, item.content);
+        visibleCount += 1;
         if (typeof item.id === "string" && item.id) {
           message.dataset.messageId = item.id;
           renderedMessages.set(item.id, message);
@@ -238,11 +248,11 @@ async function loadHistory() {
       }
     }
   }
-  if (items.length === 0 && appearance.welcome_message) {
+  if (visibleCount === 0 && appearance.welcome_message) {
     chatUi.appendMessage("assistant", appearance.welcome_message);
   }
   chatUi.scrollToLatest(true);
-  emit("history.loaded", { count: items.length });
+  emit("history.loaded", { count: visibleCount });
 }
 
 async function loadActiveRun(): Promise<ActiveRun | null> {
@@ -289,9 +299,10 @@ function publicActivity(data: unknown): PublicAgentActivity | null {
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
   const value = data as Record<string, unknown>;
   const status = typeof value.status === "string" ? value.status : undefined;
+  const message = typeof value.message === "string" ? value.message : undefined;
   const toolName = typeof value.tool_name === "string" ? value.tool_name : undefined;
   if (!status) return null;
-  return { status, tool_name: toolName };
+  return { status, message, tool_name: toolName };
 }
 
 function createRuntimeObserver(): RuntimeObserverState {
@@ -299,6 +310,7 @@ function createRuntimeObserver(): RuntimeObserverState {
     assistant: ensureUi().appendPendingAssistant(),
     answer: "",
     streamingStarted: false,
+    activity: null,
     intermediateMessages: new Map(),
     sequence: { sequence: null },
     terminalStatus: null,
@@ -341,6 +353,7 @@ function appendIntermediate(
   observer: RuntimeObserverState,
   message: RuntimeAssistantMessage,
 ) {
+  if (!appearance.response.show_intermediate_messages) return;
   const state = intermediateState(observer, message);
   beginIntermediateStreaming(state);
   state.content += message.content;
@@ -351,6 +364,7 @@ function completeIntermediate(
   observer: RuntimeObserverState,
   message: RuntimeAssistantMessage,
 ) {
+  if (!appearance.response.show_intermediate_messages) return;
   const state = intermediateState(observer, message);
   beginIntermediateStreaming(state);
   state.content = message.content;
@@ -365,9 +379,32 @@ function beginStreaming(observer: RuntimeObserverState) {
   ensureUi().beginAssistantStreaming(observer.assistant);
 }
 
-function replaceAnswer(observer: RuntimeObserverState, content: string) {
-  beginStreaming(observer);
+function restorePending(observer: RuntimeObserverState) {
+  observer.streamingStarted = false;
+  ensureUi().resetAssistantPending(
+    observer.assistant,
+    observer.activity ?? { status: "preparing" },
+  );
+}
+
+function replaceAnswer(
+  observer: RuntimeObserverState,
+  content: string,
+  options: { terminal?: boolean } = {},
+) {
   observer.answer = content;
+
+  if (!content) {
+    restorePending(observer);
+    return;
+  }
+
+  if (!appearance.response.show_intermediate_messages && !options.terminal) {
+    if (observer.streamingStarted) restorePending(observer);
+    return;
+  }
+
+  beginStreaming(observer);
   ensureUi().updateAssistantStreaming(observer.assistant, observer.answer);
 }
 
@@ -379,6 +416,7 @@ function applyRuntimeFrame(
 
   const { eventType, payload } = parsed;
   if (parsed.kind === "transport" && eventType !== "error") return null;
+  const terminal = runtimeTerminalStatus(parsed);
   if (eventType === "tool_call_started" || eventType === "tool_call_completed") {
     ensureUi().updateSkillActivity(observer.assistant, payload);
   }
@@ -386,7 +424,11 @@ function applyRuntimeFrame(
     for (const message of runtimeStateAssistantMessages(parsed)) {
       completeIntermediate(observer, message);
     }
-    replaceAnswer(observer, typeof payload.output === "string" ? payload.output : "");
+    replaceAnswer(
+      observer,
+      typeof payload.output === "string" ? payload.output : "",
+      { terminal: terminal !== null },
+    );
     for (const calls of [payload.tools, payload.active_tools]) {
       if (Array.isArray(calls)) for (const call of calls) ensureUi().updateSkillActivity(observer.assistant, call);
     }
@@ -407,6 +449,7 @@ function applyRuntimeFrame(
   } else if (eventType === "agent_activity") {
     const activity = publicActivity(payload);
     if (activity) {
+      observer.activity = activity;
       const label = ensureUi().updateAssistantActivity(observer.assistant, activity);
       emit("run.activity", {
         status: activity.status,
@@ -417,9 +460,7 @@ function applyRuntimeFrame(
     const token = typeof payload.content === "string" ? payload.content : "";
 
     if (eventType === "token" && token) {
-      beginStreaming(observer);
-      observer.answer += token;
-      ensureUi().updateAssistantStreaming(observer.assistant, observer.answer);
+      replaceAnswer(observer, observer.answer + token);
     }
 
     if (eventType === "token_retract") {
@@ -433,18 +474,24 @@ function applyRuntimeFrame(
     }
 
     if (eventType === "done" && typeof payload.answer === "string") {
-      replaceAnswer(observer, payload.answer);
+      replaceAnswer(observer, payload.answer, { terminal: true });
+    }
+
+    if (
+      eventType === "execution_completed"
+      && typeof payload.output === "string"
+    ) {
+      replaceAnswer(observer, payload.output, { terminal: true });
     }
 
     if (
       (eventType === "cancelled" || eventType === "execution_cancelled")
       && typeof payload.output === "string"
     ) {
-      replaceAnswer(observer, payload.output);
+      replaceAnswer(observer, payload.output, { terminal: true });
     }
   }
 
-  const terminal = runtimeTerminalStatus(parsed);
   if (terminal !== null) observer.terminalStatus = terminal;
   return terminal;
 }
