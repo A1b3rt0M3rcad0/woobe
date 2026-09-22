@@ -34,6 +34,7 @@ def _runtime_model(
     base_messages: list[Any],
     runtime_state: StrategyRuntimeState,
     invoke_fn,
+    communication_model: Any | None = None,
     final_model: Any | None = None,
 ) -> RuntimeStrategyModel:
     return RuntimeStrategyModel(
@@ -46,6 +47,7 @@ def _runtime_model(
         runtime_state=runtime_state,
         base_messages=base_messages,
         initial_phase="response_generation",
+        communication_model=communication_model,
         final_model=final_model,
         final_model_factory=None,
         final_json_instruction=None,
@@ -102,6 +104,51 @@ async def test_runtime_strategy_model_directive_is_invocation_local() -> None:
     assert len(captured_messages) == 2
     assert _directive_messages(captured_messages[1]) == []
     assert _directive_messages(runtime_state.messages) == []
+
+
+@pytest.mark.asyncio
+async def test_communicate_uses_tool_free_model_and_intermediate_output_mode() -> None:
+    captured: list[dict[str, Any]] = []
+    communication_model = object()
+
+    async def fake_invoke_llm(**kwargs):
+        captured.append(dict(kwargs))
+        return (
+            AIMessage(content="Vou procurar e volto com o que encontrar."),
+            {
+                "phase": kwargs["phase"],
+                "call_index": kwargs["call_index"],
+                "occurred_at": "model-1",
+            },
+        )
+
+    base_messages = [HumanMessage(content="Pesquise isso.")]
+    runtime_state = StrategyRuntimeState(
+        messages=list(base_messages),
+        base_message_count=len(base_messages),
+    )
+    model = _runtime_model(
+        base_messages=base_messages,
+        runtime_state=runtime_state,
+        invoke_fn=fake_invoke_llm,
+        communication_model=communication_model,
+    )
+
+    result = await model.communicate(
+        phase="search_update",
+        directive="Briefly tell the user what you will verify next.",
+    )
+
+    assert result.content == "Vou procurar e volto com o que encontrar."
+    assert len(captured) == 1
+    assert captured[0]["model"] is communication_model
+    assert captured[0]["output_mode"] == "intermediate"
+    assert captured[0]["phase"] == "search_update"
+    assert runtime_state.messages[-1].content == (
+        "Vou procurar e volto com o que encontrar."
+    )
+
+
 
 
 @pytest.mark.asyncio
