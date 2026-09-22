@@ -213,9 +213,13 @@ class ScientificMethodExecutionStrategy(
                 current_phase = state.phase
                 tool_batch = await ctx.tools.execute_many(result.tool_calls)
                 state.experiment_round += 1
-                state.after_evidence_phase = self._after_evidence_phase(
-                    current_phase
-                )
+                if not (
+                    _is_evidence_phase(current_phase)
+                    and state.after_evidence_phase is not None
+                ):
+                    state.after_evidence_phase = self._after_evidence_phase(
+                        current_phase
+                    )
                 state.phase = strategy_phase_with_iteration(
                     ScientificMethodPhase.EVIDENCE_ANALYSIS,
                     state.experiment_round,
