@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 from uuid import UUID, uuid4
 
 import pytest
@@ -14,6 +15,8 @@ from modules.agent.infra.database.context_models import (
 )
 from modules.agent.infra.database.models import AgentModel, MessageModel, SessionModel
 from modules.agent.infra.database.run_models import AgentRunModel
+from modules.core.infra.database.models import ProjectModel
+from modules.core.infra.database.project_runs_reader import SQLProjectRunsReader
 from modules.network.infra.database.models import (
     NetworkAgentContextModel,
     NetworkExecutionEventModel,
@@ -136,6 +139,7 @@ async def test_network_bulk_finalizer_materializes_children_in_one_commit() -> N
     session_factory = create_session_factory(engine)
 
     project_id = uuid4()
+    workspace_id = uuid4()
     network_id = uuid4()
     network_session_id = uuid4()
     execution_id = uuid4()
@@ -191,6 +195,14 @@ async def test_network_bulk_finalizer_materializes_children_in_one_commit() -> N
         async with session.begin():
             session.add_all(
                 [
+                    ProjectModel(
+                        id=project_id,
+                        workspace_id=workspace_id,
+                        name="Network Run ledger fixture",
+                        slug=f"network-run-ledger-{project_id.hex[:12]}",
+                        status="active",
+                        data={},
+                    ),
                     AgentModel(
                         id=root_agent_id,
                         project_id=project_id,
@@ -550,5 +562,28 @@ async def test_network_bulk_finalizer_materializes_children_in_one_commit() -> N
     assert len(agent_sessions) == 2
     assert len(messages) == 4
     assert {item.network_node_id for item in contexts} == {root_node_id, child_node_id}
+
+    async with session_factory() as session:
+        ledger = await SQLProjectRunsReader(
+            SimpleNamespace(session=session)
+        ).fetch(
+            project_id=project_id,
+            network_id=None,
+            limit=100,
+        )
+
+    assert ledger["summary"]["network_runs"] == 1
+    assert ledger["summary"]["agent_runs"] == 2
+    assert ledger["summary"]["network_agent_runs"] == 2
+    assert ledger["summary"]["direct_agent_runs"] == 0
+    assert ledger["summary"]["top_level_runs"] == 1
+    assert ledger["summary"]["avg_agent_runs_per_network_run"] == 2
+    assert len(ledger["network_runs"]) == 1
+    assert ledger["network_runs"][0]["id"] == str(execution_id)
+    assert ledger["network_runs"][0]["network_name"].startswith("bulk-finalizer-")
+    assert len(ledger["network_runs"][0]["agent_runs"]) == 2
+    assert {
+        item["id"] for item in ledger["network_runs"][0]["agent_runs"]
+    } == {str(root_invocation_id), str(child_invocation_id)}
 
     await engine.dispose()
