@@ -189,7 +189,15 @@ async def checkpoint_strategy_boundary(**kwargs: Any) -> None:
     recorder = getattr(context, "run_event_recorder", None) if context is not None else None
     if recorder is None:
         return
-    await recorder.checkpoint(build_strategy_checkpoint_state(**kwargs), durable=True)
+    state = build_strategy_checkpoint_state(**kwargs)
+    context_manager_state = (
+        getattr(context, "context_manager_state", None)
+        if context is not None
+        else None
+    )
+    if isinstance(context_manager_state, dict):
+        state["context_manager_state"] = deepcopy(context_manager_state)
+    await recorder.checkpoint(state, durable=True)
 
 
 def load_strategy_execution_resume(
@@ -288,7 +296,15 @@ async def checkpoint_agent_boundary(**kwargs: Any) -> None:
     recorder = getattr(context, "run_event_recorder", None) if context is not None else None
     if recorder is None:
         return
-    await recorder.checkpoint(build_agent_checkpoint_state(**kwargs), durable=True)
+    state = build_agent_checkpoint_state(**kwargs)
+    context_manager_state = (
+        getattr(context, "context_manager_state", None)
+        if context is not None
+        else None
+    )
+    if isinstance(context_manager_state, dict):
+        state["context_manager_state"] = deepcopy(context_manager_state)
+    await recorder.checkpoint(state, durable=True)
 
 
 def load_agent_execution_resume(value: Any) -> AgentExecutionResume | None:
