@@ -118,6 +118,61 @@ async def test_chat_surface_observer_marks_message_cancelled_only_after_terminal
 
 
 @pytest.mark.asyncio
+async def test_chat_surface_reattach_preserves_intermediate_assistant_chunks(monkeypatch) -> None:
+    run_id = uuid4()
+    project_id = uuid4()
+    agent_id = uuid4()
+    session_id = uuid4()
+    release_id = uuid4()
+    message_request = SimpleNamespace(id=uuid4())
+    authorized = _authorized(
+        project_id=project_id,
+        agent_id=agent_id,
+        session_id=session_id,
+        release_id=release_id,
+    )
+
+    async def active_request(*_args, **_kwargs):
+        return authorized, message_request, run_id, "running"
+
+    intermediate = (
+        "event: assistant_message_completed\n"
+        f'data: {{"type":"assistant_message_completed","run_id":"{run_id}",'
+        '"payload":{"message_id":"message-progress","content":"Vou procurar.",'
+        '"output_mode":"intermediate"}}\n\n'
+    )
+
+    async def chunks():
+        yield ChatRuntimeChunk(sse=intermediate, run_id=run_id)
+        yield ChatRuntimeChunk(
+            sse=(
+                "event: run.state\n"
+                f'data: {{"type":"run.state","run_id":"{run_id}",'
+                '"payload":{"status":"cancelled","output":""}}\n\n'
+            ),
+            run_id=run_id,
+            terminal_status="cancelled",
+        )
+
+    prepared = PreparedChatRuntime(stream=chunks(), run_id=run_id)
+    gateway = _Gateway(prepared)
+    service = _SurfaceService()
+    monkeypatch.setattr(reattach_routes, "_authorized_active_request", active_request)
+    monkeypatch.setattr(reattach_routes, "_service", lambda _request: service)
+
+    response = await reattach_routes.stream_chat_active_run(
+        session_id,
+        _Request(gateway),
+    )
+    observed = []
+    async for chunk in response.body_iterator:
+        observed.append(chunk.decode() if isinstance(chunk, bytes) else str(chunk))
+
+    assert intermediate in observed
+    assert service.marked[-1][1]["status"] == "cancelled"
+
+
+@pytest.mark.asyncio
 async def test_chat_surface_transport_disconnect_does_not_terminalize_message_request(monkeypatch) -> None:
     run_id = uuid4()
     project_id = uuid4()
