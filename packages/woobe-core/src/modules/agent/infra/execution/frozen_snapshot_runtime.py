@@ -11,7 +11,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from modules.agent.application.dtos.behavior_dtos import canonicalize_behavior_spec
 from modules.agent.application.dtos.runtime_dtos import UsageInfo
 from modules.agent.application.interfaces.execution_context import current_execution
-from modules.agent.application.use_cases.trace_event_builder import build_execution_timeline_events
+from modules.agent.infra.execution.trace_event_builder import build_execution_timeline_events
 from modules.agent.domain.enums import Provider, SessionMode
 from modules.agent.domain.system_instructions import assemble_canonical_system_instructions
 from modules.agent.infra.execution.deferred_run_metrics import build_deferred_agent_metrics
