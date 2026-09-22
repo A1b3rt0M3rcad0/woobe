@@ -146,6 +146,7 @@ class ContextAssemblyRequest:
     model: str
     runtime_context: ContextAssemblyRuntimeContext
     policy: ContextPolicyV1
+    phase: str | None = None
 
 
 class ContextAssemblyOutput(Protocol):
