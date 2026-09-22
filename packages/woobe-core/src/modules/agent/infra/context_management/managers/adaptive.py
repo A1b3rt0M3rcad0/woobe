@@ -204,10 +204,18 @@ class AdaptiveContextManager:
                 continue
 
             try:
-                summary = await ctx.summary.create(
-                    source,
-                    target_units=summary_policy.target_units,
-                    preserve_recent_messages=preserve,
+                summary = (
+                    await ctx.summary.refresh(
+                        cached,
+                        target_units=summary_policy.target_units,
+                        preserve_recent_messages=preserve,
+                    )
+                    if cached is not None
+                    else await ctx.summary.create(
+                        source,
+                        target_units=summary_policy.target_units,
+                        preserve_recent_messages=preserve,
+                    )
                 )
             except Exception:
                 if summary_policy.failure_mode == "fail":
