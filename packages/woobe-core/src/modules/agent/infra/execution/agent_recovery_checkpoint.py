@@ -24,6 +24,7 @@ def _serialize_capability_message(message: Any) -> dict[str, Any]:
             "role": "assistant",
             "content": deepcopy(message.content),
             "tool_calls": deepcopy(list(getattr(message, "tool_calls", None) or [])),
+            "additional_kwargs": deepcopy(message.additional_kwargs or {}),
         }
     if isinstance(message, ToolMessage):
         return {
@@ -43,6 +44,7 @@ def _restore_capability_message(value: dict[str, Any]) -> Any:
         return AIMessage(
             content=deepcopy(value.get("content") or ""),
             tool_calls=deepcopy(value.get("tool_calls") or []),
+            additional_kwargs=deepcopy(value.get("additional_kwargs") or {}),
         )
     if role == "tool":
         tool_call_id = value.get("tool_call_id")
