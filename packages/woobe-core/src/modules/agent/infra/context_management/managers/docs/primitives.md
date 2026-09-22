@@ -1,57 +1,58 @@
 # SDK primitives
 
-The stable Manager-facing surface is:
+The Manager-facing surface is intentionally small and typed:
 
 ~~~text
 ctx.policy
-ctx.candidates
+ctx.state
 ctx.capacity
 ctx.inventory
 ctx.invocation
+ctx.candidates
 ctx.priorities
 ctx.budget
 ctx.pressure
 ctx.sources
+ctx.summary
 ctx.has_active_skills
+await ctx.checkpoint(...)
 ctx.complete()
 ~~~
 
-`ctx.policy` is configured input. The remaining members are the supported programming surface.
+## `ctx.policy`
 
-## `ctx.candidates`
+Read-only configured policy view by contract. Runtime keeps the effective mutable copy separate.
 
-Controls candidate eligibility and deterministic selection:
+## `ctx.state`
 
-- `allow(sources)` replaces the allowed source set;
-- `recent_session(max_messages, max_units)` selects recent Session context;
-- `cap(source, max_units)` applies a per-source cap where supported;
-- `require(source, priority=MANDATORY)` allows a source and assigns priority;
-- `deduplicate(strategy, sources)` configures duplicate elimination;
-- `order(strategy)` configures final ordering.
+Typed state declared by the concrete Manager's `state_type`.
 
-`cap(...)` currently supports CHECKPOINT, MEMORY, KNOWLEDGE, TOOL, ARTIFACT and DELEGATION. Session has its own window primitive. SYSTEM and current USER_INPUT are mandatory invariants.
+~~~python
+class MyState(ContextManagerState):
+    iteration: int = 0
+~~~
+
+State should contain only serializable algorithm data. Do not put provider clients, messages or repositories into state.
 
 ## `ctx.capacity`
 
-Provides read-only invocation capacity facts without exposing provider/runtime objects:
+Read-only invocation capacity:
 
-~~~python
-ctx.capacity.model_capacity_units
-ctx.capacity.reserved_output_units
-ctx.capacity.runtime_reserve_units
-ctx.capacity.configured_input_budget_units
-ctx.capacity.model_usable_input_units
-ctx.capacity.usable_input_budget_units
-ctx.capacity.budget_clamped
+~~~text
+model_capacity_units
+reserved_output_units
+runtime_reserve_units
+configured_input_budget_units
+model_usable_input_units
+usable_input_budget_units
+budget_clamped
 ~~~
 
-The values track the effective Manager budget. If the Manager calls `ctx.budget.configure(...)`, subsequent capacity reads reflect the new configured budget/reserve.
-
-This lets adaptive Managers react differently to a large primary model and a smaller fallback model without bypassing Runtime capacity enforcement.
+Use this for primary/fallback-aware algorithms instead of hard-coding model names.
 
 ## `ctx.inventory`
 
-Provides aggregate pre-selection facts by `ContextSourceType`:
+Aggregate pre-selection facts without raw messages:
 
 ~~~python
 ctx.inventory.total_count
@@ -59,87 +60,100 @@ ctx.inventory.total_units
 ctx.inventory.sources
 ctx.inventory.count(ContextSourceType.SESSION)
 ctx.inventory.units(ContextSourceType.KNOWLEDGE)
-ctx.inventory.contains(ContextSourceType.TOOL)
+ctx.inventory.contains(ContextSourceType.SKILL)
 ~~~
 
-Managers do not receive raw messages. Inventory uses the same source-classification logic as the assembler, includes contract-exposed External Context and active Tool definitions, and also includes aggregate active Skill contribution count/units before the Manager decides whether to materialize those Skills.
+Inventory shares the assembler's source-classification logic and includes External Context, active Tool definitions and aggregate active Skill contribution units.
 
 ## `ctx.invocation`
 
-Exposes Model Invocation metadata that may legitimately affect a context algorithm:
+Read-only invocation metadata:
 
-~~~python
-ctx.invocation.phase
-ctx.invocation.provider
-ctx.invocation.model
-ctx.invocation.delegated
-ctx.invocation.has_active_tools
+~~~text
+phase
+provider
+model
+delegated
+has_active_tools
 ~~~
 
-This is intentionally narrower than `ContextAssemblyRequest`. It lets a Manager distinguish initial response generation, Tool follow-up, final response or repair phases without importing execution/runtime objects.
+This is deliberately narrower than `ContextAssemblyRequest`.
 
-Use provider/model identity only when the algorithm truly needs semantic provider/model differences. Prefer `ctx.capacity` for size-based decisions because it works across primary and fallback models without hard-coded model names.
+## `ctx.candidates`
+
+Deterministic selection controls:
+
+- `allow(sources)`;
+- `recent_session(max_messages, max_units)`;
+- `cap(source, max_units)`;
+- `require(source, priority=MANDATORY)`;
+- `deduplicate(strategy, sources)`;
+- `order(strategy)`.
 
 ## `ctx.priorities`
 
-Controls source priority independently from source eligibility:
-
-~~~python
-ctx.priorities.set(
-    ContextSourceType.KNOWLEDGE,
-    ContextPriority.HIGH,
-)
-ctx.priorities.configure(policy.source_priorities)
-~~~
-
-Priorities affect source-priority ordering, global overflow precedence and persisted contribution evidence.
-
-SYSTEM and USER_INPUT cannot be downgraded from MANDATORY.
+`set(source, priority)` and `configure(mapping)` affect source-priority ordering, global overflow precedence and evidence. SYSTEM/USER_INPUT cannot be downgraded.
 
 ## `ctx.budget`
 
-~~~python
-ctx.budget.configure(
-    max_input_units=48_000,
-    runtime_reserve_units=4_000,
-)
-~~~
-
-Runtime still clamps against invocation-specific model capacity and output reserve. A Manager cannot force materialization beyond the usable model window.
+`configure(max_input_units, runtime_reserve_units)` programs configured input budget. Runtime still enforces invocation-specific model capacity/output reserve.
 
 ## `ctx.pressure`
 
-~~~python
-ctx.pressure.thresholds(
-    moderate_at=0.40,
-    high_at=0.75,
-    critical_at=0.90,
-)
-~~~
-
-These thresholds classify Context health/evidence. They do not trigger a separate adaptive algorithm.
+`thresholds(moderate_at, high_at, critical_at)` changes pressure classification. It does not itself summarize or trim.
 
 ## `ctx.sources`
 
-Enables optional runtime-owned materialization.
+Enables reusable runtime-owned source materializers. Current built-in primitive: `ctx.sources.skills()`.
 
-Current shared primitive:
+## `ctx.summary`
+
+Semantic-summary capability executed and instrumented by Runtime.
 
 ~~~python
-if ctx.has_active_skills:
-    ctx.sources.skills()
+selection = ctx.summary.inspect(
+    ContextSourceType.SESSION,
+    preserve_recent_messages=8,
+)
+
+summary = await ctx.summary.create(
+    ContextSourceType.SESSION,
+    target_units=2_000,
+    preserve_recent_messages=8,
+)
+
+refreshed = await ctx.summary.refresh(
+    summary,
+    target_units=2_000,
+)
+
+ctx.summary.apply(summary)
 ~~~
 
-Runtime owns Skill message construction, budget validation, provenance and manifest enrichment.
+`inspect` exposes refs/hash/count/units, not raw message bodies.
 
-External Context is runtime-owned but contract-authorized rather than an optional Manager materializer, so it is not toggled through `ctx.sources`.
+`create` summarizes eligible historical material.
+
+`refresh` is incremental: it sends the previous summary plus only newly eligible history to the summary model, while updating lineage to represent the complete summarized source set.
+
+`apply` reuses a stored summary only if referenced source messages are still available and their hash matches.
+
+Summary model calls are recorded in the execution trace with `purpose=context_summary` and `phase=context_summary`; they are not streamed as assistant output.
+
+## `await ctx.checkpoint(...)`
+
+Durably records Manager state at an algorithm boundary:
+
+~~~python
+await ctx.checkpoint(ContextCheckpointBoundary.SUMMARY)
+~~~
+
+Runtime immediately updates run-local hot Context state and emits durable `context.checkpoint` evidence. Recovery merges the newest Context state with a safe execution continuation without treating Context state as a Tool-causality checkpoint.
 
 ## `ctx.complete()`
 
-`ctx.complete()` freezes the effective algorithm decisions into `ContextManagerOutcome`. The runner validates the outcome before materialization.
+Freezes/validates the effective policy into `ContextManagerOutcome`. The runner then performs summary materialization, Skills materialization and the shared deterministic context assembly.
 
-## Deliberately absent primitives
+## Deliberately absent
 
-The SDK does not currently expose semantic summary, model-based compression, artifact reference/materialize switching, custom retention modes, custom retrieval, or provider-specific message construction.
-
-Some are upstream source-production concerns; others require Runtime capabilities that do not exist yet. See [Summary and compaction](./summary-and-compaction.md) and [Current limitations](./limitations.md).
+Managers do not receive raw messages, provider clients, persistence repositories or arbitrary Tool execution. New side-effecting capabilities should be added as explicit Runtime primitives rather than leaked through the context object.
