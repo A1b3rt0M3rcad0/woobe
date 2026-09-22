@@ -43,7 +43,7 @@ Examples:
 
 Directives are materialized as system-controlled context for the current Model invocation and are never appended to persistent Strategy conversation state.
 
-The Strategy also declares output ownership per invocation. Observation, hypothesis formulation, evidence analysis, and critical review use `public_output=False`, so their intermediate text remains internal. `conclusion` uses `public_output=True`, so the runtime can stream that answer without recognizing the name `conclusion` itself.
+The Strategy also declares delivery semantics per invocation. Observation, hypothesis formulation, evidence analysis, and critical review use `StrategyOutputMode.INTERNAL`, while `conclusion` uses `StrategyOutputMode.FINAL`. The runtime therefore does not need to recognize the name `conclusion`. A future Strategy can use `StrategyOutputMode.INTERMEDIATE` to emit a durable Assistant message, continue with Tools or more Model calls, and later produce its final response.
 
 ## State
 
@@ -92,7 +92,7 @@ The Strategy Runtime restores the durable conversation evidence and call indexes
 
 ## Why this matters for future Strategies
 
-Scientific Method does not add Scientific-Method-specific branches to `strategy_runtime`. It uses the generic `public_output` primitive added to the Strategy Model contract so any future multi-phase Strategy can declare which invocation owns public assistant output.
+Scientific Method does not add Scientific-Method-specific branches to `strategy_runtime`. It uses the generic `output_mode` primitive in the Strategy Model contract, which also supports intermediate Assistant messages for future multi-phase Strategies.
 
 That demonstrates the intended extension model:
 
@@ -103,7 +103,7 @@ new algorithm
     → local State
     → optional local Policy
     → phase-specific Directives
-    → explicit public-output ownership
+    → explicit output delivery mode
     → existing Model / Tool / checkpoint primitives
 ```
 

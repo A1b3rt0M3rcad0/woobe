@@ -53,6 +53,7 @@ from modules.agent.application.strategy_sdk import (
     ExecutionState,
     ExecutionStopReason,
     StrategyContext,
+    StrategyOutputMode,
     StrategyOutcome,
 )
 ```
@@ -182,11 +183,11 @@ For new multi-phase Strategies, do not rely on a phase-name convention to decide
 result = await ctx.model.invoke(
     phase=PlannerPhase.SYNTHESIS,
     directive="Produce the final answer from the validated plan.",
-    public_output=True,
+    output_mode=StrategyOutputMode.FINAL,
 )
 ```
 
-Internal planning or reasoning invocations should use `public_output=False`. Existing Strategies can omit the argument and keep the historical runtime behavior. The frontend consumes the runtime's `visibility`, `channel`, `phase`, and activity `message`; it does not maintain a list of Strategy-specific final phases.
+Internal planning or reasoning invocations should use `StrategyOutputMode.INTERNAL`. Use `StrategyOutputMode.INTERMEDIATE` when the Agent should send a real Assistant message and then continue executing, and `StrategyOutputMode.FINAL` for the terminal response. Existing Strategies can omit the argument and keep the historical runtime behavior. The frontend consumes runtime message identity and does not maintain a list of Strategy-specific final phases.
 
 ### Execute Tools
 

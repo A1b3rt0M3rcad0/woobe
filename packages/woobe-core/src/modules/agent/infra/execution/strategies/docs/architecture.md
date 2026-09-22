@@ -59,7 +59,7 @@ A Phase and a Directive solve different problems.
 ```text
 Phase         = stable semantic identity of an execution step
 Directive     = ephemeral Model behavior instruction for one invocation
-public_output = whether that invocation owns public assistant output
+output_mode   = whether output is internal, intermediate, or final
 ```
 
 The Phase is structural. It is useful to the Strategy algorithm, instrumentation, traces and recovery semantics. A Directive is an optional instruction supplied by the Strategy to refine how the Model should operate during that invocation.
@@ -78,7 +78,7 @@ result = await ctx.model.invoke(
 
 Directives are invocation-local. The Strategy Runtime materializes them only for the current Model call, routes them through Context Engineering, and never appends them to persistent conversation progression.
 
-New multi-phase Strategies should also declare `public_output` explicitly. Internal reasoning phases use `public_output=False`; a terminal answer-producing phase uses `public_output=True`. Existing Strategies may leave it as `None` to preserve the historical phase policy. This keeps streaming semantics owned by the Strategy instead of teaching the runtime or frontend every concrete phase name.
+New multi-phase Strategies should declare `output_mode` explicitly. Use `INTERNAL` for hidden execution text, `INTERMEDIATE` for a real Assistant message while the Run continues, and `FINAL` for the terminal Assistant response. Existing Strategies may leave it as `None` to preserve the historical phase policy. This keeps delivery semantics owned by the Strategy instead of teaching the runtime or frontend every concrete phase name.
 
 A Directive does not mutate or replace:
 
@@ -158,7 +158,7 @@ If a new algorithm appears to require changes there, classify the requirement fi
 
 If the behavior is specific to one algorithm, keep it in the Strategy file. Examples include planning order, reflection loops, replan rules and algorithm-specific termination.
 
-If several Strategies need the same capability and the current Strategy SDK cannot express it, a small shared primitive may belong in `strategy_sdk` and `strategy_runtime`. Per-invocation Directives and explicit `public_output` ownership are examples: different algorithms can define phase-specific Model behavior and streaming visibility without changing Agent configuration or hardcoding Strategy names in shared infrastructure.
+If several Strategies need the same capability and the current Strategy SDK cannot express it, a small shared primitive may belong in `strategy_sdk` and `strategy_runtime`. Per-invocation Directives and `output_mode` are examples: different algorithms can define phase-specific Model behavior and message delivery without changing Agent configuration or hardcoding Strategy names in shared infrastructure.
 
 The rule is:
 
