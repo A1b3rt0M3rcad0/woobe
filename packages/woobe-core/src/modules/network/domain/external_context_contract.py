@@ -107,6 +107,16 @@ def resolve_scoped_effective_external_context(
     }
 
     session_changed = False
+    if session_snapshot is not None:
+        persisted_names = set(session_snapshot)
+        invalid_persisted = persisted_names - set(session_fields)
+        if invalid_persisted:
+            names = ", ".join(sorted(str(name) for name in invalid_persisted))
+            raise ExternalContextContractError(
+                "Session External Context no longer satisfies the active contract; "
+                f"open a new Session (invalid fields: {names})"
+            )
+
     if session_fields:
         if session_snapshot is None:
             for name, field in session_fields.items():
