@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from modules.agent.application.context_assembler_registry import build_runtime_context_assembler
+from modules.agent.infra.context_management.managers.resolver import build_runtime_context_assembler
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.interfaces.execution_context import (
     current_execution,
