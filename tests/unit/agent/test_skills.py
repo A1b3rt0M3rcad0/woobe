@@ -338,10 +338,17 @@ def test_standard_context_is_stable_without_active_skills(version):
         SkillRuntime([version.snapshot()], SkillContextPolicy(), set()), policy
     )
     context_request.runtime_context.skill_context = None
-    original = StandardContextAssembler().assemble(context_request)
-    updated = build_context_assembler("standard").assemble(
-        context_request
+    original = assemble_context(
+        messages=context_request.messages,
+        model_invocation_id=context_request.model_invocation_id,
+        agent_run_id=context_request.agent_run_id,
+        project_id=context_request.project_id,
+        provider=context_request.provider,
+        model=context_request.model,
+        runtime_context=context_request.runtime_context,
+        policy=context_request.policy,
     )
+    updated = build_context_assembler("standard").assemble(context_request)
     assert original.messages == updated.messages
     assert {
         key: value
