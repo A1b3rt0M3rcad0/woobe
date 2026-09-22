@@ -33,6 +33,34 @@ class ToolFollowupStreamingModel:
         yield Chunk("▁of▁sentence｜>")
 
 
+@dataclass
+class ToolSelectingChunk:
+    content: str
+    tool_calls: list[dict]
+
+    def __add__(self, other: "ToolSelectingChunk") -> "ToolSelectingChunk":
+        return ToolSelectingChunk(
+            self.content + other.content,
+            [*self.tool_calls, *other.tool_calls],
+        )
+
+
+class ToolSelectingStreamingModel:
+    async def astream(self, _messages):
+        yield ToolSelectingChunk("Vou procurar.", [])
+        yield ToolSelectingChunk(
+            "",
+            [
+                {
+                    "id": "call-1",
+                    "name": "lookup",
+                    "args": {"query": "repo"},
+                    "type": "tool_call",
+                }
+            ],
+        )
+
+
 class NonStreamingModel:
     async def ainvoke(self, _messages):
         return Chunk("ok<|endoftext|>")
@@ -135,6 +163,69 @@ async def test_runtime_stream_journals_retraction_after_visible_output() -> None
     assert recorder.events[0][1]["content"] == "candidate"
     assert recorder.events[1][1]["content_length"] == len("candidate")
     assert recorder.events[1][1]["reason"] == "tool_call_selected"
+
+
+@pytest.mark.asyncio
+async def test_visible_pre_tool_text_is_promoted_to_intermediate_message() -> None:
+    recorder = FakeRecorder()
+    context = new_execution_context()
+    context.run_event_recorder = recorder
+    context_token = current_execution.set(context)
+    channel = RuntimeStreamChannel()
+    stream_token = current_runtime_stream.set(channel)
+    try:
+        result = await invoke_model_with_optional_streaming(
+            model=ToolSelectingStreamingModel(),
+            messages=[],
+            phase="capability_response_generation",
+            provider="openai",
+            model_name="gpt-test",
+        )
+    finally:
+        current_runtime_stream.reset(stream_token)
+        current_execution.reset(context_token)
+
+    events = []
+    while not channel.queue.empty():
+        events.append(channel.queue.get_nowait())
+
+    assert [event.event_type for event in events] == [
+        "agent_activity",
+        "token",
+        "assistant_message_completed",
+        "token_retract",
+    ]
+    candidate = events[1]
+    promoted = events[2]
+    retracted = events[3]
+    assert candidate.payload["content"] == "Vou procurar."
+    assert candidate.payload["output_mode"] == "final"
+    assert promoted.payload["content"] == "Vou procurar."
+    assert promoted.payload["output_mode"] == "intermediate"
+    assert promoted.payload["message_id"] != candidate.payload["message_id"]
+    assert retracted.payload["message_id"] == candidate.payload["message_id"]
+    assert retracted.payload["reason"] == "tool_call_selected"
+    assert context.output_message_id is not None
+    assert promoted.payload["message_id"] != str(context.output_message_id)
+    assert channel.public_output == ""
+    assert context.intermediate_messages == [
+        {
+            "message_id": promoted.payload["message_id"],
+            "content": "Vou procurar.",
+            "phase": "capability_response_generation",
+            "output_mode": "intermediate",
+            "provider": "openai",
+            "model": "gpt-test",
+            "partial": False,
+            "completed_at": promoted.payload["completed_at"],
+        }
+    ]
+    assert [event_type for event_type, _ in recorder.events] == [
+        "output.delta.batch",
+        "assistant.message.completed",
+        "output.retracted",
+    ]
+    assert result.tool_calls[0]["name"] == "lookup"
 
 
 @pytest.mark.asyncio
