@@ -8,6 +8,9 @@ from modules.agent.application.context_assembler_registry import (
     DEFAULT_CONTEXT_MANAGER_SETTING,
     canonicalize_context_assembler_runtime_config,
 )
+from modules.agent.application.execution_runtime_config import (
+    canonicalize_execution_runtime_config,
+)
 from modules.agent.application.execution_strategy_config import (
     canonicalize_execution_strategy_runtime_config,
 )
@@ -284,7 +287,10 @@ def _force_strict_json_settings(
             default_context_manager=default_context_manager,
             use_current_default_if_missing=initialize_context_manager,
         )
-        settings["runtime_config"] = canonicalize_execution_strategy_runtime_config(
+        runtime_config = canonicalize_execution_strategy_runtime_config(
+            runtime_config
+        )
+        settings["runtime_config"] = canonicalize_execution_runtime_config(
             runtime_config
         )
     response_format = settings.get("response_format")
