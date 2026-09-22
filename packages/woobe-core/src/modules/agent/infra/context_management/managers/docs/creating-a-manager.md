@@ -81,6 +81,15 @@ else:
 
 These views are read-only. They expose algorithm-relevant facts without leaking raw messages, provider clients or runtime state containers.
 
+When phase matters, use the narrow invocation view:
+
+~~~python
+if ctx.invocation.phase == "json_repair":
+    ctx.candidates.recent_session(max_messages=4, max_units=2_000)
+~~~
+
+Do not import execution phase internals or `ContextAssemblyRequest` into a Manager.
+
 ## 4. Program candidates
 
 ~~~python
