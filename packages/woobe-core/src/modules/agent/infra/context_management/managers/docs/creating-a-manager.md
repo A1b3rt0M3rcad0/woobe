@@ -65,6 +65,22 @@ policy = ctx.policy
 
 Do not attempt to program behavior by mutating it directly.
 
+## 4. Inspect invocation facts when the algorithm needs them
+
+A static Manager may not need these views. An adaptive Manager can inspect capacity and aggregate candidate inventory:
+
+~~~python
+usable = ctx.capacity.usable_input_budget_units
+session_units = ctx.inventory.units(ContextSourceType.SESSION)
+
+if usable is not None and session_units > usable // 2:
+    session_limit = max(512, usable // 4)
+else:
+    session_limit = policy.session.max_units
+~~~
+
+These views are read-only. They expose algorithm-relevant facts without leaking raw messages, provider clients or runtime state containers.
+
 ## 4. Program candidates
 
 ~~~python
@@ -81,7 +97,7 @@ ctx.candidates.deduplicate(
 ctx.candidates.order(strategy="source_priority")
 ~~~
 
-## 5. Program priorities
+## 6. Program priorities
 
 ~~~python
 ctx.priorities.set(
@@ -94,7 +110,7 @@ Priorities influence source-priority ordering, global overflow precedence and ev
 
 SYSTEM and current USER_INPUT remain MANDATORY.
 
-## 6. Program budget
+## 7. Program budget
 
 ~~~python
 ctx.budget.configure(
@@ -105,7 +121,7 @@ ctx.budget.configure(
 
 Runtime still clamps against actual model capacity and output reserve.
 
-## 7. Configure pressure evidence
+## 8. Configure pressure evidence
 
 ~~~python
 ctx.pressure.thresholds(
@@ -117,7 +133,7 @@ ctx.pressure.thresholds(
 
 These are classification thresholds, not automatic adaptive actions.
 
-## 8. Enable optional runtime sources
+## 9. Enable optional runtime sources
 
 ~~~python
 if ctx.has_active_skills:
@@ -126,7 +142,7 @@ if ctx.has_active_skills:
 
 Do not duplicate Skills or External Context construction inside a Manager.
 
-## 9. Complete
+## 10. Complete
 
 ~~~python
 return ctx.complete()
@@ -172,7 +188,7 @@ class KnowledgeFirstContextManager:
         return ctx.complete()
 ~~~
 
-## 10. Register runtime implementation
+## 11. Register runtime implementation
 
 Add the class to `infra/context_management/managers/resolver.py`:
 
@@ -185,13 +201,13 @@ _BUILTIN_CONTEXT_MANAGER_FACTORIES = {
 
 Keep registration explicit. Names must be stable, lowercase and unversioned.
 
-## 11. Register product metadata
+## 12. Register product metadata
 
 Add a descriptor to `application/context_manager_registry.py`.
 
 The resolver answers **what implementation runs**. The catalog answers **how the product describes it**.
 
-## 12. Test
+## 13. Test
 
 At minimum test algorithm decisions, policy isolation, resolver/catalog parity, budget behavior, priority behavior, Snapshot evidence, optional source materialization and relevant legacy compatibility.
 
