@@ -1,95 +1,105 @@
 # State and lifecycle
 
-A Context Manager is currently a **per-Model-Invocation deterministic algorithm**. It does not own durable Manager State analogous to `ExecutionState`.
+Every Context Manager now declares a serializable `state_type`, parallel to Execution Strategies.
+
+## Base state
+
+~~~python
+class ContextManagerState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+~~~
+
+Standard uses the empty base state because its algorithm is stateless.
+
+Adaptive uses:
+
+~~~python
+class AdaptiveContextState(ContextManagerState):
+    summaries: dict[str, ContextSummaryResult]
+    summary_generation: int = 0
+~~~
 
 ## Invocation lifecycle
 
 ~~~text
-Run preparation
-    ↓
-available context sources + ContextPolicyV1
-    ↓
-one Model Invocation begins
-    ↓
-ContextManagerContext is created
-    ↓
-Manager programs effective policy
-    ↓
-Context Manager Runtime materializes context
-    ↓
-ContextSnapshot is recorded
-    ↓
-Model is invoked
+Run-local Context Manager state
+        │ restore
+        ▼
+Model Invocation begins
+        │
+        ▼
+Runtime builds ContextManagerContext
+        │
+        ▼
+await Manager.assemble(ctx)
+        │
+        ├── inspect capacity/inventory/invocation
+        ├── mutate typed state
+        ├── await summary capability if required
+        ├── await checkpoint if state becomes durable
+        └── program effective selection policy
+        │
+        ▼
+shared materialization + ContextSnapshot
+        │
+        ▼
+Model Invocation
 ~~~
 
-A new `ContextManagerContext` is created for every Model Invocation, including Tool follow-ups, final-response generation and repair invocations.
+A new `ContextManagerContext` is built for each Model Invocation, but its `ctx.state` is restored from run-local `context_manager_state`.
 
-## What may vary per invocation
+## Hot state
 
-The same Agent Run can invoke different models or phases with different effective capacities.
+When `await ctx.checkpoint(...)` succeeds, Runtime immediately updates the current execution context's `context_manager_state`. The next Model Invocation in the same Run sees that state without reading an external repository.
 
-Runtime therefore recomputes:
+## Durable state
+
+A Context checkpoint emits a durable `context.checkpoint` event containing:
 
 ~~~text
-model context capacity
-effective output reserve
-usable input budget
-selected/materialized context
-ContextSnapshot
-pressure classification
+manager_name
+boundary
+serialized state
 ~~~
 
-A fallback model with a smaller context window can receive a smaller re-materialized context without changing the Agent's configured Context Policy.
+Normal Execution checkpoints also embed the current Context Manager state. This means a later safe Execution continuation already carries the latest Context algorithm state.
 
-## What does not belong on the Manager instance
+## Recovery semantics
 
-Do not store per-Run or per-invocation mutable values such as:
+`context.checkpoint` is not itself a causal continuation point for Tool execution.
+
+Recovery first applies the existing Tool-safety rules using real `execution.checkpoint` boundaries. If the durable prefix is resumable, it overlays the newest durable Context Manager state onto the continuation passed to the recovery runtime.
+
+If no Execution checkpoint exists but the durable prefix has no unsafe Tool side effect, execution may restart from the beginning while still restoring Context Manager state. This avoids repeating an already checkpointed semantic summary.
+
+## State ownership
+
+State belongs to the concrete algorithm. Runtime serializes it generically and validates it through `state_type` on restore.
+
+Do not put these in Manager state:
 
 ~~~text
-previous messages
-selected contribution ids
-summary text
-current pressure
-current budget
-Skill activation state
-Model invocation ids
-ContextSnapshot ids
+provider clients
+LangChain/provider messages
+database sessions
+Redis/Mongo handles
+runtime stream objects
+ContextSnapshot objects
+Tool executors
 ~~~
 
-Built-in Manager instances may be shared across concurrent Runs.
+Store typed identifiers, hashes, counters and serializable transformation results instead.
 
-## Where persistent context state belongs
+## Summary state
 
-Long-lived information should live in the subsystem that owns its semantics:
+Adaptive persists `ContextSummaryResult`, including summary content, source refs/hash, units and summary-model provenance. The summary remains a transformation result; persisting its metadata in Manager state does not change its source ontology.
 
-- Session history belongs to Session/message persistence.
-- Execution checkpoint state belongs to execution/recovery.
-- Memory belongs to a memory capability/store.
-- Skill activation state belongs to the Run-local Skills runtime.
-- Knowledge versions and vector snapshots belong to Knowledge/RAG.
-- Future rolling summaries need an explicit persistence contract if they survive one invocation.
+## Run-local versus cross-Run
 
-## Why there is no ContextManagerState today
+Current Context Manager state is Run-local. A new user turn that creates a new Run does not automatically inherit Adaptive summary state.
 
-The current Standard algorithm does not need algorithm-local durable state. Every decision can be derived from configured policy, available sources and invocation capacity.
+Cross-Run rolling Session summary requires a separate Session Context Store or checkpoint/memory persistence contract. That is intentionally not hidden inside Context Manager state.
 
-Do not introduce a generic Manager State abstraction preemptively.
+## Manager changes
 
-If a future algorithm genuinely needs durable decision state across invocations, the design should answer:
-
-~~~text
-what changes future Manager decisions?
-when is it checkpointed?
-who serializes it?
-how is it restored?
-how does it interact with Release immutability?
-how does replay avoid duplicated side effects?
-~~~
-
-Only then should a shared Context Manager State contract be introduced.
-
-## Summary is not Manager State by default
-
-A semantic summary is context data/transformation output, not automatically Manager algorithm state.
-
-If persisted, it should carry source lineage and live in an explicit Session/checkpoint/memory persistence model rather than as an opaque field on the Manager object.
+If a selected Manager changes, state is restored only when the persisted `manager_name` matches the selected Manager. State from one algorithm is not deserialized into another algorithm's state type.
