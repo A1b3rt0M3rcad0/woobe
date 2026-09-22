@@ -146,6 +146,43 @@ async def test_scientific_method_uses_directives_and_reopens_investigation() -> 
 
 
 @pytest.mark.asyncio
+async def test_scientific_method_does_not_skip_hypothesis_after_chained_evidence_experiments() -> None:
+    model = _Model(
+        [
+            _result(
+                "",
+                [{"id": "experiment-1", "name": "search", "args": {"q": "a"}}],
+            ),
+            _result(
+                "",
+                [{"id": "experiment-2", "name": "search", "args": {"q": "b"}}],
+            ),
+            _result("evidence complete"),
+            _result("hypothesis"),
+            _result("critical review"),
+            _result("final conclusion"),
+        ]
+    )
+    ctx = _Context(model)
+
+    outcome = await ScientificMethodExecutionStrategy().execute(ctx)
+
+    assert isinstance(outcome, Completed)
+    assert outcome.result.content == "final conclusion"
+    assert ctx.state.experiment_round == 2
+    assert [item["phase"] for item in model.invocations] == [
+        ScientificMethodPhase.OBSERVATION.value,
+        "evidence_analysis_1",
+        "evidence_analysis_2",
+        ScientificMethodPhase.HYPOTHESIS_FORMULATION.value,
+        ScientificMethodPhase.CRITICAL_REVIEW.value,
+        ScientificMethodPhase.CONCLUSION.value,
+    ]
+
+
+
+
+@pytest.mark.asyncio
 async def test_scientific_method_concludes_from_collected_evidence_after_provider_failure() -> None:
     class _ProviderFailingModel(_Model):
         async def invoke(self, *, phase=None, directive=None, output_mode=None):
