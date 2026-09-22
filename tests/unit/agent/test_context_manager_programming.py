@@ -3,6 +3,7 @@ from __future__ import annotations
 from types import SimpleNamespace
 from uuid import uuid4
 
+import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from modules.agent.application.context_assembler_registry import (
@@ -14,6 +15,7 @@ from modules.agent.application.context_manager_sdk import (
 )
 from modules.agent.application.interfaces.context_assembler import ContextAssemblyRequest
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
+from modules.agent.domain.context import ContextPriority, ContextSourceType
 from modules.agent.infra.context_management.manager_runtime import (
     ContextManagerRunner,
     build_context_manager_context,
@@ -123,11 +125,74 @@ def test_manager_context_uses_isolated_effective_policy() -> None:
 
     built = build_context_manager_context(request)
     built.candidates.recent_session(max_messages=1, max_units=128)
+    outcome = built.complete()
 
-    assert built.policy.session.max_messages == 1
-    assert built.policy.session.max_units == 128
+    assert built.policy.session.max_messages == request.policy.session.max_messages
+    assert built.policy.session.max_units == request.policy.session.max_units
+    assert outcome.policy.session.max_messages == 1
+    assert outcome.policy.session.max_units == 128
     assert request.policy.session.max_messages != 1
     assert request.policy.session.max_units != 128
+
+
+def test_direct_policy_mutation_does_not_bypass_manager_primitives() -> None:
+    request = ContextAssemblyRequest(
+        messages=[SystemMessage(content="System"), HumanMessage(content="current user")],
+        model_invocation_id=uuid4(),
+        agent_run_id=uuid4(),
+        project_id=uuid4(),
+        provider="test",
+        model="test",
+        runtime_context=SimpleNamespace(skill_context=None),
+        policy=ContextPolicyV1(),
+    )
+
+    built = build_context_manager_context(request)
+    built.policy.session.max_messages = 1
+    outcome = built.complete()
+
+    assert outcome.policy.session.max_messages == request.policy.session.max_messages
+
+
+def test_priority_and_pressure_primitives_program_effective_policy() -> None:
+    request = ContextAssemblyRequest(
+        messages=[SystemMessage(content="System"), HumanMessage(content="current user")],
+        model_invocation_id=uuid4(),
+        agent_run_id=uuid4(),
+        project_id=uuid4(),
+        provider="test",
+        model="test",
+        runtime_context=SimpleNamespace(skill_context=None),
+        policy=ContextPolicyV1(),
+    )
+
+    built = build_context_manager_context(request)
+    built.priorities.set(ContextSourceType.KNOWLEDGE, ContextPriority.HIGH)
+    built.pressure.thresholds(moderate_at=0.25, high_at=0.60, critical_at=0.85)
+    outcome = built.complete()
+
+    assert outcome.policy.source_priorities[ContextSourceType.KNOWLEDGE] == ContextPriority.HIGH
+    assert outcome.policy.pressure.moderate_at == 0.25
+    assert outcome.policy.pressure.high_at == 0.60
+    assert outcome.policy.pressure.critical_at == 0.85
+
+
+def test_priority_primitive_preserves_mandatory_source_invariants() -> None:
+    request = ContextAssemblyRequest(
+        messages=[SystemMessage(content="System"), HumanMessage(content="current user")],
+        model_invocation_id=uuid4(),
+        agent_run_id=uuid4(),
+        project_id=uuid4(),
+        provider="test",
+        model="test",
+        runtime_context=SimpleNamespace(skill_context=None),
+        policy=ContextPolicyV1(),
+    )
+
+    built = build_context_manager_context(request)
+
+    with pytest.raises(ValueError, match="SYSTEM context priority must remain MANDATORY"):
+        built.priorities.set(ContextSourceType.SYSTEM, ContextPriority.DYNAMIC)
 
 
 def test_manager_runner_rejects_non_sdk_outcomes() -> None:
