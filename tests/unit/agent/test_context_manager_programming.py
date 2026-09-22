@@ -14,7 +14,10 @@ from modules.agent.application.context_manager_sdk import (
 )
 from modules.agent.application.interfaces.context_assembler import ContextAssemblyRequest
 from modules.agent.application.interfaces.context_policy import ContextPolicyV1
-from modules.agent.infra.context_management.manager_runtime import ContextManagerRunner
+from modules.agent.infra.context_management.manager_runtime import (
+    ContextManagerRunner,
+    build_context_manager_context,
+)
 from modules.agent.infra.context_management.managers.resolver import (
     builtin_context_manager_names,
 )
@@ -81,3 +84,83 @@ def test_custom_manager_programs_context_without_touching_runtime_mechanics() ->
     assert "old answer" in contents
     assert "current user" in contents
     assert output.snapshot.manifest["session_selection"] is None
+
+
+class _InvalidManager:
+    name = "invalid"
+
+    def assemble(self, ctx: ContextManagerContext):
+        return object()
+
+
+def test_manager_context_uses_isolated_effective_policy() -> None:
+    request = ContextAssemblyRequest(
+        messages=[SystemMessage(content="System"), HumanMessage(content="current user")],
+        model_invocation_id=uuid4(),
+        agent_run_id=uuid4(),
+        project_id=uuid4(),
+        provider="test",
+        model="test",
+        runtime_context=SimpleNamespace(
+            run_id=uuid4(),
+            input_message_id=uuid4(),
+            model_capacity_units=100_000,
+            reserved_output_units=1_000,
+            active_tool_definitions=None,
+            context_selection_metadata=None,
+            rag_metadata=None,
+            context_rag_sources=None,
+            parent_invocation_id=None,
+            network_execution_id=None,
+            network_invocation_id=None,
+            network_node_id=None,
+            skill_context=None,
+            external_context_contract=None,
+            model_external_context=None,
+        ),
+        policy=ContextPolicyV1(),
+    )
+
+    built = build_context_manager_context(request)
+    built.candidates.recent_session(max_messages=1, max_units=128)
+
+    assert built.policy.session.max_messages == 1
+    assert built.policy.session.max_units == 128
+    assert request.policy.session.max_messages != 1
+    assert request.policy.session.max_units != 128
+
+
+def test_manager_runner_rejects_non_sdk_outcomes() -> None:
+    request = ContextAssemblyRequest(
+        messages=[SystemMessage(content="System"), HumanMessage(content="current user")],
+        model_invocation_id=uuid4(),
+        agent_run_id=uuid4(),
+        project_id=uuid4(),
+        provider="test",
+        model="test",
+        runtime_context=SimpleNamespace(
+            run_id=uuid4(),
+            input_message_id=uuid4(),
+            model_capacity_units=100_000,
+            reserved_output_units=1_000,
+            active_tool_definitions=None,
+            context_selection_metadata=None,
+            rag_metadata=None,
+            context_rag_sources=None,
+            parent_invocation_id=None,
+            network_execution_id=None,
+            network_invocation_id=None,
+            network_node_id=None,
+            skill_context=None,
+            external_context_contract=None,
+            model_external_context=None,
+        ),
+        policy=ContextPolicyV1(),
+    )
+
+    try:
+        ContextManagerRunner(_InvalidManager()).assemble(request)
+    except TypeError as exc:
+        assert "ContextManagerOutcome" in str(exc)
+    else:
+        raise AssertionError("invalid Context Manager outcome was accepted")
