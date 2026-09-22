@@ -425,6 +425,47 @@ async def test_context_checkpoint_is_merged_into_safe_execution_checkpoint() -> 
 
 
 @pytest.mark.asyncio
+async def test_context_state_can_survive_safe_restart_without_execution_checkpoint() -> None:
+    run = _run(storage_version=EVENT_JOURNAL_STORAGE_VERSION)
+    state = RunJournalState(
+        run_id=run.id,
+        run_kind="agent",
+        storage_version=EVENT_JOURNAL_STORAGE_VERSION,
+        durable_sequence=2,
+    )
+    events = [
+        _event(run.id, 1, "run.attempt.started", {"attempt": 1}),
+        _event(
+            run.id,
+            2,
+            "context.checkpoint",
+            {
+                "manager_name": "adaptive",
+                "boundary": "context_summary_boundary",
+                "state": {"summary_generation": 1},
+            },
+        ),
+    ]
+
+    decision = AgentRunRecoveryWorker._classify_journal_prefix(
+        state,
+        events,
+        None,
+    )
+
+    assert decision.action == "resumable"
+    assert decision.checkpoint is not None
+    assert decision.checkpoint.through_sequence == 0
+    assert decision.checkpoint.state == {
+        "context_manager_state": {
+            "manager_name": "adaptive",
+            "boundary": "context_summary_boundary",
+            "state": {"summary_generation": 1},
+        }
+    }
+
+
+@pytest.mark.asyncio
 async def test_execution_checkpoint_keeps_newer_embedded_context_state() -> None:
     run = _run(storage_version=EVENT_JOURNAL_STORAGE_VERSION)
     state = RunJournalState(
