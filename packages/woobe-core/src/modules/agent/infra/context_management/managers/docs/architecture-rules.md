@@ -1,6 +1,6 @@
 # Architecture rules
 
-Concrete Context Managers are algorithm code.
+Concrete Context Managers are asynchronous algorithm code. Runtime primitives own mechanics and side effects.
 
 ## Allowed dependency surface
 
@@ -8,51 +8,87 @@ A normal Manager may depend on:
 
 ~~~text
 modules.agent.application.context_manager_sdk
-stable Application interfaces required by that SDK
+stable Application interfaces required by the SDK
 modules.agent.domain enums/value types
-sibling Manager modules only for explicit composition
+sibling Managers only for explicit algorithm composition
+pydantic for Manager-specific serializable State
 ~~~
 
-## Forbidden concerns
+## Forbidden dependencies
 
-Concrete Managers must not depend directly on:
+Concrete Managers must not directly import or use:
 
 ~~~text
 ContextAssemblyRequest
 manager_runtime implementation
-LangChain message classes
-provider SDKs
-ContextSnapshot constructors
-ContextContribution constructors
-hash/provenance mechanics
+LangChain/provider message classes
+provider SDKs or model clients
+ContextSnapshot/ContextContribution constructors
+journal recorder/checkpoint persistence
 database repositories
 Redis/Mongo/PostgreSQL clients
-provider factories
-execution lifecycle
+execution lifecycle internals
 Network infrastructure
 API/worker packages
 ~~~
 
+## Async side-effect rule
+
+`async def assemble(...)` does not mean the Manager may perform arbitrary I/O.
+
+Allowed:
+
+~~~python
+await ctx.summary.create(...)
+await ctx.summary.refresh(...)
+await ctx.checkpoint(...)
+~~~
+
+Forbidden:
+
+~~~python
+await provider.ainvoke(...)
+await repository.save(...)
+await redis.set(...)
+~~~
+
+The SDK primitive is the architectural capability boundary.
+
+## State rule
+
+Manager state must inherit `ContextManagerState`, remain JSON-serializable and contain algorithm state only.
+
+Runtime owns create/validate/dump/restore. A Manager must not know how the state is journaled.
+
+## Summary rule
+
+Semantic summary is a transformation capability. Managers choose when/what; Runtime chooses raw source messages, executes the internal model call, validates lineage, records observability and stages replacement.
+
+Do not expose raw messages just to make a custom summarizer easier.
+
+## Checkpoint rule
+
+`ctx.checkpoint` persists Manager state but is not a Tool-causal Execution checkpoint. Recovery must never use a Context checkpoint to prove an external Tool outcome is safe.
+
 ## Primitive rule
 
-If one Manager needs algorithm-specific behavior, keep it in that Manager.
-
-If multiple Managers need the same operation and Runtime can give it precise reusable semantics, introduce a small SDK + Runtime primitive.
-
-If the operation needs I/O, durability, instrumentation or provider behavior, it belongs to Runtime and must have an explicit execution boundary.
-
-Do not create a primitive merely because a field exists in `ContextPolicyV1`. A field whose runtime semantics are incomplete should remain documented as incomplete.
+Add a shared primitive when multiple Managers need a capability and Runtime can provide precise semantics/evidence. Keep one-off pure algorithm logic in the concrete Manager.
 
 ## One-file convention
 
+Current built-ins remain flat:
+
 ~~~text
-infra/context_management/managers/adaptive.py
+managers/standard.py
+managers/adaptive.py
 ~~~
 
-A normal Manager must not grow a parallel private runtime package.
+Reusable side-effecting mechanics go under `manager_runtime/`, not a private `adaptive_runtime/`.
 
-## Enforced Quality Gate partition
+## Quality Gate
 
-- `ARCH082`: resolver is the explicit composition point;
-- `ARCH083`: flat concrete Managers depend only on SDK/stable application/domain surfaces;
-- `ARCH084`: Manager Runtime bridges SDK to shared assembly mechanics and cannot depend on concrete Managers.
+- `ARCH082`: explicit Manager resolver/composition boundary;
+- `ARCH083`: concrete Manager dependency boundary;
+- `ARCH084`: Manager Runtime bridges SDK to shared mechanics and must not depend on concrete Managers.
+
+Architecture tests should evolve with new SDK primitives without weakening these ownership rules.
