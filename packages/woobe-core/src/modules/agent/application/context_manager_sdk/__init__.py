@@ -3,6 +3,7 @@ from modules.agent.application.context_manager_sdk.candidates import ContextCand
 from modules.agent.application.context_manager_sdk.capacity import ContextCapacity
 from modules.agent.application.context_manager_sdk.context import ContextManagerContext
 from modules.agent.application.context_manager_sdk.inventory import ContextInventory
+from modules.agent.application.context_manager_sdk.invocation import ContextInvocation
 from modules.agent.application.context_manager_sdk.outcome import ContextManagerOutcome
 from modules.agent.application.context_manager_sdk.pressure import ContextPressure
 from modules.agent.application.context_manager_sdk.priorities import ContextPriorities
@@ -13,6 +14,7 @@ __all__ = [
     "ContextCandidates",
     "ContextCapacity",
     "ContextInventory",
+    "ContextInvocation",
     "ContextManagerContext",
     "ContextManagerOutcome",
     "ContextPressure",
