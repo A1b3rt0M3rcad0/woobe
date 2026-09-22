@@ -114,6 +114,45 @@ def test_public_agent_stream_rejects_explicit_internal_token_even_on_legacy_publ
     ) is False
 
 
+def test_public_agent_stream_preserves_intermediate_assistant_events() -> None:
+    assert _is_public_stream_chunk(
+        _event(
+            "assistant_message_delta",
+            {
+                "message_id": "message-progress",
+                "content": "Vou ",
+                "phase": "search",
+                "output_mode": "intermediate",
+            },
+        )
+    ) is True
+    assert _is_public_stream_chunk(
+        _event(
+            "assistant_message_completed",
+            {
+                "message_id": "message-progress",
+                "content": "Vou procurar.",
+                "phase": "search",
+                "output_mode": "intermediate",
+                "partial": False,
+            },
+        )
+    ) is True
+
+
+def test_public_agent_stream_preserves_token_retract_for_promotion() -> None:
+    assert _is_public_stream_chunk(
+        _event(
+            "token_retract",
+            {
+                "message_id": "message-final",
+                "content_length": 12,
+                "reason": "tool_call_selected",
+            },
+        )
+    ) is True
+
+
 def test_public_agent_stream_preserves_non_token_events() -> None:
     assert _is_public_stream_chunk(
         _event("done", {"answer": "public answer"})
