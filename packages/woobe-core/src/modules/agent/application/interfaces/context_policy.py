@@ -74,6 +74,29 @@ class ContextPressurePolicy(BaseModel):
         return self
 
 
+class ContextSummaryPolicy(BaseModel):
+    strategy: Literal["disabled", "pressure_triggered", "rolling"] = "disabled"
+    sources: list[ContextSourceType] = Field(
+        default_factory=lambda: [ContextSourceType.SESSION]
+    )
+    trigger_at: float = Field(default=0.75, gt=0, le=1)
+    target_units: int = Field(default=2000, ge=128, le=250_000)
+    preserve_recent_messages: int = Field(default=8, ge=0, le=200)
+    refresh_after_messages: int = Field(default=12, ge=1, le=500)
+    failure_mode: Literal["fallback_to_selection", "fail"] = "fallback_to_selection"
+
+    @model_validator(mode="after")
+    def validate_sources(self) -> "ContextSummaryPolicy":
+        forbidden = {
+            ContextSourceType.SYSTEM,
+            ContextSourceType.USER_INPUT,
+        }
+        if any(source in forbidden for source in self.sources):
+            raise ValueError("Context Summary cannot target mandatory SYSTEM/USER_INPUT")
+        self.sources = list(dict.fromkeys(self.sources))
+        return self
+
+
 class ContextOrderingPolicy(BaseModel):
     strategy: Literal["preserve_input", "source_priority"] = "preserve_input"
 
@@ -141,6 +164,7 @@ class ContextPolicyV1(BaseModel):
     budget: ContextBudgetPolicy = Field(default_factory=ContextBudgetPolicy)
     retention: ContextRetentionPolicy = Field(default_factory=ContextRetentionPolicy)
     pressure: ContextPressurePolicy = Field(default_factory=ContextPressurePolicy)
+    summary: ContextSummaryPolicy = Field(default_factory=ContextSummaryPolicy)
     ordering: ContextOrderingPolicy = Field(default_factory=ContextOrderingPolicy)
     deduplication: ContextDeduplicationPolicy = Field(
         default_factory=ContextDeduplicationPolicy
