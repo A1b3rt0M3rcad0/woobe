@@ -147,11 +147,15 @@ function mergeToolPermissions(base: AgentToolPermissions, overrides: AgentToolPe
 
 function normalizeContextManagerSelection(value: unknown): Record<string, unknown> | null {
   const raw = recordValue(value)
-  if (!Object.keys(raw).length) return null
   const legacyStrategyName = typeof raw.strategy_name === 'string' ? raw.strategy_name.trim() : ''
-  const selected = legacyStrategyName || (typeof raw.name === 'string' ? raw.name.trim() : '')
+  const selected = typeof value === 'string'
+    ? value.trim()
+    : legacyStrategyName || (typeof raw.name === 'string' ? raw.name.trim() : '')
   if (!selected) return null
-  const normalized = selected === 'stdcm' || selected === 'default' ? 'standard' : selected
+  const normalizedSelection = selected.toLowerCase()
+  const normalized = ['stdcm', 'default', 'stdcm:v1', 'stdcm:v2', 'default:v1'].includes(normalizedSelection)
+    ? 'standard'
+    : normalizedSelection
   return { name: normalized }
 }
 
