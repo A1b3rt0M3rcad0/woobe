@@ -204,12 +204,6 @@ function AssistantContent({
             </div>
           ),
         )}
-        {isStreaming && (
-          <span
-            className="inline-flex h-icon-sm w-1.5 translate-y-0.5 animate-pulse rounded-technical bg-primary/80"
-            aria-label="Streaming"
-          />
-        )}
       </div>
     </div>
   )
