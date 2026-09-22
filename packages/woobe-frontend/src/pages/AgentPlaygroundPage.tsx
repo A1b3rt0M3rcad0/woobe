@@ -726,12 +726,25 @@ function PlaygroundContent() {
           const meta = response
           const finalContent = meta.answer || accumulatedRef.current || ''
           if (!isStateless && meta.session_id) setCurrentSessionId(meta.session_id)
-          setMessages((prev) => {
-            const updated = [...prev]
-            const last = updated[updated.length - 1]
-            if (last?.role === 'assistant') updated[updated.length - 1] = { ...last, content: finalContent, message_id: meta.message_id ?? last.message_id ?? null, output_mode: 'final', activity: null, usage: meta.usage ?? null, sources: (meta.sources ?? metadataRef.current.sources) as ChatMessage['sources'], tool_calls: (meta.tool_calls ?? last.tool_calls ?? null) as ChatMessage['tool_calls'], model: meta.model ?? null, provider: meta.provider ?? null, latency_ms: meta.latency_ms ?? null, trace_id: meta.trace_id ?? null, parsed_output: meta.parsed_output ?? null, output_parse_error: meta.output_parse_error ?? null }
-            return updated
-          })
+          setMessages((prev) => updateTerminalAssistantMessageState(
+            prev,
+            (last) => ({
+              ...last,
+              content: finalContent,
+              message_id: meta.message_id ?? last.message_id ?? null,
+              output_mode: 'final',
+              activity: null,
+              usage: meta.usage ?? null,
+              sources: (meta.sources ?? metadataRef.current.sources) as ChatMessage['sources'],
+              tool_calls: (meta.tool_calls ?? last.tool_calls ?? null) as ChatMessage['tool_calls'],
+              model: meta.model ?? null,
+              provider: meta.provider ?? null,
+              latency_ms: meta.latency_ms ?? null,
+              trace_id: meta.trace_id ?? null,
+              parsed_output: meta.parsed_output ?? null,
+              output_parse_error: meta.output_parse_error ?? null,
+            }),
+          ))
           setLastResponse(meta as AskResponse)
           rememberRunId(null)
           if (!isStateless) void refetchSessions()
