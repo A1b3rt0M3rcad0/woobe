@@ -121,6 +121,12 @@ describe('Network Agent Chat active Run reattach', () => {
     fixture.reattach.mockImplementation(async (runId, callbacks) => {
       expect(runId).toBe('run-1')
       callbacks.onMeta({ run_id: 'run-1', session_id: 'session-1', trace_id: 'trace-1' })
+      callbacks.onAssistantMessageCompleted?.({
+        message_id: 'message-progress',
+        content: 'Vou procurar.',
+        phase: 'capability_response_generation',
+        output_mode: 'intermediate',
+      })
       callbacks.onToken({
         content: 'partial recovered',
         visibility: 'assistant',
@@ -157,12 +163,14 @@ describe('Network Agent Chat active Run reattach', () => {
 
     expect(fixture.reattach).toHaveBeenCalledTimes(1)
     expect(container.textContent).toContain('Tell me a long story')
+    expect(container.textContent).toContain('Vou procurar.')
     expect(container.textContent).toContain('partial recovered')
     expect(container.textContent).not.toContain('partial recovered done')
 
     await act(async () => fixture.completeReattach?.())
     await flush()
 
+    expect(container.textContent).toContain('Vou procurar.')
     expect(container.textContent).toContain('partial recovered done')
     expect(onChatCompleted).toHaveBeenCalledTimes(1)
     expect(localStorage.getItem(
