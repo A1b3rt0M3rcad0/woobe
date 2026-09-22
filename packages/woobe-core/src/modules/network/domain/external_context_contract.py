@@ -19,6 +19,14 @@ class EffectiveExternalContextResolution:
     snapshot: dict[str, Any]
 
 
+@dataclass(frozen=True, slots=True)
+class ScopedEffectiveExternalContextResolution:
+    session_snapshot: dict[str, Any]
+    run_snapshot: dict[str, Any]
+    snapshot: dict[str, Any]
+    session_changed: bool
+
+
 def _effective_fields(value: Any) -> dict[str, Any]:
     if value in (None, {}):
         return {}
@@ -63,6 +71,92 @@ def resolve_effective_external_context(
     )
 
 
+def resolve_scoped_effective_external_context(
+    effective_contract: Any,
+    request_values: Any,
+    *,
+    session_snapshot: Mapping[str, Any] | None,
+) -> ScopedEffectiveExternalContextResolution:
+    """Resolve one Network Session snapshot plus the current Run snapshot."""
+
+    fields = _effective_fields(effective_contract)
+    values = {} if request_values is None else request_values
+    if not isinstance(values, dict):
+        raise ExternalContextContractError("External Context values must be an object")
+
+    validated = validate_effective_external_context_values(fields, values)
+    session_fields = {
+        name: field
+        for name, field in fields.items()
+        if isinstance(field, dict) and field.get("scope", "run") == "session"
+    }
+    run_fields = {
+        name: field
+        for name, field in fields.items()
+        if isinstance(field, dict) and field.get("scope", "run") == "run"
+    }
+    session_values = {
+        name: deepcopy(validated[name])
+        for name in session_fields
+        if name in validated
+    }
+    run_values = {
+        name: deepcopy(validated[name])
+        for name in run_fields
+        if name in validated
+    }
+
+    session_changed = False
+    if session_fields:
+        if session_snapshot is None:
+            for name, field in session_fields.items():
+                if name in session_values:
+                    continue
+                consumers = field.get("consumers") or {}
+                missing_for = [
+                    consumer
+                    for consumer, spec in consumers.items()
+                    if isinstance(spec, dict)
+                    and bool(spec.get("required", False))
+                    and "default" not in spec
+                ]
+                if missing_for:
+                    raise ExternalContextContractError(
+                        f"Required Session External Context field is missing: {name}"
+                    )
+            resolved_session = deepcopy(session_values)
+            session_changed = True
+        else:
+            persisted = deepcopy(dict(session_snapshot))
+            validated_persisted = validate_effective_external_context_values(
+                session_fields,
+                persisted,
+            )
+            if validated_persisted != persisted:
+                raise ExternalContextContractError(
+                    "Session External Context no longer satisfies the active contract; "
+                    "open a new Session"
+                )
+            if session_values:
+                names = ", ".join(sorted(session_values))
+                raise ExternalContextContractError(
+                    "Session-scoped External Context is immutable and cannot be "
+                    f"supplied again: {names}"
+                )
+            resolved_session = persisted
+    else:
+        resolved_session = {}
+
+    effective = deepcopy(resolved_session)
+    effective.update(deepcopy(run_values))
+    return ScopedEffectiveExternalContextResolution(
+        session_snapshot=deepcopy(resolved_session),
+        run_snapshot=deepcopy(run_values),
+        snapshot=effective,
+        session_changed=session_changed,
+    )
+
+
 def consumer_external_context_contract(
     effective_contract: Any,
     consumer: str,
@@ -82,6 +176,7 @@ def consumer_external_context_contract(
         reconstructed: dict[str, Any] = {
             "schema": deepcopy(field.get("schema") or {}),
             "required": bool(consumer_spec.get("required", False)),
+            "scope": field.get("scope", "run"),
             "model": {"expose": bool(model.get("expose", False))},
         }
         if "default" in consumer_spec:
@@ -125,6 +220,7 @@ def _single_field_contract(
     value: dict[str, Any] = {
         "schema": deepcopy(field.get("schema") or {}),
         "required": bool(consumer.get("required", False)),
+        "scope": field.get("scope", "run"),
         "model": {"expose": bool(model.get("expose", False))},
     }
     if "default" in consumer:
@@ -162,11 +258,15 @@ def classify_effective_external_context_change(
             feature = True
             continue
 
+        if old_field.get("scope", "run") != new_field.get("scope", "run"):
+            return ReleaseChangeKind.COMPATIBILITY
+
         old_consumers = old_field.get("consumers") or {}
         old_probe = {
             name: {
                 "schema": deepcopy(old_field.get("schema") or {}),
                 "required": False,
+                "scope": old_field.get("scope", "run"),
                 "model": {"expose": False},
             }
         }
@@ -174,6 +274,7 @@ def classify_effective_external_context_change(
             name: {
                 "schema": deepcopy(new_field.get("schema") or {}),
                 "required": False,
+                "scope": new_field.get("scope", "run"),
                 "model": {"expose": False},
             }
         }
@@ -229,9 +330,11 @@ def strongest_release_change(
 
 __all__ = [
     "EffectiveExternalContextResolution",
+    "ScopedEffectiveExternalContextResolution",
     "classify_effective_external_context_change",
     "consumer_external_context_contract",
     "project_effective_external_context",
     "resolve_effective_external_context",
+    "resolve_scoped_effective_external_context",
     "strongest_release_change",
 ]
