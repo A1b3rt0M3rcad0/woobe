@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Awaitable, Callable
 from typing import Any, Protocol, runtime_checkable
 from uuid import UUID
 
@@ -135,6 +136,23 @@ class ContextAssemblyRuntimeContext(Protocol):
     @property
     def network_node_id(self) -> UUID | None: ...
 
+    @property
+    def context_manager_state(self) -> dict[str, Any] | None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class ContextSummaryModelResult:
+    content: str
+    model_invocation_id: UUID | None = None
+    provider: str | None = None
+    model: str | None = None
+
+
+ContextSummaryInvoke = Callable[
+    [list[Any], str],
+    Awaitable[ContextSummaryModelResult],
+]
+
 
 @dataclass(frozen=True, slots=True)
 class ContextAssemblyRequest:
@@ -147,6 +165,7 @@ class ContextAssemblyRequest:
     runtime_context: ContextAssemblyRuntimeContext
     policy: ContextPolicyV1
     phase: str | None = None
+    summary_invoke: ContextSummaryInvoke | None = None
 
 
 class ContextAssemblyOutput(Protocol):
@@ -159,6 +178,9 @@ class ContextAssemblyOutput(Protocol):
 
 @runtime_checkable
 class ContextAssembler(Protocol):
-    """Assemble the context for exactly one Model Invocation."""
+    """Assemble context for exactly one Model Invocation."""
 
-    def assemble(self, request: ContextAssemblyRequest) -> ContextAssemblyOutput: ...
+    async def assemble(
+        self,
+        request: ContextAssemblyRequest,
+    ) -> ContextAssemblyOutput: ...
