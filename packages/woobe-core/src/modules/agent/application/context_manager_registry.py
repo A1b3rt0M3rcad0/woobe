@@ -147,8 +147,8 @@ _STANDARD_DESCRIPTOR = ContextAssemblerDescriptor(
     ),
     behavior=(
         "Builds each Model Invocation context deterministically from available context "
-        "sources, applying Context Policy budgets, priorities, pressure handling, "
-        "ordering, provenance capture, and Run-local Skills materialization."
+        "sources, applying Context Policy budgets, priorities, ordering, "
+        "deduplication, provenance capture, and Run-local Skills materialization."
     ),
     recommended_for=(
         "General-purpose Agents that need predictable context behavior.",
@@ -157,12 +157,14 @@ _STANDARD_DESCRIPTOR = ContextAssemblerDescriptor(
     capabilities=(
         "Preserves mandatory system instructions and the current user input.",
         "Balances session history, knowledge, tool, artifact, delegation, and runtime context within configured budgets.",
-        "Applies pressure trimming, ordering, and deduplication before each Model Invocation.",
+        "Reduces non-mandatory context deterministically when the effective input budget is exceeded.",
+        "Classifies LOW/MODERATE/HIGH/CRITICAL context pressure for invocation evidence.",
+        "Applies ordering and deduplication before each Model Invocation.",
         "Loads Skills on demand with per-Run retention and exact package provenance.",
         "Records source contributions and provenance in the Context Snapshot.",
     ),
     limitations=(
-        "Does not perform autonomous context planning or semantic long-horizon compaction.",
+        "Does not perform semantic summarization or autonomous long-horizon compaction.",
         "Behavior is bounded by Context Policy and the context sources available to the Agent.",
     ),
     configuration="Context Policy",
