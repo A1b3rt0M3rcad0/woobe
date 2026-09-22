@@ -60,10 +60,17 @@ def _is_public_stream_chunk(chunk: str) -> bool:
     payload = envelope.get("payload")
     if not isinstance(payload, dict):
         return False
+    output_mode = payload.get("output_mode")
     return (
         payload.get("visibility", "assistant") == "assistant"
         and payload.get("channel", "final") == "final"
-        and _is_public_token_phase(payload.get("phase"))
+        and (
+            output_mode == "final"
+            or (
+                output_mode is None
+                and _is_public_token_phase(payload.get("phase"))
+            )
+        )
     )
 
 
