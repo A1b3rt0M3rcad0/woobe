@@ -6,6 +6,9 @@ from collections.abc import Awaitable, Callable
 from typing import Any, Protocol, cast
 from uuid import uuid4
 
+from modules.agent.application.execution_runtime_config import (
+    intermediate_messages_enabled_from_runtime_config,
+)
 from modules.agent.application.execution_strategy_config import (
     execution_strategy_from_runtime_config,
 )
@@ -248,6 +251,9 @@ class InstrumentedPrimaryExecutionMixin:
             )
             context.execution_strategy = execution_strategy_from_runtime_config(
                 runtime_config
+            )
+            context.intermediate_messages_enabled = (
+                intermediate_messages_enabled_from_runtime_config(runtime_config)
             )
             context.context_assembler_name = assembler_selection.selection_key.name
             context.context_assembler_version = assembler_selection.selection_key.version
