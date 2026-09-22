@@ -195,6 +195,37 @@ def test_priority_primitive_preserves_mandatory_source_invariants() -> None:
         built.priorities.set(ContextSourceType.SYSTEM, ContextPriority.DYNAMIC)
 
 
+def test_candidate_budget_and_pressure_primitives_validate_policy_constraints() -> None:
+    request = ContextAssemblyRequest(
+        messages=[SystemMessage(content="System"), HumanMessage(content="current user")],
+        model_invocation_id=uuid4(),
+        agent_run_id=uuid4(),
+        project_id=uuid4(),
+        provider="test",
+        model="test",
+        runtime_context=SimpleNamespace(skill_context=None),
+        policy=ContextPolicyV1(),
+    )
+
+    built = build_context_manager_context(request)
+
+    with pytest.raises(ValueError):
+        built.candidates.recent_session(max_messages=0, max_units=None)
+
+    with pytest.raises(ValueError):
+        built.candidates.cap(ContextSourceType.KNOWLEDGE, 64)
+
+    with pytest.raises(ValueError):
+        built.budget.configure(max_input_units=128, runtime_reserve_units=0)
+
+    with pytest.raises(ValueError):
+        built.pressure.thresholds(
+            moderate_at=0.80,
+            high_at=0.70,
+            critical_at=0.90,
+        )
+
+
 def test_manager_runner_rejects_non_sdk_outcomes() -> None:
     request = ContextAssemblyRequest(
         messages=[SystemMessage(content="System"), HumanMessage(content="current user")],
