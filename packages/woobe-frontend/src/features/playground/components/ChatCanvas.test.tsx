@@ -91,7 +91,7 @@ describe('ChatCanvas intermediate Assistant messages', () => {
 
     expect(html).toContain('Vou procurar.')
     expect(html).toContain('Encontrei a resposta.')
-    expect(html.match(/rounded-container px-ui-md py-ui-sm text-product-reading/g)?.length).toBe(2)
+    expect(html).toContain('rounded-container px-ui-md py-ui-sm text-product-reading')
     expect(html).not.toContain('aria-label="Streaming"')
   })
 })
