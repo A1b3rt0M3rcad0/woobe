@@ -70,6 +70,7 @@ export function ChatSurfaceLiveTestDialog({
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [frameStatus, setFrameStatus] = useState<FrameStatus>('starting')
+  const [frameActivity, setFrameActivity] = useState<string | null>(null)
   const [externalContext, setExternalContext] = useState<Record<string, unknown>>({})
   const effectiveReleaseId = session?.target_release_id ?? surface.target_release_id
   const agentReleaseQuery = useRelease(
@@ -109,6 +110,7 @@ export function ChatSurfaceLiveTestDialog({
     setLoading(true)
     setError(null)
     setFrameStatus('starting')
+    setFrameActivity(null)
     try {
       const created = await createChatSurfaceTestSession(surface.id)
       setSession(created)
@@ -153,6 +155,7 @@ export function ChatSurfaceLiveTestDialog({
       setInstanceId('')
       setError(null)
       setFrameStatus('starting')
+      setFrameActivity(null)
       return
     }
     if (startedSurfaceRef.current === surface.id) return
@@ -189,10 +192,23 @@ export function ChatSurfaceLiveTestDialog({
         return
       }
 
-      if (event.data.type === 'history.loaded' || event.data.type === 'run.completed') setFrameStatus('ready')
-      else if (event.data.type === 'run.started') setFrameStatus('running')
-      else if (event.data.type === 'session.expired') setFrameStatus('expired')
-      else if (event.data.type === 'error') setFrameStatus('error')
+      if (event.data.type === 'history.loaded' || event.data.type === 'run.completed') {
+        setFrameStatus('ready')
+        setFrameActivity(null)
+      } else if (event.data.type === 'run.started') {
+        setFrameStatus('running')
+        setFrameActivity(null)
+      } else if (event.data.type === 'run.activity') {
+        setFrameStatus('running')
+        const message = event.data.payload?.message
+        setFrameActivity(typeof message === 'string' && message.trim() ? message.trim() : null)
+      } else if (event.data.type === 'session.expired') {
+        setFrameStatus('expired')
+        setFrameActivity(null)
+      } else if (event.data.type === 'error') {
+        setFrameStatus('error')
+        setFrameActivity(null)
+      }
     }
 
     window.addEventListener('message', onMessage)
@@ -246,7 +262,7 @@ export function ChatSurfaceLiveTestDialog({
           <div className="shrink-0 border-b border-border p-ui-md">
             <TechnicalListItem
               label="Runtime status"
-              description="Live test"
+              description={frameActivity ?? 'Live test'}
               meta={<Badge variant={statusVariant(frameStatus)} size="compact">{statusLabel(frameStatus)}</Badge>}
             />
           </div>
