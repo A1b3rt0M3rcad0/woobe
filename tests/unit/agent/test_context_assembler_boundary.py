@@ -45,13 +45,14 @@ def _request() -> ContextAssemblyRequest:
     )
 
 
-def test_standard_context_assembler_implements_behavioral_contract() -> None:
+@pytest.mark.asyncio
+async def test_standard_context_assembler_implements_behavioral_contract() -> None:
     assembler = build_context_assembler("standard")
 
     assert isinstance(assembler, ContextAssembler)
 
     request = _request()
-    result = assembler.assemble(request)
+    result = await assembler.assemble(request)
 
     assert [message.content for message in result.messages] == [
         "system",
@@ -61,7 +62,8 @@ def test_standard_context_assembler_implements_behavioral_contract() -> None:
     assert result.snapshot.agent_run_id == request.agent_run_id
 
 
-def test_context_manager_runner_is_transparent_runtime_adapter(monkeypatch) -> None:
+@pytest.mark.asyncio
+async def test_context_manager_runner_is_transparent_runtime_adapter(monkeypatch) -> None:
     request = _request()
     captured: dict[str, Any] = {}
     sentinel = cast(ContextAssemblyOutput, object())
@@ -76,7 +78,7 @@ def test_context_manager_runner_is_transparent_runtime_adapter(monkeypatch) -> N
         fake_assemble_context,
     )
 
-    result = ContextManagerRunner(StandardContextManager()).assemble(request)
+    result = await ContextManagerRunner(StandardContextManager()).assemble(request)
 
     assert result is sentinel
     assert captured["messages"] == request.messages
@@ -128,7 +130,8 @@ def test_context_assembler_contract_is_replaceable_without_standard_implementati
     assert result.messages == ["fake-context"]
 
 
-def test_invocation_context_uses_injected_context_assembler() -> None:
+@pytest.mark.asyncio
+async def test_invocation_context_uses_injected_context_assembler() -> None:
     assembler = _FakeContextAssembler()
     context = new_execution_context()
     context.run_id = uuid4()
@@ -141,9 +144,11 @@ def test_invocation_context_uses_injected_context_assembler() -> None:
 
     token = current_execution.set(context)
     try:
-        messages, snapshot = _assemble_invocation_context(
+        messages, snapshot = await _assemble_invocation_context(
             invocation_id=invocation_id,
+            model=object(),
             messages=original_messages,
+            call_index=1,
             provider="openai",
             model_name="replacement-model",
             phase="response_generation",
@@ -169,8 +174,9 @@ def test_invocation_context_uses_injected_context_assembler() -> None:
     assert context.active_tool_definitions == [{"type": "function"}]
 
 
+@pytest.mark.asyncio
 @pytest.mark.parametrize("phase", ["final_response_generation", "json_repair"])
-def test_terminal_invocations_hide_tools_from_context_assembly_and_restore_state(
+async def test_terminal_invocations_hide_tools_from_context_assembly_and_restore_state(
     phase: str,
 ) -> None:
     assembler = _FakeContextAssembler()
@@ -184,9 +190,11 @@ def test_terminal_invocations_hide_tools_from_context_assembly_and_restore_state
 
     token = current_execution.set(context)
     try:
-        _assemble_invocation_context(
+        await _assemble_invocation_context(
             invocation_id=uuid4(),
+            model=object(),
             messages=[HumanMessage(content="original")],
+            call_index=1,
             provider="openai",
             model_name="model",
             phase=phase,
@@ -202,7 +210,8 @@ def test_terminal_invocations_hide_tools_from_context_assembly_and_restore_state
     ]
 
 
-def test_invocation_runtime_state_is_restored_when_context_assembler_fails() -> None:
+@pytest.mark.asyncio
+async def test_invocation_runtime_state_is_restored_when_context_assembler_fails() -> None:
     context = new_execution_context()
     context.run_id = uuid4()
     context.project_id = uuid4()
@@ -215,9 +224,11 @@ def test_invocation_runtime_state_is_restored_when_context_assembler_fails() -> 
     token = current_execution.set(context)
     try:
         with pytest.raises(RuntimeError, match="context assembly failed"):
-            _assemble_invocation_context(
+            await _assemble_invocation_context(
                 invocation_id=uuid4(),
+                model=object(),
                 messages=[HumanMessage(content="original")],
+                call_index=1,
                 provider="openai",
                 model_name="replacement-model",
                 phase="final_response_generation",
@@ -233,7 +244,8 @@ def test_invocation_runtime_state_is_restored_when_context_assembler_fails() -> 
     ]
 
 
-def test_instrumented_context_requires_explicit_assembler_when_execution_is_bound() -> None:
+@pytest.mark.asyncio
+async def test_instrumented_context_requires_explicit_assembler_when_execution_is_bound() -> None:
     context = new_execution_context()
     context.run_id = uuid4()
     context.project_id = uuid4()
@@ -242,9 +254,11 @@ def test_instrumented_context_requires_explicit_assembler_when_execution_is_boun
     token = current_execution.set(context)
     try:
         with pytest.raises(RuntimeError, match="ContextAssembler dependency is required"):
-            _assemble_invocation_context(
+            await _assemble_invocation_context(
                 invocation_id=uuid4(),
+                model=object(),
                 messages=[HumanMessage(content="original")],
+                call_index=1,
                 provider="openai",
                 model_name="model",
                 phase="response_generation",
