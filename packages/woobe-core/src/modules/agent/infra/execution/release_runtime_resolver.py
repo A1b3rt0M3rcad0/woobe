@@ -22,7 +22,7 @@ from modules.agent.domain.external_context_contract import (
     ExternalContextContractError,
     model_external_context,
     normalize_external_context_contract,
-    resolve_external_context,
+    resolve_scoped_external_context,
 )
 from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
 from modules.agent.infra.execution.runtime_preparation import prefer_live_tools_for_run
@@ -107,22 +107,37 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
         *,
         agent: Agent,
         input_dto: AskInput,
+        session: Any | None = None,
+        allow_session_replay: bool = False,
     ):
         settings = dict(agent.settings or {})
         raw_contract = settings.get("external_context_contract")
         try:
             contract = normalize_external_context_contract(raw_contract)
-            resolved = resolve_external_context(
+            resolved = resolve_scoped_external_context(
                 contract,
                 input_dto.external_context,
+                session_snapshot=(
+                    getattr(session, "external_context_snapshot", None)
+                    if session is not None
+                    else None
+                ),
+                allow_session_replay=allow_session_replay,
             )
             exposed = model_external_context(contract, resolved.snapshot)
         except ExternalContextContractError as exc:
             raise ValidationError(str(exc)) from exc
 
+        if session is not None and resolved.session_changed:
+            session.external_context_snapshot = deepcopy(resolved.session_snapshot)
+
         context = current_execution.get()
         if context is not None:
             context.external_context_contract = deepcopy(contract)
+            context.external_context_session_snapshot = deepcopy(
+                resolved.session_snapshot
+            )
+            context.external_context_run_snapshot = deepcopy(resolved.run_snapshot)
             context.external_context_snapshot = deepcopy(resolved.snapshot)
             context.model_external_context = deepcopy(exposed) if exposed else None
         return resolved
@@ -187,11 +202,12 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                 if resolved_release_version:
                     next_data["release_version"] = resolved_release_version
 
-        self._resolve_external_context(
+        external_context = self._resolve_external_context(
             agent=agent,
             input_dto=input_dto,
+            session=session,
         )
-        if next_data != data:
+        if next_data != data or external_context.session_changed:
             session.data = next_data
             await session_repo.update(session)
         return session
