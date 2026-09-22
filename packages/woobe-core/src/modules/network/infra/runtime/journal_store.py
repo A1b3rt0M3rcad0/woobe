@@ -30,6 +30,7 @@ _CANONICAL_EVENT_TYPES = {
     "tool_call_failed": "tool.call.failed",
     "fallback": "fallback.triggered",
     "fallback_triggered": "fallback.triggered",
+    "assistant_message_completed": "assistant.message.completed",
 }
 
 
