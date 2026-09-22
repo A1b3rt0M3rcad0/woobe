@@ -4,6 +4,7 @@ from typing import Protocol
 
 from modules.agent.application.context_manager_sdk.budget import ContextBudget
 from modules.agent.application.context_manager_sdk.candidates import ContextCandidates
+from modules.agent.application.context_manager_sdk.capacity import ContextCapacity
 from modules.agent.application.context_manager_sdk.outcome import ContextManagerOutcome
 from modules.agent.application.context_manager_sdk.pressure import ContextPressure
 from modules.agent.application.context_manager_sdk.priorities import ContextPriorities
@@ -23,6 +24,7 @@ class ContextManagerContext(Protocol):
     def policy(self) -> ContextPolicyV1: ...
 
     candidates: ContextCandidates
+    capacity: ContextCapacity
     priorities: ContextPriorities
     budget: ContextBudget
     pressure: ContextPressure
