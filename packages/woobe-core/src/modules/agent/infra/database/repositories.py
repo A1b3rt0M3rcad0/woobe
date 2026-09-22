@@ -1005,6 +1005,16 @@ class SQLAlchemySessionRepository(SessionRepository):
             raise SessionNotFoundError(session_id)
         return model_to_session(model)
 
+    async def get_by_id_for_update(self, session_id: UUID) -> Session:
+        model = await self._session.scalar(
+            select(SessionModel)
+            .where(SessionModel.id == session_id)
+            .with_for_update()
+        )
+        if model is None:
+            raise SessionNotFoundError(session_id)
+        return model_to_session(model)
+
     async def get_by_external_id(
         self, project_id: UUID, agent_id: UUID, external_session_id: str
     ) -> Session:
