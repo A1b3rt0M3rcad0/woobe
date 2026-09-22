@@ -76,9 +76,6 @@ class RequestExecutionContext:
     # raw secrets and full materialized prompts must never be stored here.
     context_policy: dict[str, Any] | None = None
     context_assembler_name: str | None = None
-    context_assembler_version: str | None = None
-    context_assembler_strategy_name: str | None = None
-    context_assembler_strategy_version: str | None = None
     model_capacity_units: int | None = None
     reserved_output_units: int | None = None
     active_tool_definitions: list[dict[str, Any]] | None = None
