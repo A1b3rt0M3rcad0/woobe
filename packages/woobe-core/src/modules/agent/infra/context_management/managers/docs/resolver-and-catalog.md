@@ -1,98 +1,62 @@
 # Resolver and product catalog
 
-A built-in Context Manager must be registered in two places with different responsibilities.
+Built-in Context Managers have separate runtime implementation and product metadata registration.
 
 ## Runtime resolver
 
 File:
 
 ~~~text
-packages/woobe-core/src/modules/agent/infra/context_management/managers/resolver.py
+infra/context_management/managers/resolver.py
 ~~~
 
-The resolver maps a stable Manager name to the concrete algorithm implementation and wraps it in the shared `ContextManagerRunner`.
-
-Current Standard registration:
+Current built-ins:
 
 ~~~python
 _BUILTIN_CONTEXT_MANAGER_FACTORIES = {
     StandardContextManager.name: StandardContextManager,
+    AdaptiveContextManager.name: AdaptiveContextManager,
 }
 ~~~
 
-Adding another built-in Manager:
+The resolver creates shared `ContextManagerRunner` adapters and keeps registration explicit.
 
-~~~python
-_BUILTIN_CONTEXT_MANAGER_FACTORIES = {
-    StandardContextManager.name: StandardContextManager,
-    KnowledgeFirstContextManager.name: KnowledgeFirstContextManager,
-}
-~~~
-
-Keep registration explicit. Do not add filesystem scanning, decorators or auto-discovery for built-ins.
-
-The resolver owns **runtime implementation selection**, not product metadata.
+Do not add decorators, filesystem scanning or auto-discovery for built-ins.
 
 ## Runtime dispatcher
 
-`build_runtime_context_assembler(...)` creates a snapshot-aware `ResolvedContextAssembler`.
+`build_runtime_context_assembler()` returns a snapshot-aware `ResolvedContextAssembler` that reads the canonical Manager name from execution context and awaits the resolved async assembler.
 
-Its job is:
-
-~~~text
-read canonical manager name from invocation context
-        ↓
-fall back to configured system default when absent
-        ↓
-resolve concrete built-in Manager
-        ↓
-run through ContextManagerRunner
-~~~
-
-The execution path still depends only on the outer `ContextAssembler` contract.
+The Agent execution path still depends only on the outer `ContextAssembler` contract.
 
 ## Product catalog
 
 File:
 
 ~~~text
-packages/woobe-core/src/modules/agent/application/context_manager_registry.py
+application/context_manager_registry.py
 ~~~
 
-The catalog describes selectable Managers to API/frontend/product surfaces. It must not import concrete infrastructure Manager classes.
+The catalog owns product-facing metadata and must not import concrete Manager implementations.
 
-A descriptor owns fields such as:
+Current product identities:
 
 ~~~text
-name
-display_name
-description
-behavior
-recommended_for
-capabilities
-limitations
-configuration
-supports_skills
-is_default
+standard
+adaptive
 ~~~
 
-The descriptor should describe behavior that really exists. Do not advertise semantic summary, artifact materialization modes or other unsupported Runtime capabilities.
+Standard is the default. Adaptive is selectable and advertises capacity-aware source management, optional semantic summary and durable run-local Context state.
 
-## Resolver versus catalog
+## Identity parity
 
-~~~text
-resolver.py
-= which implementation executes
+Every selectable catalog Manager must resolve at runtime, and every selectable built-in runtime Manager must have a descriptor.
 
-context_manager_registry.py
-= how Woobe exposes/describes the Manager as a product capability
-~~~
+Tests enforce this set equality.
 
-Keeping these separate prevents Application/product code from depending on infrastructure implementations.
+## Stable unversioned names
 
-## Naming rules
-
-Manager names are stable, lowercase and unversioned:
+Use:
 
 ~~~text
 standard
@@ -101,19 +65,11 @@ knowledge-first
 long-horizon
 ~~~
 
-Do not introduce:
-
-~~~text
-standard:v1
-standard:v2
-adaptive:v3
-~~~
-
-Release snapshots already freeze the selected manager name and Context Policy. A second Manager-version namespace would duplicate versioning concerns.
+Do not create `adaptive:v2` or `standard:v3`. Release snapshots already freeze Manager selection and Context Policy.
 
 ## Historical compatibility
 
-Old persisted selections are read-compatible and normalize to `standard`:
+These old values remain read-only aliases to `standard`:
 
 ~~~text
 stdcm:v1
@@ -123,16 +79,8 @@ stdcm
 default
 ~~~
 
-These are compatibility inputs only. They must not reappear as selectable catalog identities.
+They must not reappear in the selectable catalog.
 
-## Parity requirement
+## Configured system default
 
-Every selectable catalog Manager must resolve at runtime, and every built-in runtime Manager intended for product selection must have catalog metadata.
-
-`tests/unit/agent/test_context_manager_programming.py` checks resolver/catalog parity.
-
-## System default
-
-`standard` remains the canonical default unless changing the default is an explicit product decision.
-
-Changing the system default must not reinterpret historical frozen snapshots.
+The registry can mark either registered Manager as the process-configured default for new snapshots, but historical snapshots with missing selection permanently resolve to the historical `standard` fallback unless explicitly canonicalized for a new mutable snapshot.
