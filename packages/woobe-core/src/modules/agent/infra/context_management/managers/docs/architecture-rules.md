@@ -1,43 +1,58 @@
 # Architecture rules
 
-Concrete Context Managers may depend on:
+Concrete Context Managers are algorithm code.
 
-```text
-application/context_manager_sdk
-domain context enums/contracts
-```
+## Allowed dependency surface
 
-They must not depend directly on:
+A normal Manager may depend on:
 
-```text
+~~~text
+modules.agent.application.context_manager_sdk
+stable Application interfaces required by that SDK
+modules.agent.domain enums/value types
+sibling Manager modules only for explicit composition
+~~~
+
+## Forbidden concerns
+
+Concrete Managers must not depend directly on:
+
+~~~text
 ContextAssemblyRequest
+manager_runtime implementation
 LangChain message classes
+provider SDKs
 ContextSnapshot constructors
 ContextContribution constructors
 hash/provenance mechanics
 database repositories
+Redis/Mongo/PostgreSQL clients
 provider factories
 execution lifecycle
-```
+Network infrastructure
+API/worker packages
+~~~
 
-Shared reusable mechanics belong in:
+## Primitive rule
 
-```text
-infra/context_management/manager_runtime/
-```
+If one Manager needs algorithm-specific behavior, keep it in that Manager.
 
-A new algorithm-specific behavior belongs in the concrete Manager.
+If multiple Managers need the same operation and Runtime can give it precise reusable semantics, introduce a small SDK + Runtime primitive.
 
-A new capability needed by several Managers may justify a small SDK + Runtime primitive.
+If the operation needs I/O, durability, instrumentation or provider behavior, it belongs to Runtime and must have an explicit execution boundary.
 
-Adding a normal Manager must not require modifying the Agent execution path.
+Do not create a primitive merely because a field exists in `ContextPolicyV1`. A field whose runtime semantics are incomplete should remain documented as incomplete.
+
+## One-file convention
+
+~~~text
+infra/context_management/managers/adaptive.py
+~~~
+
+A normal Manager must not grow a parallel private runtime package.
 
 ## Enforced Quality Gate partition
 
-The Agent architecture policy has narrow rules for Context Management:
-
 - `ARCH082`: resolver is the explicit composition point;
-- `ARCH083`: concrete Managers depend only on the Context Manager SDK, stable Application interfaces and Domain values;
-- `ARCH084`: Manager Runtime bridges the SDK to the existing shared context assembly and Skill mechanics and cannot depend on concrete Managers.
-
-The broad `ARCH004` infrastructure rule remains unchanged for all other infrastructure.
+- `ARCH083`: flat concrete Managers depend only on SDK/stable application/domain surfaces;
+- `ARCH084`: Manager Runtime bridges SDK to shared assembly mechanics and cannot depend on concrete Managers.
