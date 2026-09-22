@@ -818,9 +818,9 @@ export default function TracesPage() {
     <ResourcePage title="Runs" description="Central operational view of Agent Runs, Network Runs and their Trace evidence." className="max-w-[1600px]">
       <ResourceToolbar>
         <ResourceTabs value={runType} onChange={setRunType} label="Filter by Run type" tabs={[
-          { value: 'all', label: 'All Runs', count: networkGroups.length + directAgentRuns.length },
-          { value: 'network', label: 'Network Runs', count: networkGroups.length },
-          { value: 'agent', label: 'Agent Runs', count: items.length },
+          { value: 'all', label: 'All Runs', count: topLevelRunCount },
+          { value: 'network', label: 'Network Runs', count: summary?.network_runs ?? networkGroups.length },
+          { value: 'agent', label: 'Agent Runs', count: summary?.agent_runs ?? items.length },
         ]} />
         <ResourceTabs value={statusFilter} onChange={setStatusFilter} label="Filter Runs by status" tabs={[
           { value: 'all', label: 'All', count: statusCounts.all },
@@ -836,14 +836,18 @@ export default function TracesPage() {
       </ResourceToolbar>
 
       <section>
-        <ResourceSectionHeader title="Run health" description="Current execution pressure and top-level reliability indicators." count={`${topLevelRuns.length} top-level Runs`} />
+        <ResourceSectionHeader title="Run health" description="Current execution pressure and top-level reliability indicators." count={`${topLevelRunCount} top-level Runs`} />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           <MetricCard label="Active now" value={String(activeRuns)} detail="Queued or running" />
-          <MetricCard label="Agent Runs" value={String(items.length)} detail={`${directAgentRuns.length} direct · ${items.length - directAgentRuns.length} in Networks`} />
-          <MetricCard label="Network Runs" value={String(networkGroups.length)} detail="Composite executions" />
-          <MetricCard label="Failure rate" value={`${failureRate.toFixed(1)}%`} detail={`${failedRuns} failed top-level Runs`} />
+          <MetricCard
+            label="Agent Runs"
+            value={String(summary?.agent_runs ?? items.length)}
+            detail={`${summary?.direct_agent_runs ?? directAgentRuns.length} direct · ${summary?.network_agent_runs ?? (items.length - directAgentRuns.length)} in Networks`}
+          />
+          <MetricCard label="Network Runs" value={String(summary?.network_runs ?? networkGroups.length)} detail="Composite executions" />
+          <MetricCard label="Failure rate" value={`${failureRate.toFixed(1)}%`} detail={`${failedRuns} failed/uncertain top-level Runs`} />
           <MetricCard label="P95 latency" value={p95Latency == null ? '—' : formatLatency(p95Latency)} detail="Top-level Run duration" />
-          <MetricCard label="Runs / Network" value={averageAgentRuns.toFixed(1)} detail="Average Agent Runs" />
+          <MetricCard label="Runs / Network" value={averageAgentRuns == null ? '—' : averageAgentRuns.toFixed(1)} detail="Average Agent Runs" />
         </div>
       </section>
 
