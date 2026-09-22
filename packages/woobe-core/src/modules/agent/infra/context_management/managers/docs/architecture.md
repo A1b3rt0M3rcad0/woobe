@@ -46,7 +46,7 @@ A Manager must not construct Context Snapshots, Context Contributions, hashes, p
 
 The shared Runtime owns:
 
-- materialization mechanics;
+- materialization mechanics, including External Context projection;
 - mandatory system/current-input invariants;
 - model-capacity clamping;
 - reserved-output accounting;
@@ -71,3 +71,8 @@ long-horizon
 ```
 
 Historical `stdcm:v1`, `stdcm:v2`, and `default:v1` snapshots are compatibility inputs only. New snapshots persist the stable Manager name.
+
+
+## External Context
+
+External Context values are runtime inputs, not Manager implementation details. A concrete Manager may decide generic source policy through the SDK, while the shared Runtime owns contract-aware External Context projection, provider-safe materialization, provenance, and budget enforcement. This keeps new Managers independent from transport and product-specific input contracts.
