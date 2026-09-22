@@ -226,6 +226,46 @@ def test_candidate_budget_and_pressure_primitives_validate_policy_constraints() 
         )
 
 
+def test_capacity_primitive_tracks_effective_invocation_budget() -> None:
+    request = ContextAssemblyRequest(
+        messages=[SystemMessage(content="System"), HumanMessage(content="current user")],
+        model_invocation_id=uuid4(),
+        agent_run_id=uuid4(),
+        project_id=uuid4(),
+        provider="test",
+        model="test",
+        runtime_context=SimpleNamespace(
+            skill_context=None,
+            model_capacity_units=10_000,
+            reserved_output_units=1_000,
+        ),
+        policy=ContextPolicyV1.model_validate(
+            {
+                "budget": {
+                    "max_input_units": 12_000,
+                    "runtime_reserve_units": 500,
+                }
+            }
+        ),
+    )
+
+    built = build_context_manager_context(request)
+
+    assert built.capacity.model_capacity_units == 10_000
+    assert built.capacity.reserved_output_units == 1_000
+    assert built.capacity.runtime_reserve_units == 500
+    assert built.capacity.configured_input_budget_units == 12_000
+    assert built.capacity.model_usable_input_units == 8_500
+    assert built.capacity.usable_input_budget_units == 8_500
+    assert built.capacity.budget_clamped is True
+
+    built.budget.configure(max_input_units=4_000, runtime_reserve_units=500)
+
+    assert built.capacity.configured_input_budget_units == 4_000
+    assert built.capacity.usable_input_budget_units == 4_000
+    assert built.capacity.budget_clamped is False
+
+
 def test_manager_runner_rejects_non_sdk_outcomes() -> None:
     request = ContextAssemblyRequest(
         messages=[SystemMessage(content="System"), HumanMessage(content="current user")],
