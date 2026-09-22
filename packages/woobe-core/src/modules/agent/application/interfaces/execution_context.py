@@ -82,6 +82,10 @@ class RequestExecutionContext:
     context_selection_metadata: dict[str, Any] | None = None
     context_rag_sources: list[dict[str, Any]] | None = None
 
+    # Run-local programmable Context Manager state. Durable checkpoints persist
+    # a serialized copy; this field remains the hot state for subsequent Model Invocations.
+    context_manager_state: dict[str, Any] | None = None
+
     # Ephemeral preparation material. Project Environment secrets remain encrypted
     # here and are materialized only at the Tool invocation boundary. Nothing in
     # this section may be serialized to Redis or durable snapshots.
