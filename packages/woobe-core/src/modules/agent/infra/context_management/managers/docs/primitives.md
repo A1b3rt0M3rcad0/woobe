@@ -7,6 +7,7 @@ ctx.policy
 ctx.candidates
 ctx.capacity
 ctx.inventory
+ctx.invocation
 ctx.priorities
 ctx.budget
 ctx.pressure
@@ -62,6 +63,22 @@ ctx.inventory.contains(ContextSourceType.TOOL)
 ~~~
 
 Managers do not receive raw messages. Inventory uses the same source-classification logic as the assembler, includes contract-exposed External Context and active Tool definitions, and is calculated before optional Manager-enabled materializers such as active Skills are inserted.
+
+## `ctx.invocation`
+
+Exposes Model Invocation metadata that may legitimately affect a context algorithm:
+
+~~~python
+ctx.invocation.phase
+ctx.invocation.provider
+ctx.invocation.model
+ctx.invocation.delegated
+ctx.invocation.has_active_tools
+~~~
+
+This is intentionally narrower than `ContextAssemblyRequest`. It lets a Manager distinguish initial response generation, Tool follow-up, final response or repair phases without importing execution/runtime objects.
+
+Use provider/model identity only when the algorithm truly needs semantic provider/model differences. Prefer `ctx.capacity` for size-based decisions because it works across primary and fallback models without hard-coded model names.
 
 ## `ctx.priorities`
 
