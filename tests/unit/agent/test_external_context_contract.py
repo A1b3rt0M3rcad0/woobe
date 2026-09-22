@@ -49,13 +49,20 @@ def test_scope_is_preserved_in_canonical_contract(scope: str) -> None:
     assert normalized["customer_id"]["scope"] == scope
 
 
-def test_missing_scope_defaults_to_run_for_backward_compatibility() -> None:
+def test_missing_scope_defaults_to_run_without_rewriting_legacy_snapshot() -> None:
     raw = contract()
     raw["customer_id"].pop("scope")
 
     normalized = normalize_external_context_contract(raw)
+    resolved = resolve_scoped_external_context(
+        normalized,
+        {"customer_id": "cus-1"},
+        session_snapshot=None,
+    )
 
-    assert normalized["customer_id"]["scope"] == "run"
+    assert "scope" not in normalized["customer_id"]
+    assert resolved.session_snapshot == {}
+    assert resolved.run_snapshot == {"customer_id": "cus-1"}
 
 
 def test_invalid_scope_is_rejected() -> None:
