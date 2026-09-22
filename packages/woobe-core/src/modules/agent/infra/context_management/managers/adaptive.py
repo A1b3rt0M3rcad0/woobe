@@ -209,7 +209,7 @@ class AdaptiveContextManager:
                     target_units=summary_policy.target_units,
                     preserve_recent_messages=preserve,
                 )
-            except (RuntimeError, ValueError):
+            except Exception:
                 if summary_policy.failure_mode == "fail":
                     raise
                 if not cached_applied:
