@@ -5,6 +5,8 @@ The stable Manager-facing surface is:
 ~~~text
 ctx.policy
 ctx.candidates
+ctx.capacity
+ctx.inventory
 ctx.priorities
 ctx.budget
 ctx.pressure
@@ -27,6 +29,39 @@ Controls candidate eligibility and deterministic selection:
 - `order(strategy)` configures final ordering.
 
 `cap(...)` currently supports CHECKPOINT, MEMORY, KNOWLEDGE, TOOL, ARTIFACT and DELEGATION. Session has its own window primitive. SYSTEM and current USER_INPUT are mandatory invariants.
+
+## `ctx.capacity`
+
+Provides read-only invocation capacity facts without exposing provider/runtime objects:
+
+~~~python
+ctx.capacity.model_capacity_units
+ctx.capacity.reserved_output_units
+ctx.capacity.runtime_reserve_units
+ctx.capacity.configured_input_budget_units
+ctx.capacity.model_usable_input_units
+ctx.capacity.usable_input_budget_units
+ctx.capacity.budget_clamped
+~~~
+
+The values track the effective Manager budget. If the Manager calls `ctx.budget.configure(...)`, subsequent capacity reads reflect the new configured budget/reserve.
+
+This lets adaptive Managers react differently to a large primary model and a smaller fallback model without bypassing Runtime capacity enforcement.
+
+## `ctx.inventory`
+
+Provides aggregate pre-selection facts by `ContextSourceType`:
+
+~~~python
+ctx.inventory.total_count
+ctx.inventory.total_units
+ctx.inventory.sources
+ctx.inventory.count(ContextSourceType.SESSION)
+ctx.inventory.units(ContextSourceType.KNOWLEDGE)
+ctx.inventory.contains(ContextSourceType.TOOL)
+~~~
+
+Managers do not receive raw messages. Inventory uses the same source-classification logic as the assembler, includes contract-exposed External Context and active Tool definitions, and is calculated before optional Manager-enabled materializers such as active Skills are inserted.
 
 ## `ctx.priorities`
 
