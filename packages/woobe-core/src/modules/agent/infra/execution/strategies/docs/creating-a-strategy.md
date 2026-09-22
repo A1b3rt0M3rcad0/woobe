@@ -189,6 +189,41 @@ result = await ctx.model.invoke(
 
 Internal planning or reasoning invocations should use `StrategyOutputMode.INTERNAL`. Use `StrategyOutputMode.INTERMEDIATE` when the Agent should send a real Assistant message and then continue executing, and `StrategyOutputMode.FINAL` for the terminal response. Existing Strategies can omit the argument and keep the historical runtime behavior. The frontend consumes runtime message identity and does not maintain a list of Strategy-specific final phases.
 
+### Send a persistent intermediate Assistant message
+
+Use `ctx.model.communicate(...)` when the Strategy deliberately wants to speak to
+the user and then continue executing:
+
+```python
+await ctx.model.communicate(
+    phase=PlannerPhase.USER_UPDATE,
+    directive=(
+        "Briefly tell the user what you are about to verify. "
+        "Do not expose internal reasoning."
+    ),
+)
+```
+
+`communicate()` always uses `StrategyOutputMode.INTERMEDIATE`. When the Agent has
+Tools, the Runtime uses a Tool-free model binding for this invocation so a status
+message cannot accidentally select a capability.
+
+The resulting Assistant message has its own `message_id`, is streamed as
+`assistant_message_delta` / `assistant_message_completed`, is persisted in the
+Session history, and does not complete the Run. A later `FINAL` response remains
+the only message referenced by `AgentRun.output_message_id`.
+
+Use this for deliberate user communication such as:
+
+```text
+Vou procurar.
+Encontrei evidências; vou validar um segundo ponto.
+```
+
+Do not use it for chain-of-thought, hidden hypotheses, raw Tool planning, or
+operational status such as "Calling tool...". Those remain `INTERNAL` or
+`agent_activity`.
+
 ### Execute Tools
 
 ```python
