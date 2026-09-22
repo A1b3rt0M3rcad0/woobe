@@ -9,6 +9,7 @@ from modules.agent.application.context_assembly import (
 )
 from modules.agent.application.context_manager_sdk import ContextManagerOutcome
 from modules.agent.application.interfaces.context_assembler import ContextAssemblyRequest
+from modules.agent.application.skill_runtime import skill_contribution_content
 from modules.agent.application.interfaces.context_policy import (
     ArtifactContextPolicy,
     CheckpointContextPolicy,
@@ -205,6 +206,34 @@ class RuntimeContextInventory:
             )
             item["count"] += 1
             item["units"] += units
+
+        skill_candidates = getattr(
+            request.runtime_context,
+            "skill_context",
+            None,
+        )
+        if isinstance(skill_candidates, list) and skill_candidates:
+            item = self._summary.setdefault(
+                ContextSourceType.SKILL.value,
+                {"count": 0, "units": 0},
+            )
+            seen: set[tuple[object, object]] = set()
+            for candidate in skill_candidates:
+                if not isinstance(candidate, dict):
+                    continue
+                identity = (
+                    candidate.get("source_ref"),
+                    candidate.get("resource_hash"),
+                )
+                if identity in seen:
+                    continue
+                seen.add(identity)
+                try:
+                    content = skill_contribution_content(candidate)
+                except (KeyError, TypeError):
+                    continue
+                item["count"] += 1
+                item["units"] += estimate_input_units(content)
 
     @property
     def total_count(self) -> int:
