@@ -17,6 +17,7 @@ from modules.agent.application.strategy_sdk import (
     StrategyOutcome,
     strategy_phase_with_iteration,
 )
+from modules.agent.infra.execution.capabilities.preparation import prepare_execution
 from modules.agent.infra.execution.runtime_streaming import (
     RuntimeStreamChannel,
     current_runtime_stream,
@@ -154,6 +155,20 @@ def _request(execute_single_tool) -> ExecutionStrategyRequest:
         messages=["user-message"],
         context_assembler=None,
     )
+
+
+def test_tool_enabled_standalone_execution_prepares_unbound_terminal_model() -> None:
+    async def execute_single_tool(_tool_call, _tool_id):
+        return {"success": True, "output": "ok"}
+
+    request = _request(execute_single_tool)
+
+    prepared = prepare_execution(request)
+
+    assert prepared.model is prepared.final_model
+    assert prepared.final_model is not None
+
+
 
 
 @pytest.mark.asyncio
