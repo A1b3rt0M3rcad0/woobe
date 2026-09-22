@@ -5,11 +5,20 @@ from uuid import uuid4
 
 import pytest
 
+from modules.agent.application.dtos.runtime_dtos import AskOutput, UsageInfo
+from modules.agent.application.interfaces.execution import InstrumentedExecution
+from modules.agent.application.interfaces.execution_context import (
+    current_execution,
+    new_execution_context,
+)
 from modules.agent.domain.entities import Agent
 from modules.agent.domain.enums import Provider, SessionMode
 from modules.agent.infra.execution import frozen_snapshot_runtime as runtime_module
 from modules.agent.infra.execution.frozen_snapshot_runtime import (
     FrozenSnapshotStructuredOutputRuntime,
+)
+from modules.agent.infra.execution.transaction_bounded_structured_output import (
+    TransactionBoundedStructuredOutputRuntime,
 )
 
 
@@ -344,3 +353,122 @@ def test_frozen_snapshot_explicit_null_clears_live_external_context_contract() -
     runtime._apply_snapshot_override(agent, snapshot)
 
     assert "external_context_contract" not in agent.settings
+
+
+
+@pytest.mark.asyncio
+async def test_deferred_network_finalize_builds_execution_timeline(monkeypatch) -> None:
+    trace_id = uuid4()
+    call_id = str(uuid4())
+
+    async def fake_finalize(self, *_args, **_kwargs):
+        return AskOutput(
+            answer="done",
+            trace_id=trace_id,
+            usage=UsageInfo(
+                input_tokens=4,
+                output_tokens=3,
+                total_tokens=7,
+                cost_usd=0.002,
+            ),
+        )
+
+    monkeypatch.setattr(
+        TransactionBoundedStructuredOutputRuntime,
+        "_finalize",
+        fake_finalize,
+    )
+    monkeypatch.setattr(
+        runtime_module,
+        "build_deferred_agent_metrics",
+        lambda _context, _output: SimpleNamespace(
+            usage={
+                "input_tokens": 4,
+                "output_tokens": 3,
+                "total_tokens": 7,
+                "cost_usd": 0.002,
+            },
+            diagnostics={
+                "schema_version": 5,
+                "agent_runtime_latency_ms": 250,
+                "llm_call_count": 1,
+                "tool_call_count": 0,
+            },
+            llm_calls=[{"call_id": call_id, "latency_ms": 200}],
+            started_at="2026-09-21T12:00:00+00:00",
+            completed_at="2026-09-21T12:00:00.250000+00:00",
+            total_latency_ms=250,
+        ),
+    )
+
+    context = new_execution_context(
+        request_received_at="2026-09-21T12:00:00+00:00"
+    )
+    setattr(context, "defer_persistence", True)
+    context.trace_id = trace_id
+    context.prepare_started_at = "2026-09-21T12:00:00+00:00"
+    context.prepare_ended_at = "2026-09-21T12:00:00.010000+00:00"
+    context.prepare_latency_ms = 10
+    context.execution = InstrumentedExecution(
+        result=None,
+        timeline=[
+            {
+                "kind": "llm",
+                "payload": {
+                    "call_id": call_id,
+                    "call_index": 1,
+                    "phase": "response_generation",
+                    "status": "success",
+                    "started_at": "2026-09-21T12:00:00.020000+00:00",
+                    "ended_at": "2026-09-21T12:00:00.220000+00:00",
+                    "latency_ms": 200,
+                    "provider": "custom",
+                    "model": "deepseek-v4-flash",
+                },
+            }
+        ],
+    )
+
+    runtime = FrozenSnapshotStructuredOutputRuntime.__new__(
+        FrozenSnapshotStructuredOutputRuntime
+    )
+    token = current_execution.set(context)
+    try:
+        output = await runtime._finalize(
+            None,
+            None,
+            None,
+            trace_id,
+            "done",
+            UsageInfo(
+                input_tokens=4,
+                output_tokens=3,
+                total_tokens=7,
+                cost_usd=0.002,
+            ),
+            "deepseek-v4-flash",
+            "custom",
+            200,
+            [],
+            None,
+            None,
+            [],
+            False,
+            None,
+            None,
+        )
+    finally:
+        current_execution.reset(token)
+
+    event_types = {event["event_type"] for event in output.execution_events}
+    assert {
+        "agent.execution.started",
+        "agent.prepare.started",
+        "agent.prepare.completed",
+        "llm.call.started",
+        "llm.call.completed",
+        "structured_output.parse.completed",
+        "agent.execution.completed",
+    } <= event_types
+    assert "http.request.received" not in event_types
+    assert output.diagnostics["agent_runtime_latency_ms"] == 250

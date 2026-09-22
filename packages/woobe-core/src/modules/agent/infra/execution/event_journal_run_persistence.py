@@ -8,6 +8,7 @@ import uuid6
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
 from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.infra.execution.trace_event_builder import build_execution_timeline_events
 from modules.agent.domain.entities import Message
 from modules.agent.domain.enums import MessageRole
 from modules.agent.domain.errors import MessageNotFoundError
@@ -122,6 +123,16 @@ class EventJournalAgentRunPersistence:
             completed_at=completed_at,
         )
         canonical_usage = metrics.usage
+        execution_events = build_execution_timeline_events(
+            str(kw["trace_id"]),
+            context=context,
+            timeline=list(execution.timeline),
+            completed_at=metrics.completed_at,
+            total_latency_ms=metrics.total_latency_ms,
+            output_parse_error=kw.get("output_parse_error"),
+            completion_attributes={"diagnostics": metrics.diagnostics},
+            include_http_boundaries=True,
+        )
         message_id = uuid6.uuid7()
         sources = kw.get("sources") or []
         source_payloads = [
@@ -170,6 +181,7 @@ class EventJournalAgentRunPersistence:
             "latency_ms": metrics.total_latency_ms,
             "started_at": metrics.started_at,
             "completed_at": metrics.completed_at,
+            "execution_events": execution_events,
             "timeline_complete": True,
         }
         await owner._hot_terminal_pending(terminal_status="completed", result=payload)
@@ -241,6 +253,7 @@ class EventJournalAgentRunPersistence:
             latency_ms=metrics.total_latency_ms,
             parsed_output=kw.get("parsed_output"),
             output_parse_error=kw.get("output_parse_error"),
+            execution_events=execution_events,
             diagnostics=metrics.diagnostics,
         )
         return output

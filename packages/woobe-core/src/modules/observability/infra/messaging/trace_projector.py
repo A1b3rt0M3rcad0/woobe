@@ -49,6 +49,10 @@ _DATA_FIELDS = {
     "fallback_model_binding",
     "diagnostics",
     "llm_calls",
+    "network_id",
+    "network_execution_id",
+    "network_session_id",
+    "network_version_id",
 }
 
 
@@ -87,6 +91,19 @@ def _merge_data(trace: Trace, payload: dict[str, Any], event_type: str) -> None:
             data[field] = payload[field]
     data["last_event_type"] = event_type
     trace.data = data
+
+
+def _apply_network_context(trace: Trace, payload: dict[str, Any]) -> None:
+    trace.network_id = _uuid(payload.get("network_id")) or trace.network_id
+    trace.network_execution_id = (
+        _uuid(payload.get("network_execution_id")) or trace.network_execution_id
+    )
+    trace.network_session_id = (
+        _uuid(payload.get("network_session_id")) or trace.network_session_id
+    )
+    trace.network_version_id = (
+        _uuid(payload.get("network_version_id")) or trace.network_version_id
+    )
 
 
 def _apply_provider_model_refs(trace: Trace, payload: dict[str, Any]) -> None:
@@ -223,6 +240,7 @@ async def project_agent_event(
     trace.session_id = trace.session_id or _uuid(payload.get("session_id"))
     trace.provider = payload.get("provider") or trace.provider
     trace.model = payload.get("model") or trace.model
+    _apply_network_context(trace, payload)
     _apply_provider_model_refs(trace, payload)
     _merge_data(trace, payload, event_type)
 

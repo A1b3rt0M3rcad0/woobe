@@ -107,6 +107,13 @@ async def test_journal_completion_projects_known_cost_from_nested_diagnostics(
                 "usage_complete": True,
             },
             "total_latency_ms": 1250,
+            "execution_events": [
+                {
+                    "event_type": "llm.call.completed",
+                    "occurred_at": "2026-09-21T12:00:01+00:00",
+                }
+            ],
+            "timeline_complete": True,
         },
         session=object(),
     )
@@ -114,3 +121,10 @@ async def test_journal_completion_projects_known_cost_from_nested_diagnostics(
     assert trace.total_cost_usd == pytest.approx(0.001178)
     assert trace.data is not None
     assert trace.data["cost_status"] == "known"
+    assert trace.data["timeline_complete"] is True
+    assert trace.data["execution_events"] == [
+        {
+            "event_type": "llm.call.completed",
+            "occurred_at": "2026-09-21T12:00:01+00:00",
+        }
+    ]

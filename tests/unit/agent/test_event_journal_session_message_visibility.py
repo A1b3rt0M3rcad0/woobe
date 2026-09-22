@@ -92,17 +92,45 @@ async def _complete_turn(
     recorder,
     answer="Olá. Sou o agente de Faturamento e Contas.",
 ):
+    call_id = str(uuid4())
     execution = InstrumentedExecution(
         result=None,
         llm_calls=[
             {
-                "call_id": str(uuid4()),
+                "call_id": call_id,
                 "latency_ms": 25,
                 "cost_status": "known",
             }
         ],
+        timeline=[
+            {
+                "kind": "llm",
+                "occurred_at": "2026-09-21T12:00:00.025000+00:00",
+                "payload": {
+                    "call_id": call_id,
+                    "call_index": 1,
+                    "phase": "response_generation",
+                    "status": "success",
+                    "started_at": "2026-09-21T12:00:00+00:00",
+                    "ended_at": "2026-09-21T12:00:00.025000+00:00",
+                    "occurred_at": "2026-09-21T12:00:00.025000+00:00",
+                    "latency_ms": 25,
+                    "provider": "custom",
+                    "model": "deepseek-v4-flash",
+                    "input_tokens": 10,
+                    "output_tokens": 8,
+                    "total_tokens": 18,
+                    "cost_usd": 0.001,
+                    "cost_status": "known",
+                    "usage_complete": True,
+                },
+            }
+        ],
     )
     context = new_execution_context()
+    context.prepare_started_at = "2026-09-21T11:59:59.990000+00:00"
+    context.prepare_ended_at = "2026-09-21T12:00:00+00:00"
+    context.prepare_latency_ms = 10
     context.run_id = uuid4()
     context.execution_context = "draft"
     context.execution = execution
@@ -221,7 +249,31 @@ async def test_event_journal_completion_persists_assistant_message_before_return
 
     completed_events = [event for event in recorder.events if event[0] == "run.completed"]
     assert len(completed_events) == 1
-    assert completed_events[0][1]["message_id"] == str(output.message_id)
+    completed_payload = completed_events[0][1]
+    assert completed_payload["message_id"] == str(output.message_id)
+    assert completed_payload["timeline_complete"] is True
+    assert output.execution_events == completed_payload["execution_events"]
+    ordered_event_types = [
+        event["event_type"] for event in completed_payload["execution_events"]
+    ]
+    event_types = set(ordered_event_types)
+    assert {
+        "http.request.received",
+        "agent.execution.started",
+        "agent.prepare.started",
+        "agent.prepare.completed",
+        "llm.call.started",
+        "llm.call.completed",
+        "structured_output.parse.completed",
+        "agent.execution.completed",
+        "http.response.prepared",
+    } <= event_types
+    assert ordered_event_types.index("structured_output.parse.completed") < (
+        ordered_event_types.index("agent.execution.completed")
+    )
+    assert ordered_event_types.index("agent.execution.completed") < (
+        ordered_event_types.index("http.response.prepared")
+    )
     assert completed_events[0][2] is True
     assert [event.event_type for event in outbox.events] == [
         "agent.execution.message.created.v1"

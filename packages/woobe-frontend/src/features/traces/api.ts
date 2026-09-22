@@ -1,5 +1,11 @@
 import { get, post } from '@/lib/api/client'
-import type { AgentRunDetail, ContextModelInvocation, Trace, TraceDetail } from './types'
+import type {
+  AgentRunDetail,
+  ContextModelInvocation,
+  ProjectRunLedger,
+  Trace,
+  TraceDetail,
+} from './types'
 
 export interface GetTracesParams {
   projectId?: string
@@ -42,6 +48,19 @@ export async function getTraces(params?: GetTracesParams): Promise<Trace[]> {
       agent_id: params?.agentId,
       session_id: params?.sessionId,
       network_id: params?.networkId,
+    },
+  })
+}
+
+export async function getProjectRuns(params: {
+  projectId: string
+  networkId?: string
+  limit?: number
+}): Promise<ProjectRunLedger> {
+  return get<ProjectRunLedger>(`/core/projects/${params.projectId}/runs`, {
+    params: {
+      network_id: params.networkId,
+      limit: params.limit ?? 100,
     },
   })
 }
