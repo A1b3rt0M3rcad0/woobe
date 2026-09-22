@@ -3,6 +3,7 @@ from __future__ import annotations
 from modules.agent.application.context_manager_sdk import (
     ContextManagerContext,
     ContextManagerOutcome,
+    ContextManagerState,
 )
 from modules.agent.domain.context import ContextSourceType
 
@@ -11,10 +12,11 @@ class StandardContextManager:
     """General-purpose deterministic context algorithm expressed through SDK primitives."""
 
     name = "standard"
+    state_type = ContextManagerState
 
-    def assemble(
+    async def assemble(
         self,
-        ctx: ContextManagerContext,
+        ctx: ContextManagerContext[ContextManagerState],
     ) -> ContextManagerOutcome:
         policy = ctx.policy
 
