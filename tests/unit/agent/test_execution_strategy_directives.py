@@ -35,6 +35,7 @@ def _runtime_model(
     runtime_state: StrategyRuntimeState,
     invoke_fn,
     communication_model: Any | None = None,
+    communication_model_factory=None,
     final_model: Any | None = None,
 ) -> RuntimeStrategyModel:
     return RuntimeStrategyModel(
@@ -48,6 +49,7 @@ def _runtime_model(
         base_messages=base_messages,
         initial_phase="response_generation",
         communication_model=communication_model,
+        communication_model_factory=communication_model_factory,
         final_model=final_model,
         final_model_factory=None,
         final_json_instruction=None,
@@ -149,6 +151,50 @@ async def test_communicate_uses_tool_free_model_and_intermediate_output_mode() -
     )
 
 
+
+
+@pytest.mark.asyncio
+async def test_communicate_resolves_lazy_model_once() -> None:
+    captured: list[dict[str, Any]] = []
+    created: list[object] = []
+    lazy_model = object()
+
+    async def fake_invoke_llm(**kwargs):
+        captured.append(dict(kwargs))
+        return (
+            AIMessage(content="Progress update."),
+            {
+                "phase": kwargs["phase"],
+                "call_index": kwargs["call_index"],
+                "occurred_at": f"model-{kwargs['call_index']}",
+            },
+        )
+
+    def communication_factory():
+        created.append(lazy_model)
+        return lazy_model
+
+    base_messages = [HumanMessage(content="Investigate.")]
+    runtime_state = StrategyRuntimeState(
+        messages=list(base_messages),
+        base_message_count=len(base_messages),
+    )
+    model = _runtime_model(
+        base_messages=base_messages,
+        runtime_state=runtime_state,
+        invoke_fn=fake_invoke_llm,
+        communication_model_factory=communication_factory,
+    )
+
+    await model.communicate(phase="update_1")
+    await model.communicate(phase="update_2")
+
+    assert created == [lazy_model]
+    assert [item["model"] for item in captured] == [lazy_model, lazy_model]
+    assert [item["output_mode"] for item in captured] == [
+        "intermediate",
+        "intermediate",
+    ]
 
 
 @pytest.mark.asyncio
