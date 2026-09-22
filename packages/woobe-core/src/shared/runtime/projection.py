@@ -28,6 +28,7 @@ STRUCTURAL_RUNTIME_EVENTS = {
     "delegation_skipped",
     "tool_call_started",
     "tool_call_completed",
+    "assistant_message_completed",
     "usage",
     "done",
     "error",
@@ -142,6 +143,7 @@ def initial_projection(
         "status": status,
         "sequence": 0,
         "output": str(output or ""),
+        "messages": _as_record_list(state.get("messages")),
         "activity": None,
         "active_tools": [],
         "tools": [],
@@ -233,6 +235,43 @@ def reduce_projection(
         if size > 0:
             output = str(state.get("output") or "")
             state["output"] = output[:-size] if size < len(output) else ""
+    elif event_type == "assistant_message_delta":
+        message_id = payload.get("message_id")
+        content = payload.get("content")
+        if message_id and isinstance(content, str):
+            existing = next(
+                (
+                    item
+                    for item in _as_record_list(state.get("messages"))
+                    if str(item.get("message_id") or "") == str(message_id)
+                ),
+                {},
+            )
+            state["messages"] = _upsert_by_key(
+                _as_record_list(state.get("messages")),
+                key="message_id",
+                key_value=str(message_id),
+                update={
+                    **existing,
+                    **deepcopy(payload),
+                    "message_id": str(message_id),
+                    "content": str(existing.get("content") or "") + content,
+                    "status": "streaming",
+                },
+            )
+    elif event_type == "assistant_message_completed":
+        message_id = payload.get("message_id")
+        if message_id:
+            state["messages"] = _upsert_by_key(
+                _as_record_list(state.get("messages")),
+                key="message_id",
+                key_value=str(message_id),
+                update={
+                    **deepcopy(payload),
+                    "message_id": str(message_id),
+                    "status": "completed",
+                },
+            )
     elif event_type == "agent_activity":
         state["activity"] = {
             key: payload.get(key)

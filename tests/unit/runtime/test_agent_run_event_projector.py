@@ -279,3 +279,60 @@ async def test_agent_projector_rejects_projection_gaps() -> None:
 
     with pytest.raises(RuntimeError, match="projection gap"):
         await projector.project([event])
+
+
+
+@pytest.mark.anyio
+async def test_agent_projector_materializes_intermediate_message_without_terminalizing_run() -> None:
+    run, session = _run_fixture()
+    messages = FakeMessages()
+    sessions = FakeSessions(session)
+    runs = FakeRuns(run)
+    outbox = FakeOutbox()
+    projector = AgentRunEventProjector(
+        FakeTransactions(
+            SimpleNamespace(runs=runs, messages=messages, sessions=sessions),
+            outbox,
+        )
+    )
+    message_id = uuid4()
+    event = DurableRunEvent(
+        run_id=run.id,
+        session_id=run.session_id,
+        run_kind="agent",
+        sequence=1,
+        event_id=str(uuid4()),
+        event_type="assistant.message.completed",
+        occurred_at="2026-09-10T18:09:00+00:00",
+        schema_version=1,
+        storage_version=EVENT_JOURNAL_STORAGE_VERSION,
+        metadata={"project_id": str(run.project_id), "agent_id": str(run.agent_id)},
+        payload={
+            "message_id": str(message_id),
+            "content": "I found one likely cause and will verify it.",
+            "phase": "progress_update",
+            "output_mode": "intermediate",
+            "provider": "custom",
+            "model": "test-model",
+            "partial": False,
+            "completed_at": "2026-09-10T18:09:00+00:00",
+        },
+    )
+
+    await projector.project([event])
+    await projector.project([event])
+
+    assert runs.run.status == AgentRunStatus.RUNNING
+    assert runs.run.output_message_id is None
+    assert runs.run.journal_projected_sequence == 1
+    persisted = messages.items[message_id]
+    assert persisted.content == "I found one likely cause and will verify it."
+    assert persisted.data["run_id"] == str(run.id)
+    assert persisted.data["phase"] == "progress_update"
+    assert persisted.data["output_mode"] == "intermediate"
+    assert persisted.data["partial"] is False
+    assert messages.create_calls == 1
+    assert sessions.update_calls == 1
+    assert [item.event_type for item in outbox.events] == [
+        "agent.execution.message.created.v1"
+    ]

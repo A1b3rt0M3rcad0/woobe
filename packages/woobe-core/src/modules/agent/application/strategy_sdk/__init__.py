@@ -9,6 +9,7 @@ from modules.agent.application.strategy_sdk.contracts import (
 from modules.agent.application.strategy_sdk.model import (
     StrategyModel,
     StrategyModelResult,
+    StrategyOutputMode,
     StrategyPhase,
     strategy_phase_value,
     strategy_phase_with_iteration,
@@ -34,6 +35,7 @@ __all__ = [
     "StrategyContext",
     "StrategyModel",
     "StrategyModelResult",
+    "StrategyOutputMode",
     "StrategyOutcome",
     "StrategyPhase",
     "StrategyToolBatch",

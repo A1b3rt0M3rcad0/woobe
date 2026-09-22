@@ -96,16 +96,16 @@ async def test_runtime_stream_journals_visible_output_as_bounded_batch() -> None
         current_execution.reset(context_token)
 
     assert result.content == "hello world"
-    assert recorder.events == [
-        (
-            "output.delta.batch",
-            {
-                "content": "hello world",
-                "channel": "final",
-                "visibility": "assistant",
-            },
-        )
+    assert [event_type for event_type, _ in recorder.events] == [
+        "output.delta.batch"
     ]
+    payload = recorder.events[0][1]
+    assert payload["content"] == "hello world"
+    assert payload["channel"] == "final"
+    assert payload["visibility"] == "assistant"
+    assert payload["output_mode"] == "final"
+    assert payload["phase"] == "response_generation"
+    assert payload["message_id"] == str(context.output_message_id)
 
 
 @pytest.mark.asyncio
@@ -199,7 +199,7 @@ async def test_strategy_specific_phase_can_explicitly_own_public_output() -> Non
             phase="conclusion",
             provider="openai",
             model_name="gpt-test",
-            public_output=True,
+            output_mode="final",
         )
     finally:
         current_runtime_stream.reset(token)
@@ -212,6 +212,59 @@ async def test_strategy_specific_phase_can_explicitly_own_public_output() -> Non
     assert activity.payload["phase"] == "conclusion"
     assert activity.payload["message"] == "Generating conclusion..."
     assert [first.event_type, second.event_type] == ["token", "token"]
+    assert first.payload["message_id"] == second.payload["message_id"]
+    assert first.payload["output_mode"] == "final"
+    assert result.content == "hello world"
+
+
+@pytest.mark.asyncio
+async def test_intermediate_output_is_a_distinct_message_and_does_not_become_run_output() -> None:
+    context = new_execution_context()
+    context_token = current_execution.set(context)
+    channel = RuntimeStreamChannel()
+    stream_token = current_runtime_stream.set(channel)
+    try:
+        result = await invoke_model_with_optional_streaming(
+            model=StreamingModel(),
+            messages=[],
+            phase="progress_update",
+            provider="openai",
+            model_name="gpt-test",
+            output_mode="intermediate",
+        )
+    finally:
+        current_runtime_stream.reset(stream_token)
+        current_execution.reset(context_token)
+
+    events = []
+    while not channel.queue.empty():
+        events.append(channel.queue.get_nowait())
+    assert [event.event_type for event in events] == [
+        "agent_activity",
+        "assistant_message_delta",
+        "assistant_message_delta",
+        "assistant_message_completed",
+    ]
+    first_delta = events[1]
+    second_delta = events[2]
+    completed = events[3]
+    assert first_delta.payload["message_id"] == second_delta.payload["message_id"]
+    assert completed.payload["message_id"] == first_delta.payload["message_id"]
+    assert completed.payload["content"] == "hello world"
+    assert completed.payload["output_mode"] == "intermediate"
+    assert channel.public_output == ""
+    assert context.intermediate_messages == [
+        {
+            "message_id": completed.payload["message_id"],
+            "content": "hello world",
+            "phase": "progress_update",
+            "output_mode": "intermediate",
+            "provider": "openai",
+            "model": "gpt-test",
+            "partial": False,
+            "completed_at": completed.payload["completed_at"],
+        }
+    ]
     assert result.content == "hello world"
 
 
@@ -226,7 +279,7 @@ async def test_strategy_specific_internal_phase_exposes_phase_activity_without_o
             phase="hypothesis_formulation",
             provider="openai",
             model_name="gpt-test",
-            public_output=False,
+            output_mode="internal",
         )
     finally:
         current_runtime_stream.reset(token)

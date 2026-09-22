@@ -7,6 +7,7 @@ import pytest
 from modules.agent.application.strategy_sdk import (
     Completed,
     StrategyModelResult,
+    StrategyOutputMode,
     StrategyToolBatch,
 )
 from modules.agent.infra.execution.strategies.scientific_method import (
@@ -33,12 +34,12 @@ class _Model:
         self.invocations: list[dict[str, object]] = []
         self.finalizations: list[dict[str, object]] = []
 
-    async def invoke(self, *, phase=None, directive=None, public_output=None):
+    async def invoke(self, *, phase=None, directive=None, output_mode=None):
         self.invocations.append(
             {
                 "phase": phase,
                 "directive": directive,
-                "public_output": public_output,
+                "output_mode": output_mode,
             }
         )
         return self.responses.pop(0)
@@ -49,14 +50,14 @@ class _Model:
         reason,
         phase,
         directive=None,
-        public_output=None,
+        output_mode=None,
     ):
         self.finalizations.append(
             {
                 "reason": reason,
                 "phase": phase,
                 "directive": directive,
-                "public_output": public_output,
+                "output_mode": output_mode,
             }
         )
         return _result("limited conclusion")
@@ -132,14 +133,14 @@ async def test_scientific_method_uses_directives_and_reopens_investigation() -> 
     assert "Attempt to falsify" in directives[3]
     assert "experiment round 2" in directives[4]
     assert "Produce the conclusion" in directives[-1]
-    assert [item["public_output"] for item in model.invocations] == [
-        False,
-        False,
-        False,
-        False,
-        False,
-        False,
-        True,
+    assert [item["output_mode"] for item in model.invocations] == [
+        StrategyOutputMode.INTERNAL,
+        StrategyOutputMode.INTERNAL,
+        StrategyOutputMode.INTERNAL,
+        StrategyOutputMode.INTERNAL,
+        StrategyOutputMode.INTERNAL,
+        StrategyOutputMode.INTERNAL,
+        StrategyOutputMode.FINAL,
     ]
 
 
@@ -177,4 +178,4 @@ async def test_scientific_method_stops_before_exceeding_experiment_limit() -> No
     finalization = model.finalizations[0]
     assert finalization["phase"] == ScientificMethodPhase.CONCLUSION
     assert "Do not request additional Tools" in str(finalization["directive"])
-    assert finalization["public_output"] is True
+    assert finalization["output_mode"] == StrategyOutputMode.FINAL

@@ -156,6 +156,8 @@ class RuntimeStreamChannel:
     )
     _durable_output_recorder: Any | None = field(default=None, repr=False)
     _durable_output_parts: list[str] = field(default_factory=list, repr=False)
+    _durable_output_message_id: UUID | None = field(default=None, repr=False)
+    _durable_output_phase: str | None = field(default=None, repr=False)
     _durable_output_bytes: int = field(default=0, repr=False)
     _durable_output_last_flush: float = field(
         default_factory=time.monotonic,
@@ -198,11 +200,21 @@ class RuntimeStreamChannel:
             self._durable_output_recorder = recorder
         return recorder
 
-    async def append_durable_output(self, content: str) -> None:
+    async def append_durable_output(
+        self,
+        content: str,
+        *,
+        message_id: UUID | None = None,
+        phase: str | None = None,
+    ) -> None:
         recorder = self._resolve_durable_output_recorder()
         if recorder is None or not content:
             return
 
+        if message_id is not None:
+            self._durable_output_message_id = message_id
+        if phase is not None:
+            self._durable_output_phase = phase
         self._durable_output_parts.append(content)
         self._durable_output_bytes += len(content.encode("utf-8"))
         elapsed = time.monotonic() - self._durable_output_last_flush
@@ -221,14 +233,17 @@ class RuntimeStreamChannel:
         self._durable_output_parts = []
         self._durable_output_bytes = 0
         self._durable_output_last_flush = time.monotonic()
-        await recorder.emit(
-            "output.delta.batch",
-            {
-                "content": content,
-                "channel": "final",
-                "visibility": "assistant",
-            },
-        )
+        payload: dict[str, Any] = {
+            "content": content,
+            "channel": "final",
+            "visibility": "assistant",
+            "output_mode": "final",
+        }
+        if self._durable_output_message_id is not None:
+            payload["message_id"] = str(self._durable_output_message_id)
+        if self._durable_output_phase is not None:
+            payload["phase"] = self._durable_output_phase
+        await recorder.emit("output.delta.batch", payload)
 
     async def retract_durable_output(
         self,
@@ -239,6 +254,7 @@ class RuntimeStreamChannel:
         reason: str,
         provider: str,
         model_name: str,
+        message_id: UUID | None = None,
     ) -> None:
         recorder = self._resolve_durable_output_recorder()
         if recorder is None or content_length <= 0:
@@ -256,6 +272,7 @@ class RuntimeStreamChannel:
                 "reason": reason,
                 "provider": provider,
                 "model": model_name,
+                "message_id": str(message_id) if message_id is not None else None,
             },
         )
 
@@ -439,25 +456,15 @@ def _is_capability_selection_phase(phase: str) -> bool:
     return phase == "capability_response_generation" or phase.startswith("tool_followup_")
 
 
-def _can_emit_phase_as_final(
-    phase: str,
-    *,
-    public_output: bool | None = None,
-) -> bool:
-    if public_output is not None:
-        return public_output
-    return _is_final_response_phase(phase) or _is_capability_selection_phase(phase)
-
-
-def _can_stream_phase_live(
-    phase: str,
-    *,
-    public_output: bool | None = None,
-) -> bool:
-    # Existing Strategies keep the legacy phase policy. New Strategies explicitly
-    # declare whether an invocation owns public output, so the runtime does not need
-    # to know Strategy-specific phase names.
-    return _can_emit_phase_as_final(phase, public_output=public_output)
+def _effective_output_mode(phase: str, output_mode: str | None) -> str:
+    if output_mode is not None:
+        normalized = output_mode.strip().lower()
+        if normalized not in {"internal", "intermediate", "final"}:
+            raise ValueError(f"Unsupported Strategy output mode: {output_mode}")
+        return normalized
+    if _is_final_response_phase(phase) or _is_capability_selection_phase(phase):
+        return "final"
+    return "internal"
 
 
 def _phase_activity_label(phase: str) -> str:
@@ -468,7 +475,7 @@ def _phase_activity_label(phase: str) -> str:
 def _activity_for_phase(
     phase: str,
     *,
-    public_output: bool | None = None,
+    output_mode: str | None = None,
 ) -> tuple[str, str]:
     if phase == "capability_response_generation":
         return "generating_answer", "Generating response..."
@@ -480,9 +487,105 @@ def _activity_for_phase(
         return "formatting_response", "Formatting structured response..."
 
     label = _phase_activity_label(phase)
-    if public_output is True:
+    mode = _effective_output_mode(phase, output_mode)
+    if mode == "final":
         return "generating_answer", f"Generating {label.lower()}..."
     return "thinking", f"{label}..."
+
+
+def _output_message_id(mode: str) -> UUID | None:
+    if mode == "internal":
+        return None
+
+    from modules.agent.application.interfaces.execution_context import current_execution
+
+    context = current_execution.get()
+    if mode == "final":
+        if context is not None:
+            if context.output_message_id is None:
+                context.output_message_id = uuid4()
+            return context.output_message_id
+        return uuid4()
+    return uuid4()
+
+
+async def _record_intermediate_message(
+    *,
+    message_id: UUID,
+    content: str,
+    phase: str,
+    provider: str,
+    model_name: str,
+    partial: bool = False,
+) -> dict[str, Any]:
+    completed_at = _stream_utc_iso()
+    payload: dict[str, Any] = {
+        "message_id": str(message_id),
+        "content": content,
+        "phase": phase,
+        "output_mode": "intermediate",
+        "provider": provider,
+        "model": model_name,
+        "partial": partial,
+        "completed_at": completed_at,
+    }
+
+    from modules.agent.application.interfaces.execution_context import current_execution
+
+    context = current_execution.get()
+    if context is not None:
+        if context.intermediate_messages is None:
+            context.intermediate_messages = []
+        context.intermediate_messages.append(dict(payload))
+        recorder = getattr(context, "run_event_recorder", None)
+        if recorder is not None:
+            await recorder.emit("assistant.message.completed", payload, durable=True)
+    return payload
+
+
+async def _emit_intermediate_token(
+    channel: RuntimeStreamChannel,
+    *,
+    message_id: UUID,
+    content: str,
+    phase: str,
+    provider: str,
+    model_name: str,
+) -> None:
+    channel.mark_first_token(provider=provider, model=model_name)
+    await channel.emit(
+        "assistant_message_delta",
+        message_id=str(message_id),
+        content=content,
+        phase=phase,
+        output_mode="intermediate",
+        provider=provider,
+        model=model_name,
+    )
+
+
+async def _complete_intermediate_message(
+    channel: RuntimeStreamChannel | None,
+    *,
+    message_id: UUID,
+    content: str,
+    phase: str,
+    provider: str,
+    model_name: str,
+    partial: bool = False,
+) -> None:
+    if not content:
+        return
+    payload = await _record_intermediate_message(
+        message_id=message_id,
+        content=content,
+        phase=phase,
+        provider=provider,
+        model_name=model_name,
+        partial=partial,
+    )
+    if channel is not None:
+        await channel.emit("assistant_message_completed", **payload)
 
 
 async def _emit_visible_token(
@@ -492,6 +595,7 @@ async def _emit_visible_token(
     phase: str,
     provider: str,
     model_name: str,
+    message_id: UUID | None = None,
 ) -> None:
     channel.mark_first_token(provider=provider, model=model_name)
     await channel.emit(
@@ -502,8 +606,14 @@ async def _emit_visible_token(
         phase=phase,
         provider=provider,
         model_name=model_name,
+        message_id=str(message_id) if message_id is not None else None,
+        output_mode="final",
     )
-    await channel.append_durable_output(content)
+    await channel.append_durable_output(
+        content,
+        message_id=message_id,
+        phase=phase,
+    )
 
 
 async def _retract_streamed_tokens(
@@ -514,6 +624,7 @@ async def _retract_streamed_tokens(
     reason: str,
     provider: str,
     model_name: str,
+    message_id: UUID | None = None,
 ) -> None:
     if not streamed_visible_tokens:
         return
@@ -526,6 +637,7 @@ async def _retract_streamed_tokens(
         token_count=len(streamed_visible_tokens),
         provider=provider,
         model_name=model_name,
+        message_id=str(message_id) if message_id is not None else None,
     )
     await channel.retract_durable_output(
         content_length=content_length,
@@ -534,6 +646,7 @@ async def _retract_streamed_tokens(
         reason=reason,
         provider=provider,
         model_name=model_name,
+        message_id=message_id,
     )
 
 
@@ -544,13 +657,26 @@ async def invoke_model_with_optional_streaming(
     phase: str,
     provider: str,
     model_name: str,
-    public_output: bool | None = None,
+    output_mode: str | None = None,
 ) -> Any:
+    mode = _effective_output_mode(phase, output_mode)
+    message_id = _output_message_id(mode)
     channel = current_runtime_stream.get()
+
     if channel is None:
         try:
-            result = await model.ainvoke(messages)
-            return normalize_llm_result_content(result)
+            result = normalize_llm_result_content(await model.ainvoke(messages))
+            if mode == "intermediate" and message_id is not None:
+                content = extract_chunk_text(result)
+                await _complete_intermediate_message(
+                    None,
+                    message_id=message_id,
+                    content=content,
+                    phase=phase,
+                    provider=provider,
+                    model_name=model_name,
+                )
+            return result
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -562,7 +688,7 @@ async def invoke_model_with_optional_streaming(
 
     activity_status, activity_message = _activity_for_phase(
         phase,
-        public_output=public_output,
+        output_mode=output_mode,
     )
     await channel.emit(
         "agent_activity",
@@ -577,6 +703,30 @@ async def invoke_model_with_optional_streaming(
     pending_visible_tokens: list[str] = []
     streamed_visible_tokens: list[str] = []
     control_filter = _ProviderControlTokenFilter()
+
+    async def emit_visible(content: str) -> None:
+        streamed_visible_tokens.append(content)
+        if mode == "intermediate":
+            assert message_id is not None
+            await _emit_intermediate_token(
+                channel,
+                message_id=message_id,
+                content=content,
+                phase=phase,
+                provider=provider,
+                model_name=model_name,
+            )
+            return
+        if mode == "final":
+            await _emit_visible_token(
+                channel,
+                content=content,
+                phase=phase,
+                provider=provider,
+                model_name=model_name,
+                message_id=message_id,
+            )
+
     try:
         async for chunk in model.astream(messages):
             accumulated = _combine_chunks(accumulated, chunk)
@@ -586,25 +736,39 @@ async def invoke_model_with_optional_streaming(
                 visible_content = control_filter.push(part.content)
                 if not visible_content:
                     continue
-                if _can_stream_phase_live(phase, public_output=public_output):
-                    streamed_visible_tokens.append(visible_content)
-                    await _emit_visible_token(
-                        channel,
-                        content=visible_content,
-                        phase=phase,
-                        provider=provider,
-                        model_name=model_name,
-                    )
+                if mode in {"intermediate", "final"}:
+                    await emit_visible(visible_content)
                 else:
                     pending_visible_tokens.append(visible_content)
     except asyncio.CancelledError:
-        # Once assistant text was made public, user cancellation must preserve the
-        # visible partial answer. Flush the last bounded batch before ownership moves
-        # to cancellation/finalization so reattach can recover the same prefix.
+        if mode == "intermediate" and message_id is not None and streamed_visible_tokens:
+            await _complete_intermediate_message(
+                channel,
+                message_id=message_id,
+                content="".join(streamed_visible_tokens),
+                phase=phase,
+                provider=provider,
+                model_name=model_name,
+                partial=True,
+            )
         await channel.flush_durable_output()
         raise
     except Exception:
-        if _is_capability_selection_phase(phase):
+        if mode == "intermediate" and message_id is not None and streamed_visible_tokens:
+            await _complete_intermediate_message(
+                channel,
+                message_id=message_id,
+                content="".join(streamed_visible_tokens),
+                phase=phase,
+                provider=provider,
+                model_name=model_name,
+                partial=True,
+            )
+        elif (
+            mode == "final"
+            and _is_capability_selection_phase(phase)
+            and streamed_visible_tokens
+        ):
             await _retract_streamed_tokens(
                 channel,
                 streamed_visible_tokens=streamed_visible_tokens,
@@ -612,6 +776,7 @@ async def invoke_model_with_optional_streaming(
                 reason="capability_decision_failed",
                 provider=provider,
                 model_name=model_name,
+                message_id=message_id,
             )
         await channel.flush_durable_output()
         runtime_metrics.increment_provider_failure(
@@ -622,15 +787,8 @@ async def invoke_model_with_optional_streaming(
 
     trailing_content = control_filter.flush()
     if trailing_content:
-        if _can_stream_phase_live(phase, public_output=public_output):
-            streamed_visible_tokens.append(trailing_content)
-            await _emit_visible_token(
-                channel,
-                content=trailing_content,
-                phase=phase,
-                provider=provider,
-                model_name=model_name,
-            )
+        if mode in {"intermediate", "final"}:
+            await emit_visible(trailing_content)
         else:
             pending_visible_tokens.append(trailing_content)
 
@@ -642,7 +800,17 @@ async def invoke_model_with_optional_streaming(
         raise RuntimeError("Provider stream completed without a response")
 
     accumulated = normalize_llm_result_content(accumulated)
-    if _result_has_tool_calls(accumulated) and streamed_visible_tokens:
+
+    if mode == "intermediate" and message_id is not None and streamed_visible_tokens:
+        await _complete_intermediate_message(
+            channel,
+            message_id=message_id,
+            content="".join(streamed_visible_tokens),
+            phase=phase,
+            provider=provider,
+            model_name=model_name,
+        )
+    elif mode == "final" and _result_has_tool_calls(accumulated) and streamed_visible_tokens:
         await _retract_streamed_tokens(
             channel,
             streamed_visible_tokens=streamed_visible_tokens,
@@ -650,12 +818,9 @@ async def invoke_model_with_optional_streaming(
             reason="tool_call_selected",
             provider=provider,
             model_name=model_name,
+            message_id=message_id,
         )
-    elif (
-        pending_visible_tokens
-        and _can_emit_phase_as_final(phase, public_output=public_output)
-        and not _result_has_tool_calls(accumulated)
-    ):
+    elif mode == "final" and pending_visible_tokens and not _result_has_tool_calls(accumulated):
         for content in pending_visible_tokens:
             await _emit_visible_token(
                 channel,
@@ -663,10 +828,8 @@ async def invoke_model_with_optional_streaming(
                 phase=phase,
                 provider=provider,
                 model_name=model_name,
+                message_id=message_id,
             )
 
-    # A completed provider invocation is a natural durability boundary. This keeps
-    # the durable output at most one small batch behind the realtime Redis stream and
-    # guarantees terminal Run facts are appended after every visible output delta.
     await channel.flush_durable_output()
     return accumulated

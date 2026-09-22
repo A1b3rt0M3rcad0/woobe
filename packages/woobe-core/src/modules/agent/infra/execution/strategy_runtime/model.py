@@ -7,6 +7,7 @@ from langchain_core.messages import SystemMessage
 from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.strategy_sdk import (
     StrategyModelResult,
+    StrategyOutputMode,
     StrategyPhase,
     strategy_phase_value,
 )
@@ -110,7 +111,7 @@ class RuntimeStrategyModel:
         messages: list[Any],
         phase: StrategyPhase,
         directive: str | None = None,
-        public_output: bool | None = None,
+        output_mode: StrategyOutputMode | None = None,
     ) -> StrategyModelResult:
         call_index = self._runtime_state.next_call_index()
         invocation_messages = _messages_with_execution_directive(
@@ -123,7 +124,7 @@ class RuntimeStrategyModel:
                 messages=invocation_messages,
                 phase=strategy_phase_value(phase),
                 call_index=call_index,
-                public_output=public_output,
+                output_mode=output_mode,
             )
         except InstrumentedExecutionError as exc:
             self._runtime_state.absorb_model_error(exc)
@@ -138,14 +139,14 @@ class RuntimeStrategyModel:
         *,
         phase: StrategyPhase | None = None,
         directive: str | None = None,
-        public_output: bool | None = None,
+        output_mode: StrategyOutputMode | None = None,
     ) -> StrategyModelResult:
         return await self._invoke(
             capability=self._capability,
             messages=self._runtime_state.messages,
             phase=phase or self._initial_phase,
             directive=directive,
-            public_output=public_output,
+            output_mode=output_mode,
         )
 
     async def finalize(
@@ -154,7 +155,7 @@ class RuntimeStrategyModel:
         reason: str,
         phase: StrategyPhase,
         directive: str | None = None,
-        public_output: bool | None = None,
+        output_mode: StrategyOutputMode | None = None,
     ) -> StrategyModelResult:
         terminal_model = self._final_model
         if terminal_model is None and self._final_model_factory is not None:
@@ -186,7 +187,7 @@ class RuntimeStrategyModel:
                 ),
                 phase=phase,
                 directive=directive,
-                public_output=public_output,
+                output_mode=output_mode,
             )
         except InstrumentedExecutionError as exc:
             execution = self._runtime_state.execution

@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from typing import Any
+from uuid import UUID, uuid4
+
 from langchain_core.messages import SystemMessage
 
 from modules.agent.application.interfaces.execution_context import current_execution
@@ -195,10 +198,13 @@ class StructuredOutputAskAgentUseCase(
         usage,
         agent,
         tool_calls=None,
+        *,
+        message_id: UUID | None = None,
+        data_extra: dict[str, Any] | None = None,
     ):
         context = current_execution.get()
         sources = context.persisted_sources if context else None
-        data = {}
+        data: dict[str, Any] = {}
         if tool_calls:
             data["tool_calls"] = [tool.model_dump() for tool in tool_calls]
         if sources:
@@ -206,15 +212,19 @@ class StructuredOutputAskAgentUseCase(
                 source.model_dump() if hasattr(source, "model_dump") else source
                 for source in sources
             ]
+        if context is not None and context.run_id is not None:
+            data["run_id"] = str(context.run_id)
+        data.update(data_extra or {})
         message = Message(
+            id=message_id or uuid4(),
             project_id=session.project_id,
             agent_id=session.agent_id,
             session_id=session.id,
             role=MessageRole.ASSISTANT,
             content=content,
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
-            cost_usd=usage.cost_usd,
+            input_tokens=getattr(usage, "input_tokens", None),
+            output_tokens=getattr(usage, "output_tokens", None),
+            cost_usd=getattr(usage, "cost_usd", None),
             data=data or None,
         )
         created = await message_repo.create(message)

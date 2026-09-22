@@ -12,6 +12,7 @@ from modules.agent.application.strategy_sdk import (
     ExecutionState,
     ExecutionStopReason,
     StrategyContext,
+    StrategyOutputMode,
     StrategyOutcome,
     Suspended,
     strategy_phase_with_iteration,
@@ -182,7 +183,7 @@ class ScientificMethodExecutionStrategy(
                     reason=state.stop_reason.value,
                     phase=ScientificMethodPhase.CONCLUSION,
                     directive=_LIMITED_CONCLUSION_DIRECTIVE,
-                    public_output=True,
+                    output_mode=StrategyOutputMode.FINAL,
                 )
                 return Completed(result)
 
@@ -190,8 +191,10 @@ class ScientificMethodExecutionStrategy(
                 result = await ctx.model.invoke(
                     phase=state.phase,
                     directive=self._directive(state),
-                    public_output=(
-                        state.phase == ScientificMethodPhase.CONCLUSION.value
+                    output_mode=(
+                        StrategyOutputMode.FINAL
+                        if state.phase == ScientificMethodPhase.CONCLUSION.value
+                        else StrategyOutputMode.INTERNAL
                     ),
                 )
             except InstrumentedExecutionError:

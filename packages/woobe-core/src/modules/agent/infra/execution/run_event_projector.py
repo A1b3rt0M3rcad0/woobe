@@ -47,6 +47,14 @@ def _datetime(value: Any) -> datetime | None:
         return None
 
 
+def _advance_session_last_message_at(session: Any, occurred_at: datetime | None) -> None:
+    if occurred_at is None:
+        return
+    current = getattr(session, "last_message_at", None)
+    if current is None or occurred_at > current:
+        session.last_message_at = occurred_at
+
+
 def _compat_payload(run: AgentRun, event: DurableRunEvent) -> dict[str, Any]:
     return {
         "run_id": str(run.id),
@@ -166,6 +174,14 @@ class AgentRunEventProjector(RunEventProjectorPort):
                 _compat_event(AgentFallbackTriggeredV1, run, event, payload)
             )
             return
+        if event.event_type == "assistant.message.completed":
+            await self._project_intermediate_message(
+                repositories,
+                outbox,
+                run,
+                event,
+            )
+            return
         if event.event_type == "run.completed":
             await self._project_completed_message(repositories, outbox, run, event)
             run.status = AgentRunStatus.COMPLETED
@@ -225,6 +241,72 @@ class AgentRunEventProjector(RunEventProjectorPort):
             run.completed_at = _datetime(event.payload.get("completed_at")) or _datetime(
                 event.occurred_at
             )
+
+    async def _project_intermediate_message(
+        self,
+        repositories: AgentRuntimeRepositories,
+        outbox: OutboxEventWriter,
+        run: AgentRun,
+        event: DurableRunEvent,
+    ) -> None:
+        message_id = _uuid(event.payload.get("message_id"))
+        session_id = _uuid(event.payload.get("session_id")) or run.session_id
+        content = event.payload.get("content")
+        if message_id is None or session_id is None or not isinstance(content, str):
+            return
+
+        try:
+            existing = await repositories.messages.get_by_id(message_id)
+        except MessageNotFoundError:
+            existing = None
+        if existing is not None:
+            return
+
+        session = await repositories.sessions.get_by_id(session_id)
+        if session is None:
+            raise RuntimeError(
+                f"Cannot project Assistant message {message_id}: Session {session_id} is missing"
+            )
+
+        occurred_at = _datetime(event.payload.get("completed_at")) or _datetime(
+            event.occurred_at
+        )
+        message = Message(
+            id=message_id,
+            project_id=run.project_id,
+            agent_id=run.agent_id,
+            session_id=session_id,
+            role=MessageRole.ASSISTANT,
+            content=content,
+            data={
+                "run_id": str(run.id),
+                "trace_id": str(run.trace_id),
+                "phase": event.payload.get("phase"),
+                "output_mode": "intermediate",
+                "provider": event.payload.get("provider"),
+                "model": event.payload.get("model"),
+                "partial": bool(event.payload.get("partial")),
+            },
+            created_at=occurred_at,
+            updated_at=occurred_at,
+        )
+        created = await repositories.messages.create(message)
+        _advance_session_last_message_at(session, occurred_at)
+        await repositories.sessions.update(session)
+        await outbox.write(
+            AgentMessageCreatedV1.create(
+                message_id=created.id,
+                session_id=session_id,
+                project_id=run.project_id,
+                agent_id=run.agent_id,
+                role="assistant",
+                payload={
+                    "run_id": str(run.id),
+                    "phase": event.payload.get("phase"),
+                    "output_mode": "intermediate",
+                },
+            )
+        )
 
     async def _project_completed_message(
         self,
@@ -291,8 +373,10 @@ class AgentRunEventProjector(RunEventProjectorPort):
             },
         )
         created = await repositories.messages.create(message)
-        session.last_message_at = _datetime(event.payload.get("completed_at")) or _datetime(
-            event.occurred_at
+        _advance_session_last_message_at(
+            session,
+            _datetime(event.payload.get("completed_at"))
+            or _datetime(event.occurred_at),
         )
         await repositories.sessions.update(session)
         await outbox.write(

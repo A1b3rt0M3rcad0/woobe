@@ -1,12 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any, Protocol, TypeAlias
 
 from modules.agent.application.strategy_sdk.contracts import ExecutionPhase
 
 
 StrategyPhase: TypeAlias = str | ExecutionPhase
+
+
+class StrategyOutputMode(StrEnum):
+    INTERNAL = "internal"
+    INTERMEDIATE = "intermediate"
+    FINAL = "final"
 
 
 def strategy_phase_value(phase: StrategyPhase) -> str:
@@ -47,7 +54,7 @@ class StrategyModel(Protocol):
         *,
         phase: StrategyPhase | None = None,
         directive: str | None = None,
-        public_output: bool | None = None,
+        output_mode: StrategyOutputMode | None = None,
     ) -> StrategyModelResult:
         """Invoke the model for one Strategy phase.
 
@@ -64,7 +71,7 @@ class StrategyModel(Protocol):
         reason: str,
         phase: StrategyPhase,
         directive: str | None = None,
-        public_output: bool | None = None,
+        output_mode: StrategyOutputMode | None = None,
     ) -> StrategyModelResult:
         """Produce a terminal model response for one Strategy phase.
 

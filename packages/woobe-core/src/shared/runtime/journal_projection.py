@@ -60,6 +60,26 @@ def _public_runtime_event(
             "content": content,
             "visibility": "assistant",
             "channel": "final",
+            **_pick(payload, "message_id", "phase", "output_mode"),
+        }
+
+    if event_type == "assistant.message.completed":
+        message_id = payload.get("message_id")
+        content = payload.get("content")
+        if not message_id or not isinstance(content, str) or not content:
+            return None
+        return "assistant_message_completed", {
+            "message_id": str(message_id),
+            "content": content,
+            "output_mode": "intermediate",
+            **_pick(
+                payload,
+                "phase",
+                "provider",
+                "model",
+                "partial",
+                "completed_at",
+            ),
         }
 
     if event_type == "output.retracted":

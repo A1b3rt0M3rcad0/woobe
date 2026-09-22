@@ -540,18 +540,23 @@ def model_to_session(model: SessionModel) -> Session:
 
 
 def message_to_model(entity: Message) -> MessageModel:
-    return MessageModel(
-        id=entity.id,
-        project_id=entity.project_id,
-        agent_id=entity.agent_id,
-        session_id=entity.session_id,
-        role=entity.role.value if isinstance(entity.role, MessageRole) else entity.role,
-        content=entity.content,
-        input_tokens=entity.input_tokens,
-        output_tokens=entity.output_tokens,
-        cost_usd=entity.cost_usd,
-        data=entity.data,
-    )
+    values = {
+        "id": entity.id,
+        "project_id": entity.project_id,
+        "agent_id": entity.agent_id,
+        "session_id": entity.session_id,
+        "role": entity.role.value if isinstance(entity.role, MessageRole) else entity.role,
+        "content": entity.content,
+        "input_tokens": entity.input_tokens,
+        "output_tokens": entity.output_tokens,
+        "cost_usd": entity.cost_usd,
+        "data": entity.data,
+    }
+    if entity.created_at is not None:
+        values["created_at"] = entity.created_at
+    if entity.updated_at is not None:
+        values["updated_at"] = entity.updated_at
+    return MessageModel(**values)
 
 
 def model_to_message(model: MessageModel) -> Message:

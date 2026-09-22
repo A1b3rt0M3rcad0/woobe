@@ -37,7 +37,7 @@ class ModelInvocationCapability:
         messages: list,
         phase: str,
         call_index: int,
-        public_output: bool | None = None,
+        output_mode: str | None = None,
     ) -> tuple[Any, dict[str, Any]]:
         invoke = self.invoke_fn or invoke_llm
         kwargs = {
@@ -50,6 +50,6 @@ class ModelInvocationCapability:
             "pricing_snapshot": self.pricing_snapshot,
             "context_assembler": self.context_assembler,
         }
-        if public_output is not None:
-            kwargs["public_output"] = public_output
+        if output_mode is not None:
+            kwargs["output_mode"] = output_mode
         return await invoke(**kwargs)

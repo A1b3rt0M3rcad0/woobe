@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 from datetime import datetime, timezone
 from typing import Any
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from modules.agent.application.dtos.runtime_dtos import AskOutput
 from modules.agent.application.interfaces.execution_context import current_execution
@@ -35,6 +35,45 @@ def _provider_value(value) -> str | None:
     if value is None:
         return None
     return value.value if hasattr(value, "value") else str(value)
+
+
+async def _persist_intermediate_messages(
+    owner,
+    repositories,
+    outbox,
+    session,
+    agent,
+    context,
+) -> None:
+    if context is None:
+        return
+    for item in list(context.intermediate_messages or []):
+        try:
+            message_id = UUID(str(item["message_id"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        content = item.get("content")
+        if not isinstance(content, str) or not content:
+            continue
+        await owner._do_save_assistant_message(
+            repositories.messages,
+            repositories.sessions,
+            outbox,
+            session,
+            content,
+            None,
+            agent,
+            message_id=message_id,
+            data_extra={
+                "run_id": str(context.run_id) if context.run_id else None,
+                "trace_id": str(context.trace_id) if context.trace_id else None,
+                "phase": item.get("phase"),
+                "output_mode": "intermediate",
+                "provider": item.get("provider"),
+                "model": item.get("model"),
+                "partial": bool(item.get("partial")),
+            },
+        )
 
 
 def _model_binding_payload(agent) -> dict[str, Any]:
@@ -150,6 +189,26 @@ async def finalize_instrumented_execution(owner, **kw):
     ) -> AskOutput:
         finalization_started_at = _utc_now()
         finalization_started = time.monotonic()
+        await _persist_intermediate_messages(
+            owner,
+            repositories,
+            outbox,
+            session,
+            agent,
+            context,
+        )
+        message_id = (
+            context.output_message_id
+            if context is not None and context.output_message_id is not None
+            else uuid4()
+        )
+        if context is not None:
+            context.output_message_id = message_id
+        final_phase = (
+            execution.llm_calls[-1].get("phase")
+            if execution.llm_calls
+            else None
+        )
         message = await owner._do_save_assistant_message(
             repositories.messages,
             repositories.sessions,
@@ -159,6 +218,13 @@ async def finalize_instrumented_execution(owner, **kw):
             usage,
             agent,
             tool_calls=execution.tool_calls,
+            message_id=message_id,
+            data_extra={
+                "run_id": str(run_id) if run_id else None,
+                "trace_id": trace_id_text,
+                "phase": final_phase,
+                "output_mode": "final",
+            },
         )
         message_id = message.id
 

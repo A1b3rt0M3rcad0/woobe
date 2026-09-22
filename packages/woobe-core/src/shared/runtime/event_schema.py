@@ -40,6 +40,7 @@ DURABLE_EVENT_TYPES = {
     "fallback.triggered",
     "output.delta.batch",
     "output.retracted",
+    "assistant.message.completed",
     "agent.invocation.started",
     "agent.invocation.completed",
     "agent.invocation.failed",

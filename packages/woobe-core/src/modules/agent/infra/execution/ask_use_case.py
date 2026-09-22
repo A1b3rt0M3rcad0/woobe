@@ -19,6 +19,7 @@ from modules.agent.application.dtos.runtime_dtos import (
     ToolCallInfo,
     UsageInfo,
 )
+from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.application.interfaces.llm_factory import LLMFactory
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.application.interfaces.repositories import (
@@ -972,23 +973,28 @@ class AskAgentUseCase:
         usage: UsageInfo,
         agent: Agent,
         tool_calls: list[ToolCallInfo] | None = None,
+        *,
+        message_id: UUID | None = None,
+        data_extra: dict[str, Any] | None = None,
     ) -> Message:
+        context = current_execution.get()
+        data: dict[str, Any] = {}
+        if tool_calls:
+            data["tool_calls"] = [tool_call.model_dump() for tool_call in tool_calls]
+        if context is not None and context.run_id is not None:
+            data["run_id"] = str(context.run_id)
+        data.update(data_extra or {})
         message = Message(
+            id=message_id or uuid4(),
             project_id=session.project_id,
             agent_id=session.agent_id,
             session_id=session.id,
             role=MessageRole.ASSISTANT,
             content=content,
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
-            cost_usd=usage.cost_usd,
-            data={
-                "tool_calls": [tool_call.model_dump() for tool_call in tool_calls]
-                if tool_calls
-                else None,
-            }
-            if tool_calls
-            else None,
+            input_tokens=getattr(usage, "input_tokens", None),
+            output_tokens=getattr(usage, "output_tokens", None),
+            cost_usd=getattr(usage, "cost_usd", None),
+            data=data or None,
         )
         created = await message_repo.create(message)
         session.last_message_at = utc_now()

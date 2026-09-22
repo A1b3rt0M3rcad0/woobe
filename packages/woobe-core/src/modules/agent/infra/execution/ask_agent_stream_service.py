@@ -5,12 +5,13 @@ import logging
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from datetime import datetime, timezone
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from modules.agent.application.dtos.runtime_dtos import AskInput, AskOutput
 from modules.agent.application.interfaces.outbox import OutboxEventWriter
 from modules.agent.domain.entities import Message
 from modules.agent.domain.enums import MessageRole
+from modules.agent.domain.errors import MessageNotFoundError
 from modules.agent.domain.events import AgentMessageCreatedV1
 from modules.agent.domain.run import AgentRunStatus
 from modules.agent.domain.runtime_events import AgentExecutionCancelledV1
@@ -380,8 +381,14 @@ class AskAgentStreamService:
             except Exception as exc:
                 logger.warning("Could not build cancelled Agent telemetry snapshot: %s", exc)
 
+        output_message_id = (
+            getattr(execution_context, "output_message_id", None)
+            if execution_context is not None
+            else None
+        )
         result = {
             "answer": partial_output,
+            "message_id": str(output_message_id) if output_message_id else None,
             "partial": bool(partial_output),
             "cancelled": True,
             "reason": reason,
@@ -433,9 +440,79 @@ class AskAgentStreamService:
                     run.usage = usage
                 run.completed_at = completed_at
 
-            if session_id is not None and partial_output:
-                session = await repositories.sessions.get_by_id(session_id)
+            session = (
+                await repositories.sessions.get_by_id(session_id)
+                if session_id is not None
+                else None
+            )
+            if session is not None and execution_context is not None:
+                for item in list(execution_context.intermediate_messages or []):
+                    try:
+                        intermediate_id = UUID(str(item["message_id"]))
+                    except (KeyError, TypeError, ValueError):
+                        continue
+                    content = item.get("content")
+                    if not isinstance(content, str) or not content:
+                        continue
+                    try:
+                        existing = await repositories.messages.get_by_id(intermediate_id)
+                    except MessageNotFoundError:
+                        existing = None
+                    if existing is not None:
+                        continue
+                    occurred_at = item.get("completed_at")
+                    try:
+                        created_at = (
+                            datetime.fromisoformat(str(occurred_at).replace("Z", "+00:00"))
+                            if occurred_at
+                            else completed_at
+                        )
+                    except (TypeError, ValueError):
+                        created_at = completed_at
+                    created = await repositories.messages.create(
+                        Message(
+                            id=intermediate_id,
+                            project_id=project_id,
+                            agent_id=agent_id,
+                            session_id=session_id,
+                            role=MessageRole.ASSISTANT,
+                            content=content,
+                            data={
+                                "run_id": str(run_id) if run_id is not None else None,
+                                "trace_id": str(channel.trace_id),
+                                "phase": item.get("phase"),
+                                "output_mode": "intermediate",
+                                "provider": item.get("provider"),
+                                "model": item.get("model"),
+                                "partial": bool(item.get("partial")),
+                            },
+                            created_at=created_at,
+                            updated_at=created_at,
+                        )
+                    )
+                    if session.last_message_at is None or created_at > session.last_message_at:
+                        session.last_message_at = created_at
+                    await outbox.write(
+                        AgentMessageCreatedV1.create(
+                            message_id=created.id,
+                            session_id=session_id,
+                            project_id=project_id,
+                            agent_id=agent_id,
+                            role="assistant",
+                            payload={
+                                "run_id": str(run_id) if run_id is not None else None,
+                                "phase": item.get("phase"),
+                                "output_mode": "intermediate",
+                            },
+                        )
+                    )
+
+            if session is not None and partial_output:
+                final_message_id = output_message_id or uuid4()
+                if execution_context is not None:
+                    execution_context.output_message_id = final_message_id
                 message = Message(
+                    id=final_message_id,
                     project_id=project_id,
                     agent_id=agent_id,
                     session_id=session_id,
@@ -449,6 +526,7 @@ class AskAgentStreamService:
                         "partial": True,
                         "run_id": str(run_id) if run_id is not None else None,
                         "trace_id": str(channel.trace_id),
+                        "output_mode": "final",
                     },
                 )
                 created = await repositories.messages.create(message)
@@ -456,6 +534,7 @@ class AskAgentStreamService:
                     run.output_message_id = created.id
                 session.last_message_at = utc_now()
                 await repositories.sessions.update(session)
+                result["message_id"] = str(created.id)
                 await outbox.write(
                     AgentMessageCreatedV1.create(
                         message_id=created.id,

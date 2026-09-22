@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from datetime import datetime, timezone
 from typing import Any
+from uuid import UUID
 
 import uuid6
 
@@ -31,6 +32,17 @@ def _provider_value(value: Any) -> str | None:
     return value.value if hasattr(value, "value") else str(value)
 
 
+def _datetime_value(value: Any) -> datetime | None:
+    if isinstance(value, datetime):
+        return value
+    if not value:
+        return None
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+    except (TypeError, ValueError):
+        return None
+
+
 def _recorder():
     context = current_execution.get()
     recorder = context.run_event_recorder if context is not None else None
@@ -46,8 +58,9 @@ async def _materialize_assistant_session_message(
     session: Any,
     agent: Any,
     answer: str,
-    usage: Any,
+    usage: Any | None,
     data: dict[str, Any],
+    created_at: datetime | None = None,
 ) -> Any:
     """Make the completed turn immediately visible to the Session read model.
 
@@ -72,13 +85,23 @@ async def _materialize_assistant_session_message(
             session_id=session.id,
             role=MessageRole.ASSISTANT,
             content=answer,
-            input_tokens=usage.input_tokens,
-            output_tokens=usage.output_tokens,
-            cost_usd=usage.cost_usd,
+            input_tokens=getattr(usage, "input_tokens", None),
+            output_tokens=getattr(usage, "output_tokens", None),
+            cost_usd=getattr(usage, "cost_usd", None),
             data=dict(data),
+            created_at=created_at,
+            updated_at=created_at,
         )
         created = await repositories.messages.create(message)
-        session.last_message_at = utc_now()
+        message_time = created_at or _datetime_value(utc_now())
+        if (
+            message_time is not None
+            and (
+                session.last_message_at is None
+                or message_time > session.last_message_at
+            )
+        ):
+            session.last_message_at = message_time
         try:
             await repositories.sessions.update(session)
         except Exception as exc:
@@ -98,6 +121,41 @@ async def _materialize_assistant_session_message(
         return created
 
     return await owner._transactions.run(persist)
+
+
+async def _materialize_intermediate_messages(
+    owner: Any,
+    *,
+    context: Any,
+    session: Any,
+    agent: Any,
+) -> None:
+    for item in list(context.intermediate_messages or []):
+        try:
+            message_id = UUID(str(item["message_id"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+        content = item.get("content")
+        if not isinstance(content, str) or not content:
+            continue
+        await _materialize_assistant_session_message(
+            owner,
+            message_id=message_id,
+            session=session,
+            agent=agent,
+            answer=content,
+            usage=None,
+            data={
+                "run_id": str(context.run_id),
+                "trace_id": str(context.trace_id) if context.trace_id else None,
+                "phase": item.get("phase"),
+                "output_mode": "intermediate",
+                "provider": item.get("provider"),
+                "model": item.get("model"),
+                "partial": bool(item.get("partial")),
+            },
+            created_at=_datetime_value(item.get("completed_at")),
+        )
 
 
 class EventJournalAgentRunPersistence:
@@ -133,7 +191,8 @@ class EventJournalAgentRunPersistence:
             completion_attributes={"diagnostics": metrics.diagnostics},
             include_http_boundaries=True,
         )
-        message_id = uuid6.uuid7()
+        message_id = context.output_message_id or uuid6.uuid7()
+        context.output_message_id = message_id
         sources = kw.get("sources") or []
         source_payloads = [
             source.model_dump() if hasattr(source, "model_dump") else source
@@ -202,13 +261,20 @@ class EventJournalAgentRunPersistence:
             "output_parse_error": payload["output_parse_error"],
             "cancelled": False,
             "partial": False,
+            "output_mode": "final",
         }
 
         # Standalone Session history is an interactive correctness boundary: the
-        # next user turn can start immediately after this method returns. Do not wait
-        # for the asynchronous Mongo -> PostgreSQL Run projector to make the
-        # Assistant turn visible, otherwise the next context assembly can omit it.
+        # next user turn can start immediately after this method returns. Persist
+        # completed intermediate Assistant messages first, then the terminal answer,
+        # while Mongo remains the durable recovery authority.
         try:
+            await _materialize_intermediate_messages(
+                owner,
+                context=context,
+                session=session,
+                agent=agent,
+            )
             await _materialize_assistant_session_message(
                 owner,
                 message_id=message_id,

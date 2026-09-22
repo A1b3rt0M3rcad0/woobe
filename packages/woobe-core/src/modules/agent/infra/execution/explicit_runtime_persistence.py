@@ -623,8 +623,12 @@ class ExplicitRuntimePersistenceMixin:
             repositories: AgentRuntimeRepositories,
             outbox: OutboxEventWriter,
         ) -> AskOutput:
-            message_id = None
+            message_id = context.output_message_id if context is not None else None
             if session:
+                if message_id is None:
+                    message_id = uuid4()
+                    if context is not None:
+                        context.output_message_id = message_id
                 assistant = await self._do_save_assistant_message(
                     repositories.messages,
                     repositories.sessions,
@@ -634,6 +638,11 @@ class ExplicitRuntimePersistenceMixin:
                     usage,
                     agent,
                     tool_calls=tool_calls_recorded,
+                    message_id=message_id,
+                    data_extra={
+                        "run_id": str(run_id) if run_id else None,
+                        "output_mode": "final",
+                    },
                 )
                 message_id = assistant.id
 
