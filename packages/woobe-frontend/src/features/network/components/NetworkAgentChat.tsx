@@ -6,6 +6,11 @@ import { toast } from 'sonner'
 import type { Agent } from '@/features/agents/types'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
+import {
+  applyCompletedAssistantMessage,
+  updateTerminalAssistantMessage as updateTerminalAssistantMessageState,
+  upsertIntermediateAssistantMessage as upsertIntermediateAssistantMessageState,
+} from '@/features/playground/chat-message-state'
 import { useAgentSessions, useAskStream, useSessionMessages } from '@/features/playground/hooks'
 import { getActiveAgentRun } from '@/features/playground/reattach-api'
 import type { StreamCallbacks } from '@/features/playground/stream-client'
@@ -76,6 +81,15 @@ function persistedMessageToChat(message: PersistedMessage): ChatMessageType {
   return {
     role: message.role === 'user' ? 'user' : 'assistant',
     content: message.content,
+    message_id: message.id,
+    run_id: typeof data.run_id === 'string' ? data.run_id : null,
+    phase: typeof data.phase === 'string' ? data.phase : null,
+    output_mode: data.output_mode === 'intermediate'
+      ? 'intermediate'
+      : message.role === 'assistant'
+        ? 'final'
+        : null,
+    partial: typeof data.partial === 'boolean' ? data.partial : null,
     usage: message.input_tokens != null
       ? {
           input_tokens: message.input_tokens,
@@ -180,26 +194,55 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     rememberRunId(null)
   }, [rememberRunId])
 
-  const updateLastAssistant = useCallback((updater: (message: ChatMessageType) => ChatMessageType) => {
-    setMessages((previous) => {
-      const next = [...previous]
-      const last = next[next.length - 1]
-      if (last?.role === 'assistant') next[next.length - 1] = updater(last)
-      return next
-    })
+  const updateTerminalAssistant = useCallback((
+    updater: (message: ChatMessageType) => ChatMessageType,
+  ) => {
+    setMessages((previous) => updateTerminalAssistantMessageState(previous, updater))
+  }, [])
+
+  const upsertIntermediateAssistant = useCallback((
+    info: Parameters<NonNullable<StreamCallbacks['onAssistantMessageCompleted']>>[0],
+    append: boolean,
+  ) => {
+    setMessages((previous) => upsertIntermediateAssistantMessageState(
+      previous,
+      info,
+      activeRunIdRef.current,
+      append,
+    ))
   }, [])
 
   const runtimeCallbacks = useCallback((): StreamCallbacks => ({
     onMeta: (meta) => {
-      if (meta.run_id) rememberRunId(meta.run_id)
+      if (meta.run_id) {
+        rememberRunId(meta.run_id)
+        updateTerminalAssistant((message) => ({ ...message, run_id: meta.run_id }))
+      }
       if (!isStateless && meta.session_id) rememberSessionId(meta.session_id)
       if (meta.trace_id) metadataRef.current.trace_id = meta.trace_id
     },
-    onAgentActivity: (activity) => updateLastAssistant((last) => ({ ...last, activity })),
+    onAgentActivity: (activity) => updateTerminalAssistant((last) => ({ ...last, activity })),
+    onAssistantMessageDelta: (info) => {
+      upsertIntermediateAssistant(info, true)
+    },
+    onAssistantMessageCompleted: (info) => {
+      setMessages((previous) => applyCompletedAssistantMessage(
+        previous,
+        info,
+        activeRunIdRef.current,
+      ))
+    },
     onToken: (token) => {
       if (token.visibility !== 'assistant' || token.channel !== 'final') return
       accumulatedRef.current += token.content
-      updateLastAssistant((last) => ({ ...last, content: accumulatedRef.current, activity: null }))
+      updateTerminalAssistant((last) => ({
+        ...last,
+        content: accumulatedRef.current,
+        message_id: token.message_id ?? last.message_id ?? null,
+        phase: token.phase ?? last.phase ?? null,
+        output_mode: 'final',
+        activity: null,
+      }))
     },
     onTokenRetract: (info) => {
       if (info.content_length > 0) {
@@ -208,7 +251,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
           Math.max(0, accumulatedRef.current.length - info.content_length),
         )
       }
-      updateLastAssistant((last) => ({
+      updateTerminalAssistant((last) => ({
         ...last,
         content: accumulatedRef.current,
         activity: { status: 'planning_tools', message: 'Checking Tools…' },
@@ -216,7 +259,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     },
     onInternalToken: () => undefined,
     onSources: (sources) => { metadataRef.current.sources = sources },
-    onToolCallStarted: (tool) => updateLastAssistant((last) => ({
+    onToolCallStarted: (tool) => updateTerminalAssistant((last) => ({
       ...last,
       activity: {
         status: 'calling_tool',
@@ -225,7 +268,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
       },
       tool_calls: upsertToolCall(last.tool_calls, { ...tool, status: tool.status || 'running' }),
     })),
-    onToolCallCompleted: (tool) => updateLastAssistant((last) => ({
+    onToolCallCompleted: (tool) => updateTerminalAssistant((last) => ({
       ...last,
       activity: {
         status: 'processing_tool_result',
@@ -236,7 +279,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     })),
     onFallback: (info) => {
       accumulatedRef.current = ''
-      updateLastAssistant((last) => ({
+      updateTerminalAssistant((last) => ({
         ...last,
         content: '',
         activity: { status: 'working', message: 'Trying fallback model…' },
@@ -247,27 +290,25 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
       const finalContent = response.answer || accumulatedRef.current || ''
       if (!isStateless && response.session_id) rememberSessionId(response.session_id)
       const usage = (response.usage ?? null) as UsageInfo | null
-      setMessages((previous) => {
-        const next = [...previous]
-        const last = next[next.length - 1]
-        if (last?.role === 'assistant') {
-          next[next.length - 1] = {
-            ...last,
-            content: finalContent,
-            activity: null,
-            usage,
-            sources: (response.sources ?? metadataRef.current.sources ?? null) as ChatMessageType['sources'],
-            tool_calls: (response.tool_calls ?? last.tool_calls ?? null) as ChatMessageType['tool_calls'],
-            model: response.model ?? null,
-            provider: response.provider ?? null,
-            latency_ms: response.latency_ms ?? null,
-            trace_id: response.trace_id ?? metadataRef.current.trace_id ?? null,
-            parsed_output: response.parsed_output ?? null,
-            output_parse_error: response.output_parse_error ?? null,
-          }
-        }
-        return next
-      })
+      setMessages((previous) => updateTerminalAssistantMessageState(
+        previous,
+        (last) => ({
+          ...last,
+          content: finalContent,
+          message_id: response.message_id ?? last.message_id ?? null,
+          output_mode: 'final',
+          activity: null,
+          usage,
+          sources: (response.sources ?? metadataRef.current.sources ?? null) as ChatMessageType['sources'],
+          tool_calls: (response.tool_calls ?? last.tool_calls ?? null) as ChatMessageType['tool_calls'],
+          model: response.model ?? null,
+          provider: response.provider ?? null,
+          latency_ms: response.latency_ms ?? null,
+          trace_id: response.trace_id ?? metadataRef.current.trace_id ?? null,
+          parsed_output: response.parsed_output ?? null,
+          output_parse_error: response.output_parse_error ?? null,
+        }),
+      ))
       finishActiveRun()
       if (!isStateless) void sessionsQuery.refetch()
       if (finalContent.trim() && !response.output_parse_error) onChatCompleted()
@@ -275,7 +316,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     onError: (error) => {
       finishActiveRun()
       toast.error(error.message)
-      updateLastAssistant((last) => ({
+      updateTerminalAssistant((last) => ({
         ...last,
         activity: null,
         content: last.content || `Error: ${error.message}`,
@@ -287,7 +328,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
       const output = typeof event.output === 'string' ? event.output : accumulatedRef.current
       accumulatedRef.current = output
       finishActiveRun()
-      updateLastAssistant((last) => ({
+      updateTerminalAssistant((last) => ({
         ...last,
         content: output || last.content,
         activity: null,
@@ -302,7 +343,8 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     rememberRunId,
     rememberSessionId,
     sessionsQuery,
-    updateLastAssistant,
+    updateTerminalAssistant,
+    upsertIntermediateAssistant,
   ])
 
   useEffect(() => () => {
@@ -377,10 +419,15 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
       setHistoricalSessionPending(false)
       setMessages((current) => {
         const last = current[current.length - 1]
-        if (last?.role === 'assistant') return current
+        if (last?.role === 'assistant' && last.output_mode !== 'intermediate') return current
         return [
           ...current,
-          { role: 'assistant', content: '', activity: { status: 'working', message: 'Reattaching to active Run…' } },
+          {
+            role: 'assistant',
+            content: '',
+            output_mode: 'final',
+            activity: { status: 'working', message: 'Reattaching to active Run…' },
+          },
         ]
       })
       setIsSending(true)
@@ -470,7 +517,12 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     setMessages((previous) => [
       ...previous,
       { role: 'user', content },
-      { role: 'assistant', content: '', activity: { status: 'working', message: 'Working…' } },
+      {
+        role: 'assistant',
+        content: '',
+        output_mode: 'final',
+        activity: { status: 'working', message: 'Working…' },
+      },
     ])
     setInput('')
     setIsSending(true)
