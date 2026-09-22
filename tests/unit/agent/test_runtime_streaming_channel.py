@@ -166,9 +166,71 @@ async def test_runtime_stream_journals_retraction_after_visible_output() -> None
 
 
 @pytest.mark.asyncio
+async def test_final_only_policy_buffers_pre_tool_text_without_public_promotion() -> None:
+    recorder = FakeRecorder()
+    context = new_execution_context()
+    context.run_event_recorder = recorder
+    context_token = current_execution.set(context)
+    channel = RuntimeStreamChannel()
+    stream_token = current_runtime_stream.set(channel)
+    try:
+        result = await invoke_model_with_optional_streaming(
+            model=ToolSelectingStreamingModel(),
+            messages=[],
+            phase="capability_response_generation",
+            provider="openai",
+            model_name="gpt-test",
+        )
+    finally:
+        current_runtime_stream.reset(stream_token)
+        current_execution.reset(context_token)
+
+    events = []
+    while not channel.queue.empty():
+        events.append(channel.queue.get_nowait())
+
+    assert [event.event_type for event in events] == ["agent_activity"]
+    assert context.intermediate_messages is None
+    assert recorder.events == []
+    assert channel.public_output == ""
+    assert result.tool_calls[0]["name"] == "lookup"
+
+
+@pytest.mark.asyncio
+async def test_explicit_intermediate_output_stays_internal_when_policy_is_disabled() -> None:
+    context = new_execution_context()
+    context_token = current_execution.set(context)
+    channel = RuntimeStreamChannel()
+    stream_token = current_runtime_stream.set(channel)
+    try:
+        result = await invoke_model_with_optional_streaming(
+            model=StreamingModel(),
+            messages=[],
+            phase="progress_update",
+            provider="openai",
+            model_name="gpt-test",
+            output_mode="intermediate",
+        )
+    finally:
+        current_runtime_stream.reset(stream_token)
+        current_execution.reset(context_token)
+
+    events = []
+    while not channel.queue.empty():
+        events.append(channel.queue.get_nowait())
+
+    assert [event.event_type for event in events] == ["agent_activity"]
+    assert context.intermediate_messages is None
+    assert context.output_message_id is None
+    assert channel.public_output == ""
+    assert result.content == "hello world"
+
+
+@pytest.mark.asyncio
 async def test_visible_pre_tool_text_is_promoted_to_intermediate_message() -> None:
     recorder = FakeRecorder()
     context = new_execution_context()
+    context.intermediate_messages_enabled = True
     context.run_event_recorder = recorder
     context_token = current_execution.set(context)
     channel = RuntimeStreamChannel()
@@ -232,6 +294,7 @@ async def test_visible_pre_tool_text_is_promoted_to_intermediate_message() -> No
 async def test_multiple_promotions_keep_distinct_messages_and_one_terminal_id() -> None:
     recorder = FakeRecorder()
     context = new_execution_context()
+    context.intermediate_messages_enabled = True
     context.run_event_recorder = recorder
     context_token = current_execution.set(context)
     channel = RuntimeStreamChannel()
@@ -375,6 +438,7 @@ async def test_strategy_specific_phase_can_explicitly_own_public_output() -> Non
 @pytest.mark.asyncio
 async def test_intermediate_output_is_a_distinct_message_and_does_not_become_run_output() -> None:
     context = new_execution_context()
+    context.intermediate_messages_enabled = True
     context_token = current_execution.set(context)
     channel = RuntimeStreamChannel()
     stream_token = current_runtime_stream.set(channel)
