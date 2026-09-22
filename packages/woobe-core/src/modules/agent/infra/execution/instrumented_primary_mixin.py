@@ -176,15 +176,8 @@ class InstrumentedPrimaryExecutionMixin:
             "agent_release_version": context.agent_release_version if context else None,
             "execution_strategy": context.execution_strategy if context else None,
             "context_assembler": (
-                {
-                    "name": context.context_assembler_name,
-                    "version": context.context_assembler_version,
-                    "strategy_name": context.context_assembler_strategy_name,
-                    "strategy_version": context.context_assembler_strategy_version,
-                }
-                if context
-                and context.context_assembler_name
-                and context.context_assembler_version
+                {"name": context.context_assembler_name}
+                if context and context.context_assembler_name
                 else None
             ),
             "rag_metadata": rag_metadata or None,
@@ -249,10 +242,7 @@ class InstrumentedPrimaryExecutionMixin:
             context.execution_strategy = execution_strategy_from_runtime_config(
                 runtime_config
             )
-            context.context_assembler_name = assembler_selection.selection_key.name
-            context.context_assembler_version = assembler_selection.selection_key.version
-            context.context_assembler_strategy_name = assembler_selection.strategy_key.name
-            context.context_assembler_strategy_version = assembler_selection.strategy_key.version
+            context.context_assembler_name = assembler_selection.name
             context.project_id = getattr(agent, "project_id", None)
             context.agent_id = getattr(agent, "id", None)
             context.session_id = getattr(session, "id", None) if session else None
