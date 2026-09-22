@@ -340,9 +340,10 @@ def compose_external_context_contracts(
             if existing is None:
                 existing = {
                     "schema": deepcopy(field["schema"]),
-                    "scope": field.get("scope", "run"),
                     "consumers": {},
                 }
+                if "scope" in field:
+                    existing["scope"] = field["scope"]
                 effective_fields[name] = existing
             elif (
                 existing["schema"] != field["schema"]
@@ -351,6 +352,10 @@ def compose_external_context_contracts(
                 raise ExternalContextContractError(
                     f"External Context field '{name}' conflicts between Network Agents"
                 )
+            elif "scope" in field and "scope" not in existing:
+                # Preserve an explicitly declared lifecycle when it is semantically
+                # equivalent to the legacy implicit run scope.
+                existing["scope"] = field["scope"]
 
             consumer_contract: dict[str, Any] = {
                 "required": field["required"],
