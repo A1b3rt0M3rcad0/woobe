@@ -145,6 +145,16 @@ function mergeToolPermissions(base: AgentToolPermissions, overrides: AgentToolPe
   return merged
 }
 
+function normalizeContextManagerSelection(value: unknown): Record<string, unknown> | null {
+  const raw = recordValue(value)
+  if (!Object.keys(raw).length) return null
+  const legacyStrategyName = typeof raw.strategy_name === 'string' ? raw.strategy_name.trim() : ''
+  const selected = legacyStrategyName || (typeof raw.name === 'string' ? raw.name.trim() : '')
+  if (!selected) return null
+  const normalized = selected === 'stdcm' || selected === 'default' ? 'standard' : selected
+  return { name: normalized }
+}
+
 function splitRuntimeConfig(value: unknown): { runtimeConfig: Record<string, unknown>; toolIds: string[]; toolPermissions: AgentToolPermissions; hasToolsConfig: boolean } {
   const runtimeConfig = recordValue(value)
   const tools = recordValue(runtimeConfig.tools)
@@ -155,8 +165,14 @@ function splitRuntimeConfig(value: unknown): { runtimeConfig: Record<string, unk
   const snapshotPermissions = toolPermissionsFromSnapshots(tools.snapshots)
   const explicitPermissions = normalizeToolPermissions(tools.permissions)
   const toolPermissions = mergeToolPermissions(snapshotPermissions, explicitPermissions)
-  const { tools: _tools, ...rest } = runtimeConfig
-  return { runtimeConfig: rest, toolIds, toolPermissions, hasToolsConfig }
+  const contextAssembler = normalizeContextManagerSelection(runtimeConfig.context_assembler)
+  const { tools: _tools, context_assembler: _contextAssembler, ...rest } = runtimeConfig
+  return {
+    runtimeConfig: contextAssembler ? { ...rest, context_assembler: contextAssembler } : rest,
+    toolIds,
+    toolPermissions,
+    hasToolsConfig,
+  }
 }
 
 function runtimeConfigSnapshot(state: AgentEditorState): Record<string, unknown> {
