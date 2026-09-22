@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import inspect
 import time
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
@@ -350,7 +351,7 @@ async def _assemble_invocation_context(
                 phase=summary_phase,
             )
 
-        assembled = await context_assembler.assemble(
+        assembly = context_assembler.assemble(
             ContextAssemblyRequest(
                 messages=messages,
                 model_invocation_id=invocation_id,
@@ -364,6 +365,7 @@ async def _assemble_invocation_context(
                 summary_invoke=summary_invoke,
             )
         )
+        assembled = await assembly if inspect.isawaitable(assembly) else assembly
         return assembled.messages, assembled.snapshot
     finally:
         context.model_capacity_units = previous_capacity
