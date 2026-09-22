@@ -648,7 +648,12 @@ class NetworkExecutor:
                 event_type: str,
                 payload: dict[str, Any],
             ) -> None:
-                if depth > 0 and event_type in {"token", "token_retract"}:
+                if depth > 0 and event_type in {
+                    "token",
+                    "token_retract",
+                    "assistant_message_delta",
+                    "assistant_message_completed",
+                }:
                     return
                 await self._store.emit(
                     execution.id,
