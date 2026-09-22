@@ -8,7 +8,7 @@ import json
 import pytest
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from modules.agent.application.context_assembler_registry import build_runtime_context_assembler
+from modules.agent.infra.context_management.managers.resolver import build_runtime_context_assembler
 from modules.agent.application.context_assembly import assemble_context
 from modules.agent.application.context_policy import ContextPolicyV1
 from modules.agent.application.dtos.runtime_dtos import AskInput
