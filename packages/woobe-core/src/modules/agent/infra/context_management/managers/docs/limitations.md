@@ -37,3 +37,11 @@ A Context Manager cannot safely reconfigure every Skills field at assembly time 
 ## Synchronous assembly boundary
 
 `ContextAssembler.assemble()` is synchronous. Future primitives requiring I/O must introduce an explicit async Runtime boundary instead of blocking inside a Manager.
+
+## Inventory is aggregate, not raw context access
+
+`ctx.inventory` intentionally exposes counts and estimated units by source, not message bodies.
+
+It is computed from the same base candidate classification used by assembly, including contract-exposed External Context and active Tool definitions. Optional Manager-enabled sources such as active Skill materialization occur after the Manager decision and therefore are represented separately through runtime-specific facts such as `ctx.has_active_skills`.
+
+If a future algorithm genuinely needs semantic inspection of candidate content, that should become a purpose-built Runtime primitive rather than exposing raw LangChain messages to concrete Managers.
