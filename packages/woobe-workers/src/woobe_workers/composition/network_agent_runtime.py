@@ -38,17 +38,22 @@ def _caused_by_empty_model_output(exception: Exception) -> bool:
 
 
 def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
+    output_mode = payload.get("output_mode")
     phase = payload.get("phase")
+    legacy_public_phase = (
+        phase in {
+            "response_generation",
+            "capability_response_generation",
+            "final_response_generation",
+        }
+        or (isinstance(phase, str) and phase.startswith("tool_followup_"))
+    )
     return (
         payload.get("visibility") == "assistant"
         and payload.get("channel") == "final"
         and (
-            phase in {
-                "response_generation",
-                "capability_response_generation",
-                "final_response_generation",
-            }
-            or (isinstance(phase, str) and phase.startswith("tool_followup_"))
+            output_mode == "final"
+            or (output_mode is None and legacy_public_phase)
         )
     )
 
