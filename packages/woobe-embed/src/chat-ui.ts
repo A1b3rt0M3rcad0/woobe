@@ -13,6 +13,7 @@ type MessageRole = "user" | "assistant";
 
 export interface PublicAgentActivity {
   status?: string;
+  message?: string;
   tool_name?: string;
 }
 
@@ -29,6 +30,7 @@ export interface ChatUi {
   appendPendingAssistant(): HTMLElement;
   updateSkillActivity(element: HTMLElement, activity: SkillActivity): void;
   updateAssistantActivity(element: HTMLElement, activity: PublicAgentActivity): string;
+  resetAssistantPending(element: HTMLElement, activity?: PublicAgentActivity): string;
   beginAssistantStreaming(element: HTMLElement): void;
   updateAssistantStreaming(element: HTMLElement, content: string): void;
   finishAssistantStreaming(element: HTMLElement): void;
@@ -61,7 +63,11 @@ const ACTIVITY_STATUSES = new Set([
 function activityLabel(appearance: SurfaceAppearance, activity: PublicAgentActivity): string {
   const skillLabel = skillActivityLabel(activity);
   if (skillLabel) return skillLabel;
-  const status = ACTIVITY_STATUSES.has(activity.status ?? "")
+  const knownStatus = ACTIVITY_STATUSES.has(activity.status ?? "");
+  if (!knownStatus && activity.message?.trim()) {
+    return activity.message.trim().slice(0, 160);
+  }
+  const status = knownStatus
     ? (activity.status as keyof SurfaceAppearance["activity"]["labels"])
     : "preparing";
   let label = appearance.activity.labels[status];
@@ -412,6 +418,19 @@ export function createChatUi(
     },
     updateAssistantActivity(element, activity) {
       if (!element.classList.contains("message--pending")) return "";
+      const label = renderPendingContent(element, appearance, activity);
+      renderSkillEvidence(element);
+      scrollToLatest();
+      return label;
+    },
+    resetAssistantPending(element, activity = { status: "preparing" }) {
+      const frame = streamingFrames.get(element);
+      if (frame !== undefined) cancelAnimationFrame(frame);
+      streamingFrames.delete(element);
+      element.classList.remove("message--streaming");
+      element.classList.add("message--pending");
+      element.dataset.content = "";
+      delete element.dataset.pendingContent;
       const label = renderPendingContent(element, appearance, activity);
       renderSkillEvidence(element);
       scrollToLatest();
