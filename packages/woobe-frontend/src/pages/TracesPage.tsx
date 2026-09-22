@@ -30,8 +30,14 @@ import {
 import { JsonCodeBlock } from '@/components/ui/JsonCodeBlock'
 import { useAgents } from '@/features/agents/hooks'
 import { useNetworks } from '@/features/network/hooks'
-import { useTraceDetail, useTraces } from '@/features/traces/hooks'
-import type { Trace, TraceDetail, TraceEvent } from '@/features/traces/types'
+import { useOptionalTraceDetail, useProjectRuns } from '@/features/traces/hooks'
+import type {
+  ProjectAgentRunRecord,
+  ProjectNetworkRunRecord,
+  Trace,
+  TraceDetail,
+  TraceEvent,
+} from '@/features/traces/types'
 import { formatDateTime } from '@/lib/formatters/date'
 import { formatMoney } from '@/lib/formatters/money'
 import { formatLatency, formatTokens } from '@/lib/formatters/number'
@@ -58,7 +64,6 @@ type NetworkRunGroup = {
   networkId: string | null
   networkName: string
   traces: Trace[]
-  rootTrace: Trace
   status: RunStatus
   startedAt: string | null
   endedAt: string | null
@@ -101,6 +106,56 @@ function traceData(trace: Trace): Record<string, unknown> {
   return asRecord(trace.data)
 }
 
+function runDurationMs(run: ProjectAgentRunRecord): number | null {
+  const start = timestamp(run.started_at ?? run.created_at)
+  const end = timestamp(run.completed_at)
+  if (start && end && end >= start) return end - start
+  const diagnostics = asRecord(asRecord(run.result).diagnostics)
+  return asNumber(
+    diagnostics.agent_runtime_latency_ms
+      ?? diagnostics.total_latency_ms
+      ?? asRecord(run.result).latency_ms,
+  )
+}
+
+function agentRunToTrace(
+  run: ProjectAgentRunRecord,
+  network?: ProjectNetworkRunRecord,
+): Trace {
+  const result = asRecord(run.result)
+  const usage = asRecord(run.usage ?? result.usage)
+  return {
+    id: run.trace_id,
+    project_id: run.project_id,
+    agent_id: run.agent_id,
+    session_id: run.session_id ?? undefined,
+    network_id: network?.network_id ?? null,
+    network_execution_id: run.network_execution_id,
+    network_session_id: network?.network_session_id ?? null,
+    network_version_id: network?.network_version_id ?? null,
+    status: run.status,
+    provider: asString(result.provider) ?? undefined,
+    model: asString(result.model) ?? undefined,
+    fallback_used: Boolean(asRecord(result.diagnostics).fallback_used ?? result.fallback_used),
+    total_latency_ms: runDurationMs(run) ?? undefined,
+    total_cost_usd: asNumber(usage.cost_usd ?? result.cost_usd),
+    error: run.failure_detail ?? run.failure_code ?? undefined,
+    data: {
+      ...result,
+      agent_run_id: run.id,
+      input_message: run.input_message,
+      execution_context: run.environment,
+      input_tokens: asNumber(usage.input_tokens),
+      output_tokens: asNumber(usage.output_tokens),
+      total_tokens: asNumber(usage.total_tokens),
+      cost_usd: asNumber(usage.cost_usd ?? result.cost_usd),
+    },
+    started_at: run.started_at,
+    ended_at: run.completed_at,
+    created_at: run.created_at ?? run.started_at ?? undefined,
+  }
+}
+
 function traceStartedAt(trace: Trace): string | null {
   const raw = trace as Trace & { started_at?: string | null }
   return raw.started_at ?? trace.created_at ?? null
@@ -121,7 +176,7 @@ function normalizedStatus(status: string): RunStatus {
   const value = status.toLowerCase()
   if (value === 'running' || value === 'processing') return 'running'
   if (value === 'pending' || value === 'queued') return 'pending'
-  if (value === 'failed' || value === 'error') return 'failed'
+  if (value === 'failed' || value === 'error' || value === 'timed_out' || value === 'uncertain') return 'failed'
   if (value === 'cancelled' || value === 'canceled') return 'cancelled'
   return 'completed'
 }
@@ -131,17 +186,6 @@ function statusMatches(status: RunStatus, filter: StatusFilter) {
   if (filter === 'running') return status === 'running' || status === 'pending'
   if (filter === 'completed') return status === 'completed' || status === 'completed_with_issues'
   return status === filter
-}
-
-function aggregateNetworkStatus(traces: Trace[]): RunStatus {
-  const statuses = traces.map((trace) => normalizedStatus(trace.status))
-  if (statuses.some((status) => status === 'running' || status === 'pending')) return 'running'
-  if (statuses.every((status) => status === 'cancelled')) return 'cancelled'
-  const failures = statuses.filter((status) => status === 'failed').length
-  const completed = statuses.filter((status) => status === 'completed').length
-  if (failures > 0 && completed > 0) return 'completed_with_issues'
-  if (failures > 0) return 'failed'
-  return 'completed'
 }
 
 function environmentLabel(trace: Trace): string | null {
@@ -190,26 +234,6 @@ function traceSearchText(trace: Trace, agentName?: string | null, networkName?: 
 function knownCostSum(traces: Trace[]): number | null {
   if (!traces.length || traces.some((trace) => trace.total_cost_usd == null)) return null
   return traces.reduce((total, trace) => total + (trace.total_cost_usd ?? 0), 0)
-}
-
-function networkDuration(traces: Trace[]): { startedAt: string | null; endedAt: string | null; durationMs: number | null } {
-  const starts = traces.map(traceStartedAt).filter((value): value is string => Boolean(value))
-  const ends = traces.map(traceEndedAt).filter((value): value is string => Boolean(value))
-  const startedAt = starts.sort((left, right) => timestamp(left) - timestamp(right))[0] ?? null
-  const endedAt = ends.sort((left, right) => timestamp(right) - timestamp(left))[0] ?? null
-  if (startedAt && endedAt) {
-    const durationMs = timestamp(endedAt) - timestamp(startedAt)
-    if (durationMs >= 0) return { startedAt, endedAt, durationMs }
-  }
-  const recorded = traces.map((trace) => trace.total_latency_ms).filter((value): value is number => typeof value === 'number')
-  return { startedAt, endedAt, durationMs: recorded.length ? Math.max(...recorded) : null }
-}
-
-function percentile(values: number[], percentileValue: number): number | null {
-  if (!values.length) return null
-  const sorted = [...values].sort((left, right) => left - right)
-  const index = Math.min(sorted.length - 1, Math.max(0, Math.ceil(percentileValue * sorted.length) - 1))
-  return sorted[index]
 }
 
 function statusMeta(status: RunStatus) {
@@ -345,7 +369,7 @@ function NetworkRunRow({ group, agentNames, selectedKey, expanded, onToggle, onS
   )
 }
 
-function parseTimeline(detail: TraceDetail): TimelineItem[] {
+function parseTimeline(detail: Trace): TimelineItem[] {
   const data = traceData(detail)
   const rawItems = Array.isArray(data.execution_events) ? data.execution_events : []
   return rawItems.flatMap((raw, index) => {
@@ -436,7 +460,7 @@ function AgentRunInspector({ trace, detail, agentName, networkName }: { trace: T
   const source = detail ?? trace
   const data = traceData(source)
   const diagnostics = asRecord(data.diagnostics)
-  const timeline = detail ? parseTimeline(detail) : []
+  const timeline = parseTimeline(detail ?? trace)
   const llmCalls = Array.isArray(data.llm_calls) ? data.llm_calls.map(asRecord) : []
   const toolCalls = Array.isArray(data.tool_calls) ? data.tool_calls.map(asRecord) : []
   const sources = Array.isArray(data.sources) ? data.sources.map(asRecord) : []
