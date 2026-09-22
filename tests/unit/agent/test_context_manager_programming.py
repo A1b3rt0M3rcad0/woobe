@@ -282,7 +282,16 @@ def test_inventory_primitive_exposes_aggregate_sources_without_raw_messages() ->
         provider="test",
         model="test",
         runtime_context=SimpleNamespace(
-            skill_context=None,
+            skill_context=[
+                {
+                    "source_ref": "skill-v1:instructions",
+                    "resource_hash": "hash",
+                    "component": "instructions",
+                    "skill_name": "invoice-review",
+                    "version": "1.0.0",
+                    "content": "Review invoices carefully.",
+                }
+            ],
             model_capacity_units=100_000,
             reserved_output_units=1_000,
             active_tool_definitions=[
@@ -301,8 +310,9 @@ def test_inventory_primitive_exposes_aggregate_sources_without_raw_messages() ->
     assert built.inventory.count(ContextSourceType.SESSION) == 2
     assert built.inventory.count(ContextSourceType.KNOWLEDGE) == 1
     assert built.inventory.count(ContextSourceType.USER_INPUT) == 1
+    assert built.inventory.count(ContextSourceType.SKILL) == 1
     assert built.inventory.contains(ContextSourceType.TOOL) is False
-    assert built.inventory.total_count == 6
+    assert built.inventory.total_count == 7
     assert built.inventory.total_units > 0
     assert ContextSourceType.SESSION in built.inventory.sources
 
