@@ -51,7 +51,12 @@ Use [`../standard.py`](../standard.py) as the minimal reference and [`../scienti
    - one-file convention;
    - rules enforced by the Quality Gate.
 
-9. [Scientific Method Strategy](./scientific-method.md)\n   - first built-in multi-phase Directive-driven Strategy;\n   - observation, hypotheses, experiments, evidence analysis, falsification, and conclusion;\n   - durable experiment recovery.\n\n10. [Suspension and current limitations](./suspension.md)
+9. [Scientific Method Strategy](./scientific-method.md)
+   - first built-in multi-phase Directive-driven Strategy;
+   - observation, hypotheses, experiments, evidence analysis, falsification, and conclusion;
+   - durable experiment recovery.
+
+10. [Suspension and current limitations](./suspension.md)
    - current `Suspended` contract;
    - why `WAITING -> RESUME` is not generally available yet.
 
