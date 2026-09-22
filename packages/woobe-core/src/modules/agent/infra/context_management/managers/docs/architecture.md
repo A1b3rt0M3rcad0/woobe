@@ -1,78 +1,139 @@
 # Architecture and mental model
 
-A Context Manager is the algorithm that decides how candidate context is selected and configured before one Model Invocation.
+A Context Manager is the algorithm that decides **which context is eligible, how it is prioritized, how much may be materialized, and which runtime-owned optional sources participate before one Model Invocation**.
 
-```text
+The Manager should read like context-selection algorithm code, not provider, persistence or message-construction code.
+
+## Dependency direction
+
+~~~text
 Concrete Context Manager
-        |
-        v
+        │
+        ▼
 ContextManagerContext
-├── candidates
-├── budget
-├── sources
+├── policy          configured input, isolated from effective behavior
+├── candidates      eligibility, Session window, caps, dedup, ordering
+├── priorities      source priority decisions
+├── budget          configured input budget and runtime reserve
+├── pressure        evidence/classification thresholds
+├── sources         optional runtime-owned materializers
 └── complete()
-        |
-        v
+        │
+        ▼
 Context Manager Runtime
-├── source materialization
-├── provider-safe assembly
-├── global budget enforcement
-├── Context Snapshot
+├── effective-policy isolation
+├── optional source materialization
+├── External Context projection
+├── model-capacity clamping
+├── mandatory-source enforcement
+├── deterministic trimming/exclusion
+├── provider-safe message assembly
+├── Context Snapshot generation
 ├── contribution provenance
 └── integrity/hash accounting
-        |
-        v
-ContextAssembler
-        |
-        v
+        │
+        ▼
+ContextAssembler boundary
+        │
+        ▼
 Model Invocation
-```
+~~~
+
+This mirrors Execution Strategy:
+
+~~~text
+Execution Strategy -> StrategyContext       -> Strategy Runtime
+Context Manager    -> ContextManagerContext -> Context Manager Runtime
+~~~
 
 ## What a Manager owns
 
-A Manager may decide:
+Typical Manager decisions include:
 
-- allowed context sources;
-- Session window policy;
-- per-source caps;
-- deduplication;
-- ordering;
-- budget and pressure policy;
-- optional runtime sources such as Run-local Skills.
+~~~text
+allowed source set
+Session history window
+per-source caps
+source priorities
+deduplication
+ordering
+configured input budget
+runtime reserve
+pressure evidence thresholds
+optional runtime-owned source participation
+~~~
 
 ## What the Runtime owns
 
-A Manager must not construct Context Snapshots, Context Contributions, hashes, provider messages, or provenance metadata directly.
+A concrete Manager must assume these concerns are already handled:
 
-The shared Runtime owns:
+~~~text
+provider/LangChain message classes
+External Context contract projection
+model capacity and output reserve
+mandatory SYSTEM/current-input invariants
+safe text and structured-data trimming
+global overflow handling
+Skills materialization mechanics
+Context Snapshot construction
+ContextContribution construction
+selection/exclusion metrics
+transformation provenance
+integrity hashes
+measurement status
+pressure status
+~~~
 
-- materialization mechanics, including External Context projection;
-- mandatory system/current-input invariants;
-- model-capacity clamping;
-- reserved-output accounting;
-- global overflow handling;
-- source transformations;
-- Context Snapshot generation;
-- contribution provenance;
-- integrity hashes.
+Normal Manager code therefore looks like:
 
-The rule is the same as Execution Strategy:
+~~~python
+policy = ctx.policy
+ctx.candidates.allow(policy.allowed_sources)
+ctx.priorities.configure(policy.source_priorities)
+ctx.candidates.recent_session(
+    max_messages=policy.session.max_messages,
+    max_units=policy.session.max_units,
+)
+ctx.budget.configure(
+    max_input_units=policy.budget.max_input_units,
+    runtime_reserve_units=policy.budget.runtime_reserve_units,
+)
+return ctx.complete()
+~~~
 
-> Concrete code owns the algorithm. Runtime code owns execution mechanics and invariants.
+## Configured policy versus effective policy
 
-## Stable identity
+`ctx.policy` is the configured policy snapshot supplied to this invocation. It is algorithm input.
 
-Context Managers use unversioned semantic identities:
+The Runtime creates a separate effective policy. SDK primitives mutate only the effective copy, and `ctx.complete()` returns that result. Direct mutation of `ctx.policy` does not program runtime behavior.
 
-```text
-standard
-adaptive
-long-horizon
-```
+~~~text
+configured policy
+      │ read
+      ▼
+Manager algorithm
+      │ SDK decisions
+      ▼
+effective policy
+      │
+      ▼
+runtime materialization
+~~~
 
-Historical `stdcm:v1`, `stdcm:v2`, and `default:v1` snapshots are compatibility inputs only. New snapshots persist the stable Manager name.
+This prevents concrete Managers from bypassing the supported primitive surface.
 
+## Concurrency
 
-## External Context
+A runtime host may reuse the same Manager instance across concurrent Runs. Per-invocation mutable state belongs in `ContextManagerContext`, never on the Manager instance.
 
-External Context values are runtime inputs, not Manager implementation details. A concrete Manager may decide generic source policy through the SDK, while the shared Runtime owns contract-aware External Context projection, provider-safe materialization, provenance, and budget enforcement. This keeps new Managers independent from transport and product-specific input contracts.
+Managers should be stateless unless they hold immutable algorithm configuration.
+
+## When Runtime should change
+
+Adding a normal Manager should not require changes under `infra/context_management/manager_runtime/`.
+
+If a requirement is specific to one algorithm, keep it in that Manager. If several Managers need the same operation and Runtime can give it precise reusable semantics, add a small SDK + Runtime primitive.
+
+If a capability requires asynchronous I/O, durability, instrumentation or provider behavior, it needs an explicit runtime execution boundary. Model-based summary is the clearest current example.
+
+> Do not add a primitive unless Runtime can give it precise, observable semantics.

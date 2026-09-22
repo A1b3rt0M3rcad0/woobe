@@ -2,48 +2,92 @@
 
 The stable Manager-facing surface is:
 
-```text
+~~~text
 ctx.policy
 ctx.candidates
+ctx.priorities
 ctx.budget
+ctx.pressure
 ctx.sources
 ctx.has_active_skills
 ctx.complete()
-```
+~~~
 
-## candidates
+`ctx.policy` is configured input. The remaining members are the supported programming surface.
 
-`ctx.candidates` controls candidate-selection policy:
+## `ctx.candidates`
 
-- `allow(...)`
-- `recent_session(...)`
-- `cap(...)`
-- `require(...)`
-- `deduplicate(...)`
-- `order(...)`
+Controls candidate eligibility and deterministic selection:
 
-These operations never construct a Context Snapshot directly.
+- `allow(sources)` replaces the allowed source set;
+- `recent_session(max_messages, max_units)` selects recent Session context;
+- `cap(source, max_units)` applies a per-source cap where supported;
+- `require(source, priority=MANDATORY)` allows a source and assigns priority;
+- `deduplicate(strategy, sources)` configures duplicate elimination;
+- `order(strategy)` configures final ordering.
 
-## budget
+`cap(...)` currently supports CHECKPOINT, MEMORY, KNOWLEDGE, TOOL, ARTIFACT and DELEGATION. Session has its own window primitive. SYSTEM and current USER_INPUT are mandatory invariants.
 
-`ctx.budget` controls configured input limits and pressure thresholds.
+## `ctx.priorities`
 
-The Runtime still clamps the result against actual model capacity, reserved output and runtime reserve. A Manager cannot bypass those invariants.
+Controls source priority independently from source eligibility:
 
-## sources
+~~~python
+ctx.priorities.set(
+    ContextSourceType.KNOWLEDGE,
+    ContextPriority.HIGH,
+)
+ctx.priorities.configure(policy.source_priorities)
+~~~
 
-`ctx.sources` enables optional runtime-owned materialization.
+Priorities affect source-priority ordering, global overflow precedence and persisted contribution evidence.
 
-Current shared capability:
+SYSTEM and USER_INPUT cannot be downgraded from MANDATORY.
 
-```python
-ctx.sources.skills()
-```
+## `ctx.budget`
 
-Skills materialization, budget validation, contribution metadata and retention manifest are implemented once by the Runtime.
+~~~python
+ctx.budget.configure(
+    max_input_units=48_000,
+    runtime_reserve_units=4_000,
+)
+~~~
 
-## complete
+Runtime still clamps against invocation-specific model capacity and output reserve. A Manager cannot force materialization beyond the usable model window.
 
-`ctx.complete()` freezes the algorithm decisions for the current invocation into a `ContextManagerOutcome`.
+## `ctx.pressure`
 
-The outcome is then finalized by `ContextManagerRunner`.
+~~~python
+ctx.pressure.thresholds(
+    moderate_at=0.40,
+    high_at=0.75,
+    critical_at=0.90,
+)
+~~~
+
+These thresholds classify Context health/evidence. They do not trigger a separate adaptive algorithm.
+
+## `ctx.sources`
+
+Enables optional runtime-owned materialization.
+
+Current shared primitive:
+
+~~~python
+if ctx.has_active_skills:
+    ctx.sources.skills()
+~~~
+
+Runtime owns Skill message construction, budget validation, provenance and manifest enrichment.
+
+External Context is runtime-owned but contract-authorized rather than an optional Manager materializer, so it is not toggled through `ctx.sources`.
+
+## `ctx.complete()`
+
+`ctx.complete()` freezes the effective algorithm decisions into `ContextManagerOutcome`. The runner validates the outcome before materialization.
+
+## Deliberately absent primitives
+
+The SDK does not currently expose semantic summary, model-based compression, artifact reference/materialize switching, custom retention modes, custom retrieval, or provider-specific message construction.
+
+Some are upstream source-production concerns; others require Runtime capabilities that do not exist yet. See [Summary and compaction](./summary-and-compaction.md) and [Current limitations](./limitations.md).
