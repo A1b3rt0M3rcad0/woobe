@@ -229,6 +229,7 @@ class ProjectRAIAgentInvoker:
                 sources=[item.model_dump() for item in output.sources],
                 parsed_output=output.parsed_output,
                 output_parse_error=output.output_parse_error,
+                execution_events=list(output.execution_events or []),
                 streamed_output=streamed_output,
             )
             diagnostics = getattr(output, "diagnostics", None)
