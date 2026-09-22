@@ -17,9 +17,12 @@ import {
   RuntimeStreamGapError,
   acceptRuntimeFrameSequence,
   parseRuntimeFrame,
+  runtimeAssistantMessage,
+  runtimeStateAssistantMessages,
   runtimeTerminalStatus,
   waitForRuntimeRetry,
   type ParsedRuntimeFrame,
+  type RuntimeAssistantMessage,
   type RuntimeSequenceState,
   type RuntimeTerminalStatus,
 } from "./runtime-stream";
@@ -39,10 +42,17 @@ interface ActiveRun {
   target_type: "agent" | "network";
 }
 
+interface IntermediateAssistantState {
+  element: HTMLElement;
+  content: string;
+  streamingStarted: boolean;
+}
+
 interface RuntimeObserverState {
   assistant: HTMLElement;
   answer: string;
   streamingStarted: boolean;
+  intermediateMessages: Map<string, IntermediateAssistantState>;
   sequence: RuntimeSequenceState;
   terminalStatus: RuntimeTerminalStatus | null;
 }
@@ -94,6 +104,7 @@ let stopping = false;
 let initialized = false;
 let bootstrapping = false;
 let ui: ChatUi | null = null;
+const renderedMessages = new Map<string, HTMLElement>();
 
 function emit(type: FrameEventType, payload?: unknown) {
   if (!parentOrigin) return;
@@ -205,11 +216,22 @@ async function loadHistory() {
   const items = Array.isArray(payload.data?.items) ? payload.data.items : [];
   const chatUi = ensureUi();
   chatUi.clearMessages();
+  renderedMessages.clear();
 
   for (const item of items) {
     if (typeof item?.role === "string" && typeof item?.content === "string") {
       if (item.role === "user" || item.role === "assistant") {
         const message = chatUi.appendMessage(item.role, item.content);
+        if (typeof item.id === "string" && item.id) {
+          message.dataset.messageId = item.id;
+          renderedMessages.set(item.id, message);
+        }
+        if (
+          item.role === "assistant"
+          && item.data?.output_mode === "intermediate"
+        ) {
+          message.dataset.outputMode = "intermediate";
+        }
         if (item.role === "assistant" && Array.isArray(item.data?.tool_calls)) {
           for (const call of item.data.tool_calls) chatUi.updateSkillActivity(message, call);
         }
@@ -277,9 +299,64 @@ function createRuntimeObserver(): RuntimeObserverState {
     assistant: ensureUi().appendPendingAssistant(),
     answer: "",
     streamingStarted: false,
+    intermediateMessages: new Map(),
     sequence: { sequence: null },
     terminalStatus: null,
   };
+}
+
+function intermediateState(
+  observer: RuntimeObserverState,
+  message: RuntimeAssistantMessage,
+): IntermediateAssistantState {
+  const existing = observer.intermediateMessages.get(message.message_id);
+  if (existing) return existing;
+
+  const rendered = renderedMessages.get(message.message_id);
+  const element = rendered ?? ensureUi().insertMessageBefore(
+    "assistant",
+    "",
+    observer.assistant,
+  );
+  element.dataset.messageId = message.message_id;
+  element.dataset.outputMode = "intermediate";
+  renderedMessages.set(message.message_id, element);
+
+  const state: IntermediateAssistantState = {
+    element,
+    content: rendered?.dataset.content ?? "",
+    streamingStarted: false,
+  };
+  observer.intermediateMessages.set(message.message_id, state);
+  return state;
+}
+
+function beginIntermediateStreaming(state: IntermediateAssistantState) {
+  if (state.streamingStarted) return;
+  state.streamingStarted = true;
+  ensureUi().beginAssistantStreaming(state.element);
+}
+
+function appendIntermediate(
+  observer: RuntimeObserverState,
+  message: RuntimeAssistantMessage,
+) {
+  const state = intermediateState(observer, message);
+  beginIntermediateStreaming(state);
+  state.content += message.content;
+  ensureUi().updateAssistantStreaming(state.element, state.content);
+}
+
+function completeIntermediate(
+  observer: RuntimeObserverState,
+  message: RuntimeAssistantMessage,
+) {
+  const state = intermediateState(observer, message);
+  beginIntermediateStreaming(state);
+  state.content = message.content;
+  ensureUi().updateAssistantStreaming(state.element, state.content);
+  ensureUi().finishAssistantStreaming(state.element);
+  state.streamingStarted = false;
 }
 
 function beginStreaming(observer: RuntimeObserverState) {
@@ -306,6 +383,9 @@ function applyRuntimeFrame(
     ensureUi().updateSkillActivity(observer.assistant, payload);
   }
   if (eventType === "run.state") {
+    for (const message of runtimeStateAssistantMessages(parsed)) {
+      completeIntermediate(observer, message);
+    }
     replaceAnswer(observer, typeof payload.output === "string" ? payload.output : "");
     for (const calls of [payload.tools, payload.active_tools]) {
       if (Array.isArray(calls)) for (const call of calls) ensureUi().updateSkillActivity(observer.assistant, call);
@@ -314,6 +394,15 @@ function applyRuntimeFrame(
       const wasStopping = stopping;
       setStoppingState(true);
       if (!wasStopping) emit("run.stopping", { resumed: true });
+    }
+  } else if (
+    eventType === "assistant_message_delta"
+    || eventType === "assistant_message_completed"
+  ) {
+    const message = runtimeAssistantMessage(parsed);
+    if (message !== null) {
+      if (eventType === "assistant_message_delta") appendIntermediate(observer, message);
+      else completeIntermediate(observer, message);
     }
   } else if (eventType === "agent_activity") {
     const activity = publicActivity(payload);
