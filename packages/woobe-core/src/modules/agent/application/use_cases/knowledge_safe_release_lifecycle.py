@@ -8,6 +8,7 @@ from modules.agent.application.skill_bindings import freeze_skill_bindings
 from modules.agent.application.interfaces.release_activation_repository import (
     AgentReleaseActivationRepository,
 )
+from modules.agent.application.interfaces.project_environment import ProjectEnvironmentKeyReader
 from modules.agent.application.interfaces.repositories import (
     AgentReleaseRepository,
     ToolRepository,
@@ -60,11 +61,13 @@ class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
         knowledge_validator: ReleaseKnowledgeValidator,
         tool_repo: ToolRepository,
         skill_repo: SkillRepository | None = None,
+        project_environment_reader: ProjectEnvironmentKeyReader | None = None,
     ) -> None:
         super().__init__(release_repo)
         self._knowledge_validator = knowledge_validator
         self._tool_repo = tool_repo
         self._skill_repo = skill_repo
+        self._project_environment_reader = project_environment_reader
 
     async def execute(self, input_dto, change_kind: str = "change"):
         candidate = AgentRelease(
@@ -92,6 +95,8 @@ class KnowledgeSafeCreateReleaseUseCase(AutoCreateReleaseUseCase):
                 raw_tool_ids=raw_tools.get("tool_ids"),
                 raw_permissions=raw_tools.get("permissions"),
                 previous_snapshots=previous_snapshots,
+                external_context_contract=input_dto.external_context_contract,
+                project_environment_reader=self._project_environment_reader,
             )
         runtime_config = await freeze_skill_bindings(self._skill_repo, project_id=input_dto.project_id, runtime_config=runtime_config)
         input_dto.runtime_config = runtime_config or None

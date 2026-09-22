@@ -5,6 +5,7 @@ import json
 from typing import Any
 
 from modules.agent.domain.entities import AgentRelease
+from modules.agent.domain.external_context_contract import classify_external_context_change
 from modules.agent.domain.release_versioning import ReleaseChangeKind
 
 
@@ -63,6 +64,13 @@ def classify_release_change(
     if previous.session_mode != candidate.session_mode:
         return ReleaseChangeKind.COMPATIBILITY
 
+    external_context_kind = classify_external_context_change(
+        previous.external_context_contract,
+        candidate.external_context_contract,
+    )
+    if external_context_kind is ReleaseChangeKind.COMPATIBILITY:
+        return ReleaseChangeKind.COMPATIBILITY
+
     simple_contract_kind = _simple_contract_change_kind(
         previous.output_schema,
         candidate.output_schema,
@@ -86,7 +94,132 @@ def classify_release_change(
     if _schema_adds_non_breaking_feature(previous_schema, candidate_schema):
         return ReleaseChangeKind.FEATURE
 
+    if external_context_kind is ReleaseChangeKind.FEATURE:
+        return ReleaseChangeKind.FEATURE
     return ReleaseChangeKind.CHANGE
+
+
+_OUTPUT_SCHEMA_ANNOTATIONS = {
+    "$id",
+    "$schema",
+    "default",
+    "description",
+    "examples",
+    "title",
+}
+
+
+def _canonicalize_output_schema_node(value: Any, *, key: str | None = None) -> Any:
+    if isinstance(value, dict):
+        name_map = key in {"properties", "definitions", "$defs", "patternProperties"}
+        return {
+            str(child_key): _canonicalize_output_schema_node(
+                child_value,
+                key=str(child_key),
+            )
+            for child_key, child_value in sorted(
+                value.items(),
+                key=lambda item: str(item[0]),
+            )
+            if name_map or str(child_key) not in _OUTPUT_SCHEMA_ANNOTATIONS
+        }
+    if isinstance(value, list):
+        items = [
+            _canonicalize_output_schema_node(item)
+            for item in value
+        ]
+        if key in {"required", "type"}:
+            return sorted(items, key=str)
+        if key in {"enum", "oneOf", "anyOf", "allOf"}:
+            return sorted(
+                items,
+                key=lambda item: json.dumps(
+                    item,
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    default=str,
+                ),
+            )
+        return items
+    return value
+
+
+def _normalize_public_output_value(value: Any) -> dict[str, Any]:
+    value = _parse_json_if_needed(value)
+    if isinstance(value, str):
+        return {"type": _SIMPLE_TYPES.get(value.strip().lower(), "string")}
+    if isinstance(value, bool):
+        return {"type": "boolean"}
+    if isinstance(value, int):
+        return {"type": "integer"}
+    if isinstance(value, float):
+        return {"type": "number"}
+    if value is None:
+        return {"type": "null"}
+    if isinstance(value, list):
+        if len(value) == 1:
+            return {
+                "type": "array",
+                "items": _normalize_public_output_value(value[0]),
+            }
+        return {"type": "array"}
+    if not isinstance(value, dict):
+        return {}
+
+    if (
+        isinstance(value.get("schema"), dict)
+        and "properties" not in value
+        and _looks_like_schema_wrapper(value)
+    ):
+        return _normalize_public_output_value(value["schema"])
+    if isinstance(value.get("json_schema"), dict) and isinstance(
+        value["json_schema"].get("schema"),
+        dict,
+    ):
+        return _normalize_public_output_value(value["json_schema"]["schema"])
+    if _looks_like_json_schema(value):
+        return _normalize_json_schema(value)
+
+    properties = {
+        str(name): _normalize_public_output_value(child)
+        for name, child in value.items()
+    }
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": list(properties.keys()),
+    }
+
+
+def normalize_output_schema(value: Any) -> dict[str, Any] | None:
+    """Normalize compact or JSON Schema output contracts for public boundaries."""
+    value = _parse_json_if_needed(value)
+    if not isinstance(value, dict):
+        return None
+    return _canonicalize_output_schema_node(_normalize_public_output_value(value))
+
+
+def effective_output_schema(release: Any) -> dict[str, Any] | None:
+    """Return the effective structured-output schema frozen in a Release."""
+    response_format = _normalize_response_format(release)
+    for candidate in (
+        getattr(release, "output_schema", None),
+        response_format.get("schema"),
+        (response_format.get("json_schema") or {}).get("schema")
+        if isinstance(response_format.get("json_schema"), dict)
+        else None,
+    ):
+        normalized = normalize_output_schema(candidate)
+        if normalized is not None:
+            return normalized
+    return None
+
+
+def output_schemas_equivalent(left: Any, right: Any) -> bool:
+    """Compare output contracts by structural semantics rather than annotations."""
+    left_schema = normalize_output_schema(left)
+    right_schema = normalize_output_schema(right)
+    return left_schema == right_schema
 
 
 def _simple_contract_change_kind(
@@ -130,8 +263,8 @@ def _parse_json_if_needed(value: Any) -> Any:
     if isinstance(value, str):
         try:
             return json.loads(value)
-        except Exception:
-            return None
+        except (TypeError, ValueError):
+            return value
     return value
 
 

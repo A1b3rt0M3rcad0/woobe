@@ -1,7 +1,11 @@
 import json
 
 from modules.agent.domain.entities import AgentRelease
-from modules.agent.domain.release_compatibility import classify_release_change
+from modules.agent.domain.release_compatibility import (
+    classify_release_change,
+    normalize_output_schema,
+    output_schemas_equivalent,
+)
 from modules.agent.domain.release_versioning import ReleaseChangeKind
 
 
@@ -125,3 +129,106 @@ def test_same_output_contract_is_change():
     candidate = release(response_format={"type": "json"}, output_schema=schema)
     candidate.system_prompt = "new prompt"
     assert classify_release_change(previous, candidate) == ReleaseChangeKind.CHANGE
+
+
+def test_public_output_schema_normalization_preserves_compact_required_fields():
+    assert normalize_output_schema({
+        "message": "string",
+        "confidence": "float",
+    }) == {
+        "type": "object",
+        "properties": {
+            "message": {"type": "string"},
+            "confidence": {"type": "number"},
+        },
+        "required": ["confidence", "message"],
+    }
+
+
+def test_sdk_json_schema_matches_equivalent_compact_output_contract():
+    server_contract = {
+        "message": "string",
+        "confidence": "float",
+    }
+    sdk_output_contract = {
+        "title": "SupportOutput",
+        "type": "object",
+        "properties": {
+            "message": {"title": "Message", "type": "string"},
+            "confidence": {"title": "Confidence", "type": "number"},
+        },
+        "required": ["message", "confidence"],
+    }
+
+    assert output_schemas_equivalent(server_contract, sdk_output_contract) is True
+
+
+def test_sdk_nested_json_schema_matches_nested_compact_output_contract():
+    server_contract = {
+        "data": {
+            "message": "string",
+            "flags": ["boolean"],
+        },
+    }
+    sdk_output_contract = {
+        "type": "object",
+        "properties": {
+            "data": {
+                "type": "object",
+                "properties": {
+                    "message": {"type": "string"},
+                    "flags": {
+                        "type": "array",
+                        "items": {"type": "boolean"},
+                    },
+                },
+                "required": ["message", "flags"],
+            },
+        },
+        "required": ["data"],
+    }
+
+    assert output_schemas_equivalent(server_contract, sdk_output_contract) is True
+
+
+def test_sdk_output_contract_detects_required_field_type_mismatch():
+    server_contract = {
+        "message": "string",
+        "confidence": "float",
+    }
+    sdk_output_contract = {
+        "type": "object",
+        "properties": {
+            "message": {"type": "string"},
+            "confidence": {"type": "string"},
+        },
+        "required": ["message", "confidence"],
+    }
+
+    assert output_schemas_equivalent(server_contract, sdk_output_contract) is False
+
+
+def test_schema_annotation_names_are_preserved_when_they_are_actual_fields():
+    schema = normalize_output_schema(
+        {
+            "type": "object",
+            "title": "Response metadata",
+            "properties": {
+                "title": {
+                    "type": "string",
+                    "title": "Actual title field",
+                },
+                "description": {"type": "string"},
+            },
+            "required": ["title", "description"],
+        }
+    )
+
+    assert schema == {
+        "type": "object",
+        "properties": {
+            "description": {"type": "string"},
+            "title": {"type": "string"},
+        },
+        "required": ["description", "title"],
+    }

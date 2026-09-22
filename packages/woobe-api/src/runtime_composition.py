@@ -5,9 +5,15 @@ from uuid import UUID
 from fastapi import Request as FastAPIRequest
 
 from modules.agent.entrypoint import (
+    ReadRuntimeContractsInput,
+    build_agent_runtime_contract_reader,
     build_public_stream_components,
     public_run_composer,
 )
+from modules.network.entrypoint import build_network_service
+from shared.infra.errors import ValidationError
+from shared.contracts.runtime_contracts import compare_contract_schema
+from shared.security.principal import ProjectApiPrincipal
 from woobe_api.http.agent.controllers.public_runtime_stream_controller import (
     PublicRuntimeStreamController,
 )
@@ -54,6 +60,63 @@ class RuntimeHttpComposition:
             return await stream_network_http(request)
         controller = PublicRuntimeStreamController(*build_public_stream_components())
         return await controller.handle(request)
+
+    async def validate_contracts(
+        self,
+        principal: ProjectApiPrincipal,
+        *,
+        output_contract,
+        external_context,
+    ):
+        target_id = principal.target_id or principal.agent_id
+        environment = principal.environment
+        if (
+            principal.kind != "runtime"
+            or principal.target_type not in {"agent", "network"}
+            or target_id is None
+            or environment not in {"staging", "production"}
+        ):
+            raise ValidationError("Runtime Key binding is incomplete")
+
+        if principal.target_type == "agent":
+            snapshot = await build_agent_runtime_contract_reader()(
+                ReadRuntimeContractsInput(
+                    agent_id=target_id,
+                    project_id=principal.project_id,
+                    environment=environment,
+                )
+            )
+        else:
+            snapshot = await build_network_service().runtime_contract_snapshot(
+                network_id=target_id,
+                project_id=principal.project_id,
+                environment=environment,
+            )
+
+        output_result = compare_contract_schema(
+            snapshot.output_contract,
+            output_contract,
+        )
+        external_context_result = compare_contract_schema(
+            snapshot.external_context,
+            external_context,
+        )
+        return {
+            "success": True,
+            "data": {
+                "valid": (
+                    output_result["valid"]
+                    and external_context_result["valid"]
+                ),
+                "target_type": principal.target_type,
+                "target_id": str(target_id),
+                "environment": environment,
+                "release_id": snapshot.release_id,
+                "release_version": snapshot.release_version,
+                "output_contract": output_result,
+                "external_context": external_context_result,
+            },
+        }
 
     async def reattach(self, target_type: str, run_id: UUID, request: FastAPIRequest):
         if target_type == "network":

@@ -11,6 +11,7 @@ from modules.network.infra.database import models as network_models
 from modules.network.infra.database.models import (
     NetworkExecutionModel,
     NetworkInvocationModel,
+    NetworkSessionModel,
     NetworkVersionModel,
 )
 from shared.infra.database.base import BaseModel
@@ -146,6 +147,9 @@ def version_extension_payload(version: NetworkVersionModel) -> dict[str, Any]:
         "public_output_contract": getattr(version, "public_output_contract", None),
         "public_output_contract_hash": getattr(
             version, "public_output_contract_hash", None
+        ),
+        "effective_external_context_contract": getattr(
+            version, "effective_external_context_contract", None
         ),
         "agent_release_manifest": getattr(version, "agent_release_manifest", None),
         "agent_release_manifest_hash": getattr(

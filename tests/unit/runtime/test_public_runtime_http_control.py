@@ -45,6 +45,93 @@ def _app() -> FastAPI:
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize("target_type", ["agent", "network"])
+async def test_contract_validation_route_dispatches_runtime_target(
+    monkeypatch,
+    target_type: str,
+) -> None:
+    calls = []
+
+    async def validate(principal, *, output_contract, external_context):
+        calls.append(
+            (principal.target_type, output_contract, external_context)
+        )
+        return {
+            "success": True,
+            "data": {
+                "valid": True,
+                "target_type": principal.target_type,
+                "output_contract": {"valid": True, "issues": []},
+                "external_context": {"valid": True, "issues": []},
+            },
+        }
+
+    monkeypatch.setattr(
+        public_runtime_routes.RUNTIME_HTTP,
+        "validate_contracts",
+        validate,
+    )
+
+    transport = ASGITransport(app=_app())
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/v1/contracts/validate",
+            headers={"x-runtime-target": target_type},
+            json={
+                "output_contract": {
+                    "message": "string",
+                    "confidence": "float",
+                },
+                "external_context": {
+                    "type": "object",
+                    "properties": {
+                        "age": {"type": "integer"},
+                        "title": {"type": "string"},
+                    },
+                    "required": ["age", "title"],
+                    "additionalProperties": False,
+                },
+            },
+        )
+
+    assert response.status_code == 200
+    assert response.json()["data"]["valid"] is True
+    assert calls == [
+        (
+            target_type,
+            {
+                "message": "string",
+                "confidence": "float",
+            },
+            {
+                "type": "object",
+                "properties": {
+                    "age": {"type": "integer"},
+                    "title": {"type": "string"},
+                },
+                "required": ["age", "title"],
+                "additionalProperties": False,
+            },
+        )
+    ]
+
+
+@pytest.mark.asyncio
+async def test_contract_validation_requires_both_public_contracts() -> None:
+    transport = ASGITransport(app=_app())
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        response = await client.post(
+            "/v1/contracts/validate",
+            headers={"x-runtime-target": "agent"},
+            json={
+                "external_context": None,
+            },
+        )
+
+    assert response.status_code == 422
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target_type", ["agent", "network"])
 async def test_public_cancel_route_dispatches_over_real_asgi_boundary(
     monkeypatch,
     target_type: str,

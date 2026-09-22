@@ -14,7 +14,7 @@ from modules.agent.application.use_cases.execution_event_factory import (
     llm_event,
     tool_event,
 )
-from modules.agent.application.use_cases.trace_event_builder import (
+from modules.agent.infra.execution.trace_event_builder import (
     build_operation_events,
     sequence_events,
 )

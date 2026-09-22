@@ -83,6 +83,34 @@ class TestCreateAskJobWithOutbox:
         assert isinstance(event, AgentExecutionRequestedV1)
 
     @pytest.mark.asyncio
+    async def test_create_job_persists_external_context_for_worker_roundtrip(self):
+        repo = MagicMock()
+        job_id = uuid4()
+        captured = {}
+
+        async def _create(job):
+            captured["job"] = job
+            job.id = job_id
+            return job
+
+        repo.create = AsyncMock(side_effect=_create)
+        use_case = CreateAskJobUseCase(repo=repo, outbox=None)
+
+        await use_case.execute(
+            CreateAskJobInput(
+                project_id=uuid4(),
+                agent_id=uuid4(),
+                message="test message",
+                execution_context="playground",
+                external_context={"age": 18},
+            )
+        )
+
+        assert captured["job"].params["external_context"] == {"age": 18}
+        assert captured["job"].params["execution_context"] == "playground"
+
+
+    @pytest.mark.asyncio
     async def test_create_job_works_without_outbox(self):
         repo = MagicMock()
         job_id = uuid4()
@@ -125,6 +153,33 @@ class TestWorkerRegistration:
         worker = AskJobWorker(async_engine=engine, settings=settings)
         assert hasattr(worker, "run")
         assert callable(worker.run)
+
+    def test_ask_job_worker_forwards_external_context_into_runtime_input(self):
+        import ast
+        import inspect
+        import textwrap
+
+        from woobe_workers.consumers.agent.ask_job_worker import AskJobWorker
+
+        tree = ast.parse(textwrap.dedent(inspect.getsource(AskJobWorker._process_job)))
+        ask_input_calls = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "AskInput"
+        ]
+
+        assert len(ask_input_calls) == 1
+        keywords = {item.arg: item.value for item in ask_input_calls[0].keywords}
+        assert "external_context" in keywords
+        value = keywords["external_context"]
+        assert isinstance(value, ast.Call)
+        assert isinstance(value.func, ast.Attribute)
+        assert value.func.attr == "get"
+        assert isinstance(value.args[0], ast.Constant)
+        assert value.args[0].value == "external_context"
+
 
     def test_ask_job_worker_resolves_context_assembler_through_public_boundary(self):
         import ast

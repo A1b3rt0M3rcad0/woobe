@@ -287,6 +287,21 @@ describe('streamNetworkExecution idempotency and reattach', () => {
     expect(bodyFrom(fetchMock, 0).idempotency_key).toBe('00000000-0000-4000-8000-000000000000')
   })
 
+  it('sends External Context on the initial Network execution request', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(terminalResponse())
+    vi.stubGlobal('fetch', fetchMock)
+
+    await streamNetworkExecution({
+      ...streamInput('stable-key'),
+      externalContext: { customer_id: 'cus-123', current_page: '/billing' },
+    }, { onEvent: vi.fn() })
+
+    expect(bodyFrom(fetchMock, 0).external_context).toEqual({
+      customer_id: 'cus-123',
+      current_page: '/billing',
+    })
+  })
+
   it('preserves an idempotency key supplied by the caller', async () => {
     const randomUUID = vi.fn(() => {
       throw new Error('randomUUID must not be called')

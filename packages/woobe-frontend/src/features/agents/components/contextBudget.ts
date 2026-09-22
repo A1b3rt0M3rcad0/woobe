@@ -1,4 +1,4 @@
-import type { ProviderModel } from '@/features/provider-models/types'
+export { providerModelCapabilities } from '@/features/provider-models/capabilities'
 
 export type ContextBudgetConfig = {
   maxInputUnits: number | null
@@ -38,39 +38,6 @@ export function nonNegativeInteger(value: unknown, fallback = 0): number {
       ? Number(value)
       : Number.NaN
   return Number.isInteger(parsed) && parsed >= 0 ? parsed : fallback
-}
-
-export function providerModelCapabilities(model: ProviderModel | null | undefined) {
-  const metadata = recordValue(model?.metadata)
-  const catalog = recordValue(metadata.catalog)
-  const capabilities = recordValue(metadata.capabilities)
-  const raw = recordValue(metadata.provider_model_raw)
-  const rawTopProvider = recordValue(raw.top_provider)
-  return {
-    contextWindow: positiveIntegerOrNull(
-      metadata.context_window
-      ?? metadata.context_length
-      ?? metadata.max_context_tokens
-      ?? metadata.max_input_tokens
-      ?? catalog.context_window
-      ?? catalog.context_length
-      ?? catalog.max_context_tokens
-      ?? catalog.max_input_tokens
-      ?? raw.context_window
-      ?? raw.context_length
-      ?? raw.max_context_tokens
-      ?? raw.max_input_tokens
-      ?? rawTopProvider.context_length,
-    ),
-    maxOutputTokens: positiveIntegerOrNull(
-      metadata.max_output_tokens
-      ?? capabilities.max_output_tokens
-      ?? catalog.max_output_tokens
-      ?? raw.max_output_tokens
-      ?? raw.max_completion_tokens
-      ?? rawTopProvider.max_completion_tokens,
-    ),
-  }
 }
 
 export function readContextBudget(runtimeConfig: Record<string, unknown>): ContextBudgetConfig {

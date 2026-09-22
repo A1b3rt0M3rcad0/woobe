@@ -8,9 +8,11 @@ import { CreateToolModal } from '@/features/playground/components/CreateToolModa
 import { EditToolModal } from '@/features/playground/components/EditToolModal'
 import { ImportToolsModal } from '@/features/playground/components/ImportToolsModal'
 import { toolPermissionsFromTools, useAgentEditor } from '@/features/playground/AgentEditorContext'
+import { useProjectEnvironmentKeys } from '@/features/projects/hooks'
 import { AgentToolCard } from '@/features/tools/components/AgentToolCard'
 import { isHttpToolGroup } from '@/features/tools/httpToolContract'
 import { useTools } from '@/features/tools/hooks'
+import { getToolRuntimeCompatibility } from '@/features/tools/toolRuntimeDependencies'
 import type { HttpToolConfig, McpToolPermission, Tool } from '@/features/tools/types'
 
 function initialPermissionsForTool(tool: Tool): Record<string, McpToolPermission> {
@@ -29,6 +31,7 @@ function initialPermissionsForTool(tool: Tool): Record<string, McpToolPermission
 
 export function AgentToolsSettings({ projectId, agentId }: { projectId: string; agentId: string }) {
   const toolsQuery = useTools(projectId)
+  const projectEnvironmentQuery = useProjectEnvironmentKeys(projectId)
   const tools = toolsQuery.data ?? []
   const { state, setField, setState } = useAgentEditor()
   const [createOpen, setCreateOpen] = useState(false)
@@ -36,11 +39,41 @@ export function AgentToolsSettings({ projectId, agentId }: { projectId: string; 
   const [editingTool, setEditingTool] = useState<Tool | null>(null)
 
   const selectedIds = new Set(state.toolIds)
+  const externalContextFields = new Set(
+    state.externalContextContract
+      && typeof state.externalContextContract === 'object'
+      && !Array.isArray(state.externalContextContract)
+      ? Object.keys(state.externalContextContract)
+      : [],
+  )
+  const projectEnvironmentKeys = projectEnvironmentQuery.isSuccess
+    ? new Set((projectEnvironmentQuery.data || []).map((item) => item.key))
+    : null
   const selected = state.toolIds.map((id) => tools.find((tool) => tool.id === id)).filter((tool): tool is Tool => Boolean(tool))
   const refreshTools = async () => { await toolsQuery.refetch() }
 
   const addTool = (tool: Tool) => {
     if (selectedIds.has(tool.id)) return
+    const compatibility = getToolRuntimeCompatibility(
+      tool,
+      externalContextFields,
+      projectEnvironmentKeys,
+    )
+    if (!compatibility.compatible) {
+      const reasons = [
+        compatibility.missingExternalContext.length > 0
+          ? `Missing External Context: ${compatibility.missingExternalContext.join(', ')}`
+          : null,
+        compatibility.missingProjectEnvironment.length > 0
+          ? `Missing Project Environment: ${compatibility.missingProjectEnvironment.join(', ')}`
+          : null,
+        compatibility.projectEnvironmentUnavailable
+          ? 'Project Environment keys are unavailable'
+          : null,
+      ].filter((item): item is string => Boolean(item))
+      toast.error(`${tool.name} cannot be added to this Agent. ${reasons.join('. ')}`)
+      return
+    }
     const initialPermissions = initialPermissionsForTool(tool)
     setState({ ...state, toolIds: [...state.toolIds, tool.id], toolPermissions: { ...state.toolPermissions, [tool.id]: initialPermissions } })
     toast.success(`${tool.name} added to the Agent Draft`)
@@ -81,7 +114,15 @@ export function AgentToolsSettings({ projectId, agentId }: { projectId: string; 
           )}
         </div>
       </section>
-      <ImportToolsModal open={importOpen} onClose={() => setImportOpen(false)} projectId={projectId} importedToolIds={selectedIds} onImport={addTool} />
+      <ImportToolsModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        projectId={projectId}
+        importedToolIds={selectedIds}
+        externalContextFields={externalContextFields}
+        projectEnvironmentKeys={projectEnvironmentKeys}
+        onImport={addTool}
+      />
       <CreateToolModal open={createOpen} onClose={() => setCreateOpen(false)} projectId={projectId} agentId={agentId} onCreated={(tool) => { if (tool) addTool(tool); void refreshTools() }} />
       <EditToolModal tool={editingTool} onClose={() => setEditingTool(null)} onSaved={() => { setEditingTool(null); void refreshTools() }} />
     </div>

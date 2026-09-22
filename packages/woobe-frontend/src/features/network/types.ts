@@ -99,6 +99,7 @@ export interface NetworkVersion {
   entry_agent_release_version?: string | null
   public_output_contract?: NetworkOutputContract | null
   public_output_contract_hash?: string | null
+  effective_external_context_contract?: Record<string, unknown> | null
   agent_release_manifest?: NetworkAgentReleaseManifestItem[] | null
   agent_release_manifest_hash?: string | null
   runtime_settings_hash?: string | null
@@ -257,6 +258,8 @@ export interface NetworkReleasePreview {
   entry_agent_release_version: string | null
   public_output_contract: NetworkOutputContract | null
   public_output_contract_hash: string
+  effective_external_context_contract?: Record<string, unknown> | null
+  effective_external_context_contract_hash?: string | null
   agent_release_manifest: NetworkAgentReleaseManifestItem[]
   internal_warnings: string[]
   reused_agent_count: number

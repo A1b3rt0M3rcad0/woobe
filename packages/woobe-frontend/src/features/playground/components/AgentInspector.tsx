@@ -1,12 +1,10 @@
-import { useState } from 'react'
-import { ChevronRight, Edit3, Lock, Maximize2, Minimize2, Rocket } from 'lucide-react'
+import { ChevronRight, Edit3, Lock, Rocket } from 'lucide-react'
 import { EmptyStatePanel, SegmentedControl } from '@woobe/ui'
 import { AgentConfigurationEditor } from '@/features/agents/components/AgentConfigurationEditor'
 import { ReleaseTab } from './ReleaseTab'
 import { ReleaseDetailsView } from './ReleaseDetailsView'
 import { Badge } from '@/components/ui/Badge'
 import { ScrollArea } from '@/components/ui/ScrollArea'
-import { cn } from '@/lib/utils'
 import type { Agent, AgentRelease, RuntimeEnvironment } from '@/features/agents/types'
 
 interface AgentInspectorProps {
@@ -74,7 +72,6 @@ export function AgentInspector({
   onTabChange,
   onCollapse,
 }: AgentInspectorProps) {
-  const [expanded, setExpanded] = useState(false)
   const resolvedActiveTab = activeTab === 'versions' ? 'versions' : 'editor'
   const editorLabel = environment === 'draft' ? 'Editor' : 'Snapshot'
   const editorContent = environment === 'draft'
@@ -84,10 +81,7 @@ export function AgentInspector({
   return (
     <aside
       aria-label="Agent Inspector"
-      className={cn(
-        'fixed bottom-0 right-0 top-playground-inspector z-workspace flex w-full max-w-inspector shrink-0 flex-col border-l border-border bg-surface transition-[width,max-width] duration-200 lg:static lg:z-auto lg:bg-surface/[0.78]',
-        expanded ? 'lg:w-inspector-expanded lg:max-w-inspector-expanded' : 'lg:w-inspector lg:max-w-inspector',
-      )}
+      className="fixed bottom-0 right-0 top-playground-inspector z-workspace flex w-[min(94vw,32.5rem)] max-w-[94vw] shrink-0 flex-col border-l border-border bg-surface lg:static lg:z-auto lg:w-inspector-workspace lg:max-w-inspector-workspace lg:bg-surface/[0.78]"
     >
       <div className="flex h-control shrink-0 items-center gap-ui-sm border-b border-border bg-background/20 px-ui-md">
         <div className="min-w-0 flex-1">
@@ -105,16 +99,6 @@ export function AgentInspector({
           className="shrink-0"
         />
 
-        <button
-          type="button"
-          onClick={() => setExpanded(current => !current)}
-          className="hidden h-control-segment w-control-segment items-center justify-center rounded-control border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-control hover:text-slate-50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-primary/40 lg:flex"
-          aria-label={expanded ? 'Restore Inspector width' : 'Expand Inspector'}
-          title={expanded ? 'Restore Inspector width' : 'Expand Inspector'}
-          aria-pressed={expanded}
-        >
-          {expanded ? <Minimize2 className="h-icon w-icon" /> : <Maximize2 className="h-icon w-icon" />}
-        </button>
         {onCollapse ? (
           <button
             type="button"

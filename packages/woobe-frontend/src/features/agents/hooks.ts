@@ -28,6 +28,7 @@ import {
   rollbackRelease,
   updateAgent,
   updateAgentRuntimeEnvironment,
+  updateAgentRuntimeEnvironmentContext,
   updateContract,
 } from './api'
 import type { PromoteReleaseOptions } from './api'
@@ -84,6 +85,7 @@ export function useUpdateAgentRuntimeEnvironment(agentId?: string, projectId?: s
         ...current,
         [updated.environment]: {
           enabled: updated.enabled,
+          external_context_values: updated.external_context_values,
           updated_by: updated.updated_by,
           updated_at: updated.updated_at,
         },
@@ -91,6 +93,23 @@ export function useUpdateAgentRuntimeEnvironment(agentId?: string, projectId?: s
       queryClient.invalidateQueries({ queryKey: ['agent-runtime-environments', projectId, agentId] })
       queryClient.invalidateQueries({ queryKey: ['agent', agentId] })
       queryClient.invalidateQueries({ queryKey: ['agents', projectId] })
+    },
+  })
+}
+export function useUpdateAgentRuntimeEnvironmentContext(agentId?: string, projectId?: string) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ environment, values }: { environment: RuntimeEnvironment; values: Record<string, unknown> }) => updateAgentRuntimeEnvironmentContext(agentId!, projectId!, environment, values),
+    onSuccess: (updated) => {
+      queryClient.setQueryData<RuntimeEnvironmentStates>(['agent-runtime-environments', projectId, agentId], (current) => current ? {
+        ...current,
+        [updated.environment]: {
+          enabled: updated.enabled,
+          external_context_values: updated.external_context_values,
+          updated_by: updated.updated_by,
+          updated_at: updated.updated_at,
+        },
+      } : current)
     },
   })
 }

@@ -4,6 +4,7 @@ from typing import Any
 
 from modules.agent.application.interfaces.http_tool_contract import (
     allowed_http_group_routes,
+    compile_http_group_route_contract,
     compile_http_tool_contract,
     is_http_tool_group,
 )
@@ -12,6 +13,7 @@ from modules.agent.application.interfaces.tool_types import (
     MCP_PROTOCOL,
     normalize_tool_protocol,
 )
+from modules.agent.application.tool_context_bindings import strip_bound_parameters
 from modules.agent.domain.enums import ToolType
 from modules.agent.domain.mcp_permissions import allowed_mcp_discovered_tools
 
@@ -91,6 +93,11 @@ def _mcp_provider_tool_definitions(
         }
         if not isinstance(parameters, dict):
             parameters = {"type": "object", "properties": {}, "required": []}
+        parameters = strip_bound_parameters(
+            parameters,
+            config,
+            target_identifier=remote_name,
+        )
         description = (
             discovered.get("description")
             or getattr(tool, "description", None)
@@ -133,14 +140,15 @@ def _http_provider_tool_definitions(
             _safe_name(f"{parent_name}_{operation_id}"),
             used_names,
         )
-        parameters = route.get("input_schema") or {
-            "type": "object",
-            "properties": {},
-            "required": [],
-            "additionalProperties": False,
-        }
-        if not isinstance(parameters, dict):
-            parameters = {"type": "object", "properties": {}, "required": []}
+        parameters = compile_http_group_route_contract(
+            config,
+            route_id,
+        ).input_schema
+        parameters = strip_bound_parameters(
+            parameters,
+            config,
+            target_identifier=route_id,
+        )
         route_description = str(
             route.get("description") or route.get("name") or operation_id
         )
@@ -192,7 +200,7 @@ def agent_tool_to_openai_definition(tool: Any) -> dict[str, Any]:
                 "name": name,
                 "description": getattr(tool, "description", None)
                 or f"HTTP {config.get('method', 'GET')} {config.get('url', '')}",
-                "parameters": contract.input_schema,
+                "parameters": strip_bound_parameters(contract.input_schema, config),
             },
         }
 
@@ -213,7 +221,7 @@ def agent_tool_to_openai_definition(tool: Any) -> dict[str, Any]:
                 "description": getattr(tool, "description", None)
                 or config.get("description")
                 or f"MCP {server_name}/{tool_name}",
-                "parameters": input_schema,
+                "parameters": strip_bound_parameters(input_schema, config),
             },
         }
 

@@ -47,14 +47,14 @@ jobs:
 
       - name: Tear down validation stack
         if: always()
-        run: docker compose -f compose.test.yaml down -v --remove-orphans
+        run: timeout 120 docker compose -f compose.test.yaml down -v --remove-orphans || true
 
       - name: Cleanup Docker access
         if: always()
         run: bash scripts/ci/cleanup_docker_access.sh
 
       - name: Upload backend test evidence
-        if: ${{ always() && github.event_name == 'workflow_dispatch' }}
+        if: always()
         continue-on-error: true
         uses: actions/upload-artifact@v4
         with:

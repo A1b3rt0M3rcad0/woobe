@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ApiError } from '@/lib/api/errors'
 import {
   getAgentRuns,
+  getProjectRuns,
   getTraces,
   getTraceDetail,
   getTraceModelInvocations,
@@ -12,7 +13,13 @@ import {
   type AskJobResponse,
   type GetTracesParams,
 } from './api'
-import type { AgentRunDetail, ContextModelInvocation, Trace, TraceDetail } from './types'
+import type {
+  AgentRunDetail,
+  ContextModelInvocation,
+  ProjectRunLedger,
+  Trace,
+  TraceDetail,
+} from './types'
 
 const TRACE_REFRESH_INTERVAL_MS = 1_500
 const IDLE_TRACE_LIST_REFRESH_INTERVAL_MS = 10_000
@@ -93,6 +100,26 @@ export function useTraces(projectId?: string, networkId?: string) {
     refetchInterval: (query) => hasActiveTrace(query.state.data as Trace[] | undefined)
       ? TRACE_REFRESH_INTERVAL_MS
       : IDLE_TRACE_LIST_REFRESH_INTERVAL_MS,
+    refetchIntervalInBackground: false,
+  })
+}
+
+export function useProjectRuns(projectId?: string, networkId?: string) {
+  return useQuery<ProjectRunLedger>({
+    queryKey: ['project-runs', { projectId, networkId }],
+    queryFn: () => getProjectRuns({
+      projectId: projectId!,
+      networkId,
+      limit: 100,
+    }),
+    enabled: Boolean(projectId),
+    staleTime: 2_000,
+    refetchInterval: (query) => {
+      const ledger = query.state.data
+      return ledger?.summary.active_top_level_runs
+        ? TRACE_REFRESH_INTERVAL_MS
+        : IDLE_TRACE_LIST_REFRESH_INTERVAL_MS
+    },
     refetchIntervalInBackground: false,
   })
 }

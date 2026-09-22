@@ -43,6 +43,7 @@ class ChatRuntimeRequest:
     message_request_id: UUID
     message: str
     metadata: dict
+    external_context: dict
     session_source: str
     created: bool
     existing_run_id: UUID | None = None

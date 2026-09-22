@@ -13,11 +13,22 @@ export type RuntimeEnvironment = 'draft' | 'staging' | 'production'
 
 export interface RuntimeEnvironmentState {
   enabled: boolean
+  external_context_values?: Record<string, unknown>
   updated_by?: string | null
   updated_at?: string | null
 }
 
 export type RuntimeEnvironmentStates = Record<RuntimeEnvironment, RuntimeEnvironmentState>
+
+export interface ExternalContextFieldContract {
+  schema?: Record<string, unknown>
+  required?: boolean
+  default?: unknown
+  model?: { expose?: boolean }
+  description?: string
+}
+
+export type ExternalContextContract = Record<string, ExternalContextFieldContract>
 
 /** Backend-owned presentation contract for one registered Context Manager. */
 export interface ContextAssemblerDescriptor {
@@ -267,6 +278,7 @@ export interface AgentRelease {
   system_prompt?: string
   response_format?: Record<string, unknown>
   output_schema?: Record<string, unknown>
+  external_context_contract?: ExternalContextContract | null
   provider?: string
   model?: string
   provider_credential_id?: string
@@ -319,6 +331,7 @@ export interface CreateReleaseRequest {
   system_prompt?: string
   response_format?: Record<string, unknown>
   output_schema?: Record<string, unknown>
+  external_context_contract?: ExternalContextContract | null
   provider?: string
   model?: string
   provider_credential_id?: string

@@ -31,6 +31,11 @@ from shared.infra.errors import (
     ConflictError,
     NotFoundError,
 )
+from shared.contracts.runtime_contracts import (
+    RuntimeContractSnapshot,
+    effective_external_context_contract_schema,
+    normalize_contract_schema,
+)
 from shared.runtime_environment import assert_runtime_environment_enabled
 from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
 from shared.security.tenancy import TenantAuthorizer
@@ -703,6 +708,54 @@ class NetworkBoundaryService(NetworkApplicationService):
             return await NetworkRunDiagnosticsReader(session).get(
                 execution_id,
                 project_id,
+            )
+
+    async def runtime_contract_snapshot(
+        self,
+        *,
+        network_id: UUID,
+        project_id: UUID,
+        environment: str,
+    ) -> RuntimeContractSnapshot:
+        if environment not in {"staging", "production"}:
+            raise ConflictError("Runtime Key binding is incomplete")
+
+        async with self._session_factory() as session:
+            network = await self._require_network(session, network_id, project_id)
+            version_id = (
+                network.staging_version_id
+                if environment == "staging"
+                else network.production_version_id
+            )
+            if version_id is None:
+                raise NotFoundError(f"Network {environment} Release not found")
+
+            version = await session.get(NetworkVersionModel, version_id)
+            if (
+                version is None
+                or version.network_id != network_id
+                or version.project_id != project_id
+            ):
+                raise NotFoundError("Network Release not found")
+
+            public_output_contract = getattr(version, "public_output_contract", None)
+            output_contract = None
+            if isinstance(public_output_contract, dict) and public_output_contract.get(
+                "enabled", True
+            ):
+                schema = public_output_contract.get("schema")
+                json_schema = public_output_contract.get("json_schema")
+                if schema is None and isinstance(json_schema, dict):
+                    schema = json_schema.get("schema")
+                output_contract = normalize_contract_schema(schema)
+
+            return RuntimeContractSnapshot(
+                release_id=str(version.id),
+                release_version=str(version.version),
+                output_contract=output_contract,
+                external_context=effective_external_context_contract_schema(
+                    getattr(version, "effective_external_context_contract", None)
+                ),
             )
 
     async def assert_runtime_environment(

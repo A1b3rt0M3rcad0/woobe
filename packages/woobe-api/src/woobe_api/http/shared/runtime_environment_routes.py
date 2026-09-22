@@ -5,7 +5,7 @@ from uuid import UUID
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
-from shared.infra.errors import AuthorizationError
+from shared.infra.errors import AuthorizationError, ValidationError
 from shared.runtime_environment import (
     build_runtime_environment_service,
     runtime_states_payload,
@@ -17,7 +17,8 @@ router = APIRouter(tags=["runtime environments"])
 
 class RuntimeEnvironmentUpdateRequest(BaseModel):
     project_id: UUID
-    enabled: bool
+    enabled: bool | None = None
+    external_context_values: dict[str, object] | None = None
 
 
 def _authorize_project(request: Request, project_id: UUID, *, write: bool) -> UUID | None:
@@ -58,14 +59,30 @@ async def _update_state(
     payload: RuntimeEnvironmentUpdateRequest,
 ):
     user_id = _authorize_project(request, payload.project_id, write=True)
-    state = await build_runtime_environment_service().set_enabled(
-        target_type=target_type,  # type: ignore[arg-type]
-        target_id=target_id,
-        project_id=payload.project_id,
-        environment=environment,
-        enabled=payload.enabled,
-        updated_by=user_id,
-    )
+    if payload.enabled is None and payload.external_context_values is None:
+        raise ValidationError("Runtime environment update requires enabled or external_context_values")
+
+    service = build_runtime_environment_service()
+    state = None
+    if payload.enabled is not None:
+        state = await service.set_enabled(
+            target_type=target_type,  # type: ignore[arg-type]
+            target_id=target_id,
+            project_id=payload.project_id,
+            environment=environment,
+            enabled=payload.enabled,
+            updated_by=user_id,
+        )
+    if payload.external_context_values is not None:
+        state = await service.set_external_context_values(
+            target_type=target_type,  # type: ignore[arg-type]
+            target_id=target_id,
+            project_id=payload.project_id,
+            environment=environment,
+            values=payload.external_context_values,
+            updated_by=user_id,
+        )
+    assert state is not None
     return {"success": True, "data": state.to_dict()}
 
 

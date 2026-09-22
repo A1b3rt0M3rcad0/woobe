@@ -6,7 +6,12 @@ export type HostMessage =
       instanceId: string;
       surfaceId: string;
       type: "init";
-      payload: { token: string; hostOrigin: string; apiBaseUrl: string };
+      payload: {
+        token: string;
+        hostOrigin: string;
+        apiBaseUrl: string;
+        externalContext?: Record<string, unknown>;
+      };
     }
   | {
       protocolVersion: 1;
@@ -14,6 +19,13 @@ export type HostMessage =
       surfaceId: string;
       type: "token.update";
       payload: { token: string };
+    }
+  | {
+      protocolVersion: 1;
+      instanceId: string;
+      surfaceId: string;
+      type: "context.update";
+      payload: { externalContext: Record<string, unknown> };
     }
   | {
       protocolVersion: 1;
@@ -57,11 +69,15 @@ export function isHostMessage(value: unknown): value is HostMessage {
       isRecord(value.payload) &&
       typeof value.payload.token === "string" &&
       typeof value.payload.hostOrigin === "string" &&
-      typeof value.payload.apiBaseUrl === "string"
+      typeof value.payload.apiBaseUrl === "string" &&
+      (value.payload.externalContext === undefined || isRecord(value.payload.externalContext))
     );
   }
   if (value.type === "token.update") {
     return isRecord(value.payload) && typeof value.payload.token === "string";
+  }
+  if (value.type === "context.update") {
+    return isRecord(value.payload) && isRecord(value.payload.externalContext);
   }
   return value.type === "open" || value.type === "close" || value.type === "run.cancel";
 }

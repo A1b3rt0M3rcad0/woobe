@@ -5,6 +5,33 @@ from typing import Any
 from uuid import uuid4
 
 
+_EVENT_ORDER = {
+    "http.request.received": 10,
+    "agent.execution.started": 20,
+    "agent.prepare.started": 30,
+    "agent.prepare.completed": 40,
+    "llm.call.started": 50,
+    "tool.call.started": 50,
+    "rag.retrieval.completed": 55,
+    "llm.call.completed": 60,
+    "tool.call.completed": 60,
+    "structured_output.parse.completed": 70,
+    "message.persistence.started": 80,
+    "message.persistence.completed": 90,
+    "agent.execution.completed": 100,
+    "http.response.prepared": 110,
+}
+
+
+def _event_sort_key(event: dict[str, Any]) -> tuple[float, int, str]:
+    event_type = str(event.get("event_type") or "")
+    return (
+        _ts(event.get("occurred_at")),
+        _EVENT_ORDER.get(event_type, 65),
+        event_type,
+    )
+
+
 def _ts(value: str | None) -> float:
     if not value:
         return float("inf")
@@ -129,12 +156,157 @@ def build_operation_events(trace_id: str, timeline: list[dict[str, Any]]) -> lis
                 duration_ms=None,
                 attributes=attributes,
             ))
-    events.sort(key=lambda event: (_ts(event.get("occurred_at")), event.get("event_type", "")))
+    events.sort(key=_event_sort_key)
     return events
 
 
+def build_execution_timeline_events(
+    trace_id: str,
+    *,
+    context: Any,
+    timeline: list[dict[str, Any]],
+    completed_at: str,
+    total_latency_ms: int | float | None,
+    output_parse_error: str | None,
+    completion_attributes: dict[str, Any] | None = None,
+    include_http_boundaries: bool = False,
+) -> list[dict[str, Any]]:
+    """Build the compatibility execution timeline from canonical runtime telemetry.
+
+    The durable journal remains the source of truth. This is a read-model snapshot
+    consumed by Observability and the Run inspector so event_journal executions keep
+    the same detailed timeline contract as legacy finalization.
+    """
+
+    request_received_at = (
+        getattr(context, "request_received_at", None) or completed_at
+    )
+    execution_started_at = (
+        getattr(context, "execution_started_at", None) or request_received_at
+    )
+    events: list[dict[str, Any]] = []
+
+    if include_http_boundaries:
+        events.append(
+            _event(
+                trace_id,
+                "http.request.received",
+                request_received_at,
+                phase="request",
+                status="success",
+                started_at=request_received_at,
+                ended_at=request_received_at,
+                duration_ms=0,
+                span_id=trace_id,
+                parent_span_id=None,
+                attributes={
+                    "client_sent_at": getattr(context, "client_sent_at", None),
+                },
+            )
+        )
+
+    events.append(
+        _event(
+            trace_id,
+            "agent.execution.started",
+            execution_started_at,
+            phase="execution",
+            status="running",
+            started_at=execution_started_at,
+            ended_at=None,
+            duration_ms=None,
+            span_id=trace_id,
+            parent_span_id=None,
+            attributes={},
+        )
+    )
+
+    prepare_started_at = getattr(context, "prepare_started_at", None)
+    if prepare_started_at:
+        prepare_ended_at = (
+            getattr(context, "prepare_ended_at", None) or prepare_started_at
+        )
+        prepare_span = str(uuid4())
+        events.extend(
+            [
+                _event(
+                    trace_id,
+                    "agent.prepare.started",
+                    prepare_started_at,
+                    phase="prepare",
+                    status="running",
+                    started_at=prepare_started_at,
+                    ended_at=None,
+                    duration_ms=None,
+                    span_id=prepare_span,
+                ),
+                _event(
+                    trace_id,
+                    "agent.prepare.completed",
+                    prepare_ended_at,
+                    phase="prepare",
+                    status="success",
+                    started_at=prepare_started_at,
+                    ended_at=prepare_ended_at,
+                    duration_ms=getattr(context, "prepare_latency_ms", None),
+                    span_id=prepare_span,
+                ),
+            ]
+        )
+
+    events.extend(build_operation_events(trace_id, timeline))
+    events.extend(
+        [
+            _event(
+                trace_id,
+                "structured_output.parse.completed",
+                completed_at,
+                phase="structured_output",
+                status="success" if output_parse_error is None else "error",
+                started_at=None,
+                ended_at=completed_at,
+                duration_ms=None,
+                attributes={
+                    "error": output_parse_error,
+                    "duration_measured": False,
+                },
+            ),
+            _event(
+                trace_id,
+                "agent.execution.completed",
+                completed_at,
+                phase="execution",
+                status="success",
+                started_at=execution_started_at,
+                ended_at=completed_at,
+                duration_ms=total_latency_ms,
+                span_id=trace_id,
+                parent_span_id=None,
+                attributes=completion_attributes or {},
+            ),
+        ]
+    )
+
+    if include_http_boundaries:
+        events.append(
+            _event(
+                trace_id,
+                "http.response.prepared",
+                completed_at,
+                phase="response",
+                status="success",
+                started_at=None,
+                ended_at=completed_at,
+                duration_ms=None,
+                attributes={},
+            )
+        )
+
+    return sequence_events(events)
+
+
 def sequence_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    events.sort(key=lambda event: (_ts(event.get("occurred_at")), event.get("event_type", "")))
+    events.sort(key=_event_sort_key)
     for index, event in enumerate(events, start=1):
         event["sequence"] = index
     return events

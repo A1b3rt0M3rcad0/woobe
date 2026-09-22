@@ -632,4 +632,4 @@ class IssueSessionTokenRequest(BaseModel):
 class StreamChatMessageRequest(BaseModel):
     message: str = Field(min_length=1, max_length=32768)
     metadata: dict[str, Any] | None = None
-
+    external_context: dict[str, Any] | None = None

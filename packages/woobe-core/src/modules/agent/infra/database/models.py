@@ -101,6 +101,11 @@ class AgentRuntimeEnvironmentStateModel(BaseModel):
         default=True,
         server_default=text("true"),
     )
+    external_context_values: Mapped[dict[str, Any]] = mapped_column(
+        JSONB,
+        default=dict,
+        server_default=text("'{}'::jsonb"),
+    )
     updated_by: Mapped[UUID | None] = mapped_column(nullable=True)
 
 
@@ -213,6 +218,7 @@ class AgentReleaseModel(BaseModel):
     system_prompt: Mapped[str | None] = mapped_column(Text)
     response_format: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     output_schema: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    external_context_contract: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     provider: Mapped[str | None] = mapped_column(String(64))
     model: Mapped[str | None] = mapped_column(String(255))
     provider_credential_id: Mapped[UUID | None] = mapped_column(

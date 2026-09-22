@@ -11,6 +11,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from modules.agent.application.dtos.behavior_dtos import canonicalize_behavior_spec
 from modules.agent.application.dtos.runtime_dtos import UsageInfo
 from modules.agent.application.interfaces.execution_context import current_execution
+from modules.agent.infra.execution.trace_event_builder import build_execution_timeline_events
 from modules.agent.domain.enums import Provider, SessionMode
 from modules.agent.domain.system_instructions import assemble_canonical_system_instructions
 from modules.agent.infra.execution.deferred_run_metrics import build_deferred_agent_metrics
@@ -251,6 +252,16 @@ class FrozenSnapshotStructuredOutputRuntime(TransactionBoundedStructuredOutputRu
         metrics = build_deferred_agent_metrics(context, output)
         output.usage = UsageInfo.model_validate(metrics.usage)
         output.diagnostics = metrics.diagnostics
+        output.execution_events = build_execution_timeline_events(
+            str(output.trace_id or context.trace_id),
+            context=context,
+            timeline=list(context.execution.timeline),
+            completed_at=metrics.completed_at,
+            total_latency_ms=metrics.total_latency_ms,
+            output_parse_error=output.output_parse_error,
+            completion_attributes={"diagnostics": metrics.diagnostics},
+            include_http_boundaries=False,
+        )
         object.__setattr__(output, "llm_calls", metrics.llm_calls)
         object.__setattr__(output, "run_started_at", metrics.started_at)
         object.__setattr__(output, "run_completed_at", metrics.completed_at)
@@ -317,6 +328,14 @@ class FrozenSnapshotStructuredOutputRuntime(TransactionBoundedStructuredOutputRu
                 settings.pop("response_format", None)
             else:
                 settings["response_format"] = response_format
+        if "external_context_contract" in snapshot:
+            external_context_contract = deepcopy(
+                snapshot.get("external_context_contract")
+            )
+            if external_context_contract is None:
+                settings.pop("external_context_contract", None)
+            else:
+                settings["external_context_contract"] = external_context_contract
         if "runtime_config" in snapshot:
             settings["runtime_config"] = deepcopy(snapshot.get("runtime_config") or {})
         if "knowledge_version_id" in snapshot:

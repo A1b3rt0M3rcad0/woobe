@@ -4,16 +4,18 @@ import { Workflow } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button, EmptyStatePanel, Field, FieldLabel, Input, MetricTile, PanelHeader, SectionBlock, Select, Textarea } from '@woobe/ui'
 
-import { useUpdateNetworkMetadata } from '@/features/network/hooks'
+import { useNetworkExternalContextContract, useUpdateNetworkMetadata } from '@/features/network/hooks'
 
 import { DEFAULT_NETWORK_SETTINGS } from '../editor/networkDefinitionMapper'
 import type { NetworkDefinition } from '../types'
+import type { Environment } from './networkWorkspaceTypes'
 import type { NetworkDefinitionChange } from '../editor/types'
 import { NetworkInspectorModal } from './NetworkInspectorModal'
 
 export function NetworkOverviewInspector({
   definition,
   readOnly,
+  environment = 'draft',
   name,
   description,
   onMetadata: _onMetadata,
@@ -21,6 +23,7 @@ export function NetworkOverviewInspector({
 }: {
   definition: NetworkDefinition
   readOnly: boolean
+  environment?: Environment
   name: string
   description: string
   onMetadata: (metadata: { name?: string; description?: string }) => void
@@ -28,6 +31,7 @@ export function NetworkOverviewInspector({
 }) {
   const { projectId, networkId } = useParams<{ projectId: string; networkId: string }>()
   const metadataMutation = useUpdateNetworkMetadata(projectId, networkId)
+  const externalContextQuery = useNetworkExternalContextContract(networkId, projectId, environment)
   const [identityOpen, setIdentityOpen] = useState(false)
   const [runtimeOpen, setRuntimeOpen] = useState(false)
   const [metadataOverridden, setMetadataOverridden] = useState(false)
@@ -102,6 +106,28 @@ export function NetworkOverviewInspector({
             <MetricTile label="Delegations" value={definition.edges.length} />
             <MetricTile label="Mode" value={definition.settings.session_mode} />
           </div>
+        </SectionBlock>
+
+        <SectionBlock density="compact" title="External Context" description="Effective contract composed from the Agents in this environment.">
+          {Object.keys(externalContextQuery.data ?? {}).length ? (
+            <div className="divide-y divide-border/70 border-y border-border/70">
+              {Object.entries(externalContextQuery.data ?? {}).map(([fieldName, rawField]) => {
+                const field = rawField && typeof rawField === 'object' && !Array.isArray(rawField) ? rawField as Record<string, unknown> : {}
+                const schema = field.schema && typeof field.schema === 'object' && !Array.isArray(field.schema) ? field.schema as Record<string, unknown> : {}
+                const consumers = field.consumers && typeof field.consumers === 'object' && !Array.isArray(field.consumers) ? field.consumers as Record<string, unknown> : {}
+                const consumerNames = Object.keys(consumers).map((nodeId) => definition.nodes.find((node) => node.id === nodeId)?.label ?? nodeId)
+                return (
+                  <div key={fieldName} className="grid grid-cols-[minmax(0,1fr)_80px_minmax(0,1.4fr)] items-center gap-ui-sm py-ui-xs font-mono text-system-label">
+                    <span className="truncate text-accent-foreground">{fieldName}</span>
+                    <span className="capitalize text-muted-foreground">{String(schema.type ?? 'any')}</span>
+                    <span className="truncate text-right text-muted-foreground" title={consumerNames.join(', ')}>{consumerNames.join(', ') || '—'}</span>
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="font-sans text-product-caption text-muted-foreground">No Agent in this Network declares External Context for {environment}.</p>
+          )}
         </SectionBlock>
 
         <SectionBlock

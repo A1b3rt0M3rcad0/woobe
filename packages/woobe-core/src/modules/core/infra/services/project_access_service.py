@@ -23,6 +23,19 @@ class ProjectAccessService:
                 raise AuthorizationError("Workspace owner or admin access is required")
             return role
 
+    async def require_project_access(
+        self,
+        *,
+        user_id: UUID,
+        project_id: UUID,
+    ) -> None:
+        async with self._session_factory() as session:
+            workspace_id = await self._project_workspace_id(session, project_id)
+            role = await self._workspace_role(session, user_id, workspace_id)
+            if role in {"owner", "admin"}:
+                return
+            await self._require_project_member(session, user_id, project_id)
+
     async def list_accessible_projects(
         self,
         *,

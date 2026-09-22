@@ -39,6 +39,7 @@ async def test_create_and_observe_switches_immediately_to_canonical_run_stream(
         project_id=project_id,
         network_session_id=session_id,
         message="hello",
+        external_context={"customer_id": "cus-1"},
         idempotency_key="stable-key",
         expected_draft_revision=4,
     )
@@ -55,6 +56,7 @@ async def test_create_and_observe_switches_immediately_to_canonical_run_stream(
         "project_id": project_id,
         "network_session_id": session_id,
         "message": "hello",
+        "external_context": {"customer_id": "cus-1"},
         "idempotency_key": "stable-key",
         "expected_draft_revision": 4,
     }

@@ -1,4 +1,4 @@
-from modules.agent.application.use_cases.trace_event_builder import build_operation_events
+from modules.agent.infra.execution.trace_event_builder import build_operation_events
 
 
 def test_operation_events_include_usage_and_http_timing():

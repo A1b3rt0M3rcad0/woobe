@@ -43,3 +43,36 @@ export interface UpdateProjectRequest {
   name?: string
   slug?: string
 }
+
+
+export type ProjectEnvironment = 'draft' | 'staging' | 'production'
+export type ProjectEnvironmentKind = 'value' | 'secret'
+
+export interface ProjectEnvironmentValueState {
+  configured: boolean
+  value: string | null
+}
+
+export interface ProjectEnvironmentKey {
+  id: string
+  project_id: string
+  key: string
+  kind: ProjectEnvironmentKind
+  values: Record<ProjectEnvironment, ProjectEnvironmentValueState>
+  used_by_tools?: ProjectEnvironmentToolReference[]
+  created_at?: string
+  updated_at?: string
+}
+
+export interface UpsertProjectEnvironmentKeyRequest {
+  kind: ProjectEnvironmentKind
+  values: Partial<Record<ProjectEnvironment, string | null>>
+  clear_environments?: ProjectEnvironment[]
+}
+
+
+export interface ProjectEnvironmentToolReference {
+  id: string
+  name: string
+}
+

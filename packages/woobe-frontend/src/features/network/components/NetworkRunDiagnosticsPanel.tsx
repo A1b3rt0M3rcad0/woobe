@@ -131,6 +131,11 @@ function ContextComposition({ context }: { context: NetworkContextOverview }) {
         {context.truncation_count > 0 ? <span className="text-amber-300">{context.truncation_count} truncated</span> : null}
       </div>
 
+      {context.budget_unknown_count > 0 ? (
+        <p className="mt-ui-sm font-sans text-system-meta leading-4 text-amber-300">
+          Input usage is still counted. For future Runs, configure the Context Window of each invoked Model or set a Custom input budget in Agent Context Configuration.
+        </p>
+      ) : null}
       <p className="mt-ui-sm font-sans text-system-meta leading-4 text-muted-foreground">Source shares use persisted Context units aggregated from child Model Invocations. They are not a proportional allocation of USD cost.</p>
     </section>
   )

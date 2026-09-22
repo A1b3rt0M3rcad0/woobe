@@ -23,6 +23,7 @@ from modules.network.background_boundary import (
 from woobe_workers.settings import WorkerSettings
 
 AgentStreamHandler = Callable[[str, dict[str, Any]], Awaitable[None]]
+_NETWORK_EXTERNAL_CONTEXT_OVERRIDE_KEY = "__network_external_context__"
 
 
 def _caused_by_empty_model_output(exception: Exception) -> bool:
@@ -50,6 +51,26 @@ def _is_public_runtime_token(payload: dict[str, Any]) -> bool:
             or (isinstance(phase, str) and phase.startswith("tool_followup_"))
         )
     )
+
+
+def _split_runtime_snapshot_override(
+    snapshot_override: dict[str, Any] | None,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    if not isinstance(snapshot_override, dict):
+        return snapshot_override, None
+
+    runtime_override = dict(snapshot_override)
+    raw_external_context = runtime_override.pop(
+        _NETWORK_EXTERNAL_CONTEXT_OVERRIDE_KEY,
+        None,
+    )
+    external_context: dict[str, Any] | None = None
+    if raw_external_context is not None:
+        if not isinstance(raw_external_context, dict):
+            raise RuntimeError("Network External Context projection is invalid")
+        external_context = dict(raw_external_context)
+
+    return runtime_override or None, external_context
 
 
 class ProjectRAIAgentInvoker:
@@ -82,6 +103,9 @@ class ProjectRAIAgentInvoker:
         stream_handler: AgentStreamHandler | None = None,
     ) -> AgentInvocationResult:
         internal_handlers = {tool.id: tool.handler for tool in internal_tools}
+        runtime_snapshot_override, external_context = _split_runtime_snapshot_override(
+            snapshot_override
+        )
 
         context = new_execution_context()
         context.project_id = project_id
@@ -117,9 +141,10 @@ class ProjectRAIAgentInvoker:
                 "defer_persistence": True,
                 **network_context,
             },
+            external_context=external_context,
             execution_context=execution_context,
             loaded_release_id=release_id,
-            snapshot_override=snapshot_override,
+            snapshot_override=runtime_snapshot_override,
         )
 
         execution_token = current_execution.set(context)
@@ -204,6 +229,9 @@ class ProjectRAIAgentInvoker:
                 sources=[item.model_dump() for item in output.sources],
                 parsed_output=output.parsed_output,
                 output_parse_error=output.output_parse_error,
+                execution_events=list(
+                    getattr(output, "execution_events", None) or []
+                ),
                 streamed_output=streamed_output,
             )
             diagnostics = getattr(output, "diagnostics", None)

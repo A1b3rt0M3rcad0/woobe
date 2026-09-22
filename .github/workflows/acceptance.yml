@@ -127,7 +127,78 @@ jobs:
         run: |
           set -euo pipefail
           uv run alembic -c packages/woobe-core/alembic.ini upgrade head
-          uv run alembic -c packages/woobe-core/alembic.ini downgrade -1
+
+          # Regression probe: 0068 was already applied on developer databases before
+          # runtime-environment External Context values were introduced. The new
+          # columns must therefore live in 0069, not in the historical 0068 revision.
+          uv run alembic -c packages/woobe-core/alembic.ini downgrade 0068
+
+          context_columns_before="$(
+            docker exec -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+              psql -U postgres -d woobe -Atv ON_ERROR_STOP=1 -c "
+                SELECT count(*)
+                FROM information_schema.columns
+                WHERE column_name = 'external_context_values'
+                  AND (
+                    (table_schema = 'agent' AND table_name = 'agent_runtime_environment_states')
+                    OR
+                    (table_schema = 'network' AND table_name = 'network_runtime_environment_states')
+                  );
+              "
+          )"
+          test "$context_columns_before" = "0"
+
+          uv run alembic -c packages/woobe-core/alembic.ini upgrade 0069
+
+          context_columns_after="$(
+            docker exec -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+              psql -U postgres -d woobe -Atv ON_ERROR_STOP=1 -c "
+                SELECT count(*)
+                FROM information_schema.columns
+                WHERE column_name = 'external_context_values'
+                  AND data_type = 'jsonb'
+                  AND is_nullable = 'NO'
+                  AND column_default LIKE '%{}%jsonb%'
+                  AND (
+                    (table_schema = 'agent' AND table_name = 'agent_runtime_environment_states')
+                    OR
+                    (table_schema = 'network' AND table_name = 'network_runtime_environment_states')
+                  );
+              "
+          )"
+          printf 'migration 0069 runtime context columns: %s\n' "$context_columns_after"
+          test "$context_columns_after" = "2"
+
+          # Also reproduce the transient feature-branch shape where a developer
+          # already had the columns while Alembic still reported revision 0068.
+          uv run alembic -c packages/woobe-core/alembic.ini downgrade 0068
+          docker exec -i -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+            psql -U postgres -d woobe -v ON_ERROR_STOP=1 <<'SQL'
+          ALTER TABLE agent.agent_runtime_environment_states
+            ADD COLUMN external_context_values JSONB NOT NULL DEFAULT '{}'::jsonb;
+          ALTER TABLE network.network_runtime_environment_states
+            ADD COLUMN external_context_values JSONB NOT NULL DEFAULT '{}'::jsonb;
+          SQL
+          uv run alembic -c packages/woobe-core/alembic.ini upgrade 0069
+
+          preexisting_context_columns="$(
+            docker exec -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
+              psql -U postgres -d woobe -Atv ON_ERROR_STOP=1 -c "
+                SELECT count(*)
+                FROM information_schema.columns
+                WHERE column_name = 'external_context_values'
+                  AND (
+                    (table_schema = 'agent' AND table_name = 'agent_runtime_environment_states')
+                    OR
+                    (table_schema = 'network' AND table_name = 'network_runtime_environment_states')
+                  );
+              "
+          )"
+          test "$preexisting_context_columns" = "2"
+
+          # This probe specifically exercises migration 0067. Pin the database to
+          # its pre-0067 state instead of assuming 0067 is always the repository head.
+          uv run alembic -c packages/woobe-core/alembic.ini downgrade 0066
 
           docker exec -i -e PGPASSWORD "$WOOBE_ACCEPTANCE_POSTGRES_CONTAINER" \
             psql -U postgres -d woobe -v ON_ERROR_STOP=1 <<'SQL'

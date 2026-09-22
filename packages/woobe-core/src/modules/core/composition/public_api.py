@@ -15,6 +15,9 @@ from modules.core.composition.composers.get_project_composer import get_project_
 from modules.core.composition.composers.get_project_overview_composer import (
     get_project_overview_composer,
 )
+from modules.core.composition.composers.get_project_runs_composer import (
+    get_project_runs_composer,
+)
 from modules.core.composition.composers.list_api_keys_composer import (
     list_api_keys_composer,
 )
@@ -39,6 +42,7 @@ __all__ = [
     "create_runtime_api_key_composer",
     "get_project_composer",
     "get_project_overview_composer",
+    "get_project_runs_composer",
     "list_api_keys_composer",
     "revoke_api_key_composer",
     "rotate_api_key_composer",

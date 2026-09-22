@@ -26,6 +26,7 @@ _EXECUTION_FIELDS = (
     "system_prompt",
     "response_format",
     "output_schema",
+    "external_context_contract",
     "provider",
     "model",
     "provider_credential_id",
