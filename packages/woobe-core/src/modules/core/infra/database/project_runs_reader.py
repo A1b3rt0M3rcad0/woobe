@@ -121,8 +121,8 @@ class SQLProjectRunsReader:
                 FROM network.network_executions AS execution
                 WHERE execution.project_id = :project_id
                   AND (
-                    :network_id IS NULL
-                    OR execution.network_id = :network_id
+                    CAST(:network_id AS uuid) IS NULL
+                    OR execution.network_id = CAST(:network_id AS uuid)
                   )
             ),
             selected_agent_runs AS (
@@ -130,7 +130,7 @@ class SQLProjectRunsReader:
                 FROM agent.agent_runs AS run
                 WHERE run.project_id = :project_id
                   AND (
-                    :network_id IS NULL
+                    CAST(:network_id AS uuid) IS NULL
                     OR run.network_execution_id IN (
                         SELECT id FROM selected_network_executions
                     )
@@ -140,7 +140,7 @@ class SQLProjectRunsReader:
                 SELECT *
                 FROM selected_agent_runs
                 WHERE network_execution_id IS NULL
-                  AND :network_id IS NULL
+                  AND CAST(:network_id AS uuid) IS NULL
             ),
             network_child_counts AS (
                 SELECT
@@ -321,8 +321,8 @@ class SQLProjectRunsReader:
               ON version.id = execution.network_version_id
             WHERE execution.project_id = :project_id
               AND (
-                :network_id IS NULL
-                OR execution.network_id = :network_id
+                CAST(:network_id AS uuid) IS NULL
+                OR execution.network_id = CAST(:network_id AS uuid)
               )
             ORDER BY execution.created_at DESC, execution.id DESC
             LIMIT :limit
