@@ -32,6 +32,18 @@ export interface RuntimeControlFrame extends RuntimeFrameBase {
 
 export type ParsedRuntimeFrame = WoobeEvent | RuntimeControlFrame
 
+export interface RuntimeAssistantMessage {
+  message_id: string
+  content: string
+  output_mode: 'intermediate'
+  phase: string | null
+  provider: string | null
+  model: string | null
+  partial: boolean | null
+  status: string | null
+  completed_at: string | null
+}
+
 export interface RuntimeOutputReconciliation {
   output: string
   append: string
