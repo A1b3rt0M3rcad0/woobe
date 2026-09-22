@@ -64,7 +64,8 @@ class _StreamingBridgeUseCase(_RuntimeBridgeUseCase):
                 content=content,
                 visibility="assistant",
                 channel="final",
-                phase="response_generation",
+                phase="conclusion",
+                output_mode="final",
             )
         return _AgentOutput()
 
