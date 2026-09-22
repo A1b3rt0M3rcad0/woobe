@@ -45,13 +45,12 @@ def test_annotations_are_ignored_but_real_title_field_is_preserved() -> None:
     assert "title" in expected["properties"]
 
 
-def test_external_context_sdk_schema_preserves_scope_metadata() -> None:
+def test_external_context_sdk_schema_uses_fields_types_and_required_only() -> None:
     schema = external_context_contract_schema(
         {
             "age": {
                 "schema": {"type": "integer"},
                 "required": True,
-                "scope": "session",
                 "description": "Model-independent metadata",
                 "model": {"expose": False},
             },
@@ -66,8 +65,8 @@ def test_external_context_sdk_schema_preserves_scope_metadata() -> None:
     assert schema == {
         "additionalProperties": False,
         "properties": {
-            "age": {"type": "integer", "x-woobe-scope": "session"},
-            "title": {"type": "string", "x-woobe-scope": "run"},
+            "age": {"type": "integer"},
+            "title": {"type": "string"},
         },
         "required": ["age"],
         "type": "object",
