@@ -9,6 +9,7 @@ from modules.agent.domain.external_context_contract import (
     normalize_external_context_contract,
     project_external_context,
     resolve_external_context,
+    resolve_scoped_external_context,
     validate_effective_external_context_values,
 )
 from modules.agent.domain.release_versioning import ReleaseChangeKind
@@ -19,11 +20,13 @@ def contract(
     required: bool = False,
     expose: bool = False,
     field_type: str = "string",
+    scope: str = "run",
 ):
     return {
         "customer_id": {
             "schema": {"type": field_type},
             "required": required,
+            "scope": scope,
             "model": {"expose": expose},
         }
     }
@@ -41,30 +44,34 @@ def test_legacy_fields_wrapper_is_read_compatible_but_normalizes_flat() -> None:
 
 
 @pytest.mark.parametrize("scope", ["run", "session"])
-def test_legacy_scope_is_read_compatible_but_normalizes_away(scope: str) -> None:
+def test_scope_is_preserved_in_canonical_contract(scope: str) -> None:
+    normalized = normalize_external_context_contract(contract(scope=scope))
+    assert normalized["customer_id"]["scope"] == scope
+
+
+def test_missing_scope_defaults_to_run_for_backward_compatibility() -> None:
     raw = contract()
-    raw["customer_id"]["scope"] = scope
+    raw["customer_id"].pop("scope")
 
     normalized = normalize_external_context_contract(raw)
 
-    assert normalized == contract()
-    assert "scope" not in normalized["customer_id"]
+    assert normalized["customer_id"]["scope"] == "run"
 
 
-def test_invalid_legacy_scope_is_rejected() -> None:
+def test_invalid_scope_is_rejected() -> None:
     raw = contract()
     raw["customer_id"]["scope"] = "project"
     with pytest.raises(ExternalContextContractError, match="scope must be 'run' or 'session'"):
         normalize_external_context_contract(raw)
 
 
-def test_legacy_scope_does_not_change_release_compatibility() -> None:
-    previous = contract()
-    previous["customer_id"]["scope"] = "session"
-
+def test_scope_change_breaks_release_compatibility() -> None:
     assert (
-        classify_external_context_change(previous, contract())
-        == ReleaseChangeKind.CHANGE
+        classify_external_context_change(
+            contract(scope="run"),
+            contract(scope="session"),
+        )
+        == ReleaseChangeKind.COMPATIBILITY
     )
 
 
@@ -165,7 +172,7 @@ def test_network_contract_composes_consumers_without_global_required() -> None:
     assert field["consumers"]["support"]["required"] is True
     assert field["consumers"]["orders"]["required"] is False
     assert "required" not in field
-    assert "scope" not in field
+    assert field["scope"] == "run"
 
 
 def test_network_contract_rejects_schema_conflicts() -> None:
@@ -185,3 +192,67 @@ def test_effective_network_boundary_is_strict_but_defers_required_to_consumer() 
     assert validate_effective_external_context_values(effective, {}) == {}
     with pytest.raises(ExternalContextContractError, match="undeclared"):
         validate_effective_external_context_values(effective, {"unknown": 1})
+
+
+def test_network_contract_rejects_scope_conflicts() -> None:
+    with pytest.raises(ExternalContextContractError, match="conflicts"):
+        compose_external_context_contracts(
+            {
+                "support": contract(scope="session"),
+                "orders": contract(scope="run"),
+            }
+        )
+
+
+def test_scoped_resolution_freezes_session_and_replaces_run_values() -> None:
+    scoped_contract = {
+        "customer_id": {
+            "schema": {"type": "string"},
+            "required": True,
+            "scope": "session",
+            "model": {"expose": False},
+        },
+        "current_page": {
+            "schema": {"type": "string"},
+            "required": False,
+            "scope": "run",
+            "model": {"expose": True},
+        },
+    }
+
+    first = resolve_scoped_external_context(
+        scoped_contract,
+        {"customer_id": "cus-1", "current_page": "/checkout"},
+        session_snapshot=None,
+    )
+    second = resolve_scoped_external_context(
+        scoped_contract,
+        {"current_page": "/orders"},
+        session_snapshot=first.session_snapshot,
+    )
+
+    assert first.session_changed is True
+    assert first.session_snapshot == {"customer_id": "cus-1"}
+    assert first.run_snapshot == {"current_page": "/checkout"}
+    assert second.session_changed is False
+    assert second.snapshot == {
+        "customer_id": "cus-1",
+        "current_page": "/orders",
+    }
+
+
+def test_scoped_resolution_rejects_repeated_session_values() -> None:
+    scoped_contract = contract(required=True, scope="session")
+
+    first = resolve_scoped_external_context(
+        scoped_contract,
+        {"customer_id": "cus-1"},
+        session_snapshot=None,
+    )
+
+    with pytest.raises(ExternalContextContractError, match="cannot be supplied again"):
+        resolve_scoped_external_context(
+            scoped_contract,
+            {"customer_id": "cus-1"},
+            session_snapshot=first.session_snapshot,
+        )
