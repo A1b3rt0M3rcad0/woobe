@@ -151,7 +151,10 @@ export function ChatCanvas({
   const stopping = isStopping ?? stopState === 'stopping'
   const compact = density === 'compact'
   const resolvedEntries = useMemo<ChatCanvasEntry[]>(
-    () => entries ?? (messages ?? []).map((message, index) => ({ key: String(index), message })),
+    () => entries ?? (messages ?? []).map((message, index) => ({
+      key: message.message_id ?? `message-${index}`,
+      message,
+    })),
     [entries, messages],
   )
   const resolvedMessages = useMemo(
