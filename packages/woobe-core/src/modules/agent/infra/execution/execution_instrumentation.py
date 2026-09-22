@@ -211,6 +211,7 @@ def _assemble_invocation_context(
                 model=model_name,
                 runtime_context=context,
                 policy=policy,
+                phase=phase,
             )
         )
         return assembled.messages, assembled.snapshot
