@@ -87,6 +87,54 @@ def test_deepseek_stream_chunk_preserves_reasoning_content() -> None:
     assert generation.message.additional_kwargs["reasoning_content"] == "private "
 
 
+def test_deepseek_streamed_reasoning_round_trips_into_next_request() -> None:
+    model = _model()
+    first = model._convert_chunk_to_generation_chunk(
+        {
+            "model": "deepseek-v4-flash",
+            "choices": [
+                {
+                    "delta": {
+                        "role": "assistant",
+                        "content": "",
+                        "reasoning_content": "private ",
+                    },
+                    "finish_reason": None,
+                }
+            ],
+        },
+        AIMessageChunk,
+        {},
+    )
+    second = model._convert_chunk_to_generation_chunk(
+        {
+            "model": "deepseek-v4-flash",
+            "choices": [
+                {
+                    "delta": {
+                        "content": "",
+                        "reasoning_content": "reasoning",
+                    },
+                    "finish_reason": "tool_calls",
+                }
+            ],
+        },
+        AIMessageChunk,
+        {},
+    )
+
+    assert first is not None
+    assert second is not None
+    accumulated = first.message + second.message
+    payload = model._get_request_payload(
+        [HumanMessage(content="Investigate"), accumulated]
+    )
+
+    assert payload["messages"][1]["reasoning_content"] == "private reasoning"
+
+
+
+
 def test_non_deepseek_openai_compatible_model_does_not_inject_reasoning_content() -> None:
     model = _model("gpt-compatible")
     messages = [
