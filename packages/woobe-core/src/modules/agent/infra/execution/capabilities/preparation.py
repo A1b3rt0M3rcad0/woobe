@@ -57,6 +57,7 @@ class PreparedExecution:
     """
 
     model: Any
+    communication_model: Any
     final_model: Any | None
     final_model_factory: Callable[[], Any] | None
     execute_single_tool: Callable[[dict, str], Coroutine[Any, Any, dict]]
@@ -261,6 +262,18 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
         response_format=base_response_format,
     )
     model = base_model.bind_tools(agent_tools, tool_choice="auto") if has_tools else base_model
+    communication_model = base_model
+    if request.json_enabled and not has_tools:
+        communication_model = request.llm_factory.create_chat_model(
+            provider=provider,
+            model=agent.model,
+            api_key=request.api_key,
+            base_url=request.base_url,
+            temperature=agent.temperature or 0.2,
+            max_tokens=effective_output_tokens,
+            streaming=streaming_enabled,
+            response_format=None,
+        )
 
     final_model = base_model if has_tools and not request.json_enabled else None
     final_model_factory: Callable[[], Any] | None = None
@@ -298,6 +311,7 @@ def prepare_execution(request: ExecutionStrategyRequest) -> PreparedExecution:
 
     return PreparedExecution(
         model=model,
+        communication_model=communication_model,
         final_model=final_model,
         final_model_factory=final_model_factory,
         execute_single_tool=execute_single_tool,
