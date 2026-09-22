@@ -495,6 +495,13 @@ def _activity_for_phase(
     return "thinking", f"{label}..."
 
 
+def _intermediate_messages_enabled() -> bool:
+    from modules.agent.application.interfaces.execution_context import current_execution
+
+    context = current_execution.get()
+    return bool(context is not None and context.intermediate_messages_enabled)
+
+
 def _output_message_id(mode: str) -> UUID | None:
     if mode == "internal":
         return None
@@ -576,7 +583,7 @@ async def _complete_intermediate_message(
     model_name: str,
     partial: bool = False,
 ) -> None:
-    if not content:
+    if not content or not _intermediate_messages_enabled():
         return
     payload = await _record_intermediate_message(
         message_id=message_id,
@@ -634,7 +641,7 @@ async def _promote_streamed_final_to_intermediate(
     Assistant Message instead of disappearing from the conversation.
     """
 
-    if not streamed_visible_tokens:
+    if not streamed_visible_tokens or not _intermediate_messages_enabled():
         return None
 
     content = "".join(streamed_visible_tokens)
@@ -697,6 +704,9 @@ async def invoke_model_with_optional_streaming(
     output_mode: str | None = None,
 ) -> Any:
     mode = _effective_output_mode(phase, output_mode)
+    intermediate_enabled = _intermediate_messages_enabled()
+    if mode == "intermediate" and not intermediate_enabled:
+        mode = "internal"
     message_id = _output_message_id(mode)
     channel = current_runtime_stream.get()
 
@@ -773,7 +783,13 @@ async def invoke_model_with_optional_streaming(
                 visible_content = control_filter.push(part.content)
                 if not visible_content:
                     continue
-                if mode in {"intermediate", "final"}:
+                if (
+                    mode == "final"
+                    and _is_capability_selection_phase(phase)
+                    and not intermediate_enabled
+                ):
+                    pending_visible_tokens.append(visible_content)
+                elif mode in {"intermediate", "final"}:
                     await emit_visible(visible_content)
                 else:
                     pending_visible_tokens.append(visible_content)
@@ -824,7 +840,13 @@ async def invoke_model_with_optional_streaming(
 
     trailing_content = control_filter.flush()
     if trailing_content:
-        if mode in {"intermediate", "final"}:
+        if (
+            mode == "final"
+            and _is_capability_selection_phase(phase)
+            and not intermediate_enabled
+        ):
+            pending_visible_tokens.append(trailing_content)
+        elif mode in {"intermediate", "final"}:
             await emit_visible(trailing_content)
         else:
             pending_visible_tokens.append(trailing_content)
@@ -847,7 +869,12 @@ async def invoke_model_with_optional_streaming(
             provider=provider,
             model_name=model_name,
         )
-    elif mode == "final" and _result_has_tool_calls(accumulated) and streamed_visible_tokens:
+    elif (
+        mode == "final"
+        and intermediate_enabled
+        and _result_has_tool_calls(accumulated)
+        and streamed_visible_tokens
+    ):
         await _promote_streamed_final_to_intermediate(
             channel,
             streamed_visible_tokens=streamed_visible_tokens,
