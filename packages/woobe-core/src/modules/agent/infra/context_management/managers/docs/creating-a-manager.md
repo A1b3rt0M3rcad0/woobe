@@ -1,223 +1,165 @@
 # Creating a Context Manager
 
-Use [`../standard.py`](../standard.py) as the canonical implementation reference.
+Use `standard.py` for the minimal deterministic implementation and `adaptive.py` for state/summary/checkpoint patterns.
 
-The normal workflow is:
+## 1. One Manager, one file
 
-~~~text
-1. create one Manager file
-2. read configured policy
-3. program SDK primitives
-4. complete the outcome
-5. register in resolver
-6. register in product catalog
-7. add behavior/extensibility tests
-8. run architecture gates
-~~~
-
-## 1. Create one file
-
-Create the Manager directly under:
+Create:
 
 ~~~text
 packages/woobe-core/src/modules/agent/infra/context_management/managers/<name>.py
 ~~~
 
-The normal rule is:
+Normal Managers should not create their own runtime packages.
 
-~~~text
-one Manager = one Python file
-~~~
+## 2. Declare state and async `assemble(ctx)`
 
-Do not create a Manager-specific package for selector/policy/runtime helpers unless the platform architecture itself changes.
-
-## 2. Implement `assemble(ctx)`
+Every Manager declares `state_type` and implements the async contract:
 
 ~~~python
 from modules.agent.application.context_manager_sdk import (
     ContextManagerContext,
     ContextManagerOutcome,
+    ContextManagerState,
 )
 
+class MyContextState(ContextManagerState):
+    decision_count: int = 0
 
-class AdaptiveContextManager:
-    name = "adaptive"
+class MyContextManager:
+    name = "my-manager"
+    state_type = MyContextState
 
-    def assemble(
+    async def assemble(
         self,
-        ctx: ContextManagerContext,
+        ctx: ContextManagerContext[MyContextState],
     ) -> ContextManagerOutcome:
         ...
         return ctx.complete()
 ~~~
 
-Concrete Managers consume only the Context Manager SDK plus stable Domain enums/value types.
+Use the empty `ContextManagerState` when no algorithm state is needed.
 
-Do not receive `ContextAssemblyRequest`, construct provider messages, or build `ContextSnapshot` directly.
-
-## 3. Read configured policy
+## 3. Read policy; do not mutate it
 
 ~~~python
 policy = ctx.policy
 ~~~
 
-`ctx.policy` is configured input and is isolated from effective behavior.
+Program effective behavior through SDK primitives. Direct mutation of `ctx.policy` is intentionally isolated from the effective policy.
 
-Do not attempt to program behavior by mutating it directly.
-
-## 4. Inspect invocation facts when the algorithm needs them
-
-A static Manager may not need these views. An adaptive Manager can inspect capacity and aggregate candidate inventory:
+## 4. Inspect algorithm facts
 
 ~~~python
 usable = ctx.capacity.usable_input_budget_units
 session_units = ctx.inventory.units(ContextSourceType.SESSION)
-
-if usable is not None and session_units > usable // 2:
-    session_limit = max(512, usable // 4)
-else:
-    session_limit = policy.session.max_units
+phase = ctx.invocation.phase
 ~~~
 
-These views are read-only. They expose algorithm-relevant facts without leaking raw messages, provider clients or runtime state containers.
+These views are read-only and do not expose outer runtime objects.
 
-When phase matters, use the narrow invocation view:
-
-~~~python
-if ctx.invocation.phase == "json_repair":
-    ctx.candidates.recent_session(max_messages=4, max_units=2_000)
-~~~
-
-Do not import execution phase internals or `ContextAssemblyRequest` into a Manager.
-
-## 4. Program candidates
+## 5. Program deterministic selection
 
 ~~~python
 ctx.candidates.allow(policy.allowed_sources)
-ctx.candidates.recent_session(
-    max_messages=8,
-    max_units=4_000,
-)
-ctx.candidates.cap(ContextSourceType.TOOL, 2_000)
+ctx.priorities.configure(policy.source_priorities)
+ctx.candidates.recent_session(max_messages=8, max_units=4_000)
+ctx.candidates.cap(ContextSourceType.KNOWLEDGE, 12_000)
 ctx.candidates.deduplicate(
     strategy="content_hash",
-    sources=[ContextSourceType.SESSION, ContextSourceType.TOOL],
+    sources=[ContextSourceType.SESSION, ContextSourceType.KNOWLEDGE],
 )
 ctx.candidates.order(strategy="source_priority")
-~~~
-
-## 6. Program priorities
-
-~~~python
-ctx.priorities.set(
-    ContextSourceType.KNOWLEDGE,
-    ContextPriority.HIGH,
-)
-~~~
-
-Priorities influence source-priority ordering, global overflow precedence and evidence.
-
-SYSTEM and current USER_INPUT remain MANDATORY.
-
-## 7. Program budget
-
-~~~python
 ctx.budget.configure(
-    max_input_units=32_000,
-    runtime_reserve_units=2_000,
+    max_input_units=policy.budget.max_input_units,
+    runtime_reserve_units=policy.budget.runtime_reserve_units,
 )
 ~~~
 
-Runtime still clamps against actual model capacity and output reserve.
+## 6. Use async Runtime capabilities when needed
 
-## 8. Configure pressure evidence
+Semantic summary:
 
 ~~~python
-ctx.pressure.thresholds(
-    moderate_at=0.40,
-    high_at=0.75,
-    critical_at=0.90,
+selection = ctx.summary.inspect(
+    ContextSourceType.SESSION,
+    preserve_recent_messages=8,
+)
+
+if selection.raw_units > 20_000:
+    summary = await ctx.summary.create(
+        ContextSourceType.SESSION,
+        target_units=2_000,
+        preserve_recent_messages=8,
+    )
+    ctx.state.last_summary = summary
+    await ctx.checkpoint(ContextCheckpointBoundary.SUMMARY)
+~~~
+
+On a later invocation, reuse or incrementally refresh:
+
+~~~python
+ctx.summary.apply(ctx.state.last_summary)
+
+refreshed = await ctx.summary.refresh(
+    ctx.state.last_summary,
+    target_units=2_000,
 )
 ~~~
 
-These are classification thresholds, not automatic adaptive actions.
+Do not call provider APIs or persistence repositories directly.
 
-## 9. Enable optional runtime sources
+## 7. Optional runtime-owned sources
 
 ~~~python
 if ctx.has_active_skills:
     ctx.sources.skills()
 ~~~
 
-Do not duplicate Skills or External Context construction inside a Manager.
-
-## 10. Complete
+## 8. Complete
 
 ~~~python
 return ctx.complete()
 ~~~
 
-`ContextManagerRunner` validates the outcome and executes shared materialization mechanics.
+`ContextManagerRunner` validates the outcome, applies staged summary transformations, materializes optional sources and calls the shared deterministic assembler.
 
-## Complete example
+## Example: phase-aware compact Manager
 
 ~~~python
-class KnowledgeFirstContextManager:
-    name = "knowledge-first"
+class CompactContextManager:
+    name = "compact"
+    state_type = ContextManagerState
 
-    def assemble(self, ctx: ContextManagerContext) -> ContextManagerOutcome:
+    async def assemble(self, ctx):
         policy = ctx.policy
-
         ctx.candidates.allow(policy.allowed_sources)
         ctx.priorities.configure(policy.source_priorities)
-        ctx.priorities.set(ContextSourceType.KNOWLEDGE, ContextPriority.HIGH)
 
-        ctx.candidates.recent_session(max_messages=6, max_units=3_000)
-        ctx.candidates.cap(ContextSourceType.KNOWLEDGE, 12_000)
-        ctx.candidates.cap(ContextSourceType.TOOL, 2_000)
+        usable = ctx.capacity.usable_input_budget_units
+        session_cap = None if usable is None else max(512, usable // 3)
+        max_messages = 4 if ctx.invocation.phase == "json_repair" else 12
+
+        ctx.candidates.recent_session(
+            max_messages=max_messages,
+            max_units=session_cap,
+        )
         ctx.candidates.order(strategy="source_priority")
-        ctx.candidates.deduplicate(
-            strategy="content_hash",
-            sources=[ContextSourceType.SESSION, ContextSourceType.KNOWLEDGE],
-        )
-
-        ctx.budget.configure(
-            max_input_units=policy.budget.max_input_units,
-            runtime_reserve_units=policy.budget.runtime_reserve_units,
-        )
-        ctx.pressure.thresholds(
-            moderate_at=policy.pressure.moderate_at,
-            high_at=policy.pressure.high_at,
-            critical_at=policy.pressure.critical_at,
-        )
-
-        if ctx.has_active_skills:
-            ctx.sources.skills()
-
         return ctx.complete()
 ~~~
 
-## 11. Register runtime implementation
+## 9. Register runtime implementation
 
-Add the class to `infra/context_management/managers/resolver.py`:
+Add it explicitly to `_BUILTIN_CONTEXT_MANAGER_FACTORIES` in `resolver.py`.
 
-~~~python
-_BUILTIN_CONTEXT_MANAGER_FACTORIES = {
-    StandardContextManager.name: StandardContextManager,
-    KnowledgeFirstContextManager.name: KnowledgeFirstContextManager,
-}
-~~~
+Do not use filesystem scanning, decorators or auto-discovery for built-ins.
 
-Keep registration explicit. Names must be stable, lowercase and unversioned.
+## 10. Register product metadata
 
-## 12. Register product metadata
+Add a descriptor in `application/context_manager_registry.py`. Resolver and catalog names must stay in parity.
 
-Add a descriptor to `application/context_manager_registry.py`.
+## 11. Test the algorithm, not Runtime again
 
-The resolver answers **what implementation runs**. The catalog answers **how the product describes it**.
+Test Manager-specific decisions, state evolution, summary/checkpoint triggers and failure policy. Shared Runtime mechanics belong in generic Runtime tests.
 
-## 13. Test
-
-At minimum test algorithm decisions, policy isolation, resolver/catalog parity, budget behavior, priority behavior, Snapshot evidence, optional source materialization and relevant legacy compatibility.
-
-If the Manager seems to need semantic summary, read [Summary and compaction](./summary-and-compaction.md) before adding any new primitive.
+Use `tests/unit/agent/test_context_manager_programming.py` and `test_adaptive_context_manager.py` as references.
