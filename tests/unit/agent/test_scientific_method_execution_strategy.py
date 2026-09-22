@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from modules.agent.application.interfaces.execution import InstrumentedExecutionError
 from modules.agent.application.strategy_sdk import (
     Completed,
     StrategyModelResult,
@@ -142,6 +143,63 @@ async def test_scientific_method_uses_directives_and_reopens_investigation() -> 
         StrategyOutputMode.INTERNAL,
         StrategyOutputMode.FINAL,
     ]
+
+
+@pytest.mark.asyncio
+async def test_scientific_method_concludes_from_collected_evidence_after_provider_failure() -> None:
+    class _ProviderFailingModel(_Model):
+        async def invoke(self, *, phase=None, directive=None, output_mode=None):
+            if phase == ScientificMethodPhase.CRITICAL_REVIEW.value:
+                self.invocations.append(
+                    {
+                        "phase": phase,
+                        "directive": directive,
+                        "output_mode": output_mode,
+                    }
+                )
+                raise InstrumentedExecutionError("provider rejected follow-up")
+            return await super().invoke(
+                phase=phase,
+                directive=directive,
+                output_mode=output_mode,
+            )
+
+    model = _ProviderFailingModel(
+        [
+            _result(
+                "",
+                [{"id": "experiment-1", "name": "search", "args": {"q": "a"}}],
+            ),
+            _result("evidence one"),
+        ]
+    )
+    ctx = _Context(model)
+
+    outcome = await ScientificMethodExecutionStrategy().execute(ctx)
+
+    assert isinstance(outcome, Completed)
+    assert outcome.result.content == "limited conclusion"
+    assert ctx.state.experiment_round == 1
+    assert (
+        ctx.state.stop_reason
+        == ScientificMethodStopReason.PROVIDER_REJECTED_FOLLOWUP
+    )
+    assert [item["phase"] for item in model.invocations] == [
+        ScientificMethodPhase.OBSERVATION.value,
+        "evidence_analysis_1",
+        ScientificMethodPhase.HYPOTHESIS_FORMULATION.value,
+        ScientificMethodPhase.CRITICAL_REVIEW.value,
+    ]
+    assert len(model.finalizations) == 1
+    assert (
+        model.finalizations[0]["output_mode"]
+        == StrategyOutputMode.FINAL
+    )
+    assert "evidence already collected" in str(
+        model.finalizations[0]["directive"]
+    )
+
+
 
 
 @pytest.mark.asyncio
