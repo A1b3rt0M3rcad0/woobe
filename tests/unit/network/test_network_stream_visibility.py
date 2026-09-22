@@ -37,6 +37,22 @@ class StreamingInvoker:
     async def invoke(self, *, agent_id, internal_tools, stream_handler=None, **kwargs):
         if agent_id == self.child_agent_id:
             await stream_handler(
+                "assistant_message_delta",
+                {
+                    "message_id": "child-message",
+                    "content": "child progress",
+                    "output_mode": "intermediate",
+                },
+            )
+            await stream_handler(
+                "assistant_message_completed",
+                {
+                    "message_id": "child-message",
+                    "content": "child progress",
+                    "output_mode": "intermediate",
+                },
+            )
+            await stream_handler(
                 "token",
                 {"content": "child output", "channel": "final", "visibility": "assistant"},
             )
@@ -45,6 +61,22 @@ class StreamingInvoker:
         assert agent_id == self.root_agent_id
         child_result = await internal_tools[0].handler({"task": "provide input"})
         assert child_result["result"] == "child output"
+        await stream_handler(
+            "assistant_message_delta",
+            {
+                "message_id": "root-message",
+                "content": "root progress",
+                "output_mode": "intermediate",
+            },
+        )
+        await stream_handler(
+            "assistant_message_completed",
+            {
+                "message_id": "root-message",
+                "content": "root progress",
+                "output_mode": "intermediate",
+            },
+        )
         await stream_handler(
             "token",
             {"content": "public output", "channel": "final", "visibility": "assistant"},
@@ -126,4 +158,12 @@ async def test_only_root_tokens_are_emitted_to_network_stream() -> None:
     assert result.answer == "public output"
     assert [payload["content"] for event, payload in store.events if event == "token"] == [
         "public output"
+    ]
+    assert [
+        (event, payload["message_id"], payload["content"])
+        for event, payload in store.events
+        if event in {"assistant_message_delta", "assistant_message_completed"}
+    ] == [
+        ("assistant_message_delta", "root-message", "root progress"),
+        ("assistant_message_completed", "root-message", "root progress"),
     ]
