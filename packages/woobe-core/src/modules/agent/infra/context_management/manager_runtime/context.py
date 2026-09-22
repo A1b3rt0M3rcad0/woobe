@@ -13,7 +13,6 @@ from modules.agent.application.context_manager_sdk import (
     ContextManagerState,
 )
 from modules.agent.application.interfaces.context_assembler import ContextAssemblyRequest
-from modules.agent.application.skill_runtime import skill_contribution_content
 from modules.agent.application.interfaces.context_policy import (
     ArtifactContextPolicy,
     CheckpointContextPolicy,
@@ -28,6 +27,7 @@ from modules.agent.application.interfaces.context_policy import (
     SessionContextPolicy,
     ToolContextPolicy,
 )
+from modules.agent.application.skill_runtime import skill_contribution_content
 from modules.agent.domain.context import ContextPriority, ContextSourceType
 from modules.agent.infra.context_management.manager_runtime.checkpoint import (
     RuntimeContextCheckpoint,
