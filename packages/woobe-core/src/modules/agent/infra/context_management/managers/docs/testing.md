@@ -1,91 +1,98 @@
 # Testing and validation
 
-A Context Manager must prove two things:
+Context Manager coverage is split between algorithm tests, shared Runtime tests, recovery tests and architecture gates.
 
-1. its algorithm programs the intended effective context;
-2. it integrates through generic Context Manager Runtime without Manager-specific infrastructure.
+## Manager algorithm tests
 
-## Algorithm tests
-
-Add focused unit tests under `tests/unit/agent/` for the decisions that make the Manager different.
-
-Typical assertions cover Session window, source inclusion/exclusion, caps, priorities, ordering, deduplication, budget and optional runtime sources.
-
-## SDK isolation tests
-
-Configured policy and effective policy are intentionally separate.
-
-Tests should prove:
-
-- SDK primitives change the effective outcome;
-- the original request policy is not mutated;
-- direct mutation of `ctx.policy` does not bypass primitives;
-- mandatory priority invariants cannot be downgraded.
-
-The canonical coverage lives in `tests/unit/agent/test_context_manager_programming.py`.
-
-## Runtime tests
-
-Generic Runtime coverage should verify:
+Test decisions that distinguish the Manager:
 
 ~~~text
-mandatory SYSTEM/current input preservation
-model-capacity clamp
-output reserve handling
-source caps
-safe text truncation
-safe External Context compaction
-Context Snapshot accounting
-ContextContribution provenance
-transformation evidence
-measurement status
-pressure status
-Skills materialization
+capacity-aware caps
+inventory-based decisions
+phase-aware behavior
+source priorities
+summary trigger
+summary refresh threshold
+summary failure mode
+state mutation
+checkpoint boundary
+Skills materialization decision
 ~~~
 
-Do not duplicate all generic Runtime tests per Manager.
+Standard should explicitly prove it does not call semantic summary even if Summary Policy is enabled.
 
-## Catalog and resolver parity
+Adaptive coverage lives in `tests/unit/agent/test_adaptive_context_manager.py` and proves:
 
-Every built-in selectable Manager must exist in both `resolver.py` and `context_manager_registry.py`, with identical stable names.
+- semantic summary under pressure;
+- durable Context checkpoint;
+- summary transformation evidence;
+- reuse without a second model call;
+- fallback to deterministic selection on summary failure.
+
+## SDK/runtime isolation
+
+`test_context_manager_programming.py` proves configured/effective policy isolation, validation, capacity, inventory, invocation metadata and primitive invariants.
+
+## Recovery
+
+`test_run_recovery_worker.py` covers Context state recovery:
+
+- a Context checkpoint newer than the safe Execution checkpoint is merged into recovery state;
+- a newer Context state already embedded in the Execution checkpoint wins over an older Context event;
+- a side-effect-free Run with only Context state may restart from the beginning while reusing that state;
+- Tool causality is still evaluated only against true Execution checkpoints.
+
+## Shared materialization
+
+Generic tests continue to cover mandatory context, model-capacity clamp, source caps, truncation, External Context, Skills, Snapshot accounting, contribution provenance, pressure and budget metrics.
+
+Do not replicate the full deterministic assembler test suite for each Manager.
+
+## Resolver/catalog parity
+
+Every selectable built-in Manager must exist in both `resolver.py` and `context_manager_registry.py`.
+
+Current built-ins:
+
+~~~text
+standard
+adaptive
+~~~
 
 ## Legacy compatibility
 
-Standard must continue to read historical identities `stdcm:v1`, `stdcm:v2`, `default:v1`, `stdcm` and `default` as `standard`.
+Historical `stdcm:v1`, `stdcm:v2`, `default:v1`, `stdcm` and `default` selections must still read as `standard`.
 
 ## Architecture gates
 
-Relevant checks include:
-
-~~~text
-tests/architecture/test_context_assembler_boundary.py
-ARCH082  resolver composition boundary
-ARCH083  concrete Manager dependency boundary
-ARCH084  Context Manager Runtime boundary
-~~~
+Relevant gates include `tests/architecture/test_context_assembler_boundary.py` and Agent policy rules `ARCH082`–`ARCH084`.
 
 ## Definition of Done
 
-- [ ] one concrete Manager file was added under `infra/context_management/managers/`;
-- [ ] no Manager-specific Runtime package was introduced;
-- [ ] `name` is stable, lowercase and unversioned;
-- [ ] `ctx.policy` is treated only as configured input;
-- [ ] effective behavior is expressed through SDK primitives;
-- [ ] SYSTEM/current USER_INPUT invariants remain intact;
-- [ ] no provider/LangChain message construction exists in the Manager;
-- [ ] no Snapshot/Contribution construction exists in the Manager;
-- [ ] no provider/database/execution-runtime dependency exists in the Manager;
-- [ ] runtime implementation is registered in resolver;
-- [ ] product metadata is registered in catalog;
-- [ ] resolver/catalog names are in parity;
-- [ ] behavior tests cover Manager-specific decisions;
+- [ ] Manager is one flat algorithm file unless a platform-level reason requires otherwise;
+- [ ] `name` is stable/lowercase/unversioned;
+- [ ] `state_type` is declared;
+- [ ] `assemble` is async;
+- [ ] no provider/message/database/journal dependency leaks into the Manager;
+- [ ] side effects happen only through Runtime primitives;
+- [ ] policy is read as configured input and effective mutation uses primitives;
+- [ ] mandatory source invariants remain intact;
+- [ ] state is serializable and recovery-safe;
+- [ ] summary/checkpoint behavior has algorithm tests when used;
+- [ ] resolver/catalog names match;
 - [ ] architecture gates pass;
-- [ ] relevant backend/frontend tests pass when contracts changed.
+- [ ] relevant backend/frontend/acceptance workflows pass.
 
-## Focused validation
+## Focused backend suite
 
 ~~~bash
-uv run pytest -q tests/unit/agent/test_context_manager_programming.py tests/unit/agent/test_context_assembler_boundary.py tests/unit/agent/test_context_engineering_core.py tests/architecture/test_context_assembler_boundary.py
+uv run pytest -q \
+  tests/unit/agent/test_context_manager_programming.py \
+  tests/unit/agent/test_adaptive_context_manager.py \
+  tests/unit/agent/test_context_assembler_boundary.py \
+  tests/unit/agent/test_context_engineering_core.py \
+  tests/unit/agent/test_run_recovery_worker.py \
+  tests/architecture/test_context_assembler_boundary.py
 ~~~
 
-Do not claim test or CI success unless it actually completed.
+Do not claim a test or workflow passed until it actually completed.
