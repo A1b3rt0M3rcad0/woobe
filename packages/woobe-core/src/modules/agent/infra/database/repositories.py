@@ -1071,6 +1071,7 @@ class SQLAlchemySessionRepository(SessionRepository):
         model.user_id = session.user_id
         model.status = session.status
         model.data = session.data
+        model.external_context_snapshot = session.external_context_snapshot
         model.last_message_at = session.last_message_at
         return model_to_session(model)
 
