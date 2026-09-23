@@ -107,6 +107,7 @@ async def update_control_key(
         control_key_id=control_key_id,
         name=payload.name,
         description=payload.description,
+        description_supplied="description" in payload.model_fields_set,
         permissions=payload.permissions,
         project_grants=_grants(payload.project_grants),
         expires_at=payload.expires_at,
