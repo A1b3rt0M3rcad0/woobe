@@ -48,6 +48,7 @@ interface ChatCanvasProps {
   density?: 'default' | 'compact'
   externalContextContract?: unknown
   externalContextValues?: Record<string, unknown>
+  lockedExternalContextValues?: Record<string, unknown>
   onExternalContextValuesChange?: (values: Record<string, unknown>) => void
   onClearExternalContextValues?: () => void
 }
@@ -136,6 +137,7 @@ export function ChatCanvas({
   density = 'default',
   externalContextContract,
   externalContextValues,
+  lockedExternalContextValues,
   onExternalContextValuesChange,
   onClearExternalContextValues,
 }: ChatCanvasProps) {
@@ -321,6 +323,7 @@ export function ChatCanvas({
         density={density}
         externalContextContract={externalContextContract}
         externalContextValues={externalContextValues}
+        lockedExternalContextValues={lockedExternalContextValues}
         onExternalContextValuesChange={onExternalContextValuesChange}
         onClearExternalContextValues={onClearExternalContextValues}
       />

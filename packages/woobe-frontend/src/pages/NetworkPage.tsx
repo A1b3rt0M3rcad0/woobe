@@ -308,6 +308,7 @@ export default function NetworkPage() {
         lastMessageAt: item.last_message_at ?? null,
         messageCount: item.message_count ?? 0,
         traceCount: item.trace_count ?? 0,
+        externalContextSnapshot: item.external_context_snapshot ?? {},
         agentContexts: [],
       }
     }

@@ -4,7 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { ChatCanvas, type ChatCanvasEntry } from '@/features/playground/components/ChatCanvas'
-import { filterContractValues } from '@/features/contracts/contractFields'
+import { filterContractValues, filterExternalContextInput } from '@/features/contracts/contractFields'
 import type { ChatMessage as PlaygroundChatMessage } from '@/features/playground/types'
 import { cancelNetworkExecution } from '@/features/network/api'
 import { useNetworkExternalContextContract, useNetworkRuntimeEnvironments } from '@/features/network/hooks'
@@ -172,6 +172,7 @@ export function NetworkChatWorkspace({
   if (liveAnswerSchedulerRef.current === null) liveAnswerSchedulerRef.current = createNetworkLiveAnswerScheduler(setLiveAnswer)
 
   const changed = Boolean(activeSession && environment !== 'draft' && activeSession.networkVersion !== currentVersionId)
+  const lockedExternalContextValues = activeSession?.externalContextSnapshot ?? {}
   const turns = useMemo(() => reconcileNetworkTurns(historyTurns, localTurns), [historyTurns, localTurns])
 
   useLayoutEffect(() => {
@@ -511,7 +512,18 @@ export function NetworkChatWorkspace({
       const executionBindings = environment === 'draft'
         ? Object.fromEntries(Object.entries(bindings).map(([nodeId, binding]) => [nodeId, { ...binding, version: `r${expectedDraftRevision}`, dirty: false }])) as Record<AgentNodeId, NetworkBinding>
         : bindings
-      await streamNetworkExecution({ networkId, projectId, networkSessionId: session.id, message, expectedDraftRevision, externalContext: externalContextValues }, {
+      await streamNetworkExecution({
+        networkId,
+        projectId,
+        networkSessionId: session.id,
+        message,
+        expectedDraftRevision,
+        externalContext: filterExternalContextInput(
+          effectiveExternalContextContract,
+          externalContextValues,
+          session.externalContextSnapshot,
+        ),
+      }, {
         onExecutionId: (id) => {
           executionId = id
           executionIdRef.current = id
@@ -699,6 +711,7 @@ export function NetworkChatWorkspace({
         enableFirstRunSuccess={false}
         externalContextContract={effectiveExternalContextContract}
         externalContextValues={externalContextValues}
+        lockedExternalContextValues={lockedExternalContextValues}
         onExternalContextValuesChange={handleExternalContextValuesChange}
       />
     </div>

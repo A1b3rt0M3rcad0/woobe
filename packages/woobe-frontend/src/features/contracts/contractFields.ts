@@ -1,12 +1,14 @@
 import type { ExternalContextContract, ExternalContextFieldContract } from '@/features/agents/types'
 
 export type ContractFieldType = 'string' | 'integer' | 'number' | 'boolean'
+export type ExternalContextScope = 'run' | 'session'
 
 export interface ContractFieldRow {
   name: string
   type: ContractFieldType
   required: boolean
   expose: boolean
+  scope?: ExternalContextScope
   description?: string
 }
 
@@ -43,6 +45,7 @@ export function externalContractRows(value: unknown): ContractFieldRow[] {
     type: schemaType(field.schema),
     required: Boolean(field.required),
     expose: Boolean(field.model?.expose),
+    scope: field.scope === 'session' ? 'session' : 'run',
     ...(typeof field.description === 'string' ? { description: field.description } : {}),
   }))
 }
@@ -57,6 +60,7 @@ export function externalContractFromRows(rows: ContractFieldRow[]): ExternalCont
           schema: { type: row.type },
           required: row.required,
           model: { expose: row.expose },
+          ...(row.scope === 'session' ? { scope: 'session' as const } : {}),
           ...(row.description?.trim() ? { description: row.description } : {}),
         },
       ]),
@@ -127,4 +131,20 @@ export function coerceContractValue(type: ContractFieldType, raw: string | boole
 export function filterContractValues(contract: unknown, values?: Record<string, unknown>): Record<string, unknown> {
   const names = new Set(Object.keys(normalizedExternalFields(contract)))
   return Object.fromEntries(Object.entries(values ?? {}).filter(([name]) => names.has(name)))
+}
+
+
+export function filterExternalContextInput(
+  contract: unknown,
+  values: Record<string, unknown>,
+  locked: Record<string, unknown> = {},
+): Record<string, unknown> {
+  const fields = normalizedExternalFields(contract)
+  return Object.fromEntries(
+    Object.entries(values).filter(([name]) => {
+      const field = fields[name]
+      if (!field) return false
+      return !(field.scope === 'session' && Object.prototype.hasOwnProperty.call(locked, name))
+    }),
+  )
 }

@@ -21,6 +21,7 @@ interface ChatComposerProps {
   density?: 'default' | 'compact'
   externalContextContract?: unknown
   externalContextValues?: Record<string, unknown>
+  lockedExternalContextValues?: Record<string, unknown>
   onExternalContextValuesChange?: (values: Record<string, unknown>) => void
   onClearExternalContextValues?: () => void
 }
@@ -41,6 +42,7 @@ export function ChatComposer({
   density = 'default',
   externalContextContract,
   externalContextValues = {},
+  lockedExternalContextValues = {},
   onExternalContextValuesChange,
   onClearExternalContextValues,
 }: ChatComposerProps) {
@@ -59,9 +61,16 @@ export function ChatComposer({
       : {}
     const required = Boolean(field.required) || Object.values(consumers).some((consumer) => Boolean(consumer?.required))
     if (!required) return false
-    const fieldValue = externalContextValues[name]
+    const fieldValue = Object.prototype.hasOwnProperty.call(lockedExternalContextValues, name)
+      ? lockedExternalContextValues[name]
+      : externalContextValues[name]
     return fieldValue === undefined || fieldValue === null || fieldValue === ''
   }).length
+  const sessionFieldCount = externalContextFieldEntries.filter(([, field]) => field.scope === 'session').length
+  const runFieldCount = externalContextFieldEntries.length - sessionFieldCount
+  const lockedSessionFieldCount = externalContextFieldEntries.filter(
+    ([name, field]) => field.scope === 'session' && Object.prototype.hasOwnProperty.call(lockedExternalContextValues, name),
+  ).length
 
   const setInput = useCallback((next: string) => {
     if (value === undefined) setInternalInput(next)
@@ -123,7 +132,9 @@ export function ChatComposer({
                   {missingRequiredExternalContextFields} required missing
                 </span>
               ) : (
-                <span className="ml-auto font-mono text-system-meta text-muted-foreground">per Run</span>
+                <span className="ml-auto font-mono text-system-meta text-muted-foreground">
+                  {sessionFieldCount > 0 ? `${lockedSessionFieldCount}/${sessionFieldCount} session fixed · ${runFieldCount} run` : 'per Run'}
+                </span>
               )}
             </button>
             {hasExternalContextValues && onClearExternalContextValues ? (
@@ -140,11 +151,12 @@ export function ChatComposer({
           {externalContextOpen ? (
             <div className="border-t border-border/70 px-ui-sm pb-ui-sm">
               <p className="py-ui-xs font-sans text-product-caption text-muted-foreground">
-                Fields stay available while testing. External Context values are sent explicitly with each Run.
+                Session fields are set once and reused automatically. Run fields may change on each Run.
               </p>
               <ContractValueForm
                 contract={externalContextContract}
                 values={externalContextValues}
+                lockedValues={lockedExternalContextValues}
                 disabled={blocked}
                 density="compact"
                 onChange={onExternalContextValuesChange ?? (() => undefined)}

@@ -6,6 +6,7 @@ import {
   CONTRACT_FIELD_TYPE_OPTIONS,
   type ContractFieldRow,
   type ContractFieldType,
+  type ExternalContextScope,
 } from './contractFields'
 
 interface ContractFieldBuilderProps {
@@ -55,6 +56,7 @@ export function ContractFieldBuilder({
       type: 'string',
       required: false,
       expose: kind === 'output',
+      scope: kind === 'external' ? 'run' : undefined,
       description: '',
     },
   ])
@@ -64,9 +66,10 @@ export function ContractFieldBuilder({
 
     return (
       <div className="min-w-0">
-        <div className="grid grid-cols-[minmax(88px,1fr)_78px_42px_46px_28px_28px] items-center gap-ui-xs border-b border-border px-ui-xs pb-ui-xs font-mono text-system-label uppercase tracking-system-label text-muted-foreground">
+        <div className="grid grid-cols-[minmax(88px,1fr)_78px_82px_42px_46px_28px_28px] items-center gap-ui-xs border-b border-border px-ui-xs pb-ui-xs font-mono text-system-label uppercase tracking-system-label text-muted-foreground">
           <span>Name</span>
           <span>Type</span>
+          <span>Scope</span>
           <span className="text-center" title="Required at runtime">Req.</span>
           <span className="text-center" title="Expose to model">Model</span>
           <span />
@@ -77,7 +80,7 @@ export function ContractFieldBuilder({
           {rows.map((row, index) => (
             <div
               key={index}
-              className="grid min-h-control grid-cols-[minmax(88px,1fr)_78px_42px_46px_28px_28px] items-center gap-ui-xs px-ui-xs py-ui-xs"
+              className="grid min-h-control grid-cols-[minmax(88px,1fr)_78px_82px_42px_46px_28px_28px] items-center gap-ui-xs px-ui-xs py-ui-xs"
             >
               <Input
                 value={row.name}
@@ -94,6 +97,18 @@ export function ContractFieldBuilder({
                 className="pl-ui-xs pr-5"
                 onChange={(event) => update(index, { type: event.target.value as ContractFieldType })}
                 aria-label={`Field ${row.name || index + 1} type`}
+              />
+
+              <Select
+                value={row.scope ?? 'run'}
+                disabled={disabled}
+                options={[
+                  { value: 'run', label: 'Run' },
+                  { value: 'session', label: 'Session' },
+                ]}
+                className="pl-ui-xs pr-5"
+                onChange={(event) => update(index, { scope: event.target.value as ExternalContextScope })}
+                aria-label={`Field ${row.name || index + 1} scope`}
               />
 
               <div className="flex justify-center" title="Required at runtime">

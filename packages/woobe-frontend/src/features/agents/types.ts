@@ -24,6 +24,7 @@ export interface ExternalContextFieldContract {
   schema?: Record<string, unknown>
   required?: boolean
   default?: unknown
+  scope?: 'run' | 'session'
   model?: { expose?: boolean }
   description?: string
 }
