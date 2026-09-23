@@ -30,6 +30,8 @@ interface SurfaceConfiguration {
   name: string;
   appearance: SurfaceAppearance;
   protocol_version: number;
+  external_context_session_fields?: string[];
+  external_context_locked_fields?: string[];
 }
 
 interface ActiveRun {
@@ -88,6 +90,8 @@ let apiBaseUrl = "";
 let sessionToken = "";
 let sessionId = "";
 let externalContext: Record<string, unknown> = {};
+let sessionExternalContextFields = new Set<string>();
+let lockedExternalContextFields = new Set<string>();
 let appearance = DEFAULT_APPEARANCE;
 let submitting = false;
 let stopping = false;
@@ -197,6 +201,22 @@ async function loadConfiguration(): Promise<SurfaceConfiguration> {
     throw new Error("Invalid ChatSurface configuration");
   }
   return configuration;
+}
+
+function applyExternalContextConfiguration(configuration: SurfaceConfiguration) {
+  sessionExternalContextFields = new Set(configuration.external_context_session_fields ?? []);
+  lockedExternalContextFields = new Set(configuration.external_context_locked_fields ?? []);
+}
+
+async function refreshLockedExternalContext() {
+  if (sessionExternalContextFields.size === 0) return;
+  applyExternalContextConfiguration(await loadConfiguration());
+}
+
+function externalContextForRun(): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(externalContext).filter(([name]) => !lockedExternalContextFields.has(name)),
+  );
 }
 
 async function loadHistory() {
@@ -514,6 +534,7 @@ async function resumeActiveRun() {
   } catch (error) {
     appendError(error);
   } finally {
+    await refreshLockedExternalContext().catch(() => undefined);
     submitting = false;
     stopping = false;
     chatUi.setStopping(false);
@@ -527,6 +548,7 @@ async function bootstrap() {
   bootstrapping = true;
   try {
     const configuration = await loadConfiguration();
+    applyExternalContextConfiguration(configuration);
     appearance = normalizeAppearance(configuration.appearance);
     ensureUi(appearance).clearSessionExpired();
     await loadHistory();
@@ -563,7 +585,7 @@ async function sendMessage(message: string) {
         },
         body: JSON.stringify({
           message,
-          external_context: externalContext,
+          external_context: externalContextForRun(),
         }),
       });
     } catch (error) {

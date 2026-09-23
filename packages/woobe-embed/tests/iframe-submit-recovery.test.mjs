@@ -84,6 +84,12 @@ globalThis.__woobeIframeTest = {
   setExternalContext(value) {
     externalContext = value;
   },
+  setSessionExternalContextFields(value) {
+    sessionExternalContextFields = new Set(value);
+  },
+  setLockedExternalContextFields(value) {
+    lockedExternalContextFields = new Set(value);
+  },
 };
 `;
   const output = ts.transpileModule(`${prelude}\n${source}\n${hooks}`, {
@@ -163,6 +169,8 @@ globalThis.__woobeIframeTest = {
   return {
     sendMessage: context.__woobeIframeTest.sendMessage,
     setExternalContext: context.__woobeIframeTest.setExternalContext,
+    setSessionExternalContextFields: context.__woobeIframeTest.setSessionExternalContextFields,
+    setLockedExternalContextFields: context.__woobeIframeTest.setLockedExternalContextFields,
     errors,
     messages,
   };
@@ -224,6 +232,46 @@ test("completed Runs keep the current external context for the next message", as
       { customer_id: "cus-1", locale: "pt-BR" },
     ],
     "terminal Run completion must not clear the iframe External Context working values",
+  );
+  assert.deepEqual(harness.errors, []);
+});
+
+test("session-scoped External Context is sent once and omitted from later messages", async () => {
+  const submittedBodies = [];
+  const harness = await loadIframeHarness(async (url, init = {}) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith("/messages:stream")) {
+      submittedBodies.push(JSON.parse(String(init.body)));
+      return sseDone("ok");
+    }
+    if (path.endsWith("/surface")) {
+      return Response.json({
+        success: true,
+        data: {
+          surface_id: "surface-1",
+          name: "Support",
+          appearance: { welcome_message: "" },
+          protocol_version: 1,
+          external_context_session_fields: ["customer_id"],
+          external_context_locked_fields: ["customer_id"],
+        },
+      });
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  });
+
+  harness.setExternalContext({ customer_id: "cus-1", current_page: "/billing" });
+  harness.setSessionExternalContextFields(["customer_id"]);
+
+  await harness.sendMessage("primeira");
+  await harness.sendMessage("segunda");
+
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(submittedBodies.map((body) => body.external_context))),
+    [
+      { customer_id: "cus-1", current_page: "/billing" },
+      { current_page: "/billing" },
+    ],
   );
   assert.deepEqual(harness.errors, []);
 });

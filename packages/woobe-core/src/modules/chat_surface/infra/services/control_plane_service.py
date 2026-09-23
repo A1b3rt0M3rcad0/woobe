@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 from sqlalchemy import select
 
-from modules.agent.infra.database.models import SessionModel
+from modules.agent.infra.database.models import AgentReleaseModel, SessionModel
 from modules.chat_surface.application.runtime_gateway import (
     ChatMessageRequestSnapshot,
     ChatRuntimeGateway,
@@ -25,7 +25,7 @@ from modules.chat_surface.infra.services.chat_surface_service import (
     SurfaceCredential,
 )
 from modules.core.infra.database.models import ApiKeyModel
-from modules.network.infra.database.models import NetworkSessionModel
+from modules.network.infra.database.models import NetworkSessionModel, NetworkVersionModel
 from shared.infra.errors import (
     AuthenticationError,
     AuthorizationError,
@@ -237,6 +237,46 @@ class ControlPlaneChatSurfaceService(ChatSurfaceService):
                 binding=binding,
                 claims=claims,
             )
+
+    async def embed_configuration(self, authorized: AuthorizedChatSession) -> dict:
+        configuration = super().embed_configuration(authorized)
+        async with self._session_factory() as session:
+            if authorized.binding.target_type == "agent":
+                target_session = await session.get(SessionModel, authorized.binding.session_id)
+                release = await session.get(
+                    AgentReleaseModel,
+                    authorized.binding.target_release_id,
+                )
+                contract = getattr(release, "external_context_contract", None) or {}
+            else:
+                target_session = await session.get(
+                    NetworkSessionModel,
+                    authorized.binding.session_id,
+                )
+                version = await session.get(
+                    NetworkVersionModel,
+                    authorized.binding.target_release_id,
+                )
+                contract = getattr(version, "effective_external_context_contract", None) or {}
+
+        fields = (
+            contract.get("fields", {})
+            if isinstance(contract, dict) and isinstance(contract.get("fields"), dict)
+            else contract
+        )
+        session_fields = sorted(
+            str(name)
+            for name, field in fields.items()
+            if isinstance(fields, dict)
+            and isinstance(field, dict)
+            and field.get("scope", "run") == "session"
+        )
+        snapshot = getattr(target_session, "external_context_snapshot", None) or {}
+        return {
+            **configuration,
+            "external_context_session_fields": session_fields,
+            "external_context_locked_fields": sorted(str(name) for name in snapshot),
+        }
 
     async def _active_run_for_binding(
         self,
