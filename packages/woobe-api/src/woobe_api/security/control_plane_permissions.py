@@ -139,7 +139,7 @@ def control_plane_permission(
     if path.startswith("/network/projects/"):
         if method == "GET":
             return "network:read"
-        if method in {"POST", "PATCH"}:
+        if method in {"POST", "PUT", "PATCH"}:
             return "network:write"
         if method == "DELETE":
             return "network:delete"
