@@ -39,7 +39,7 @@ export function NetworkOverviewInspector({
   const metadataMutation = useUpdateNetworkMetadata(projectId, networkId)
   const externalContextQuery = useNetworkExternalContextContract(networkId, projectId, environment)
   const effectiveExternalContextContract = useMemo(
-    () => environment === 'draft'
+    () => environment === 'draft' && !readOnly
       ? previewNetworkDraftExternalContextContract({
           persistedEffectiveContract: externalContextQuery.data ?? {},
           definition,
@@ -47,7 +47,7 @@ export function NetworkOverviewInspector({
           liveDraftContractsByAgentId,
         })
       : externalContextQuery.data ?? {},
-    [agents, definition, environment, externalContextQuery.data, liveDraftContractsByAgentId],
+    [agents, definition, environment, externalContextQuery.data, liveDraftContractsByAgentId, readOnly],
   )
   const [identityOpen, setIdentityOpen] = useState(false)
   const [runtimeOpen, setRuntimeOpen] = useState(false)
