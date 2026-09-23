@@ -254,10 +254,6 @@ class HttpSecurityGuard:
             path_params=path_params,
             query_params=query_params,
             body=body,
-            control_permission=control_plane_permission(
-                request.method,
-                request.url.path,
-            ),
         )
 
         if token_source == "cookie":
@@ -273,7 +269,7 @@ class HttpSecurityGuard:
         body: Any,
         query_params: dict[str, Any],
         path_params: dict[str, Any],
-    ) -> ProjectApiPrincipal:
+    ) -> SecurityPrincipal:
         required_scope = _required_api_key_scope(request.method, request.url.path)
         return await self._authenticator.authenticate_api_key(
             credentials=credentials,
@@ -285,6 +281,10 @@ class HttpSecurityGuard:
             path_params=path_params,
             query_params=query_params,
             body=body,
+            control_permission=control_plane_permission(
+                request.method,
+                request.url.path,
+            ),
         )
 
     def _validate_csrf(self, request: Request) -> None:
