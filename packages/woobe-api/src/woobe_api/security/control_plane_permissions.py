@@ -39,14 +39,6 @@ def control_plane_permission(method: str, path: str) -> str | None:
             )
         if "/overview" in path or "/runs" in path:
             return "project:read" if method == "GET" else None
-        if "/api-keys" in path or "/runtime-keys" in path:
-            return (
-                "runtime_key:read"
-                if method == "GET"
-                else "runtime_key:write"
-                if method in {"POST", "PATCH", "DELETE"}
-                else None
-            )
         if method == "GET":
             return "project:read"
         if method == "PATCH":
