@@ -20,7 +20,8 @@ class AgentProviderCredentialRotatedV1(AgentDomainEvent):
         credential_id: UUID,
         project_id: UUID,
         provider: str,
-        rotated_by_user_id: UUID,
+        rotated_by_user_id: UUID | None,
+        rotated_by_control_key_id: UUID | None,
         rotated_at: datetime,
         operation_id: UUID,
         correlation_id: UUID | None = None,
@@ -41,7 +42,14 @@ class AgentProviderCredentialRotatedV1(AgentDomainEvent):
                 "credential_id": str(credential_id),
                 "project_id": str(project_id),
                 "provider": provider,
-                "rotated_by_user_id": str(rotated_by_user_id),
+                "rotated_by_user_id": (
+                    str(rotated_by_user_id) if rotated_by_user_id else None
+                ),
+                "rotated_by_control_key_id": (
+                    str(rotated_by_control_key_id)
+                    if rotated_by_control_key_id
+                    else None
+                ),
                 "rotated_at": rotated_at.isoformat(),
             },
             idempotency_key=idempotency_key,
