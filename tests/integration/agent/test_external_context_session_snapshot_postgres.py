@@ -20,9 +20,9 @@ from modules.agent.infra.execution.session_continuity_runtime_resolver import (
     SessionContinuityReleaseRuntimeResolver,
 )
 from modules.core.infra.database.models import ProjectModel
+from shared.contracts.errors import ConflictError
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
-from shared.contracts.errors import ConflictError
 
 
 async def _seed_session():
