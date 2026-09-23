@@ -3,7 +3,11 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any, Protocol
 
-from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
+from shared.security.principal import (
+    AuthenticatedPrincipal,
+    ControlPlanePrincipal,
+    ProjectApiPrincipal,
+)
 
 
 class SecurityAuthenticator(Protocol):
@@ -27,4 +31,5 @@ class SecurityAuthenticator(Protocol):
         path_params: Mapping[str, Any],
         query_params: Mapping[str, Any],
         body: Any,
-    ) -> ProjectApiPrincipal: ...
+        control_permission: str | None = None,
+    ) -> ProjectApiPrincipal | ControlPlanePrincipal: ...
