@@ -179,6 +179,7 @@ class ControlKeyService:
         control_key_id: UUID,
         name: str | None,
         description: str | None,
+        description_supplied: bool,
         permissions: list[str] | None,
         project_grants: list[dict[str, Any]] | None,
         expires_at: datetime | None,
@@ -235,8 +236,8 @@ class ControlKeyService:
                 if not next_name:
                     raise ValidationError("Control key name cannot be blank")
             next_description = target["description"]
-            if description is not None:
-                next_description = description.strip() or None
+            if description_supplied:
+                next_description = description.strip() if description else None
             next_expires_at = target["expires_at"]
             if expires_at_supplied:
                 next_expires_at = expires_at
