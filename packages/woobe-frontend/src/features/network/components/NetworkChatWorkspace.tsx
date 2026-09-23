@@ -43,7 +43,7 @@ interface NetworkChatWorkspaceProps {
   bindings: Record<AgentNodeId, NetworkBinding>
   draftDefinition: NetworkDefinition
   agents: Agent[]
-  liveDraftContractsByNodeId: Record<string, unknown>
+  liveDraftContractsByAgentId: Record<string, unknown>
   historyBindings: Record<AgentNodeId, NetworkBinding>
   historyVersionLabel: string
   activeSession: NetworkSession | null
@@ -131,7 +131,7 @@ export function NetworkChatWorkspace({
   bindings,
   draftDefinition,
   agents,
-  liveDraftContractsByNodeId,
+  liveDraftContractsByAgentId,
   historyBindings,
   historyVersionLabel,
   activeSession,
@@ -157,14 +157,14 @@ export function NetworkChatWorkspace({
           persistedEffectiveContract: persistedExternalContextContract,
           definition: draftDefinition,
           agents,
-          liveDraftContractsByNodeId,
+          liveDraftContractsByAgentId,
         })
       : persistedExternalContextContract,
     [
       agents,
       draftDefinition,
       environment,
-      liveDraftContractsByNodeId,
+      liveDraftContractsByAgentId,
       persistedExternalContextContract,
     ],
   )
