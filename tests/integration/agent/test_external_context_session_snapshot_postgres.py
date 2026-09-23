@@ -5,7 +5,6 @@ from uuid import uuid4
 
 import pytest
 
-from modules.agent.domain.entities import Session
 from modules.agent.infra.database.models import AgentModel, SessionModel
 from modules.agent.infra.database.runtime_session_repository import (
     SQLAlchemyRuntimeSessionRepository,
