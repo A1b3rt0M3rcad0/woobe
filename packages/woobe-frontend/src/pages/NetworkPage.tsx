@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ChevronLeft, Code2, History, Lock, MessageSquare, PencilLine, RotateCcw, Workflow, type LucideIcon } from 'lucide-react'
@@ -168,6 +169,7 @@ function traceNewestFirst(left: NetworkTraceRecord, right: NetworkTraceRecord) {
 export default function NetworkPage() {
   const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { currentProject } = useWorkspace()
   const networkQuery = useNetwork(projectId, currentProject?.name || 'Project')
   const network = networkQuery.data
@@ -180,6 +182,13 @@ export default function NetworkPage() {
   const agentsQuery = useAgents(projectId)
   const projectAgents = agentsQuery.data ?? []
   const networkVersions = useMemo(() => networkVersionsQuery.data ?? [], [networkVersionsQuery.data])
+
+  useEffect(() => {
+    if (!network?.id || !projectId) return
+    void queryClient.invalidateQueries({
+      queryKey: ['network-external-context-contract', projectId, network.id, 'draft'],
+    })
+  }, [network?.draft_revision, network?.id, projectId, queryClient])
 
   const [workspace, dispatchWorkspace] = useReducer(networkWorkspaceReducer, initialNetworkWorkspaceState)
   const { environment, centerMode, selection, inspectorContext, inspectionScope } = workspace
