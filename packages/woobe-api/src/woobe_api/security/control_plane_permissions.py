@@ -65,8 +65,6 @@ def control_plane_permission(method: str, path: str) -> str | None:
         return None
 
     if path.startswith("/ai/credentials"):
-        if path.endswith("/rotate") and method == "POST":
-            return "provider:credential:rotate"
         if path.endswith("/revoke") and method == "POST":
             return "provider:credential:revoke"
         if method == "GET":
