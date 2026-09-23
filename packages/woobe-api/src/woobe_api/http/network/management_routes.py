@@ -34,8 +34,6 @@ def _authorize_project(request: Request, project_id: UUID) -> UUID | None:
             raise AuthorizationError("Runtime key does not belong to this Project")
         return None
     if isinstance(principal, ControlPlanePrincipal):
-        return
-    if isinstance(principal, ControlPlanePrincipal):
         return None
     if isinstance(principal, AuthenticatedPrincipal):
         return principal.user_id
