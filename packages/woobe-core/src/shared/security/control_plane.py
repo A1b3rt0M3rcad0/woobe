@@ -49,6 +49,10 @@ PROJECT_CONTROL_PERMISSIONS = frozenset(
         "skill:write",
         "skill:delete",
         "skill:version",
+        "chat_surface:read",
+        "chat_surface:write",
+        "chat_surface:release",
+        "chat_surface:keys",
         "observability:read",
         "usage:read",
     }
