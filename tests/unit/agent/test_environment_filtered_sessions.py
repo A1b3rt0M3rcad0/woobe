@@ -64,6 +64,33 @@ async def test_session_list_delegates_environment_filtering_to_repository() -> N
 
 
 @pytest.mark.asyncio
+async def test_stateless_agent_can_create_session() -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    agent = SimpleNamespace(
+        id=agent_id,
+        project_id=project_id,
+        session_mode="stateless",
+    )
+    repo = SimpleNamespace(create=AsyncMock(side_effect=lambda session: session))
+    use_case = EnvironmentAwareCreateSessionUseCase(
+        repo,
+        SimpleNamespace(get_by_id=AsyncMock(return_value=agent)),
+        SimpleNamespace(),
+        SimpleNamespace(write=AsyncMock()),
+    )
+
+    result = await use_case.execute(CreateSessionInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        runtime_environment="draft",
+    ))
+
+    assert result.runtime_environment == "draft"
+    assert result.id is not None
+
+
+@pytest.mark.asyncio
 async def test_production_session_records_opening_release_without_client_pin() -> None:
     project_id = uuid4()
     agent_id = uuid4()

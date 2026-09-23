@@ -182,7 +182,7 @@ class EnvironmentAwareListAgentSessionsUseCase:
                 status=SessionStatus(session.status),
                 mode=RuntimeSessionMode(session.mode),
                 data=_session_data(session.data),
-                external_context_snapshot=session.external_context_snapshot,
+                external_context_snapshot=getattr(session, "external_context_snapshot", None),
                 last_message_at=session.last_message_at,
                 created_at=session.created_at,
                 message_count=message_count,
