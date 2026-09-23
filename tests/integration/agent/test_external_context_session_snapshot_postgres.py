@@ -5,14 +5,24 @@ from uuid import uuid4
 
 import pytest
 
+from modules.agent.application.dtos.runtime_dtos import AskInput
+from modules.agent.application.interfaces.execution_context import (
+    current_execution,
+    new_execution_context,
+)
+from modules.agent.domain.entities import Agent
 from modules.agent.infra.database.models import AgentModel, SessionModel
 from modules.agent.infra.database.runtime_session_repository import (
     SQLAlchemyRuntimeSessionRepository,
 )
 from modules.agent.infra.database.unit_of_work import AgentUnitOfWork
+from modules.agent.infra.execution.session_continuity_runtime_resolver import (
+    SessionContinuityReleaseRuntimeResolver,
+)
 from modules.core.infra.database.models import ProjectModel
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
+from shared.contracts.errors import ConflictError
 
 
 async def _seed_session():
@@ -133,4 +143,90 @@ async def test_runtime_session_row_lock_serializes_first_session_field_initializ
     await asyncio.gather(first_task, second_task)
 
     assert second_snapshot == {"client_id": "client-123"}
+    await engine.dispose()
+
+
+@pytest.mark.asyncio
+async def test_standalone_acceptance_rejects_session_field_after_persisted_first_run() -> None:
+    engine, session_factory, project_id, agent_id, session_id = await _seed_session()
+    agent = Agent(
+        id=agent_id,
+        project_id=project_id,
+        model="test-model",
+        session_mode="stateless",
+        settings={
+            "external_context_contract": {
+                "client_id": {
+                    "schema": {"type": "string"},
+                    "required": True,
+                    "scope": "session",
+                    "model": {"expose": False},
+                },
+                "current_page": {
+                    "schema": {"type": "string"},
+                    "required": False,
+                    "scope": "run",
+                    "model": {"expose": False},
+                },
+            }
+        },
+    )
+    runtime = SessionContinuityReleaseRuntimeResolver.__new__(
+        SessionContinuityReleaseRuntimeResolver
+    )
+
+    first_context = new_execution_context()
+    token = current_execution.set(first_context)
+    try:
+        async with AgentUnitOfWork(engine) as uow:
+            repo = SQLAlchemyRuntimeSessionRepository(uow)
+            await runtime._resolve_session(
+                repo,
+                AskInput(
+                    project_id=project_id,
+                    agent_id=agent_id,
+                    session_id=session_id,
+                    message="first",
+                    execution_context="draft",
+                    external_context={
+                        "client_id": "client-123",
+                        "current_page": "/checkout",
+                    },
+                ),
+                agent,
+            )
+    finally:
+        current_execution.reset(token)
+
+    second_context = new_execution_context()
+    token = current_execution.set(second_context)
+    try:
+        async with AgentUnitOfWork(engine) as uow:
+            repo = SQLAlchemyRuntimeSessionRepository(uow)
+            with pytest.raises(ConflictError) as exc_info:
+                await runtime._resolve_session(
+                    repo,
+                    AskInput(
+                        project_id=project_id,
+                        agent_id=agent_id,
+                        session_id=session_id,
+                        message="second",
+                        execution_context="draft",
+                        external_context={"client_id": "client-changed"},
+                    ),
+                    agent,
+                )
+    finally:
+        current_execution.reset(token)
+
+    error = exc_info.value
+    assert error.code == "EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET"
+    assert error.fields == ["client_id"]
+    assert error.scope == "session"
+    assert error.reason == "already_set"
+
+    async with session_factory() as db:
+        persisted = await db.get(SessionModel, session_id)
+    assert persisted is not None
+    assert persisted.external_context_snapshot == {"client_id": "client-123"}
     await engine.dispose()
