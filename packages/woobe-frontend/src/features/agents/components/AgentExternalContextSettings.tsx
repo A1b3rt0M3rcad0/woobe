@@ -22,7 +22,7 @@ export function AgentExternalContextSettings() {
         <PanelHeader
           icon={<Braces className="h-icon w-icon" />}
           title="External Context"
-          description="Declare the typed values applications may supply to this Agent."
+          description="Declare typed values applications may supply per Run or once per Session."
           actions={(
             <label className="flex items-center gap-ui-sm font-mono text-system-label text-muted-foreground">
               {enabled ? 'Enabled' : 'Disabled'}
@@ -40,7 +40,7 @@ export function AgentExternalContextSettings() {
             />
           ) : (
             <p className="font-sans text-product-small text-muted-foreground">
-              This Agent does not declare an External Context contract. Enable it to add fields that applications may supply to each Run.
+              This Agent does not declare an External Context contract. Enable it to add Run- or Session-scoped fields.
             </p>
           )}
 
@@ -52,7 +52,7 @@ export function AgentExternalContextSettings() {
 
           {enabled ? (
             <p className="font-sans text-product-caption text-muted-foreground">
-              The request boundary is strict. Field type, requirement and model visibility are compiled into the Release contract automatically.
+              The request boundary is strict. Field type, requirement, lifecycle scope and model visibility are compiled into the Release contract automatically.
             </p>
           ) : null}
         </div>
