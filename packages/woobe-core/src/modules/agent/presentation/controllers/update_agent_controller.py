@@ -20,7 +20,14 @@ class UpdateAgentController(Controller):
 
     async def handle(self, request: OperationRequest) -> OperationResult:
         agent_id = request.path_params["agent_id"]
-        raw = {k: v for k, v in request.body.items() if v is not None}
+        if request.metadata.get("agent_operation") == "archive":
+            raw = {"status": "archived"}
+        else:
+            raw = {
+                key: value
+                for key, value in (request.body or {}).items()
+                if value is not None
+            }
         input_dto = UpdateAgentInput(**raw)
         result = await self._use_case.execute(agent_id, input_dto)
         return OperationResult(
