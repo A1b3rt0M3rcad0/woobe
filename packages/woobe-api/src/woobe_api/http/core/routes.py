@@ -37,8 +37,10 @@ from modules.core.entrypoint import ProjectAccessService, build_project_access_s
 from shared.infra.errors import AuthenticationError, ConflictError, ValidationError
 from shared.project_environment import build_project_environment_service
 from woobe_api.http.shared.adapters import request_adapter, response_adapter
+from woobe_api.http.core.control_key_routes import router as control_key_router
 
 router = APIRouter(prefix="/core", tags=["core"])
+router.include_router(control_key_router)
 
 
 def _principal_user_id(request: FastAPIRequest) -> UUID:
