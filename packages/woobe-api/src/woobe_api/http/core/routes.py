@@ -33,9 +33,14 @@ from modules.core.entrypoint import (
 from modules.core.entrypoint import (
     update_api_key_credential_composer,
 )
-from modules.core.entrypoint import ProjectAccessService, build_project_access_service
+from modules.core.entrypoint import (
+    ProjectAccessService,
+    build_control_key_service,
+    build_project_access_service,
+)
 from shared.infra.errors import AuthenticationError, ConflictError, ValidationError
 from shared.project_environment import build_project_environment_service
+from shared.security.principal import ControlPlanePrincipal
 from woobe_api.http.shared.adapters import request_adapter, response_adapter
 from woobe_api.http.core.control_key_routes import router as control_key_router
 
@@ -54,6 +59,16 @@ def _principal_user_id(request: FastAPIRequest) -> UUID:
 def _project_access_service(request: FastAPIRequest) -> ProjectAccessService:
     del request
     return build_project_access_service()
+
+
+async def _require_project_access(
+    request: FastAPIRequest,
+    project_id: UUID,
+) -> None:
+    principal = getattr(request.state, "principal", None)
+    if isinstance(principal, ControlPlanePrincipal):
+        return
+    await _require_project_access(request, project_id)
 
 
 async def _project_environment_tool_usage(
@@ -76,10 +91,18 @@ async def list_projects(request: FastAPIRequest):
         workspace_uuid = UUID(str(workspace_id))
     except ValueError as exc:
         raise ValidationError("Invalid workspace_id") from exc
-    projects = await _project_access_service(request).list_accessible_projects(
-        user_id=_principal_user_id(request),
-        workspace_id=workspace_uuid,
-    )
+    principal = getattr(request.state, "principal", None)
+    if isinstance(principal, ControlPlanePrincipal):
+        if principal.workspace_id != workspace_uuid:
+            return {"success": True, "message": "ok", "data": []}
+        projects = await build_control_key_service().list_accessible_projects(
+            principal=principal,
+        )
+    else:
+        projects = await _project_access_service(request).list_accessible_projects(
+            user_id=_principal_user_id(request),
+            workspace_id=workspace_uuid,
+        )
     return {"success": True, "message": "ok", "data": projects}
 
 
@@ -230,10 +253,7 @@ async def list_project_environment_keys(
     request: FastAPIRequest,
     project_id: UUID,
 ):
-    await _project_access_service(request).require_project_access(
-        user_id=_principal_user_id(request),
-        project_id=project_id,
-    )
+    await _require_project_access(request, project_id)
     data = await build_project_environment_service().list_keys(project_id=project_id)
     usage = await _project_environment_tool_usage(request)
     for item in data:
@@ -247,10 +267,7 @@ async def upsert_project_environment_key(
     project_id: UUID,
     key: str,
 ):
-    await _project_access_service(request).require_project_access(
-        user_id=_principal_user_id(request),
-        project_id=project_id,
-    )
+    await _require_project_access(request, project_id)
     payload = await request.json()
     if not isinstance(payload, dict):
         raise ValidationError("Project Environment payload must be an object")
@@ -276,10 +293,7 @@ async def delete_project_environment_key(
     project_id: UUID,
     key: str,
 ):
-    await _project_access_service(request).require_project_access(
-        user_id=_principal_user_id(request),
-        project_id=project_id,
-    )
+    await _require_project_access(request, project_id)
     references = (await _project_environment_tool_usage(request)).get(key, [])
     if references:
         names = ", ".join(item["name"] for item in references)
