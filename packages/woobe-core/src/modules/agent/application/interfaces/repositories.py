@@ -284,6 +284,11 @@ class AgentCollectionRepository(ABC):
     ) -> AgentCollection | None: ...
 
     @abstractmethod
+    async def list_by_collection(
+        self, collection_id: UUID
+    ) -> list[AgentCollection]: ...
+
+    @abstractmethod
     async def create(self, link: AgentCollection) -> AgentCollection: ...
 
     @abstractmethod
