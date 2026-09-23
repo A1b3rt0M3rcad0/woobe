@@ -11,6 +11,9 @@ from woobe_api.security.control_plane_permissions import control_plane_permissio
         ("POST", "/core/workspaces/00000000-0000-0000-0000-000000000001/control-keys/00000000-0000-0000-0000-000000000002/revoke", "keys:revoke"),
         ("PATCH", "/core/projects/00000000-0000-0000-0000-000000000001", "project:update"),
         ("PUT", "/core/projects/00000000-0000-0000-0000-000000000001/environment-keys/API_KEY", "project:environment:write"),
+        ("GET", "/core/projects/00000000-0000-0000-0000-000000000001/api-keys", "api_key:read"),
+        ("POST", "/core/projects/00000000-0000-0000-0000-000000000001/runtime-keys", "api_key:write"),
+        ("POST", "/core/projects/00000000-0000-0000-0000-000000000001/api-keys/00000000-0000-0000-0000-000000000002/rotate", "api_key:write"),
         ("POST", "/ai/agents", "agent:write"),
         ("POST", "/ai/agents/00000000-0000-0000-0000-000000000001/releases", "agent:version"),
         ("POST", "/ai/agents/00000000-0000-0000-0000-000000000001/releases/00000000-0000-0000-0000-000000000002/promote", "agent:production"),
@@ -35,10 +38,3 @@ def test_management_routes_require_explicit_control_permission(
 def test_runtime_routes_are_not_implicitly_opened_to_control_keys() -> None:
     assert control_plane_permission("POST", "/v1/run") is None
     assert control_plane_permission("POST", "/agent/runtime/ask") is None
-    assert (
-        control_plane_permission(
-            "POST",
-            "/core/projects/00000000-0000-0000-0000-000000000001/runtime-keys",
-        )
-        is None
-    )
