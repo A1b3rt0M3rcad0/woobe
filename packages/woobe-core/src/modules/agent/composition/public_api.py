@@ -153,6 +153,8 @@ from modules.agent.composition.composers.list_releases_composer import (
     list_releases_composer,
 )
 from modules.agent.composition.composers.model_lifecycle_composer import (
+    archive_credential_composer,
+    archive_provider_model_composer,
     credential_usage_composer,
     provider_model_usage_composer,
     revoke_credential_composer,
@@ -250,6 +252,8 @@ from modules.agent.composition.composers.public_runtime_composers import (
 
 
 __all__ = [
+    'archive_credential_composer',
+    'archive_provider_model_composer',
     "skill_catalog_composer",
     'agent_run_context_by_trace_composer',
     'agent_run_context_composer',
