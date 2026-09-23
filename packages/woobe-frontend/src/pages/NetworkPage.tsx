@@ -206,6 +206,7 @@ export default function NetworkPage() {
   const [pendingRemoval, setPendingRemoval] = useState<NetworkDefinitionChange | null>(null)
   const [draftConflict, setDraftConflict] = useState(false)
   const [dirtyAgentIds, setDirtyAgentIds] = useState<Set<string>>(() => new Set())
+  const [draftExternalContextContractsByNodeId, setDraftExternalContextContractsByNodeId] = useState<Record<string, unknown>>({})
   const saveAgentActionRef = useRef<(() => Promise<boolean>) | null>(null)
   const hydratedRevisionRef = useRef<number | null>(null)
 
@@ -609,6 +610,15 @@ export default function NetworkPage() {
     })
   }, [selectedAgent?.id])
 
+  const updateSelectedAgentExternalContext = useCallback((contract: unknown) => {
+    if (!selectedNodeId) return
+    setDraftExternalContextContractsByNodeId((current) => (
+      current[selectedNodeId] === contract
+        ? current
+        : { ...current, [selectedNodeId]: contract }
+    ))
+  }, [selectedNodeId])
+
   const discardAndSwitch = () => {
     if (!pendingNode) return
     const currentAgentId = selectedAgent?.id
@@ -617,6 +627,14 @@ export default function NetworkPage() {
       next.delete(currentAgentId)
       return next
     })
+    if (selectedNodeId) {
+      setDraftExternalContextContractsByNodeId((current) => {
+        if (!Object.prototype.hasOwnProperty.call(current, selectedNodeId)) return current
+        const next = { ...current }
+        delete next[selectedNodeId]
+        return next
+      })
+    }
     const target = pendingNode
     setPendingNode(null)
     commitNodeSelection(target)
@@ -863,6 +881,7 @@ export default function NetworkPage() {
       onOpenComposition={() => dispatchWorkspace({ type: 'context', context: 'network' })}
       onDirtyChange={updateSelectedAgentDirty}
       onRegisterSaveAction={(saveAction) => { saveAgentActionRef.current = saveAction }}
+      onDraftExternalContextChange={updateSelectedAgentExternalContext}
     />
   ) : null
   const draftSavePending = savingWorkspace || saveNetworkDraftMutation.isPending
@@ -911,6 +930,9 @@ export default function NetworkPage() {
       versionLabel={versionLabel}
       currentVersionId={currentVersionId}
       bindings={runtimeBindings}
+      draftDefinition={editorDefinition}
+      agents={projectAgents}
+      liveDraftContractsByNodeId={draftExternalContextContractsByNodeId}
       historyBindings={historyBindings}
       historyVersionLabel={activeSessionVersion?.version ?? versionLabel}
       activeSession={activeSession}
