@@ -18,6 +18,12 @@ NETWORK_AGENT_WORKSPACE = (
 )
 NETWORK_HOOKS = FRONTEND / "features" / "network" / "hooks.ts"
 AGENT_HOOKS = FRONTEND / "features" / "agents" / "hooks.ts"
+NETWORK_OVERVIEW_INSPECTOR = (
+    FRONTEND / "features" / "network" / "components" / "NetworkOverviewInspector.tsx"
+)
+NETWORK_AGENT_CHAT = (
+    FRONTEND / "features" / "network" / "components" / "NetworkAgentChat.tsx"
+)
 
 
 def _source(path: Path) -> str:
@@ -105,3 +111,24 @@ def test_network_effective_external_context_cache_is_invalidated_by_contract_lif
     ) >= 2
     assert "['network-external-context-contract', input.project_id]" in agent_hooks
     assert "['network-external-context-contract', agent.project_id]" in agent_hooks
+
+
+def test_network_overview_uses_the_same_live_draft_external_context_preview() -> None:
+    overview = _source(NETWORK_OVERVIEW_INSPECTOR)
+    page = _source(NETWORK_PAGE)
+
+    assert "previewNetworkDraftExternalContextContract" in overview
+    assert "liveDraftContractsByAgentId" in overview
+    assert "Object.entries(effectiveExternalContextContract)" in overview
+    assert "liveDraftContractsByAgentId={draftExternalContextContractsByAgentId}" in page
+
+
+def test_isolated_network_agent_chat_respects_external_context_and_technical_sessions() -> None:
+    chat = _source(NETWORK_AGENT_CHAT)
+
+    assert "filterExternalContextInput(" in chat
+    assert "externalContextContract={externalContextContract}" in chat
+    assert "lockedExternalContextValues={lockedExternalContextValues}" in chat
+    assert "session_id: sessionId" in chat
+    assert "session_id: isStateless ? null : sessionId" not in chat
+    assert "Stateless Agents keep a technical Session but do not reuse conversation history" in chat
