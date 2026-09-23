@@ -32,7 +32,6 @@ Project/runtime/chat-surface keys retain their current behavior.
 Workspace permissions:
 
 - `workspace:read`
-- `projects:create`
 - `keys:read`
 - `keys:create`
 - `keys:update`
@@ -52,12 +51,9 @@ Project permissions:
 - `tool:read`, `tool:write`, `tool:delete`, `tool:execute`
 - `knowledge:read`, `knowledge:write`, `knowledge:delete`
 - `provider:read`, `provider:write`, `provider:delete`
-- `provider:credential:rotate`, `provider:credential:revoke`
+- `provider:credential:revoke`
 - `model:read`, `model:write`, `model:delete`
 - `skill:read`, `skill:write`, `skill:delete`, `skill:version`
-- `chat_surface:read`, `chat_surface:write`, `chat_surface:release`, `chat_surface:keys`
-- `runtime_key:read`, `runtime_key:write`
-- `runtime:execute`
 - `observability:read`
 - `usage:read`
 
@@ -68,7 +64,7 @@ Project permissions:
 3. A control key may only access Projects for which it has an active grant.
 4. A management operation requires the exact permission mapped to that operation.
 5. Key management by another control key is subset-only: no privilege amplification.
-6. `actor_key_id == target_key_id` is denied for update, rotate, revoke and grant/permission changes.
+6. The actor credential lineage cannot update, rotate, revoke or change its own grants/permissions.
 7. Secret values are returned only at issuance/rotation, never by list/get endpoints.
 8. User principals continue to use the existing Workspace/Project membership authorization paths.
 
