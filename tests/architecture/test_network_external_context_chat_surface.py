@@ -87,10 +87,10 @@ def test_network_draft_external_context_tracks_live_agent_editor_state() -> None
 
     assert "previewNetworkDraftExternalContextContract" in network
     assert "definition: draftDefinition" in network
-    assert "liveDraftContractsByNodeId" in network
-    assert "draftExternalContextContractsByNodeId" in page
+    assert "liveDraftContractsByAgentId" in network
+    assert "draftExternalContextContractsByAgentId" in page
     assert "onDraftExternalContextChange={updateSelectedAgentExternalContext}" in page
-    assert "liveDraftContractsByNodeId={draftExternalContextContractsByNodeId}" in page
+    assert "liveDraftContractsByAgentId={draftExternalContextContractsByAgentId}" in page
     assert "onDraftExternalContextChange?.(state.externalContextContract)" in workspace
 
 
