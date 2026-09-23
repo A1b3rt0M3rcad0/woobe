@@ -25,6 +25,8 @@ class UpdateCollectionController(Controller):
                 payload["name"] = body.get("name")
             if "description" in body:
                 payload["description"] = body.get("description")
+            if request.metadata.get("collection_operation") == "delete":
+                payload["status"] = "deleted"
 
             input_dto = UpdateCollectionInput(**payload)
             result = await self._use_case.execute(input_dto)
