@@ -17,8 +17,12 @@ def control_plane_permission(method: str, path: str) -> str | None:
             return "keys:update"
         return None
 
-    if path == "/core/projects" and method == "GET":
-        return "workspace:read"
+    if path == "/core/projects":
+        if method == "GET":
+            return "workspace:read"
+        if method == "POST":
+            return "projects:create"
+        return None
 
     if path.startswith("/core/projects/"):
         if "/environment-keys" in path:
