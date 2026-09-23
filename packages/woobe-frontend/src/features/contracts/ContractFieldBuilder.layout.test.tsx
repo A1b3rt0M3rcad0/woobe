@@ -37,9 +37,10 @@ describe('ContractFieldBuilder responsive layout', () => {
       />,
     )
 
-    expect(markup).toContain('grid-cols-[minmax(88px,1fr)_78px_42px_46px_28px_28px]')
+    expect(markup).toContain('grid-cols-[minmax(88px,1fr)_78px_82px_42px_46px_28px_28px]')
     expect(markup).toContain('Name')
     expect(markup).toContain('Type')
+    expect(markup).toContain('Scope')
     expect(markup).toContain('Req.')
     expect(markup).toContain('Model')
     expect(markup).toContain('aria-label="Edit customer_id description"')
