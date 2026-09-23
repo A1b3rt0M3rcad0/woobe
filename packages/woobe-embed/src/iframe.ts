@@ -47,6 +47,7 @@ interface RuntimeObserverState {
   streamingStarted: boolean;
   sequence: RuntimeSequenceState;
   terminalStatus: RuntimeTerminalStatus | null;
+  terminalError: Record<string, unknown> | null;
 }
 
 class SessionExpiredError extends Error {
@@ -68,7 +69,11 @@ class ChatApiError extends Error {
 }
 
 class RuntimeTerminalError extends Error {
-  constructor(message: string, readonly status: RuntimeTerminalStatus) {
+  constructor(
+    message: string,
+    readonly status: RuntimeTerminalStatus,
+    readonly data: Record<string, unknown> | null = null,
+  ) {
     super(message);
     this.name = "RuntimeTerminalError";
   }
@@ -279,8 +284,17 @@ function activeRunFromConflict(error: unknown): ActiveRun | null {
 function appendError(error: unknown) {
   if (error instanceof SessionExpiredError) return;
   const text = error instanceof Error ? error.message : "Run failed";
+  const details: Record<string, unknown> = {};
+  if (error instanceof ChatApiError) {
+    details.status_code = error.status;
+    if (error.data && typeof error.data === "object" && !Array.isArray(error.data)) {
+      Object.assign(details, error.data);
+    }
+  } else if (error instanceof RuntimeTerminalError && error.data) {
+    Object.assign(details, error.data);
+  }
   ensureUi().appendError(text);
-  emit("error", { message: text });
+  emit("error", { ...details, message: text });
 }
 
 function publicActivity(data: unknown): PublicAgentActivity | null {
@@ -299,6 +313,7 @@ function createRuntimeObserver(): RuntimeObserverState {
     streamingStarted: false,
     sequence: { sequence: null },
     terminalStatus: null,
+    terminalError: null,
   };
 }
 
@@ -322,6 +337,7 @@ function applyRuntimeFrame(
 
   const { eventType, payload } = parsed;
   if (parsed.kind === "transport" && eventType !== "error") return null;
+  if (eventType === "error") observer.terminalError = { ...payload };
   if (eventType === "tool_call_started" || eventType === "tool_call_completed") {
     ensureUi().updateSkillActivity(observer.assistant, payload);
   }
@@ -453,13 +469,17 @@ function finalizeObserver(
     return;
   }
 
-  throw new RuntimeTerminalError(
-    terminal === "timed_out"
+  const runtimeMessage = typeof observer.terminalError?.message === "string"
+    ? observer.terminalError.message
+    : terminal === "timed_out"
       ? "Run timed out"
       : terminal === "uncertain"
         ? "Run outcome is uncertain"
-        : "Run failed",
+        : "Run failed";
+  throw new RuntimeTerminalError(
+    runtimeMessage,
     terminal,
+    observer.terminalError,
   );
 }
 
