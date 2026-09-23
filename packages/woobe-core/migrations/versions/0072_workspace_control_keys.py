@@ -132,8 +132,50 @@ def upgrade() -> None:
         schema="core",
     )
 
+    op.alter_column(
+        "api_keys",
+        "created_by_user_id",
+        schema="core",
+        existing_type=sa.Uuid(),
+        nullable=True,
+    )
+    op.add_column(
+        "api_keys",
+        sa.Column("created_by_control_key_id", sa.Uuid(), nullable=True),
+        schema="core",
+    )
+    op.create_foreign_key(
+        "fk_core_api_keys_created_by_control_key_id",
+        "api_keys",
+        "workspace_control_keys",
+        ["created_by_control_key_id"],
+        ["id"],
+        source_schema="core",
+        referent_schema="core",
+        ondelete="SET NULL",
+    )
+
 
 def downgrade() -> None:
+    op.drop_constraint(
+        "fk_core_api_keys_created_by_control_key_id",
+        "api_keys",
+        schema="core",
+        type_="foreignkey",
+    )
+    op.drop_column(
+        "api_keys",
+        "created_by_control_key_id",
+        schema="core",
+    )
+    op.alter_column(
+        "api_keys",
+        "created_by_user_id",
+        schema="core",
+        existing_type=sa.Uuid(),
+        nullable=False,
+    )
+
     op.drop_index(
         "ix_core_control_key_grants_project",
         table_name="workspace_control_key_project_grants",
