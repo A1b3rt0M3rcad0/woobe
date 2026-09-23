@@ -7,7 +7,11 @@ from pydantic import BaseModel, Field, model_validator
 
 from modules.network.entrypoint import build_network_service
 from shared.infra.errors import AuthorizationError
-from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
+from shared.security.principal import (
+    AuthenticatedPrincipal,
+    ControlPlanePrincipal,
+    ProjectApiPrincipal,
+)
 
 
 router = APIRouter(prefix="/network/projects", tags=["network"])
@@ -48,6 +52,8 @@ def _authorize_project(request: Request, project_id: UUID) -> None:
     if isinstance(principal, ProjectApiPrincipal):
         if principal.project_id != project_id:
             raise AuthorizationError("Runtime key does not belong to this Project")
+        return
+    if isinstance(principal, ControlPlanePrincipal):
         return
     if isinstance(principal, AuthenticatedPrincipal):
         return
