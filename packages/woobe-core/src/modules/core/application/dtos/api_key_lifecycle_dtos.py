@@ -15,7 +15,16 @@ from modules.core.domain.enums import (
 class RevokeApiKeyInput(BaseModel):
     project_id: UUID
     api_key_id: UUID
-    revoked_by_user_id: UUID
+    revoked_by_user_id: UUID | None = None
+    revoked_by_control_key_id: UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_actor(self) -> "RevokeApiKeyInput":
+        if (self.revoked_by_user_id is None) == (
+            self.revoked_by_control_key_id is None
+        ):
+            raise ValueError("Exactly one API key actor must be supplied")
+        return self
 
 
 class RevokeApiKeyOutput(BaseModel):
@@ -28,7 +37,8 @@ class RevokeApiKeyOutput(BaseModel):
 class RotateApiKeyInput(BaseModel):
     project_id: UUID
     api_key_id: UUID
-    rotated_by_user_id: UUID
+    rotated_by_user_id: UUID | None = None
+    rotated_by_control_key_id: UUID | None = None
     name: str | None = Field(default=None, min_length=1, max_length=255)
     scopes: list[str] | None = Field(default=None, max_length=16)
     expires_at: datetime | None = None
@@ -60,6 +70,10 @@ class RotateApiKeyInput(BaseModel):
 
     @model_validator(mode="after")
     def validate_expiration(self) -> "RotateApiKeyInput":
+        if (self.rotated_by_user_id is None) == (
+            self.rotated_by_control_key_id is None
+        ):
+            raise ValueError("Exactly one API key actor must be supplied")
         if self.expires_at is None:
             return self
         expires_at = self.expires_at
@@ -95,9 +109,18 @@ class RotateApiKeyOutput(BaseModel):
 class UpdateApiKeyCredentialInput(BaseModel):
     project_id: UUID
     api_key_id: UUID
-    updated_by_user_id: UUID
+    updated_by_user_id: UUID | None = None
+    updated_by_control_key_id: UUID | None = None
     name: str = Field(min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def validate_actor(self) -> "UpdateApiKeyCredentialInput":
+        if (self.updated_by_user_id is None) == (
+            self.updated_by_control_key_id is None
+        ):
+            raise ValueError("Exactly one API key actor must be supplied")
+        return self
 
     @field_validator("name")
     @classmethod
