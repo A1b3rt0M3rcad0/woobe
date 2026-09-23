@@ -19,6 +19,8 @@ PROJECT_CONTROL_PERMISSIONS = frozenset(
         "project:environment:write",
         "project:access:read",
         "project:access:write",
+        "api_key:read",
+        "api_key:write",
         "agent:read",
         "agent:write",
         "agent:delete",
