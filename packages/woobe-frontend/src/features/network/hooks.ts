@@ -186,6 +186,7 @@ export function useSaveNetworkDraft(networkId?: string, projectId?: string) {
       queryClient.setQueryData<NetworkResource>(['network', projectId, networkId], saved)
       queryClient.setQueryData<NetworkResource[]>(['networks', projectId], (current = []) => current.map((item) => item.id === saved.id ? saved : item))
       queryClient.invalidateQueries({ queryKey: ['network', projectId, networkId] })
+      queryClient.invalidateQueries({ queryKey: ['network-external-context-contract', projectId, networkId, 'draft'] })
     },
   })
 }
@@ -208,6 +209,7 @@ export function usePromoteNetwork(networkId?: string, projectId?: string) {
       queryClient.invalidateQueries({ queryKey: ['network-versions', projectId, networkId] })
       queryClient.invalidateQueries({ queryKey: ['networks', projectId] })
       queryClient.invalidateQueries({ queryKey: ['releases'] })
+      queryClient.invalidateQueries({ queryKey: ['network-external-context-contract', projectId, networkId, input.environment] })
     },
   })
 }
@@ -225,6 +227,7 @@ export function useActivateNetworkProduction(networkId?: string, projectId?: str
       queryClient.invalidateQueries({ queryKey: ['network-versions', projectId, networkId] })
       queryClient.invalidateQueries({ queryKey: ['network-production-activations', projectId, networkId] })
       queryClient.invalidateQueries({ queryKey: ['networks', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['network-external-context-contract', projectId, networkId, 'production'] })
     },
   })
 }
@@ -237,6 +240,7 @@ export function useRollbackNetworkProduction(networkId?: string, projectId?: str
       queryClient.invalidateQueries({ queryKey: ['network', projectId, networkId] })
       queryClient.invalidateQueries({ queryKey: ['network-versions', projectId, networkId] })
       queryClient.invalidateQueries({ queryKey: ['networks', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['network-external-context-contract', projectId, networkId, 'production'] })
     },
   })
 }
