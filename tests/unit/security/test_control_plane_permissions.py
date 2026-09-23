@@ -25,6 +25,7 @@ from woobe_api.security.control_plane_permissions import control_plane_permissio
         ("POST", "/ai/credentials/00000000-0000-0000-0000-000000000001/revoke", "provider:credential:revoke"),
         ("DELETE", "/ai/provider-models/00000000-0000-0000-0000-000000000001", "model:delete"),
         ("DELETE", "/tools/tools/00000000-0000-0000-0000-000000000001", "tool:delete"),
+        ("PUT", "/network/projects/00000000-0000-0000-0000-000000000001", "network:write"),
         ("DELETE", "/network/projects/00000000-0000-0000-0000-000000000001/networks/00000000-0000-0000-0000-000000000002", "network:delete"),
         ("GET", "/chat-surfaces/projects/00000000-0000-0000-0000-000000000001", "chat_surface:read"),
         ("POST", "/chat-surfaces/projects/00000000-0000-0000-0000-000000000001", "chat_surface:write"),
