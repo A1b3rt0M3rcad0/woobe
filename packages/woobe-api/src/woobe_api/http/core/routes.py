@@ -68,7 +68,10 @@ async def _require_project_access(
     principal = getattr(request.state, "principal", None)
     if isinstance(principal, ControlPlanePrincipal):
         return
-    await _require_project_access(request, project_id)
+    await _project_access_service(request).require_project_access(
+        user_id=_principal_user_id(request),
+        project_id=project_id,
+    )
 
 
 async def _project_environment_tool_usage(
