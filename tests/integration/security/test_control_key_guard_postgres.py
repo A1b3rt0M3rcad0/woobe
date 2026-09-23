@@ -9,6 +9,7 @@ from sqlalchemy import delete, text
 from starlette.requests import Request
 
 from modules.core.infra.database.models import ProjectModel
+from modules.core.infra.services.control_key_service import ControlKeyService
 from modules.identity.infra.database.models import WorkspaceModel
 from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
@@ -140,7 +141,7 @@ async def control_key_graph():
                 "key_prefix": issued.public_prefix,
                 "key_hash": issued.digest,
                 "key_version": issued.key_version,
-                "permissions": json.dumps(["workspace:read"]),
+                "permissions": json.dumps(["workspace:read", "projects:create"]),
                 "expires_at": datetime.now(UTC) + timedelta(days=1),
                 "now": datetime.now(UTC),
             },
@@ -273,3 +274,45 @@ async def test_control_key_rejects_missing_project_permission(
             query_params={},
             path_params={"project_id": str(graph["project_id"])},
         )
+
+
+@pytest.mark.asyncio
+async def test_project_creator_control_key_receives_full_grant(
+    control_key_graph,
+) -> None:
+    graph = control_key_graph
+    principal = ControlPlanePrincipal(
+        api_key_id=graph["control_key_id"],
+        credential_id=graph["control_key_id"],
+        workspace_id=graph["workspace_id"],
+        key_prefix="woobe_control_test",
+        permissions=frozenset({"workspace:read", "projects:create"}),
+        authenticated_at=datetime.now(UTC),
+    )
+
+    await ControlKeyService(graph["session_factory"]).grant_created_project(
+        principal=principal,
+        project_id=graph["ungranted_project_id"],
+    )
+
+    async with graph["session_factory"]() as session:
+        result = await session.execute(
+            text(
+                """
+                SELECT permissions
+                FROM core.workspace_control_key_project_grants
+                WHERE control_key_id = :control_key_id
+                  AND project_id = :project_id
+                """
+            ),
+            {
+                "control_key_id": graph["control_key_id"],
+                "project_id": graph["ungranted_project_id"],
+            },
+        )
+        permissions = set(result.scalar_one())
+
+    assert "project:update" in permissions
+    assert "agent:write" in permissions
+    assert "network:production" in permissions
+    assert "api_key:write" in permissions
