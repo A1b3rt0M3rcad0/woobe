@@ -53,8 +53,8 @@ describe('Network Draft External Context preview', () => {
           model: { expose: false },
         },
       })],
-      liveDraftContractsByNodeId: {
-        root: {
+      liveDraftContractsByAgentId: {
+        'agent-1': {
           client_id: {
             schema: { type: 'string' },
             required: true,
