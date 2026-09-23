@@ -353,6 +353,11 @@ describe('Network Agent Chat External Context lifecycle', () => {
     expect(clientId.disabled).toBe(true)
     expect(container.textContent).toContain('SESSION · fixed')
 
+    const continueButton = [...container.querySelectorAll('button')]
+      .find((element) => element.textContent?.trim() === 'Continue')
+    expect(continueButton).toBeTruthy()
+    await click(continueButton!)
+
     const currentPage = container.querySelector('input[aria-label="current_page"]') as HTMLInputElement
     await setInputValue(currentPage, '/orders')
     const textarea = container.querySelector('textarea[placeholder="Message this Agent…"]') as HTMLTextAreaElement
