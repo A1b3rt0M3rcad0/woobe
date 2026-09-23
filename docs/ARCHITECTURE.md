@@ -14,6 +14,10 @@ Knowledge is organized around Collections and Documents. Vector Snapshots identi
 
 An Agent Run is one logical execution of an Agent. A Network Run coordinates one or more causally related Agent Runs. Sessions preserve longitudinal conversational context; Runs represent finite execution occurrences; Traces are observable evidence of those Runs.
 
+External Context has a field-level lifecycle. Fields with `scope: session` are initialized once per Session and persisted in the Session External Context snapshot; public callers omit them after they become fixed. Fields with `scope: run` are resolved independently for each Run. Omitting `scope` is backward-compatible and means `run`. Runtime execution consumes the effective merge of the Session snapshot and the current Run snapshot. A stateless Agent still has a technical Session for identity and Session-scoped External Context, but it does not reuse conversational history.
+
+For Agent Networks, the Network Session owns Session-scoped External Context while each Network Run owns its Run-scoped snapshot. Child Agents receive only their declared projection of the already resolved effective Network context; Network-to-Agent replay of an identical fixed Session value is trusted internal propagation, not a public overwrite.
+
 HTTP, streaming and async jobs are transport/delivery forms, not separate execution ontologies.
 
 ## Repository boundaries
