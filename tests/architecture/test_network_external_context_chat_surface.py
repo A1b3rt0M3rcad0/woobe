@@ -34,7 +34,8 @@ def test_network_external_context_uses_the_same_chat_composer_surface_as_standal
     assert "onExternalContextValuesChange={onExternalContextValuesChange}" in canvas
 
     assert "External Context" in composer
-    assert "per Run" in composer
+    assert "Session fields are set once and reused automatically." in composer
+    assert "Run fields may change on each Run." in composer
 
 
 def test_network_chat_sends_working_external_context_instead_of_environment_state_directly() -> None:
@@ -46,13 +47,14 @@ def test_network_chat_sends_working_external_context_instead_of_environment_stat
     assert "externalContextDirtyRef.current = true" in network
 
 
-def test_network_session_switching_does_not_hydrate_external_context_from_session() -> None:
+def test_network_session_snapshot_locks_session_scoped_external_context() -> None:
     network = _source(NETWORK_CHAT)
 
-    assert "contractForScope" not in network
-    assert "externalContextSessionValues" not in network
+    assert "const lockedExternalContextValues = activeSession?.externalContextSnapshot ?? {}" in network
+    assert "session.externalContextSnapshot ?? {}" in network
+    assert "filterExternalContextInput(" in network
+    assert "lockedExternalContextValues={lockedExternalContextValues}" in network
     assert "external_context_session_values" not in network
-    assert "activeSession?.externalContextSessionValues" not in network
     assert "externalContextOwnerRef.current = environment" in network
 
 
