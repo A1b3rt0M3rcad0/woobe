@@ -45,3 +45,4 @@ def test_external_context_respects_session_and_run_lifecycle_scopes() -> None:
     assert "Session fields are set once and reused automatically." in composer
     assert "Run fields may change on each Run." in composer
     assert "lockedValues={lockedExternalContextValues}" in composer
+    assert "      await refetchSessions()" in page
