@@ -168,6 +168,9 @@ def downgrade() -> None:
         "created_by_control_key_id",
         schema="core",
     )
+    op.execute(
+        "DELETE FROM core.api_keys WHERE created_by_user_id IS NULL"
+    )
     op.alter_column(
         "api_keys",
         "created_by_user_id",
