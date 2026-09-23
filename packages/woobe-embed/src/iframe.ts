@@ -602,6 +602,7 @@ async function sendMessage(message: string) {
   } catch (error) {
     appendError(error);
   } finally {
+    await refreshLockedExternalContext().catch(() => undefined);
     submitting = false;
     stopping = false;
     chatUi.setStopping(false);
