@@ -11,6 +11,7 @@ from woobe_api.security.control_plane_permissions import control_plane_permissio
         ("POST", "/core/workspaces/00000000-0000-0000-0000-000000000001/control-keys/00000000-0000-0000-0000-000000000002/revoke", "keys:revoke"),
         ("PATCH", "/core/projects/00000000-0000-0000-0000-000000000001", "project:update"),
         ("PUT", "/core/projects/00000000-0000-0000-0000-000000000001/environment-keys/API_KEY", "project:environment:write"),
+        ("POST", "/core/projects", "projects:create"),
         ("GET", "/core/projects/00000000-0000-0000-0000-000000000001/api-keys", "api_key:read"),
         ("POST", "/core/projects/00000000-0000-0000-0000-000000000001/runtime-keys", "api_key:write"),
         ("POST", "/core/projects/00000000-0000-0000-0000-000000000001/api-keys/00000000-0000-0000-0000-000000000002/rotate", "api_key:write"),
