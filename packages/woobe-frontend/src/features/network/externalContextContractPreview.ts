@@ -51,12 +51,12 @@ export function previewNetworkDraftExternalContextContract({
   persistedEffectiveContract,
   definition,
   agents,
-  liveDraftContractsByNodeId = {},
+  liveDraftContractsByAgentId = {},
 }: {
   persistedEffectiveContract: unknown
   definition: NetworkDefinition
   agents: Agent[]
-  liveDraftContractsByNodeId?: Record<string, unknown>
+  liveDraftContractsByAgentId?: Record<string, unknown>
 }): Record<string, unknown> {
   const nodeIds = new Set(definition.nodes.map((node) => node.id))
   const draftNodeIds = new Set(
@@ -81,8 +81,8 @@ export function previewNetworkDraftExternalContextContract({
   for (const node of definition.nodes) {
     if (node.binding.source !== 'draft') continue
     const contract = fields(
-      Object.prototype.hasOwnProperty.call(liveDraftContractsByNodeId, node.id)
-        ? liveDraftContractsByNodeId[node.id]
+      Object.prototype.hasOwnProperty.call(liveDraftContractsByAgentId, node.agent_id)
+        ? liveDraftContractsByAgentId[node.agent_id]
         : agentDraftExternalContext(agentsById.get(node.agent_id)),
     )
 
