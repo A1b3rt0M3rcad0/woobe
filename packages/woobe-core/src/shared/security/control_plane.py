@@ -3,6 +3,7 @@ from __future__ import annotations
 WORKSPACE_CONTROL_PERMISSIONS = frozenset(
     {
         "workspace:read",
+        "projects:create",
         "keys:read",
         "keys:create",
         "keys:update",
