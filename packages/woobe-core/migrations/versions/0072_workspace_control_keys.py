@@ -53,12 +53,6 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.func.now(),
         ),
-        sa.ForeignKeyConstraint(
-            ["workspace_id"],
-            ["identity.workspaces.id"],
-            name="fk_core_workspace_control_keys_workspace_id",
-            ondelete="CASCADE",
-        ),
         sa.PrimaryKeyConstraint("id", name="pk_core_workspace_control_keys"),
         sa.UniqueConstraint("key_hash", name="uq_core_workspace_control_keys_key_hash"),
         schema="core",
