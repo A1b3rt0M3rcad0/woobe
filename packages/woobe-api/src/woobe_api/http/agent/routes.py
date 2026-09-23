@@ -319,6 +319,17 @@ async def update_collection(request: FastAPIRequest):
     return response_adapter(response)
 
 
+@knowledge_router.delete("/collections/{collection_id}")
+async def delete_collection(request: FastAPIRequest):
+    handler = update_collection_composer()
+    response = await request_adapter(
+        request,
+        handler,
+        metadata={"collection_operation": "delete"},
+    )
+    return response_adapter(response)
+
+
 @knowledge_router.get("/agent-collections")
 async def list_agent_collections(request: FastAPIRequest):
     handler = list_agent_collections_composer()
