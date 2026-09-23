@@ -33,7 +33,7 @@ from woobe_api.security.control_plane_permissions import control_plane_permissio
         ("GET", "/runtime/runs?project_id=x&agent_id=y", "run:read"),
         ("GET", "/runtime/runs/00000000-0000-0000-0000-000000000001", "run:read"),
         ("GET", "/runtime/runs/by-trace/00000000-0000-0000-0000-000000000001", "run:read"),
-        ("POST", "/network/00000000-0000-0000-0000-000000000001/promotions", "network:production"),
+
         ("GET", "/agent/knowledge/collections/00000000-0000-0000-0000-000000000001/overview", "knowledge:read"),
     ],
 )
@@ -76,4 +76,26 @@ def test_runtime_routes_are_not_implicitly_opened_to_control_keys() -> None:
             "/v1/chat/sessions/00000000-0000-0000-0000-000000000001/messages:stream",
         )
         is None
+    )
+
+
+def test_network_staging_promotion_requires_version_permission() -> None:
+    assert (
+        control_plane_permission(
+            "POST",
+            "/network/00000000-0000-0000-0000-000000000001/promotions",
+            {"environment": "staging"},
+        )
+        == "network:version"
+    )
+
+
+def test_network_production_promotion_requires_production_permission() -> None:
+    assert (
+        control_plane_permission(
+            "POST",
+            "/network/00000000-0000-0000-0000-000000000001/promotions",
+            {"environment": "production"},
+        )
+        == "network:production"
     )
