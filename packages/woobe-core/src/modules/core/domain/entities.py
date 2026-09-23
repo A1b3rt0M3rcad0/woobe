@@ -49,7 +49,8 @@ class ApiKey:
     last_used_at: datetime | None = None
     expires_at: datetime | None = None
     revoked_at: datetime | None = None
-    created_by_user_id: UUID = field(default_factory=uuid6.uuid7)
+    created_by_user_id: UUID | None = None
+    created_by_control_key_id: UUID | None = None
     rotated_from_id: UUID | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
