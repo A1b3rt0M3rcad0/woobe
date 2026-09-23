@@ -215,7 +215,7 @@ export default function NetworkPage() {
   const [pendingRemoval, setPendingRemoval] = useState<NetworkDefinitionChange | null>(null)
   const [draftConflict, setDraftConflict] = useState(false)
   const [dirtyAgentIds, setDirtyAgentIds] = useState<Set<string>>(() => new Set())
-  const [draftExternalContextContractsByNodeId, setDraftExternalContextContractsByNodeId] = useState<Record<string, unknown>>({})
+  const [draftExternalContextContractsByAgentId, setDraftExternalContextContractsByAgentId] = useState<Record<string, unknown>>({})
   const saveAgentActionRef = useRef<(() => Promise<boolean>) | null>(null)
   const hydratedRevisionRef = useRef<number | null>(null)
 
@@ -620,13 +620,14 @@ export default function NetworkPage() {
   }, [selectedAgent?.id])
 
   const updateSelectedAgentExternalContext = useCallback((contract: unknown) => {
-    if (!selectedNodeId) return
-    setDraftExternalContextContractsByNodeId((current) => (
-      current[selectedNodeId] === contract
+    const agentId = selectedAgent?.id
+    if (!agentId) return
+    setDraftExternalContextContractsByAgentId((current) => (
+      current[agentId] === contract
         ? current
-        : { ...current, [selectedNodeId]: contract }
+        : { ...current, [agentId]: contract }
     ))
-  }, [selectedNodeId])
+  }, [selectedAgent?.id])
 
   const discardAndSwitch = () => {
     if (!pendingNode) return
@@ -636,11 +637,11 @@ export default function NetworkPage() {
       next.delete(currentAgentId)
       return next
     })
-    if (selectedNodeId) {
-      setDraftExternalContextContractsByNodeId((current) => {
-        if (!Object.prototype.hasOwnProperty.call(current, selectedNodeId)) return current
+    if (currentAgentId) {
+      setDraftExternalContextContractsByAgentId((current) => {
+        if (!Object.prototype.hasOwnProperty.call(current, currentAgentId)) return current
         const next = { ...current }
-        delete next[selectedNodeId]
+        delete next[currentAgentId]
         return next
       })
     }
@@ -941,7 +942,7 @@ export default function NetworkPage() {
       bindings={runtimeBindings}
       draftDefinition={editorDefinition}
       agents={projectAgents}
-      liveDraftContractsByNodeId={draftExternalContextContractsByNodeId}
+      liveDraftContractsByAgentId={draftExternalContextContractsByAgentId}
       historyBindings={historyBindings}
       historyVersionLabel={activeSessionVersion?.version ?? versionLabel}
       activeSession={activeSession}
