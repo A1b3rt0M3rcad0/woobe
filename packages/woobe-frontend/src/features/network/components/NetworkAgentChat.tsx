@@ -25,6 +25,8 @@ import {
   setStoredNetworkAgentSessionId,
 } from './networkAgentChatRuntimeStore'
 
+const EMPTY_EXTERNAL_CONTEXT_CONTRACT: Record<string, unknown> = {}
+
 interface NetworkAgentChatProps {
   agent: Agent
   projectId: string
@@ -153,7 +155,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     && typeof effectiveSnapshot.external_context_contract === 'object'
     && !Array.isArray(effectiveSnapshot.external_context_contract)
       ? effectiveSnapshot.external_context_contract
-      : {}
+      : EMPTY_EXTERNAL_CONTEXT_CONTRACT
   )
   const suggestions = useMemo(() => suggestionsForAgent(agent), [agent])
 
