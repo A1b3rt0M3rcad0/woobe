@@ -368,6 +368,7 @@ async def test_session_external_context_is_initialized_once_and_run_context_chan
         external_context_snapshot=None,
     )
     session_repo = SimpleNamespace(
+        get_by_id_for_update=AsyncMock(return_value=session),
         get_by_id=AsyncMock(return_value=session),
         update=AsyncMock(),
     )
@@ -442,3 +443,6 @@ async def test_session_external_context_is_initialized_once_and_run_context_chan
             )
     finally:
         current_execution.reset(token)
+
+    assert session_repo.get_by_id_for_update.await_count == 3
+    session_repo.get_by_id.assert_not_awaited()
