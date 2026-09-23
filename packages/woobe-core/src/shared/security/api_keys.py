@@ -33,7 +33,7 @@ LEGACY_API_KEY_PATTERN = re.compile(
     r"^rai_live_([a-f0-9]{12})_([A-Za-z0-9_-]{40,})$"
 )
 WOOBE_API_KEY_PATTERN = re.compile(
-    r"^woobe_(project|surface|staging|production)_([a-f0-9]{12})_([A-Za-z0-9_-]{40,})$"
+    r"^woobe_(project|surface|control|staging|production)_([a-f0-9]{12})_([A-Za-z0-9_-]{40,})$"
 )
 API_KEY_CANDIDATE_PREFIXES = ("rai_live_", "woobe_")
 API_KEY_ENVIRONMENT = LEGACY_API_KEY_ENVIRONMENT
@@ -106,6 +106,10 @@ def _woobe_namespace(*, kind: str, environment: str | None) -> str:
         if environment is not None:
             raise ValueError("ChatSurface Access Keys cannot bind an environment")
         return "surface"
+    if kind == "control":
+        if environment is not None:
+            raise ValueError("Control-plane API keys cannot bind an environment")
+        return "control"
     if kind == "runtime" and environment in RUNTIME_API_KEY_ENVIRONMENTS:
         return str(environment)
     raise ValueError("Unsupported API key binding")
@@ -121,6 +125,10 @@ def issue_runtime_api_key(environment: str) -> IssuedProjectApiKey:
 
 def issue_chat_surface_api_key() -> IssuedProjectApiKey:
     return _issue_api_key(kind="chat_surface", environment=None)
+
+
+def issue_control_api_key() -> IssuedProjectApiKey:
+    return _issue_api_key(kind="control", environment=None)
 
 
 def parse_project_api_key(value: str) -> ParsedProjectApiKey | None:
@@ -142,6 +150,9 @@ def parse_project_api_key(value: str) -> ParsedProjectApiKey | None:
         environment = None
     elif namespace == "surface":
         kind = "chat_surface"
+        environment = None
+    elif namespace == "control":
+        kind = "control"
         environment = None
     else:
         kind = "runtime"
