@@ -63,6 +63,7 @@ def api_key_model_to_entity(model: ApiKeyModel) -> ApiKey:
         expires_at=model.expires_at,
         revoked_at=model.revoked_at,
         created_by_user_id=model.created_by_user_id,
+        created_by_control_key_id=model.created_by_control_key_id,
         rotated_from_id=model.rotated_from_id,
         created_at=model.created_at,
         updated_at=model.updated_at,
@@ -91,5 +92,6 @@ def api_key_entity_to_model(entity: ApiKey) -> ApiKeyModel:
         expires_at=entity.expires_at,
         revoked_at=entity.revoked_at,
         created_by_user_id=entity.created_by_user_id,
+        created_by_control_key_id=entity.created_by_control_key_id,
         rotated_from_id=entity.rotated_from_id,
     )
