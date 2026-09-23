@@ -671,7 +671,6 @@ function PlaygroundContent() {
           })
           setLastResponse(meta as AskResponse)
           rememberRunId(null)
-          void refetchSessions()
           if (meta.session_id) syncedSessionRef.current = meta.session_id
           if (meta.trace_id) setTimeout(() => setSelectedTraceId(meta.trace_id!), 100)
         },
@@ -697,6 +696,7 @@ function PlaygroundContent() {
           toast.info(`Primary model (${info.primary_provider}/${info.primary_model}) failed. Retrying with ${info.fallback_provider}/${info.fallback_model}...`)
         },
       })
+      await refetchSessions()
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return
       toast.error(err instanceof Error ? err.message : 'Request failed')
