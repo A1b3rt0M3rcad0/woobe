@@ -120,7 +120,7 @@ function SessionItem({
 }
 
 export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkAgentChatProps) {
-  const { toSnapshot, isDirty, state } = useAgentEditor()
+  const { toSnapshot, isDirty } = useAgentEditor()
   const { stream, reattach, cancel } = useAskStream()
   const isStateless = agent.session_mode === 'stateless'
   const isInactive = agent.status === 'inactive'
