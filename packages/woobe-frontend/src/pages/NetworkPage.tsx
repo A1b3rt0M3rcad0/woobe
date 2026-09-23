@@ -723,6 +723,7 @@ export default function NetworkPage() {
         lastMessageAt: null,
         messageCount: 0,
         traceCount: 0,
+        externalContextSnapshot: created.external_context_snapshot ?? {},
         agentContexts: [],
       }
       setSessionsByEnvironment((current) => ({ ...current, [environment]: [session, ...current[environment].filter((item) => item.id !== session.id)] }))

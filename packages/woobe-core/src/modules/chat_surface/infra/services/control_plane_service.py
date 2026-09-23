@@ -264,12 +264,12 @@ class ControlPlaneChatSurfaceService(ChatSurfaceService):
             if isinstance(contract, dict) and isinstance(contract.get("fields"), dict)
             else contract
         )
+        if not isinstance(fields, dict):
+            fields = {}
         session_fields = sorted(
             str(name)
             for name, field in fields.items()
-            if isinstance(fields, dict)
-            and isinstance(field, dict)
-            and field.get("scope", "run") == "session"
+            if isinstance(field, dict) and field.get("scope", "run") == "session"
         )
         snapshot = getattr(target_session, "external_context_snapshot", None) or {}
         return {

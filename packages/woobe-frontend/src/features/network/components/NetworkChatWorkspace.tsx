@@ -521,7 +521,7 @@ export function NetworkChatWorkspace({
         externalContext: filterExternalContextInput(
           effectiveExternalContextContract,
           externalContextValues,
-          session.externalContextSnapshot,
+          session.externalContextSnapshot ?? {},
         ),
       }, {
         onExecutionId: (id) => {
