@@ -124,6 +124,7 @@ async def test_request_preparer_preserves_explicit_session_for_stateless_agent()
                 id=session_id,
                 project_id=project_id,
                 agent_id=agent_id,
+                runtime_environment="staging",
             )
         )
     )
