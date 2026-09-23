@@ -47,7 +47,6 @@ PROJECT_CONTROL_PERMISSIONS = frozenset(
         "model:delete",
         "skill:read",
         "skill:write",
-        "skill:delete",
         "skill:version",
         "chat_surface:read",
         "chat_surface:write",
