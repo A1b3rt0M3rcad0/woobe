@@ -11,6 +11,12 @@ function record(value: unknown): Record<string, unknown> {
     : {}
 }
 
+function consumers(value: unknown): Record<string, Record<string, unknown>> {
+  return Object.fromEntries(
+    Object.entries(record(value)).map(([name, consumer]) => [name, record(consumer)]),
+  )
+}
+
 function fields(value: unknown): Record<string, EffectiveField> {
   const raw = record(value)
   const nested = raw.fields
@@ -61,9 +67,9 @@ export function previewNetworkDraftExternalContextContract({
   const effective = clone(fields(persistedEffectiveContract))
 
   for (const [name, field] of Object.entries(effective)) {
-    const consumers = record(field.consumers)
+    const currentConsumers = consumers(field.consumers)
     const retained = Object.fromEntries(
-      Object.entries(consumers).filter(([consumer]) => (
+      Object.entries(currentConsumers).filter(([consumer]) => (
         nodeIds.has(consumer) && !draftNodeIds.has(consumer)
       )),
     )
@@ -105,7 +111,7 @@ export function previewNetworkDraftExternalContextContract({
       if (field.scope === 'session') next.scope = 'session'
       else delete next.scope
 
-      const consumers = record(next.consumers)
+      const nextConsumers = consumers(next.consumers)
       const consumer: Record<string, unknown> = {
         required: Boolean(field.required),
         model: {
@@ -119,8 +125,8 @@ export function previewNetworkDraftExternalContextContract({
       }
       if (Object.prototype.hasOwnProperty.call(field, 'default')) consumer.default = clone(field.default)
       if (typeof field.description === 'string') consumer.description = field.description
-      consumers[node.id] = consumer
-      next.consumers = consumers
+      nextConsumers[node.id] = consumer
+      next.consumers = nextConsumers
       effective[name] = next
     }
   }
