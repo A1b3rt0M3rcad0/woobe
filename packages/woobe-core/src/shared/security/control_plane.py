@@ -42,6 +42,7 @@ PROJECT_CONTROL_PERMISSIONS = frozenset(
         "provider:read",
         "provider:write",
         "provider:delete",
+        "provider:credential:rotate",
         "provider:credential:revoke",
         "model:read",
         "model:write",
