@@ -60,8 +60,6 @@ def control_plane_permission(method: str, path: str) -> str | None:
             return "skill:version"
         if method in {"POST", "PATCH"}:
             return "skill:write"
-        if method == "DELETE":
-            return "skill:delete"
         return None
 
     if path.startswith("/ai/credentials"):
