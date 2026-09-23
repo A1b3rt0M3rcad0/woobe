@@ -56,6 +56,7 @@ Project permissions:
 - `model:read`, `model:write`, `model:delete`
 - `skill:read`, `skill:write`, `skill:version`
 - `chat_surface:read`, `chat_surface:write`, `chat_surface:release`, `chat_surface:keys`
+- `run:read`
 - `observability:read`
 - `usage:read`
 
