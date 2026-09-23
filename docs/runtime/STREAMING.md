@@ -16,6 +16,30 @@ SSE observes this lifecycle. Closing a tab, refreshing the page, losing the netw
 
 Every accepted Run belongs to a Session. This includes stateless Agent execution: when the caller does not provide a Session, the runtime creates an isolated Session for identity and correlation. Stateless still means that previous Session history is not implicitly loaded into later execution context; it does not mean that the Run is sessionless.
 
+## External Context lifecycle
+
+External Context is resolved during Acceptance before execution begins. Lifecycle is declared per field:
+
+- `scope: session` is write-once per field for the Session;
+- `scope: run` is resolved independently for each Run;
+- an omitted `scope` means `run` for backward compatibility.
+
+The durable Session snapshot stores only Session-scoped fields that have already been initialized. The Run snapshot stores only the current Run-scoped values. The effective context consumed by the runtime is:
+
+```text
+Session.external_context_snapshot
++ current Run external_context_snapshot
+= effective External Context
+```
+
+A Session field may be initialized by an explicit caller value or by its contract default. Once fixed, public callers must omit that field on later Runs. Re-sending an already fixed Session field is rejected with `EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET`; a persisted Session value that no longer satisfies the active contract is rejected with `EXTERNAL_CONTEXT_SESSION_CONTRACT_CONFLICT` and requires a new Session.
+
+Session snapshots are reconciled against the active contract on every Run. Newly introduced Session fields may still be initialized later when they have never been set, but removed fields, lifecycle changes, or values that no longer validate make the existing Session incompatible.
+
+Networks use the same lifecycle semantics. The Network Session owns Session-scoped values, Network executions own Run-scoped values, and child Agents receive a projection of the already resolved effective context. Internal Network-to-Agent propagation may replay an identical fixed Session value; a conflicting value is still rejected.
+
+Reattach observes an already accepted Run and never re-resolves or resends External Context.
+
 ## Runtime stream protocol v2
 
 Every semantic Runtime event emitted after Acceptance is self-contained:
