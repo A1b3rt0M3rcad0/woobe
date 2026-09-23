@@ -52,6 +52,7 @@ PROJECT_CONTROL_PERMISSIONS = frozenset(
         "chat_surface:write",
         "chat_surface:release",
         "chat_surface:keys",
+        "run:read",
         "observability:read",
         "usage:read",
     }
