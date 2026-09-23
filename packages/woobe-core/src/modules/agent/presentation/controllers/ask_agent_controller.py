@@ -12,6 +12,28 @@ from shared.presentation.interface.controller import Controller
 logger = logging.getLogger(__name__)
 
 
+def _conflict_data(error: ConflictError) -> dict | None:
+    code = getattr(error, "code", None)
+    if not isinstance(code, str):
+        return None
+
+    data: dict = {"code": code}
+    for field_name in (
+        "target_type",
+        "target_id",
+        "environment",
+        "run_id",
+        "status",
+        "fields",
+        "scope",
+        "reason",
+    ):
+        value = getattr(error, field_name, None)
+        if value is not None:
+            data[field_name] = value if isinstance(value, (list, dict)) else str(value)
+    return data
+
+
 class AskAgentController(Controller):
     def __init__(self, use_case: UseCase) -> None:
         self._use_case = use_case
@@ -67,7 +89,11 @@ class AskAgentController(Controller):
         except ConflictError as e:
             return OperationResult(
                 outcome=OperationOutcome.CONFLICT,
-                body={"success": False, "message": str(e), "data": None},
+                body={
+                    "success": False,
+                    "message": str(e),
+                    "data": _conflict_data(e),
+                },
             )
         except ValidationError as e:
             return OperationResult(
