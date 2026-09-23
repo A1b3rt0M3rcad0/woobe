@@ -148,6 +148,13 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
   const sessionSignature = sessionSnapshot ? JSON.stringify(sessionSnapshot) : null
   const configurationChanged = Boolean(sessionSignature && currentSignature !== sessionSignature)
   const effectiveSnapshot = pinnedPreviousSnapshot && sessionSnapshot ? sessionSnapshot : currentSnapshot
+  const externalContextContract = (
+    effectiveSnapshot.external_context_contract
+    && typeof effectiveSnapshot.external_context_contract === 'object'
+    && !Array.isArray(effectiveSnapshot.external_context_contract)
+      ? effectiveSnapshot.external_context_contract
+      : {}
+  )
   const suggestions = useMemo(() => suggestionsForAgent(agent), [agent])
 
   const sessionsQuery = useAgentSessions(agent.id, projectId)
@@ -160,7 +167,6 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     }
     return Array.from(byId.values())
   }, [sessionsQuery.data])
-  const externalContextContract = state.externalContextContract
   const lockedExternalContextValues = useMemo(
     () => sessions.find((item) => item.id === sessionId)?.external_context_snapshot ?? {},
     [sessionId, sessions],
