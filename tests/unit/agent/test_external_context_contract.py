@@ -4,6 +4,7 @@ import pytest
 
 from modules.agent.domain.external_context_contract import (
     ExternalContextContractError,
+    ExternalContextSessionConflict,
     classify_external_context_change,
     compose_external_context_contracts,
     normalize_external_context_contract,
@@ -63,6 +64,57 @@ def test_missing_scope_defaults_to_run_without_rewriting_legacy_snapshot() -> No
     assert "scope" not in normalized["customer_id"]
     assert resolved.session_snapshot == {}
     assert resolved.run_snapshot == {"customer_id": "cus-1"}
+
+
+def test_session_fields_are_write_once_per_field() -> None:
+    scoped_contract = {
+        "customer_id": {
+            "schema": {"type": "string"},
+            "required": True,
+            "scope": "session",
+            "model": {"expose": False},
+        },
+        "country": {
+            "schema": {"type": "string"},
+            "required": False,
+            "scope": "session",
+            "model": {"expose": False},
+        },
+        "page": {
+            "schema": {"type": "string"},
+            "required": True,
+            "scope": "run",
+            "model": {"expose": False},
+        },
+    }
+
+    first = resolve_scoped_external_context(
+        scoped_contract,
+        {"customer_id": "cus-1", "page": "/home"},
+        session_snapshot=None,
+    )
+    assert first.session_snapshot == {"customer_id": "cus-1"}
+
+    second = resolve_scoped_external_context(
+        scoped_contract,
+        {"country": "BR", "page": "/billing"},
+        session_snapshot=first.session_snapshot,
+    )
+    assert second.session_snapshot == {
+        "customer_id": "cus-1",
+        "country": "BR",
+    }
+    assert second.run_snapshot == {"page": "/billing"}
+
+    with pytest.raises(ExternalContextSessionConflict) as exc_info:
+        resolve_scoped_external_context(
+            scoped_contract,
+            {"customer_id": "cus-1", "page": "/orders"},
+            session_snapshot=second.session_snapshot,
+        )
+
+    assert exc_info.value.code == "EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET"
+    assert exc_info.value.fields == ["customer_id"]
 
 
 def test_invalid_scope_is_rejected() -> None:

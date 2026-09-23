@@ -4,6 +4,7 @@ import pytest
 
 from modules.agent.domain.external_context_contract import (
     ExternalContextContractError,
+    ExternalContextSessionConflict,
     compose_external_context_contracts,
 )
 from modules.agent.domain.release_versioning import ReleaseChangeKind
@@ -186,6 +187,59 @@ def test_effective_session_scope_rejects_repeated_input() -> None:
             {"customer_id": "cus-1"},
             session_snapshot=first.session_snapshot,
         )
+
+
+def test_network_session_fields_are_write_once_per_field() -> None:
+    effective = compose_external_context_contracts(
+        {
+            "support": {
+                "customer_id": {
+                    "schema": {"type": "string"},
+                    "required": True,
+                    "scope": "session",
+                    "model": {"expose": False},
+                },
+                "country": {
+                    "schema": {"type": "string"},
+                    "required": False,
+                    "scope": "session",
+                    "model": {"expose": False},
+                },
+                "page": {
+                    "schema": {"type": "string"},
+                    "required": True,
+                    "scope": "run",
+                    "model": {"expose": False},
+                },
+            }
+        }
+    )
+
+    first = resolve_scoped_effective_external_context(
+        effective,
+        {"customer_id": "cus-1", "page": "/home"},
+        session_snapshot=None,
+    )
+    assert first.session_snapshot == {"customer_id": "cus-1"}
+
+    second = resolve_scoped_effective_external_context(
+        effective,
+        {"country": "BR", "page": "/billing"},
+        session_snapshot=first.session_snapshot,
+    )
+    assert second.session_snapshot == {
+        "customer_id": "cus-1",
+        "country": "BR",
+    }
+
+    with pytest.raises(ExternalContextSessionConflict) as exc_info:
+        resolve_scoped_effective_external_context(
+            effective,
+            {"customer_id": "cus-1", "page": "/orders"},
+            session_snapshot=second.session_snapshot,
+        )
+
+    assert exc_info.value.code == "EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET"
 
 
 def test_effective_scope_change_is_compatibility_break() -> None:

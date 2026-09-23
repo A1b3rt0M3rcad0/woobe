@@ -9,6 +9,7 @@ from sqlalchemy import select
 
 from modules.agent.domain.external_context_contract import (
     ExternalContextContractError,
+    ExternalContextSessionConflict,
     compose_external_context_contracts,
 )
 from modules.agent.infra.database.models import AgentReleaseModel
@@ -265,6 +266,13 @@ class NetworkApplicationService(SessionModeNetworkApplicationService):
                         None,
                     ),
                 )
+            except ExternalContextSessionConflict as exc:
+                error = ConflictError(str(exc))
+                error.code = exc.code
+                error.fields = exc.fields
+                error.scope = exc.scope
+                error.reason = exc.reason
+                raise error from exc
             except ExternalContextContractError as exc:
                 raise ValidationError(str(exc)) from exc
 

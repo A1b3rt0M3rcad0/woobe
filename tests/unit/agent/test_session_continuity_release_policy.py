@@ -432,7 +432,7 @@ async def test_session_external_context_is_initialized_once_and_run_context_chan
     token = current_execution.set(new_execution_context())
     try:
         with pytest.raises(
-            RuntimeValidationError,
+            ConflictError,
             match="cannot be supplied again",
         ):
             await runtime._resolve_session(

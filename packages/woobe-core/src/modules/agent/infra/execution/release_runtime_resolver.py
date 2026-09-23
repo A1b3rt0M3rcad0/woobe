@@ -20,6 +20,7 @@ from modules.agent.domain.enums import CredentialStatus, ProviderModelStatus, Re
 from modules.agent.domain.errors import RuntimeEnvironmentNotReadyError
 from modules.agent.domain.external_context_contract import (
     ExternalContextContractError,
+    ExternalContextSessionConflict,
     model_external_context,
     normalize_external_context_contract,
     resolve_scoped_external_context,
@@ -125,6 +126,13 @@ class ReleaseRuntimeResolver(VectorSnapshotRAGMixin, AskAgentUseCase):
                 allow_session_replay=allow_session_replay,
             )
             exposed = model_external_context(contract, resolved.snapshot)
+        except ExternalContextSessionConflict as exc:
+            error = ConflictError(str(exc))
+            error.code = exc.code
+            error.fields = exc.fields
+            error.scope = exc.scope
+            error.reason = exc.reason
+            raise error from exc
         except ExternalContextContractError as exc:
             raise ValidationError(str(exc)) from exc
 

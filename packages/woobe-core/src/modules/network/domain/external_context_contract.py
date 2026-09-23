@@ -6,6 +6,7 @@ from typing import Any, Mapping
 
 from modules.agent.domain.external_context_contract import (
     ExternalContextContractError,
+    ExternalContextSessionConflict,
     classify_external_context_change,
     normalize_external_context_contract,
     resolve_external_context,
@@ -77,7 +78,7 @@ def resolve_scoped_effective_external_context(
     *,
     session_snapshot: Mapping[str, Any] | None,
 ) -> ScopedEffectiveExternalContextResolution:
-    """Resolve one Network Session snapshot plus the current Run snapshot."""
+    """Resolve write-once Network Session values plus the current Run snapshot."""
 
     fields = _effective_fields(effective_contract)
     values = {} if request_values is None else request_values
@@ -95,7 +96,7 @@ def resolve_scoped_effective_external_context(
         for name, field in fields.items()
         if isinstance(field, dict) and field.get("scope", "run") == "run"
     }
-    session_values = {
+    supplied_session = {
         name: deepcopy(validated[name])
         for name in session_fields
         if name in validated
@@ -105,62 +106,83 @@ def resolve_scoped_effective_external_context(
         for name in run_fields
         if name in validated
     }
+    persisted = deepcopy(dict(session_snapshot or {}))
+
+    removed = sorted(name for name in persisted if name not in fields)
+    if removed:
+        raise ExternalContextSessionConflict(
+            "Session External Context no longer satisfies the active contract; "
+            f"open a new Session (removed fields: {', '.join(removed)})",
+            code="EXTERNAL_CONTEXT_SESSION_CONTRACT_CONFLICT",
+            fields=removed,
+            reason="field_removed",
+        )
+
+    changed_scope = sorted(
+        name
+        for name in persisted
+        if fields[name].get("scope", "run") != "session"
+    )
+    if changed_scope:
+        raise ExternalContextSessionConflict(
+            "Session External Context no longer satisfies the active contract; "
+            f"open a new Session (scope changed: {', '.join(changed_scope)})",
+            code="EXTERNAL_CONTEXT_SESSION_CONTRACT_CONFLICT",
+            fields=changed_scope,
+            reason="scope_changed",
+        )
+
+    for name, value in persisted.items():
+        try:
+            validate_effective_external_context_values(
+                {name: session_fields[name]},
+                {name: value},
+            )
+        except ExternalContextContractError as exc:
+            raise ExternalContextSessionConflict(
+                "Session External Context no longer satisfies the active contract; "
+                f"open a new Session (invalid value: {name})",
+                code="EXTERNAL_CONTEXT_SESSION_CONTRACT_CONFLICT",
+                fields=[name],
+                reason="value_invalid",
+            ) from exc
+
+    already_set = sorted(set(supplied_session) & set(persisted))
+    if already_set:
+        raise ExternalContextSessionConflict(
+            "Session-scoped External Context is already fixed and cannot be "
+            f"supplied again: {', '.join(already_set)}",
+            code="EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET",
+            fields=already_set,
+            reason="already_set",
+        )
 
     session_changed = False
-    if session_snapshot is not None:
-        persisted_names = set(session_snapshot)
-        invalid_persisted = persisted_names - set(session_fields)
-        if invalid_persisted:
-            names = ", ".join(sorted(str(name) for name in invalid_persisted))
-            raise ExternalContextContractError(
-                "Session External Context no longer satisfies the active contract; "
-                f"open a new Session (invalid fields: {names})"
-            )
-
-    if session_fields:
-        if session_snapshot is None:
-            for name, field in session_fields.items():
-                if name in session_values:
-                    continue
-                consumers = field.get("consumers") or {}
-                missing_for = [
-                    consumer
-                    for consumer, spec in consumers.items()
-                    if isinstance(spec, dict)
-                    and bool(spec.get("required", False))
-                    and "default" not in spec
-                ]
-                if missing_for:
-                    raise ExternalContextContractError(
-                        f"Required Session External Context field is missing: {name}"
-                    )
-            resolved_session = deepcopy(session_values)
+    for name, field in session_fields.items():
+        if name in persisted:
+            continue
+        if name in supplied_session:
+            persisted[name] = deepcopy(supplied_session[name])
             session_changed = True
-        else:
-            persisted = deepcopy(dict(session_snapshot))
-            validated_persisted = validate_effective_external_context_values(
-                session_fields,
-                persisted,
-            )
-            if validated_persisted != persisted:
-                raise ExternalContextContractError(
-                    "Session External Context no longer satisfies the active contract; "
-                    "open a new Session"
-                )
-            if session_values:
-                names = ", ".join(sorted(session_values))
-                raise ExternalContextContractError(
-                    "Session-scoped External Context is immutable and cannot be "
-                    f"supplied again: {names}"
-                )
-            resolved_session = persisted
-    else:
-        resolved_session = {}
+            continue
 
-    effective = deepcopy(resolved_session)
+        consumers = field.get("consumers") or {}
+        missing_for = [
+            consumer
+            for consumer, spec in consumers.items()
+            if isinstance(spec, dict)
+            and bool(spec.get("required", False))
+            and "default" not in spec
+        ]
+        if missing_for:
+            raise ExternalContextContractError(
+                f"Required Session External Context field is missing: {name}"
+            )
+
+    effective = deepcopy(persisted)
     effective.update(deepcopy(run_values))
     return ScopedEffectiveExternalContextResolution(
-        session_snapshot=deepcopy(resolved_session),
+        session_snapshot=deepcopy(persisted),
         run_snapshot=deepcopy(run_values),
         snapshot=effective,
         session_changed=session_changed,

@@ -14,6 +14,24 @@ class ExternalContextContractError(ValueError):
     """Raised when an External Context contract or payload is invalid."""
 
 
+class ExternalContextSessionConflict(ExternalContextContractError):
+    """Raised when persisted Session context conflicts with the active contract/input."""
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str,
+        fields: list[str],
+        reason: str,
+    ) -> None:
+        super().__init__(message)
+        self.code = code
+        self.fields = fields
+        self.scope = "session"
+        self.reason = reason
+
+
 @dataclass(frozen=True, slots=True)
 class ExternalContextResolution:
     snapshot: dict[str, Any]
@@ -188,7 +206,7 @@ def resolve_scoped_external_context(
     session_snapshot: Mapping[str, Any] | None,
     allow_session_replay: bool = False,
 ) -> ScopedExternalContextResolution:
-    """Resolve immutable Session values plus ephemeral Run values."""
+    """Resolve write-once Session values plus ephemeral Run values."""
 
     fields = normalize_external_context_contract(contract)
     values = {} if request_values is None else request_values
@@ -203,7 +221,7 @@ def resolve_scoped_external_context(
         )
 
     session_fields, run_fields = split_external_context_contract(fields)
-    session_values = {
+    supplied_session = {
         name: deepcopy(values[name])
         for name in session_fields
         if name in values
@@ -213,70 +231,100 @@ def resolve_scoped_external_context(
         for name in run_fields
         if name in values
     }
+    persisted = deepcopy(dict(session_snapshot or {}))
 
-    session_changed = False
-    if session_snapshot is not None:
-        persisted_names = set(session_snapshot)
-        invalid_persisted = persisted_names - set(session_fields)
-        if invalid_persisted:
-            names = ", ".join(sorted(str(name) for name in invalid_persisted))
-            raise ExternalContextContractError(
+    removed = sorted(name for name in persisted if name not in fields)
+    if removed:
+        raise ExternalContextSessionConflict(
+            "Session External Context no longer satisfies the active contract; "
+            f"open a new Session (removed fields: {', '.join(removed)})",
+            code="EXTERNAL_CONTEXT_SESSION_CONTRACT_CONFLICT",
+            fields=removed,
+            reason="field_removed",
+        )
+
+    changed_scope = sorted(
+        name
+        for name in persisted
+        if fields[name].get("scope", "run") != "session"
+    )
+    if changed_scope:
+        raise ExternalContextSessionConflict(
+            "Session External Context no longer satisfies the active contract; "
+            f"open a new Session (scope changed: {', '.join(changed_scope)})",
+            code="EXTERNAL_CONTEXT_SESSION_CONTRACT_CONFLICT",
+            fields=changed_scope,
+            reason="scope_changed",
+        )
+
+    for name, value in persisted.items():
+        try:
+            _validate_schema_value(value, session_fields[name]["schema"], name)
+        except ExternalContextContractError as exc:
+            raise ExternalContextSessionConflict(
                 "Session External Context no longer satisfies the active contract; "
-                f"open a new Session (invalid fields: {names})"
+                f"open a new Session (invalid value: {name})",
+                code="EXTERNAL_CONTEXT_SESSION_CONTRACT_CONFLICT",
+                fields=[name],
+                reason="value_invalid",
+            ) from exc
+
+    already_set = sorted(set(supplied_session) & set(persisted))
+    if already_set:
+        if not allow_session_replay:
+            raise ExternalContextSessionConflict(
+                "Session-scoped External Context is already fixed and cannot be "
+                f"supplied again: {', '.join(already_set)}",
+                code="EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET",
+                fields=already_set,
+                reason="already_set",
             )
 
-    if session_fields:
-        if session_snapshot is None:
-            resolved_session = resolve_external_context(
-                session_fields,
-                session_values,
-                enforce_required=True,
-            ).snapshot
-            session_changed = True
-        else:
-            persisted = deepcopy(dict(session_snapshot))
-            checked = resolve_external_context(
-                session_fields,
-                persisted,
-                enforce_required=True,
-            ).snapshot
-            if checked != persisted:
-                raise ExternalContextContractError(
-                    "Session External Context no longer satisfies the active contract; "
-                    "open a new Session"
-                )
+        mismatched = sorted(
+            name
+            for name in already_set
+            if supplied_session[name] != persisted[name]
+        )
+        if mismatched:
+            raise ExternalContextSessionConflict(
+                "Session-scoped External Context is immutable and cannot be "
+                f"overwritten: {', '.join(mismatched)}",
+                code="EXTERNAL_CONTEXT_SESSION_CONTRACT_CONFLICT",
+                fields=mismatched,
+                reason="value_changed",
+            )
 
-            if session_values:
-                if not allow_session_replay:
-                    names = ", ".join(sorted(session_values))
-                    raise ExternalContextContractError(
-                        "Session-scoped External Context is immutable and cannot be "
-                        f"supplied again: {names}"
-                    )
-                mismatched = [
-                    name
-                    for name, value in session_values.items()
-                    if name not in persisted or persisted[name] != value
-                ]
-                if mismatched:
-                    names = ", ".join(sorted(mismatched))
-                    raise ExternalContextContractError(
-                        "Session-scoped External Context is immutable and cannot be "
-                        f"overwritten: {names}"
-                    )
-            resolved_session = persisted
-    else:
-        resolved_session = {}
+    session_changed = False
+    for name, field in session_fields.items():
+        if name in persisted:
+            continue
+
+        if name in supplied_session:
+            value = supplied_session[name]
+            _validate_schema_value(value, field["schema"], name)
+            persisted[name] = deepcopy(value)
+            session_changed = True
+            continue
+
+        if "default" in field:
+            persisted[name] = deepcopy(field["default"])
+            session_changed = True
+            continue
+
+        if field["required"]:
+            raise ExternalContextContractError(
+                f"Required Session External Context field is missing: {name}"
+            )
 
     resolved_run = resolve_external_context(
         run_fields,
         run_values,
         enforce_required=True,
     ).snapshot
-    effective = deepcopy(resolved_session)
+    effective = deepcopy(persisted)
     effective.update(deepcopy(resolved_run))
     return ScopedExternalContextResolution(
-        session_snapshot=deepcopy(resolved_session),
+        session_snapshot=deepcopy(persisted),
         run_snapshot=deepcopy(resolved_run),
         snapshot=effective,
         session_changed=session_changed,
