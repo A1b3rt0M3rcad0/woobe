@@ -20,6 +20,9 @@ class UpdateCollectionUseCase:
             description = (input_dto.description or "").strip()
             collection.description = description or None
 
+        if "status" in input_dto.model_fields_set and input_dto.status is not None:
+            collection.status = input_dto.status
+
         updated = await self.repo.update(collection)
 
         return UpdateCollectionOutput(
