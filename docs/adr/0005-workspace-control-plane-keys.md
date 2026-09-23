@@ -46,6 +46,7 @@ Project permissions:
 - `project:environment:write`
 - `project:access:read`
 - `project:access:write`
+- `api_key:read`, `api_key:write`
 - `agent:read`, `agent:write`, `agent:delete`, `agent:version`, `agent:production`
 - `network:read`, `network:write`, `network:delete`, `network:version`, `network:production`
 - `tool:read`, `tool:write`, `tool:delete`, `tool:execute`
