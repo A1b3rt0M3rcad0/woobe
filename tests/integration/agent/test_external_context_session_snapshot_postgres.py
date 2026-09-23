@@ -111,6 +111,7 @@ async def test_runtime_session_row_lock_serializes_first_session_field_initializ
     engine, _session_factory, _project_id, _agent_id, session_id = await _seed_session()
     first_locked = asyncio.Event()
     release_first = asyncio.Event()
+    second_attempting = asyncio.Event()
     second_acquired = asyncio.Event()
     second_snapshot = None
 
@@ -128,6 +129,7 @@ async def test_runtime_session_row_lock_serializes_first_session_field_initializ
         await first_locked.wait()
         async with AgentUnitOfWork(engine) as uow:
             repo = SQLAlchemyRuntimeSessionRepository(uow)
+            second_attempting.set()
             entity = await repo.get_by_id_for_update(session_id)
             second_snapshot = entity.external_context_snapshot
             second_acquired.set()
@@ -135,9 +137,10 @@ async def test_runtime_session_row_lock_serializes_first_session_field_initializ
     first_task = asyncio.create_task(first_writer())
     await first_locked.wait()
     second_task = asyncio.create_task(second_writer())
+    await asyncio.wait_for(second_attempting.wait(), timeout=1)
 
     with pytest.raises(asyncio.TimeoutError):
-        await asyncio.wait_for(second_acquired.wait(), timeout=0.05)
+        await asyncio.wait_for(second_acquired.wait(), timeout=0.1)
 
     release_first.set()
     await asyncio.gather(first_task, second_task)
