@@ -129,7 +129,14 @@ export function useCreateAgent(projectId?: string) {
 }
 export function useUpdateAgent(agentId?: string) {
   const queryClient = useQueryClient()
-  return useMutation({ mutationFn: (data: UpdateAgentRequest) => updateAgent(agentId!, data), onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['agent', agentId] }); queryClient.invalidateQueries({ queryKey: ['agents'] }) } })
+  return useMutation({
+    mutationFn: (data: UpdateAgentRequest) => updateAgent(agentId!, data),
+    onSuccess: (agent) => {
+      queryClient.invalidateQueries({ queryKey: ['agent', agentId] })
+      queryClient.invalidateQueries({ queryKey: ['agents'] })
+      queryClient.invalidateQueries({ queryKey: ['network-external-context-contract', agent.project_id] })
+    },
+  })
 }
 export function usePrompts(agentId: string | undefined) {
   return useQuery({ queryKey: ['prompts', agentId], queryFn: () => getPrompts(agentId!), enabled: Boolean(agentId) })
@@ -180,11 +187,12 @@ export function useCreateRelease(agentId?: string) {
   const queryClient = useQueryClient()
   return useMutation({
     mutationFn: (data: CreateReleaseRequest) => createRelease(agentId!, data),
-    onSuccess: () => {
+    onSuccess: (_release, input) => {
       queryClient.invalidateQueries({ queryKey: ['releases', agentId] })
       queryClient.invalidateQueries({ queryKey: ['agent', agentId] })
       queryClient.invalidateQueries({ queryKey: ['agents'] })
       queryClient.invalidateQueries({ queryKey: ['network-promotion-preview'] })
+      queryClient.invalidateQueries({ queryKey: ['network-external-context-contract', input.project_id] })
     },
   })
 }
