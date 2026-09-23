@@ -85,7 +85,13 @@ def resolve_scoped_effective_external_context(
     if not isinstance(values, dict):
         raise ExternalContextContractError("External Context values must be an object")
 
-    validated = validate_effective_external_context_values(fields, values)
+    unknown = set(values) - set(fields)
+    if unknown:
+        names = ", ".join(sorted(str(key) for key in unknown))
+        raise ExternalContextContractError(
+            f"External Context contains undeclared fields: {names}"
+        )
+
     session_fields = {
         name: field
         for name, field in fields.items()
@@ -96,15 +102,8 @@ def resolve_scoped_effective_external_context(
         for name, field in fields.items()
         if isinstance(field, dict) and field.get("scope", "run") == "run"
     }
-    supplied_session = {
-        name: deepcopy(validated[name])
-        for name in session_fields
-        if name in validated
-    }
-    run_values = {
-        name: deepcopy(validated[name])
-        for name in run_fields
-        if name in validated
+    supplied_session_names = {
+        name for name in session_fields if name in values
     }
     persisted = deepcopy(dict(session_snapshot or {}))
 
@@ -147,7 +146,7 @@ def resolve_scoped_effective_external_context(
                 reason="value_invalid",
             ) from exc
 
-    already_set = sorted(set(supplied_session) & set(persisted))
+    already_set = sorted(supplied_session_names & set(persisted))
     if already_set:
         raise ExternalContextSessionConflict(
             "Session-scoped External Context is already fixed and cannot be "
@@ -156,6 +155,18 @@ def resolve_scoped_effective_external_context(
             fields=already_set,
             reason="already_set",
         )
+
+    validated = validate_effective_external_context_values(fields, values)
+    supplied_session = {
+        name: deepcopy(validated[name])
+        for name in session_fields
+        if name in validated
+    }
+    run_values = {
+        name: deepcopy(validated[name])
+        for name in run_fields
+        if name in validated
+    }
 
     session_changed = False
     for name, field in session_fields.items():
