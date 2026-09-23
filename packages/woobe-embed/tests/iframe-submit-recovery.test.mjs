@@ -61,12 +61,25 @@ const RUNTIME_STREAM_MAX_ATTEMPTS = 4;
 class RuntimeStreamGapError extends Error {}
 const acceptRuntimeFrameSequence = () => true;
 const parseRuntimeFrame = (frame) => {
-  if (!frame.includes("event: done")) return null;
-  const dataLine = frame.split(/\\r?\\n/).find((line) => line.startsWith("data:"));
+  const lines = frame.split(/\\r?\\n/);
+  const eventLine = lines.find((line) => line.startsWith("event:"));
+  const eventType = eventLine ? eventLine.slice(6).trim() : "";
+  if (eventType !== "done" && eventType !== "error") return null;
+  const dataLine = lines.find((line) => line.startsWith("data:"));
   const data = dataLine ? JSON.parse(dataLine.slice(5).trim()) : {};
-  return { eventType: "done", data, payload: data, sequence: null };
+  return {
+    eventType,
+    data,
+    payload: data,
+    sequence: null,
+    kind: eventType === "error" ? "transport" : "semantic",
+  };
 };
-const runtimeTerminalStatus = (parsed) => parsed?.eventType === "done" ? "completed" : null;
+const runtimeTerminalStatus = (parsed) => parsed?.eventType === "done"
+  ? "completed"
+  : parsed?.eventType === "error"
+    ? "failed"
+    : null;
 const createChatUi = () => globalThis.__ui;
 `;
   const hooks = `
@@ -102,6 +115,7 @@ globalThis.__woobeIframeTest = {
 
   const errors = [];
   const messages = [];
+  const emitted = [];
   const ui = {
     setAppearance() {},
     setStopping() {},
@@ -131,7 +145,11 @@ globalThis.__woobeIframeTest = {
     clearComposer() {},
     focusComposer() {},
   };
-  const parent = { postMessage() {} };
+  const parent = {
+    postMessage(message) {
+      emitted.push(message);
+    },
+  };
   const windowObject = {
     location: { search: "?surface=surface-1&instance=instance-1" },
     parent,
@@ -173,6 +191,7 @@ globalThis.__woobeIframeTest = {
     setLockedExternalContextFields: context.__woobeIframeTest.setLockedExternalContextFields,
     errors,
     messages,
+    emitted,
   };
 }
 
@@ -274,6 +293,46 @@ test("session-scoped External Context is sent once and omitted from later messag
     ],
   );
   assert.deepEqual(harness.errors, []);
+});
+
+test("structured Agent stream conflict is surfaced through ChatSurface", async () => {
+  const harness = await loadIframeHarness(async (url) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith("/messages:stream")) {
+      return new Response(
+        `event: error\ndata: ${JSON.stringify({
+          type: "error",
+          message: "Session-scoped External Context is already fixed: client_id",
+          status_code: 409,
+          code: "EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET",
+          fields: ["client_id"],
+          scope: "session",
+          reason: "already_set",
+        })}\n\n`,
+        { status: 200, headers: { "Content-Type": "text/event-stream" } },
+      );
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  });
+
+  await harness.sendMessage("segunda");
+
+  assert.deepEqual(harness.errors, [
+    "Session-scoped External Context is already fixed: client_id",
+  ]);
+  const errorEvent = harness.emitted.find((event) => event?.type === "error");
+  assert.ok(errorEvent);
+  assert.equal(errorEvent.payload.status_code, 409);
+  assert.equal(
+    errorEvent.payload.code,
+    "EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET",
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(errorEvent.payload.fields)),
+    ["client_id"],
+  );
+  assert.equal(errorEvent.payload.scope, "session");
+  assert.equal(errorEvent.payload.reason, "already_set");
 });
 
 test("ambiguous submit failure performs one canonical active Run lookup instead of polling the endpoint", async () => {
