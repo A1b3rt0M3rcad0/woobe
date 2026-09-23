@@ -58,6 +58,14 @@ def test_network_session_snapshot_locks_session_scoped_external_context() -> Non
     assert "externalContextOwnerRef.current = environment" in network
 
 
+def test_network_acceptance_conflicts_refresh_persisted_session_locks() -> None:
+    network = _source(NETWORK_CHAT)
+
+    assert "toast.error(error instanceof Error ? error.message : 'Network execution failed')" in network
+    assert "await refreshPersistedSession(session.id)" in network
+    assert "if (executionId) await refreshPersistedSession(session.id)" not in network
+
+
 def test_network_external_context_presets_are_environment_owned() -> None:
     network = _source(NETWORK_CHAT)
 
