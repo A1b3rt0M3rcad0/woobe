@@ -456,6 +456,60 @@ class ControlKeyService:
                 "rotated_from_id": control_key_id,
             }
 
+    async def grant_created_project(
+        self,
+        *,
+        principal: ControlPlanePrincipal,
+        project_id: UUID,
+    ) -> None:
+        async with self._session_factory() as session:
+            await self._require_workspace_permission(
+                session,
+                actor=principal,
+                workspace_id=principal.workspace_id,
+                permission="projects:create",
+            )
+            result = await session.execute(
+                text(
+                    """
+                    SELECT workspace_id
+                    FROM core.projects
+                    WHERE id = :project_id
+                    """
+                ),
+                {"project_id": project_id},
+            )
+            workspace_id = result.scalar_one_or_none()
+            if workspace_id is None or UUID(str(workspace_id)) != principal.workspace_id:
+                raise NotFoundError("Project not found")
+
+            now = datetime.now(UTC)
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO core.workspace_control_key_project_grants
+                        (id, control_key_id, project_id, permissions, created_at, updated_at)
+                    VALUES
+                        (:id, :control_key_id, :project_id,
+                         CAST(:permissions AS jsonb), :now, :now)
+                    ON CONFLICT (control_key_id, project_id)
+                    DO UPDATE SET
+                        permissions = EXCLUDED.permissions,
+                        updated_at = EXCLUDED.updated_at
+                    """
+                ),
+                {
+                    "id": uuid6.uuid7(),
+                    "control_key_id": principal.api_key_id,
+                    "project_id": project_id,
+                    "permissions": self._json_array(
+                        sorted(PROJECT_CONTROL_PERMISSIONS)
+                    ),
+                    "now": now,
+                },
+            )
+            await session.commit()
+
     async def list_accessible_projects(
         self,
         *,
