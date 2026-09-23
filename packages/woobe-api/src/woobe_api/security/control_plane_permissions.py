@@ -170,6 +170,13 @@ def control_plane_permission(method: str, path: str) -> str | None:
             return "chat_surface:write"
         return None
 
+    if path.startswith("/runtime/runs"):
+        if method != "GET":
+            return None
+        if path == "/runtime/runs/active" or path.endswith("/stream"):
+            return None
+        return "run:read"
+
     if path.startswith("/observability/") and method == "GET":
         return "observability:read"
 
