@@ -32,6 +32,7 @@ Project/runtime/chat-surface keys retain their current behavior.
 Workspace permissions:
 
 - `workspace:read`
+- `projects:create`
 - `keys:read`
 - `keys:create`
 - `keys:update`
@@ -70,6 +71,7 @@ Project permissions:
 6. The actor credential lineage cannot update, rotate, revoke or change its own grants/permissions.
 7. Secret values are returned only at issuance/rotation, never by list/get endpoints.
 8. User principals continue to use the existing Workspace/Project membership authorization paths.
+9. A control key with `projects:create` receives the complete Project permission set only on Projects that it creates; this does not expand access to any existing Project.
 
 ## Consequences
 
