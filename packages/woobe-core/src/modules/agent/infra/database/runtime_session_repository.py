@@ -198,6 +198,7 @@ class SQLAlchemyRuntimeSessionRepository(SQLAlchemySessionRepository):
         model.status = session.status.value if hasattr(session.status, "value") else session.status
         model.mode = session.mode.value if hasattr(session.mode, "value") else session.mode
         model.data = session.data
+        model.external_context_snapshot = session.external_context_snapshot
         model.last_message_at = session.last_message_at
         await self._base._flush()
         return self._to_entity(model)
