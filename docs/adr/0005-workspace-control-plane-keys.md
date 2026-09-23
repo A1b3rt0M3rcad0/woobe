@@ -53,7 +53,7 @@ Project permissions:
 - `tool:read`, `tool:write`, `tool:delete`, `tool:execute`
 - `knowledge:read`, `knowledge:write`, `knowledge:delete`
 - `provider:read`, `provider:write`, `provider:delete`
-- `provider:credential:revoke`
+- `provider:credential:rotate`, `provider:credential:revoke`
 - `model:read`, `model:write`, `model:delete`
 - `skill:read`, `skill:write`, `skill:version`
 - `chat_surface:read`, `chat_surface:write`, `chat_surface:release`, `chat_surface:keys`
