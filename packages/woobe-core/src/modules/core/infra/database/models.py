@@ -280,10 +280,7 @@ class ApiKeyModel(BaseModel):
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by_user_id: Mapped[UUID | None] = mapped_column(nullable=True)
-    created_by_control_key_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("core.workspace_control_keys.id", ondelete="SET NULL"),
-        nullable=True,
-    )
+    created_by_control_key_id: Mapped[UUID | None] = mapped_column(nullable=True)
     rotated_from_id: Mapped[UUID | None] = mapped_column(nullable=True)
 
 
