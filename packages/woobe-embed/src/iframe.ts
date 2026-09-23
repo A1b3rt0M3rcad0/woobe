@@ -610,7 +610,17 @@ async function sendMessage(message: string) {
       });
     } catch (error) {
       if (error instanceof SessionExpiredError) throw error;
-      // A structured admission conflict already carries the canonical Run identity.
+      if (
+        error instanceof ChatApiError
+        && error.data
+        && typeof error.data === "object"
+        && !Array.isArray(error.data)
+        && typeof (error.data as Record<string, unknown>).code === "string"
+        && (error.data as Record<string, unknown>).code !== "active_run_conflict"
+      ) {
+        throw error;
+      }
+      // A structured active-Run conflict already carries the canonical Run identity.
       // Other ambiguous failures get one server-side reconciliation request; the
       // iframe never polls active-run or resubmits the user's message.
       const active = activeRunFromConflict(error) ?? await recoverAcceptedActiveRun();
