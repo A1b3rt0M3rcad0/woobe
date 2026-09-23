@@ -155,6 +155,23 @@ def control_plane_permission(method: str, path: str) -> str | None:
             return "network:read"
         return None
 
+    if path.startswith("/chat-surfaces/"):
+        if "/access-keys" in path:
+            return "chat_surface:keys" if method in {"GET", "POST"} else None
+        if path.endswith("/release"):
+            return "chat_surface:release" if method == "POST" else None
+        if path.endswith("/sessions") or path.endswith("/activity"):
+            return "chat_surface:read" if method == "GET" else None
+        if path.endswith("/test-sessions"):
+            return "chat_surface:write" if method == "POST" else None
+        if path.endswith("/activate") or path.endswith("/disable") or path.endswith("/archive"):
+            return "chat_surface:write" if method == "POST" else None
+        if method == "GET":
+            return "chat_surface:read"
+        if method in {"POST", "PATCH"}:
+            return "chat_surface:write"
+        return None
+
     if path.startswith("/observability/") and method == "GET":
         return "observability:read"
 
