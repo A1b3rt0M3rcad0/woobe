@@ -31,7 +31,7 @@ from shared.infra.errors import (
     ConflictError,
     NotFoundError,
 )
-from shared.security.principal import AuthenticatedPrincipal
+from shared.security.principal import AuthenticatedPrincipal, ControlPlanePrincipal
 from shared.security.rate_limit import SlidingWindowRateLimiter
 
 
@@ -52,11 +52,15 @@ def _runtime_gateway(request: Request) -> ChatRuntimeGateway:
     return gateway
 
 
-def _authenticated_user(request: Request) -> UUID:
+def _management_actor(
+    request: Request,
+) -> tuple[UUID, UUID | None, UUID | None]:
     principal = getattr(request.state, "principal", None)
-    if not isinstance(principal, AuthenticatedPrincipal):
-        raise AuthorizationError("User authentication required")
-    return principal.user_id
+    if isinstance(principal, AuthenticatedPrincipal):
+        return principal.user_id, principal.user_id, None
+    if isinstance(principal, ControlPlanePrincipal):
+        return principal.api_key_id, None, principal.api_key_id
+    raise AuthorizationError("Management authentication required")
 
 
 def _bearer(request: Request) -> str:
@@ -119,7 +123,7 @@ async def create_surface(
 ):
     surface = await _service(request).create_surface(
         project_id=project_id,
-        actor_id=_authenticated_user(request),
+        actor_id=_management_actor(request)[0],
         payload=payload,
     )
     return {"success": True, "data": surface_payload(surface)}
@@ -127,14 +131,14 @@ async def create_surface(
 
 @router.get("/chat-surfaces/projects/{project_id}")
 async def list_surfaces(project_id: UUID, request: Request):
-    _authenticated_user(request)
+    _management_actor(request)[0]
     surfaces = await _service(request).list_surfaces(project_id)
     return {"success": True, "data": [surface_payload(item) for item in surfaces]}
 
 
 @router.get("/chat-surfaces/{surface_id}")
 async def get_surface(surface_id: UUID, request: Request):
-    _authenticated_user(request)
+    _management_actor(request)[0]
     surface = await _service(request).get_surface(surface_id)
     return {"success": True, "data": surface_payload(surface)}
 
@@ -145,20 +149,20 @@ async def update_surface(
     payload: UpdateChatSurfaceRequest,
     request: Request,
 ):
-    _authenticated_user(request)
+    _management_actor(request)[0]
     surface = await _service(request).update_surface(surface_id, payload)
     return {"success": True, "data": surface_payload(surface)}
 
 
 @router.post("/chat-surfaces/{surface_id}/release")
 async def refresh_surface_release(surface_id: UUID, request: Request):
-    _authenticated_user(request)
+    _management_actor(request)[0]
     surface = await _service(request).refresh_target_release(surface_id)
     return {"success": True, "data": surface_payload(surface)}
 
 
 async def _set_surface_status(surface_id: UUID, request: Request, status: str):
-    _authenticated_user(request)
+    _management_actor(request)[0]
     surface = await _service(request).set_status(surface_id, status)
     return {"success": True, "data": surface_payload(surface)}
 
@@ -184,9 +188,11 @@ async def create_access_key(
     payload: CreateSurfaceAccessKeyRequest,
     request: Request,
 ):
+    _, actor_user_id, actor_control_key_id = _management_actor(request)
     api_key, secret, display_prefix = await _service(request).create_access_key(
         surface_id,
-        actor_id=_authenticated_user(request),
+        actor_user_id=actor_user_id,
+        actor_control_key_id=actor_control_key_id,
         payload=payload,
     )
     return {
@@ -201,7 +207,7 @@ async def create_access_key(
 
 @router.get("/chat-surfaces/{surface_id}/access-keys")
 async def list_access_keys(surface_id: UUID, request: Request):
-    _authenticated_user(request)
+    _management_actor(request)[0]
     keys = await _service(request).list_access_keys(surface_id)
     return {"success": True, "data": [_key_payload(item) for item in keys]}
 
@@ -215,10 +221,12 @@ async def rotate_access_key(
     api_key_id: UUID,
     request: Request,
 ):
+    _, actor_user_id, actor_control_key_id = _management_actor(request)
     api_key, secret, display_prefix = await _service(request).rotate_access_key(
         surface_id,
         api_key_id,
-        actor_id=_authenticated_user(request),
+        actor_user_id=actor_user_id,
+        actor_control_key_id=actor_control_key_id,
     )
     return {
         "success": True,
@@ -236,7 +244,7 @@ async def revoke_access_key(
     api_key_id: UUID,
     request: Request,
 ):
-    _authenticated_user(request)
+    _management_actor(request)[0]
     api_key = await _service(request).revoke_access_key(surface_id, api_key_id)
     return {"success": True, "data": _key_payload(api_key)}
 
@@ -247,14 +255,14 @@ async def list_surface_sessions(
     request: Request,
     limit: int = 50,
 ):
-    _authenticated_user(request)
+    _management_actor(request)[0]
     bindings = await _service(request).list_sessions(surface_id, limit=limit)
     return {"success": True, "data": [_binding_payload(item) for item in bindings]}
 
 
 @router.get("/chat-surfaces/{surface_id}/activity")
 async def get_surface_activity(surface_id: UUID, request: Request):
-    _authenticated_user(request)
+    _management_actor(request)[0]
     activity = await _service(request).surface_activity(surface_id)
     return {"success": True, "data": activity}
 
@@ -269,7 +277,7 @@ async def create_test_session(
         raise AuthorizationError("Control Plane Origin header is required")
     token, binding, surface = await _service(request).create_test_session(
         surface_id=surface_id,
-        actor_id=_authenticated_user(request),
+        actor_id=_management_actor(request)[0],
         origin=origin,
     )
     return {
