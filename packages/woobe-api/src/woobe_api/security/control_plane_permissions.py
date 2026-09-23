@@ -107,7 +107,7 @@ def control_plane_permission(method: str, path: str) -> str | None:
             return "agent:delete"
         return None
 
-    if path.startswith("/knowledge"):
+    if path.startswith("/knowledge") or path.startswith("/agent/knowledge"):
         if method == "GET":
             return "knowledge:read"
         if method == "DELETE":
