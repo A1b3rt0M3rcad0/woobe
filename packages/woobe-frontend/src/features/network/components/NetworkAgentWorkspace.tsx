@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Bot, Edit3, FileJson, GitBranch, Lock, MessageSquare, Rocket } from 'lucide-react'
 import {
   Alert,
@@ -41,6 +41,7 @@ interface NetworkAgentWorkspaceProps {
   onOpenComposition: () => void
   onDirtyChange?: (dirty: boolean) => void
   onRegisterSaveAction?: (action: (() => Promise<boolean>) | null) => void
+  onDraftExternalContextChange?: (contract: unknown) => void
 }
 
 function sourceLabel(source: BindingSource) {
@@ -162,13 +163,17 @@ function WorkspaceHeader({
   )
 }
 
-function EditableAgentWorkspaceContent({ agent, projectId, networkBinding, onOpenComposition, onDirtyChange, onRegisterSaveAction }: NetworkAgentWorkspaceProps) {
+function EditableAgentWorkspaceContent({ agent, projectId, networkBinding, onOpenComposition, onDirtyChange, onRegisterSaveAction, onDraftExternalContextChange }: NetworkAgentWorkspaceProps) {
   const [tab, setTab] = useState<AgentWorkspaceTab>('editor')
   const { loadedReleaseVersion, state } = useAgentEditor()
   const runtimeAgent = useMemo<Agent>(() => ({ ...agent, session_mode: state.sessionMode }), [agent, state.sessionMode])
   const bindingTitle = loadedReleaseVersion
     ? `Draft based on ${loadedReleaseVersion}. Editing it affects every context that uses this Agent Draft.`
     : 'Editing this shared Agent Draft may affect every context that uses it.'
+
+  useEffect(() => {
+    onDraftExternalContextChange?.(state.externalContextContract)
+  }, [onDraftExternalContextChange, state.externalContextContract])
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col overflow-hidden bg-surface/75">

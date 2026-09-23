@@ -34,7 +34,8 @@ class CreateSessionOutput(BaseModel):
     status: SessionStatus
     mode: SessionMode
     data: dict | None
-    last_message_at: datetime | None
+    external_context_snapshot: dict | None = None
+    last_message_at: datetime | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -100,6 +101,7 @@ class ListAgentSessionsOutput(BaseModel):
     status: SessionStatus
     mode: SessionMode
     data: dict | None = None
+    external_context_snapshot: dict | None = None
     last_message_at: datetime | None = None
     created_at: datetime | None = None
     message_count: int = 0

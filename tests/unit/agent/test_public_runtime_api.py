@@ -105,10 +105,12 @@ async def test_request_preparer_rejects_missing_production_release() -> None:
 
 
 @pytest.mark.asyncio
-async def test_request_preparer_ignores_session_for_stateless_release() -> None:
+async def test_request_preparer_preserves_explicit_session_for_stateless_agent() -> None:
     project_id = uuid4()
+    agent_id = uuid4()
+    session_id = uuid4()
     release = AgentRelease(
-        agent_id=uuid4(),
+        agent_id=agent_id,
         status=ReleaseStatus.staging,
         session_mode="stateless",
     )
@@ -116,7 +118,16 @@ async def test_request_preparer_ignores_session_for_stateless_release() -> None:
         get_active_production=AsyncMock(),
         list_by_status=AsyncMock(return_value=[release]),
     )
-    session_repo = SimpleNamespace(get_by_id=AsyncMock())
+    session_repo = SimpleNamespace(
+        get_by_id=AsyncMock(
+            return_value=Session(
+                id=session_id,
+                project_id=project_id,
+                agent_id=agent_id,
+                runtime_environment="staging",
+            )
+        )
+    )
     agent_repo = SimpleNamespace(
         get_by_id=AsyncMock(
             return_value=SimpleNamespace(
@@ -128,14 +139,14 @@ async def test_request_preparer_ignores_session_for_stateless_release() -> None:
     preparer = PublicRuntimeRequestPreparer(release_repo, session_repo, agent_repo)
 
     prepared = await preparer.prepare(
-        PublicRunRequest(message="Hello", session_id=uuid4()),
+        PublicRunRequest(message="Hello", session_id=session_id),
         project_id=project_id,
-        agent_id=release.agent_id,
+        agent_id=agent_id,
         environment="staging",
     )
 
-    assert prepared.session_id is None
-    session_repo.get_by_id.assert_not_awaited()
+    assert prepared.session_id == session_id
+    session_repo.get_by_id.assert_awaited_once_with(session_id)
 
 
 @pytest.mark.asyncio

@@ -22,6 +22,7 @@ interface NetworkContextInspectorProps {
   environment?: Environment
   agents: Agent[]
   bindings: Record<string, NetworkBinding>
+  liveDraftContractsByAgentId?: Record<string, unknown>
   issues: NetworkEditorIssue[]
   selection: NetworkEditorSelection
   readOnly: boolean
@@ -45,6 +46,7 @@ export function NetworkContextInspector({
   environment = 'draft',
   agents,
   bindings,
+  liveDraftContractsByAgentId,
   issues,
   selection,
   readOnly,
@@ -122,6 +124,7 @@ export function NetworkContextInspector({
             environment={environment}
             agents={agents}
             bindings={bindings}
+            liveDraftContractsByAgentId={liveDraftContractsByAgentId}
             issues={issues}
             selection={selection}
             readOnly={readOnly}

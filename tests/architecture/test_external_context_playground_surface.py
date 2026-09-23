@@ -29,18 +29,20 @@ def test_external_context_is_not_a_global_playground_header_action() -> None:
     assert 'aria-label="External Context"' not in header
 
 
-def test_external_context_is_explicit_per_run_and_not_session_state() -> None:
+def test_external_context_respects_session_and_run_lifecycle_scopes() -> None:
     page = _source(PLAYGROUND_PAGE)
     composer = _source(CHAT_COMPOSER)
     sessions = _source(SESSIONS_PANEL)
 
     assert "externalContextContract={activeExternalContextContract}" in page
-    assert "external_context: externalContextValues" in page
+    assert "filterExternalContextInput(" in page
+    assert "lockedExternalContextValues" in page
+    assert "external_context_snapshot" in page
     assert "external_context_session_values" not in page
-    assert "contractForScope" not in page
     assert "Session Context" not in sessions
 
     assert "External Context" in composer
-    assert "per Run" in composer
-    assert "Session-scoped" not in composer
-    assert "Successful Runs clear them automatically." not in composer
+    assert "Session fields are set once and reused automatically." in composer
+    assert "Run fields may change on each Run." in composer
+    assert "lockedValues={lockedExternalContextValues}" in composer
+    assert "      await refetchSessions()" in page

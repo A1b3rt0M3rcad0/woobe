@@ -28,6 +28,7 @@ from modules.agent.infra.execution.structured_output_ask_use_case import (
     StructuredOutputAskAgentUseCase,
 )
 from shared.composition_resources import EXECUTION_STATE_STORE
+from shared.contracts.errors import ConflictError
 from shared.contracts.execution_state import ExecutionStateStore
 from shared.contracts.time import utc_now
 from shared.runtime.contracts import RuntimeControlFrame
@@ -60,6 +61,31 @@ _AUTHORITATIVE_TERMINALS = {
     "uncertain",
 }
 _AUTHORITATIVE_NON_SUCCESS_TERMINALS = _AUTHORITATIVE_TERMINALS - {"completed"}
+
+
+def _stream_error_payload(error: Exception) -> dict[str, Any]:
+    payload: dict[str, Any] = {"message": redact_text(str(error))}
+    if not isinstance(error, ConflictError):
+        return payload
+
+    payload["status_code"] = 409
+    code = getattr(error, "code", None)
+    if isinstance(code, str):
+        payload["code"] = code
+    for field_name in (
+        "target_type",
+        "target_id",
+        "environment",
+        "run_id",
+        "status",
+        "fields",
+        "scope",
+        "reason",
+    ):
+        value = getattr(error, field_name, None)
+        if value is not None:
+            payload[field_name] = value if isinstance(value, (list, dict)) else str(value)
+    return payload
 
 
 def _track(task: asyncio.Task[Any], registry: set[asyncio.Task[Any]]) -> None:
@@ -173,7 +199,7 @@ class AskAgentStreamService:
                     await self._emit_durable_terminal_after_race(channel)
                     raise
 
-            await channel.emit("error", message=redact_text(str(exc)))
+            await channel.emit("error", **_stream_error_payload(exc))
             raise
         finally:
             current_runtime_stream.reset(token)
@@ -666,7 +692,7 @@ class AskAgentStreamService:
             error = execution_task.exception()
             if error is None:
                 return None
-            return RuntimeControlFrame("error", {"message": redact_text(str(error))})
+            return RuntimeControlFrame("error", _stream_error_payload(error))
 
         async for frame in subscription.stream(
             disconnect_check=disconnect_check,

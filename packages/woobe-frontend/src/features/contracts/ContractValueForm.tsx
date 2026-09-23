@@ -5,6 +5,7 @@ import { contractFields, coerceContractValue, type ContractFieldType } from './c
 interface ContractValueFormProps {
   contract: unknown
   values: Record<string, unknown>
+  lockedValues?: Record<string, unknown>
   disabled?: boolean
   density?: 'default' | 'compact'
   onChange: (values: Record<string, unknown>) => void
@@ -20,7 +21,7 @@ function inputValue(value: unknown) {
   return typeof value === 'string' || typeof value === 'number' ? String(value) : ''
 }
 
-export function ContractValueForm({ contract, values, disabled = false, density = 'default', onChange }: ContractValueFormProps) {
+export function ContractValueForm({ contract, values, lockedValues = {}, disabled = false, density = 'default', onChange }: ContractValueFormProps) {
   const fields = contractFields(contract)
   const entries = Object.entries(fields)
 
@@ -44,6 +45,9 @@ export function ContractValueForm({ contract, values, disabled = false, density 
           ? field.consumers as Record<string, { required?: boolean }>
           : {}
         const required = Boolean(field.required) || Object.values(consumers).some((consumer) => Boolean(consumer?.required))
+        const scope = field.scope === 'session' ? 'session' : 'run'
+        const locked = scope === 'session' && Object.prototype.hasOwnProperty.call(lockedValues, name)
+        const value = locked ? lockedValues[name] : values[name]
         return (
           <div
             key={name}
@@ -54,7 +58,7 @@ export function ContractValueForm({ contract, values, disabled = false, density 
             <div className="min-w-0">
               <p className="truncate font-mono text-system-control text-accent-foreground">{name}</p>
               <p className="font-mono text-system-label text-muted-foreground">
-                {type}{required ? ' · required' : ''}
+                {type}{required ? ' · required' : ''}{scope === 'session' ? locked ? ' · SESSION · fixed' : ' · SESSION · set once' : ' · RUN'}
               </p>
               {field.description ? (
                 <p className="mt-ui-hairline font-sans text-product-caption leading-4 text-muted-foreground">
@@ -64,8 +68,8 @@ export function ContractValueForm({ contract, values, disabled = false, density 
             </div>
             {type === 'boolean' ? (
               <Select
-                value={values[name] === true ? 'true' : values[name] === false ? 'false' : ''}
-                disabled={disabled}
+                value={value === true ? 'true' : value === false ? 'false' : ''}
+                disabled={disabled || locked}
                 options={[
                   { value: '', label: required ? 'Select value' : 'Unset' },
                   { value: 'true', label: 'True' },
@@ -76,8 +80,8 @@ export function ContractValueForm({ contract, values, disabled = false, density 
               />
             ) : enumValues?.length ? (
               <Select
-                value={inputValue(values[name])}
-                disabled={disabled}
+                value={inputValue(value)}
+                disabled={disabled || locked}
                 placeholder="Select value"
                 options={enumValues.map((item) => ({ value: String(item), label: String(item) }))}
                 onChange={(event) => setValue(name, coerceContractValue(type, event.target.value))}
@@ -85,8 +89,8 @@ export function ContractValueForm({ contract, values, disabled = false, density 
               />
             ) : (
               <Input
-                value={inputValue(values[name])}
-                disabled={disabled}
+                value={inputValue(value)}
+                disabled={disabled || locked}
                   type={type === 'integer' || type === 'number' ? 'number' : 'text'}
                 step={type === 'number' ? 'any' : undefined}
                 placeholder={required ? 'Required value' : 'Optional'}

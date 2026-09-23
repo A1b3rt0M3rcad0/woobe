@@ -51,10 +51,6 @@ class PublicRuntimeRequestPreparer:
         if agent is None or agent.project_id != project_id:
             raise AgentNotFoundError(agent_id)
 
-        session_mode = getattr(agent.session_mode, "value", agent.session_mode)
-        if session_mode == "stateless":
-            return payload.model_copy(update={"session_id": None})
-
         if payload.session_id is not None:
             session = await self._session_repo.get_by_id(payload.session_id)
             if session.project_id != project_id or session.agent_id != agent_id:

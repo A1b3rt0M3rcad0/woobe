@@ -33,6 +33,7 @@ export interface NetworkSession {
   lastMessageAt: string | null
   messageCount: number
   traceCount: number
+  externalContextSnapshot?: Record<string, unknown>
   agentContexts: NetworkAgentContext[]
 }
 

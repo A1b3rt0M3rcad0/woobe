@@ -57,9 +57,12 @@ class RequestExecutionContext:
         Callable[[dict], Awaitable[dict]],
     ] | None = None
 
-    # External Context is resolved at Acceptance and frozen for the Run. Only
-    # explicitly exposed fields are copied into model_external_context.
+    # External Context is resolved at Acceptance. Session-scoped values are
+    # immutable for the Session; Run-scoped values are frozen only for this Run.
+    # external_context_snapshot is the effective merge consumed by Tools/Model.
     external_context_contract: dict[str, Any] | None = None
+    external_context_session_snapshot: dict[str, Any] | None = None
+    external_context_run_snapshot: dict[str, Any] | None = None
     external_context_snapshot: dict[str, Any] | None = None
     model_external_context: dict[str, Any] | None = None
 

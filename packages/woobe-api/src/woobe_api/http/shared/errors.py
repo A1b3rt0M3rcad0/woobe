@@ -95,10 +95,13 @@ async def conflict_handler(request: Request, exc: ConflictError) -> JSONResponse
             "environment",
             "run_id",
             "status",
+            "fields",
+            "scope",
+            "reason",
         ):
             value = getattr(exc, field_name, None)
             if value is not None:
-                data[field_name] = str(value)
+                data[field_name] = value if isinstance(value, (list, dict)) else str(value)
     return JSONResponse(
         status_code=409,
         content={"success": False, "message": str(exc), "data": data},

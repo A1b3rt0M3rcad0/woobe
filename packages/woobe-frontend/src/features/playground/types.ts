@@ -10,6 +10,7 @@ export interface SessionListItem {
   status: string
   mode: string
   data?: Record<string, unknown> | null
+  external_context_snapshot?: Record<string, unknown> | null
   last_message_at: string | null
   created_at: string | null
   message_count: number
@@ -33,6 +34,7 @@ export interface Session {
   status: string
   mode?: string
   data?: Record<string, unknown>
+  external_context_snapshot?: Record<string, unknown> | null
   last_message_at?: string
   created_at?: string
   updated_at?: string

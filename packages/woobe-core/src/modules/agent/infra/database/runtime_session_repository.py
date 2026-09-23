@@ -43,6 +43,16 @@ class SQLAlchemyRuntimeSessionRepository(SQLAlchemySessionRepository):
             raise SessionNotFoundError(session_id)
         return self._to_entity(model)
 
+    async def get_by_id_for_update(self, session_id: UUID) -> Session:
+        model = await self._session.scalar(
+            select(SessionModel)
+            .where(SessionModel.id == session_id)
+            .with_for_update()
+        )
+        if model is None:
+            raise SessionNotFoundError(session_id)
+        return self._to_entity(model)
+
     async def get_by_external_id(
         self,
         project_id: UUID,
@@ -198,6 +208,7 @@ class SQLAlchemyRuntimeSessionRepository(SQLAlchemySessionRepository):
         model.status = session.status.value if hasattr(session.status, "value") else session.status
         model.mode = session.mode.value if hasattr(session.mode, "value") else session.mode
         model.data = session.data
+        model.external_context_snapshot = session.external_context_snapshot
         model.last_message_at = session.last_message_at
         await self._base._flush()
         return self._to_entity(model)

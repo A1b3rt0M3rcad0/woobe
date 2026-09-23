@@ -126,18 +126,7 @@ function readExternalContextContract(state: AgentEditorState): Record<string, un
 }
 
 function parseExternalContextContract(state: AgentEditorState): Record<string, unknown> | null {
-  const contract = readExternalContextContract(state)
-  if (!contract) return null
-
-  return Object.fromEntries(
-    Object.entries(contract).map(([name, rawField]) => {
-      if (!rawField || typeof rawField !== 'object' || Array.isArray(rawField)) {
-        return [name, rawField]
-      }
-      const { scope: _legacyScope, ...field } = rawField as Record<string, unknown>
-      return [name, field]
-    }),
-  )
+  return readExternalContextContract(state)
 }
 
 export function externalContextContractError(state: AgentEditorState): string | null {

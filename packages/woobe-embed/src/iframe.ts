@@ -30,6 +30,8 @@ interface SurfaceConfiguration {
   name: string;
   appearance: SurfaceAppearance;
   protocol_version: number;
+  external_context_session_fields?: string[];
+  external_context_locked_fields?: string[];
 }
 
 interface ActiveRun {
@@ -45,6 +47,7 @@ interface RuntimeObserverState {
   streamingStarted: boolean;
   sequence: RuntimeSequenceState;
   terminalStatus: RuntimeTerminalStatus | null;
+  terminalError: Record<string, unknown> | null;
 }
 
 class SessionExpiredError extends Error {
@@ -66,7 +69,11 @@ class ChatApiError extends Error {
 }
 
 class RuntimeTerminalError extends Error {
-  constructor(message: string, readonly status: RuntimeTerminalStatus) {
+  constructor(
+    message: string,
+    readonly status: RuntimeTerminalStatus,
+    readonly data: Record<string, unknown> | null = null,
+  ) {
     super(message);
     this.name = "RuntimeTerminalError";
   }
@@ -88,6 +95,8 @@ let apiBaseUrl = "";
 let sessionToken = "";
 let sessionId = "";
 let externalContext: Record<string, unknown> = {};
+let sessionExternalContextFields = new Set<string>();
+let lockedExternalContextFields = new Set<string>();
 let appearance = DEFAULT_APPEARANCE;
 let submitting = false;
 let stopping = false;
@@ -199,6 +208,22 @@ async function loadConfiguration(): Promise<SurfaceConfiguration> {
   return configuration;
 }
 
+function applyExternalContextConfiguration(configuration: SurfaceConfiguration) {
+  sessionExternalContextFields = new Set(configuration.external_context_session_fields ?? []);
+  lockedExternalContextFields = new Set(configuration.external_context_locked_fields ?? []);
+}
+
+async function refreshLockedExternalContext() {
+  if (sessionExternalContextFields.size === 0) return;
+  applyExternalContextConfiguration(await loadConfiguration());
+}
+
+function externalContextForRun(): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(externalContext).filter(([name]) => !lockedExternalContextFields.has(name)),
+  );
+}
+
 async function loadHistory() {
   const response = await api(`/v1/chat/sessions/${sessionId}/messages?limit=50`);
   const payload = await response.json();
@@ -259,8 +284,17 @@ function activeRunFromConflict(error: unknown): ActiveRun | null {
 function appendError(error: unknown) {
   if (error instanceof SessionExpiredError) return;
   const text = error instanceof Error ? error.message : "Run failed";
+  const details: Record<string, unknown> = {};
+  if (error instanceof ChatApiError) {
+    details.status_code = error.status;
+    if (error.data && typeof error.data === "object" && !Array.isArray(error.data)) {
+      Object.assign(details, error.data);
+    }
+  } else if (error instanceof RuntimeTerminalError && error.data) {
+    Object.assign(details, error.data);
+  }
   ensureUi().appendError(text);
-  emit("error", { message: text });
+  emit("error", { ...details, message: text });
 }
 
 function publicActivity(data: unknown): PublicAgentActivity | null {
@@ -279,6 +313,7 @@ function createRuntimeObserver(): RuntimeObserverState {
     streamingStarted: false,
     sequence: { sequence: null },
     terminalStatus: null,
+    terminalError: null,
   };
 }
 
@@ -302,6 +337,7 @@ function applyRuntimeFrame(
 
   const { eventType, payload } = parsed;
   if (parsed.kind === "transport" && eventType !== "error") return null;
+  if (eventType === "error") observer.terminalError = { ...payload };
   if (eventType === "tool_call_started" || eventType === "tool_call_completed") {
     ensureUi().updateSkillActivity(observer.assistant, payload);
   }
@@ -433,13 +469,17 @@ function finalizeObserver(
     return;
   }
 
-  throw new RuntimeTerminalError(
-    terminal === "timed_out"
+  const runtimeMessage = typeof observer.terminalError?.message === "string"
+    ? observer.terminalError.message
+    : terminal === "timed_out"
       ? "Run timed out"
       : terminal === "uncertain"
         ? "Run outcome is uncertain"
-        : "Run failed",
+        : "Run failed";
+  throw new RuntimeTerminalError(
+    runtimeMessage,
     terminal,
+    observer.terminalError,
   );
 }
 
@@ -514,6 +554,7 @@ async function resumeActiveRun() {
   } catch (error) {
     appendError(error);
   } finally {
+    await refreshLockedExternalContext().catch(() => undefined);
     submitting = false;
     stopping = false;
     chatUi.setStopping(false);
@@ -527,6 +568,7 @@ async function bootstrap() {
   bootstrapping = true;
   try {
     const configuration = await loadConfiguration();
+    applyExternalContextConfiguration(configuration);
     appearance = normalizeAppearance(configuration.appearance);
     ensureUi(appearance).clearSessionExpired();
     await loadHistory();
@@ -563,12 +605,22 @@ async function sendMessage(message: string) {
         },
         body: JSON.stringify({
           message,
-          external_context: externalContext,
+          external_context: externalContextForRun(),
         }),
       });
     } catch (error) {
       if (error instanceof SessionExpiredError) throw error;
-      // A structured admission conflict already carries the canonical Run identity.
+      if (
+        error instanceof ChatApiError
+        && error.data
+        && typeof error.data === "object"
+        && !Array.isArray(error.data)
+        && typeof (error.data as Record<string, unknown>).code === "string"
+        && (error.data as Record<string, unknown>).code !== "active_run_conflict"
+      ) {
+        throw error;
+      }
+      // A structured active-Run conflict already carries the canonical Run identity.
       // Other ambiguous failures get one server-side reconciliation request; the
       // iframe never polls active-run or resubmits the user's message.
       const active = activeRunFromConflict(error) ?? await recoverAcceptedActiveRun();
@@ -580,6 +632,7 @@ async function sendMessage(message: string) {
   } catch (error) {
     appendError(error);
   } finally {
+    await refreshLockedExternalContext().catch(() => undefined);
     submitting = false;
     stopping = false;
     chatUi.setStopping(false);

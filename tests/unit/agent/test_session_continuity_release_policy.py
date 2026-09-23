@@ -329,3 +329,120 @@ async def test_standalone_external_context_is_frozen_and_exposed_for_the_run() -
 
     assert context.external_context_snapshot == {"name": "Alberto"}
     assert context.model_external_context == {"name": "Alberto"}
+
+
+@pytest.mark.asyncio
+async def test_session_external_context_is_initialized_once_and_run_context_changes() -> None:
+    project_id = uuid4()
+    agent_id = uuid4()
+    session_id = uuid4()
+    agent = Agent(
+        id=agent_id,
+        project_id=project_id,
+        model="model",
+        session_mode="stateful",
+        settings={
+            "external_context_contract": {
+                "customer_id": {
+                    "schema": {"type": "string"},
+                    "required": True,
+                    "scope": "session",
+                    "model": {"expose": True},
+                },
+                "current_page": {
+                    "schema": {"type": "string"},
+                    "required": False,
+                    "scope": "run",
+                    "model": {"expose": True},
+                },
+            }
+        },
+    )
+    session = SimpleNamespace(
+        id=session_id,
+        project_id=project_id,
+        agent_id=agent_id,
+        runtime_environment="draft",
+        opened_release_id=None,
+        data=None,
+        external_context_snapshot=None,
+    )
+    session_repo = SimpleNamespace(
+        get_by_id_for_update=AsyncMock(return_value=session),
+        get_by_id=AsyncMock(return_value=session),
+        update=AsyncMock(),
+    )
+    runtime = SessionContinuityReleaseRuntimeResolver.__new__(
+        SessionContinuityReleaseRuntimeResolver
+    )
+
+    first = AskInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        session_id=session_id,
+        message="first",
+        execution_context="draft",
+        external_context={
+            "customer_id": "cus-1",
+            "current_page": "/checkout",
+        },
+    )
+    first_context = new_execution_context()
+    token = current_execution.set(first_context)
+    try:
+        await runtime._resolve_session(session_repo, first, agent)
+    finally:
+        current_execution.reset(token)
+
+    assert session.external_context_snapshot == {"customer_id": "cus-1"}
+    assert first_context.external_context_session_snapshot == {"customer_id": "cus-1"}
+    assert first_context.external_context_run_snapshot == {"current_page": "/checkout"}
+    assert first_context.external_context_snapshot == {
+        "customer_id": "cus-1",
+        "current_page": "/checkout",
+    }
+
+    second = AskInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        session_id=session_id,
+        message="second",
+        execution_context="draft",
+        external_context={"current_page": "/orders"},
+    )
+    second_context = new_execution_context()
+    token = current_execution.set(second_context)
+    try:
+        await runtime._resolve_session(session_repo, second, agent)
+    finally:
+        current_execution.reset(token)
+
+    assert second_context.external_context_snapshot == {
+        "customer_id": "cus-1",
+        "current_page": "/orders",
+    }
+
+    repeated_session_value = AskInput(
+        project_id=project_id,
+        agent_id=agent_id,
+        session_id=session_id,
+        message="third",
+        execution_context="draft",
+        external_context={"customer_id": "cus-1"},
+    )
+    token = current_execution.set(new_execution_context())
+    try:
+        with pytest.raises(
+            ConflictError,
+            match="cannot be supplied again",
+        ):
+            await runtime._resolve_session(
+                session_repo,
+                repeated_session_value,
+                agent,
+            )
+    finally:
+        current_execution.reset(token)
+
+    assert session_repo.get_by_id_for_update.await_count == 3
+    session_repo.get_by_id.assert_not_awaited()

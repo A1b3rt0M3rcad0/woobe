@@ -413,7 +413,7 @@ async def get_public_surface_configuration(
     )
     return {
         "success": True,
-        "data": _service(request).embed_configuration(authorized),
+        "data": await _service(request).embed_configuration(authorized),
     }
 
 

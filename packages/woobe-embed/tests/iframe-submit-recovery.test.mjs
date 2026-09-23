@@ -61,12 +61,25 @@ const RUNTIME_STREAM_MAX_ATTEMPTS = 4;
 class RuntimeStreamGapError extends Error {}
 const acceptRuntimeFrameSequence = () => true;
 const parseRuntimeFrame = (frame) => {
-  if (!frame.includes("event: done")) return null;
-  const dataLine = frame.split(/\\r?\\n/).find((line) => line.startsWith("data:"));
+  const lines = frame.split(/\\r?\\n/);
+  const eventLine = lines.find((line) => line.startsWith("event:"));
+  const eventType = eventLine ? eventLine.slice(6).trim() : "";
+  if (eventType !== "done" && eventType !== "error") return null;
+  const dataLine = lines.find((line) => line.startsWith("data:"));
   const data = dataLine ? JSON.parse(dataLine.slice(5).trim()) : {};
-  return { eventType: "done", data, payload: data, sequence: null };
+  return {
+    eventType,
+    data,
+    payload: data,
+    sequence: null,
+    kind: eventType === "error" ? "transport" : "semantic",
+  };
 };
-const runtimeTerminalStatus = (parsed) => parsed?.eventType === "done" ? "completed" : null;
+const runtimeTerminalStatus = (parsed) => parsed?.eventType === "done"
+  ? "completed"
+  : parsed?.eventType === "error"
+    ? "failed"
+    : null;
 const createChatUi = () => globalThis.__ui;
 `;
   const hooks = `
@@ -84,6 +97,12 @@ globalThis.__woobeIframeTest = {
   setExternalContext(value) {
     externalContext = value;
   },
+  setSessionExternalContextFields(value) {
+    sessionExternalContextFields = new Set(value);
+  },
+  setLockedExternalContextFields(value) {
+    lockedExternalContextFields = new Set(value);
+  },
 };
 `;
   const output = ts.transpileModule(`${prelude}\n${source}\n${hooks}`, {
@@ -96,6 +115,7 @@ globalThis.__woobeIframeTest = {
 
   const errors = [];
   const messages = [];
+  const emitted = [];
   const ui = {
     setAppearance() {},
     setStopping() {},
@@ -125,7 +145,11 @@ globalThis.__woobeIframeTest = {
     clearComposer() {},
     focusComposer() {},
   };
-  const parent = { postMessage() {} };
+  const parent = {
+    postMessage(message) {
+      emitted.push(message);
+    },
+  };
   const windowObject = {
     location: { search: "?surface=surface-1&instance=instance-1" },
     parent,
@@ -163,8 +187,11 @@ globalThis.__woobeIframeTest = {
   return {
     sendMessage: context.__woobeIframeTest.sendMessage,
     setExternalContext: context.__woobeIframeTest.setExternalContext,
+    setSessionExternalContextFields: context.__woobeIframeTest.setSessionExternalContextFields,
+    setLockedExternalContextFields: context.__woobeIframeTest.setLockedExternalContextFields,
     errors,
     messages,
+    emitted,
   };
 }
 
@@ -228,6 +255,86 @@ test("completed Runs keep the current external context for the next message", as
   assert.deepEqual(harness.errors, []);
 });
 
+test("session-scoped External Context is sent once and omitted from later messages", async () => {
+  const submittedBodies = [];
+  const harness = await loadIframeHarness(async (url, init = {}) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith("/messages:stream")) {
+      submittedBodies.push(JSON.parse(String(init.body)));
+      return sseDone("ok");
+    }
+    if (path.endsWith("/surface")) {
+      return Response.json({
+        success: true,
+        data: {
+          surface_id: "surface-1",
+          name: "Support",
+          appearance: { welcome_message: "" },
+          protocol_version: 1,
+          external_context_session_fields: ["customer_id"],
+          external_context_locked_fields: ["customer_id"],
+        },
+      });
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  });
+
+  harness.setExternalContext({ customer_id: "cus-1", current_page: "/billing" });
+  harness.setSessionExternalContextFields(["customer_id"]);
+
+  await harness.sendMessage("primeira");
+  await harness.sendMessage("segunda");
+
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(submittedBodies.map((body) => body.external_context))),
+    [
+      { customer_id: "cus-1", current_page: "/billing" },
+      { current_page: "/billing" },
+    ],
+  );
+  assert.deepEqual(harness.errors, []);
+});
+
+test("structured Agent stream conflict is surfaced through ChatSurface", async () => {
+  const harness = await loadIframeHarness(async (url) => {
+    const path = new URL(String(url)).pathname;
+    if (path.endsWith("/messages:stream")) {
+      return new Response(
+        `event: error\ndata: ${JSON.stringify({
+          type: "error",
+          message: "Session-scoped External Context is already fixed: client_id",
+          status_code: 409,
+          code: "EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET",
+          fields: ["client_id"],
+          scope: "session",
+          reason: "already_set",
+        })}\n\n`,
+        { status: 200, headers: { "Content-Type": "text/event-stream" } },
+      );
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  });
+
+  await harness.sendMessage("segunda");
+
+  assert.deepEqual(harness.errors, [
+    "Session-scoped External Context is already fixed: client_id",
+  ]);
+  const errorEvent = harness.emitted.find((event) => event?.type === "error");
+  assert.ok(errorEvent);
+  assert.equal(errorEvent.payload.status_code, 409);
+  assert.equal(
+    errorEvent.payload.code,
+    "EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET",
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(errorEvent.payload.fields)),
+    ["client_id"],
+  );
+  assert.equal(errorEvent.payload.scope, "session");
+  assert.equal(errorEvent.payload.reason, "already_set");
+});
+
 test("ambiguous submit failure performs one canonical active Run lookup instead of polling the endpoint", async () => {
   const calls = [];
   let activeLookups = 0;
@@ -268,6 +375,52 @@ test("ambiguous submit failure performs one canonical active Run lookup instead 
     0,
   );
   assert.equal(harness.errors.length, 1);
+});
+
+test("structured External Context 409 is surfaced without active-run recovery", async () => {
+  const calls = [];
+  const harness = await loadIframeHarness(async (url) => {
+    const path = new URL(String(url)).pathname;
+    calls.push(path);
+    if (path.endsWith("/messages:stream")) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "Session-scoped External Context is already fixed: client_id",
+          data: {
+            code: "EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET",
+            fields: ["client_id"],
+            scope: "session",
+            reason: "already_set",
+          },
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (path.endsWith("/active-run")) {
+      throw new Error("deterministic context conflict must not trigger active-run recovery");
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  });
+
+  await harness.sendMessage("second attempt");
+
+  assert.equal(calls.filter((path) => path.endsWith("/messages:stream")).length, 1);
+  assert.equal(calls.filter((path) => path.endsWith("/active-run")).length, 0);
+  assert.deepEqual(harness.errors, [
+    "Session-scoped External Context is already fixed: client_id",
+  ]);
+  const errorEvent = harness.emitted.find((event) => event?.type === "error");
+  assert.ok(errorEvent);
+  assert.equal(errorEvent.payload.status_code, 409);
+  assert.equal(
+    errorEvent.payload.code,
+    "EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET",
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(errorEvent.payload.fields)),
+    ["client_id"],
+  );
 });
 
 test("structured 409 active Run conflict reattaches directly without polling active-run", async () => {

@@ -14,6 +14,7 @@ export function NetworkGraphInspector({
   definition,
   agents,
   bindings,
+  liveDraftContractsByAgentId,
   issues,
   selection,
   readOnly,
@@ -30,6 +31,7 @@ export function NetworkGraphInspector({
   definition: NetworkDefinition
   agents: Agent[]
   bindings?: Record<string, NetworkBinding>
+  liveDraftContractsByAgentId?: Record<string, unknown>
   issues: NetworkEditorIssue[]
   selection: NetworkEditorSelection
   readOnly: boolean
@@ -64,6 +66,8 @@ export function NetworkGraphInspector({
   ) : (
     <NetworkOverviewInspector
       definition={definition}
+      agents={agents}
+      liveDraftContractsByAgentId={liveDraftContractsByAgentId}
       readOnly={readOnly}
       environment={environment}
       name={name}

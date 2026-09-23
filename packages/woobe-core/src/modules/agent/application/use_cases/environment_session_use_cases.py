@@ -100,12 +100,6 @@ class EnvironmentAwareCreateSessionUseCase:
         if agent is None or agent.project_id != input_dto.project_id:
             raise AgentNotFoundError(input_dto.agent_id)
 
-        session_mode = getattr(agent.session_mode, "value", agent.session_mode)
-        if session_mode == "stateless":
-            raise ValidationError(
-                "Stateless Agents do not create persistent Sessions"
-            )
-
         opened_release_id = await self._opening_release_id(
             input_dto.agent_id, environment
         )
@@ -151,6 +145,7 @@ class EnvironmentAwareCreateSessionUseCase:
             status=created.status,
             mode=created.mode,
             data=_session_data(created.data),
+            external_context_snapshot=created.external_context_snapshot,
             last_message_at=created.last_message_at,
             created_at=created.created_at,
             updated_at=created.updated_at,
@@ -187,6 +182,7 @@ class EnvironmentAwareListAgentSessionsUseCase:
                 status=SessionStatus(session.status),
                 mode=RuntimeSessionMode(session.mode),
                 data=_session_data(session.data),
+                external_context_snapshot=getattr(session, "external_context_snapshot", None),
                 last_message_at=session.last_message_at,
                 created_at=session.created_at,
                 message_count=message_count,

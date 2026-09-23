@@ -5,6 +5,7 @@ from typing import Any
 from modules.agent.application.dtos.runtime_dtos import AskInput
 from modules.agent.application.interfaces.execution_context import current_execution
 from modules.agent.domain.entities import Agent
+from modules.agent.domain.errors import SessionNotFoundError
 from modules.agent.infra.execution.ask_use_case import AskAgentUseCase
 from modules.agent.infra.execution.canonical_execution_snapshot_runtime_resolver import (
     CanonicalExecutionSnapshotRuntimeResolver,
@@ -77,7 +78,21 @@ class SessionContinuityReleaseRuntimeResolver(CanonicalExecutionSnapshotRuntimeR
             return await super()._resolve_session(session_repo, input_dto, agent)
 
         requested_session_id = input_dto.session_id
-        session = await AskAgentUseCase._resolve_session(self, session_repo, input_dto, agent)
+        session = None
+        if requested_session_id is not None:
+            lock_reader = getattr(session_repo, "get_by_id_for_update", None)
+            if callable(lock_reader):
+                try:
+                    session = await lock_reader(requested_session_id)
+                except SessionNotFoundError:
+                    session = None
+        if session is None:
+            session = await AskAgentUseCase._resolve_session(
+                self,
+                session_repo,
+                input_dto,
+                agent,
+            )
         environment = normalize_runtime_environment(input_dto.execution_context)
         existing = requested_session_id is not None
         if existing:
@@ -100,12 +115,16 @@ class SessionContinuityReleaseRuntimeResolver(CanonicalExecutionSnapshotRuntimeR
         if isinstance(source, str) and source:
             next_data["source"] = source
 
-        self._resolve_external_context(
+        external_context = self._resolve_external_context(
             agent=agent,
             input_dto=input_dto,
+            session=session,
         )
 
-        changed = next_data != (getattr(session, "data", None) or {})
+        changed = (
+            next_data != (getattr(session, "data", None) or {})
+            or external_context.session_changed
+        )
         if not existing:
             changed = True
         session.data = next_data or None

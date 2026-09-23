@@ -18,6 +18,7 @@ from modules.network.domain.external_context_composition import (
 from modules.network.infra.database.models import (
     NetworkAgentContextModel,
     NetworkExecutionModel,
+    NetworkSessionModel,
     NetworkVersionModel,
 )
 
@@ -154,6 +155,10 @@ class NetworkRuntimeLoader:
                 if execution.network_version_id
                 else None
             )
+            network_session = await session.get(
+                NetworkSessionModel,
+                execution.network_session_id,
+            )
 
             source_bindings = (
                 version.resolved_bindings or {}
@@ -165,7 +170,10 @@ class NetworkRuntimeLoader:
                 bindings=source_bindings,
             )
             external_context_snapshot = deepcopy(
-                getattr(execution, "external_context_snapshot", None) or {}
+                getattr(network_session, "external_context_snapshot", None) or {}
+            )
+            external_context_snapshot.update(
+                deepcopy(getattr(execution, "external_context_snapshot", None) or {})
             )
             runtime_bindings = self._bind_external_context(
                 source_bindings,

@@ -4,14 +4,16 @@ import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
 import { ChatCanvas, type ChatCanvasEntry } from '@/features/playground/components/ChatCanvas'
-import { filterContractValues } from '@/features/contracts/contractFields'
+import { filterContractValues, filterExternalContextInput } from '@/features/contracts/contractFields'
+import type { Agent } from '@/features/agents/types'
 import type { ChatMessage as PlaygroundChatMessage } from '@/features/playground/types'
 import { cancelNetworkExecution } from '@/features/network/api'
 import { useNetworkExternalContextContract, useNetworkRuntimeEnvironments } from '@/features/network/hooks'
 import { useNetworkIdentity } from '@/features/network/NetworkIdentityContext'
 import { getActiveNetworkExecution } from '@/features/network/runtime-reattach-api'
 import { streamNetworkExecution } from '@/features/network/stream'
-import type { NetworkRuntimeEvent } from '@/features/network/types'
+import { previewNetworkDraftExternalContextContract } from '@/features/network/externalContextContractPreview'
+import type { NetworkDefinition, NetworkRuntimeEvent } from '@/features/network/types'
 import type { AgentNodeId, Environment, NetworkBinding } from './networkWorkspaceTypes'
 import { buildTurnFromRuntimeEvents, type NetworkExecution, type NetworkTurn, type RuntimeEventRecord } from './networkChatExecution'
 import {
@@ -39,6 +41,9 @@ interface NetworkChatWorkspaceProps {
   versionLabel: string
   currentVersionId: string | null
   bindings: Record<AgentNodeId, NetworkBinding>
+  draftDefinition: NetworkDefinition
+  agents: Agent[]
+  liveDraftContractsByAgentId: Record<string, unknown>
   historyBindings: Record<AgentNodeId, NetworkBinding>
   historyVersionLabel: string
   activeSession: NetworkSession | null
@@ -124,6 +129,9 @@ export function NetworkChatWorkspace({
   versionLabel,
   currentVersionId,
   bindings,
+  draftDefinition,
+  agents,
+  liveDraftContractsByAgentId,
   historyBindings,
   historyVersionLabel,
   activeSession,
@@ -142,7 +150,24 @@ export function NetworkChatWorkspace({
   const runtimeStatesQuery = useNetworkRuntimeEnvironments(networkId, projectId)
   const externalContextContractQuery = useNetworkExternalContextContract(networkId, projectId, environment)
   const runtimeEnabled = runtimeStatesQuery.data?.[environment]?.enabled ?? true
-  const effectiveExternalContextContract = externalContextContractQuery.data ?? EMPTY_EXTERNAL_CONTEXT_CONTRACT
+  const persistedExternalContextContract = externalContextContractQuery.data ?? EMPTY_EXTERNAL_CONTEXT_CONTRACT
+  const effectiveExternalContextContract = useMemo(
+    () => environment === 'draft'
+      ? previewNetworkDraftExternalContextContract({
+          persistedEffectiveContract: persistedExternalContextContract,
+          definition: draftDefinition,
+          agents,
+          liveDraftContractsByAgentId,
+        })
+      : persistedExternalContextContract,
+    [
+      agents,
+      draftDefinition,
+      environment,
+      liveDraftContractsByAgentId,
+      persistedExternalContextContract,
+    ],
+  )
   const storedEnvironmentContext = runtimeStatesQuery.data?.[environment]?.external_context_values
   const [externalContextValues, setExternalContextValues] = useState<Record<string, unknown>>({})
   const externalContextOwnerRef = useRef<string | null>(null)
@@ -172,6 +197,7 @@ export function NetworkChatWorkspace({
   if (liveAnswerSchedulerRef.current === null) liveAnswerSchedulerRef.current = createNetworkLiveAnswerScheduler(setLiveAnswer)
 
   const changed = Boolean(activeSession && environment !== 'draft' && activeSession.networkVersion !== currentVersionId)
+  const lockedExternalContextValues = activeSession?.externalContextSnapshot ?? {}
   const turns = useMemo(() => reconcileNetworkTurns(historyTurns, localTurns), [historyTurns, localTurns])
 
   useLayoutEffect(() => {
@@ -511,7 +537,18 @@ export function NetworkChatWorkspace({
       const executionBindings = environment === 'draft'
         ? Object.fromEntries(Object.entries(bindings).map(([nodeId, binding]) => [nodeId, { ...binding, version: `r${expectedDraftRevision}`, dirty: false }])) as Record<AgentNodeId, NetworkBinding>
         : bindings
-      await streamNetworkExecution({ networkId, projectId, networkSessionId: session.id, message, expectedDraftRevision, externalContext: externalContextValues }, {
+      await streamNetworkExecution({
+        networkId,
+        projectId,
+        networkSessionId: session.id,
+        message,
+        expectedDraftRevision,
+        externalContext: filterExternalContextInput(
+          effectiveExternalContextContract,
+          externalContextValues,
+          session.externalContextSnapshot ?? {},
+        ),
+      }, {
         onExecutionId: (id) => {
           executionId = id
           executionIdRef.current = id
@@ -591,7 +628,7 @@ export function NetworkChatWorkspace({
       if (!controller.signal.aborted) {
         if (!executionId) setText(message)
         toast.error(error instanceof Error ? error.message : 'Network execution failed')
-        if (executionId) await refreshPersistedSession(session.id)
+        await refreshPersistedSession(session.id)
       }
     } finally {
       if (abortRef.current === controller) abortRef.current = null
@@ -699,6 +736,7 @@ export function NetworkChatWorkspace({
         enableFirstRunSuccess={false}
         externalContextContract={effectiveExternalContextContract}
         externalContextValues={externalContextValues}
+        lockedExternalContextValues={lockedExternalContextValues}
         onExternalContextValuesChange={handleExternalContextValuesChange}
       />
     </div>

@@ -130,6 +130,7 @@ export interface NetworkSessionResource {
   environment: NetworkEnvironment
   title: string
   status: 'active' | 'closed'
+  external_context_snapshot?: Record<string, unknown> | null
   last_message_at?: string | null
   message_count: number
   trace_count: number

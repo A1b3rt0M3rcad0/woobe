@@ -12,7 +12,7 @@ describe('Run reattach orchestration policy', () => {
       'if (!projectId || !agentId || isSending || isFetching) return',
     )
     expect(playgroundSource).toContain(
-      '[agentId, environment, isFetching, isSending, isStateless, projectId, reattach',
+      '[agentId, environment, isFetching, isSending, projectId, reattach',
     )
   })
 

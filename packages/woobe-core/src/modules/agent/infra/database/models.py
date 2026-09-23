@@ -387,6 +387,7 @@ class SessionModel(BaseModel):
     status: Mapped[str] = mapped_column(String(32), default="active")
     mode: Mapped[str] = mapped_column(String(32), default="chat")
     data: Mapped[dict | None] = mapped_column(JSONB)
+    external_context_snapshot: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
     last_message_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 

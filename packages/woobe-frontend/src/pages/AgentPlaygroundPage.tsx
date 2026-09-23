@@ -14,7 +14,7 @@ import { PlaygroundHeader } from '@/features/playground/components/PlaygroundHea
 import { OperationsRail, type LeftPanelTab } from '@/features/playground/components/OperationsRail'
 import { OperationsPanel } from '@/features/playground/components/OperationsPanel'
 import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
-import { filterContractValues } from '@/features/contracts/contractFields'
+import { filterContractValues, filterExternalContextInput } from '@/features/contracts/contractFields'
 import { AgentInspector } from '@/features/playground/components/AgentInspector'
 import { ApiModal } from '@/features/playground/components/ApiModal'
 import { AgentEditorProvider, useAgentEditor } from '@/features/playground/AgentEditorContext'
@@ -222,9 +222,12 @@ function PlaygroundContent() {
   const agentSessionMode: 'stateful' | 'stateless' = environment === 'draft'
     ? state.sessionMode === 'stateless' ? 'stateless' : 'stateful'
     : agent?.session_mode === 'stateless' ? 'stateless' : 'stateful'
-  const isStateless = agentSessionMode === 'stateless'
-  const sessionIdForRun = isStateless ? null : sessionIdState
+  const sessionIdForRun = sessionIdState
   const selectedSessionId = sessionIdState
+  const lockedExternalContextValues = useMemo(
+    () => sessions.find((item) => item.id === selectedSessionId)?.external_context_snapshot ?? {},
+    [selectedSessionId, sessions],
+  )
   useEffect(() => {
     const rememberedContext = projectId && agentId
       ? getStoredPlaygroundExternalContext(projectId, agentId, environment)
@@ -365,10 +368,6 @@ function PlaygroundContent() {
       toast.error(`${titleCaseEnvironment(environment)} runtime is off`)
       return
     }
-    if (isStateless) {
-      toast.info('The Agent runtime is stateless and does not create persistent Sessions')
-      return
-    }
     disconnectStream()
     const sessionData: Record<string, unknown> = {
       source: 'playground',
@@ -392,6 +391,7 @@ function PlaygroundContent() {
         status: created.status,
         mode: created.mode ?? 'chat',
         data: created.data ?? sessionData,
+        external_context_snapshot: created.external_context_snapshot ?? null,
         last_message_at: created.last_message_at ?? null,
         created_at: created.created_at ?? null,
         message_count: 0,
@@ -420,7 +420,7 @@ function PlaygroundContent() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Could not create Session')
     }
-  }, [agentId, createRuntimeSession, creatingSession, disconnectStream, environment, environmentReady, isStateless, projectId, queryClient, releaseVersionById, runtimeEnabled, setCurrentSessionId])
+  }, [agentId, createRuntimeSession, creatingSession, disconnectStream, environment, environmentReady, projectId, queryClient, releaseVersionById, runtimeEnabled, setCurrentSessionId])
 
   const updateLastAssistantMessage = useCallback((updater: (message: ChatMessage) => ChatMessage) => {
     setMessages((prev) => {
@@ -448,7 +448,7 @@ function PlaygroundContent() {
 
   useEffect(() => {
     if (!projectId || !agentId || isSending || isFetching) return
-    if (!isStateless && (!selectedSessionId || syncedSessionRef.current !== selectedSessionId)) return
+    if (!selectedSessionId || syncedSessionRef.current !== selectedSessionId) return
 
     let disposed = false
     void (async () => {
@@ -479,7 +479,7 @@ function PlaygroundContent() {
           onMeta: (meta) => {
             rawEventsRef.current.push({ type: 'meta', timestamp: new Date().toISOString(), payload: meta })
             if (meta.run_id) rememberRunId(meta.run_id)
-            if (!isStateless && meta.session_id) setCurrentSessionId(meta.session_id)
+            if (meta.session_id) setCurrentSessionId(meta.session_id)
             if (meta.trace_id) metadataRef.current.trace_id = meta.trace_id
           },
           onAgentActivity: (activity) => {
@@ -561,7 +561,7 @@ function PlaygroundContent() {
     })()
 
     return () => { disposed = true }
-  }, [agentId, environment, isFetching, isSending, isStateless, projectId, reattach, reconcileCancelledAssistant, rememberRunId, selectedSessionId, setCurrentSessionId, updateLastAssistantMessage])
+  }, [agentId, environment, isFetching, isSending, projectId, reattach, reconcileCancelledAssistant, rememberRunId, selectedSessionId, setCurrentSessionId, updateLastAssistantMessage])
 
   const handleStop = useCallback(() => {
     cancelStream({
@@ -607,7 +607,11 @@ function PlaygroundContent() {
         message: content,
         session_id: sessionIdForRun,
         execution_context: environment === 'draft' ? 'playground' : environment,
-        external_context: externalContextValues,
+        external_context: filterExternalContextInput(
+          activeExternalContextContract,
+          externalContextValues,
+          lockedExternalContextValues,
+        ),
         metadata: {
           source: 'playground',
           runtime_environment: environment,
@@ -620,7 +624,7 @@ function PlaygroundContent() {
         onMeta: (meta) => {
           rawEventsRef.current.push({ type: 'meta', timestamp: new Date().toISOString(), payload: meta })
           if (meta.run_id) rememberRunId(meta.run_id)
-          if (!isStateless && meta.session_id) setCurrentSessionId(meta.session_id)
+          if (meta.session_id) setCurrentSessionId(meta.session_id)
           if (meta.trace_id) metadataRef.current.trace_id = meta.trace_id
         },
         onAgentActivity: (activity) => {
@@ -658,7 +662,7 @@ function PlaygroundContent() {
           setRawEvents([...rawEventsRef.current])
           const meta = response
           const finalContent = meta.answer || accumulatedRef.current || ''
-          if (!isStateless && meta.session_id) setCurrentSessionId(meta.session_id)
+          if (meta.session_id) setCurrentSessionId(meta.session_id)
           setMessages((prev) => {
             const updated = [...prev]
             const last = updated[updated.length - 1]
@@ -667,8 +671,7 @@ function PlaygroundContent() {
           })
           setLastResponse(meta as AskResponse)
           rememberRunId(null)
-          if (!isStateless) void refetchSessions()
-          if (!isStateless && meta.session_id) syncedSessionRef.current = meta.session_id
+          if (meta.session_id) syncedSessionRef.current = meta.session_id
           if (meta.trace_id) setTimeout(() => setSelectedTraceId(meta.trace_id!), 100)
         },
         onError: (error) => {
@@ -693,6 +696,7 @@ function PlaygroundContent() {
           toast.info(`Primary model (${info.primary_provider}/${info.primary_model}) failed. Retrying with ${info.fallback_provider}/${info.fallback_model}...`)
         },
       })
+      await refetchSessions()
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') return
       toast.error(err instanceof Error ? err.message : 'Request failed')
@@ -750,9 +754,7 @@ function PlaygroundContent() {
     ? `${environmentLabel} has not been created yet.`
     : !runtimeEnabled
       ? `${environmentLabel} runtime is off.`
-      : isStateless
-        ? 'This Agent runtime is stateless.'
-        : undefined
+      : undefined
   const visibleProvider = environment === 'draft' ? state.provider : currentEnvironmentRelease?.provider
   const visibleModel = environment === 'draft' ? state.model : currentEnvironmentRelease?.model
 
@@ -832,6 +834,7 @@ function PlaygroundContent() {
               runtimeBlockReason={runtimeBlockReason}
               externalContextContract={activeExternalContextContract}
               externalContextValues={externalContextValues}
+              lockedExternalContextValues={lockedExternalContextValues}
               onExternalContextValuesChange={handleExternalContextValuesChange}
               onClearExternalContextValues={handleClearExternalContextValues}
             />

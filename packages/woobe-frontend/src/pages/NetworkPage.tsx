@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { ChevronLeft, Code2, History, Lock, MessageSquare, PencilLine, RotateCcw, Workflow, type LucideIcon } from 'lucide-react'
@@ -168,6 +169,7 @@ function traceNewestFirst(left: NetworkTraceRecord, right: NetworkTraceRecord) {
 export default function NetworkPage() {
   const { workspaceId, projectId } = useParams<{ workspaceId: string; projectId: string }>()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { currentProject } = useWorkspace()
   const networkQuery = useNetwork(projectId, currentProject?.name || 'Project')
   const network = networkQuery.data
@@ -180,6 +182,13 @@ export default function NetworkPage() {
   const agentsQuery = useAgents(projectId)
   const projectAgents = agentsQuery.data ?? []
   const networkVersions = useMemo(() => networkVersionsQuery.data ?? [], [networkVersionsQuery.data])
+
+  useEffect(() => {
+    if (!network?.id || !projectId) return
+    void queryClient.invalidateQueries({
+      queryKey: ['network-external-context-contract', projectId, network.id, 'draft'],
+    })
+  }, [network?.draft_revision, network?.id, projectId, queryClient])
 
   const [workspace, dispatchWorkspace] = useReducer(networkWorkspaceReducer, initialNetworkWorkspaceState)
   const { environment, centerMode, selection, inspectorContext, inspectionScope } = workspace
@@ -206,6 +215,7 @@ export default function NetworkPage() {
   const [pendingRemoval, setPendingRemoval] = useState<NetworkDefinitionChange | null>(null)
   const [draftConflict, setDraftConflict] = useState(false)
   const [dirtyAgentIds, setDirtyAgentIds] = useState<Set<string>>(() => new Set())
+  const [draftExternalContextContractsByAgentId, setDraftExternalContextContractsByAgentId] = useState<Record<string, unknown>>({})
   const saveAgentActionRef = useRef<(() => Promise<boolean>) | null>(null)
   const hydratedRevisionRef = useRef<number | null>(null)
 
@@ -308,6 +318,7 @@ export default function NetworkPage() {
         lastMessageAt: item.last_message_at ?? null,
         messageCount: item.message_count ?? 0,
         traceCount: item.trace_count ?? 0,
+        externalContextSnapshot: item.external_context_snapshot ?? {},
         agentContexts: [],
       }
     }
@@ -608,6 +619,16 @@ export default function NetworkPage() {
     })
   }, [selectedAgent?.id])
 
+  const updateSelectedAgentExternalContext = useCallback((contract: unknown) => {
+    const agentId = selectedAgent?.id
+    if (!agentId) return
+    setDraftExternalContextContractsByAgentId((current) => (
+      current[agentId] === contract
+        ? current
+        : { ...current, [agentId]: contract }
+    ))
+  }, [selectedAgent?.id])
+
   const discardAndSwitch = () => {
     if (!pendingNode) return
     const currentAgentId = selectedAgent?.id
@@ -616,6 +637,14 @@ export default function NetworkPage() {
       next.delete(currentAgentId)
       return next
     })
+    if (currentAgentId) {
+      setDraftExternalContextContractsByAgentId((current) => {
+        if (!Object.prototype.hasOwnProperty.call(current, currentAgentId)) return current
+        const next = { ...current }
+        delete next[currentAgentId]
+        return next
+      })
+    }
     const target = pendingNode
     setPendingNode(null)
     commitNodeSelection(target)
@@ -722,6 +751,7 @@ export default function NetworkPage() {
         lastMessageAt: null,
         messageCount: 0,
         traceCount: 0,
+        externalContextSnapshot: created.external_context_snapshot ?? {},
         agentContexts: [],
       }
       setSessionsByEnvironment((current) => ({ ...current, [environment]: [session, ...current[environment].filter((item) => item.id !== session.id)] }))
@@ -861,6 +891,7 @@ export default function NetworkPage() {
       onOpenComposition={() => dispatchWorkspace({ type: 'context', context: 'network' })}
       onDirtyChange={updateSelectedAgentDirty}
       onRegisterSaveAction={(saveAction) => { saveAgentActionRef.current = saveAction }}
+      onDraftExternalContextChange={updateSelectedAgentExternalContext}
     />
   ) : null
   const draftSavePending = savingWorkspace || saveNetworkDraftMutation.isPending
@@ -909,6 +940,9 @@ export default function NetworkPage() {
       versionLabel={versionLabel}
       currentVersionId={currentVersionId}
       bindings={runtimeBindings}
+      draftDefinition={editorDefinition}
+      agents={projectAgents}
+      liveDraftContractsByAgentId={draftExternalContextContractsByAgentId}
       historyBindings={historyBindings}
       historyVersionLabel={activeSessionVersion?.version ?? versionLabel}
       activeSession={activeSession}
@@ -1006,7 +1040,7 @@ export default function NetworkPage() {
           {isReadyUntested && effectiveCenterMode === 'canvas' ? <NetworkReadyToTest pending={draftSavePending || createNetworkSessionMutation.isPending} onTest={() => { void startFirstTest() }} onAddSpecialist={() => openCatalog('add-specialist')} /> : null}
           {snapshotLoadingId ? <div className="pointer-events-none absolute inset-x-0 top-3 z-20 flex justify-center"><div className="rounded-control border border-border bg-surface/95 px-ui-md py-ui-sm font-mono text-system-label text-muted-foreground shadow-xl">Loading exact Run snapshot…</div></div> : null}
         </div>
-        {isInitialSetup ? <NetworkInitialSetupInspector /> : <NetworkContextInspector context={inspectorContext} centerMode={centerMode} inspectionScope={inspectionScope} inspectionLabel={snapshotInspection?.title ?? null} inspectionKind={snapshotInspection?.kind ?? null} definition={workspaceDefinition} agents={projectAgents} bindings={workspaceBindings} issues={workspaceIssues} selection={selection} readOnly={inspectorReadOnly} name={snapshotInspection ? `${editorName} · ${snapshotInspection.snapshot.version_label ?? 'snapshot'}` : editorName} description={editorDescription} agentWorkspace={agentWorkspace} onContext={(context) => dispatchWorkspace({ type: 'context', context })} onLocateOnCanvas={() => changeCenter('canvas')} onSelect={selectWorkspace} onMetadata={updateEditorMetadata} onChange={changeEditor} />}
+        {isInitialSetup ? <NetworkInitialSetupInspector /> : <NetworkContextInspector context={inspectorContext} centerMode={centerMode} inspectionScope={inspectionScope} inspectionLabel={snapshotInspection?.title ?? null} inspectionKind={snapshotInspection?.kind ?? null} definition={workspaceDefinition} agents={projectAgents} bindings={workspaceBindings} liveDraftContractsByAgentId={draftExternalContextContractsByAgentId} issues={workspaceIssues} selection={selection} readOnly={inspectorReadOnly} name={snapshotInspection ? `${editorName} · ${snapshotInspection.snapshot.version_label ?? 'snapshot'}` : editorName} description={editorDescription} agentWorkspace={agentWorkspace} onContext={(context) => dispatchWorkspace({ type: 'context', context })} onLocateOnCanvas={() => changeCenter('canvas')} onSelect={selectWorkspace} onMetadata={updateEditorMetadata} onChange={changeEditor} />}
         <NetworkAgentCatalogDrawer open={catalogOpen} mode={catalogMode} agents={projectAgents} addedAgentIds={new Set(editorDefinition.nodes.map((node) => node.agent_id))} onClose={() => setCatalogOpen(false)} onAdd={(agent) => { void addAgentToNetwork(agent) }} onCreate={() => openCreateAgent(true)} />
       </div>
       <CreateAgentFlowModal
