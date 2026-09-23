@@ -284,6 +284,7 @@ class HttpSecurityGuard:
             control_permission=control_plane_permission(
                 request.method,
                 request.url.path,
+                body,
             ),
         )
 
