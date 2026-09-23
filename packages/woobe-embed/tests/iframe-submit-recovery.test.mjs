@@ -377,6 +377,52 @@ test("ambiguous submit failure performs one canonical active Run lookup instead 
   assert.equal(harness.errors.length, 1);
 });
 
+test("structured External Context 409 is surfaced without active-run recovery", async () => {
+  const calls = [];
+  const harness = await loadIframeHarness(async (url) => {
+    const path = new URL(String(url)).pathname;
+    calls.push(path);
+    if (path.endsWith("/messages:stream")) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          message: "Session-scoped External Context is already fixed: client_id",
+          data: {
+            code: "EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET",
+            fields: ["client_id"],
+            scope: "session",
+            reason: "already_set",
+          },
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      );
+    }
+    if (path.endsWith("/active-run")) {
+      throw new Error("deterministic context conflict must not trigger active-run recovery");
+    }
+    throw new Error(`Unexpected request: ${path}`);
+  });
+
+  await harness.sendMessage("second attempt");
+
+  assert.equal(calls.filter((path) => path.endsWith("/messages:stream")).length, 1);
+  assert.equal(calls.filter((path) => path.endsWith("/active-run")).length, 0);
+  assert.deepEqual(harness.errors, [
+    "Session-scoped External Context is already fixed: client_id",
+  ]);
+  const errorEvent = harness.emitted.find((event) => event?.type === "error");
+  assert.ok(errorEvent);
+  assert.equal(errorEvent.payload.status_code, 409);
+  assert.equal(
+    errorEvent.payload.code,
+    "EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET",
+  );
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(errorEvent.payload.fields)),
+    ["client_id"],
+  );
+});
+
 test("structured 409 active Run conflict reattaches directly without polling active-run", async () => {
   const calls = [];
   const harness = await loadIframeHarness(async (url, init = {}) => {
