@@ -200,12 +200,22 @@ class NetworkBoundaryService(NetworkApplicationService):
                 .where(NetworkSessionModel.network_id == network_id)
                 .limit(1)
             )
+            execution_id = await session.scalar(
+                select(NetworkExecutionModel.id)
+                .where(NetworkExecutionModel.network_id == network_id)
+                .limit(1)
+            )
             activation_id = await session.scalar(
                 select(NetworkProductionActivationModel.id)
                 .where(NetworkProductionActivationModel.network_id == network_id)
                 .limit(1)
             )
-            if version_id is not None or session_id is not None or activation_id is not None:
+            if (
+                version_id is not None
+                or session_id is not None
+                or execution_id is not None
+                or activation_id is not None
+            ):
                 raise ConflictError(
                     "Network has version or runtime history and cannot be deleted"
                 )
