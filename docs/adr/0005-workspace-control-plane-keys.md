@@ -54,7 +54,7 @@ Project permissions:
 - `provider:read`, `provider:write`, `provider:delete`
 - `provider:credential:revoke`
 - `model:read`, `model:write`, `model:delete`
-- `skill:read`, `skill:write`, `skill:delete`, `skill:version`
+- `skill:read`, `skill:write`, `skill:version`
 - `chat_surface:read`, `chat_surface:write`, `chat_surface:release`, `chat_surface:keys`
 - `observability:read`
 - `usage:read`
