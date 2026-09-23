@@ -4,6 +4,7 @@ import { Badge, Button, EmptyStatePanel, TechnicalListItem } from '@woobe/ui'
 import { toast } from 'sonner'
 
 import type { Agent } from '@/features/agents/types'
+import { filterContractValues, filterExternalContextInput } from '@/features/contracts/contractFields'
 import { useAgentEditor } from '@/features/playground/AgentEditorContext'
 import { ChatCanvas } from '@/features/playground/components/ChatCanvas'
 import { useAgentSessions, useAskStream, useSessionMessages } from '@/features/playground/hooks'
@@ -119,21 +120,20 @@ function SessionItem({
 }
 
 export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkAgentChatProps) {
-  const { toSnapshot, isDirty } = useAgentEditor()
+  const { toSnapshot, isDirty, state } = useAgentEditor()
   const { stream, reattach, cancel } = useAskStream()
   const isStateless = agent.session_mode === 'stateless'
   const isInactive = agent.status === 'inactive'
-  const initialSessionId = isStateless
-    ? null
-    : getStoredNetworkAgentSessionId(projectId, agent.id)
+  const initialSessionId = getStoredNetworkAgentSessionId(projectId, agent.id)
   const [messages, setMessages] = useState<ChatMessageType[]>([])
   const [input, setInput] = useState('')
   const [isSending, setIsSending] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(() => initialSessionId)
   const [sessionSnapshot, setSessionSnapshot] = useState<Record<string, unknown> | null>(null)
+  const [externalContextValues, setExternalContextValues] = useState<Record<string, unknown>>({})
   const [pinnedPreviousSnapshot, setPinnedPreviousSnapshot] = useState(false)
   const [sessionsOpen, setSessionsOpen] = useState(false)
-  const [sessionToLoad, setSessionToLoad] = useState<string | null>(() => initialSessionId)
+  const [sessionToLoad, setSessionToLoad] = useState<string | null>(() => isStateless ? null : initialSessionId)
   const [historicalSessionPending, setHistoricalSessionPending] = useState(false)
   const sessionMenuRef = useRef<HTMLDivElement>(null)
   const accumulatedRef = useRef('')
@@ -150,10 +150,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
   const effectiveSnapshot = pinnedPreviousSnapshot && sessionSnapshot ? sessionSnapshot : currentSnapshot
   const suggestions = useMemo(() => suggestionsForAgent(agent), [agent])
 
-  const sessionsQuery = useAgentSessions(
-    isStateless ? undefined : agent.id,
-    isStateless ? undefined : projectId,
-  )
+  const sessionsQuery = useAgentSessions(agent.id, projectId)
   const sessions = useMemo(() => {
     const byId = new Map<string, SessionListItem>()
     for (const page of sessionsQuery.data?.pages ?? []) {
@@ -163,6 +160,19 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     }
     return Array.from(byId.values())
   }, [sessionsQuery.data])
+  const externalContextContract = state.externalContextContract
+  const lockedExternalContextValues = useMemo(
+    () => sessions.find((item) => item.id === sessionId)?.external_context_snapshot ?? {},
+    [sessionId, sessions],
+  )
+  const handleExternalContextValuesChange = useCallback((values: Record<string, unknown>) => {
+    setExternalContextValues(filterContractValues(externalContextContract, values))
+  }, [externalContextContract])
+  const clearExternalContextValues = useCallback(() => setExternalContextValues({}), [])
+
+  useEffect(() => {
+    setExternalContextValues((current) => filterContractValues(externalContextContract, current))
+  }, [externalContextContract])
   const historyQuery = useSessionMessages(sessionToLoad ?? undefined)
 
   const rememberSessionId = useCallback((nextSessionId: string | null) => {
@@ -192,7 +202,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
   const runtimeCallbacks = useCallback((): StreamCallbacks => ({
     onMeta: (meta) => {
       if (meta.run_id) rememberRunId(meta.run_id)
-      if (!isStateless && meta.session_id) rememberSessionId(meta.session_id)
+      if (meta.session_id) rememberSessionId(meta.session_id)
       if (meta.trace_id) metadataRef.current.trace_id = meta.trace_id
     },
     onAgentActivity: (activity) => updateLastAssistant((last) => ({ ...last, activity })),
@@ -245,7 +255,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     },
     onDone: (response) => {
       const finalContent = response.answer || accumulatedRef.current || ''
-      if (!isStateless && response.session_id) rememberSessionId(response.session_id)
+      if (response.session_id) rememberSessionId(response.session_id)
       const usage = (response.usage ?? null) as UsageInfo | null
       setMessages((previous) => {
         const next = [...previous]
@@ -269,7 +279,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
         return next
       })
       finishActiveRun()
-      if (!isStateless) void sessionsQuery.refetch()
+      void sessionsQuery.refetch()
       if (finalContent.trim() && !response.output_parse_error) onChatCompleted()
     },
     onError: (error) => {
@@ -292,12 +302,11 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
         content: output || last.content,
         activity: null,
       }))
-      if (!isStateless) void sessionsQuery.refetch()
+      void sessionsQuery.refetch()
       toast.info('Agent Run cancelled')
     },
   }), [
     finishActiveRun,
-    isStateless,
     onChatCompleted,
     rememberRunId,
     rememberSessionId,
@@ -310,15 +319,13 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
   }, [])
 
   useEffect(() => {
-    const nextSessionId = isStateless
-      ? null
-      : getStoredNetworkAgentSessionId(projectId, agent.id)
+    const nextSessionId = getStoredNetworkAgentSessionId(projectId, agent.id)
     activeRunIdRef.current = getStoredNetworkAgentRunId(projectId, agent.id)
     reattachingRunRef.current = null
     finishedRunRef.current = null
     setMessages([])
     setSessionId(nextSessionId)
-    setSessionToLoad(nextSessionId)
+    setSessionToLoad(isStateless ? null : nextSessionId)
     setSessionSnapshot(null)
     setPinnedPreviousSnapshot(false)
     setHistoricalSessionPending(false)
@@ -349,10 +356,8 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
     if (!isStateless) return
     setSessionsOpen(false)
     setSessionToLoad(null)
-    setSessionId(null)
-    setStoredNetworkAgentSessionId(projectId, agent.id, null)
     setHistoricalSessionPending(false)
-  }, [agent.id, isStateless, projectId])
+  }, [isStateless])
 
   useEffect(() => {
     if (sessionToLoad || historyQuery.isFetching || isSending || reattachingRunRef.current) return
@@ -480,11 +485,17 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
         project_id: projectId,
         agent_id: agent.id,
         message: content,
-        session_id: isStateless ? null : sessionId,
+        session_id: sessionId,
         execution_context: 'playground',
+        external_context: filterExternalContextInput(
+          externalContextContract,
+          externalContextValues,
+          lockedExternalContextValues,
+        ),
         metadata: { source: 'network_agent_chat', client_sent_at: new Date().toISOString() },
         snapshot_override: snapshot,
       } as any, runtimeCallbacks())
+      await sessionsQuery.refetch()
     } catch (error) {
       if (!(error instanceof DOMException && error.name === 'AbortError')) {
         toast.error(error instanceof Error ? error.message : 'Agent Chat failed')
@@ -527,7 +538,7 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
           size="xs"
           onClick={() => setSessionsOpen((value) => !value)}
           disabled={isStateless}
-          title={isStateless ? 'Stateless Agents do not persist sessions' : 'Open previous sessions'}
+          title={isStateless ? 'Stateless Agents keep a technical Session but do not reuse conversation history' : 'Open previous sessions'}
         >
           <History className="h-icon-sm w-icon-sm" />
           Sessions
@@ -603,8 +614,13 @@ export function NetworkAgentChat({ agent, projectId, onChatCompleted }: NetworkA
         composerValue={input}
         onComposerValueChange={setInput}
         composerPlaceholder="Message this Agent…"
-        composerStatusText={isStateless ? 'Stateless isolated test' : 'Session-aware isolated test'}
+        composerStatusText={isStateless ? 'Stateless isolated test · Session context preserved' : 'Session-aware isolated test'}
         enableFirstRunSuccess={false}
+        externalContextContract={externalContextContract}
+        externalContextValues={externalContextValues}
+        lockedExternalContextValues={lockedExternalContextValues}
+        onExternalContextValuesChange={handleExternalContextValuesChange}
+        onClearExternalContextValues={clearExternalContextValues}
       />
 
       {historicalSessionPending ? (
