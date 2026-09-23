@@ -1,7 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any
 
-def control_plane_permission(method: str, path: str) -> str | None:
+
+def control_plane_permission(
+    method: str,
+    path: str,
+    body: Any = None,
+) -> str | None:
     method = method.upper()
 
     if path.startswith("/core/workspaces/") and "/control-keys" in path:
@@ -144,7 +151,16 @@ def control_plane_permission(method: str, path: str) -> str | None:
         if path.endswith("/promotions/preview") and method == "POST":
             return "network:version"
         if path.endswith("/promotions") and method == "POST":
-            return "network:production"
+            environment = (
+                str(body.get("environment") or "").lower()
+                if isinstance(body, Mapping)
+                else ""
+            )
+            return (
+                "network:production"
+                if environment == "production"
+                else "network:version"
+            )
         if path.endswith("/rollback") and method == "POST":
             return "network:production"
         if path.endswith("/production/activations") and method == "POST":
