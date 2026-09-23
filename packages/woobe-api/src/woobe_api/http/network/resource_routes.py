@@ -108,6 +108,20 @@ async def create_project_network(
     return {"success": True, "data": network_payload(network)}
 
 
+@router.delete("/{project_id}/networks/{network_id}")
+async def delete_project_network(
+    project_id: UUID,
+    network_id: UUID,
+    request: Request,
+):
+    _authorize_project(request, project_id)
+    await build_network_service().delete_project_network(
+        project_id=project_id,
+        network_id=network_id,
+    )
+    return {"success": True, "data": None}
+
+
 @router.get("/{project_id}/networks/{network_id}")
 async def get_project_network(project_id: UUID, network_id: UUID, request: Request):
     _authorize_project(request, project_id)
