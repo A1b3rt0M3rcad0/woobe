@@ -603,7 +603,7 @@ export function NetworkChatWorkspace({
       if (!controller.signal.aborted) {
         if (!executionId) setText(message)
         toast.error(error instanceof Error ? error.message : 'Network execution failed')
-        if (executionId) await refreshPersistedSession(session.id)
+        await refreshPersistedSession(session.id)
       }
     } finally {
       if (abortRef.current === controller) abortRef.current = null
