@@ -48,7 +48,16 @@ class RevokeApiKeyUseCase:
                 payload={
                     "project_id": str(api_key.project_id),
                     "credential_id": str(api_key.credential_id or api_key.id),
-                    "revoked_by_user_id": str(input_dto.revoked_by_user_id),
+                    "revoked_by_user_id": (
+                        str(input_dto.revoked_by_user_id)
+                        if input_dto.revoked_by_user_id
+                        else None
+                    ),
+                    "revoked_by_control_key_id": (
+                        str(input_dto.revoked_by_control_key_id)
+                        if input_dto.revoked_by_control_key_id
+                        else None
+                    ),
                     "revoked_at": now.isoformat(),
                 },
                 routing_key="api_key.revoked.v1",
@@ -129,6 +138,7 @@ class RotateApiKeyUseCase:
                 else current.expires_at
             ),
             created_by_user_id=input_dto.rotated_by_user_id,
+            created_by_control_key_id=input_dto.rotated_by_control_key_id,
             rotated_from_id=current.id,
         )
         saved = await self._api_key_repo.save(replacement)
@@ -141,7 +151,16 @@ class RotateApiKeyUseCase:
                 "project_id": str(saved.project_id),
                 "credential_id": str(saved.credential_id or saved.id),
                 "rotated_from_id": str(current.id),
-                "rotated_by_user_id": str(input_dto.rotated_by_user_id),
+                "rotated_by_user_id": (
+                    str(input_dto.rotated_by_user_id)
+                    if input_dto.rotated_by_user_id
+                    else None
+                ),
+                "rotated_by_control_key_id": (
+                    str(input_dto.rotated_by_control_key_id)
+                    if input_dto.rotated_by_control_key_id
+                    else None
+                ),
                 "key_prefix": issued.display_prefix,
                 "scopes": list(saved.scopes),
                 "kind": saved.kind.value,
@@ -210,7 +229,16 @@ class UpdateApiKeyCredentialUseCase:
                 "project_id": str(saved.project_id),
                 "name": saved.name,
                 "description": saved.description,
-                "updated_by_user_id": str(input_dto.updated_by_user_id),
+                "updated_by_user_id": (
+                    str(input_dto.updated_by_user_id)
+                    if input_dto.updated_by_user_id
+                    else None
+                ),
+                "updated_by_control_key_id": (
+                    str(input_dto.updated_by_control_key_id)
+                    if input_dto.updated_by_control_key_id
+                    else None
+                ),
                 "updated_at": now.isoformat(),
             },
             routing_key="api_key_credential.updated.v1",
