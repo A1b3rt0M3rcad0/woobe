@@ -14,6 +14,21 @@ class AuthenticatedPrincipal(BaseModel):
     expires_at: datetime
 
 
+class ControlPlanePrincipal(BaseModel):
+    model_config = ConfigDict(frozen=True)
+
+    api_key_id: UUID
+    credential_id: UUID
+    workspace_id: UUID
+    key_prefix: str
+    permissions: frozenset[str] = Field(default_factory=frozenset)
+    kind: str = "control"
+    authenticated_at: datetime
+
+    def has_permission(self, permission: str) -> bool:
+        return permission in self.permissions
+
+
 class ProjectApiPrincipal(BaseModel):
     model_config = ConfigDict(frozen=True)
 
@@ -36,4 +51,6 @@ class ProjectApiPrincipal(BaseModel):
         return interface in self.interfaces
 
 
-SecurityPrincipal: TypeAlias = AuthenticatedPrincipal | ProjectApiPrincipal
+SecurityPrincipal: TypeAlias = (
+    AuthenticatedPrincipal | ProjectApiPrincipal | ControlPlanePrincipal
+)
