@@ -29,6 +29,7 @@ from shared.security.rate_limit import (
     ApiKeyConcurrencyLimiter,
     LoginRateLimiter,
 )
+from woobe_api.security.control_plane_permissions import control_plane_permission
 
 PUBLIC_PATHS = {
     "/identity/auth/login",
@@ -253,6 +254,10 @@ class HttpSecurityGuard:
             path_params=path_params,
             query_params=query_params,
             body=body,
+            control_permission=control_plane_permission(
+                request.method,
+                request.url.path,
+            ),
         )
 
         if token_source == "cookie":
