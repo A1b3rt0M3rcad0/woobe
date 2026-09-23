@@ -26,7 +26,11 @@ from shared.runtime import (
     RuntimeObserver,
     RuntimeStreamGapError,
 )
-from shared.security.principal import AuthenticatedPrincipal, ProjectApiPrincipal
+from shared.security.principal import (
+    AuthenticatedPrincipal,
+    ControlPlanePrincipal,
+    ProjectApiPrincipal,
+)
 
 
 router = APIRouter(prefix="/network", tags=["network"])
@@ -42,6 +46,10 @@ def _authorize_project(request: Request, project_id: UUID) -> UUID | None:
     if isinstance(principal, ProjectApiPrincipal):
         if principal.project_id != project_id:
             raise AuthorizationError("Runtime key does not belong to this Project")
+        return None
+    if isinstance(principal, ControlPlanePrincipal):
+        return
+    if isinstance(principal, ControlPlanePrincipal):
         return None
     if isinstance(principal, AuthenticatedPrincipal):
         return principal.user_id
