@@ -229,6 +229,11 @@ class HttpSecurityGuard:
         if is_runtime_path(path):
             self._validate_runtime_payload(request, body)
 
+        authorization_path_params = self._authorization_path_params(
+            request,
+            path_params,
+        )
+
         authorization = request.headers.get("authorization", "")
         scheme, _, credentials = authorization.partition(" ")
         if scheme.lower() == "bearer" and credentials:
@@ -238,7 +243,7 @@ class HttpSecurityGuard:
                     credentials=credentials,
                     body=body,
                     query_params=query_params,
-                    path_params=path_params,
+                    path_params=authorization_path_params,
                 )
             access_token = credentials
             token_source = "header"
@@ -251,7 +256,7 @@ class HttpSecurityGuard:
 
         principal = await self._authenticator.authenticate_user(
             access_token=access_token,
-            path_params=path_params,
+            path_params=authorization_path_params,
             query_params=query_params,
             body=body,
         )
@@ -260,6 +265,20 @@ class HttpSecurityGuard:
             self._validate_csrf(request)
 
         return principal
+
+    @staticmethod
+    def _authorization_path_params(
+        request: Request,
+        path_params: dict[str, Any],
+    ) -> dict[str, Any]:
+        if (
+            request.url.path.startswith("/runtime/runs/by-trace/")
+            and "trace_id" in path_params
+        ):
+            normalized = dict(path_params)
+            normalized["run_trace_id"] = normalized.pop("trace_id")
+            return normalized
+        return path_params
 
     async def _authenticate_api_key(
         self,
