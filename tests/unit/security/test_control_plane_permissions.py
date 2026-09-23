@@ -23,6 +23,10 @@ from woobe_api.security.control_plane_permissions import control_plane_permissio
         ("DELETE", "/ai/provider-models/00000000-0000-0000-0000-000000000001", "model:delete"),
         ("DELETE", "/tools/tools/00000000-0000-0000-0000-000000000001", "tool:delete"),
         ("DELETE", "/network/projects/00000000-0000-0000-0000-000000000001/networks/00000000-0000-0000-0000-000000000002", "network:delete"),
+        ("GET", "/chat-surfaces/projects/00000000-0000-0000-0000-000000000001", "chat_surface:read"),
+        ("POST", "/chat-surfaces/projects/00000000-0000-0000-0000-000000000001", "chat_surface:write"),
+        ("POST", "/chat-surfaces/00000000-0000-0000-0000-000000000001/release", "chat_surface:release"),
+        ("POST", "/chat-surfaces/00000000-0000-0000-0000-000000000001/access-keys", "chat_surface:keys"),
         ("POST", "/network/00000000-0000-0000-0000-000000000001/promotions", "network:production"),
         ("GET", "/agent/knowledge/collections/00000000-0000-0000-0000-000000000001/overview", "knowledge:read"),
     ],
@@ -38,3 +42,17 @@ def test_management_routes_require_explicit_control_permission(
 def test_runtime_routes_are_not_implicitly_opened_to_control_keys() -> None:
     assert control_plane_permission("POST", "/v1/run") is None
     assert control_plane_permission("POST", "/agent/runtime/ask") is None
+    assert (
+        control_plane_permission(
+            "POST",
+            "/v1/chat-surfaces/public-id/sessions",
+        )
+        is None
+    )
+    assert (
+        control_plane_permission(
+            "POST",
+            "/v1/chat/sessions/00000000-0000-0000-0000-000000000001/messages:stream",
+        )
+        is None
+    )
