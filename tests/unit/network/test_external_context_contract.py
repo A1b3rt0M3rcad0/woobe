@@ -189,6 +189,22 @@ def test_effective_session_scope_rejects_repeated_input() -> None:
         )
 
 
+def test_fixed_network_session_field_conflicts_before_revalidating_replayed_value() -> None:
+    effective = compose_external_context_contracts(
+        {"support": agent_contract(required=True, scope="session")}
+    )
+
+    with pytest.raises(ExternalContextSessionConflict) as exc_info:
+        resolve_scoped_effective_external_context(
+            effective,
+            {"customer_id": 123},
+            session_snapshot={"customer_id": "cus-1"},
+        )
+
+    assert exc_info.value.code == "EXTERNAL_CONTEXT_SESSION_FIELD_ALREADY_SET"
+    assert exc_info.value.fields == ["customer_id"]
+
+
 def test_network_session_fields_are_write_once_per_field() -> None:
     effective = compose_external_context_contracts(
         {
