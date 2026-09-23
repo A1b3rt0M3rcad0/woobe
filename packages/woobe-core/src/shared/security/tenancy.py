@@ -44,6 +44,7 @@ DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     "version_id": "agent.agent_prompts",
     "knowledge_version_id": "agent.knowledge_versions",
     "trace_id": "observability.traces",
+    "run_id": "agent.agent_runs",
     "network_id": "network.networks",
 }
 
