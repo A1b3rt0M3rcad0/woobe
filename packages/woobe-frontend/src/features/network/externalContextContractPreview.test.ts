@@ -80,6 +80,58 @@ describe('Network Draft External Context preview', () => {
     })
   })
 
+  it('applies one live shared Agent Draft contract to every node that references that Agent', () => {
+    const result = previewNetworkDraftExternalContextContract({
+      persistedEffectiveContract: {},
+      definition: definition([
+        {
+          id: 'root',
+          agent_id: 'agent-1',
+          label: 'Root',
+          capability_description: '',
+          position: { x: 0, y: 0 },
+          binding: { source: 'draft', release_id: null },
+        },
+        {
+          id: 'specialist',
+          agent_id: 'agent-1',
+          label: 'Specialist',
+          capability_description: '',
+          position: { x: 200, y: 0 },
+          binding: { source: 'draft', release_id: null },
+        },
+      ]),
+      agents: [agent('agent-1', {})],
+      liveDraftContractsByAgentId: {
+        'agent-1': {
+          client_id: {
+            schema: { type: 'string' },
+            required: true,
+            scope: 'session',
+            model: { expose: false },
+          },
+        },
+      },
+    })
+
+    expect(result).toEqual({
+      client_id: {
+        schema: { type: 'string' },
+        scope: 'session',
+        consumers: {
+          root: {
+            required: true,
+            model: { expose: false },
+          },
+          specialist: {
+            required: true,
+            model: { expose: false },
+          },
+        },
+      },
+    })
+  })
+
   it('drops removed Network consumers while preserving unchanged pinned consumers', () => {
     const result = previewNetworkDraftExternalContextContract({
       persistedEffectiveContract: {
