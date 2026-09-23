@@ -129,19 +129,32 @@ async def create_project(request: FastAPIRequest):
     except ValueError as exc:
         raise ValidationError("Invalid workspace_id") from exc
 
-    user_id = _principal_user_id(request)
+    principal = getattr(request.state, "principal", None)
+    control_principal = (
+        principal if isinstance(principal, ControlPlanePrincipal) else None
+    )
     access = _project_access_service(request)
-    await access.require_workspace_admin(user_id, workspace_uuid)
+    user_id: UUID | None = None
+    if control_principal is None:
+        user_id = _principal_user_id(request)
+        await access.require_workspace_admin(user_id, workspace_uuid)
 
     handler = create_project_composer()
     response = await request_adapter(request, handler)
     if response.status_code == 201 and isinstance(response.body, dict):
         data = response.body.get("data")
         if isinstance(data, dict) and data.get("id"):
-            await access.ensure_creator_access(
-                actor_user_id=user_id,
-                project_id=UUID(str(data["id"])),
-            )
+            project_id = UUID(str(data["id"]))
+            if control_principal is not None:
+                await build_control_key_service().grant_created_project(
+                    principal=control_principal,
+                    project_id=project_id,
+                )
+            elif user_id is not None:
+                await access.ensure_creator_access(
+                    actor_user_id=user_id,
+                    project_id=project_id,
+                )
     return response_adapter(response)
 
 
