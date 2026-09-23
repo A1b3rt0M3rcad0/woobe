@@ -53,7 +53,7 @@ def test_network_external_context_uses_the_same_chat_composer_surface_as_standal
 def test_network_chat_sends_working_external_context_instead_of_environment_state_directly() -> None:
     network = _source(NETWORK_CHAT)
 
-    assert "externalContext: externalContextValues" in network
+    assert "externalContext: filterExternalContextInput(" in network
     assert "externalContext: runtimeExternalContext" not in network
     assert "const [externalContextValues, setExternalContextValues]" in network
     assert "externalContextDirtyRef.current = true" in network
