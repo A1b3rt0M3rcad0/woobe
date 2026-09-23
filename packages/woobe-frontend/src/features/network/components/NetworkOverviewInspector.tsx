@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Workflow } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button, EmptyStatePanel, Field, FieldLabel, Input, MetricTile, PanelHeader, SectionBlock, Select, Textarea } from '@woobe/ui'
 
+import type { Agent } from '@/features/agents/types'
+import { previewNetworkDraftExternalContextContract } from '@/features/network/externalContextContractPreview'
 import { useNetworkExternalContextContract, useUpdateNetworkMetadata } from '@/features/network/hooks'
 
 import { DEFAULT_NETWORK_SETTINGS } from '../editor/networkDefinitionMapper'
@@ -14,6 +16,8 @@ import { NetworkInspectorModal } from './NetworkInspectorModal'
 
 export function NetworkOverviewInspector({
   definition,
+  agents,
+  liveDraftContractsByAgentId = {},
   readOnly,
   environment = 'draft',
   name,
@@ -22,6 +26,8 @@ export function NetworkOverviewInspector({
   onChange,
 }: {
   definition: NetworkDefinition
+  agents: Agent[]
+  liveDraftContractsByAgentId?: Record<string, unknown>
   readOnly: boolean
   environment?: Environment
   name: string
@@ -32,6 +38,17 @@ export function NetworkOverviewInspector({
   const { projectId, networkId } = useParams<{ projectId: string; networkId: string }>()
   const metadataMutation = useUpdateNetworkMetadata(projectId, networkId)
   const externalContextQuery = useNetworkExternalContextContract(networkId, projectId, environment)
+  const effectiveExternalContextContract = useMemo(
+    () => environment === 'draft'
+      ? previewNetworkDraftExternalContextContract({
+          persistedEffectiveContract: externalContextQuery.data ?? {},
+          definition,
+          agents,
+          liveDraftContractsByAgentId,
+        })
+      : externalContextQuery.data ?? {},
+    [agents, definition, environment, externalContextQuery.data, liveDraftContractsByAgentId],
+  )
   const [identityOpen, setIdentityOpen] = useState(false)
   const [runtimeOpen, setRuntimeOpen] = useState(false)
   const [metadataOverridden, setMetadataOverridden] = useState(false)
@@ -109,9 +126,9 @@ export function NetworkOverviewInspector({
         </SectionBlock>
 
         <SectionBlock density="compact" title="External Context" description="Effective contract composed from the Agents in this environment.">
-          {Object.keys(externalContextQuery.data ?? {}).length ? (
+          {Object.keys(effectiveExternalContextContract).length ? (
             <div className="divide-y divide-border/70 border-y border-border/70">
-              {Object.entries(externalContextQuery.data ?? {}).map(([fieldName, rawField]) => {
+              {Object.entries(effectiveExternalContextContract).map(([fieldName, rawField]) => {
                 const field = rawField && typeof rawField === 'object' && !Array.isArray(rawField) ? rawField as Record<string, unknown> : {}
                 const schema = field.schema && typeof field.schema === 'object' && !Array.isArray(field.schema) ? field.schema as Record<string, unknown> : {}
                 const consumers = field.consumers && typeof field.consumers === 'object' && !Array.isArray(field.consumers) ? field.consumers as Record<string, unknown> : {}
