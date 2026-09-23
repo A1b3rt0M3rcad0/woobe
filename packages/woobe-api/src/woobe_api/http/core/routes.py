@@ -61,6 +61,15 @@ def _project_access_service(request: FastAPIRequest) -> ProjectAccessService:
     return build_project_access_service()
 
 
+def _project_access_actor(
+    request: FastAPIRequest,
+) -> tuple[UUID | None, bool]:
+    principal = getattr(request.state, "principal", None)
+    if isinstance(principal, ControlPlanePrincipal):
+        return None, True
+    return _principal_user_id(request), False
+
+
 async def _require_project_access(
     request: FastAPIRequest,
     project_id: UUID,
@@ -150,9 +159,11 @@ async def list_projects_for_access_management(
 
 @router.get("/projects/{access_project_id}/members")
 async def list_project_members(request: FastAPIRequest, access_project_id: UUID):
+    actor_user_id, control_plane_authorized = _project_access_actor(request)
     data = await _project_access_service(request).list_project_members(
-        user_id=_principal_user_id(request),
+        user_id=actor_user_id,
         project_id=access_project_id,
+        control_plane_authorized=control_plane_authorized,
     )
     return {"success": True, "message": "ok", "data": data}
 
@@ -168,11 +179,13 @@ async def grant_project_subject_access(request: FastAPIRequest, access_project_i
         subject_uuid = UUID(str(subject_id))
     except (TypeError, ValueError) as exc:
         raise ValidationError("Invalid subject_id") from exc
+    actor_user_id, control_plane_authorized = _project_access_actor(request)
     data = await _project_access_service(request).grant_project_subject_access(
-        actor_user_id=_principal_user_id(request),
+        actor_user_id=actor_user_id,
         project_id=access_project_id,
         subject_type=subject_type,
         subject_id=subject_uuid,
+        control_plane_authorized=control_plane_authorized,
     )
     return {"success": True, "message": "created", "data": data}
 
@@ -186,11 +199,13 @@ async def revoke_project_subject_access(
 ):
     if subject_type not in {"member", "invite"}:
         raise ValidationError("subject_type must be member or invite")
+    actor_user_id, control_plane_authorized = _project_access_actor(request)
     await _project_access_service(request).revoke_project_subject_access(
-        actor_user_id=_principal_user_id(request),
+        actor_user_id=actor_user_id,
         project_id=access_project_id,
         subject_type=subject_type,
         subject_id=subject_id,
+        control_plane_authorized=control_plane_authorized,
     )
     return {"success": True, "message": "deleted", "data": None}
 
@@ -201,10 +216,12 @@ async def grant_project_access(request: FastAPIRequest, access_project_id: UUID)
     email = payload.get("email") if isinstance(payload, dict) else None
     if not isinstance(email, str) or not email.strip():
         raise ValidationError("email is required")
+    actor_user_id, control_plane_authorized = _project_access_actor(request)
     member = await _project_access_service(request).grant_project_access(
-        actor_user_id=_principal_user_id(request),
+        actor_user_id=actor_user_id,
         project_id=access_project_id,
         email=email,
+        control_plane_authorized=control_plane_authorized,
     )
     return {"success": True, "message": "created", "data": member}
 
@@ -215,10 +232,12 @@ async def revoke_project_access(
     access_project_id: UUID,
     target_user_id: UUID,
 ):
+    actor_user_id, control_plane_authorized = _project_access_actor(request)
     await _project_access_service(request).revoke_project_access(
-        actor_user_id=_principal_user_id(request),
+        actor_user_id=actor_user_id,
         project_id=access_project_id,
         target_user_id=target_user_id,
+        control_plane_authorized=control_plane_authorized,
     )
     return {"success": True, "message": "deleted", "data": None}
 
