@@ -43,12 +43,25 @@ DIRECT_PROJECT_RESOURCES: dict[str, str] = {
     # The current prompt-version route names this identifier `version_id`.
     "version_id": "agent.agent_prompts",
     "knowledge_version_id": "agent.knowledge_versions",
-    "trace_id": "observability.traces",
     "run_id": "agent.agent_runs",
     "network_id": "network.networks",
 }
 
 INDIRECT_PROJECT_RESOURCE_QUERIES: dict[str, str] = {
+    "trace_id": """
+        SELECT project_id
+        FROM (
+            SELECT project_id, 0 AS priority
+            FROM agent.agent_runs
+            WHERE trace_id = :resource_id
+            UNION ALL
+            SELECT project_id, 1 AS priority
+            FROM observability.traces
+            WHERE id = :resource_id
+        ) AS trace_projects
+        ORDER BY priority
+        LIMIT 1
+    """,
     "skill_version_id": """
         SELECT skills.project_id
         FROM agent.skill_versions AS versions
