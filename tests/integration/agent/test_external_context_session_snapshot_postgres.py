@@ -25,7 +25,7 @@ from shared.infra.config import Settings
 from shared.infra.database.session import create_engine, create_session_factory
 
 
-async def _seed_session():
+async def _seed_session(*, environment: str = "draft"):
     settings = Settings.model_validate({})
     engine = create_engine(settings)
     session_factory = create_session_factory(engine)
@@ -72,7 +72,7 @@ async def _seed_session():
                 id=session_id,
                 project_id=project_id,
                 agent_id=agent_id,
-                runtime_environment="draft",
+                runtime_environment=environment,
                 opened_release_id=None,
                 external_session_id=None,
                 tenant_id=None,
@@ -86,6 +86,20 @@ async def _seed_session():
         )
 
     return engine, session_factory, project_id, agent_id, session_id
+
+
+@pytest.mark.asyncio
+async def test_row_locked_runtime_session_preserves_environment_provenance() -> None:
+    engine, _session_factory, _project_id, _agent_id, session_id = await _seed_session(
+        environment="production"
+    )
+
+    async with AgentUnitOfWork(engine) as uow:
+        repo = SQLAlchemyRuntimeSessionRepository(uow)
+        entity = await repo.get_by_id_for_update(session_id)
+        assert entity.runtime_environment == "production"
+
+    await engine.dispose()
 
 
 @pytest.mark.asyncio
