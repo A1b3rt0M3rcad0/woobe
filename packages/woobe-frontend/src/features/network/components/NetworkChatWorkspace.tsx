@@ -5,13 +5,15 @@ import { toast } from 'sonner'
 
 import { ChatCanvas, type ChatCanvasEntry } from '@/features/playground/components/ChatCanvas'
 import { filterContractValues, filterExternalContextInput } from '@/features/contracts/contractFields'
+import type { Agent } from '@/features/agents/types'
 import type { ChatMessage as PlaygroundChatMessage } from '@/features/playground/types'
 import { cancelNetworkExecution } from '@/features/network/api'
 import { useNetworkExternalContextContract, useNetworkRuntimeEnvironments } from '@/features/network/hooks'
 import { useNetworkIdentity } from '@/features/network/NetworkIdentityContext'
 import { getActiveNetworkExecution } from '@/features/network/runtime-reattach-api'
 import { streamNetworkExecution } from '@/features/network/stream'
-import type { NetworkRuntimeEvent } from '@/features/network/types'
+import { previewNetworkDraftExternalContextContract } from '@/features/network/externalContextContractPreview'
+import type { NetworkDefinition, NetworkRuntimeEvent } from '@/features/network/types'
 import type { AgentNodeId, Environment, NetworkBinding } from './networkWorkspaceTypes'
 import { buildTurnFromRuntimeEvents, type NetworkExecution, type NetworkTurn, type RuntimeEventRecord } from './networkChatExecution'
 import {
@@ -39,6 +41,9 @@ interface NetworkChatWorkspaceProps {
   versionLabel: string
   currentVersionId: string | null
   bindings: Record<AgentNodeId, NetworkBinding>
+  draftDefinition: NetworkDefinition
+  agents: Agent[]
+  liveDraftContractsByNodeId: Record<string, unknown>
   historyBindings: Record<AgentNodeId, NetworkBinding>
   historyVersionLabel: string
   activeSession: NetworkSession | null
@@ -124,6 +129,9 @@ export function NetworkChatWorkspace({
   versionLabel,
   currentVersionId,
   bindings,
+  draftDefinition,
+  agents,
+  liveDraftContractsByNodeId,
   historyBindings,
   historyVersionLabel,
   activeSession,
@@ -142,7 +150,24 @@ export function NetworkChatWorkspace({
   const runtimeStatesQuery = useNetworkRuntimeEnvironments(networkId, projectId)
   const externalContextContractQuery = useNetworkExternalContextContract(networkId, projectId, environment)
   const runtimeEnabled = runtimeStatesQuery.data?.[environment]?.enabled ?? true
-  const effectiveExternalContextContract = externalContextContractQuery.data ?? EMPTY_EXTERNAL_CONTEXT_CONTRACT
+  const persistedExternalContextContract = externalContextContractQuery.data ?? EMPTY_EXTERNAL_CONTEXT_CONTRACT
+  const effectiveExternalContextContract = useMemo(
+    () => environment === 'draft'
+      ? previewNetworkDraftExternalContextContract({
+          persistedEffectiveContract: persistedExternalContextContract,
+          definition: draftDefinition,
+          agents,
+          liveDraftContractsByNodeId,
+        })
+      : persistedExternalContextContract,
+    [
+      agents,
+      draftDefinition,
+      environment,
+      liveDraftContractsByNodeId,
+      persistedExternalContextContract,
+    ],
+  )
   const storedEnvironmentContext = runtimeStatesQuery.data?.[environment]?.external_context_values
   const [externalContextValues, setExternalContextValues] = useState<Record<string, unknown>>({})
   const externalContextOwnerRef = useRef<string | null>(null)
