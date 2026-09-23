@@ -25,3 +25,15 @@ def test_network_id_is_visible_to_tenant_authorization() -> None:
     )
 
     assert identifiers == [("network_id", network_id)]
+
+
+def test_run_id_is_visible_to_tenant_authorization() -> None:
+    run_id = uuid4()
+
+    identifiers = TenantAuthorizer._identifiers(
+        {"run_id": run_id},
+        {},
+        {},
+    )
+
+    assert identifiers == [("run_id", run_id)]
