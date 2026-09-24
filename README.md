@@ -102,6 +102,8 @@ packages/
 ├── woobe-core/
 ├── woobe-api/
 ├── woobe-workers/
+├── woobe-runtime-client/
+├── woobe-ui/
 ├── woobe-frontend/
 ├── woobe-embed/
 └── woobe-ee/
