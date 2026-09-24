@@ -285,7 +285,7 @@ def build_mcp_readiness(config: dict[str, Any] | None, tool_status: Any | None =
     elif diagnostic or mcp_status == "discovery_failed":
         state = "discovery_failed"
         label = "Discovery failed"
-        message = "ProjectRAI could not complete MCP discovery. Retry or review the endpoint and configured headers."
+        message = "Woobe could not complete MCP discovery. Retry or review the endpoint and configured headers."
         action = "refresh"
         can_use_tools = False
     else:

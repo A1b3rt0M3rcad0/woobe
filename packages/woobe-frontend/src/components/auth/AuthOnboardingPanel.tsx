@@ -11,9 +11,9 @@ export function AuthOnboardingPanel() {
     <section className="hidden border-r border-border bg-surface/60 p-10 lg:flex lg:flex-col lg:justify-between">
       <div>
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white">P</div>
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white">W</div>
           <div>
-            <h1 className="text-xl font-bold text-white">ProjectRAI</h1>
+            <h1 className="text-xl font-bold text-white">Woobe</h1>
             <p className="text-sm text-muted">Production runtime for AI agents</p>
           </div>
         </div>

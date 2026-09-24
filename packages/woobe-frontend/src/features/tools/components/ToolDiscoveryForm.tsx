@@ -335,7 +335,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
   const validate = () => {
     if (protocol === 'http' && !url.trim()) return 'URL is required'
     if (protocol === 'mcp' && !mcpServerUrl.trim()) return 'MCP server URL is required'
-    if (protocol === 'mcp' && !useManualMcpTool && mcpTools.length === 0) return 'Connect the MCP server first so ProjectRAI can discover its tools'
+    if (protocol === 'mcp' && !useManualMcpTool && mcpTools.length === 0) return 'Connect the MCP server first so Woobe can discover its tools'
     if (!resolvedDisplayName()) return 'Display name is required'
     return null
   }
@@ -448,7 +448,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
         <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary-light">Tool runtime</p>
-            <p className="mt-1 text-sm text-muted break-words">Choose how ProjectRAI should execute this capability.</p>
+            <p className="mt-1 text-sm text-muted break-words">Choose how Woobe should execute this capability.</p>
           </div>
           <div className="w-full sm:w-44">
             <Select value={protocol} onChange={e => setProtocol(e.target.value as SupportedToolProtocol)} options={TOOL_PROTOCOLS} />
@@ -513,7 +513,7 @@ export function ToolDiscoveryForm({ submitLabel = 'Create', cancelLabel = 'Cance
         <div className="min-w-0 space-y-4 overflow-hidden rounded-2xl border border-border/80 bg-card/40 p-4">
           <div className="min-w-0 rounded-xl border border-blue-500/30 bg-blue-500/5 p-3">
             <p className="text-sm font-medium text-blue-200 break-words">Connect MCP server</p>
-            <p className="mt-1 text-xs text-muted break-words">Connect once. ProjectRAI will expose all discovered server tools to the agent and the model will decide which one to call.</p>
+            <p className="mt-1 text-xs text-muted break-words">Connect once. Woobe will expose all discovered server tools to the agent and the model will decide which one to call.</p>
           </div>
           <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-end">
             <div className="min-w-0 flex-1">

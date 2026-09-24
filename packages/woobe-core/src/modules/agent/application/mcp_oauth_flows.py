@@ -123,7 +123,7 @@ def _client_hint_message(metadata: dict[str, Any]) -> str:
     suffix = f" Provider hints: {'; '.join(details)}." if details else ""
     return (
         "OAuth provider uses client-capability-based authorization. "
-        "Configure a provider-issued client_id/client_secret for ProjectRAI or use the MCP device-code flow."
+        "Configure a provider-issued client_id/client_secret for Woobe or use the MCP device-code flow."
         + suffix
     )
 
@@ -309,7 +309,7 @@ class ProviderAwareMcpOAuthStartUseCase:
 
     async def _register_client(self, *, registration_endpoint: str, redirect_uri: str, timeout_ms: int, token_endpoint_auth_method: str) -> dict[str, Any]:
         payload = {
-            "client_name": "ProjectRAI",
+            "client_name": "Woobe",
             "redirect_uris": [redirect_uri],
             "grant_types": ["authorization_code", "refresh_token"],
             "response_types": ["code"],
@@ -427,7 +427,7 @@ class McpOAuthDeviceStartUseCase:
 
     async def _register_device_client(self, *, registration_endpoint: str, timeout_ms: int, token_endpoint_auth_method: str) -> dict[str, Any]:
         payload = {
-            "client_name": "ProjectRAI",
+            "client_name": "Woobe",
             "grant_types": [DEVICE_CODE_GRANT_TYPE, "refresh_token"],
             "token_endpoint_auth_method": token_endpoint_auth_method,
         }

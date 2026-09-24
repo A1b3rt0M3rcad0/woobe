@@ -16,7 +16,7 @@ def _json_get(url: str, api_key: str, *, timeout: int = 20) -> dict[str, Any]:
         headers={
             "Accept": "application/json",
             "Authorization": f"Bearer {api_key}",
-            "User-Agent": "ProjectRAI/1.0",
+            "User-Agent": "Woobe/0.12.0",
         },
         method="GET",
     )
