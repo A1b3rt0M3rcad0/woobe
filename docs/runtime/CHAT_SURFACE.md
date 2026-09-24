@@ -106,7 +106,7 @@ The standard container publishes:
 </script>
 ```
 
-For the bundled Community stack:
+For the bundled Core stack:
 
 ```text
 http://localhost:8081/chat/v1/embed.js
@@ -155,7 +155,7 @@ History is read from Agent or Network message storage through the validated Sess
 
 ## Deployment
 
-The default Community stack includes a `chat-embed` service. The API service receives ChatSurface token and rate-limit settings from the same `WOOBE_*` configuration contract used by the rest of the application.
+The default Core stack includes a `chat-embed` service. The API service receives ChatSurface token and rate-limit settings from the same `WOOBE_*` configuration contract used by the rest of the application.
 
 ```bash
 python scripts/generate_self_host_env.py
@@ -176,4 +176,4 @@ Production should place the embed container behind the chosen chat/CDN domain, k
 
 The current implementation supports exact HTTPS origins, one active Run per Session, per-Surface request/concurrency limits, idempotent Session/message creation, Agent SSE, persisted Network SSE reconnection, inline/floating modes, controlled themes, Access Key rotation/revocation, Surface disable/archive and Session archive.
 
-Anonymous public mode, custom domains, headless SDKs, delegated Tool identity, external Staging embeds, human handoff and automatic Session migration are not part of the current Community delivery.
+Anonymous public mode, custom domains, headless SDKs, delegated Tool identity, external Staging embeds, human handoff and automatic Session migration are not part of the current Core delivery.
