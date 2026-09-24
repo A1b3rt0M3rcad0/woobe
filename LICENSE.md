@@ -124,4 +124,4 @@ Permissions apply to the material distributed under this text. Updating this rep
 
 ## 12. Pre-release legal status
 
-This license text is the active Woobe Core license candidate in the repository. Qualified legal review remains required before public or commercial reliance, as tracked in [docs/PUBLIC_RELEASE_CHECKLIST.md](docs/PUBLIC_RELEASE_CHECKLIST.md).
+This license text is the active Woobe Core license candidate in the repository. Qualified legal review remains required before public or commercial reliance, as tracked in [RELEASING.md](RELEASING.md).
