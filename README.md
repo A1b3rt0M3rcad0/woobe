@@ -122,7 +122,7 @@ See [`packages/README.md`](packages/README.md), [`tooling/README.md`](tooling/RE
 - [Security](SECURITY.md)
 - [Contributing](CONTRIBUTING.md)
 - [Licensing model](LICENSING.md)
-- [Public release checklist](docs/PUBLIC_RELEASE_CHECKLIST.md)
+- [Releasing](RELEASING.md)
 
 ## Licensing
 
