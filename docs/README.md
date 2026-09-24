@@ -6,7 +6,7 @@
 
 - `ARCHITECTURE.md` — current high-level product, package and runtime architecture.
 - `SELF_HOSTING.md` and `UPGRADING.md` — operator guidance for Community installations.
-- `PUBLIC_RELEASE_CHECKLIST.md` — public-release readiness and governance checks.
+- [`../RELEASING.md`](../RELEASING.md) — canonical platform release procedure and publication gates.
 - `CONTRIBUTING_PROVIDERS.md` — provider contribution guidance.
 - `adr/` — accepted/proposed Architecture Decision Records and their rationale.
 - `api/` — API-facing documentation and contracts.
