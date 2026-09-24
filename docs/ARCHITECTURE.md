@@ -4,7 +4,7 @@ Woobe is an API-first control plane and runtime for versioned AI products.
 
 ## Domain boundaries
 
-Organization is the commercial account boundary. Project is the technical isolation boundary. Agents, Agent Networks, Tools, Knowledge, Runtime Keys, Runs and Traces are Project-scoped.
+Workspace is the ownership and access boundary. Project is the technical isolation boundary. Agents, Agent Networks, Tools, Knowledge, Runtime Keys, Runs and Traces are Project-scoped.
 
 Agents are configurable definitions. Agent Releases are immutable snapshots. A Project may own multiple Agent Networks; each Network is a first-class entity with its own versions, releases, runs, sessions, traces and configuration. Network Releases are immutable snapshots of network composition. Draft is mutable, Staging is validation and Production consumes immutable releases.
 
