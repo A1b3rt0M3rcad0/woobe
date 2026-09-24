@@ -78,6 +78,6 @@ PostgreSQL is the durable source of application state. RabbitMQ supports asynchr
 
 Core comprises `woobe-core`, `woobe-api`, `woobe-workers`, `woobe-runtime-client`, `woobe-frontend` and `woobe-embed` and is governed by repository-root `LICENSE.md`.
 
-Enterprise is a separately licensed implementation boundary under `packages/woobe-ee`. Core must remain fully runnable without Enterprise implementation. The Core-side contract under `packages/woobe-core/src/editions/` is an interoperability seam, not a license switch.
+Enterprise is a separately licensed implementation boundary under `packages/woobe-ee`. Core must remain fully runnable without Enterprise implementation and must not import Enterprise implementation modules.
 
 See `LICENSE_EE.md` and `docs/adr/0004-package-workspace-and-process-boundaries.md`.

@@ -22,7 +22,7 @@ Alembic configuration and migration history remain in `woobe-core` at `packages/
 
 The first five product packages are Core software under repository-root `LICENSE.md`. Enterprise implementation is excluded from the Core license grant and is governed by `LICENSE_EE.md` and/or a separate written Enterprise agreement.
 
-The Core-side `editions` contract exists only to preserve dependency direction and composition. It does not grant Enterprise rights or allow Enterprise to be enabled by changing configuration.
+Core does not expose an edition-specific integration package. Enterprise composition must consume public Core boundaries without reversing the dependency direction or making Core depend on Enterprise implementation.
 
 ## Engineering tooling
 
@@ -39,7 +39,7 @@ Tooling may depend on product packages for validation. Product runtime packages 
 ```text
 woobe-api ───────► woobe-core
 woobe-workers ───► woobe-core
-Enterprise ──────► Core integration contract
+Enterprise ──────► woobe-core public boundaries
 
 tooling/tests ───► product packages
 ```

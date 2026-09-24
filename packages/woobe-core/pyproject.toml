@@ -13,4 +13,4 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["modules*", "shared*", "editions*"]
+include = ["modules*", "shared*"]

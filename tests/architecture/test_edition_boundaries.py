@@ -42,8 +42,7 @@ def test_core_backend_does_not_import_enterprise_implementation() -> None:
                     violations.append(f"{path.relative_to(ROOT).as_posix()} -> {module_name}")
 
     assert not violations, (
-        "Woobe Core backend code must not import Enterprise implementation. "
-        "Only the neutral Core integration contract under editions/contracts.py is allowed.\n"
+        "Woobe Core backend code must not import Enterprise implementation.\n"
         + "\n".join(f"  - {violation}" for violation in violations)
     )
 
