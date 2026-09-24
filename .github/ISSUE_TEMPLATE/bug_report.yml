@@ -29,7 +29,7 @@ body:
     attributes:
       label: Deployment
       options:
-        - Community self-hosted
+        - Core self-hosted
         - Cloud
         - Development checkout
         - Other
