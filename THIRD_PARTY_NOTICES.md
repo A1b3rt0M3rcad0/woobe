@@ -30,7 +30,7 @@ An existing inventory may be reused only where it covers the actual components, 
 
 ## Release gate
 
-[docs/PUBLIC_RELEASE_CHECKLIST.md](docs/PUBLIC_RELEASE_CHECKLIST.md) is the publication gate. The release must not be represented as license-complete merely because automated inventory generation succeeds.
+[RELEASING.md](RELEASING.md) is the publication gate. The release must not be represented as license-complete merely because automated inventory generation succeeds.
 
 ## PyYAML
 
