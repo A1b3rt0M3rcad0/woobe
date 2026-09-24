@@ -10,11 +10,14 @@
 | `woobe-api` | HTTP process composition root | **Woobe Core Sustainable Use License 1.0** |
 | `woobe-workers` | Worker process composition root | **Woobe Core Sustainable Use License 1.0** |
 | `woobe-runtime-client` | Shared browser Runtime protocol/observer primitives consumed by Frontend and Embed | **Woobe Core Sustainable Use License 1.0** |
+| `woobe-ui` | Shared UI components and design tokens | **Woobe Core Sustainable Use License 1.0** |
 | `woobe-frontend` | Administrative control-plane frontend | **Woobe Core Sustainable Use License 1.0** |
 | `woobe-embed` | Independently built and deployable ChatSurface browser artifact | **Woobe Core Sustainable Use License 1.0** |
-| `woobe-ee` | Enterprise product boundary | **Separate Enterprise license / agreement** |
+| `woobe-ee` | Enterprise implementation boundary | **Woobe Enterprise License 1.0; production requires express written authorization** |
 
-The controlling Core license is repository-root `LICENSE.md`. The Enterprise boundary is described in `LICENSE_EE.md`.
+The controlling texts are repository-root [LICENSE.md](../LICENSE.md), [LICENSE_EE.md](../LICENSE_EE.md) and [TRADEMARKS.md](../TRADEMARKS.md). Third-party components retain their own terms.
+
+The Enterprise Covered Paths are `packages/woobe-ee/**`; copied, modified and compiled Enterprise material retains its license outside those paths. Independent integration code does not become Enterprise merely because it imports or invokes EE. Non-production Enterprise activities are permitted as specified in its license; production requires valid express written authorization. Neither software license grants platform resale or commercial brand rights.
 
 ## Dependency rules
 

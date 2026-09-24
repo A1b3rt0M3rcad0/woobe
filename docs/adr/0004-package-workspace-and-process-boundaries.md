@@ -20,7 +20,9 @@ Alembic configuration and migration history remain in `woobe-core` at `packages/
 
 ## Licensing boundary
 
-The first five product packages are Core software under repository-root `LICENSE.md`. Enterprise implementation is excluded from the Core license grant and is governed by `LICENSE_EE.md` and/or a separate written Enterprise agreement.
+First-party packages outside the Enterprise Covered Paths, including the shared Runtime client and UI packages, are Core software under repository-root `LICENSE.md`, subject to third-party and brand exclusions. Enterprise material originally under `packages/woobe-ee/**`, and its copies, modifications and compiled forms, is excluded from the Core grant and governed by `LICENSE_EE.md`.
+
+The Enterprise repository license permits defined non-production activities. Production Use requires a valid Enterprise authorization expressly granted by Woobe in writing. Independent Core integration code does not become Enterprise merely because it imports or invokes EE, and such integration grants no Enterprise production rights. This licensing distinction does not override the architectural dependency rules below.
 
 Core does not expose an edition-specific integration package. Enterprise composition must consume public Core boundaries without reversing the dependency direction or making Core depend on Enterprise implementation.
 

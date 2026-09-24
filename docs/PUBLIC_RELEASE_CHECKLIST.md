@@ -7,8 +7,8 @@ This checklist is the release gate for publishing Woobe Core source and Core dis
 - [ ] Root `compose.yaml` is the only supported default Woobe Core self-host contract.
 - [ ] Root `compose.test.yaml` is validation infrastructure and is not presented as a product distribution.
 - [ ] Development-only infrastructure is explicit under `deploy/dev/`.
-- [ ] Core product packages are exactly `woobe-core`, `woobe-api`, `woobe-workers`, `woobe-frontend` and `woobe-embed`.
-- [ ] `packages/woobe-ee` contains no Enterprise implementation in the Core release artifact/build context unless an explicit Enterprise release is being prepared under its own terms.
+- [ ] Core licensing covers `woobe-core`, `woobe-api`, `woobe-workers`, `woobe-runtime-client`, `woobe-ui`, `woobe-frontend` and `woobe-embed`, subject to the stated Enterprise, third-party and brand exclusions.
+- [ ] Any Enterprise material included in a distribution carries `LICENSE_EE.md`; inactive inclusion grants no production functionality, and Core remains runnable without Enterprise activation.
 - [ ] `tests/e2e/` owns assembled browser/full-stack validation.
 - [ ] Root legacy source surfaces (`src/`, `web/`, `embed`, `migrations`, `quality_gate`) are absent.
 - [ ] Durable runtime/testing documentation reflects the current package topology and Core/Enterprise model.
@@ -50,7 +50,11 @@ Do not make the repository public while this section is incomplete.
 
 - [ ] Qualified counsel has reviewed `LICENSE.md`, `LICENSE_EE.md`, `LICENSING.md`, `CONTRIBUTOR_LICENSE_AGREEMENT.md` and `TRADEMARKS.md` for the intended jurisdictions/business model.
 - [ ] The Core license clearly permits intended self-host/internal/product-infrastructure use and clearly defines the restriction on commercial resale/white-label/OEM/hosted sale of the Woobe system itself.
-- [ ] `packages/woobe-ee` is explicitly excluded from the Core license grant and Enterprise terms are delivered separately when Enterprise code is distributed.
+- [ ] `packages/woobe-ee/**`, including copied, modified and compiled Enterprise material, is explicitly excluded from the Core grant, while independent integration code retains its applicable license.
+- [ ] `LICENSE_EE.md` grants the specified non-production activities and requires valid express written authorization for actual Production Use, including internal and unpaid operations.
+- [ ] Enterprise production authorization grants neither platform resale/paid hosted-platform rights nor Woobe brand rights.
+- [ ] The inactive Enterprise inclusion permission covers only presence and initialization for availability, disabled status or authorization checks.
+- [ ] Permitted source and compiled artifacts include their applicable licenses, brand policy, attribution and required third-party notices, with modifications identified.
 - [ ] The CLA acceptance mechanism is enabled and required for external contributions before merge.
 - [ ] `PULL_REQUEST_TEMPLATE.md` requires product/license impact and third-party provenance review.
 - [ ] Woobe name/logo/brand restrictions are separated from software rights and accurately documented in `TRADEMARKS.md`.

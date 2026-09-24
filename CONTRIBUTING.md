@@ -18,10 +18,10 @@ Recommended branch prefixes: `feature/`, `fix/`, `chore/`, `docs/` and `ci/`.
 
 Woobe has two software boundaries:
 
-- **Core** — source-available product code under `packages/woobe-core`, `packages/woobe-api`, `packages/woobe-workers`, `packages/woobe-frontend` and `packages/woobe-embed`.
-- **Enterprise** — separately licensed boundary under `packages/woobe-ee`.
+- **Core** — source-available code under `packages/woobe-core`, `packages/woobe-api`, `packages/woobe-workers`, `packages/woobe-runtime-client`, `packages/woobe-ui`, `packages/woobe-frontend` and `packages/woobe-embed`.
+- **Enterprise** — material covered by `LICENSE_EE.md`, originally under `packages/woobe-ee/**`, with non-production permissions and separately authorized Production Use.
 
-External contributions should target Core unless a maintainer explicitly requests an Enterprise-boundary change. Do not add Enterprise implementation to Core packages or make Core depend on Enterprise code.
+External contributions should target Core unless a maintainer explicitly requests an Enterprise-boundary change. Do not copy Enterprise implementation into Core packages or make `woobe-core` depend on Enterprise code. Independent integration code is not relicensed merely because it imports or invokes EE; that licensing rule does not relax architectural dependency rules or grant Enterprise Production Use rights. Core deployments must remain runnable without activating Enterprise implementation.
 
 See `LICENSE.md`, `LICENSE_EE.md` and `LICENSING.md` before changing edition boundaries.
 

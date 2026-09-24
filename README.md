@@ -137,18 +137,22 @@ The following packages are licensed under the **Woobe Core Sustainable Use Licen
 | `packages/woobe-core` | Product Core, bounded contexts, runtime contracts and migrations | **Woobe Core Sustainable Use License 1.0** |
 | `packages/woobe-api` | API process | **Woobe Core Sustainable Use License 1.0** |
 | `packages/woobe-workers` | Worker process | **Woobe Core Sustainable Use License 1.0** |
+| `packages/woobe-runtime-client` | Shared browser Runtime protocol and observer primitives | **Woobe Core Sustainable Use License 1.0** |
+| `packages/woobe-ui` | Shared UI components and design tokens | **Woobe Core Sustainable Use License 1.0** |
 | `packages/woobe-frontend` | Administrative control-plane frontend | **Woobe Core Sustainable Use License 1.0** |
 | `packages/woobe-embed` | ChatSurface browser artifact | **Woobe Core Sustainable Use License 1.0** |
 
-Core is source-available and self-hostable. It may be used internally and may power a separate commercial product. The license does **not** allow Woobe itself, a rebranded fork, or substantially equivalent Woobe control-plane functionality to be commercially resold, white-labeled, OEM-supplied or offered as the product/service being sold without a separate written agreement.
+Core is source-available, self-hostable and usable in production. It may power your own commercial applications, be distributed as a component of a permitted application, and be used for genuine technical services on a customer's own deployment. The license **prohibits selling the Woobe platform itself or supplying paid access to it**, including a renamed fork, a hosted or managed instance, a general-purpose runtime API offering or a paid bundle. An Enterprise production authorization does not grant resale rights.
 
 ### Enterprise
 
-`packages/woobe-ee` is the separately licensed Enterprise boundary. It is not covered by the Core license grant. See [`LICENSE_EE.md`](LICENSE_EE.md).
+`packages/woobe-ee/**` is the Enterprise boundary, including copies, modifications and compiled forms of that material. [`LICENSE_EE.md`](LICENSE_EE.md) permits defined non-production evaluation, development and testing. **Production Use requires a valid Enterprise authorization expressly granted by Woobe in writing.** Source access and installation do not grant production rights.
+
+Independent integration code in API or other Core packages remains Core when it imports or invokes EE. Enterprise material retains its own terms; sharing a process or container does not merge the licenses.
 
 ### Brand and third-party software
 
-The software license does not grant a general right to use the Woobe name, logo or brand for a third-party commercial service. See [`TRADEMARKS.md`](TRADEMARKS.md).
+Woobe names, logos and distinctive brand assets are governed separately by [`TRADEMARKS.md`](TRADEMARKS.md). The software licenses and Enterprise production authorization grant no right to sell the platform under the Woobe brand or claim official status. Legitimate installation identification and truthful descriptive references are permitted under that policy.
 
 Third-party software remains governed by its original licenses. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) and [`NOTICE.md`](NOTICE.md).
 
