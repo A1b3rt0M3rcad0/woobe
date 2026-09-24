@@ -12,7 +12,7 @@ sh scripts/backup_postgres.sh
 
 The script creates a custom-format PostgreSQL dump and SHA-256 sidecar.
 
-When Community uses local Knowledge storage, back up the `woobe_uploads` volume together with PostgreSQL so document metadata and physical files remain consistent.
+When Core uses local Knowledge storage, back up the `woobe_uploads` volume together with PostgreSQL so document metadata and physical files remain consistent.
 
 ## Restore drill
 
