@@ -27,7 +27,7 @@ See `LICENSE.md`, `LICENSE_EE.md` and `LICENSING.md` before changing edition bou
 
 ## Repository architecture
 
-Organization is the commercial account boundary. Project is the primary technical isolation boundary. Production runtime must use immutable Agent Releases or Network Releases rather than mutable Draft state.
+Workspace is the ownership and access boundary. Project is the primary technical isolation boundary. Production runtime must use immutable Agent Releases or Network Releases rather than mutable Draft state.
 
 The repository has three main code/validation concerns:
 
