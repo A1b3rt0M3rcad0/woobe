@@ -9,6 +9,7 @@
 - [`../RELEASING.md`](../RELEASING.md) — canonical platform release procedure and publication gates.
 - `CONTRIBUTING_PROVIDERS.md` — provider contribution guidance.
 - `adr/` — accepted/proposed Architecture Decision Records and their rationale.
+- `agents/` — coding-agent routing guides, domain ownership index and cross-cutting invariants.
 - `api/` — API-facing documentation and contracts.
 - `runtime/` — runtime, streaming, ChatSurface and related execution documentation.
 - `deployment/` — deployment-specific guidance.
