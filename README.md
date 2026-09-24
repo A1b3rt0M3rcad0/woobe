@@ -6,7 +6,7 @@ Woobe is an **API-first, source-available control plane and runtime for building
 
 Woobe sits between your application and the AI execution layer so your product does not have to become its own agent platform.
 
-> **Pre-1.0:** Woobe is publicly released but remains pre-stable. Public APIs and deployment contracts may evolve between minor versions; review release and upgrade notes before updating.
+> **Pre-1.0:** Woobe remains pre-stable. Public APIs and deployment contracts may evolve between minor versions; review release and upgrade notes before updating.
 
 ## Key Capabilities
 
