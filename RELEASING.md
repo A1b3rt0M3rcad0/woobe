@@ -15,9 +15,9 @@ MAJOR.MINOR.PATCH
 Git tags add the `v` prefix:
 
 ```text
-v0.1.0
-v0.1.1
-v0.2.0
+v0.12.0
+v0.12.1
+v0.13.0
 v1.0.0
 ```
 
@@ -25,8 +25,8 @@ Container/image versions and release workflow inputs use the version without the
 
 Before `1.0.0`, Woobe is explicitly pre-stable. The project still uses the following practical policy:
 
-- PATCH (`0.1.0 -> 0.1.1`) for compatible fixes, security fixes and release corrections.
-- MINOR (`0.1.x -> 0.2.0`) for meaningful feature releases and intentionally breaking pre-1.0 changes.
+- PATCH (`0.12.0 -> 0.12.1`) for compatible fixes, security fixes and release corrections.
+- MINOR (`0.12.x -> 0.13.0`) for meaningful feature releases and intentionally breaking pre-1.0 changes.
 - MAJOR (`1.x -> 2.0.0`) after `1.0.0` for incompatible changes to supported public contracts.
 - MINOR after `1.0.0` for backward-compatible features.
 - PATCH after `1.0.0` for backward-compatible fixes.
@@ -613,12 +613,12 @@ v<PREVIOUS_VERSION>...v<VERSION>
 Example:
 
 ```text
-v0.1.0...v0.2.0
+v0.11.0...v0.12.0
 ```
 
 The comparison link is the exhaustive repository-level reference. `CHANGELOG.md` remains curated product history and should not become a raw PR dump.
 
-For the first public release, use the explicit initial release baseline defined below rather than inventing a `v0.0.0` tag.
+For the first public release, define and record an explicit initial release baseline commit for release-note and contributor accounting rather than inventing a `v0.0.0` tag. The baseline must belong to the publishable history.
 
 The GitHub Release must point to the immutable tag, never to a moving branch.
 
@@ -701,30 +701,6 @@ master
 ```
 
 If `master` contains changes that must not ship in the patch, create the patch branch from the affected release tag, apply only the required fix, and then reconcile that fix back into `master`. Document this exception in the release PR.
-
-## First public release: v0.1.0
-
-The first public release follows the same procedure as every future release, with additional one-time checks.
-
-For `v0.1.0`:
-
-- define and record an explicit initial release baseline commit for release-note/contributor accounting; the baseline must belong to the publishable history and must not be represented as a fake `v0.0.0` release;
-- generate `What's Changed` from merged PRs included between that baseline and the final `v0.1.0` tag, preserving each PR author;
-- include `New Contributors` for first-time human contributors identified in that initial release range;
-- include a `Full Changelog` comparison from the recorded baseline commit to `v0.1.0`;
-- audit the exact Git history and refs that will become public;
-- resolve any real credential exposure before publication;
-- complete the repository legal-review gates;
-- confirm the source-available Core and Enterprise boundaries are intentional;
-- confirm trademark and third-party notices are complete for the artifacts actually distributed;
-- normalize every Woobe product manifest to `0.1.0`;
-- regenerate all affected lockfiles;
-- review and remove or rewrite the README pre-release warning as appropriate for the actual public-release status;
-- ensure `SECURITY.md` describes the release line and `master`, not obsolete integration-branch terminology;
-- establish the first dated `CHANGELOG.md` release section;
-- create `v0.1.0` only after the release PR is merged and the exact merge result is revalidated.
-
-At the time this procedure was introduced, `packages/woobe-embed/package.json` and its lockfile still reported `1.0.0` while the other primary product manifests reported `0.1.0`. The `v0.1.0` release preparation must normalize that discrepancy rather than publishing mixed platform versions.
 
 ## Release invariants
 
