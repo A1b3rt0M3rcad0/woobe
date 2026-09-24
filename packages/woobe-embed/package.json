@@ -1,7 +1,7 @@
 {
   "name": "@woobe/chat-embed",
   "private": true,
-  "version": "1.0.0",
+  "version": "0.12.0",
   "type": "module",
   "scripts": {
     "build": "vite build",
