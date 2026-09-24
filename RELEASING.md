@@ -475,16 +475,126 @@ Woobe v<VERSION>
 
 as the release title.
 
-Release notes should summarize the changelog rather than duplicate every commit. Include:
+Every Woobe GitHub Release has two complementary layers:
 
-- major user-visible changes;
-- fixes;
-- security-relevant changes when disclosure is appropriate;
-- migration steps;
-- configuration changes;
-- breaking changes;
-- upgrade prerequisites;
-- links to relevant documentation.
+1. **Curated release notes** — maintained manually for users and operators.
+2. **Change provenance** — derived from the pull requests actually included in the release.
+
+The curated section should summarize the changelog rather than duplicate every commit. Include the sections that apply:
+
+```markdown
+# Woobe v<VERSION>
+
+## Highlights
+
+A short explanation of the most important changes in this release.
+
+## New Features
+
+### Feature name
+User-facing explanation and relevant migration/usage notes.
+
+## Improvements
+
+### Improvement name
+User-facing explanation.
+
+## Bug Fixes
+
+### Area or fix
+User-facing explanation.
+
+## Breaking Changes
+
+Only when applicable.
+
+## Upgrade Notes
+
+Only when operator action, migrations or configuration changes are required.
+
+---
+
+## What's Changed
+
+<generated PR list>
+
+## New Contributors
+
+<generated first-time contributor list, when applicable>
+
+**Full Changelog**: <previous release or baseline>...v<VERSION>
+```
+
+Do not force empty editorial sections into the published notes. Omit sections that do not apply to the release.
+
+### Pull request provenance and contributor credit
+
+The `What's Changed` section is part of the release record and must preserve the relationship between the change, its pull request and its author.
+
+The preferred entry shape is the one produced by GitHub generated release notes:
+
+```markdown
+* feat(runtime): add programmable execution by @contributor in #123
+* fix(network): preserve session-scoped context by @contributor in #127
+```
+
+For each pull request included in the release:
+
+- preserve the GitHub author attribution;
+- preserve a link/reference to the pull request;
+- use the merged PR title or an equivalent factual description;
+- include the PR only when its merged change is actually reachable from the release tag;
+- do not assign contribution percentages, line-count rankings or subjective contributor scores;
+- do not replace an external contributor's attribution with the maintainer who merged the PR.
+
+A contributor's participation is represented by the concrete PRs included in the release, not by an estimated percentage of the release.
+
+Direct commits without a pull request may be represented separately when they materially affect the release, but normal development should continue to prefer pull requests so release provenance remains attributable.
+
+### New contributors
+
+When GitHub identifies a contributor whose first merged contribution is included in the release, preserve the generated `New Contributors` section.
+
+Example:
+
+```markdown
+## New Contributors
+
+* @alice made their first contribution in #123
+* @bob made their first contribution in #127
+```
+
+This section is for human contributors. Automation accounts such as dependency/update bots and GitHub Actions are not treated as first-time community contributors.
+
+### Generated release notes
+
+Use GitHub generated release notes as the starting point for the provenance portion of the release. Repository configuration for generated notes lives at:
+
+```text
+.github/release.yml
+```
+
+The generated content is not a substitute for the curated `Highlights`, feature/fix explanations, breaking changes or upgrade notes. Maintainers should generate the PR/contributor section, then edit the release body without deleting valid author attribution.
+
+The generated PR list must be checked against the exact release range. A pull request merged after the release tag, excluded from the release commit, or otherwise not reachable from the release tag must not be credited as part of that version.
+
+### Full changelog link
+
+For every release after the first public release, include a comparison from the immediately previous published platform tag:
+
+```text
+v<PREVIOUS_VERSION>...v<VERSION>
+```
+
+Example:
+
+```text
+v0.1.0...v0.2.0
+```
+
+The comparison link is the exhaustive repository-level reference. `CHANGELOG.md` remains curated product history and should not become a raw PR dump.
+
+For the first public release, use the explicit initial release baseline defined below rather than inventing a `v0.0.0` tag.
 
 The GitHub Release must point to the immutable tag, never to a moving branch.
 
@@ -574,6 +684,10 @@ The first public release follows the same procedure as every future release, wit
 
 For `v0.1.0`:
 
+- define and record an explicit initial release baseline commit for release-note/contributor accounting; the baseline must belong to the publishable history and must not be represented as a fake `v0.0.0` release;
+- generate `What's Changed` from merged PRs included between that baseline and the final `v0.1.0` tag, preserving each PR author;
+- include `New Contributors` for first-time human contributors identified in that initial release range;
+- include a `Full Changelog` comparison from the recorded baseline commit to `v0.1.0`;
 - audit the exact Git history and refs that will become public;
 - resolve any real credential exposure before publication;
 - complete the repository legal-review gates;
@@ -604,3 +718,6 @@ Every Woobe release must satisfy these invariants:
 10. `master` may continue advancing immediately after release without changing any previously published version.
 11. Agent, Network, Skill and other domain-object versions are not conflated with the Woobe platform version.
 12. Licensing, Enterprise boundaries, brand policy and third-party obligations are reviewed for the actual artifacts being distributed.
+13. The GitHub Release preserves PR-to-author attribution for changes included in the release.
+14. First-time human contributors are acknowledged when applicable.
+15. The Full Changelog comparison uses the previous published platform tag, or the explicitly recorded baseline for the first public release.
