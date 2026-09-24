@@ -14,6 +14,61 @@ Woobe uses `master` as the integration branch.
 
 Recommended branch prefixes: `feature/`, `fix/`, `chore/`, `docs/` and `ci/`.
 
+## Commit messages
+
+Woobe uses Conventional Commits for repository-authored commit messages from the adoption of this policy forward.
+
+Canonical format:
+
+```text
+<type>(<scope>): <description>
+```
+
+Use one of these commit types:
+
+- `feat` — introduces user-visible or externally usable behavior;
+- `fix` — corrects a defect;
+- `refactor` — changes implementation structure without intentionally changing behavior;
+- `perf` — improves performance;
+- `test` — adds or changes tests without changing product behavior;
+- `docs` — changes documentation only;
+- `build` — changes build tooling, packaging or dependencies;
+- `ci` — changes CI/CD or repository automation;
+- `chore` — repository maintenance that does not fit the types above;
+- `revert` — reverts an earlier change.
+
+The scope should identify the affected domain, package or repository concern when a meaningful scope exists. Common scopes include `agent`, `network`, `runtime`, `context`, `rag`, `knowledge`, `tools`, `api`, `workers`, `frontend`, `embed`, `security`, `repo` and `release`. A scope may be omitted only when the change is genuinely repository-wide or no useful scope exists.
+
+Examples:
+
+```text
+feat(runtime): add programmable execution strategy
+fix(network): preserve pinned agent bindings
+refactor(context): decouple context assembly
+docs(releasing): document release provenance rules
+test(agent): cover stateful session lifecycle
+ci(release): validate release artifacts
+chore(release): prepare Woobe v0.12.0
+```
+
+For breaking changes, add `!` before the colon and describe the incompatibility in the commit body or use a `BREAKING CHANGE:` footer:
+
+```text
+feat(runtime)!: replace legacy execution contract
+```
+
+or:
+
+```text
+feat(runtime): replace legacy execution contract
+
+BREAKING CHANGE: runtime requests now require the new execution contract.
+```
+
+Keep the description concise and specific to the change. Pull request titles should follow the same format because a squash merge may use the PR title as the resulting commit subject.
+
+GitHub-generated merge commit messages are exempt from this convention. Repository-authored commits and squash commit subjects are not. Existing history does not need to be rewritten to comply with this policy.
+
 ## Product boundaries
 
 Woobe has two software boundaries:
