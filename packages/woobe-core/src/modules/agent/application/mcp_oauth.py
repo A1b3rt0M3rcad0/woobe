@@ -530,7 +530,7 @@ class McpOAuthMetadataResolver:
             metadata["token_endpoint_auth_methods_supported"] = token_methods
 
     async def _resource_metadata_challenge(self, *, server_url: str, timeout_ms: int) -> dict[str, Any]:
-        initialize_payload = {"jsonrpc": "2.0", "id": "oauth-discovery", "method": "initialize", "params": {"protocolVersion": MCP_PROTOCOL_VERSION, "capabilities": {}, "clientInfo": {"name": "ProjectRAI", "version": "0.1.0"}}}
+        initialize_payload = {"jsonrpc": "2.0", "id": "oauth-discovery", "method": "initialize", "params": {"protocolVersion": MCP_PROTOCOL_VERSION, "capabilities": {}, "clientInfo": {"name": "Woobe", "version": "0.12.0"}}}
         result = await self._executor.execute(method="POST", url=server_url, headers={"Accept": "application/json, text/event-stream", "Content-Type": "application/json", "MCP-Protocol-Version": MCP_PROTOCOL_VERSION}, body=json.dumps(initialize_payload), timeout_ms=timeout_ms)
         header = _headers(result).get("www-authenticate")
         return {"resource_metadata_url": _parse_www_authenticate_resource_metadata(header), "scopes": _parse_www_authenticate_scopes(header), "www_authenticate": header}
@@ -616,7 +616,7 @@ class McpOAuthStartUseCase:
         return result.status_code
 
     async def _register_client(self, *, registration_endpoint: str, redirect_uri: str, timeout_ms: int, token_endpoint_auth_method: str) -> dict[str, Any]:
-        payload = {"client_name": "ProjectRAI", "redirect_uris": [redirect_uri], "grant_types": ["authorization_code", "refresh_token"], "response_types": ["code"], "token_endpoint_auth_method": token_endpoint_auth_method}
+        payload = {"client_name": "Woobe", "redirect_uris": [redirect_uri], "grant_types": ["authorization_code", "refresh_token"], "response_types": ["code"], "token_endpoint_auth_method": token_endpoint_auth_method}
         result = await self._executor.execute(method="POST", url=registration_endpoint, headers={"Accept": "application/json", "Content-Type": "application/json"}, body=json.dumps(payload), timeout_ms=timeout_ms)
         if not result.success:
             raise ValueError(result.error or "OAuth dynamic client registration failed")
