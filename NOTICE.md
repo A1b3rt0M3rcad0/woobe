@@ -34,4 +34,4 @@ Woobe Core is self-hostable and does not require an external Woobe-operated cont
 
 ## Pre-release status
 
-The licensing, contribution and trademark documents remain subject to the legal review gate in [docs/PUBLIC_RELEASE_CHECKLIST.md](docs/PUBLIC_RELEASE_CHECKLIST.md) before public or commercial reliance.
+The licensing, contribution and trademark documents remain subject to the legal review gate in [RELEASING.md](RELEASING.md) before public or commercial reliance.
