@@ -19,7 +19,7 @@ API:        http://localhost:8000
 ChatSurface: http://localhost:8081
 ```
 
-The first registration against a fresh database claims the instance atomically and creates the first Instance Owner and initial Organization. Subsequent registration follows the configured signup/invite policy.
+The first registration against a fresh database claims the instance atomically and creates the first Instance Owner and initial Workspace. Subsequent registration follows the configured signup/invite policy.
 
 ## Persistent state
 
