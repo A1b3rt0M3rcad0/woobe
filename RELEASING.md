@@ -111,6 +111,16 @@ git checkout -b "release/$VERSION"
 git push -u origin "release/$VERSION"
 ```
 
+Release branch commits must follow the commit-message policy in `CONTRIBUTING.md`.
+
+The canonical release-preparation subject is:
+
+```text
+chore(release): prepare Woobe v<VERSION>
+```
+
+A release branch may contain multiple focused commits while preparation is in progress, but the release pull request must be squash-merged so that `master` receives one canonical release-preparation commit. The squash commit subject must use the canonical form above.
+
 Record the baseline commit if the release requires a formal audit.
 
 ## 3. Synchronize the Woobe platform version
@@ -410,6 +420,12 @@ release/<VERSION> -> master
 
 A release PR should contain only release preparation and required blockers.
 
+Use the canonical pull request title:
+
+```text
+chore(release): prepare Woobe v<VERSION>
+```
+
 The PR description should include:
 
 - target version;
@@ -425,7 +441,15 @@ All required repository checks and reviews must pass before merge.
 
 ## 12. Merge and identify the immutable release commit
 
-Merge the release PR to `master`.
+Squash-merge the release PR to `master`.
+
+The resulting commit is the canonical platform release commit and its subject must be:
+
+```text
+chore(release): prepare Woobe v<VERSION>
+```
+
+Do not create an additional version-bump, release or cleanup commit between the validated squash merge and the release tag. The immutable `v<VERSION>` tag must point directly to this canonical release commit.
 
 Immediately after merge:
 
