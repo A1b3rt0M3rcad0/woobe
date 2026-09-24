@@ -109,4 +109,4 @@ External contributions are accepted under [CONTRIBUTOR_LICENSE_AGREEMENT.md](CON
 
 ## Release status
 
-The license and contribution documents are active pre-release candidates. Qualified legal review remains a release gate in [docs/PUBLIC_RELEASE_CHECKLIST.md](docs/PUBLIC_RELEASE_CHECKLIST.md). Changes to repository terms do not automatically relicense previously obtained copies.
+The license and contribution documents are active pre-release candidates. Qualified legal review remains a release gate in [RELEASING.md](RELEASING.md). Changes to repository terms do not automatically relicense previously obtained copies.
