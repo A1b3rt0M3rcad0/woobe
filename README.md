@@ -6,7 +6,6 @@ Woobe is an **API-first, source-available control plane and runtime for building
 
 Woobe sits between your application and the AI execution layer so your product does not have to become its own agent platform.
 
-> **Pre-release:** Woobe is under active development toward its first public release. Public APIs, deployment contracts and licensing text should still be treated as pre-release.
 
 ## Key Capabilities
 
@@ -44,7 +43,7 @@ Production execution is release-based. Mutable Draft configuration should never 
 
 | Concept | Responsibility |
 | --- | --- |
-| **Organization** | Commercial boundary for ownership, members, plan, limits and Projects. |
+| **Workspace** | Ownership and access boundary for members, Runtime Keys and Projects. |
 | **Project** | Technical isolation boundary for Agents, Networks, Tools, Knowledge and runtime data. |
 | **Agent** | Configurable AI execution unit. |
 | **Agent Release** | Immutable snapshot of an Agent configuration. |
