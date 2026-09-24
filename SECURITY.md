@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Until Woobe reaches a stable public release, security fixes target the current supported release line and the `development` integration branch.
+Woobe `v0.1.x` is the current supported public release line. Security fixes target supported releases and the `master` integration branch.
 
 ## Reporting a vulnerability
 
