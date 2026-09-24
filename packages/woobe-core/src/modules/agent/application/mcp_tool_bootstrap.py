@@ -252,7 +252,7 @@ class McpToolBootstrapper:
             config["mcp_readiness"] = _readiness(
                 state="discovery_failed",
                 label="Discovery failed",
-                message="ProjectRAI could not load this MCP provider. Retry loading tools or edit the provider configuration.",
+                message="Woobe could not load this MCP provider. Retry loading tools or edit the provider configuration.",
                 action="refresh",
                 discovered_tools=existing_tools,
             )
@@ -367,7 +367,7 @@ class McpToolBootstrapper:
             (
                 "discovery_failed",
                 "Discovery failed",
-                "ProjectRAI could not load this MCP provider. Retry loading tools or edit the provider configuration.",
+                "Woobe could not load this MCP provider. Retry loading tools or edit the provider configuration.",
                 "refresh",
             ),
         )
