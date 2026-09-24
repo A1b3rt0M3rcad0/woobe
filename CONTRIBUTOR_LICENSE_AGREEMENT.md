@@ -30,4 +30,4 @@ To the maximum extent permitted by applicable law, my contribution is provided a
 
 Acceptance is recorded through the authenticated GitHub pull request and the repository `CLA acceptance` check. External contributions must not be merged unless that check passes.
 
-Qualified legal review of this agreement and its acceptance mechanism remains a release gate in `docs/PUBLIC_RELEASE_CHECKLIST.md`.
+Qualified legal review of this agreement and its acceptance mechanism remains a release gate in `RELEASING.md`.
