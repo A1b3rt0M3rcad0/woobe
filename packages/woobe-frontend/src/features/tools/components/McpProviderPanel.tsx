@@ -156,7 +156,7 @@ function fallbackReadiness(tool: Tool): McpReadiness {
     scope_denied: 'The configured credential does not have permission to access this MCP server.',
     invalid_endpoint: 'The URL is not accepting MCP requests. Verify the endpoint path.',
     unavailable: 'The MCP server is temporarily unavailable.',
-    discovery_failed: 'ProjectRAI could not complete MCP discovery.',
+    discovery_failed: 'Woobe could not complete MCP discovery.',
     no_tools: 'The MCP server connected, but did not expose any tools.',
   }
   const actions: Record<string, string> = {
