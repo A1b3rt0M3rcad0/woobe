@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Semantic version without v prefix, for example 0.1.0
+        description: Semantic version without v prefix, for example 0.12.0
         required: true
         type: string
       public_api_url:
