@@ -80,6 +80,7 @@ jobs:
             pgvector/pgvector:pg17 >/dev/null
           docker run -d \
             --name "$WOOBE_ACCEPTANCE_RABBITMQ_CONTAINER" \
+            --tmpfs /var/lib/rabbitmq:rw,uid=999,gid=999,mode=1777 \
             -e RABBITMQ_DEFAULT_USER=woobe \
             -e RABBITMQ_DEFAULT_PASS=woobe \
             -p "127.0.0.1:${WOOBE_RABBITMQ_PORT}:5672" \
