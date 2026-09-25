@@ -154,6 +154,17 @@ def test_frontend_build_contract_includes_api_chat_surface_and_edition() -> None
     assert 'org.opencontainers.image.licenses="LicenseRef-Woobe-Core-Sustainable-Use-1.0"' in dockerfile
 
 
+def test_browser_image_builds_do_not_execute_test_suites() -> None:
+    frontend = read("packages/woobe-frontend/Dockerfile")
+    embed = read("packages/woobe-embed/Dockerfile")
+
+    assert "npm run build" in frontend
+    assert "npm run test:run" not in frontend
+    assert "npm run build" in embed
+    assert "npm run test" not in embed
+    assert "npm run typecheck" not in embed
+
+
 def test_runtime_security_matrix_covers_private_resource_families() -> None:
     matrix = read("tests/integration/security/test_tenant_authorization_postgres.py")
     for identifier in (
