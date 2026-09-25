@@ -530,7 +530,7 @@ class McpOAuthMetadataResolver:
             metadata["token_endpoint_auth_methods_supported"] = token_methods
 
     async def _resource_metadata_challenge(self, *, server_url: str, timeout_ms: int) -> dict[str, Any]:
-        initialize_payload = {"jsonrpc": "2.0", "id": "oauth-discovery", "method": "initialize", "params": {"protocolVersion": MCP_PROTOCOL_VERSION, "capabilities": {}, "clientInfo": {"name": "Woobe", "version": "0.13.0"}}}
+        initialize_payload = {"jsonrpc": "2.0", "id": "oauth-discovery", "method": "initialize", "params": {"protocolVersion": MCP_PROTOCOL_VERSION, "capabilities": {}, "clientInfo": {"name": "Woobe", "version": "0.14.0"}}}
         result = await self._executor.execute(method="POST", url=server_url, headers={"Accept": "application/json, text/event-stream", "Content-Type": "application/json", "MCP-Protocol-Version": MCP_PROTOCOL_VERSION}, body=json.dumps(initialize_payload), timeout_ms=timeout_ms)
         header = _headers(result).get("www-authenticate")
         return {"resource_metadata_url": _parse_www_authenticate_resource_metadata(header), "scopes": _parse_www_authenticate_scopes(header), "www_authenticate": header}
