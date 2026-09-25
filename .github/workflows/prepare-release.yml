@@ -158,7 +158,7 @@ jobs:
 
           Review and update `CHANGELOG.md`, public documentation, migration notes and release notes as required by `RELEASING.md`. Keep this PR in Draft until the release contents are final.
 
-          After merge, the change to `VERSION` automatically triggers immutable release-candidate image build and smoke validation. The merge commit message is not part of release identity.
+          After merge, the change to `VERSION` automatically triggers immutable candidate build, multi-architecture verification, smoke validation, immutable Git tagging, exact image promotion, post-publish smoke, GitHub Release creation and release-branch cleanup. The merge commit message is not part of release identity.
           """)
           Path(os.environ["RUNNER_TEMP"], "release-pr.md").write_text(body, encoding="utf-8")
           PY
@@ -219,5 +219,5 @@ jobs:
             echo "Release branch: `${{ steps.target.outputs.branch }}`"
             echo "Draft PR: #${{ steps.pr.outputs.number }}"
             echo
-            echo "CI workflows were explicitly dispatched because repository writes made with GITHUB_TOKEN do not recursively trigger ordinary pull_request workflows."
+            echo "Release-branch CI validation is attached to the generated Draft PR."
           } >> "$GITHUB_STEP_SUMMARY"
