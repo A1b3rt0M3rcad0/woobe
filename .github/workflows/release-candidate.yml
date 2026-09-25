@@ -1,109 +1,59 @@
 name: Release candidate images
+run-name: Release candidate ${{ inputs.expected_version }} @ ${{ inputs.ref }} / ${{ inputs.orchestration_id }}
 
 on:
-  push:
-    branches: [master]
-    paths:
-      - VERSION
   workflow_dispatch:
     inputs:
       ref:
-        description: Optional branch, tag or commit to build. Defaults to the selected workflow ref.
-        required: false
+        description: Exact commit SHA to build.
+        required: true
         type: string
       expected_version:
-        description: Optional canonical VERSION expected at ref
-        required: false
+        description: Canonical VERSION expected at ref.
+        required: true
         type: string
-      finalize_release:
-        description: Finalize the validated candidate into a release
-        required: false
-        default: false
-        type: boolean
+      orchestration_id:
+        description: Parent Release Woobe run ID used to identify this exact child run.
+        required: true
+        type: string
 
 permissions:
   contents: read
   packages: write
 
 concurrency:
-  group: release-candidate-${{ inputs.ref || github.sha }}
-  cancel-in-progress: true
+  group: release-candidate-${{ inputs.ref }}
+  cancel-in-progress: false
 
 jobs:
-  detect:
-    runs-on: ubuntu-latest
-    outputs:
-      should_build: ${{ steps.detect.outputs.should_build }}
-      source_ref: ${{ steps.detect.outputs.source_ref }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref || github.sha }}
-          fetch-depth: 2
-
-      - name: Detect platform release transition
-        id: detect
-        shell: bash
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          REQUESTED_REF: ${{ inputs.ref }}
-        run: |
-          set -euo pipefail
-
-          source_ref="${REQUESTED_REF:-${GITHUB_SHA}}"
-          echo "source_ref=$source_ref" >> "$GITHUB_OUTPUT"
-
-          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if ! git cat-file -e HEAD^:VERSION 2>/dev/null; then
-            echo "Canonical VERSION was just introduced; skipping bootstrap candidate build."
-            echo "should_build=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          previous="$(git show HEAD^:VERSION | tr -d '[:space:]')"
-          current="$(tr -d '[:space:]' < VERSION)"
-
-          if [[ "$current" != "$previous" ]]; then
-            echo "Platform version transition: $previous -> $current"
-            echo "should_build=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "VERSION did not change."
-            echo "should_build=false" >> "$GITHUB_OUTPUT"
-          fi
-
   metadata:
-    needs: detect
-    if: ${{ needs.detect.outputs.should_build == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     outputs:
       version: ${{ steps.meta.outputs.version }}
       owner: ${{ steps.meta.outputs.owner }}
       revision: ${{ steps.meta.outputs.revision }}
       candidate_tag: ${{ steps.meta.outputs.candidate_tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          ref: ${{ needs.detect.outputs.source_ref }}
+          ref: ${{ inputs.ref }}
           fetch-depth: 0
 
-      - name: Validate canonical release state
+      - name: Validate exact candidate identity
         id: meta
         shell: bash
         env:
           EXPECTED_VERSION: ${{ inputs.expected_version }}
+          EXPECTED_REVISION: ${{ inputs.ref }}
         run: |
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
-          if [[ -n "$EXPECTED_VERSION" ]]; then
-            test "$version" = "$EXPECTED_VERSION"
-          fi
+          test "$version" = "$EXPECTED_VERSION"
           python scripts/ci/check_package_versions.py
 
           revision="$(git rev-parse HEAD)"
+          test "$revision" = "$EXPECTED_REVISION"
           owner="${GITHUB_REPOSITORY_OWNER,,}"
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
@@ -112,8 +62,9 @@ jobs:
           echo "candidate_tag=sha-$revision" >> "$GITHUB_OUTPUT"
 
   build:
-    needs: [detect, metadata]
-    runs-on: ubuntu-latest
+    needs: metadata
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
     strategy:
       fail-fast: false
       matrix:
@@ -137,13 +88,13 @@ jobs:
     env:
       DOCKER_BUILD_RECORD_UPLOAD: "false"
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          ref: ${{ needs.detect.outputs.source_ref }}
+          ref: ${{ inputs.ref }}
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -163,7 +114,7 @@ jobs:
 
       - name: Build and push immutable candidate
         if: ${{ steps.candidate.outputs.exists != 'true' }}
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -193,10 +144,11 @@ jobs:
 
   verify-platforms:
     needs: [metadata, build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -206,17 +158,37 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+
+          inspect_with_retry() {
+            local ref="$1"
+            local output=""
+            local delay=2
+            for attempt in 1 2 3 4 5; do
+              if output="$(docker buildx imagetools inspect "$ref" 2>&1)"; then
+                printf '%s\n' "$output"
+                return 0
+              fi
+              echo "::warning::Unable to inspect $ref (attempt $attempt/5): $output"
+              if [[ "$attempt" != 5 ]]; then
+                sleep "$delay"
+                delay=$((delay * 2))
+              fi
+            done
+            echo "::error::Unable to inspect candidate manifest after retries: $ref"
+            return 1
+          }
+
           for unit in api workers frontend embed; do
             image="ghcr.io/${{ needs.metadata.outputs.owner }}/woobe-${unit}:${{ needs.metadata.outputs.candidate_tag }}"
-            manifest="$(docker buildx imagetools inspect "$image")"
+            manifest="$(inspect_with_retry "$image")"
             printf '%s\n' "$manifest"
             grep -q 'linux/amd64' <<<"$manifest"
             grep -q 'linux/arm64' <<<"$manifest"
           done
 
   smoke:
-    needs: [detect, metadata, build, verify-platforms]
-    runs-on: ubuntu-latest
+    needs: [metadata, build, verify-platforms]
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     env:
       COMPOSE_PROJECT_NAME: woobe-candidate-${{ github.run_id }}
@@ -228,11 +200,11 @@ jobs:
       WOOBE_WEB_BASE_URL: http://127.0.0.1:8080
       WOOBE_CHAT_EMBED_BASE_URL: http://127.0.0.1:8081
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          ref: ${{ needs.detect.outputs.source_ref }}
+          ref: ${{ inputs.ref }}
 
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -286,105 +258,97 @@ jobs:
         if: always()
         run: docker compose -f compose.yaml -f docker/ci/compose.release-images.yml down -v --remove-orphans || true
 
-
-  finalize-release:
-    needs: [detect, metadata, smoke]
-    if: ${{ needs.detect.outputs.should_build == 'true' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.finalize_release == true)) }}
-    runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      contents: write
-      packages: read
+  manifest:
+    needs: [metadata, smoke]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ needs.detect.outputs.source_ref }}
-          fetch-depth: 0
-
-      - uses: docker/setup-buildx-action@v3
-
-      - uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Preflight immutable version tags
+      - name: Resolve exact validated digests
+        id: digests
         shell: bash
+        env:
+          OWNER: ${{ needs.metadata.outputs.owner }}
+          CANDIDATE_TAG: ${{ needs.metadata.outputs.candidate_tag }}
+        run: |
+          set -euo pipefail
+
+          digest_with_retry() {
+            local ref="$1"
+            local output=""
+            local digest=""
+            local delay=2
+            for attempt in 1 2 3 4 5; do
+              if output="$(docker buildx imagetools inspect "$ref" 2>&1)"; then
+                digest="$(awk '$1 == "Digest:" { print $2; exit }' <<<"$output")"
+                if [[ -n "$digest" ]]; then
+                  printf '%s\n' "$digest"
+                  return 0
+                fi
+                output="manifest returned without a digest"
+              fi
+              echo "::warning::Unable to resolve digest for $ref (attempt $attempt/5): $output" >&2
+              if [[ "$attempt" != 5 ]]; then
+                sleep "$delay"
+                delay=$((delay * 2))
+              fi
+            done
+            echo "::error::Unable to resolve validated candidate digest: $ref" >&2
+            return 1
+          }
+
+          for unit in api workers frontend embed; do
+            ref="ghcr.io/$OWNER/woobe-$unit:$CANDIDATE_TAG"
+            digest="$(digest_with_retry "$ref")"
+            echo "${unit}_digest=$digest" >> "$GITHUB_OUTPUT"
+            echo "$unit: $digest"
+          done
+
+      - name: Write immutable release manifest
         env:
           VERSION: ${{ needs.metadata.outputs.version }}
           REVISION: ${{ needs.metadata.outputs.revision }}
           OWNER: ${{ needs.metadata.outputs.owner }}
+          API_DIGEST: ${{ steps.digests.outputs.api_digest }}
+          WORKERS_DIGEST: ${{ steps.digests.outputs.workers_digest }}
+          FRONTEND_DIGEST: ${{ steps.digests.outputs.frontend_digest }}
+          EMBED_DIGEST: ${{ steps.digests.outputs.embed_digest }}
         run: |
-          set -euo pipefail
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
 
-          digest_of() {
-            docker buildx imagetools inspect "$1" | awk '$1 == "Digest:" { print $2; exit }'
+          payload = {
+              "schema_version": 1,
+              "version": os.environ["VERSION"],
+              "revision": os.environ["REVISION"],
+              "candidate_run_id": os.environ["GITHUB_RUN_ID"],
+              "repository": os.environ["GITHUB_REPOSITORY"],
+              "owner": os.environ["OWNER"],
+              "platforms": ["linux/amd64", "linux/arm64"],
+              "images": {
+                  "api": os.environ["API_DIGEST"],
+                  "workers": os.environ["WORKERS_DIGEST"],
+                  "frontend": os.environ["FRONTEND_DIGEST"],
+                  "embed": os.environ["EMBED_DIGEST"],
+              },
           }
+          path = Path("release-manifest.json")
+          path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+          print(path.read_text())
+          PY
 
-          candidate_tag="sha-$REVISION"
-          for unit in api workers frontend embed; do
-            repository="ghcr.io/$OWNER/woobe-$unit"
-            candidate_ref="$repository:$candidate_tag"
-            version_ref="$repository:$VERSION"
-            candidate_digest="$(digest_of "$candidate_ref")"
-            test -n "$candidate_digest"
-
-            if docker buildx imagetools inspect "$version_ref" >/dev/null 2>&1; then
-              version_digest="$(digest_of "$version_ref")"
-              if [[ "$version_digest" != "$candidate_digest" ]]; then
-                echo "Version $VERSION is already occupied by a different immutable GHCR artifact: $version_ref" >&2
-                echo "existing=$version_digest candidate=$candidate_digest" >&2
-                exit 1
-              fi
-              echo "$unit: existing version tag already matches the validated candidate."
-            fi
-          done
-
-      - name: Create immutable release tag
-        id: tag
-        shell: bash
-        env:
-          VERSION: ${{ needs.metadata.outputs.version }}
-          REVISION: ${{ needs.metadata.outputs.revision }}
-        run: |
-          set -euo pipefail
-          tag="v$VERSION"
-          git fetch --force --tags origin
-
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
-            git fetch --force origin "refs/tags/$tag:refs/tags/$tag"
-            tagged_revision="$(git rev-parse "$tag^{commit}")"
-            test "$tagged_revision" = "$REVISION"
-            echo "Tag $tag already exists on the validated release commit."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "$tag" "$REVISION" -m "Woobe $tag"
-            git push origin "refs/tags/$tag"
-          fi
-
-          echo "name=$tag" >> "$GITHUB_OUTPUT"
-
-      - name: Dispatch exact release publication
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.tag.outputs.name }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          gh workflow run release.yml \
-            --repo "$GITHUB_REPOSITORY" \
-            --ref "$TAG"
-
-      - name: Finalization summary
-        run: |
-          {
-            echo "### Release candidate validated"
-            echo
-            echo "Version: `${{ needs.metadata.outputs.version }}`"
-            echo "Revision: `${{ needs.metadata.outputs.revision }}`"
-            echo "Tag: `${{ steps.tag.outputs.name }}`"
-            echo
-            echo "Exact release publication was dispatched automatically."
-          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Upload immutable release manifest
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: woobe-release-manifest-${{ github.run_id }}
+          path: release-manifest.json
+          if-no-files-found: error
+          retention-days: 30
