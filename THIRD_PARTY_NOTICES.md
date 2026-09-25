@@ -11,8 +11,9 @@ Conversely, rights granted by a third-party license apply to that third-party ma
 The [Container quality workflow](.github/workflows/containers.yml) generates SPDX SBOMs for these Core container build targets:
 
 - `woobe-api`
-- `woobe-web`
-- `woobe-chat-embed`
+- `woobe-workers`
+- `woobe-frontend`
+- `woobe-embed`
 
 The workflow derives `.test-artifacts/THIRD_PARTY_INVENTORY.md` from those SBOMs and uploads it as `woobe-third-party-inventory` on manual (`workflow_dispatch`) runs. The inventory records the source artifact, package name, package version, declared license and concluded license reported for each discovered component.
 

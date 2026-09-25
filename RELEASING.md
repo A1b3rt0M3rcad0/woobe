@@ -639,7 +639,7 @@ Run the workflow against the exact release tag/ref, not against a later `master`
 With GitHub CLI, the intended shape is:
 
 ```bash
-VERSION=0.13.0
+VERSION=0.14.0
 
 gh workflow run release.yml \
   --ref "v$VERSION" \
@@ -648,11 +648,15 @@ gh workflow run release.yml \
 
 Verify the resulting artifacts correspond to the release commit and expected version. Then verify the Web image can be started with deployment-specific runtime endpoints without rebuilding it.
 
-Current Core image names are:
+Current Core release units are:
 
-- `woobe-api:<VERSION>`
-- `woobe-web:<VERSION>`
-- `woobe-chat-embed:<VERSION>`
+- `woobe-core==<VERSION>` — Python domain/runtime package used by backend process images;
+- `woobe-api:<VERSION>` — independently deployable API container;
+- `woobe-workers:<VERSION>` — independently deployable background-execution container;
+- `woobe-frontend:<VERSION>` — independently deployable administrative Web container;
+- `woobe-embed:<VERSION>` — independently deployable ChatSurface container.
+
+The release workflow publishes the four container units. Core is not published as a standalone container because it is a library/migration boundary rather than a process host.
 
 Do not publish an image under a release version when its source commit differs from the Git tag carrying that version.
 

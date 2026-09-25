@@ -24,12 +24,27 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+      - uses: astral-sh/setup-uv@v6
+      - name: Build standalone Core package
+        run: |
+          mkdir -p .test-artifacts/core-dist
+          uv build packages/woobe-core --out-dir .test-artifacts/core-dist
+          test -n "$(find .test-artifacts/core-dist -maxdepth 1 -name 'woobe_core-*.whl' -print -quit)"
       - name: Generate isolated Core environment
         run: python scripts/generate_self_host_env.py --force
       - name: Validate the supported Core Compose contract
         run: docker compose config --quiet
       - name: Build API image
-        run: docker build --pull --no-cache --tag woobe-api:ci .
+        run: docker build --pull --no-cache --target api --tag woobe-api:ci .
+      - name: Build Workers image
+        run: docker build --pull --no-cache --target workers --tag woobe-workers:ci .
+      - name: Verify API and Workers image isolation
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint python woobe-api:ci -c "import importlib.util; import main, woobe_api; assert importlib.util.find_spec('woobe_workers') is None"
+          docker run --rm --entrypoint sh woobe-api:ci -c 'test ! -d /app/packages/woobe-workers/src'
+          docker run --rm --entrypoint python woobe-workers:ci -c "import importlib.util; import worker_main, woobe_workers; assert importlib.util.find_spec('woobe_api') is None"
+          docker run --rm --entrypoint sh woobe-workers:ci -c 'test ! -d /app/packages/woobe-api/src'
       - name: Build Web image
         run: >-
           docker build
@@ -39,18 +54,18 @@ jobs:
           --build-arg VITE_API_URL=http://127.0.0.1:8000
           --build-arg VITE_CHAT_EMBED_URL=http://127.0.0.1:8081
           --build-arg VITE_WOOBE_EDITION=core
-          --tag woobe-web:ci .
+          --tag woobe-frontend:ci .
       - name: Build ChatSurface image
         run: >-
           docker build
           --pull
           --no-cache
           --file packages/woobe-embed/Dockerfile
-          --tag woobe-chat-embed:ci .
+          --tag woobe-embed:ci .
       - name: Require non-root runtime users
         run: |
           set -euo pipefail
-          for image in woobe-api:ci woobe-web:ci woobe-chat-embed:ci; do
+          for image in woobe-api:ci woobe-workers:ci woobe-frontend:ci woobe-embed:ci; do
             configured_user="$(docker image inspect "$image" --format '{{.Config.User}}')"
             test -n "$configured_user"
             test "$configured_user" != "0"
@@ -60,7 +75,7 @@ jobs:
       - name: Require Core image license metadata
         run: |
           set -euo pipefail
-          for image in woobe-api:ci woobe-web:ci woobe-chat-embed:ci; do
+          for image in woobe-api:ci woobe-workers:ci woobe-frontend:ci woobe-embed:ci; do
             license="$(docker image inspect "$image" --format '{{ index .Config.Labels "org.opencontainers.image.licenses" }}')"
             test "$license" = "LicenseRef-Woobe-Core-Sustainable-Use-1.0"
           done
@@ -75,21 +90,30 @@ jobs:
           format: spdx-json
           upload-artifact: false
           upload-release-assets: false
+      - name: Generate Workers SBOM
+        uses: anchore/sbom-action@v0.24.0
+        with:
+          image: woobe-workers:ci
+          artifact-name: woobe-workers-sbom.spdx.json
+          output-file: .test-artifacts/woobe-workers-sbom.spdx.json
+          format: spdx-json
+          upload-artifact: false
+          upload-release-assets: false
       - name: Generate Web SBOM
         uses: anchore/sbom-action@v0.24.0
         with:
-          image: woobe-web:ci
-          artifact-name: woobe-web-sbom.spdx.json
-          output-file: .test-artifacts/woobe-web-sbom.spdx.json
+          image: woobe-frontend:ci
+          artifact-name: woobe-frontend-sbom.spdx.json
+          output-file: .test-artifacts/woobe-frontend-sbom.spdx.json
           format: spdx-json
           upload-artifact: false
           upload-release-assets: false
       - name: Generate ChatSurface SBOM
         uses: anchore/sbom-action@v0.24.0
         with:
-          image: woobe-chat-embed:ci
-          artifact-name: woobe-chat-embed-sbom.spdx.json
-          output-file: .test-artifacts/woobe-chat-embed-sbom.spdx.json
+          image: woobe-embed:ci
+          artifact-name: woobe-embed-sbom.spdx.json
+          output-file: .test-artifacts/woobe-embed-sbom.spdx.json
           format: spdx-json
           upload-artifact: false
           upload-release-assets: false
@@ -153,10 +177,18 @@ jobs:
           severity: CRITICAL,HIGH
           ignore-unfixed: true
           exit-code: '1'
+      - name: Scan Workers image
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: woobe-workers:ci
+          format: table
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
       - name: Scan Web image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: woobe-web:ci
+          image-ref: woobe-frontend:ci
           format: table
           severity: CRITICAL,HIGH
           ignore-unfixed: true
@@ -164,7 +196,7 @@ jobs:
       - name: Scan ChatSurface image
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: woobe-chat-embed:ci
+          image-ref: woobe-embed:ci
           format: table
           severity: CRITICAL,HIGH
           ignore-unfixed: true
