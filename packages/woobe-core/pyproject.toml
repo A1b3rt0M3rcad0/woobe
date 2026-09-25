@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "woobe-core"
-version = "0.14.2"
+version = "0.12.0"
 description = "Woobe Community/Core domain and runtime package"
 requires-python = ">=3.14"
 dependencies = [
