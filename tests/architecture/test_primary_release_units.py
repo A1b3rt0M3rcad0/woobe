@@ -135,7 +135,7 @@ def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
 
     assert "push:\n    tags:" not in release
     assert "workflow_call:" in release
-    assert "workflow_dispatch:" in release
+    assert "workflow_dispatch:" not in release
     assert "validation_id:" in release
     assert "api_digest:" in release
     assert 'test "$revision" = "$EXPECTED_REVISION"' in release
