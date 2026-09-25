@@ -17,8 +17,8 @@ Woobe follows Semantic Versioning for public releases.
 - Woobe now defines five primary product release units: Core, API, Workers, Web and ChatSurface.
 - API and Workers use separate Docker targets and contain only their own process-host source plus the shared `woobe-core` package.
 - The supported self-host Compose topology selects the API and Workers targets explicitly, allowing the two process classes to be scaled and rolled out independently.
-- The release workflow publishes four independently deployable container artifacts: `woobe-api`, `woobe-workers`, `woobe-web` and `woobe-chat-embed`.
-- `woobe-runtime-client` and `woobe-ui` remain internal shared browser libraries rather than standalone deployment units.
+- The release workflow publishes four independently deployable container artifacts: `woobe-api`, `woobe-workers`, `woobe-frontend` and `woobe-embed`.
+- `woobe-runtime-client` and `woobe-ui` remain internal shared browser libraries rather than standalone deployment units. Frontend and Embed distribution names now match their canonical source package names.
 
 ## [0.13.0] - 2026-09-24
 
