@@ -93,14 +93,21 @@ jobs:
         run: |
           set -euo pipefail
 
+          release_exists="false"
           already_published="false"
           if gh release view "v$TARGET_VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            already_published="true"
+            release_exists="true"
+            release_assets="$(gh release view "v$TARGET_VERSION" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[].name')"
+            if grep -Fxq 'release-manifest.json' <<<"$release_assets"; then
+              already_published="true"
+            else
+              echo "::warning::GitHub Release v$TARGET_VERSION exists without release-manifest.json; resuming finalization to repair the permanent release record."
+            fi
           fi
 
           published_tags="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name')"
           export PUBLISHED_TAGS="$published_tags"
-          export TARGET_ALREADY_PUBLISHED="$already_published"
+          export TARGET_ALREADY_PUBLISHED="$release_exists"
 
           python - "$TARGET_VERSION" <<'PY'
           import os
@@ -158,7 +165,7 @@ jobs:
           resume_finalization="false"
           merge_sha=""
 
-          if [[ "$already_published" == "true" ]]; then
+          if [[ "$release_exists" == "true" ]]; then
             resume_finalization="true"
             git fetch --force --tags origin
             merge_sha="$(git rev-parse "v$TARGET_VERSION^{commit}")"
@@ -167,7 +174,11 @@ jobs:
               echo "Published tag v$TARGET_VERSION resolves to VERSION=$released_version; expected $TARGET_VERSION." >&2
               exit 1
             fi
-            echo "GitHub Release v$TARGET_VERSION is already complete at $merge_sha; treating this retry as successful idempotent completion."
+            if [[ "$already_published" == "true" ]]; then
+              echo "GitHub Release v$TARGET_VERSION has a permanent manifest at $merge_sha; verifying terminal state."
+            else
+              echo "GitHub Release v$TARGET_VERSION is incomplete at $merge_sha; resuming post-release finalization."
+            fi
           elif [[ "$current" == "$TARGET_VERSION" ]]; then
             resume_finalization="true"
             merge_sha="$(gh pr list \
@@ -274,6 +285,7 @@ jobs:
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "existing_pr=$existing_pr" >> "$GITHUB_OUTPUT"
           echo "resume_finalization=$resume_finalization" >> "$GITHUB_OUTPUT"
+          echo "release_exists=$release_exists" >> "$GITHUB_OUTPUT"
           echo "already_published=$already_published" >> "$GITHUB_OUTPUT"
           echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
 
