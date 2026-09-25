@@ -96,80 +96,83 @@ The platform version is independent from Agent Releases, Network Releases, Skill
 
 Never perform a repository-wide replacement of the old platform version.
 
-## 2. Create the release branch
+## 2. Prepare the release branch
 
-Create `release/<VERSION>` from the exact current `master` commit intended to become the release baseline.
+`VERSION` at the repository root is the canonical Woobe platform version. Humans choose the target version once; release-bearing manifests, lockfile version metadata and runtime version mirrors are synchronized from that value.
 
-Example:
+The preferred release-preparation path is GitHub Actions:
+
+1. Open **Actions -> Prepare Woobe release**.
+2. Run the workflow with the target Semantic Version without the `v` prefix.
+3. The workflow validates the version and ensures that neither `v<VERSION>` nor `release/<VERSION>` already exists.
+4. It runs `scripts/release/set_platform_version.py <VERSION>`.
+5. It validates the synchronized state with `scripts/ci/check_package_versions.py`.
+6. It creates `release/<VERSION>`, commits the synchronized release state, opens a Draft pull request and explicitly dispatches the release-branch CI workflows.
+
+The workflow explicitly dispatches CI because pushes and pull requests created with the repository `GITHUB_TOKEN` do not recursively trigger ordinary workflow events.
+
+The generated release PR remains Draft until changelog, documentation, compatibility notes and any release blockers have been reviewed.
+
+Manual fallback:
 
 ```bash
-VERSION=0.2.0
+VERSION=0.15.0
 
 git checkout master
 git pull --ff-only origin master
 git checkout -b "release/$VERSION"
+python scripts/release/set_platform_version.py "$VERSION"
+python scripts/ci/check_package_versions.py
+git diff --check
+git add VERSION pyproject.toml uv.lock packages
+git commit -m "chore(release): prepare Woobe v$VERSION"
 git push -u origin "release/$VERSION"
 ```
 
-Release branch commits must follow the commit-message policy in `CONTRIBUTING.md`.
+Repository-authored commits must still follow `CONTRIBUTING.md`. The release PR should use the conventional title `chore(release): prepare Woobe v<VERSION>`, but the final merge commit subject is not part of release identity.
 
-The canonical release-preparation subject is:
+## 3. Canonical platform-version contract
 
-```text
-chore(release): prepare Woobe v<VERSION>
-```
+The only human-edited platform-version source is:
 
-A release branch may contain multiple focused commits while preparation is in progress, but the release pull request must be squash-merged so that `master` receives one canonical release-preparation commit. The squash commit subject must use the canonical form above.
+- `VERSION`
 
-Record the baseline commit if the release requires a formal audit.
-
-## 3. Synchronize the Woobe platform version
-
-All product artifacts that represent the same Woobe platform release must agree on `<VERSION>`.
+The synchronization script owns the static mirrors required by packaging and runtime surfaces.
 
 ### Python product manifests
 
-Update:
+The script synchronizes:
 
 - `pyproject.toml`
 - `packages/woobe-core/pyproject.toml`
 - `packages/woobe-api/pyproject.toml`
 - `packages/woobe-workers/pyproject.toml`
-
-Also update internal exact product dependencies that pin the platform version, currently including:
-
-- `woobe-core==<VERSION>` in `packages/woobe-api/pyproject.toml`
-- `woobe-core==<VERSION>` in `packages/woobe-workers/pyproject.toml`
-
-Regenerate `uv.lock` after Python manifest changes. Do not hand-edit generated dependency resolution beyond what is required to resolve a lock-generation problem.
+- exact `woobe-core==<VERSION>` dependencies in API and Workers
+- the root Woobe package version recorded in `uv.lock`
 
 ### Browser/product manifests
 
-Update the product version in:
+The script synchronizes:
 
 - `packages/woobe-runtime-client/package.json`
 - `packages/woobe-ui/package.json`
 - `packages/woobe-frontend/package.json`
 - `packages/woobe-embed/package.json`
+- the top-level and root-package version metadata in the Frontend and Embed `package-lock.json` files
 
-When a package has a lockfile, regenerate it from the corresponding manifest. Currently this includes:
-
-- `packages/woobe-frontend/package-lock.json`
-- `packages/woobe-embed/package-lock.json`
-
-The manifest and the root package entry inside each generated lockfile must report the same platform version.
+Version-only release preparation must not alter third-party dependency resolution. Dependency changes require their normal package-manager lock regeneration and review.
 
 ### Runtime/version metadata
 
-Review first-party runtime metadata that exposes the Woobe platform version and update it when it represents the application release rather than a protocol or domain-object version.
-
-Current version-bearing surfaces include:
+The script also synchronizes first-party runtime metadata that exposes the Woobe platform version:
 
 - FastAPI application metadata in `packages/woobe-api/src/main.py`
 - Woobe MCP client metadata in `packages/woobe-core/src/modules/agent/application/mcp_discovery.py`
 - Woobe MCP OAuth/safety client metadata in `packages/woobe-core/src/modules/agent/application/mcp_oauth_flow_safety.py`
 
-Search for the previous platform version after the explicit edits and inspect every remaining match manually. Do not automatically change matches belonging to examples, tests, Skills, Agent/Network Releases, protocol fixtures, migrations or third-party packages.
+`scripts/ci/check_package_versions.py` treats `VERSION` as authoritative and fails CI when any release-bearing mirror, exact Core dependency, lockfile version or runtime version token diverges.
+
+Do not perform repository-wide version replacements. Agent Releases, Network Releases, Skills, protocol fixtures, migrations, examples and third-party package versions are independent from the Woobe platform version.
 
 ### Engineering-only packages
 
@@ -423,69 +426,64 @@ Do not publish a different commit from the one that passed final release validat
 
 ## 11. Prepare the release pull request
 
-Open a pull request:
+The automated preparation workflow opens:
 
 ```text
 release/<VERSION> -> master
 ```
 
-A release PR should contain only release preparation and required blockers.
-
-Use the canonical pull request title:
+with the canonical pull request title:
 
 ```text
 chore(release): prepare Woobe v<VERSION>
 ```
 
-The PR description should include:
+A release PR should contain only release preparation and required blockers. Review and complete:
 
 - target version;
-- previous release/tag;
+- previous published release/tag;
 - scope summary;
 - compatibility or migration notes;
-- version files changed;
+- changelog and public documentation;
 - validation performed;
 - known limitations that belong in release notes;
-- confirmation that release/legal/third-party gates were reviewed.
+- release/legal/third-party review.
 
-All required repository checks and reviews must pass before merge.
+All required repository checks and reviews must pass before merge. The automated workflow dispatches the normal validation matrix for its generated branch; subsequent human edits to the PR trigger the ordinary pull-request workflows.
 
 ## 12. Merge and identify the immutable release commit
 
-Squash-merge the release PR to `master`.
+Merge the reviewed release PR using any repository-supported merge strategy. Release correctness does not depend on the merge commit subject.
 
-The resulting commit is the canonical platform release commit and its subject must be:
+The canonical platform release commit is the exact `master` commit that introduces the transition of root `VERSION` from the previous platform version to `<VERSION>`.
 
-```text
-chore(release): prepare Woobe v<VERSION>
-```
+On a push to `master` that changes `VERSION`, `.github/workflows/release-candidate.yml`:
 
-Do not create an additional version-bump, release or cleanup commit between the validated squash merge and the release tag. The immutable `v<VERSION>` tag must point directly to this canonical release commit.
+1. compares `VERSION` with the first parent;
+2. validates every release-bearing mirror against canonical `VERSION`;
+3. records the exact Git revision;
+4. builds the four multi-architecture application images once;
+5. publishes immutable `sha-<commit>` candidate tags with provenance/SBOM attestations;
+6. verifies amd64 and arm64 manifests;
+7. smoke-tests those exact candidate images.
 
-Immediately after merge:
+The initial repository introduction of `VERSION` is treated as bootstrap and does not create a release candidate.
 
-```bash
-git checkout master
-git pull --ff-only origin master
-git log -1 --oneline
-```
+Wait for the candidate workflow for the exact release commit to succeed before creating the release tag. A failed or missing candidate must be corrected by a new reviewed release commit/version; do not tag a commit whose immutable candidate did not pass.
 
-Verify that the checked-out commit is the intended release commit and that no unrelated commit entered `master` between final review and tagging.
+For controlled recovery or revalidation, `release-candidate.yml` also accepts a manual `ref` input. Manual candidate generation does not authorize moving or reusing an existing published tag.
 
-If `master` advanced in a way that changes the release contents, do not tag blindly. Re-evaluate the exact commit being released.
-
-The canonical release commit automatically triggers `.github/workflows/release-candidate.yml` when its subject is `chore(release): prepare Woobe v<VERSION>`. Wait for that workflow to succeed before creating the release tag. It builds the four multi-architecture container artifacts once, publishes immutable `sha-<commit>` candidate tags with provenance/SBOM attestations, verifies both release architectures and smoke-tests those exact candidate images.
-
-The candidate workflow is part of the release gate. A failed or missing candidate must be fixed by a new commit/release candidate; do not tag a commit whose immutable candidate did not pass.
+Record the successful release commit SHA. If `master` advances afterward, tag that recorded commit explicitly rather than assuming the latest `master` commit is still the release commit.
 
 ## 13. Create the Git tag
 
-Create an annotated tag from the exact reviewed release commit:
+Create an annotated tag from the exact reviewed release commit whose immutable candidate passed:
 
 ```bash
-VERSION=0.2.0
+VERSION=0.15.0
+RELEASE_COMMIT=<successful-release-candidate-commit-sha>
 
-git tag -a "v$VERSION" -m "Woobe v$VERSION"
+git tag -a "v$VERSION" "$RELEASE_COMMIT" -m "Woobe v$VERSION"
 git push origin "v$VERSION"
 ```
 
@@ -497,10 +495,10 @@ Before publishing artifacts, verify:
 
 ```bash
 git rev-parse "v$VERSION^{commit}"
-git rev-parse HEAD
+printf '%s\n' "$RELEASE_COMMIT"
 ```
 
-They must identify the intended release commit.
+They must identify the same intended release commit.
 
 The corresponding `sha-<commit>` release candidates must already exist and have passed the candidate workflow before this tag is created.
 
