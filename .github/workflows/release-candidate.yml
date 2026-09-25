@@ -11,6 +11,15 @@ on:
         description: Optional branch, tag or commit to build. Defaults to the selected workflow ref.
         required: false
         type: string
+      expected_version:
+        description: Optional canonical VERSION expected at ref
+        required: false
+        type: string
+      finalize_release:
+        description: Finalize the validated candidate into a release
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -84,9 +93,14 @@ jobs:
       - name: Validate canonical release state
         id: meta
         shell: bash
+        env:
+          EXPECTED_VERSION: ${{ inputs.expected_version }}
         run: |
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION)"
+          if [[ -n "$EXPECTED_VERSION" ]]; then
+            test "$version" = "$EXPECTED_VERSION"
+          fi
           python scripts/ci/check_package_versions.py
 
           revision="$(git rev-parse HEAD)"
@@ -275,7 +289,7 @@ jobs:
 
   finalize-release:
     needs: [detect, metadata, smoke]
-    if: ${{ github.event_name == 'push' && needs.detect.outputs.should_build == 'true' }}
+    if: ${{ needs.detect.outputs.should_build == 'true' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.finalize_release == true)) }}
     runs-on: ubuntu-latest
     permissions:
       actions: write
