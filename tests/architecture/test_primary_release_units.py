@@ -363,6 +363,7 @@ def test_acceptance_validates_previous_release_upgrade() -> None:
     )
 
     assert "previous-release-upgrade:" in acceptance
+    assert 'docker exec --user 999:999 "$WOOBE_ACCEPTANCE_RABBITMQ_CONTAINER"' in acceptance
     assert "validate_previous_release_upgrade.sh" in acceptance
     assert "git tag --merged" in upgrade
     assert "docker manifest inspect" in upgrade
