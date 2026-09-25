@@ -25,6 +25,12 @@ Only `VITE_*` values are embedded in the browser bundle; backend secrets must ne
 
 The Core build uses `VITE_WOOBE_EDITION=core`.
 
+## Published container
+
+The deployable image is `ghcr.io/a1b3rt0m3rcad0/woobe-frontend:<VERSION>`. Configure `WOOBE_PUBLIC_API_URL` and `WOOBE_PUBLIC_CHAT_EMBED_URL` at container startup; rebuilding the image is not required when those public origins change.
+
+See [`docs/runbooks/container-packages.md`](../../docs/runbooks/container-packages.md) for complete pull and runtime configuration examples.
+
 ## Docker Compose
 
 ```bash
