@@ -23,7 +23,8 @@ if ! "${compose[@]}" up -d --no-build api workers web chat-embed; then
 fi
 
 for _ in $(seq 1 60); do
-  if sh scripts/smoke_production.sh     && "${compose[@]}" exec -T workers sh -c 'test -s "${WOOBE_WORKER_HEALTH_FILE:-/tmp/woobe/worker-health.json}"'; then
+  if sh scripts/smoke_production.sh \
+    && "${compose[@]}" exec -T workers sh -c 'python -m woobe_workers.runtime.health check "${WOOBE_WORKER_HEALTH_FILE:-/tmp/woobe/worker-health.json}" "${WOOBE_WORKER_HEALTH_MAX_AGE_SECONDS:-45}"'; then
     printf '%s\n' "Prebuilt Woobe image smoke checks passed"
     exit 0
   fi
