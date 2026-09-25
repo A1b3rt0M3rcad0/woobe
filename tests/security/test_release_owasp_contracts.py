@@ -143,6 +143,8 @@ def test_frontend_build_contract_includes_api_chat_surface_and_edition() -> None
     assert "VITE_API_URL" in dockerfile
     assert "VITE_CHAT_EMBED_URL" in dockerfile
     assert "VITE_WOOBE_EDITION" in dockerfile
+    assert "npm run build" in dockerfile
+    assert "npm run test:run" not in dockerfile
     entrypoint = read("packages/woobe-frontend/docker-entrypoint.sh")
     assert "WOOBE_PUBLIC_API_URL" in entrypoint
     assert "WOOBE_PUBLIC_CHAT_EMBED_URL" in entrypoint
