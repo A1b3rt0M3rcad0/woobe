@@ -1,12 +1,10 @@
 name: Publish Woobe Core images
 
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
-    inputs:
-      version:
-        description: Semantic version without v prefix, for example 0.15.0
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -22,7 +20,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: v${{ inputs.version }}
           fetch-depth: 0
 
       - name: Verify release identity
@@ -30,12 +27,17 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE:-}" != "tag" || "${GITHUB_REF_NAME:-}" != v* ]]; then
+            echo "Publish Woobe Core images must run from an immutable v<VERSION> tag." >&2
+            exit 1
+          fi
+
           version="$(tr -d '[:space:]' < VERSION)"
-          test "$version" = "${{ inputs.version }}"
+          test "$GITHUB_REF_NAME" = "v$version"
           python scripts/ci/check_package_versions.py
 
           revision="$(git rev-parse HEAD)"
-          tag_revision="$(git rev-parse "v${{ inputs.version }}^{commit}")"
+          tag_revision="$(git rev-parse "$GITHUB_REF_NAME^{commit}")"
           test "$tag_revision" = "$revision"
 
           owner="${GITHUB_REPOSITORY_OWNER,,}"
@@ -106,8 +108,6 @@ jobs:
       WOOBE_CHAT_EMBED_BASE_URL: http://127.0.0.1:8081
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: v${{ inputs.version }}
 
       - uses: docker/login-action@v3
         with:
