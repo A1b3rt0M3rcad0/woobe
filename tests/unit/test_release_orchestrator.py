@@ -88,6 +88,31 @@ class ReleaseGateTests(unittest.TestCase):
             self.assertIn("all passed", summary)
 
 
+    def test_publish_workflow_summary_renders_release_values_literally(self):
+        workflow = (ROOT / ".github/workflows/release.yml").read_text()
+        step = workflow.split("      - name: Release summary\n", 1)[1]
+        script = textwrap.dedent(step.split("        run: |\n", 1)[1])
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "summary"
+            subprocess.run(
+                ["bash", "-e", "-c", script],
+                check=True,
+                capture_output=True,
+                text=True,
+                env={
+                    **os.environ,
+                    "VERSION": "0.12.0",
+                    "REVISION": "merge-sha",
+                    "VALIDATION_ID": "candidate-validation",
+                    "RELEASE_URL": "https://example.test/release",
+                    "GITHUB_STEP_SUMMARY": str(output),
+                },
+            )
+            summary = output.read_text()
+            self.assertIn("Revision: `merge-sha`", summary)
+            self.assertIn("Candidate validation: `candidate-validation`", summary)
+            self.assertIn("Git tag: `v0.12.0`", summary)
+
     def test_pagination_identity_and_same_second_run_order(self):
         old = runs()["Backend test suite"]
         new = dict(old, id=20, conclusion="action_required")
