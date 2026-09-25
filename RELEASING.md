@@ -103,7 +103,7 @@ Never perform a repository-wide replacement of the old platform version.
 The preferred release-preparation path is GitHub Actions:
 
 1. Open **Actions -> Prepare Woobe release**.
-2. Run the workflow with the target Semantic Version without the `v` prefix.
+2. Enter the target Semantic Version without the `v` prefix.
 3. The workflow validates the version and ensures that neither `v<VERSION>` nor `release/<VERSION>` already exists.
 4. It runs `scripts/release/set_platform_version.py <VERSION>`.
 5. It validates the synchronized state with `scripts/ci/check_package_versions.py`.
@@ -114,6 +114,8 @@ The workflow explicitly dispatches CI because pushes and pull requests created w
 For automatic PR creation, enable **Settings -> Actions -> General -> Workflow permissions -> Allow GitHub Actions to create and approve pull requests**. As an alternative, configure a repository secret named `WOOBE_RELEASE_TOKEN` with Contents, Pull requests and Actions write access; the workflow prefers that token when present.
 
 The generated release PR remains Draft until changelog, documentation, compatibility notes and any release blockers have been reviewed.
+
+When no published Woobe tag with a corresponding API image exists, Acceptance treats the previous-release upgrade probe as a first-release baseline and skips only that historical-upgrade check. All current-schema, package, container, security and smoke validation still runs.
 
 Manual fallback:
 
@@ -658,17 +660,11 @@ ghcr.io/<owner>/woobe-frontend:sha-<RELEASE_COMMIT>
 ghcr.io/<owner>/woobe-embed:sha-<RELEASE_COMMIT>
 ```
 
-After the immutable `v<VERSION>` tag exists, run `release.yml` against that tag:
+Pushing the immutable `v<VERSION>` tag automatically triggers `release.yml`. No second version input is required.
 
-```bash
-VERSION=0.15.0
+For controlled recovery, `release.yml` may also be started manually, but the workflow must be run from the immutable `v<VERSION>` tag. Running it from `master` or another branch fails identity validation.
 
-gh workflow run release.yml \
-  --ref "v$VERSION" \
-  -f version="$VERSION"
-```
-
-The workflow verifies that the tag commit, canonical root `VERSION` and every release-bearing version mirror agree. It then resolves the digest of each `sha-<RELEASE_COMMIT>` candidate and creates the version tag from that exact OCI manifest. The release step fails if the versioned tag does not resolve to the same digest.
+The workflow verifies that the selected tag name, tag commit, canonical root `VERSION` and every release-bearing version mirror agree. It then resolves the digest of each `sha-<RELEASE_COMMIT>` candidate and creates the version tag from that exact OCI manifest. The release step fails if the versioned tag does not resolve to the same digest.
 
 This is a build-once/promote-exact-artifact contract:
 
