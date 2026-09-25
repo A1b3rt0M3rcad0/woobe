@@ -16,7 +16,7 @@ Woobe has exactly five primary product release units:
 
 `woobe-runtime-client` and `woobe-ui` are shared internal browser libraries consumed at build time by the primary Web artifacts. They are not independent deployment units. `woobe-ee` remains a separate Enterprise implementation/license boundary and is not a Core release unit.
 
-The four deployable Core container artifacts are therefore `woobe-api`, `woobe-workers`, `woobe-web` and `woobe-chat-embed`. The `woobe-core` release unit is consumed by API and Workers as a Python package rather than exposed as an artificial process/container.
+The four deployable Core container artifacts are therefore `woobe-api`, `woobe-workers`, `woobe-frontend` and `woobe-embed`. The `woobe-core` release unit is consumed by API and Workers as a Python package rather than exposed as an artificial process/container.
 
 ## Contents and license boundary
 
