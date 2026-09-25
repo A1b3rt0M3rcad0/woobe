@@ -1,0 +1,110 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import yaml
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def load_workflow(name: str) -> dict:
+    path = ROOT / ".github" / "workflows" / name
+    return yaml.load(path.read_text(encoding="utf-8"), Loader=yaml.BaseLoader)
+
+
+def as_list(value):
+    if isinstance(value, list):
+        return value
+    return [value]
+
+
+def test_release_workflow_graph_is_parent_owned_and_serial() -> None:
+    prepare = load_workflow("prepare-release.yml")
+    jobs = prepare["jobs"]
+
+    assert set(jobs) >= {
+        "prepare",
+        "candidate",
+        "tag",
+        "publish",
+        "verify-published",
+        "summary",
+    }
+
+    assert jobs["candidate"]["needs"] == "prepare"
+    assert jobs["candidate"]["uses"] == "./.github/workflows/release-candidate.yml"
+
+    assert set(as_list(jobs["tag"]["needs"])) == {"prepare", "candidate"}
+    assert set(as_list(jobs["publish"]["needs"])) == {"prepare", "candidate", "tag"}
+    assert jobs["publish"]["uses"] == "./.github/workflows/release.yml"
+
+    assert jobs["verify-published"]["needs"] == "prepare"
+    assert set(as_list(jobs["summary"]["needs"])) == {
+        "prepare",
+        "candidate",
+        "tag",
+        "publish",
+        "verify-published",
+    }
+
+    assert prepare["concurrency"]["cancel-in-progress"] == "false"
+    assert prepare["permissions"]["packages"] == "write"
+
+
+def test_candidate_returns_digests_without_actions_artifact_transport() -> None:
+    candidate = load_workflow("release-candidate.yml")
+    triggers = candidate["on"]
+    assert set(triggers) == {"workflow_call", "workflow_dispatch"}
+
+    outputs = triggers["workflow_call"]["outputs"]
+    assert set(outputs) == {
+        "validation_id",
+        "api_digest",
+        "workers_digest",
+        "frontend_digest",
+        "embed_digest",
+    }
+
+    manifest_outputs = candidate["jobs"]["manifest"]["outputs"]
+    assert set(manifest_outputs) == set(outputs)
+
+    raw = (ROOT / ".github/workflows/release-candidate.yml").read_text(encoding="utf-8")
+    assert "actions/upload-artifact" not in raw
+    assert candidate["concurrency"]["cancel-in-progress"] == "false"
+
+
+def test_publisher_has_no_independent_trigger_or_rebuild_path() -> None:
+    release = load_workflow("release.yml")
+    assert set(release["on"]) == {"workflow_call"}
+
+    required_inputs = {
+        "version",
+        "revision",
+        "validation_id",
+        "api_digest",
+        "workers_digest",
+        "frontend_digest",
+        "embed_digest",
+        "orchestration_id",
+    }
+    assert set(release["on"]["workflow_call"]["inputs"]) == required_inputs
+
+    raw = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    assert "docker/build-push-action" not in raw
+    assert "push:" not in raw.split("permissions:", 1)[0]
+    assert "release-manifest.json" in raw
+    assert release["concurrency"]["cancel-in-progress"] == "false"
+
+
+def test_release_recovery_verifies_terminal_state_before_success() -> None:
+    prepare = (ROOT / ".github/workflows/prepare-release.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "Verify completed release recovery" in prepare
+    assert "release-manifest.json" in prepare
+    assert "EXPECTED_API_DIGEST" in prepare
+    assert "linux/amd64" in prepare
+    assert "linux/arm64" in prepare
+    assert "Complete pending release branch cleanup" in prepare
+    assert "exists without release-manifest.json" in prepare
