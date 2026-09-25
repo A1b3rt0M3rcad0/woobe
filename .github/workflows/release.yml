@@ -60,7 +60,7 @@ jobs:
           file: packages/woobe-frontend/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ steps.ghcr.outputs.owner }}/woobe-web:${{ inputs.version }}
+          tags: ghcr.io/${{ steps.ghcr.outputs.owner }}/woobe-frontend:${{ inputs.version }}
 
       - name: Build and push Core ChatSurface
         uses: docker/build-push-action@v6
@@ -69,4 +69,4 @@ jobs:
           file: packages/woobe-embed/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: ghcr.io/${{ steps.ghcr.outputs.owner }}/woobe-chat-embed:${{ inputs.version }}
+          tags: ghcr.io/${{ steps.ghcr.outputs.owner }}/woobe-embed:${{ inputs.version }}
