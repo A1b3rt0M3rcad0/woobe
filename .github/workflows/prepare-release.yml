@@ -341,9 +341,11 @@ jobs:
           - a fully green, stable release HEAD is merged automatically;
           - the exact merge commit is built into immutable candidate images;
           - candidate multi-arch verification and production-shaped smoke must pass;
-          - an immutable release manifest records the exact image digests;
-          - only then is the Git tag created and those exact digests promoted;
-          - post-publish smoke and GitHub Release creation must pass before Release Woobe reports success;
+          - the candidate returns the exact validated image digests;
+          - all four release-version GHCR targets are preflighted before any promotion;
+          - those exact digests are promoted without rebuilding;
+          - post-publish smoke must pass before the immutable Git tag is created or verified;
+          - GitHub Release creation and permanent manifest publication must pass before Release Woobe reports success;
           - a failed post-merge stage can be resumed safely by running Release Woobe for the same VERSION.
 
           Product code, migration notes, documentation and changelog changes belong in normal development PRs before starting this release. Do not add unrelated changes to this release PR.
@@ -584,6 +586,6 @@ jobs:
               printf 'Candidate validation: `%s`\n' "$VALIDATION_ID"
               printf 'GitHub Release: %s\n' "$RELEASE_URL"
               echo
-              echo "Required PR CI, exact candidate build, multi-arch validation, candidate smoke, immutable digest promotion, post-publish smoke and GitHub Release creation all passed."
+              echo "Required PR CI, exact candidate build, multi-arch validation, candidate smoke, all-target registry preflight, immutable digest promotion, post-publish smoke, immutable Git tagging and GitHub Release creation all passed."
             fi
           } >> "$GITHUB_STEP_SUMMARY"
