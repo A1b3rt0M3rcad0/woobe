@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "woobe-workers"
-version = "0.14.0"
+version = "0.14.2"
 description = "Woobe background execution process host"
 requires-python = ">=3.14"
-dependencies = ["woobe-core==0.14.0"]
+dependencies = ["woobe-core==0.14.2"]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

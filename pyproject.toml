@@ -1,6 +1,6 @@
 [project]
 name = "woobe"
-version = "0.14.0"
+version = "0.14.2"
 description = "Self-hostable control plane and runtime for versioned AI products"
 readme = "README.md"
 requires-python = ">=3.14"

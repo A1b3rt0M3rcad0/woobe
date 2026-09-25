@@ -160,6 +160,9 @@ def test_acceptance_validates_previous_release_upgrade() -> None:
     assert "previous-release-upgrade:" in acceptance
     assert "validate_previous_release_upgrade.sh" in acceptance
     assert "git tag --merged" in upgrade
+    assert "docker manifest inspect" in upgrade
+    assert "published API image" in upgrade
+    assert "head -n 1" not in upgrade
     assert "ghcr.io/" in upgrade
     assert "alembic" in upgrade
     assert "release-upgrade-probe" in upgrade

@@ -4,6 +4,26 @@ Woobe follows Semantic Versioning for public releases.
 
 ## Unreleased
 
+## [0.14.2] - 2026-09-25
+
+### Added
+
+- Release-candidate automation now builds immutable multi-architecture API, Workers, Frontend and Embed images before a version tag is created, with provenance/SBOM attestations and smoke validation.
+- Package-build CI now builds and clean-installs release-bearing Python artifacts and validates that all platform package versions remain synchronized.
+- Acceptance validation now exercises schema upgrades from the previous published release while preserving a persisted-state probe.
+
+### Changed
+
+- Core image publication now promotes the exact previously validated candidate digests instead of rebuilding release images during publication.
+- Acceptance and container validation now exercise the same prebuilt application-image topology used by release candidates, including explicit Workers heartbeat health checks.
+- Published release images are smoke-tested again after promotion to the semantic-version tags.
+
+### Fixed
+
+- Release identity validation now rejects mismatched manifest versions, release commits and candidate images before publication.
+- v0.14.2 supersedes the incomplete v0.14.1 tag; v0.14.1 Core image publication did not complete because that tag did not contain the required platform-version and canonical release-commit identity.
+
+
 ## [0.14.0] - 2026-09-24
 
 ### Added
