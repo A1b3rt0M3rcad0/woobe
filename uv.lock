@@ -1515,7 +1515,7 @@ wheels = [
 
 [[package]]
 name = "woobe"
-version = "0.14.2"
+version = "0.14.4"
 source = { virtual = "." }
 dependencies = [
     { name = "aio-pika" },
