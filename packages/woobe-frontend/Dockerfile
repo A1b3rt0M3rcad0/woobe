@@ -15,10 +15,11 @@ ARG VITE_WOOBE_EDITION=core
 COPY packages/woobe-frontend ./
 COPY packages/woobe-runtime-client ../woobe-runtime-client
 COPY packages/woobe-ui ../woobe-ui
+# Tests run on native CI runners before release. Do not execute the test suite
+# inside this multi-architecture image build, where arm64 may be QEMU-emulated.
 RUN test -n "${VITE_API_URL}" \
     && test -n "${VITE_CHAT_EMBED_URL}" \
     && test "${VITE_WOOBE_EDITION}" = "core" \
-    && VITE_API_URL="${VITE_API_URL}" VITE_CHAT_EMBED_URL="${VITE_CHAT_EMBED_URL}" VITE_WOOBE_EDITION="${VITE_WOOBE_EDITION}" npm run test:run \
     && VITE_API_URL="${VITE_API_URL}" VITE_CHAT_EMBED_URL="${VITE_CHAT_EMBED_URL}" VITE_WOOBE_EDITION="${VITE_WOOBE_EDITION}" npm run build
 
 FROM nginxinc/nginx-unprivileged:${NGINX_VERSION}-alpine AS runtime
