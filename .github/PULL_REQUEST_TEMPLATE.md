@@ -21,6 +21,7 @@ State exactly what was executed. Do not mark a check as passing unless it was ac
 
 - [ ] Relevant backend tests
 - [ ] Relevant frontend tests/build
+- [ ] Package Build gate for release-bearing packages
 - [ ] Migration validation, when applicable
 - [ ] Container/Compose validation, when applicable
 - [ ] Manual acceptance/smoke validation, when applicable
