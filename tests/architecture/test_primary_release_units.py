@@ -145,6 +145,7 @@ def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
     assert "Dispatch release-branch validation" in prepare
     assert "workflow run cla.yml" in prepare
     assert "WOOBE_RELEASE_TOKEN_PRESENT" in prepare
+    assert "target {version} must be newer than latest published release" in prepare
 
 
 def test_validated_release_candidate_finalizes_release_automatically() -> None:
@@ -154,6 +155,8 @@ def test_validated_release_candidate_finalizes_release_automatically() -> None:
     release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
     assert "finalize-release:" in candidate
+    assert "Preflight immutable version tags" in candidate
+    assert "already occupied by a different immutable GHCR artifact" in candidate
     assert "Create immutable release tag" in candidate
     assert "git tag -a" in candidate
     assert "gh workflow run release.yml" in candidate
