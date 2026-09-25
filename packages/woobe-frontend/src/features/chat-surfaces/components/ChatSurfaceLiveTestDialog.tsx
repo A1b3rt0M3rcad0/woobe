@@ -29,15 +29,6 @@ interface ChatSurfaceLiveTestDialogProps {
 
 type FrameStatus = 'starting' | 'ready' | 'running' | 'expired' | 'error'
 
-function resolveEmbedOrigin(): string {
-  const configured = import.meta.env.VITE_CHAT_EMBED_URL?.trim() || 'http://localhost:8081'
-  const url = new URL(configured)
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new Error('VITE_CHAT_EMBED_URL must use HTTP(S)')
-  }
-  return url.origin
-}
-
 function shortId(value: string): string {
   return value.length > 22 ? `${value.slice(0, 10)}…${value.slice(-8)}` : value
 }
@@ -96,7 +87,7 @@ export function ChatSurfaceLiveTestDialog({
     : networkVersionsQuery.isError || (!networkVersionsQuery.isLoading && Boolean(session) && !networkVersion)
   const externalContextContractResolved = Boolean(session) && !externalContextContractLoading && !externalContextContractError
 
-  const embedOrigin = useMemo(() => resolveEmbedOrigin(), [])
+  const embedOrigin = RUNTIME_CHAT_EMBED_ORIGIN
   const frameUrl = useMemo(() => {
     if (!session || !instanceId) return ''
     const url = new URL('/chat/v1/iframe.html', `${embedOrigin}/`)
