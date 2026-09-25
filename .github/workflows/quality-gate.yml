@@ -12,6 +12,9 @@ on:
       - "tooling/quality-gate/**"
       - "tests/quality_gate/**"
       - "tests/architecture/**"
+      - "tests/unit/test_release_orchestrator.py"
+      - "tests/unit/test_release_workflow_graph.py"
+      - "tests/unit/test_release_registry_state_machine.py"
       - "pyproject.toml"
       - "pytest.ini"
       - "uv.lock"
@@ -31,7 +34,7 @@ concurrency:
 
 jobs:
   agent-architecture:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
@@ -61,6 +64,12 @@ jobs:
           tests/architecture/test_runtime_observer_boundary.py
           tests/architecture/test_runtime_process_composition_packaging.py
           tests/architecture/test_primary_release_units.py
+      - name: Release workflow state-machine tests
+        run: >-
+          uv run pytest -q
+          tests/unit/test_release_orchestrator.py
+          tests/unit/test_release_workflow_graph.py
+          tests/unit/test_release_registry_state_machine.py
       - name: Agent architecture policy
         run: >-
           PYTHONPATH=tooling/quality-gate/src

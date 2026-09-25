@@ -337,6 +337,8 @@ def test_release_ci_pins_required_actions_and_runs_release_contract_tests() -> N
     )
     for filename in required:
         workflow = (ROOT / ".github/workflows" / filename).read_text(encoding="utf-8")
+        assert "runs-on: [self-hosted, Linux, X64]" not in workflow
+        assert "runs-on: ubuntu-24.04" in workflow
         for action in re.findall(r"uses:\s+([^\s#]+)", workflow):
             if action.startswith("./"):
                 continue
@@ -344,6 +346,9 @@ def test_release_ci_pins_required_actions_and_runs_release_contract_tests() -> N
 
     quality = (ROOT / ".github/workflows/quality-gate.yml").read_text(encoding="utf-8")
     assert "tests/architecture/test_primary_release_units.py" in quality
+    assert "tests/unit/test_release_orchestrator.py" in quality
+    assert "tests/unit/test_release_workflow_graph.py" in quality
+    assert "tests/unit/test_release_registry_state_machine.py" in quality
     assert "github.com/rhysd/actionlint/cmd/actionlint@v1.7.7" in quality
     assert '".github/workflows/release.yml"' in quality
     assert '"scripts/release/**"' in quality

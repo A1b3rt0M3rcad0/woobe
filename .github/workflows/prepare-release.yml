@@ -75,24 +75,7 @@ jobs:
             echo "::warning::master is not protected by GitHub branch protection/rulesets. The release gate still validates its own release PR, but direct pushes can bypass repository-level enforcement. Enable protection when the repository plan/settings permit it."
           fi
 
-          if runners_json="$(gh api "repos/$GITHUB_REPOSITORY/actions/runners" 2>/dev/null)"; then
-            online_required="$(
-              jq '[.runners[]
-                | select(.status == "online")
-                | select(([.labels[].name] | index("self-hosted")) != null)
-                | select(([.labels[].name] | index("Linux")) != null)
-                | select(([.labels[].name] | index("X64")) != null)
-              ] | length' <<<"$runners_json"
-            )"
-            if [[ "$online_required" -lt 1 ]]; then
-              echo "::error::No online self-hosted Linux X64 runner is available for the required pre-merge CI gates."
-              exit 1
-            fi
-            echo "Required self-hosted runner capacity detected: $online_required online runner(s)."
-          else
-            echo "::warning::Unable to inspect self-hosted runner availability with the current token; required CI will remain the authoritative availability gate."
-          fi
-
+          echo "Required pre-merge CI gates run on GitHub-hosted ubuntu-24.04 runners; release orchestration has no self-hosted runner dependency."\n
       - name: Validate target version and resolve release state
         id: target
         shell: bash

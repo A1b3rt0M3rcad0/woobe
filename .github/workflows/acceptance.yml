@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   backend-acceptance:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
       PYTHONPATH: packages/woobe-core/src:packages/woobe-api/src:packages/woobe-workers/src:.
@@ -384,7 +384,7 @@ jobs:
         run: bash scripts/ci/cleanup_docker_access.sh
 
   core-smoke:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
       COMPOSE_PROJECT_NAME: woobe-core-${{ github.run_id }}
@@ -504,7 +504,7 @@ jobs:
           retention-days: 1
 
   previous-release-upgrade:
-    runs-on: [self-hosted, Linux, X64]
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       WOOBE_UPGRADE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.sha }}
