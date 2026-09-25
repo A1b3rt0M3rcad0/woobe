@@ -4,7 +4,6 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Semantic version without v prefix, for example 0.15.0
         required: true
         type: string
 
@@ -39,6 +38,7 @@ jobs:
           set -euo pipefail
           python - "$TARGET_VERSION" <<'PY'
           import re
+          import subprocess
           import sys
 
           version = sys.argv[1]
@@ -47,8 +47,41 @@ jobs:
               r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
               r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
           )
-          if not pattern.fullmatch(version):
+
+          def semver_key(value: str):
+              match = pattern.fullmatch(value)
+              if not match:
+                  return None
+              major, minor, patch = (int(match.group(i)) for i in range(1, 4))
+              prerelease = match.group(4)
+              if prerelease is None:
+                  return (major, minor, patch, 1, ())
+              identifiers = tuple(
+                  (0, int(item)) if item.isdigit() else (1, item)
+                  for item in prerelease.split(".")
+              )
+              return (major, minor, patch, 0, identifiers)
+
+          target_key = semver_key(version)
+          if target_key is None:
               raise SystemExit(f"invalid Semantic Version: {version}")
+
+          raw_tags = subprocess.check_output(
+              ["git", "tag", "--list", "v*"],
+              text=True,
+          ).splitlines()
+          published = []
+          for tag in raw_tags:
+              key = semver_key(tag.removeprefix("v"))
+              if key is not None:
+                  published.append((key, tag))
+
+          if published:
+              latest_key, latest_tag = max(published, key=lambda item: item[0])
+              if target_key <= latest_key:
+                  raise SystemExit(
+                      f"target {version} must be newer than latest published release {latest_tag}"
+                  )
           PY
 
           current="$(tr -d '[:space:]' < VERSION)"
@@ -93,22 +126,30 @@ jobs:
       - name: Open draft release pull request
         id: pr
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          WOOBE_RELEASE_TOKEN_PRESENT: ${{ secrets.WOOBE_RELEASE_TOKEN != '' }}
           VERSION: ${{ steps.target.outputs.version }}
           BRANCH: ${{ steps.target.outputs.branch }}
         shell: bash
         run: |
           set -euo pipefail
-          cat > "$RUNNER_TEMP/release-pr.md" <<EOF
+
+          python - <<'PY'
+          import os
+          import textwrap
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          body = textwrap.dedent(f"""\
           ## Target
 
-          Woobe v${VERSION}
+          Woobe v{version}
 
           ## Automated preparation
 
-          - canonical `VERSION` updated to `${VERSION}`;
+          - canonical `VERSION` updated to `{version}`;
           - all Python and browser package manifests synchronized;
-          - exact `woobe-core==${VERSION}` dependencies synchronized;
+          - exact `woobe-core=={version}` dependencies synchronized;
           - npm and uv lockfile version metadata synchronized;
           - FastAPI and MCP client runtime version metadata synchronized;
           - repository version-consistency contract validated.
@@ -117,28 +158,43 @@ jobs:
 
           Review and update `CHANGELOG.md`, public documentation, migration notes and release notes as required by `RELEASING.md`. Keep this PR in Draft until the release contents are final.
 
-          After merge, the change to `VERSION` automatically triggers immutable release-candidate image build and smoke validation. The merge commit message is not part of release identity.
-          EOF
+          After merge, the change to `VERSION` automatically triggers immutable candidate build, multi-architecture verification, smoke validation, immutable Git tagging, exact image promotion, post-publish smoke, GitHub Release creation and release-branch cleanup. The merge commit message is not part of release identity.
+          """)
+          Path(os.environ["RUNNER_TEMP"], "release-pr.md").write_text(body, encoding="utf-8")
+          PY
 
-          gh pr create \
+          if ! gh pr create \
             --repo "$GITHUB_REPOSITORY" \
             --base master \
             --head "$BRANCH" \
             --draft \
             --title "chore(release): prepare Woobe v${VERSION}" \
             --body-file "$RUNNER_TEMP/release-pr.md"
+          then
+            echo "::warning::Pull-request creation failed; removing orphan release branch $BRANCH."
+            git push origin --delete "$BRANCH" >/dev/null 2>&1 || true
+            echo "::error::Unable to create the release pull request. In Settings > Actions > General > Workflow permissions, enable 'Allow GitHub Actions to create and approve pull requests', or configure a WOOBE_RELEASE_TOKEN secret with Contents, Pull requests and Actions write access."
+            exit 1
+          fi
 
           pr_number="$(gh pr view "$BRANCH" --repo "$GITHUB_REPOSITORY" --json number --jq .number)"
           echo "number=$pr_number" >> "$GITHUB_OUTPUT"
 
       - name: Dispatch release-branch validation
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
+          WOOBE_RELEASE_TOKEN_PRESENT: ${{ secrets.WOOBE_RELEASE_TOKEN != '' }}
           BRANCH: ${{ steps.target.outputs.branch }}
           PR_NUMBER: ${{ steps.pr.outputs.number }}
         shell: bash
         run: |
           set -euo pipefail
+
+          if [[ "$WOOBE_RELEASE_TOKEN_PRESENT" == "true" ]]; then
+            echo "Dedicated release token created the PR; normal pull_request workflows will run automatically."
+            exit 0
+          fi
+
           for workflow in \
             tests.yml \
             frontend.yml \
@@ -163,5 +219,5 @@ jobs:
             echo "Release branch: `${{ steps.target.outputs.branch }}`"
             echo "Draft PR: #${{ steps.pr.outputs.number }}"
             echo
-            echo "CI workflows were explicitly dispatched because repository writes made with GITHUB_TOKEN do not recursively trigger ordinary pull_request workflows."
+            echo "Release-branch CI validation is attached to the generated Draft PR."
           } >> "$GITHUB_STEP_SUMMARY"

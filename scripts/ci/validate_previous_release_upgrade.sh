@@ -30,8 +30,9 @@ done < <(
 )
 
 if [[ -z "$previous_tag" || -z "$previous_api_image" ]]; then
-  echo "No previously published Woobe release with an API image is reachable from $WOOBE_UPGRADE_BASE_SHA" >&2
-  exit 1
+  echo "No previously published Woobe release with an API image is reachable from $WOOBE_UPGRADE_BASE_SHA."
+  echo "Skipping previous-release upgrade validation for the first published release baseline."
+  exit 0
 fi
 
 echo "Validating upgrade from ${previous_tag} using ${previous_api_image}"

@@ -129,14 +129,45 @@ def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
     assert "git log -1 --format=%s" not in candidate
     assert "startsWith(github.event.head_commit.message" not in candidate
 
-    assert 'test "$version" = "${{ inputs.version }}"' in release
-    assert 'git rev-parse "v${{ inputs.version }}^{commit}"' in release
+    assert 'tags:\n      - "v*"' in release
+    assert 'test "$GITHUB_REF_NAME" = "v$version"' in release
+    assert 'git rev-parse "$GITHUB_REF_NAME^{commit}"' in release
+    assert "inputs.version" not in release
     assert "git log -1 --format=%s" not in release
 
     assert "scripts/release/set_platform_version.py" in prepare
     assert "gh pr create" in prepare
+    assert "WOOBE_RELEASE_TOKEN" in prepare
+    assert "textwrap.dedent" in prepare
+    assert "<<EOF" not in prepare
+    assert "git push origin --delete" in prepare
+    assert "Unable to create the release pull request" in prepare
     assert "Dispatch release-branch validation" in prepare
     assert "workflow run cla.yml" in prepare
+    assert "WOOBE_RELEASE_TOKEN_PRESENT" in prepare
+    assert "target {version} must be newer than latest published release" in prepare
+
+
+def test_validated_release_candidate_finalizes_release_automatically() -> None:
+    candidate = (ROOT / ".github/workflows/release-candidate.yml").read_text(
+        encoding="utf-8"
+    )
+    release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    assert "finalize-release:" in candidate
+    assert "Preflight immutable version tags" in candidate
+    assert "already occupied by a different immutable GHCR artifact" in candidate
+    assert "Create immutable release tag" in candidate
+    assert "git tag -a" in candidate
+    assert "gh workflow run release.yml" in candidate
+    assert "github.event_name == 'push'" in candidate
+
+    assert "push:\n    tags:\n      - \"v*\"" in release
+    assert "Immutable release image already exists with a different digest" in release
+    assert "github-release:" in release
+    assert "gh release create" in release
+    assert "--generate-notes" in release
+    assert "Remove completed release branch" in release
 
 
 def test_platform_version_sync_script_covers_release_mirrors() -> None:
@@ -220,6 +251,7 @@ def test_acceptance_validates_previous_release_upgrade() -> None:
     assert "git tag --merged" in upgrade
     assert "docker manifest inspect" in upgrade
     assert "published API image" in upgrade
+    assert "Skipping previous-release upgrade validation for the first published release baseline." in upgrade
     assert "head -n 1" not in upgrade
     assert "ghcr.io/" in upgrade
     assert "alembic" in upgrade
