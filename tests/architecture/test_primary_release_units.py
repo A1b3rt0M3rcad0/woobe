@@ -203,7 +203,7 @@ def test_release_workflows_pin_hosted_runner_and_action_commits() -> None:
         workflow = (ROOT / relative).read_text(encoding="utf-8")
         assert "ubuntu-latest" not in workflow
         assert "ubuntu-24.04" in workflow
-        for action in re.findall(r"uses:\\s+([^\\s#]+)", workflow):
+        for action in re.findall(r"uses:\s+([^\s#]+)", workflow):
             assert re.search(r"@[0-9a-f]{40}$", action), (relative, action)
 
 
