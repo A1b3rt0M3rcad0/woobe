@@ -137,6 +137,34 @@ def test_container_ci_reproduces_release_candidate_multiarch_contract() -> None:
         assert token in containers
 
 
+def test_release_candidate_sha_tags_are_reused_not_overwritten() -> None:
+    candidate = (ROOT / ".github/workflows/release-candidate.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "Check immutable candidate existence" in candidate
+    assert "steps.candidate.outputs.exists != 'true'" in candidate
+    assert "Verify immutable candidate identity" in candidate
+    assert "org.opencontainers.image.revision" in candidate
+    assert "org.opencontainers.image.version" in candidate
+
+
+def test_acceptance_validates_previous_release_upgrade() -> None:
+    acceptance = (ROOT / ".github/workflows/acceptance.yml").read_text(
+        encoding="utf-8"
+    )
+    upgrade = (ROOT / "scripts/ci/validate_previous_release_upgrade.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "previous-release-upgrade:" in acceptance
+    assert "validate_previous_release_upgrade.sh" in acceptance
+    assert "git tag --merged" in upgrade
+    assert "ghcr.io/" in upgrade
+    assert "alembic" in upgrade
+    assert "release-upgrade-probe" in upgrade
+
+
 def test_prebuilt_image_smoke_contract_covers_all_container_units() -> None:
     override = (ROOT / "docker/ci/compose.release-images.yml").read_text(
         encoding="utf-8"
