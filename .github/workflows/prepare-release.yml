@@ -43,9 +43,9 @@ jobs:
 
           version = sys.argv[1]
           pattern = re.compile(
-              r"^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)"
-              r"(?:-([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?"
-              r"(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?$"
+              r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+              r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+              r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
           )
           if not pattern.fullmatch(version):
               raise SystemExit(f"invalid Semantic Version: {version}")
