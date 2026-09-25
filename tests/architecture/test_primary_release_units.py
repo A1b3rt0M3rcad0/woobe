@@ -146,7 +146,7 @@ def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
     assert "WOOBE_RELEASE_TOKEN" in prepare
     assert "textwrap.dedent" in prepare
     assert "<<EOF" not in prepare
-    assert "git push origin --delete" in prepare
+    assert "git push origin --delete" in release
     assert "Unable to create the release pull request" in prepare
     assert "orchestrate_release_pr.py" in prepare
     assert "Build and validate exact release candidate" in prepare
