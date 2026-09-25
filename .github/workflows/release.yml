@@ -72,18 +72,6 @@ jobs:
           revision="$(git rev-parse HEAD)"
           test "$revision" = "$EXPECTED_REVISION"
 
-          git fetch --force --tags origin
-          tag="v$version"
-          if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-            echo "::error::Immutable release tag $tag does not exist."
-            exit 1
-          fi
-          tag_revision="$(git rev-parse "$tag^{commit}")"
-          if [[ "$tag_revision" != "$revision" ]]; then
-            echo "::error::Release tag $tag points to $tag_revision, expected $revision."
-            exit 1
-          fi
-
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           echo "owner=$owner" >> "$GITHUB_OUTPUT"
           echo "revision=$revision" >> "$GITHUB_OUTPUT"
@@ -168,6 +156,84 @@ jobs:
             grep -q 'linux/amd64' <<<"$manifest"
             grep -q 'linux/arm64' <<<"$manifest"
             echo "$unit: $actual"
+          done
+
+      - name: Preflight release version targets
+        shell: bash
+        env:
+          OWNER: ${{ steps.meta.outputs.owner }}
+          VERSION: ${{ steps.meta.outputs.version }}
+          API_DIGEST: ${{ inputs.api_digest }}
+          WORKERS_DIGEST: ${{ inputs.workers_digest }}
+          FRONTEND_DIGEST: ${{ inputs.frontend_digest }}
+          EMBED_DIGEST: ${{ inputs.embed_digest }}
+        run: |
+          set -euo pipefail
+
+          expected_digest() {
+            case "$1" in
+              api) printf '%s\n' "$API_DIGEST" ;;
+              workers) printf '%s\n' "$WORKERS_DIGEST" ;;
+              frontend) printf '%s\n' "$FRONTEND_DIGEST" ;;
+              embed) printf '%s\n' "$EMBED_DIGEST" ;;
+              *) return 2 ;;
+            esac
+          }
+
+          probe_target() {
+            local ref="$1"
+            local output=""
+            local delay=2
+
+            for attempt in 1 2 3 4 5; do
+              if output="$(docker buildx imagetools inspect "$ref" 2>&1)"; then
+                printf '%s\n' "$output"
+                return 0
+              fi
+
+              if grep -Eqi '(manifest unknown|no such manifest|not found)' <<<"$output"; then
+                return 3
+              fi
+
+              echo "::warning::Release target lookup failed for $ref (attempt $attempt/5): $output" >&2
+              if [[ "$attempt" != 5 ]]; then
+                sleep "$delay"
+                delay=$((delay * 2))
+              fi
+            done
+
+            echo "::error::Unable to determine registry state for release ref: $ref" >&2
+            return 1
+          }
+
+          for unit in api workers frontend embed; do
+            repository="ghcr.io/$OWNER/woobe-$unit"
+            target_ref="$repository:$VERSION"
+            expected="$(expected_digest "$unit")"
+
+            set +e
+            existing="$(probe_target "$target_ref")"
+            state=$?
+            set -e
+
+            if [[ "$state" == 0 ]]; then
+              actual="$(awk '$1 == "Digest:" { print $2; exit }' <<<"$existing")"
+              if [[ "$actual" != "$expected" ]]; then
+                echo "::error::Immutable release image already exists with a different digest: $target_ref"
+                echo "::error::existing=$actual expected=$expected"
+                exit 1
+              fi
+              echo "$unit: existing release tag matches validated digest $actual"
+              continue
+            fi
+
+            if [[ "$state" == 3 ]]; then
+              echo "$unit: release tag is absent and may be promoted"
+              continue
+            fi
+
+            echo "::error::Registry state is unknown for $target_ref; refusing to publish."
+            exit 1
           done
 
       - name: Promote exact validated digests to release version
@@ -347,8 +413,44 @@ jobs:
         if: always()
         run: docker compose -f compose.yaml -f docker/ci/compose.release-images.yml down -v --remove-orphans || true
 
-  github-release:
+  tag:
+    name: Create immutable release tag
     needs: [publish, post-publish-smoke]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.publish.outputs.revision }}
+          fetch-depth: 0
+
+      - name: Create or verify immutable release tag
+        env:
+          VERSION: ${{ needs.publish.outputs.version }}
+          REVISION: ${{ needs.publish.outputs.revision }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          git fetch --force --tags origin
+
+          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
+            git fetch --force origin "refs/tags/$tag:refs/tags/$tag"
+            tagged_revision="$(git rev-parse "$tag^{commit}")"
+            if [[ "$tagged_revision" != "$REVISION" ]]; then
+              echo "::error::Immutable release tag $tag already points to $tagged_revision; expected $REVISION."
+              exit 1
+            fi
+            echo "Tag $tag already exists on the exact validated release commit."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "$tag" "$REVISION" -m "Woobe $tag"
+            git push origin "refs/tags/$tag"
+          fi
+
+  github-release:
+    needs: [publish, post-publish-smoke, tag]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:

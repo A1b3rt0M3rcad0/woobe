@@ -407,47 +407,9 @@ jobs:
       orchestration_id: ${{ github.run_id }}-${{ github.run_attempt }}
     secrets: inherit
 
-  tag:
-    name: Create immutable release tag
-    needs: [prepare, candidate]
-    if: ${{ needs.prepare.outputs.already_published != 'true' }}
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-        with:
-          ref: ${{ needs.prepare.outputs.revision }}
-          fetch-depth: 0
-          token: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
-
-      - name: Create or verify immutable release tag
-        env:
-          VERSION: ${{ needs.prepare.outputs.version }}
-          REVISION: ${{ needs.prepare.outputs.revision }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          tag="v$VERSION"
-          git fetch --force --tags origin
-
-          if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null 2>&1; then
-            git fetch --force origin "refs/tags/$tag:refs/tags/$tag"
-            tagged_revision="$(git rev-parse "$tag^{commit}")"
-            if [[ "$tagged_revision" != "$REVISION" ]]; then
-              echo "::error::Immutable release tag $tag already points to $tagged_revision; expected $REVISION."
-              exit 1
-            fi
-            echo "Tag $tag already exists on the exact validated release commit."
-          else
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git tag -a "$tag" "$REVISION" -m "Woobe $tag"
-            git push origin "refs/tags/$tag"
-          fi
-
   publish:
     name: Publish validated release
-    needs: [prepare, candidate, tag]
+    needs: [prepare, candidate]
     if: ${{ needs.prepare.outputs.already_published != 'true' }}
     uses: ./.github/workflows/release.yml
     with:
@@ -569,7 +531,7 @@ jobs:
 
   summary:
     name: Release result
-    needs: [prepare, candidate, tag, publish, verify-published]
+    needs: [prepare, candidate, publish, verify-published]
     if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -579,7 +541,6 @@ jobs:
           ALREADY_PUBLISHED: ${{ needs.prepare.outputs.already_published }}
           PREPARE_RESULT: ${{ needs.prepare.result }}
           CANDIDATE_RESULT: ${{ needs.candidate.result }}
-          TAG_RESULT: ${{ needs.tag.result }}
           PUBLISH_RESULT: ${{ needs.publish.result }}
           VERIFY_RESULT: ${{ needs.verify-published.result }}
         shell: bash
@@ -591,7 +552,6 @@ jobs:
             test "$VERIFY_RESULT" = "success"
           else
             test "$CANDIDATE_RESULT" = "success"
-            test "$TAG_RESULT" = "success"
             test "$PUBLISH_RESULT" = "success"
           fi
 

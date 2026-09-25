@@ -107,9 +107,16 @@ def test_release_promotes_candidate_without_rebuilding() -> None:
     assert "docker build " not in release
     assert "docker buildx imagetools create" in release
     assert 'candidate_tag="sha-$REVISION"' in release
+    assert "Preflight release version targets" in release
+    assert release.index("Preflight release version targets") < release.index(
+        "Promote exact validated digests to release version"
+    )
     assert "Promote exact validated digests to release version" in release
     assert 'test "$target_digest" = "$digest"' in release
     assert "post-publish-smoke:" in release
+    assert "tag:" in release
+    assert "needs: [publish, post-publish-smoke]" in release
+    assert "needs: [publish, post-publish-smoke, tag]" in release
     assert "smoke_prebuilt_core_images.sh" in release
     assert "/woobe-core:" not in release
 
@@ -139,6 +146,7 @@ def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
     assert "validation_id:" in release
     assert "api_digest:" in release
     assert 'test "$revision" = "$EXPECTED_REVISION"' in release
+    assert "Immutable release tag $tag does not exist." not in release
     assert 'git rev-parse "$tag^{commit}"' in release
     assert "git log -1 --format=%s" not in release
 
@@ -194,7 +202,9 @@ def test_validated_release_candidate_is_bound_to_one_orchestrated_publication() 
 
     assert "uses: ./.github/workflows/release-candidate.yml" in prepare
     assert "uses: ./.github/workflows/release.yml" in prepare
-    assert "Create or verify immutable release tag" in prepare
+    assert "Create or verify immutable release tag" not in prepare
+    assert "Create or verify immutable release tag" in release
+    assert "Preflight release version targets" in release
     assert "Verify completed release recovery" in prepare
     assert "Complete pending release branch cleanup" in prepare
     assert "${{ github.run_id }}-${{ github.run_attempt }}" in prepare
