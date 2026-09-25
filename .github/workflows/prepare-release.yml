@@ -59,8 +59,14 @@ jobs:
         run: |
           set -euo pipefail
 
+          already_published="false"
+          if gh release view "v$TARGET_VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            already_published="true"
+          fi
+
           published_tags="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" --jq '.[].tag_name')"
           export PUBLISHED_TAGS="$published_tags"
+          export TARGET_ALREADY_PUBLISHED="$already_published"
 
           python - "$TARGET_VERSION" <<'PY'
           import os
@@ -104,7 +110,7 @@ jobs:
               if key is not None:
                   published.append((key, raw))
 
-          if published:
+          if published and os.environ.get("TARGET_ALREADY_PUBLISHED") != "true":
               latest_key, latest_tag = max(published, key=lambda item: item[0])
               if target_key <= latest_key:
                   raise SystemExit(
@@ -118,12 +124,17 @@ jobs:
           resume_finalization="false"
           merge_sha=""
 
-          if gh release view "v$TARGET_VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "GitHub Release v$TARGET_VERSION already exists; nothing to release." >&2
-            exit 1
-          fi
-
-          if [[ "$current" == "$TARGET_VERSION" ]]; then
+          if [[ "$already_published" == "true" ]]; then
+            resume_finalization="true"
+            git fetch --force --tags origin
+            merge_sha="$(git rev-parse "v$TARGET_VERSION^{commit}")"
+            released_version="$(git show "$merge_sha:VERSION" | tr -d '[:space:]')"
+            if [[ "$released_version" != "$TARGET_VERSION" ]]; then
+              echo "Published tag v$TARGET_VERSION resolves to VERSION=$released_version; expected $TARGET_VERSION." >&2
+              exit 1
+            fi
+            echo "GitHub Release v$TARGET_VERSION is already complete at $merge_sha; treating this retry as successful idempotent completion."
+          elif [[ "$current" == "$TARGET_VERSION" ]]; then
             resume_finalization="true"
             merge_sha="$(gh pr list \
               --repo "$GITHUB_REPOSITORY" \
@@ -229,6 +240,7 @@ jobs:
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "existing_pr=$existing_pr" >> "$GITHUB_OUTPUT"
           echo "resume_finalization=$resume_finalization" >> "$GITHUB_OUTPUT"
+          echo "already_published=$already_published" >> "$GITHUB_OUTPUT"
           echo "merge_sha=$merge_sha" >> "$GITHUB_OUTPUT"
 
       - name: Synchronize platform version
@@ -347,6 +359,7 @@ jobs:
 
       - name: Build and validate exact release candidate
         id: candidate
+        if: steps.target.outputs.already_published != 'true'
         env:
           GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.target.outputs.version }}
@@ -368,6 +381,7 @@ jobs:
 
       - name: Create or verify immutable release tag
         id: tag
+        if: steps.target.outputs.already_published != 'true'
         env:
           VERSION: ${{ steps.target.outputs.version }}
           REVISION: ${{ steps.revision.outputs.sha }}
@@ -396,6 +410,7 @@ jobs:
 
       - name: Publish exact validated release
         id: publication
+        if: steps.target.outputs.already_published != 'true'
         env:
           GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.target.outputs.version }}
@@ -428,6 +443,7 @@ jobs:
           PUBLICATION_RUN_ID: ${{ steps.publication.outputs.publication_run_id }}
           PUBLICATION_URL: ${{ steps.publication.outputs.publication_url }}
           RESUMED: ${{ steps.target.outputs.resume_finalization }}
+          ALREADY_PUBLISHED: ${{ steps.target.outputs.already_published }}
         run: |
           {
             echo "### Woobe v$VERSION released"
@@ -440,8 +456,12 @@ jobs:
             if [[ -n "$VALIDATED_HEAD_SHA" ]]; then
               echo "Validated PR HEAD: `$VALIDATED_HEAD_SHA`"
             fi
-            echo "Candidate run: [#$CANDIDATE_RUN_ID]($CANDIDATE_URL)"
-            echo "Publication run: [#$PUBLICATION_RUN_ID]($PUBLICATION_URL)"
-            echo
-            echo "Required PR CI, exact candidate build, multi-arch validation, candidate smoke, immutable digest promotion, post-publish smoke and GitHub Release creation all passed."
+            if [[ "$ALREADY_PUBLISHED" == "true" ]]; then
+              echo "GitHub Release: already complete; this retry verified the immutable tag/revision and returned success."
+            else
+              echo "Candidate run: [#$CANDIDATE_RUN_ID]($CANDIDATE_URL)"
+              echo "Publication run: [#$PUBLICATION_RUN_ID]($PUBLICATION_URL)"
+              echo
+              echo "Required PR CI, exact candidate build, multi-arch validation, candidate smoke, immutable digest promotion, post-publish smoke and GitHub Release creation all passed."
+            fi
           } >> "$GITHUB_STEP_SUMMARY"
