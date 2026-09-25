@@ -7,6 +7,11 @@ __pycache__/
 !.env.production.example
 .git
 .github
+!.github/
+.github/*
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/prepare-release.yml
 .gitignore
 .pytest_cache/
 .ruff_cache/

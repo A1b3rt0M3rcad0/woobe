@@ -104,17 +104,21 @@ The preferred release path is the **Release Woobe** GitHub Action. Starting this
 
 1. Open **Actions -> Release Woobe**.
 2. Enter the target Semantic Version without the `v` prefix.
-3. The workflow validates the version, requires it to be newer than the latest published Semantic Version when published tags exist, and ensures that neither `v<VERSION>` nor `release/<VERSION>` already exists.
+3. The workflow validates the version, requires it to be newer than the latest published Semantic Version when published tags exist, and rejects an existing `v<VERSION>`. If `release/<VERSION>` already has an open PR targeting `master`, it resumes that PR without rewriting the branch or creating another PR. An existing branch without such a PR remains blocking.
 4. It runs `scripts/release/set_platform_version.py <VERSION>`.
 5. It validates the synchronized state with `scripts/ci/check_package_versions.py`.
 6. It creates `release/<VERSION>`, commits the synchronized release state and opens a normal release pull request.
 7. It waits for the complete required CI matrix on the exact PR HEAD.
-8. If any required workflow fails, is cancelled, times out or otherwise does not conclude successfully, the release remains unmerged and nothing is tagged or published. The orchestrator comments the blocking state on the PR.
+8. If GitHub requires approval to start CI, the orchestrator comments the required action on the PR and waits within its CI timeout. Once approved, it continues watching the same HEAD. A failed, cancelled, skipped or timed-out workflow blocks the release; nothing is tagged or published.
 9. If `master` advances while validation is running, the workflow refreshes the release branch from current `master` and requires CI to pass again.
 10. Only a stable release HEAD with every required gate green is merged automatically.
 11. The exact merge commit is then handed to release-candidate finalization.
 
-For automatic PR creation and merge, enable **Settings -> Actions -> General -> Workflow permissions -> Allow GitHub Actions to create and approve pull requests**. As an alternative, configure a repository secret named `WOOBE_RELEASE_TOKEN` with Contents, Pull requests and Actions write access; the workflow prefers that token when present.
+For automatic PR creation and merge, enable **Settings -> Actions -> General -> Workflow permissions -> Allow GitHub Actions to create and approve pull requests**. With the default `GITHUB_TOKEN`, GitHub creates pull-request workflow runs in an approval-required state: a maintainer must select **Approve workflows to run** on the release PR. This approval is separate from permission to create PRs; the orchestrator waits for it rather than treating `action_required` as a test failure or bypassing it with another dispatch.
+
+For CI that starts without this additional approval, configure the already supported repository secret `WOOBE_RELEASE_TOKEN` with a GitHub App installation token or personal access token with Contents, Pull requests and Actions write access. The workflow uses it consistently for Git checkout/push and GitHub CLI operations. See [GitHub's token-trigger behavior](https://docs.github.com/en/actions/concepts/security/github_token#when-github_token-triggers-workflow-runs).
+
+If orchestration times out before approval or stops before merge, start **Release Woobe** again from `master` with the same version to resume the existing open release PR. Retry actual failed CI runs after correcting their cause; resuming never treats a failed check as successful.
 
 The release PR is an auditable, deterministic version-synchronization unit. Product code, migrations, changelog entries, public documentation and compatibility notes must already be reviewed on `master` through normal development pull requests before starting the release.
 
@@ -458,7 +462,7 @@ The required release gates are:
 - Security audit;
 - CLA acceptance.
 
-Only `success` satisfies a required gate. Older cancelled runs do not override a newer run for the same workflow and exact HEAD. Missing workflows are explicitly dispatched as a fallback.
+Only `success` satisfies a required gate. Runs must match the required workflow file and exact HEAD; all result pages are inspected and the newest run ID wins, including runs created in the same second. Older cancelled runs do not override a newer run for the same workflow and exact HEAD. Missing workflows are explicitly dispatched as a fallback. Approval-required runs already exist and must be approved through GitHub; they are never redispatched to avoid that approval.
 
 The orchestrator also requires the validated PR HEAD to include current `master`. If `master` advances, the release branch is refreshed and the new HEAD must pass the complete gate again.
 
