@@ -341,8 +341,10 @@ def merge_release(
 ) -> str:
     latest = pr(repo, number)
     if latest["head"]["sha"] != head_sha:
-        raise ReleaseGateError(
-            "release PR head changed after validation; a new CI pass is required"
+        fail(
+            repo,
+            number,
+            "Release PR head changed after validation; a new CI pass is required.",
         )
 
     result = run(
