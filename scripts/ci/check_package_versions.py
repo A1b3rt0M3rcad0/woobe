@@ -32,7 +32,7 @@ def _json_version(path: str) -> str:
 def _uv_project_version() -> str:
     content = (ROOT / "uv.lock").read_text(encoding="utf-8")
     match = re.search(
-        r'\\[\\[package\\]\\]\\nname = "woobe"\\nversion = "([^"]+)"',
+        r'\[\[package\]\]\nname = "woobe"\nversion = "([^"]+)"',
         content,
     )
     if not match:
