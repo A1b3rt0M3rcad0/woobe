@@ -104,7 +104,7 @@ The preferred release-preparation path is GitHub Actions:
 
 1. Open **Actions -> Prepare Woobe release**.
 2. Enter the target Semantic Version without the `v` prefix.
-3. The workflow validates the version and ensures that neither `v<VERSION>` nor `release/<VERSION>` already exists.
+3. The workflow validates the version, requires it to be newer than the latest published Semantic Version when published tags exist, and ensures that neither `v<VERSION>` nor `release/<VERSION>` already exists.
 4. It runs `scripts/release/set_platform_version.py <VERSION>`.
 5. It validates the synchronized state with `scripts/ci/check_package_versions.py`.
 6. It creates `release/<VERSION>`, commits the synchronized release state, opens a Draft pull request and explicitly dispatches the release-branch CI workflows.
@@ -476,6 +476,8 @@ On a push to `master` that changes `VERSION`, `.github/workflows/release-candida
 The initial repository introduction of `VERSION` is treated as bootstrap and does not create a release candidate.
 
 A failed candidate does not create the release tag. Fix the release through a new reviewed commit/version rather than moving an existing tag.
+
+Before creating the Git tag, candidate finalization also checks whether any GHCR `<VERSION>` image tag already exists. An existing version is accepted only when every existing version tag resolves to the exact validated candidate digest. A different digest blocks finalization before the Git tag is created.
 
 For controlled recovery or revalidation, `release-candidate.yml` also accepts a manual `ref` input. Manual candidate generation validates/builds the candidate but does not automatically create a release tag or publish a release.
 
