@@ -455,13 +455,13 @@ A release PR should contain only release preparation and required blockers. Revi
 
 All required repository checks and reviews must pass before merge. The automated workflow dispatches the normal validation matrix for its generated branch; subsequent human edits to the PR trigger the ordinary pull-request workflows.
 
-## 12. Merge and identify the immutable release commit
+## 12. Merge and automatic release finalization
 
 Merge the reviewed release PR using any repository-supported merge strategy. Release correctness does not depend on the merge commit subject.
 
 The canonical platform release commit is the exact `master` commit that introduces the transition of root `VERSION` from the previous platform version to `<VERSION>`.
 
-On a push to `master` that changes `VERSION`, `.github/workflows/release-candidate.yml`:
+On a push to `master` that changes `VERSION`, `.github/workflows/release-candidate.yml` automatically:
 
 1. compares `VERSION` with the first parent;
 2. validates every release-bearing mirror against canonical `VERSION`;
@@ -469,187 +469,35 @@ On a push to `master` that changes `VERSION`, `.github/workflows/release-candida
 4. builds the four multi-architecture application images once;
 5. publishes immutable `sha-<commit>` candidate tags with provenance/SBOM attestations;
 6. verifies amd64 and arm64 manifests;
-7. smoke-tests those exact candidate images.
+7. smoke-tests those exact candidate images;
+8. creates the immutable annotated `v<VERSION>` Git tag on that exact validated revision;
+9. dispatches `.github/workflows/release.yml` against that tag.
 
 The initial repository introduction of `VERSION` is treated as bootstrap and does not create a release candidate.
 
-Wait for the candidate workflow for the exact release commit to succeed before creating the release tag. A failed or missing candidate must be corrected by a new reviewed release commit/version; do not tag a commit whose immutable candidate did not pass.
+A failed candidate does not create the release tag. Fix the release through a new reviewed commit/version rather than moving an existing tag.
 
-For controlled recovery or revalidation, `release-candidate.yml` also accepts a manual `ref` input. Manual candidate generation does not authorize moving or reusing an existing published tag.
+For controlled recovery or revalidation, `release-candidate.yml` also accepts a manual `ref` input. Manual candidate generation validates/builds the candidate but does not automatically create a release tag or publish a release.
 
-Record the successful release commit SHA. If `master` advances afterward, tag that recorded commit explicitly rather than assuming the latest `master` commit is still the release commit.
+## 13. Immutable tag and container publication
 
-## 13. Create the Git tag
+The release tag is normally created by the successful candidate workflow. Manual tag creation is a recovery operation only.
 
-Create an annotated tag from the exact reviewed release commit whose immutable candidate passed:
+`.github/workflows/release.yml` is automatically dispatched against the exact tag by the candidate finalization job. It also listens for direct `v*` tag pushes, so a manually created recovery tag follows the same publication contract.
 
-```bash
-VERSION=0.15.0
-RELEASE_COMMIT=<successful-release-candidate-commit-sha>
+The publication workflow:
 
-git tag -a "v$VERSION" "$RELEASE_COMMIT" -m "Woobe v$VERSION"
-git push origin "v$VERSION"
-```
-
-The tag is immutable release history.
-
-Do not move, force-update or reuse a published release tag. If a published release contains a defect, publish a new version.
-
-Before publishing artifacts, verify:
-
-```bash
-git rev-parse "v$VERSION^{commit}"
-printf '%s\n' "$RELEASE_COMMIT"
-```
-
-They must identify the same intended release commit.
-
-The corresponding `sha-<commit>` release candidates must already exist and have passed the candidate workflow before this tag is created.
-
-## 14. Publish the GitHub Release
-
-Create a GitHub Release from `v<VERSION>`.
-
-Use:
-
-```text
-Woobe v<VERSION>
-```
-
-as the release title.
-
-Every Woobe GitHub Release has two complementary layers:
-
-1. **Curated release notes** — maintained manually for users and operators.
-2. **Change provenance** — derived from the pull requests actually included in the release.
-
-The curated section should summarize the changelog rather than duplicate every commit. Include the sections that apply:
-
-```markdown
-# Woobe v<VERSION>
-
-## Highlights
-
-A short explanation of the most important changes in this release.
-
-## New Features
-
-### Feature name
-User-facing explanation and relevant migration/usage notes.
-
-## Improvements
-
-### Improvement name
-User-facing explanation.
-
-## Bug Fixes
-
-### Area or fix
-User-facing explanation.
-
-## Breaking Changes
-
-Only when applicable.
-
-## Upgrade Notes
-
-Only when operator action, migrations or configuration changes are required.
-
----
-
-## What's Changed
-
-<generated PR list>
-
-## New Contributors
-
-<generated first-time contributor list, when applicable>
-
-**Full Changelog**: <previous release or baseline>...v<VERSION>
-```
-
-Do not force empty editorial sections into the published notes. Omit sections that do not apply to the release.
-
-### Pull request provenance and contributor credit
-
-The `What's Changed` section is part of the release record and must preserve the relationship between the change, its pull request and its author.
-
-The preferred entry shape is the one produced by GitHub generated release notes:
-
-```markdown
-* feat(runtime): add programmable execution by @contributor in #123
-* fix(network): preserve session-scoped context by @contributor in #127
-```
-
-For each pull request included in the release:
-
-- preserve the GitHub author attribution;
-- preserve a link/reference to the pull request;
-- use the merged PR title or an equivalent factual description;
-- include the PR only when its merged change is actually reachable from the release tag;
-- do not assign contribution percentages, line-count rankings or subjective contributor scores;
-- do not replace an external contributor's attribution with the maintainer who merged the PR.
-
-A contributor's participation is represented by the concrete PRs included in the release, not by an estimated percentage of the release.
-
-Direct commits without a pull request may be represented separately when they materially affect the release, but normal development should continue to prefer pull requests so release provenance remains attributable.
-
-### New contributors
-
-When GitHub identifies a contributor whose first merged contribution is included in the release, preserve the generated `New Contributors` section.
-
-Example:
-
-```markdown
-## New Contributors
-
-* @alice made their first contribution in #123
-* @bob made their first contribution in #127
-```
-
-This section is for human contributors. Automation accounts such as dependency/update bots and GitHub Actions are not treated as first-time community contributors.
-
-### Generated release notes
-
-Use GitHub generated release notes as the starting point for the provenance portion of the release. Repository configuration for generated notes lives at:
-
-```text
-.github/release.yml
-```
-
-The generated content is not a substitute for the curated `Highlights`, feature/fix explanations, breaking changes or upgrade notes. Maintainers should generate the PR/contributor section, then edit the release body without deleting valid author attribution.
-
-The generated PR list must be checked against the exact release range. A pull request merged after the release tag, excluded from the release commit, or otherwise not reachable from the release tag must not be credited as part of that version.
-
-### Full changelog link
-
-For every release after the first public release, include a comparison from the immediately previous published platform tag:
-
-```text
-v<PREVIOUS_VERSION>...v<VERSION>
-```
-
-Example:
-
-```text
-v0.11.0...v0.12.0
-```
-
-The comparison link is the exhaustive repository-level reference. `CHANGELOG.md` remains curated product history and should not become a raw PR dump.
-
-For the first public release, define and record an explicit initial release baseline commit for release-note and contributor accounting rather than inventing a `v0.0.0` tag. The baseline must belong to the publishable history.
-
-The GitHub Release must point to the immutable tag, never to a moving branch.
-
-## 15. Publish Core container images
-
-The release workflow is:
-
-```text
-.github/workflows/release.yml
-```
-
-It does **not rebuild** the release images. The exact multi-architecture artifacts were already built, attested and smoke-tested by `.github/workflows/release-candidate.yml` from the canonical release commit.
+1. requires an immutable `v<VERSION>` tag;
+2. requires tag name == canonical root `VERSION`;
+3. validates every release-bearing version mirror;
+4. verifies the tag resolves to the exact checked-out revision;
+5. verifies all four immutable `sha-<commit>` candidates;
+6. promotes those exact OCI manifests to `<VERSION>` without rebuilding;
+7. refuses to overwrite an existing version tag when its digest differs;
+8. allows idempotent recovery when an existing version tag already resolves to the expected digest;
+9. pulls the registry-delivered versioned images back;
+10. verifies OCI revision/version labels;
+11. runs the clean production-shaped post-publish smoke test.
 
 For each container unit, the candidate identity is:
 
@@ -660,13 +508,7 @@ ghcr.io/<owner>/woobe-frontend:sha-<RELEASE_COMMIT>
 ghcr.io/<owner>/woobe-embed:sha-<RELEASE_COMMIT>
 ```
 
-Pushing the immutable `v<VERSION>` tag automatically triggers `release.yml`. No second version input is required.
-
-For controlled recovery, `release.yml` may also be started manually, but the workflow must be run from the immutable `v<VERSION>` tag. Running it from `master` or another branch fails identity validation.
-
-The workflow verifies that the selected tag name, tag commit, canonical root `VERSION` and every release-bearing version mirror agree. It then resolves the digest of each `sha-<RELEASE_COMMIT>` candidate and creates the version tag from that exact OCI manifest. The release step fails if the versioned tag does not resolve to the same digest.
-
-This is a build-once/promote-exact-artifact contract:
+The published version tags are digest-preserving promotions:
 
 ```text
 canonical release commit
@@ -677,14 +519,50 @@ candidate smoke + attestations
         ↓
 sha-<commit> immutable image
         ↓
-v<VERSION> tag
+v<VERSION> immutable Git tag
         ↓
 digest-preserving promotion
         ↓
 <VERSION> image tag
+        ↓
+registry-delivered smoke
 ```
 
-The workflow then pulls the published version tags back from GHCR, verifies their OCI revision/version labels and performs a clean production-shaped smoke test using the registry-delivered images. Publication is not considered successful until that post-publish smoke job passes.
+Deletion of a Git tag or GitHub Release does not make an already-published GHCR version reusable. If `woobe-<unit>:<VERSION>` exists with different bytes, publication fails and a new Semantic Version must be selected.
+
+## 14. Automatic GitHub Release
+
+After post-publish smoke succeeds, `release.yml` automatically creates the GitHub Release for `v<VERSION>` using GitHub generated release notes and the title:
+
+```text
+Woobe v<VERSION>
+```
+
+Generated notes preserve pull-request provenance, contributor attribution, first-time contributor information when available and the comparison against the previous published tag.
+
+`.github/release.yml` remains the configuration surface for generated-note categorization.
+
+`CHANGELOG.md` remains the curated product/operator history and should be reviewed in the release PR before merge. It is not replaced by the generated GitHub Release notes.
+
+If the GitHub Release already exists during an idempotent recovery run, the workflow preserves it instead of creating a second release.
+
+After the GitHub Release is confirmed, the workflow removes `release/<VERSION>` when that branch still exists.
+
+## 15. Human release gate and recovery
+
+The normal release path has two intentional human actions:
+
+1. choose the target Semantic Version and start **Prepare Woobe release**;
+2. review the generated Draft release PR and merge it when its CI, changelog, documentation and compatibility notes are acceptable.
+
+After that merge, candidate build, immutable tagging, image promotion, post-publish smoke, GitHub Release creation and release-branch cleanup are automatic.
+
+Manual recovery remains available:
+
+- run `release-candidate.yml` with an explicit `ref` to rebuild/revalidate an immutable candidate;
+- run `release.yml` manually from an existing immutable `v<VERSION>` tag to retry publication;
+- never run `release.yml` from `master` or another branch;
+- never move/reuse a published Git tag or overwrite a versioned GHCR image with different bytes.
 
 Current Core release units are:
 
