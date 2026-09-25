@@ -31,37 +31,6 @@ on:
     outputs:
       release_url:
         value: ${{ jobs.github-release.outputs.release_url }}
-  workflow_dispatch:
-    inputs:
-      version:
-        description: Release version without the v prefix.
-        required: true
-        type: string
-      revision:
-        description: Exact validated merge commit SHA.
-        required: true
-        type: string
-      validation_id:
-        description: Candidate validation identity.
-        required: true
-        type: string
-      api_digest:
-        required: true
-        type: string
-      workers_digest:
-        required: true
-        type: string
-      frontend_digest:
-        required: true
-        type: string
-      embed_digest:
-        required: true
-        type: string
-      orchestration_id:
-        description: Correlation identity for manual/recovery publication.
-        required: true
-        type: string
-
 permissions:
   contents: write
   packages: write
