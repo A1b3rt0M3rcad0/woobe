@@ -124,7 +124,7 @@ def checkout_release_branch(repo: str, number: int, branch: str, version: str) -
     if data["head"]["repo"]["full_name"] != repo:
         fail(repo, number, "Release PR head must belong to the Woobe repository.")
 
-    run(["git", "fetch", "--force", "origin", "master", branch], capture=False)
+    run(["git", "fetch", "--force", "origin"], capture=False)
     run(["git", "checkout", "-B", branch, f"origin/{branch}"], capture=False)
 
     current = Path("VERSION").read_text(encoding="utf-8").strip()
@@ -165,7 +165,7 @@ def refresh_from_master_if_needed(
     branch: str,
     version: str,
 ) -> tuple[str, bool]:
-    run(["git", "fetch", "--force", "origin", "master", branch], capture=False)
+    run(["git", "fetch", "--force", "origin"], capture=False)
     master_sha = git_output(["rev-parse", "origin/master"])
     head_sha = git_output(["rev-parse", f"origin/{branch}"])
 
@@ -376,7 +376,7 @@ def merge_release(
     if not merge_sha:
         fail(repo, number, "Merged release PR did not expose a merge commit SHA.")
 
-    run(["git", "fetch", "--force", "origin", "master"], capture=False)
+    run(["git", "fetch", "--force", "origin"], capture=False)
     merged_version = git_output(["show", f"{merge_sha}:VERSION"]).strip()
     if merged_version != version:
         fail(
