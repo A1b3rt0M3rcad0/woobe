@@ -194,6 +194,19 @@ def test_validated_release_candidate_is_bound_to_one_orchestrated_publication() 
     assert "Release Woobe v${{ inputs.version }}" in prepare
 
 
+def test_release_workflows_pin_hosted_runner_and_action_commits() -> None:
+    for relative in (
+        ".github/workflows/prepare-release.yml",
+        ".github/workflows/release-candidate.yml",
+        ".github/workflows/release.yml",
+    ):
+        workflow = (ROOT / relative).read_text(encoding="utf-8")
+        assert "ubuntu-latest" not in workflow
+        assert "ubuntu-24.04" in workflow
+        for action in re.findall(r"uses:\\s+([^\\s#]+)", workflow):
+            assert re.search(r"@[0-9a-f]{40}$", action), (relative, action)
+
+
 def test_release_orchestrator_requires_exact_green_head_before_merge() -> None:
     orchestrator = (ROOT / "scripts/release/orchestrate_release_pr.py").read_text(
         encoding="utf-8"
