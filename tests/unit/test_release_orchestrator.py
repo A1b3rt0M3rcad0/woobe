@@ -49,12 +49,12 @@ class ReleaseGateTests(unittest.TestCase):
         self.assertIn('resume_finalization="true"', workflow)
         self.assertIn("resuming post-merge finalization", workflow)
         self.assertIn('gh release view "v$TARGET_VERSION"', workflow)
-        self.assertIn("Build and validate exact release candidate", workflow)
+        self.assertIn("uses: ./.github/workflows/release-candidate.yml", workflow)
         self.assertIn("Create or verify immutable release tag", workflow)
-        self.assertIn("Publish exact validated release", workflow)
-        self.assertIn("dispatch_and_wait.py", workflow)
-        self.assertIn("candidate_run_id", workflow)
-        self.assertIn("publication_run_id", workflow)
+        self.assertIn("uses: ./.github/workflows/release.yml", workflow)
+        self.assertNotIn("dispatch_and_wait.py", workflow)
+        self.assertIn("Verify completed release recovery", workflow)
+        self.assertIn("release-manifest.json", workflow)
         self.assertIn("Branch $branch exists without an open or merged release PR", workflow)
 
     def test_workflow_summary_reports_only_completed_end_to_end_release(self):
@@ -74,18 +74,17 @@ class ReleaseGateTests(unittest.TestCase):
                     "REVISION": "merge-sha",
                     "PR_NUMBER": "168",
                     "VALIDATED_HEAD_SHA": HEAD,
-                    "CANDIDATE_RUN_ID": "12",
-                    "CANDIDATE_URL": "https://example.test/candidate",
-                    "PUBLICATION_RUN_ID": "8",
-                    "PUBLICATION_URL": "https://example.test/publication",
+                    "VALIDATION_ID": "run-attempt:parent",
+                    "RELEASE_URL": "https://example.test/release",
                     "RESUMED": "false",
+                    "ALREADY_PUBLISHED": "false",
                     "GITHUB_STEP_SUMMARY": str(output),
                 },
             )
             summary = output.read_text()
             self.assertIn("Revision: `merge-sha`", summary)
-            self.assertIn("Candidate run: [#12]", summary)
-            self.assertIn("Publication run: [#8]", summary)
+            self.assertIn("Candidate validation: `run-attempt:parent`", summary)
+            self.assertIn("GitHub Release: https://example.test/release", summary)
             self.assertIn("all passed", summary)
 
 
