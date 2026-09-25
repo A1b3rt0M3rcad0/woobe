@@ -84,6 +84,17 @@ jobs:
             source_digest="$(digest_of "$source_ref")"
             test -n "$source_digest"
 
+            if docker buildx imagetools inspect "$target_ref" >/dev/null 2>&1; then
+              target_digest="$(digest_of "$target_ref")"
+              if [[ "$target_digest" != "$source_digest" ]]; then
+                echo "Immutable release image already exists with a different digest: $target_ref" >&2
+                echo "existing=$target_digest expected=$source_digest" >&2
+                exit 1
+              fi
+              echo "${unit}: already published as ${target_digest}"
+              continue
+            fi
+
             docker buildx imagetools create \
               --tag "$target_ref" \
               "${repository}@${source_digest}"
@@ -165,3 +176,59 @@ jobs:
       - name: Tear down
         if: always()
         run: docker compose -f compose.yaml -f docker/ci/compose.release-images.yml down -v --remove-orphans || true
+
+
+  github-release:
+    needs: [publish, post-publish-smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ needs.publish.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="v$VERSION"
+          test "$GITHUB_REF_NAME" = "$tag"
+
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub Release $tag already exists; preserving the existing immutable release record."
+          else
+            gh release create "$tag" \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --title "Woobe $tag" \
+              --generate-notes
+          fi
+
+      - name: Remove completed release branch
+        env:
+          VERSION: ${{ needs.publish.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          branch="release/$VERSION"
+          if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
+            git push origin --delete "$branch"
+          else
+            echo "Release branch $branch is already absent."
+          fi
+
+      - name: Release summary
+        run: |
+          {
+            echo "### Woobe v${{ needs.publish.outputs.version }} published"
+            echo
+            echo "Revision: `${{ needs.publish.outputs.revision }}`"
+            echo "Git tag: `v${{ needs.publish.outputs.version }}`"
+            echo "GitHub Release: published"
+            echo "Core images: promoted from the validated immutable candidate digests"
+            echo "Post-publish smoke: passed"
+          } >> "$GITHUB_STEP_SUMMARY"
