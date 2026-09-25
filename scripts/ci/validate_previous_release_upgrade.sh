@@ -8,16 +8,32 @@ owner="${GITHUB_REPOSITORY_OWNER:-A1b3rt0M3rcad0}"
 owner="${owner,,}"
 
 git fetch --force --tags origin >/dev/null
-previous_tag="$(
-  git tag --merged "$WOOBE_UPGRADE_BASE_SHA" --list 'v[0-9]*' --sort=-version:refname     | head -n 1
-)"
-if [[ -z "$previous_tag" ]]; then
-  echo "No previous Woobe release tag is reachable from $WOOBE_UPGRADE_BASE_SHA" >&2
+
+previous_tag=""
+previous_api_image=""
+while IFS= read -r candidate_tag; do
+  [[ -n "$candidate_tag" ]] || continue
+  [[ "$candidate_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || continue
+
+  candidate_version="${candidate_tag#v}"
+  candidate_image="ghcr.io/${owner}/woobe-api:${candidate_version}"
+
+  if docker manifest inspect "$candidate_image" >/dev/null 2>&1; then
+    previous_tag="$candidate_tag"
+    previous_api_image="$candidate_image"
+    break
+  fi
+
+  echo "Skipping reachable tag ${candidate_tag}: published API image ${candidate_image} does not exist"
+done < <(
+  git tag --merged "$WOOBE_UPGRADE_BASE_SHA" --list 'v[0-9]*' --sort=-version:refname
+)
+
+if [[ -z "$previous_tag" || -z "$previous_api_image" ]]; then
+  echo "No previously published Woobe release with an API image is reachable from $WOOBE_UPGRADE_BASE_SHA" >&2
   exit 1
 fi
 
-previous_version="${previous_tag#v}"
-previous_api_image="ghcr.io/${owner}/woobe-api:${previous_version}"
 echo "Validating upgrade from ${previous_tag} using ${previous_api_image}"
 
 docker pull "$previous_api_image"
