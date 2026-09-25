@@ -42,52 +42,52 @@ def runs(conclusion: str | None = "success") -> dict:
 
 
 class ReleaseGateTests(unittest.TestCase):
-    def test_workflow_resumes_only_an_existing_open_release_pr(self):
+    def test_prepare_workflow_supports_post_merge_recovery_and_end_to_end_status(self):
         workflow = (ROOT / ".github/workflows/prepare-release.yml").read_text()
-        step = workflow.split("      - name: Validate target version\n", 1)[1]
-        script = textwrap.dedent(step.split("        run: |\n", 1)[1].split("\n      - name:", 1)[0])
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            (root / "VERSION").write_text("0.14.2\n")
-            for name, body in {
-                "git": 'case "$1" in\n tag) exit 0;;\n rev-parse) exit 1;;\n ls-remote) test "$TEST_BRANCH_EXISTS" = 1;;\n *) exit 99;;\nesac\n',
-                "gh": 'printf "%s" "$TEST_PR_NUMBER"\n',
-            }.items():
-                command = root / name
-                command.write_text("#!/bin/sh\n" + body)
-                command.chmod(0o755)
-            output = root / "output"
-            for exists, number, succeeds in (("0", "", True), ("1", "166", True), ("1", "", False)):
-                with self.subTest(exists=exists, number=number):
-                    output.unlink(missing_ok=True)
-                    result = subprocess.run(
-                        ["bash", "-e", "-c", script], cwd=root, text=True, capture_output=True,
-                        env={**os.environ, "PATH": f"{root}:{os.environ['PATH']}",
-                             "TARGET_VERSION": "0.12.0", "GITHUB_REPOSITORY": REPO,
-                             "GITHUB_OUTPUT": str(output), "TEST_BRANCH_EXISTS": exists,
-                             "TEST_PR_NUMBER": number},
-                    )
-                    self.assertEqual(result.returncode == 0, succeeds, result.stderr)
-                    if succeeds:
-                        self.assertIn(f"existing_pr={number}\n", output.read_text())
-                        self.assertIn(f"branch={BRANCH}\n", output.read_text())
-                    else:
-                        self.assertIn("without an open release PR", result.stderr)
 
-    def test_workflow_summary_renders_hashes_without_executing_them(self):
+        self.assertIn("Validate target version and resolve release state", workflow)
+        self.assertIn('resume_finalization="true"', workflow)
+        self.assertIn("resuming post-merge finalization", workflow)
+        self.assertIn('gh release view "v$TARGET_VERSION"', workflow)
+        self.assertIn("Build and validate exact release candidate", workflow)
+        self.assertIn("Create or verify immutable release tag", workflow)
+        self.assertIn("Publish exact validated release", workflow)
+        self.assertIn("dispatch_and_wait.py", workflow)
+        self.assertIn("candidate_run_id", workflow)
+        self.assertIn("publication_run_id", workflow)
+        self.assertIn("Branch $branch exists without an open or merged release PR", workflow)
+
+    def test_workflow_summary_reports_only_completed_end_to_end_release(self):
         workflow = (ROOT / ".github/workflows/prepare-release.yml").read_text()
         step = workflow.split("      - name: Release orchestration summary\n", 1)[1]
         script = textwrap.dedent(step.split("        run: |\n", 1)[1])
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "summary"
             subprocess.run(
-                ["bash", "-e", "-c", script], check=True, capture_output=True, text=True,
-                env={**os.environ, "VERSION": "0.12.0", "PR_NUMBER": "166",
-                     "VALIDATED_HEAD_SHA": HEAD, "MERGE_SHA": "merge-sha",
-                     "GITHUB_STEP_SUMMARY": str(output)},
+                ["bash", "-e", "-c", script],
+                check=True,
+                capture_output=True,
+                text=True,
+                env={
+                    **os.environ,
+                    "VERSION": "0.12.0",
+                    "REVISION": "merge-sha",
+                    "PR_NUMBER": "168",
+                    "VALIDATED_HEAD_SHA": HEAD,
+                    "CANDIDATE_RUN_ID": "12",
+                    "CANDIDATE_URL": "https://example.test/candidate",
+                    "PUBLICATION_RUN_ID": "8",
+                    "PUBLICATION_URL": "https://example.test/publication",
+                    "RESUMED": "false",
+                    "GITHUB_STEP_SUMMARY": str(output),
+                },
             )
-            self.assertIn(f"Validated PR HEAD: `{HEAD}`", output.read_text())
-            self.assertIn("Merge commit: `merge-sha`", output.read_text())
+            summary = output.read_text()
+            self.assertIn("Revision: `merge-sha`", summary)
+            self.assertIn("Candidate run: [#12]", summary)
+            self.assertIn("Publication run: [#8]", summary)
+            self.assertIn("all passed", summary)
+
 
     def test_pagination_identity_and_same_second_run_order(self):
         old = runs()["Backend test suite"]
