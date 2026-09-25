@@ -17,8 +17,8 @@ PRIMARY_RELEASE_UNITS = {
 CONTAINER_RELEASE_UNITS = {
     "woobe-api",
     "woobe-workers",
-    "woobe-web",
-    "woobe-chat-embed",
+    "woobe-frontend",
+    "woobe-embed",
 }
 
 
