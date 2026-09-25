@@ -115,6 +115,8 @@ def checkout_release_branch(repo: str, number: int, branch: str, version: str) -
     data = pr(repo, number)
     if data["state"] != "open":
         fail(repo, number, f"Release PR is not open (state={data['state']}).")
+    if data["base"]["ref"] != "master" or branch != f"release/{version}":
+        fail(repo, number, "Release PR must target master from release/<VERSION>.")
     if data["head"]["ref"] != branch:
         fail(
             repo,
@@ -203,9 +205,11 @@ def refresh_from_master_if_needed(
 
 
 def workflow_runs(repo: str, head_sha: str) -> dict[str, dict[str, Any]]:
-    data = gh_json(
+    pages = gh_json(
         [
             "api",
+            "--paginate",
+            "--slurp",
             "--method",
             "GET",
             f"repos/{repo}/actions/runs",
@@ -216,13 +220,19 @@ def workflow_runs(repo: str, head_sha: str) -> dict[str, dict[str, Any]]:
         ]
     )
     latest: dict[str, dict[str, Any]] = {}
-    for item in data.get("workflow_runs", []):
-        name = item.get("name")
-        if name not in REQUIRED_WORKFLOWS:
-            continue
-        current = latest.get(name)
-        if current is None or item.get("created_at", "") > current.get("created_at", ""):
-            latest[name] = item
+    for page in pages:
+        for item in page.get("workflow_runs", []):
+            name = item.get("name")
+            if (
+                name not in REQUIRED_WORKFLOWS
+                or item.get("path") != f".github/workflows/{REQUIRED_WORKFLOWS[name]}"
+                or item.get("head_sha") != head_sha
+                or item.get("event") not in {"pull_request", "workflow_dispatch"}
+            ):
+                continue
+            current = latest.get(name)
+            if current is None or item["id"] > current["id"]:
+                latest[name] = item
     return latest
 
 
@@ -288,6 +298,7 @@ def wait_for_green(
     dispatch_missing(repo, number, branch, head_sha)
     deadline = time.monotonic() + timeout_seconds
     last_snapshot = ""
+    approval_reported = False
 
     while time.monotonic() < deadline:
         latest = workflow_runs(repo, head_sha)
@@ -296,23 +307,11 @@ def wait_for_green(
             print(snapshot)
             last_snapshot = snapshot
 
-        if len(latest) < len(REQUIRED_WORKFLOWS):
-            time.sleep(15)
-            continue
-
-        incomplete = [
-            name
-            for name, item in latest.items()
-            if item.get("status") != "completed"
-        ]
-        if incomplete:
-            time.sleep(15)
-            continue
-
         failed = {
             name: item
             for name, item in latest.items()
-            if item.get("conclusion") != SUCCESS
+            if item.get("status") == "completed"
+            and item.get("conclusion") not in {SUCCESS, "action_required"}
         }
         if failed:
             fail(
@@ -321,6 +320,25 @@ def wait_for_green(
                 "Required CI did not pass for release head "
                 f"`{head_sha}`.\n\n{render_status(latest)}",
             )
+
+        if any(item.get("conclusion") == "action_required" for item in latest.values()):
+            if not approval_reported:
+                message = (
+                    "GitHub requires workflow approval. A maintainer must select "
+                    "'Approve workflows to run' on "
+                    f"https://github.com/{repo}/pull/{number}. "
+                    "The release is waiting and will continue after approval and successful CI."
+                )
+                print(message)
+                comment(repo, number, "<!-- woobe-release-gate -->\n" + message)
+                approval_reported = True
+
+        if len(latest) < len(REQUIRED_WORKFLOWS) or any(
+            item.get("status") != "completed" or item.get("conclusion") != SUCCESS
+            for item in latest.values()
+        ):
+            time.sleep(15)
+            continue
 
         print(f"All required release checks passed for {head_sha}.")
         return
@@ -453,13 +471,13 @@ def main() -> int:
             args.branch,
             args.version,
         )
-        if refreshed:
+        if refreshed or refreshed_head != head_sha:
             print(
-                "master advanced after CI passed; release branch refreshed and will be revalidated."
+                "Release head changed after CI passed; a new validation cycle is required."
             )
             continue
 
-        validated_head = refreshed_head
+        validated_head = head_sha
         break
     else:
         fail(

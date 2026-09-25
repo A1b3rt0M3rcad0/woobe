@@ -25,6 +25,7 @@ jobs:
         with:
           ref: master
           fetch-depth: 0
+          token: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-python@v5
         with:
@@ -35,6 +36,7 @@ jobs:
         shell: bash
         env:
           TARGET_VERSION: ${{ inputs.version }}
+          GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           python - "$TARGET_VERSION" <<'PY'
@@ -94,15 +96,22 @@ jobs:
           fi
 
           branch="release/$TARGET_VERSION"
+          existing_pr=""
           if git ls-remote --exit-code --heads origin "$branch" >/dev/null 2>&1; then
-            echo "Branch $branch already exists" >&2
-            exit 1
+            existing_pr="$(gh pr list --repo "$GITHUB_REPOSITORY" --state open --base master --head "$branch" --json number --jq '.[0].number // empty')"
+            if [[ -z "$existing_pr" ]]; then
+              echo "Branch $branch exists without an open release PR targeting master; inspect it before retrying." >&2
+              exit 1
+            fi
+            echo "Resuming release PR #$existing_pr on $branch."
           fi
 
           echo "version=$TARGET_VERSION" >> "$GITHUB_OUTPUT"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          echo "existing_pr=$existing_pr" >> "$GITHUB_OUTPUT"
 
       - name: Synchronize platform version
+        if: steps.target.outputs.existing_pr == ''
         run: |
           set -euo pipefail
           python scripts/release/set_platform_version.py "${{ steps.target.outputs.version }}"
@@ -114,6 +123,7 @@ jobs:
           fi
 
       - name: Create release branch
+        if: steps.target.outputs.existing_pr == ''
         shell: bash
         run: |
           set -euo pipefail
@@ -126,6 +136,7 @@ jobs:
 
       - name: Open release pull request
         id: pr
+        if: steps.target.outputs.existing_pr == ''
         env:
           GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.target.outputs.version }}
@@ -184,9 +195,9 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.WOOBE_RELEASE_TOKEN || secrets.GITHUB_TOKEN }}
         run: |
-          python scripts/release/orchestrate_release_pr.py \
+          python -u scripts/release/orchestrate_release_pr.py \
             --repo "$GITHUB_REPOSITORY" \
-            --pr "${{ steps.pr.outputs.number }}" \
+            --pr "${{ steps.target.outputs.existing_pr || steps.pr.outputs.number }}" \
             --version "${{ steps.target.outputs.version }}" \
             --branch "${{ steps.target.outputs.branch }}" \
             --github-output "$GITHUB_OUTPUT"
@@ -207,13 +218,18 @@ jobs:
             -f finalize_release=true
 
       - name: Release orchestration summary
+        env:
+          VERSION: ${{ steps.target.outputs.version }}
+          PR_NUMBER: ${{ steps.target.outputs.existing_pr || steps.pr.outputs.number }}
+          VALIDATED_HEAD_SHA: ${{ steps.gate.outputs.validated_head_sha }}
+          MERGE_SHA: ${{ steps.gate.outputs.merge_sha }}
         run: |
           {
-            echo "### Woobe v${{ steps.target.outputs.version }}"
+            printf '### Woobe v%s\n' "$VERSION"
             echo
-            echo "Release PR: #${{ steps.pr.outputs.number }}"
-            echo "Validated PR HEAD: `${{ steps.gate.outputs.validated_head_sha }}`"
-            echo "Merge commit: `${{ steps.gate.outputs.merge_sha }}`"
+            printf 'Release PR: #%s\n' "$PR_NUMBER"
+            printf 'Validated PR HEAD: `%s`\n' "$VALIDATED_HEAD_SHA"
+            printf 'Merge commit: `%s`\n' "$MERGE_SHA"
             echo
             echo "All required pre-merge CI passed. The PR was merged automatically and exact release finalization was dispatched."
           } >> "$GITHUB_STEP_SUMMARY"
