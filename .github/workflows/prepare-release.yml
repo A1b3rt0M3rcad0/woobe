@@ -527,10 +527,16 @@ jobs:
           from pathlib import Path
 
           manifest = json.loads(Path(os.environ["MANIFEST"]).read_text(encoding="utf-8"))
+          if manifest.get("schema_version") != 1:
+              raise SystemExit("release manifest schema mismatch")
+          if manifest.get("repository") != os.environ["GITHUB_REPOSITORY"]:
+              raise SystemExit("release manifest repository mismatch")
           if manifest.get("version") != os.environ["VERSION"]:
               raise SystemExit("release manifest version mismatch")
           if manifest.get("revision") != os.environ["REVISION"]:
               raise SystemExit("release manifest revision mismatch")
+          if not manifest.get("validation_id"):
+              raise SystemExit("release manifest validation identity is missing")
           if manifest.get("platforms") != ["linux/amd64", "linux/arm64"]:
               raise SystemExit("release manifest platform contract mismatch")
 
