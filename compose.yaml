@@ -179,9 +179,12 @@ services:
       context: .
       dockerfile: packages/woobe-frontend/Dockerfile
       args:
-        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
-        VITE_CHAT_EMBED_URL: ${VITE_CHAT_EMBED_URL:-http://localhost:8081}
+        VITE_API_URL: http://127.0.0.1:8000
+        VITE_CHAT_EMBED_URL: http://127.0.0.1:8081
         VITE_WOOBE_EDITION: core
+    environment:
+      WOOBE_PUBLIC_API_URL: ${WOOBE_PUBLIC_API_URL:-http://localhost:8000}
+      WOOBE_PUBLIC_CHAT_EMBED_URL: ${WOOBE_PUBLIC_CHAT_EMBED_URL:-http://localhost:8081}
     ports:
       - "${WOOBE_WEB_PORT:-8080}:8080"
     depends_on:
