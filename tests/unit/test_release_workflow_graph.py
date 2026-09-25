@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import subprocess
 
 import yaml
 
@@ -108,3 +109,22 @@ def test_release_recovery_verifies_terminal_state_before_success() -> None:
     assert "linux/arm64" in prepare
     assert "Complete pending release branch cleanup" in prepare
     assert "exists without release-manifest.json" in prepare
+
+
+def test_release_target_resolution_shell_is_syntactically_valid() -> None:
+    prepare = load_workflow("prepare-release.yml")
+    step = next(
+        step
+        for step in prepare["jobs"]["prepare"]["steps"]
+        if step.get("name") == "Validate target version and resolve release state"
+    )
+
+    result = subprocess.run(
+        ["bash", "-n"],
+        input=step["run"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stderr

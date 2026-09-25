@@ -215,44 +215,44 @@ jobs:
             export ALLOW_INITIAL_REBASE
             export HAS_PUBLISHED_RELEASES="$([[ -n "$published_tags" ]] && echo true || echo false)"
             python - <<'PY'
-            import os
-            import re
+          import os
+          import re
 
-            pattern = re.compile(
-                r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
-                r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
-                r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
-            )
+          pattern = re.compile(
+              r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+              r"(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?"
+              r"(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$"
+          )
 
-            def key(value: str):
-                match = pattern.fullmatch(value)
-                if not match:
-                    raise SystemExit(f"invalid canonical VERSION: {value}")
-                major, minor, patch = (int(match.group(i)) for i in range(1, 4))
-                prerelease = match.group(4)
-                if prerelease is None:
-                    return (major, minor, patch, 1, ())
-                items = []
-                for item in prerelease.split("."):
-                    if item.isdigit():
-                        if len(item) > 1 and item.startswith("0"):
-                            raise SystemExit(f"invalid canonical VERSION: {value}")
-                        items.append((0, int(item)))
-                    else:
-                        items.append((1, item))
-                return (major, minor, patch, 0, tuple(items))
+          def key(value: str):
+              match = pattern.fullmatch(value)
+              if not match:
+                  raise SystemExit(f"invalid canonical VERSION: {value}")
+              major, minor, patch = (int(match.group(i)) for i in range(1, 4))
+              prerelease = match.group(4)
+              if prerelease is None:
+                  return (major, minor, patch, 1, ())
+              items = []
+              for item in prerelease.split("."):
+                  if item.isdigit():
+                      if len(item) > 1 and item.startswith("0"):
+                          raise SystemExit(f"invalid canonical VERSION: {value}")
+                      items.append((0, int(item)))
+                  else:
+                      items.append((1, item))
+              return (major, minor, patch, 0, tuple(items))
 
-            current = os.environ["CURRENT_VERSION"]
-            target = os.environ["TARGET_VERSION"]
-            allow_initial = os.environ["ALLOW_INITIAL_REBASE"].lower() == "true"
-            has_published = os.environ["HAS_PUBLISHED_RELEASES"].lower() == "true"
+          current = os.environ["CURRENT_VERSION"]
+          target = os.environ["TARGET_VERSION"]
+          allow_initial = os.environ["ALLOW_INITIAL_REBASE"].lower() == "true"
+          has_published = os.environ["HAS_PUBLISHED_RELEASES"].lower() == "true"
 
-            if key(target) <= key(current) and not (allow_initial and not has_published):
-                raise SystemExit(
-                    f"target {target} must be newer than current VERSION {current}; "
-                    "the only exception is an explicit first-release rebase"
-                )
-            PY
+          if key(target) <= key(current) and not (allow_initial and not has_published):
+              raise SystemExit(
+                  f"target {target} must be newer than current VERSION {current}; "
+                  "the only exception is an explicit first-release rebase"
+              )
+          PY
 
             if git rev-parse -q --verify "refs/tags/v$TARGET_VERSION" >/dev/null; then
               echo "Tag v$TARGET_VERSION already exists before the candidate has been validated." >&2
