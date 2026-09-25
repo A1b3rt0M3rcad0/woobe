@@ -94,6 +94,25 @@ def test_release_workflow_publishes_exactly_four_process_images() -> None:
     assert "/woobe-core:" not in workflow
 
 
+def test_container_ci_reproduces_release_multiarch_build_contract() -> None:
+    release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    containers = (ROOT / ".github/workflows/containers.yml").read_text(encoding="utf-8")
+
+    assert "release-multiarch-build:" in containers
+    assert "runs-on: ubuntu-latest" in containers
+
+    for workflow in (release, containers):
+        assert workflow.count("platforms: linux/amd64,linux/arm64") == 4
+        assert "target: api" in workflow
+        assert "target: workers" in workflow
+        assert "file: packages/woobe-frontend/Dockerfile" in workflow
+        assert "file: packages/woobe-embed/Dockerfile" in workflow
+
+    assert containers.count("push: false") == 4
+    assert "docker/setup-qemu-action@v3" in containers
+    assert "docker/setup-buildx-action@v3" in containers
+
+
 def test_compose_selects_api_and_workers_targets_explicitly() -> None:
     compose = (ROOT / "compose.yaml").read_text(encoding="utf-8")
     assert "target: api" in compose
