@@ -38,12 +38,12 @@ uv pip install --python "$core_venv/bin/python" "$DIST/core"/woobe_core-*.whl
 uv pip check --python "$core_venv/bin/python"
 
 api_venv="$(clean_venv api)"
-uv pip install --python "$api_venv/bin/python" --find-links "$DIST/core" "$DIST/api"/woobe_api-*.whl
+uv pip install --python "$api_venv/bin/python" "$DIST/core"/woobe_core-*.whl "$DIST/api"/woobe_api-*.whl
 "$api_venv/bin/python" -c "from importlib.metadata import version; from importlib.util import find_spec; import woobe_api; assert find_spec('main'); assert find_spec('woobe_workers') is None; assert version('woobe-api') == version('woobe-core')"
 uv pip check --python "$api_venv/bin/python"
 
 workers_venv="$(clean_venv workers)"
-uv pip install --python "$workers_venv/bin/python" --find-links "$DIST/core" "$DIST/workers"/woobe_workers-*.whl
+uv pip install --python "$workers_venv/bin/python" "$DIST/core"/woobe_core-*.whl "$DIST/workers"/woobe_workers-*.whl
 "$workers_venv/bin/python" -c "from importlib.metadata import version; from importlib.util import find_spec; import woobe_workers; assert find_spec('worker_main'); assert find_spec('woobe_api') is None; assert version('woobe-workers') == version('woobe-core')"
 uv pip check --python "$workers_venv/bin/python"
 
