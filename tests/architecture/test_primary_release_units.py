@@ -97,6 +97,7 @@ def test_release_candidate_builds_exactly_four_process_images() -> None:
     assert "provenance: mode=max" in candidate
     assert "sbom: true" in candidate
     assert "sha-$revision" in candidate
+    assert "ubuntu-24.04" in candidate
 
 
 def test_release_promotes_candidate_without_rebuilding() -> None:
@@ -105,8 +106,9 @@ def test_release_promotes_candidate_without_rebuilding() -> None:
     assert "docker/build-push-action" not in release
     assert "docker build " not in release
     assert "docker buildx imagetools create" in release
-    assert 'candidate_tag="sha-${{ steps.meta.outputs.revision }}"' in release
-    assert 'test "$target_digest" = "$source_digest"' in release
+    assert 'candidate_tag="sha-$REVISION"' in release
+    assert "Promote exact validated digests to release version" in release
+    assert 'test "$target_digest" = "$digest"' in release
     assert "post-publish-smoke:" in release
     assert "smoke_prebuilt_core_images.sh" in release
     assert "/woobe-core:" not in release
@@ -122,17 +124,19 @@ def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
     )
 
     assert (ROOT / "VERSION").read_text(encoding="utf-8").strip()
-    assert "Detect platform release transition" in candidate
-    assert "paths:\n      - VERSION" in candidate
+    assert "Detect platform release transition" not in candidate
+    assert "push:\n    branches: [master]" not in candidate
+    assert "workflow_dispatch:" in candidate
     assert "python scripts/ci/check_package_versions.py" in candidate
     assert 'version="$(tr -d \'[:space:]\' < VERSION)"' in candidate
     assert "git log -1 --format=%s" not in candidate
     assert "startsWith(github.event.head_commit.message" not in candidate
 
-    assert 'tags:\n      - "v*"' in release
-    assert 'test "$GITHUB_REF_NAME" = "v$version"' in release
-    assert 'git rev-parse "$GITHUB_REF_NAME^{commit}"' in release
-    assert "inputs.version" not in release
+    assert "push:\n    tags:" not in release
+    assert "workflow_dispatch:" in release
+    assert "candidate_run_id:" in release
+    assert 'test "$revision" = "$EXPECTED_REVISION"' in release
+    assert 'git rev-parse "$tag^{commit}"' in release
     assert "git log -1 --format=%s" not in release
 
     assert "name: Release Woobe" in prepare
@@ -145,37 +149,49 @@ def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
     assert "git push origin --delete" in prepare
     assert "Unable to create the release pull request" in prepare
     assert "orchestrate_release_pr.py" in prepare
-    assert "Start exact release finalization" in prepare
-    assert "finalize_release=true" in prepare
-    assert "expected_version=" in prepare
+    assert "Build and validate exact release candidate" in prepare
+    assert "Publish exact validated release" in prepare
+    assert "dispatch_and_wait.py" in prepare
+    assert "resume_finalization" in prepare
+    assert "expected_version=$VERSION" in prepare
     assert "target {version} must be newer than latest published release" in prepare
 
 
-def test_validated_release_candidate_finalizes_release_automatically() -> None:
+def test_validated_release_candidate_is_bound_to_one_orchestrated_publication() -> None:
     candidate = (ROOT / ".github/workflows/release-candidate.yml").read_text(
         encoding="utf-8"
     )
     release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+    prepare = (ROOT / ".github/workflows/prepare-release.yml").read_text(
+        encoding="utf-8"
+    )
 
-    assert "finalize-release:" in candidate
-    assert "Preflight immutable version tags" in candidate
-    assert "already occupied by a different immutable GHCR artifact" in candidate
-    assert "Create immutable release tag" in candidate
-    assert "git tag -a" in candidate
-    assert "gh workflow run release.yml" in candidate
-    assert "finalize_release:" in candidate
-    assert "expected_version:" in candidate
-    assert "inputs.finalize_release == true" in candidate
-    assert "group: release-candidate-${{ inputs.ref || github.sha }}" in candidate
-    assert "cancel-in-progress: true" in candidate
+    assert "finalize-release:" not in candidate
+    assert "push:\n    branches: [master]" not in candidate
+    assert "orchestration_id:" in candidate
+    assert "manifest:" in candidate
+    assert "release-manifest.json" in candidate
+    assert "woobe-release-manifest-" in candidate
+    assert "group: release-candidate-${{ inputs.ref }}" in candidate
+    assert "cancel-in-progress: false" in candidate
 
-    assert "push:\n    tags:\n      - \"v*\"" in release
+    assert "push:\n    tags:" not in release
+    assert "candidate_run_id:" in release
+    assert "Download validated candidate manifest" in release
+    assert "Verify candidate manifest contract" in release
+    assert "Promote exact validated digests to release version" in release
     assert "Immutable release image already exists with a different digest" in release
     assert "github-release:" in release
     assert "gh release create" in release
     assert "--generate-notes" in release
     assert "Remove completed release branch" in release
-    assert "group: publish-woobe-${{ github.ref_name }}" in release
+    assert "group: publish-woobe-${{ inputs.version }}" in release
+    assert "cancel-in-progress: false" in release
+
+    assert "Create or verify immutable release tag" in prepare
+    assert "Build and validate exact release candidate" in prepare
+    assert "Publish exact validated release" in prepare
+    assert "Release Woobe v${{ inputs.version }}" in prepare
 
 
 def test_release_orchestrator_requires_exact_green_head_before_merge() -> None:
@@ -277,6 +293,8 @@ def test_release_candidate_sha_tags_are_reused_not_overwritten() -> None:
     assert "Verify immutable candidate identity" in candidate
     assert "org.opencontainers.image.revision" in candidate
     assert "org.opencontainers.image.version" in candidate
+    assert "release-manifest.json" in candidate
+    assert "digest_with_retry" in candidate
 
 
 def test_acceptance_validates_previous_release_upgrade() -> None:
