@@ -24,6 +24,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+      - uses: astral-sh/setup-uv@v6
+      - name: Build standalone Core package
+        run: |
+          mkdir -p .test-artifacts/core-dist
+          uv build packages/woobe-core --out-dir .test-artifacts/core-dist
+          test -n "$(find .test-artifacts/core-dist -maxdepth 1 -name 'woobe_core-*.whl' -print -quit)"
       - name: Generate isolated Core environment
         run: python scripts/generate_self_host_env.py --force
       - name: Validate the supported Core Compose contract
