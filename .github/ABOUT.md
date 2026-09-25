@@ -4,7 +4,7 @@
 
 ## Contents
 
-- `workflows/` — GitHub Actions workflows for backend tests, Frontend validation, Package Build, Acceptance, Quality Gate, Container Quality, Security, CLA validation, automated release preparation, immutable release-candidate builds, automatic Git tagging, Core image promotion, post-publish validation and GitHub Release publication.
+- `workflows/` — GitHub Actions workflows for backend tests, Frontend validation, Package Build, Acceptance, Quality Gate, Container Quality, Security, CLA validation, single-authorization release orchestration, exact-head CI gating, automatic release-PR merge, immutable release-candidate builds, automatic Git tagging, Core image promotion, post-publish validation and GitHub Release publication.
 - `ISSUE_TEMPLATE/` — structured issue templates.
 - `PULL_REQUEST_TEMPLATE.md` — canonical pull-request checklist, product/license impact and contribution metadata.
 
