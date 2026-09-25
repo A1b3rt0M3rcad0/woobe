@@ -111,6 +111,8 @@ The preferred release-preparation path is GitHub Actions:
 
 The workflow explicitly dispatches CI because pushes and pull requests created with the repository `GITHUB_TOKEN` do not recursively trigger ordinary workflow events.
 
+For automatic PR creation, enable **Settings -> Actions -> General -> Workflow permissions -> Allow GitHub Actions to create and approve pull requests**. As an alternative, configure a repository secret named `WOOBE_RELEASE_TOKEN` with Contents, Pull requests and Actions write access; the workflow prefers that token when present.
+
 The generated release PR remains Draft until changelog, documentation, compatibility notes and any release blockers have been reviewed.
 
 Manual fallback:
