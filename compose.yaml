@@ -35,7 +35,6 @@ x-runtime-environment: &runtime-environment
   WOOBE_HTTP_TOOL_ALLOW_LOCAL_NETWORKS: ${WOOBE_HTTP_TOOL_ALLOW_LOCAL_NETWORKS:-false}
 
 x-runtime-service: &runtime-service
-  build: .
   restart: unless-stopped
   env_file:
     - .env
@@ -111,7 +110,9 @@ services:
     restart: unless-stopped
 
   migrate:
-    build: .
+    build:
+      context: .
+      target: api
     env_file:
       - .env
     environment:
@@ -124,6 +125,9 @@ services:
 
   api:
     <<: *runtime-service
+    build:
+      context: .
+      target: api
     environment:
       <<: *runtime-environment
       WOOBE_SECRET_KEY: ${WOOBE_SECRET_KEY:?Run scripts/generate_self_host_env.py}
@@ -158,7 +162,9 @@ services:
 
   workers:
     <<: *runtime-service
-    command: ["python", "-m", "worker_main"]
+    build:
+      context: .
+      target: workers
     environment:
       <<: *runtime-environment
       WOOBE_RABBITMQ_URL: amqp://${RABBITMQ_USER:?Run scripts/generate_self_host_env.py}:${RABBITMQ_PASSWORD:?Run scripts/generate_self_host_env.py}@rabbitmq:5672/
