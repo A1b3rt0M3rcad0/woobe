@@ -1,6 +1,5 @@
-import { API_BASE_URL } from '@/lib/api/client'
 import { skillActivityLabel } from '@/features/skills/operations'
-import { ensureCsrfToken, getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
+import { API_BASE_URL, ensureCsrfToken, getCsrfHeaders, refreshAuthSession } from '@/lib/api/client'
 import {
   RUNTIME_STREAM_MAX_ATTEMPTS,
   RuntimeStreamGapError,
