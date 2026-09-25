@@ -607,7 +607,7 @@ Recovery rules:
 
 - **Before merge:** run **Release Woobe** again with the same version to resume the open release PR.
 - **After merge but before GitHub Release:** run **Release Woobe** again with the same version. It resolves the historical merge commit of `release/<VERSION>`, reuses only candidates whose identity is valid, and resumes finalization.
-- **After GitHub Release exists:** a retry verifies the immutable tag, downloads the permanent release manifest, verifies all four versioned registry digests, architectures and OCI labels, and completes any pending release-branch cleanup before returning success.
+- **After GitHub Release exists:** if `release-manifest.json` is present, a retry verifies the immutable tag, manifest, all four versioned registry digests, architectures and OCI labels, and completes pending release-branch cleanup. If the GitHub Release exists but the permanent manifest is missing, the release is treated as incomplete and normal candidate/publication finalization resumes to repair the release record.
 - Manual `release-candidate.yml` remains available for candidate diagnostics/revalidation.
 - `release.yml` has no manual dispatch entrypoint; publication authority comes only from the successful parent/candidate reusable-workflow chain.
 - Never move/reuse a published Git tag or overwrite a versioned GHCR image with different bytes.
