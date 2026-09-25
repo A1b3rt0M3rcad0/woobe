@@ -234,6 +234,7 @@ def test_workflow_surface_matches_repository_contracts() -> None:
         "frontend.yml",
         "package-build.yml",
         "quality-gate.yml",
+        "release-candidate.yml",
         "release.yml",
         "security.yml",
         "tests.yml",
