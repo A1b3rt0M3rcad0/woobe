@@ -123,7 +123,7 @@ The preferred release path is the **Release Woobe** GitHub Action. Starting this
 19. The published images are pulled and smoke-tested again. Only after this post-publish smoke succeeds is the GitHub Release created, a permanent `release-manifest.json` attached, and the release branch removed.
 20. **Release Woobe reports success only after all upstream CI, candidate validation, digest promotion, post-publish smoke and GitHub Release creation have succeeded.** Reusable-workflow failure/cancellation propagates to the parent.
 
-The candidate and publication workflows are reusable release units with optional manual `workflow_dispatch` recovery entrypoints. Neither workflow is triggered by a `master` push or by a `v*` tag push. This removes the former race between tag-triggered publication and still-running candidate builds.
+The candidate workflow keeps an optional manual `workflow_dispatch` entrypoint for diagnostics/revalidation. Publication is callable only by the parent through `workflow_call`; it cannot be started directly or by a tag push. Neither workflow is triggered by a `master` push or by a `v*` tag push. This removes the former race and prevents bypassing the successful candidate gate.
 
 Release-child concurrency is serialized without cancellation. A second invocation for the same release SHA/version must wait; it must never cancel an in-progress candidate smoke or partial publication. External registry reads use bounded retries with explicit image/ref diagnostics.
 
@@ -609,7 +609,7 @@ Recovery rules:
 - **After merge but before GitHub Release:** run **Release Woobe** again with the same version. It resolves the historical merge commit of `release/<VERSION>`, reuses only candidates whose identity is valid, and resumes finalization.
 - **After GitHub Release exists:** a retry verifies the immutable tag, downloads the permanent release manifest, verifies all four versioned registry digests, architectures and OCI labels, and completes any pending release-branch cleanup before returning success.
 - Manual `release-candidate.yml` remains available for candidate diagnostics/revalidation.
-- Manual `release.yml` requires the exact validated digests and validation identity; it cannot infer release authority from a tag push alone.
+- `release.yml` has no manual dispatch entrypoint; publication authority comes only from the successful parent/candidate reusable-workflow chain.
 - Never move/reuse a published Git tag or overwrite a versioned GHCR image with different bytes.
 
 Current Core release units are:
