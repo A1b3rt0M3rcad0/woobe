@@ -144,6 +144,27 @@ def test_release_identity_uses_canonical_version_not_commit_subject() -> None:
     assert "Unable to create the release pull request" in prepare
     assert "Dispatch release-branch validation" in prepare
     assert "workflow run cla.yml" in prepare
+    assert "WOOBE_RELEASE_TOKEN_PRESENT" in prepare
+
+
+def test_validated_release_candidate_finalizes_release_automatically() -> None:
+    candidate = (ROOT / ".github/workflows/release-candidate.yml").read_text(
+        encoding="utf-8"
+    )
+    release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    assert "finalize-release:" in candidate
+    assert "Create immutable release tag" in candidate
+    assert "git tag -a" in candidate
+    assert "gh workflow run release.yml" in candidate
+    assert "github.event_name == 'push'" in candidate
+
+    assert "push:\n    tags:\n      - \"v*\"" in release
+    assert "Immutable release image already exists with a different digest" in release
+    assert "github-release:" in release
+    assert "gh release create" in release
+    assert "--generate-notes" in release
+    assert "Remove completed release branch" in release
 
 
 def test_platform_version_sync_script_covers_release_mirrors() -> None:
