@@ -37,6 +37,15 @@ jobs:
       release_pr: ${{ steps.target.outputs.existing_pr || steps.pr.outputs.number }}
       validated_head_sha: ${{ steps.gate.outputs.validated_head_sha }}
     steps:
+      - name: Require canonical workflow source
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_REF" != "refs/heads/master" ]]; then
+            echo "::error::Release Woobe must be dispatched from the master branch; got $GITHUB_REF."
+            exit 1
+          fi
+
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: master
