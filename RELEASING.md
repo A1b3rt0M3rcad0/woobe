@@ -111,18 +111,19 @@ The preferred release path is the **Release Woobe** GitHub Action. Starting this
 7. The release gate waits for the complete required CI matrix on the exact PR HEAD. Approval-required workflow runs are waited on; failed, cancelled, skipped or timed-out required checks block the release.
 8. If `master` advances while validation is running, the release branch is refreshed from current `master` and the new exact HEAD must pass CI again.
 9. Only a stable release HEAD with every required gate green is merged automatically.
-10. The resulting merge commit becomes the only release revision. **Release Woobe** explicitly dispatches **Release candidate images** for that exact SHA and waits for that exact child workflow to finish.
-11. Candidate build produces API, Workers, Frontend and Embed images for both `linux/amd64` and `linux/arm64`. Existing immutable SHA candidates may be reused, but their embedded revision/version identity is revalidated.
-12. Multi-architecture verification and production-shaped candidate smoke must pass.
-13. The candidate workflow writes an immutable `release-manifest.json` recording the version, commit, candidate run ID, supported platforms and exact SHA256 digest for each of the four images. The manifest is retained as a workflow artifact.
-14. Only after the candidate workflow is green does **Release Woobe** create or verify the immutable Git tag `v<VERSION>` on the exact merge commit.
-15. **Release Woobe** then explicitly dispatches **Publish Woobe Core images** and waits for it. Tag creation no longer independently triggers publication.
-16. Publication downloads the manifest from the successful candidate run, verifies its version/revision/run identity, rechecks the candidate digests and platforms, and promotes those exact digests to the release version without rebuilding.
-17. Promotion is idempotent. If a version tag already exists with the expected digest, it is preserved and the workflow continues; a different digest blocks the release.
-18. The published images are pulled and smoke-tested again. Only after this post-publish smoke succeeds is the GitHub Release created and the release branch removed.
-19. **Release Woobe reports success only after all upstream CI, candidate validation, digest promotion, post-publish smoke and GitHub Release creation have succeeded.** A downstream failure propagates back to the parent workflow.
+10. The resulting merge commit becomes the only release revision. **Release Woobe** invokes **Release candidate images** as a reusable workflow for that exact SHA.
+11. Candidate build produces API, Workers, Frontend and Embed images for both `linux/amd64` and `linux/arm64`. Existing immutable SHA candidates may be reused only after identity revalidation.
+12. Candidate lookup is fail-closed: only an explicit registry not-found response permits a new build; authentication, timeout and transient registry failures abort.
+13. Multi-architecture verification and production-shaped candidate smoke must pass.
+14. The candidate reusable workflow returns the exact SHA256 digest for each of the four validated images plus a validation identity directly to the parent workflow. No GitHub Actions artifact is required for orchestration.
+15. Only after candidate validation succeeds does **Release Woobe** create or verify the immutable Git tag `v<VERSION>` on the exact merge commit.
+16. **Release Woobe** invokes **Publish Woobe Core images** as a reusable workflow and passes those exact digests. Tag creation no longer independently triggers publication.
+17. Publication revalidates candidate digests/platforms and promotes those exact digests to the release version without rebuilding. Registry state must be conclusively `exists` or `not found`; an unknown/error state aborts.
+18. Promotion is idempotent. If a version tag already exists with the expected digest, it is preserved and the workflow continues; a different digest blocks the release.
+19. The published images are pulled and smoke-tested again. Only after this post-publish smoke succeeds is the GitHub Release created, a permanent `release-manifest.json` attached, and the release branch removed.
+20. **Release Woobe reports success only after all upstream CI, candidate validation, digest promotion, post-publish smoke and GitHub Release creation have succeeded.** Reusable-workflow failure/cancellation propagates to the parent.
 
-The two child workflows are deliberately dispatch-only release units. `Release candidate images` does not finalize a release on a `master` push, and `Publish Woobe Core images` does not publish merely because a `v*` tag was pushed. This removes the former race between tag-triggered publication and still-running candidate builds.
+The candidate and publication workflows are reusable release units with optional manual `workflow_dispatch` recovery entrypoints. Neither workflow is triggered by a `master` push or by a `v*` tag push. This removes the former race between tag-triggered publication and still-running candidate builds.
 
 Release-child concurrency is serialized without cancellation. A second invocation for the same release SHA/version must wait; it must never cancel an in-progress candidate smoke or partial publication. External registry reads use bounded retries with explicit image/ref diagnostics.
 
