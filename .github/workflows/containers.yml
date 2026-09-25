@@ -32,6 +32,13 @@ jobs:
         run: docker build --pull --no-cache --target api --tag woobe-api:ci .
       - name: Build Workers image
         run: docker build --pull --no-cache --target workers --tag woobe-workers:ci .
+      - name: Verify API and Workers image isolation
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint python woobe-api:ci -c "import importlib.util; import main, woobe_api; assert importlib.util.find_spec('woobe_workers') is None"
+          docker run --rm --entrypoint sh woobe-api:ci -c 'test ! -d /app/packages/woobe-workers/src'
+          docker run --rm --entrypoint python woobe-workers:ci -c "import importlib.util; import worker_main, woobe_workers; assert importlib.util.find_spec('woobe_api') is None"
+          docker run --rm --entrypoint sh woobe-workers:ci -c 'test ! -d /app/packages/woobe-api/src'
       - name: Build Web image
         run: >-
           docker build
