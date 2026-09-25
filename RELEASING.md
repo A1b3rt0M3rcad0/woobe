@@ -666,7 +666,7 @@ gh workflow run release.yml \
   -f version="$VERSION"
 ```
 
-The workflow verifies that the tag, manifest version and canonical release commit agree. It then resolves the digest of each `sha-<RELEASE_COMMIT>` candidate and creates the version tag from that exact OCI manifest. The release step fails if the versioned tag does not resolve to the same digest.
+The workflow verifies that the tag commit, canonical root `VERSION` and every release-bearing version mirror agree. It then resolves the digest of each `sha-<RELEASE_COMMIT>` candidate and creates the version tag from that exact OCI manifest. The release step fails if the versioned tag does not resolve to the same digest.
 
 This is a build-once/promote-exact-artifact contract:
 
@@ -748,9 +748,9 @@ If `master` contains changes that must not ship in the patch, create the patch b
 
 Every Woobe release must satisfy these invariants:
 
-1. One Semantic Version identifies the platform release.
-2. All release-bearing product manifests agree on that version.
-3. Generated lockfiles agree with their source manifests.
+1. Root `VERSION` is the canonical Semantic Version for the platform release.
+2. All release-bearing product manifests and runtime version mirrors agree with canonical `VERSION`.
+3. Generated lockfile version metadata agrees with canonical `VERSION` and its source manifests.
 4. The changelog contains the released version and date.
 5. Required migrations and upgrade notes are present.
 6. The exact release commit passed the required validation.
