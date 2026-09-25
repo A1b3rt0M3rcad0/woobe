@@ -2,6 +2,12 @@
 
 Woobe Core uses the root `compose.yaml` as its supported self-host topology.
 
+## CI compatibility gate
+
+Pull requests are validated against the most recent published platform tag reachable from the target branch. The Acceptance workflow initializes PostgreSQL with the previous release API image, preserves a persisted workspace probe, applies the PR's current migration image, runs Alembic consistency checks and confirms the persisted probe survives the upgrade.
+
+This gate complements fresh-install migration tests. A green upgrade check means the tested previous-release schema can transition to the PR schema for that exact commit; release-specific migration notes are still required when operator action is necessary.
+
 ## Before upgrading
 
 1. Read the release notes and migration compatibility notes for the target version.

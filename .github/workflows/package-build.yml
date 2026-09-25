@@ -1,0 +1,89 @@
+name: Package Build
+
+on:
+  pull_request:
+    branches: [development, master]
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  version-consistency:
+    name: Version consistency
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Verify release package versions
+        run: python scripts/ci/check_package_versions.py
+
+  python-packages:
+    name: Core, API and Workers packages
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v6
+      - name: Build and clean-install Python packages
+        run: bash scripts/ci/build_python_packages.sh
+
+  frontend-package:
+    name: Frontend package
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 20
+    env:
+      VITE_API_URL: http://127.0.0.1:8000
+      VITE_CHAT_EMBED_URL: http://127.0.0.1:8081
+      VITE_WOOBE_EDITION: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: packages/woobe-frontend/package-lock.json
+      - name: Install Frontend dependencies
+        working-directory: packages/woobe-frontend
+        run: npm ci
+      - name: Typecheck shared Runtime client
+        run: packages/woobe-frontend/node_modules/.bin/tsc -p packages/woobe-runtime-client/tsconfig.json --noEmit
+      - name: Build Frontend package
+        working-directory: packages/woobe-frontend
+        run: npm run build
+      - name: Verify Frontend artifact
+        run: test -d packages/woobe-frontend/dist && test -n "$(find packages/woobe-frontend/dist -type f -print -quit)"
+
+  embed-package:
+    name: Embed package
+    runs-on: [self-hosted, Linux, X64]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: packages/woobe-embed/package-lock.json
+      - name: Install Embed dependencies
+        working-directory: packages/woobe-embed
+        run: npm ci
+      - name: Typecheck Embed package
+        working-directory: packages/woobe-embed
+        run: npm run typecheck
+      - name: Build Embed package
+        working-directory: packages/woobe-embed
+        run: npm run build
+      - name: Verify Embed artifact
+        run: test -d packages/woobe-embed/dist && test -n "$(find packages/woobe-embed/dist -type f -print -quit)"

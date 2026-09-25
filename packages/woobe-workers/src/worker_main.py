@@ -38,6 +38,7 @@ from woobe_workers.consumers.network.registry import (
     configure_network_agent_invoker_factory,
 )
 from woobe_workers.contracts import ModuleWorkerEntry, WorkerProtocol
+from woobe_workers.runtime.health import heartbeat_loop
 from woobe_workers.runtime.run_event_persistence_worker import RunEventPersistenceWorker
 from woobe_workers.runtime.runner import WorkerRunner
 from woobe_workers.settings import WorkerSettings
@@ -143,6 +144,8 @@ async def run_workers(
         exchange_name=runtime_settings.rabbitmq_exchange,
     )
     runner: WorkerRunner | None = None
+    heartbeat_task: asyncio.Task[None] | None = None
+    heartbeat_stop_event = asyncio.Event()
     stop_event = asyncio.Event()
     loop, installed_signals = _install_shutdown_handlers(stop_event)
 
@@ -180,6 +183,16 @@ async def run_workers(
             extra_workers=runtime_workers,
         )
         await runner.start()
+        heartbeat_task = asyncio.create_task(
+            heartbeat_loop(
+                path=runtime_settings.worker_health_file,
+                runner=runner,
+                interval_seconds=runtime_settings.worker_heartbeat_interval_seconds,
+                stop_event=heartbeat_stop_event,
+            ),
+            name="worker-health-heartbeat",
+        )
+        heartbeat_task.add_done_callback(lambda _: stop_event.set())
 
         logger.info(
             "Worker runtime started with %d registries and %d workers",
@@ -187,11 +200,19 @@ async def run_workers(
             worker_count,
         )
         await stop_event.wait()
+        if heartbeat_task.done() and not heartbeat_stop_event.is_set():
+            error = heartbeat_task.exception()
+            if error is not None:
+                raise RuntimeError("Worker health heartbeat failed") from error
+            raise RuntimeError("Worker health heartbeat stopped unexpectedly")
     finally:
         configure_network_agent_artifact_materializer_factory(None)
         configure_network_agent_invoker_factory(None)
         if runner is not None:
             await runner.stop()
+        heartbeat_stop_event.set()
+        if heartbeat_task is not None:
+            await asyncio.gather(heartbeat_task, return_exceptions=True)
         await rabbitmq_manager.close()
         await close_http_tool_executor()
         await engine.dispose()

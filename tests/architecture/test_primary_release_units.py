@@ -83,15 +83,107 @@ def test_browser_release_units_are_built_independently() -> None:
     assert "packages/woobe-runtime-client" in embed
 
 
-def test_release_workflow_publishes_exactly_four_process_images() -> None:
-    workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
-    published = set(
-        re.findall(r"/(woobe-[a-z-]+):\$\{\{ inputs\.version \}\}", workflow)
+def test_release_candidate_builds_exactly_four_process_images() -> None:
+    candidate = (ROOT / ".github/workflows/release-candidate.yml").read_text(
+        encoding="utf-8"
     )
-    assert published == CONTAINER_RELEASE_UNITS
-    assert "target: api" in workflow
-    assert "target: workers" in workflow
-    assert "/woobe-core:" not in workflow
+    images = set(re.findall(r"\n\s+image: (woobe-[a-z-]+)", candidate))
+    assert images == CONTAINER_RELEASE_UNITS
+    assert "target: api" in candidate
+    assert "target: workers" in candidate
+    assert "dockerfile: packages/woobe-frontend/Dockerfile" in candidate
+    assert "dockerfile: packages/woobe-embed/Dockerfile" in candidate
+    assert "platforms: linux/amd64,linux/arm64" in candidate
+    assert "provenance: mode=max" in candidate
+    assert "sbom: true" in candidate
+    assert "sha-$revision" in candidate
+
+
+def test_release_promotes_candidate_without_rebuilding() -> None:
+    release = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+
+    assert "docker/build-push-action" not in release
+    assert "docker build " not in release
+    assert "docker buildx imagetools create" in release
+    assert 'candidate_tag="sha-${{ steps.meta.outputs.revision }}"' in release
+    assert 'test "$target_digest" = "$source_digest"' in release
+    assert "post-publish-smoke:" in release
+    assert "smoke_prebuilt_core_images.sh" in release
+    assert "/woobe-core:" not in release
+
+
+def test_container_ci_reproduces_release_candidate_multiarch_contract() -> None:
+    candidate = (ROOT / ".github/workflows/release-candidate.yml").read_text(
+        encoding="utf-8"
+    )
+    containers = (ROOT / ".github/workflows/containers.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "release-multiarch-build:" in containers
+    assert "runs-on: ubuntu-latest" in containers
+    assert containers.count("platforms: linux/amd64,linux/arm64") == 4
+    assert containers.count("push: false") == 4
+    assert "docker/setup-qemu-action@v3" in containers
+    assert "docker/setup-buildx-action@v3" in containers
+
+    for token in (
+        "target: api",
+        "target: workers",
+        "packages/woobe-frontend/Dockerfile",
+        "packages/woobe-embed/Dockerfile",
+    ):
+        assert token in candidate
+        assert token in containers
+
+
+def test_release_candidate_sha_tags_are_reused_not_overwritten() -> None:
+    candidate = (ROOT / ".github/workflows/release-candidate.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert "Check immutable candidate existence" in candidate
+    assert "steps.candidate.outputs.exists != 'true'" in candidate
+    assert "Verify immutable candidate identity" in candidate
+    assert "org.opencontainers.image.revision" in candidate
+    assert "org.opencontainers.image.version" in candidate
+
+
+def test_acceptance_validates_previous_release_upgrade() -> None:
+    acceptance = (ROOT / ".github/workflows/acceptance.yml").read_text(
+        encoding="utf-8"
+    )
+    upgrade = (ROOT / "scripts/ci/validate_previous_release_upgrade.sh").read_text(
+        encoding="utf-8"
+    )
+
+    assert "previous-release-upgrade:" in acceptance
+    assert "validate_previous_release_upgrade.sh" in acceptance
+    assert "git tag --merged" in upgrade
+    assert "ghcr.io/" in upgrade
+    assert "alembic" in upgrade
+    assert "release-upgrade-probe" in upgrade
+
+
+def test_prebuilt_image_smoke_contract_covers_all_container_units() -> None:
+    override = (ROOT / "docker/ci/compose.release-images.yml").read_text(
+        encoding="utf-8"
+    )
+    smoke = (ROOT / "scripts/ci/smoke_prebuilt_core_images.sh").read_text(
+        encoding="utf-8"
+    )
+
+    for variable in (
+        "WOOBE_API_IMAGE",
+        "WOOBE_WORKERS_IMAGE",
+        "WOOBE_FRONTEND_IMAGE",
+        "WOOBE_EMBED_IMAGE",
+    ):
+        assert variable in override
+        assert variable in smoke
+    assert "--no-build" in smoke
+    assert "smoke_production.sh" in smoke
+    assert "WOOBE_WORKER_HEALTH_FILE" in smoke
 
 
 def test_compose_selects_api_and_workers_targets_explicitly() -> None:

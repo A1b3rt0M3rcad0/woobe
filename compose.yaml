@@ -179,6 +179,17 @@ services:
         condition: service_healthy
       mongodb:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -m woobe_workers.runtime.health check
+          "${WOOBE_WORKER_HEALTH_FILE:-/tmp/woobe/worker-health.json}"
+          "${WOOBE_WORKER_HEALTH_MAX_AGE_SECONDS:-45}"
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 15s
 
   web:
     build:

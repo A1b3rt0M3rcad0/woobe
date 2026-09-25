@@ -10,6 +10,23 @@ def read(path: str) -> str:
     return (ROOT / path).read_text(encoding="utf-8")
 
 
+def _dockerfile_instructions(content: str) -> list[str]:
+    instructions: list[str] = []
+    current: list[str] = []
+    for raw_line in content.splitlines():
+        stripped = raw_line.strip()
+        if not current and (not stripped or stripped.startswith("#")):
+            continue
+        current.append(stripped.rstrip("\\").strip())
+        if raw_line.rstrip().endswith("\\"):
+            continue
+        instructions.append(" ".join(part for part in current if part))
+        current = []
+    if current:
+        instructions.append(" ".join(part for part in current if part))
+    return instructions
+
+
 def manifest_keys(environment: str) -> set[str]:
     keys: set[str] = set()
     for raw_line in environment.splitlines():
@@ -143,6 +160,8 @@ def test_frontend_build_contract_includes_api_chat_surface_and_edition() -> None
     assert "VITE_API_URL" in dockerfile
     assert "VITE_CHAT_EMBED_URL" in dockerfile
     assert "VITE_WOOBE_EDITION" in dockerfile
+    assert "npm run build" in dockerfile
+    assert "npm run test:run" not in dockerfile
     entrypoint = read("packages/woobe-frontend/docker-entrypoint.sh")
     assert "WOOBE_PUBLIC_API_URL" in entrypoint
     assert "WOOBE_PUBLIC_CHAT_EMBED_URL" in entrypoint
@@ -150,6 +169,28 @@ def test_frontend_build_contract_includes_api_chat_surface_and_edition() -> None
     index = read("packages/woobe-frontend/index.html")
     assert "/runtime-config.js" in index
     assert 'org.opencontainers.image.licenses="LicenseRef-Woobe-Core-Sustainable-Use-1.0"' in dockerfile
+
+
+def test_browser_image_builds_do_not_execute_test_suites() -> None:
+    frontend = read("packages/woobe-frontend/Dockerfile")
+    embed = read("packages/woobe-embed/Dockerfile")
+
+    frontend_runs = [
+        instruction
+        for instruction in _dockerfile_instructions(frontend)
+        if instruction.startswith("RUN ")
+    ]
+    embed_runs = [
+        instruction
+        for instruction in _dockerfile_instructions(embed)
+        if instruction.startswith("RUN ")
+    ]
+
+    assert any("npm run build" in instruction for instruction in frontend_runs)
+    assert all("npm run test:run" not in instruction for instruction in frontend_runs)
+    assert any("npm run build" in instruction for instruction in embed_runs)
+    assert all("npm run test" not in instruction for instruction in embed_runs)
+    assert all("npm run typecheck" not in instruction for instruction in embed_runs)
 
 
 def test_runtime_security_matrix_covers_private_resource_families() -> None:

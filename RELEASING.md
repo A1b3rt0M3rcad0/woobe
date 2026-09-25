@@ -397,9 +397,20 @@ Run any additional package, architecture, E2E, acceptance, security and containe
 
 ### Container/release artifact validation
 
+Validate package artifacts before container publication:
+
+- `woobe-core`, `woobe-api` and `woobe-workers` build wheel and source distributions;
+- clean environments can install the exact local Core + API and Core + Workers artifacts without source-tree path coupling;
+- Frontend and Embed produce production bundles from clean dependency installs;
+- all release-bearing package manifests agree on the platform version.
+
+The per-PR `Package Build` workflow enforces this contract continuously.
+
 Validate the exact images intended for publication:
 
 - successful multi-architecture build where supported;
+- smoke the prebuilt API, Workers, Frontend and Embed images without allowing Compose to rebuild them;
+- validate schema upgrade from the most recent release tag reachable from the target branch to the PR schema while preserving a persisted-state probe;
 - non-root execution;
 - OCI license metadata;
 - SBOM generation;
@@ -463,6 +474,10 @@ Verify that the checked-out commit is the intended release commit and that no un
 
 If `master` advanced in a way that changes the release contents, do not tag blindly. Re-evaluate the exact commit being released.
 
+The canonical release commit automatically triggers `.github/workflows/release-candidate.yml` when its subject is `chore(release): prepare Woobe v<VERSION>`. Wait for that workflow to succeed before creating the release tag. It builds the four multi-architecture container artifacts once, publishes immutable `sha-<commit>` candidate tags with provenance/SBOM attestations, verifies both release architectures and smoke-tests those exact candidate images.
+
+The candidate workflow is part of the release gate. A failed or missing candidate must be fixed by a new commit/release candidate; do not tag a commit whose immutable candidate did not pass.
+
 ## 13. Create the Git tag
 
 Create an annotated tag from the exact reviewed release commit:
@@ -486,6 +501,8 @@ git rev-parse HEAD
 ```
 
 They must identify the intended release commit.
+
+The corresponding `sha-<commit>` release candidates must already exist and have passed the candidate workflow before this tag is created.
 
 ## 14. Publish the GitHub Release
 
@@ -624,29 +641,54 @@ The GitHub Release must point to the immutable tag, never to a moving branch.
 
 ## 15. Publish Core container images
 
-The current release workflow is:
+The release workflow is:
 
 ```text
 .github/workflows/release.yml
 ```
 
-It accepts the Semantic Version without the `v` prefix and publishes versioned Core images.
+It does **not rebuild** the release images. The exact multi-architecture artifacts were already built, attested and smoke-tested by `.github/workflows/release-candidate.yml` from the canonical release commit.
 
-The published Web image is deployment-neutral. Public API and ChatSurface endpoints are supplied when the container starts through `WOOBE_PUBLIC_API_URL` and `WOOBE_PUBLIC_CHAT_EMBED_URL`; they are not baked into the release image.
+For each container unit, the candidate identity is:
 
-Run the workflow against the exact release tag/ref, not against a later `master` commit.
+```text
+ghcr.io/<owner>/woobe-api:sha-<RELEASE_COMMIT>
+ghcr.io/<owner>/woobe-workers:sha-<RELEASE_COMMIT>
+ghcr.io/<owner>/woobe-frontend:sha-<RELEASE_COMMIT>
+ghcr.io/<owner>/woobe-embed:sha-<RELEASE_COMMIT>
+```
 
-With GitHub CLI, the intended shape is:
+After the immutable `v<VERSION>` tag exists, run `release.yml` against that tag:
 
 ```bash
-VERSION=0.14.0
+VERSION=0.15.0
 
 gh workflow run release.yml \
   --ref "v$VERSION" \
   -f version="$VERSION"
 ```
 
-Verify the resulting artifacts correspond to the release commit and expected version. Then verify the Web image can be started with deployment-specific runtime endpoints without rebuilding it.
+The workflow verifies that the tag, manifest version and canonical release commit agree. It then resolves the digest of each `sha-<RELEASE_COMMIT>` candidate and creates the version tag from that exact OCI manifest. The release step fails if the versioned tag does not resolve to the same digest.
+
+This is a build-once/promote-exact-artifact contract:
+
+```text
+canonical release commit
+        ↓
+multi-arch candidate build
+        ↓
+candidate smoke + attestations
+        ↓
+sha-<commit> immutable image
+        ↓
+v<VERSION> tag
+        ↓
+digest-preserving promotion
+        ↓
+<VERSION> image tag
+```
+
+The workflow then pulls the published version tags back from GHCR, verifies their OCI revision/version labels and performs a clean production-shaped smoke test using the registry-delivered images. Publication is not considered successful until that post-publish smoke job passes.
 
 Current Core release units are:
 
@@ -656,18 +698,16 @@ Current Core release units are:
 - `woobe-frontend:<VERSION>` — independently deployable administrative Web container;
 - `woobe-embed:<VERSION>` — independently deployable ChatSurface container.
 
-The release workflow publishes the four container units. Core is not published as a standalone container because it is a library/migration boundary rather than a process host.
+The release workflow promotes the four container units. Core is not published as a standalone container because it is a library/migration boundary rather than a process host.
 
-Do not publish an image under a release version when its source commit differs from the Git tag carrying that version.
-
-If a moving alias such as `latest` is introduced in the future, it must be treated as a convenience pointer only. Immutable version tags remain the source of release identity.
+Do not rebuild a release version from the tag after the candidate has passed. A defect requires a new commit and a new version; never move a published tag or replace an immutable version with different bytes.
 
 ## 16. Post-release verification
 
-After publication:
+After publication, the release workflow already pulls the versioned images back from GHCR and smoke-tests those exact registry artifacts. Complete the remaining release verification:
 
-1. Pull/install from the published release artifacts rather than the local build cache.
-2. Start a clean installation.
+1. Confirm the post-publish smoke job succeeded and candidate/version image digests matched during promotion.
+2. Start or inspect a clean installation using the published artifacts.
 3. Verify the reported platform version where exposed.
 4. Verify API readiness and core UI access.
 5. Execute representative Agent and Network Runs.
@@ -725,3 +765,6 @@ Every Woobe release must satisfy these invariants:
 13. The GitHub Release preserves PR-to-author attribution for changes included in the release.
 14. First-time human contributors are acknowledged when applicable.
 15. The Full Changelog comparison uses the previous published platform tag, or the explicitly recorded baseline for the first public release.
+16. The canonical release commit produced a successful immutable `sha-<commit>` candidate for all four container units before tagging.
+17. Versioned container tags are digest-preserving promotions of those tested candidates, not rebuilds.
+18. The registry-delivered versioned images passed post-publish smoke validation.
