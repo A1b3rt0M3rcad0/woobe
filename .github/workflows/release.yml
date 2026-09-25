@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: Semantic version without v prefix, for example 0.13.0
+        description: Semantic version without v prefix, for example 0.14.0
         required: true
         type: string
 
@@ -39,9 +39,19 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
+          target: api
           platforms: linux/amd64,linux/arm64
           push: true
           tags: ghcr.io/${{ steps.ghcr.outputs.owner }}/woobe-api:${{ inputs.version }}
+
+      - name: Build and push Core Workers
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: workers
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ghcr.io/${{ steps.ghcr.outputs.owner }}/woobe-workers:${{ inputs.version }}
 
       - name: Build and push Core Web reference image
         uses: docker/build-push-action@v6
